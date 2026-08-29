@@ -48,19 +48,33 @@
   custom firmware image to it through WMI. This is the decisive test.
 
 .PARAMETER IsolationType
-  SNP or TDX. Defaults to SNP on AMD and TDX on Intel.
+  SNP, TDX or VBS. Defaults to SNP on AMD and TDX on Intel.
+
+  VBS is the DRY RUN. It exercises the identical code path -- New-VM with an
+  isolation type, then ModifySystemSettings writing GuestFeatureSet + FirmwareFile
+  onto Msvm_VirtualSystemSettingData -- but needs no SEV-SNP or TDX silicon, no
+  EnableHardwareIsolation, and no firmware change. vmwp.exe routes VBS isolated
+  VMs through the same IGVM loader as SNP ones ("Isolation settings are a
+  required parameter for SNP or VBS isolated VMs"; VbsVpContext and
+  _IGVM_VHS_VBS_MEASUREMENT sit beside SnpVpContext in the same binary).
+
+  So `-Attempt -IsolationType VBS` on ANY Windows 11 24H2 machine with VBS on
+  answers "does a custom IGVM compose with an isolated VM" without touching a
+  production box. What it does NOT answer is whether the hypervisor will grant
+  SNP specifically -- that is Get-VMHost SnpStatus on real EPYC silicon.
 
 .PARAMETER KeepVm
   Leave the probe VM behind for inspection instead of deleting it.
 
 .EXAMPLE
   .\Test-EnclaveHost.ps1
-  .\Test-EnclaveHost.ps1 -Attempt        # run elevated
+  .\Test-EnclaveHost.ps1 -Attempt                        # run elevated
+  .\Test-EnclaveHost.ps1 -Attempt -IsolationType VBS     # dry run, any Win11 24H2 box
 #>
 [CmdletBinding()]
 param(
     [switch]$Attempt,
-    [ValidateSet('SNP', 'TDX')][string]$IsolationType,
+    [ValidateSet('SNP', 'TDX', 'VBS')][string]$IsolationType,
     [switch]$KeepVm
 )
 
@@ -209,6 +223,10 @@ try {
 }
 
 if (-not $IsolationType) { $IsolationType = if ($cpuFamily -eq 'xeon') { 'TDX' } else { 'SNP' } }
+if ($IsolationType -eq 'VBS') {
+    Add-Finding 'mode' 'info' ('VBS dry run: same New-VM + ModifySystemSettings path as SNP, but no confidential silicon required. ' +
+        'A pass proves the custom-IGVM MECHANISM, not that this host can do SNP.')
+}
 
 # ---------------------------------------------------------------------------
 # 3. Hyper-V present, and on Home: is it stageable?
@@ -303,7 +321,7 @@ try {
     if ($hwIso -ge 1) {
         Add-Finding 'EnableHardwareIsolation' 'pass' "= $hwIso (1 = enable, 2 = force)"
     } else {
-        Add-Finding 'EnableHardwareIsolation' 'fail' ('not set. Elevated: reg add "HKLM\System\CurrentControlSet\Control\Hypervisor" /v EnableHardwareIsolation /t REG_DWORD /d 1 /f ; then REBOOT. ' +
+        Add-Finding 'EnableHardwareIsolation' $(if ($IsolationType -eq 'VBS') { 'info' } else { 'fail' }) ('not set. Elevated: reg add "HKLM\System\CurrentControlSet\Control\Hypervisor" /v EnableHardwareIsolation /t REG_DWORD /d 1 /f ; then REBOOT. ' +
             'This is the host gate Microsoft flips before its own SNP/TDX Hyper-V tests.')
     }
     $sevSnp = $null
@@ -525,15 +543,20 @@ $vmAccepted = @($script:Findings | Where-Object { $_.Area -eq 'isolated VM test'
 $fwAccepted = @($script:Findings | Where-Object { $_.Area -like 'custom IGVM*' -and $_.Status -eq 'pass' }).Count -gt 0
 $hostSaysYes = ($IsolationType -eq 'SNP' -and $snpStatus -eq 1) -or ($IsolationType -eq 'TDX' -and $tdxStatus -eq 1)
 
-if ($vmAccepted -and $fwAccepted) {
+if ($vmAccepted -and $fwAccepted -and $IsolationType -eq 'VBS') {
+    Write-Host 'DRY RUN PASSED: this host created a VBS-isolated VM and accepted a custom firmware file on it.' -ForegroundColor Green
+    Write-Host 'The custom-IGVM mechanism works. Still unproven: whether the hypervisor grants SNP on' -ForegroundColor Green
+    Write-Host 'confidential silicon - that is EnableHardwareIsolation + a reboot + SnpStatus on an EPYC box.' -ForegroundColor Green
+} elseif ($vmAccepted -and $fwAccepted) {
     Write-Host "This host CREATED a $IsolationType-isolated VM and accepted a custom firmware file on it." -ForegroundColor Green
     Write-Host 'Next: build the metal guest as an IGVM (x64-cvm), point FirmwareFile at it, Start-VM, pull a report.' -ForegroundColor Green
 } elseif ($vmAccepted) {
     Write-Host "This host CREATED a $IsolationType-isolated VM but the custom-firmware write was refused or inconclusive - see above." -ForegroundColor Yellow
 } elseif ($hostSaysYes -and -not $Attempt) {
     Write-Host "Get-VMHost says $IsolationType is available here. Re-run elevated with -Attempt for the decisive answer." -ForegroundColor Green
-} elseif ($null -eq $hwIso -or $hwIso -lt 1) {
+} elseif (($null -eq $hwIso -or $hwIso -lt 1) -and $IsolationType -ne 'VBS') {
     Write-Host 'EnableHardwareIsolation is not set. Set it (see above), reboot, and re-run - nothing else is meaningful until then.' -ForegroundColor Yellow
+    Write-Host 'Or dry-run the mechanism on any machine now:  -Attempt -IsolationType VBS' -ForegroundColor Yellow
 } elseif ($fails.Count -gt 0) {
     Write-Host "$($fails.Count) blocking finding(s):" -ForegroundColor Red
     foreach ($f in $fails) { Write-Host "  - $($f.Area): $($f.Detail)" -ForegroundColor Red }
