@@ -31,6 +31,21 @@ mount -t ntfs3 -o "$MODE" "$WINPART" "$MNT" 2>/dev/null \
 echo "mounted $WINPART $MODE"
 [ -d "$MNT/Windows/Panther" ] || die "no Windows\\Panther directory -- wrong partition?"
 
+echo
+echo "=== did the OOBE driver update actually land? ==="
+NV=$(find "$MNT/Windows/System32/drivers" -maxdepth 1 -iname 'nvlddmkm.sys' 2>/dev/null)
+if [ -n "$NV" ]; then
+  echo "  nvlddmkm.sys PRESENT -- the NVIDIA driver installed:"
+  ls -la $NV | sed 's/^/    /'
+else
+  echo "  nvlddmkm.sys absent -- still on Microsoft Basic Display"
+fi
+NVPKG=$(find "$MNT/Windows/System32/DriverStore/FileRepository" -maxdepth 1 -iname 'nv*' 2>/dev/null | wc -l)
+echo "  NVIDIA packages staged in DriverStore: $NVPKG"
+BASIC=$(find "$MNT/Windows/System32/drivers" -maxdepth 1 -iname 'BasicDisplay.sys' 2>/dev/null | wc -l)
+echo "  BasicDisplay.sys present: $BASIC"
+echo
+
 TMP=$(mktemp)
 cat > "$TMP" <<XML
 <?xml version="1.0" encoding="utf-8"?>
