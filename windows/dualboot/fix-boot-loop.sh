@@ -29,11 +29,12 @@ set -uo pipefail
 WINPART="${1:-}"; [ -n "$WINPART" ] && [ -b "$WINPART" ] || WINPART=/dev/nvme0n1p3
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HP="$HERE/../vmtest/hivepatch.py"
-APPLY=0; PENDING=0; RESTORE=""
+APPLY=0; PENDING=0; RESTORE=""; FIXDIRTY=0
 for a in "$@"; do
   case "$a" in
     --apply) APPLY=1 ;;
     --revert-pending) PENDING=1 ;;
+    --fix-dirty) FIXDIRTY=1 ;;
     --restore) RESTORE=PENDING_ARG ;;
     /dev/*) ;;
     *) [ "$RESTORE" = PENDING_ARG ] && RESTORE="$a" ;;
@@ -42,16 +43,14 @@ done
 die() { echo "error: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must run as root"
 [ -f "$HP" ] || die "hivepatch.py not found at $HP"
+. "$HERE/_ntfs.sh"
 
 MNT=$(mktemp -d)
 trap 'umount "$MNT" 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true' EXIT
 MODE=ro
 [ "$APPLY" = 1 ] && MODE=rw
 [ -n "$RESTORE" ] && [ "$RESTORE" != PENDING_ARG ] && MODE=rw
-mount -t ntfs3 -o "$MODE" "$WINPART" "$MNT" 2>/dev/null \
-  || mount -o "$MODE" "$WINPART" "$MNT" 2>/dev/null \
-  || die "could not mount $WINPART $MODE (if it says dirty, boot Windows once or use ntfsfix)"
-echo "mounted $WINPART $MODE"
+ntfs_mount "$WINPART" "$MNT" "$MODE" "$FIXDIRTY" || exit 1
 
 HIVE="$MNT/Windows/System32/config/SYSTEM"
 [ -f "$HIVE" ] || HIVE=$(find "$MNT/Windows/System32/config" -maxdepth 1 -iname SYSTEM -type f | head -1)

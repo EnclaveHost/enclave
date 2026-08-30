@@ -17,18 +17,22 @@ set -uo pipefail
 WINPART=/dev/nvme0n1p3
 USERNAME="${USERNAME_OVERRIDE:-enclave}"
 PASSWORD="${PASSWORD_OVERRIDE:-Enclave!2026}"
-APPLY=0
-[ "${1:-}" = --apply ] && APPLY=1
+APPLY=0; FIXDIRTY=0
+for a in "$@"; do
+  case "$a" in
+    --apply) APPLY=1 ;;
+    --fix-dirty) FIXDIRTY=1 ;;
+  esac
+done
 die() { echo "error: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must run as root"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$HERE/_ntfs.sh"
 
 MNT=$(mktemp -d)
 trap 'umount "$MNT" 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true' EXIT
 MODE=ro; [ "$APPLY" = 1 ] && MODE=rw
-mount -t ntfs3 -o "$MODE" "$WINPART" "$MNT" 2>/dev/null \
-  || mount -o "$MODE" "$WINPART" "$MNT" 2>/dev/null \
-  || die "could not mount $WINPART $MODE"
-echo "mounted $WINPART $MODE"
+ntfs_mount "$WINPART" "$MNT" "$MODE" "$FIXDIRTY" || exit 1
 [ -d "$MNT/Windows/Panther" ] || die "no Windows\\Panther directory -- wrong partition?"
 
 echo
