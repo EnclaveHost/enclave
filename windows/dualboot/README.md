@@ -88,6 +88,35 @@ Then, in Windows:
     shutdown /r /t 0
     Get-VMHost | Select-Object SnpStatus, TdxStatus, GuestIsolationTypes
 
+## If the install boot-loops
+
+Evidence gathered offline, in order:
+
+  sudo ./diagnose-windows.sh    # dumps, Setup logs, did the install finish
+  sudo ./diagnose-oobe.sh       # OOBE log + the Setup key from the SYSTEM hive
+  sudo ./diagnose-loop.sh       # update-rollback markers vs hard-reset evidence
+  sudo ./fix-boot-loop.sh       # dry run; add --apply to act
+
+What the first pass found here: the install completed (ChildCompletion
+setup.exe/oobeldr.exe/SetupFinalTasks all 3, GeneralizationState 7), there is
+no crash dump anywhere, and OOBE ran to `Detected Reboot Required after ZDP
+install`. Setup enabled VBS (`EnableVirtualizationBasedSecurity=1`, HVCI
+`Enabled=1`) and the BCD sets neither `hypervisorlaunchtype` nor
+`vsmlaunchtype`, so both default to Auto and the Microsoft hypervisor launches
+every boot -- while SEV-SNP is active in firmware, the RMP is enforcing, and
+`Control\Hypervisor` does not exist so the SNP-host path is off. A triple
+fault there resets the machine with no BSOD and no dump, which matches the
+missing dumps exactly.
+
+`fix-boot-loop.sh --apply` turns VBS and HVCI off and sets
+`CrashControl\AutoReboot=0` so a bugcheck stays on screen. It backs the hive
+up first and prints the `--restore` command.
+
+Note the hive may be dirty (Windows was reset before flushing). Replay of
+SYSTEM.LOG1/LOG2 cannot corrupt an in-place edit -- it writes back whole pages
+of the original -- but it can silently revert one, so a value that reads back
+as 1 after a boot attempt just needs the edit repeating.
+
 ## Undo
 
 `shrink-vm.sh` only shrinks; to give the space back, delete the Windows

@@ -29,6 +29,17 @@ class Hive:
         if self.d[:4] != b'regf':
             raise ValueError(f'{path}: not a registry hive (bad magic)')
         self.root = struct.unpack_from('<I', self.d, 0x24)[0]
+        # A hive closed cleanly has primary == secondary. If they differ the
+        # hive is dirty and Windows will replay SYSTEM.LOG1/LOG2 over it at
+        # load. That cannot corrupt an in-place edit -- replay writes whole
+        # logged pages of the ORIGINAL data back -- but it can silently revert
+        # one, so the caller is told rather than guessing why nothing changed.
+        self.seq_primary = struct.unpack_from('<I', self.d, 0x04)[0]
+        self.seq_secondary = struct.unpack_from('<I', self.d, 0x08)[0]
+
+    @property
+    def clean(self):
+        return self.seq_primary == self.seq_secondary
 
     # --- cell helpers ------------------------------------------------------
     def cell(self, off):
@@ -174,8 +185,13 @@ class Hive:
 
 
 def main():
+    if len(sys.argv) >= 3 and sys.argv[2] == 'check':
+        h = Hive(sys.argv[1])
+        state = 'CLEAN' if h.clean else 'DIRTY (logs pending replay)'
+        print(f'  {sys.argv[1]}: seq {h.seq_primary}/{h.seq_secondary} -- {state}')
+        return 0 if h.clean else 3
     if len(sys.argv) < 4:
-        print('usage: hivepatch.py <hive> get|set|dump <KeyPath> [<Value>] [newdword]')
+        print('usage: hivepatch.py <hive> get|set|dump|check <KeyPath> [<Value>] [newdword]')
         return 2
     hive_path, op, keypath = sys.argv[1:4]
     h = Hive(hive_path)
@@ -183,6 +199,11 @@ def main():
     if nk is None:
         print(f'  {keypath}: KEY NOT FOUND')
         return 1
+
+    if op == 'check':
+        state = 'CLEAN' if h.clean else 'DIRTY (logs pending replay)'
+        print(f'  {hive_path}: seq {h.seq_primary}/{h.seq_secondary} -- {state}')
+        return 0 if h.clean else 3
 
     if op == 'dump':
         print(f'  [{keypath}]')
