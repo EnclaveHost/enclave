@@ -4,7 +4,8 @@ hivepatch.py -- minimal Windows registry hive reader/patcher.
 
 Exists because this host has no chntpw/hivex and installing packages on a
 production box to fix a USB boot is the wrong trade. Scope is deliberately tiny:
-navigate to a key, read a REREG_DWORD value, and optionally overwrite it IN PLACE.
+navigate to a key, list or read its values, and optionally overwrite a REG_DWORD
+IN PLACE.
 
 In-place only. A DWORD whose data is <= 4 bytes is stored inline inside the vk
 record (data_size has bit 31 set, data lives in the data_offset field), so
@@ -110,6 +111,51 @@ class Hive:
                 return vk
         return None
 
+    TYPES = {0: 'REG_NONE', 1: 'REG_SZ', 2: 'REG_EXPAND_SZ', 3: 'REG_BINARY',
+             4: 'REG_DWORD', 5: 'REG_DWORD_BE', 7: 'REG_MULTI_SZ',
+             11: 'REG_QWORD'}
+
+    def value_names(self, nk):
+        count = self.u32(nk + 36)
+        lst = self.u32(nk + 40)
+        if count == 0 or lst == 0xFFFFFFFF:
+            return []
+        base, _ = self.cell(lst)
+        out = []
+        for i in range(count):
+            vk, _ = self.cell(self.u32(base + i * 4))
+            if bytes(self.d[vk:vk + 2]) != b'vk':
+                continue
+            nlen = self.u16(vk + 2)
+            flags = self.u16(vk + 16)
+            raw = bytes(self.d[vk + 20: vk + 20 + nlen])
+            out.append((raw.decode('latin-1' if flags & 1 else 'utf-16-le', 'replace'), vk))
+        return out
+
+    def read_value(self, vk):
+        """Return (type_name, python value) for any vk record."""
+        size = self.u32(vk + 4)
+        off = self.u32(vk + 8)
+        vtype = self.u32(vk + 12)
+        tname = self.TYPES.get(vtype, f'type{vtype}')
+        if size & 0x80000000:
+            n = size & 0x7FFFFFFF
+            raw = bytes(self.d[vk + 8: vk + 8 + min(n, 4)])
+        else:
+            if size > 16344:
+                return tname, '<big data, not supported>'
+            start, _ = self.cell(off)
+            raw = bytes(self.d[start:start + size])
+        if vtype in (1, 2):
+            return tname, raw.decode('utf-16-le', 'replace').rstrip('\x00')
+        if vtype == 7:
+            return tname, raw.decode('utf-16-le', 'replace').rstrip('\x00').split('\x00')
+        if vtype == 4 and len(raw) >= 4:
+            return tname, struct.unpack_from('<I', raw)[0]
+        if vtype == 11 and len(raw) >= 8:
+            return tname, struct.unpack_from('<Q', raw)[0]
+        return tname, raw.hex()
+
     def read_dword(self, vk):
         size = self.u32(vk + 4)
         if not (size & 0x80000000):
@@ -129,14 +175,29 @@ class Hive:
 
 def main():
     if len(sys.argv) < 4:
-        print('usage: hivepatch.py <SYSTEM hive> get|set <KeyPath> <Value> [newdword]')
+        print('usage: hivepatch.py <hive> get|set|dump <KeyPath> [<Value>] [newdword]')
         return 2
-    hive_path, op, keypath, valname = sys.argv[1:5]
+    hive_path, op, keypath = sys.argv[1:4]
     h = Hive(hive_path)
     nk = h.find_key(keypath)
     if nk is None:
         print(f'  {keypath}: KEY NOT FOUND')
         return 1
+
+    if op == 'dump':
+        print(f'  [{keypath}]')
+        for name, vk in h.value_names(nk):
+            tname, val = h.read_value(vk)
+            print(f'    {name or "(Default)":<28} {tname:<14} {val!r}')
+        subs = [h.nk_name(h.cell(o)[0]) for o in h.subkey_offsets(nk)]
+        if subs:
+            print(f'    subkeys: {", ".join(sorted(subs))}')
+        return 0
+
+    if len(sys.argv) < 5:
+        print('usage: hivepatch.py <hive> get|set <KeyPath> <Value> [newdword]')
+        return 2
+    valname = sys.argv[4]
     vk = h.find_value(nk, valname)
     if vk is None:
         print(f'  {keypath}\\{valname}: VALUE NOT FOUND')
