@@ -80,29 +80,45 @@ ls -la "$MNT/Windows/System32/drivers/nvlddmkm.sys" 2>/dev/null | sed 's/^/  /' 
 echo "  DriverStore nv* packages: $(find "$MNT/Windows/System32/DriverStore/FileRepository" -maxdepth 1 -iname 'nv*' 2>/dev/null | wc -l)"
 echo
 
+echo "=== recent crash dumps (is it bugchecking now?) ==="
+find "$MNT/Windows/Minidump" -iname '*.dmp' 2>/dev/null | sed 's/^/  /' || true
+[ -f "$MNT/Windows/MEMORY.DMP" ] && ls -la "$MNT/Windows/MEMORY.DMP" | sed 's/^/  /'
+find "$MNT/Windows/Minidump" -iname '*.dmp' 2>/dev/null | grep -q . || echo "  none"
+echo
+
 [ "$ACTION" = show ] && { echo "Nothing changed.  Use --disable or --enable."; exit 0; }
 
-CUR=$(python3 "$HP" "$HIVE" get "$CS\\Services\\$SERVICE" Start 2>&1 | grep -oE '[0-9]+$')
-if [ -z "$CUR" ]; then
-  echo "  $SERVICE has no Start value -- driver not installed as a service."
-  echo "  Nothing to toggle; the flashing is a partly-installed driver, and"
-  echo "  the DriverStore package is what needs removing."
-  exit 1
-fi
-
+SYS="$MNT/Windows/System32/drivers/nvlddmkm.sys"
 BK="/var/tmp/winhive-nv-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$BK"; cp "$HIVE" "$BK/SYSTEM"
 echo "  hive backed up to $BK"
+CUR=$(python3 "$HP" "$HIVE" get "$CS\\Services\\$SERVICE" Start 2>&1 | grep -oE '[0-9]+$')
 
 if [ "$ACTION" = disable ]; then
-  echo "$CUR" > "$STATEFILE"
-  echo "  recorded original Start=$CUR in $STATEFILE"
-  python3 "$HP" "$HIVE" set "$CS\\Services\\$SERVICE" Start 4
+  # Two independent levers. The registry edit is the clean one, but a hive
+  # Windows never flushed can replay its logs and revert it. Renaming the
+  # binary cannot be undone by log replay, so do both.
+  if [ -n "$CUR" ]; then
+    echo "$CUR" > "$STATEFILE"
+    echo "  recorded original Start=$CUR in $STATEFILE"
+    python3 "$HP" "$HIVE" set "$CS\\Services\\$SERVICE" Start 4
+  else
+    echo "  no $SERVICE service in the hive -- the install never registered one"
+  fi
+  if [ -f "$SYS" ]; then
+    mv -v "$SYS" "$SYS.disabled" | sed 's/^/  /'
+    echo "  nvlddmkm.sys renamed; Windows falls back to Microsoft Basic Display"
+  else
+    echo "  nvlddmkm.sys not present -- nothing to rename"
+  fi
   echo
-  echo "Windows will boot on Microsoft Basic Display: low resolution, stable."
+  echo "A display miniport that fails to load is not fatal: only BOOT_START"
+  echo "drivers bugcheck when missing, and this is not one. Expect low"
+  echo "resolution and a stable desktop."
 else
   WANT=$(cat "$STATEFILE" 2>/dev/null || echo 1)
-  python3 "$HP" "$HIVE" set "$CS\\Services\\$SERVICE" Start "$WANT"
+  [ -n "$CUR" ] && python3 "$HP" "$HIVE" set "$CS\\Services\\$SERVICE" Start "$WANT"
+  [ -f "$SYS.disabled" ] && mv -v "$SYS.disabled" "$SYS" | sed 's/^/  /'
   echo
-  echo "Restored Start=$WANT."
+  echo "Restored (Start=$WANT, driver binary back in place)."
 fi
 sync
