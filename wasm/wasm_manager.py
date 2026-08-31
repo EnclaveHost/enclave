@@ -1566,16 +1566,27 @@ def _probe_serve_output(extra_args, env_extra, timeout=45.0):
             pass
 
 
-def _nn_budgets(gpu_share, cpu_share, shielded_vram_gb, vram_bytes, nn_resident_other=0):
+def _nn_budgets(gpu_share, cpu_share, vram_bytes, nn_resident_other=0):
     """Which memory a preloaded graph must fit here, and what to call it.
 
     Returns (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
-             ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant).
+             ggml_budget_bytes, ggml_budget_kind, gpu_tenant).
 
     Split out of _volume_args so it can be driven directly: this is the gate
     that decides whether a mounted volume is preloaded at all, and getting it
     wrong is silent - the model simply never appears and the app reports it
-    unfit. test/nn-budgets.test.mjs pins the four tenant shapes.
+    unfit. test/nn-budgets.test.mjs pins the tenant shapes.
+
+    A SHIELDED node needs no special case here, which is worth stating because
+    it does not look that way from the tenant's side. Such a box sells GPU
+    shares (its supervisor adopts the card at runtime and advertises gpu:true)
+    and its tenants carry a real vram_bytes reservation - but the card is on
+    the untrusted HOST, reached per matmul, so the guest's manager is told
+    NODE_HAS_GPU=0 and every tenant already takes the RAM path below. The
+    reservation is an offload budget, not residency, and nothing on a shielded
+    box is resident on the card. NODE_HAS_GPU means LOCAL card throughout this
+    file - the thing whose OOM calls ggml_abort and kills the tenant - and no
+    flavor sets it beside a shielded worker.
     """
     # CPU-ONLY NODE: the same question, but the resource behaves nothing
     # like VRAM, so the answer is not "a slice of the node per share".
@@ -1630,19 +1641,15 @@ def _nn_budgets(gpu_share, cpu_share, shielded_vram_gb, vram_bytes, nn_resident_
     # the app reported "unfit" for a model the node holds comfortably
     # (2026-08-31, eyesoff-ai on metal0: a 24 GB model refused against a
     # 2.3 GB reservation while 58 GB of node RAM sat free).
-    shielded_tenant = shielded_vram_gb > 0
-    local_gpu_tenant = gpu_tenant and not shielded_tenant
     if gpu_tenant:
         budget_bytes, budget_kind = vram_bytes, "VRAM"
-    else:
-        budget_bytes, budget_kind = share_ram_bytes, "RAM"
-    if local_gpu_tenant:
         ggml_budget_bytes, ggml_budget_kind = vram_bytes, "VRAM"
     else:
+        budget_bytes, budget_kind = share_ram_bytes, "RAM"
         ggml_budget_bytes = share_ram_bytes if CPU_NN_BUDGET == "share" else node_ram_bytes
         ggml_budget_kind = "RAM"
     return (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
-            ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant)
+            ggml_budget_bytes, ggml_budget_kind, gpu_tenant)
 
 
 def _preload_support() -> dict:
@@ -4272,8 +4279,8 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         if vram_bytes:
             vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
         (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
-         ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant) = _nn_budgets(
-            gpu_share, cpu_share, shielded_vram_gb, vram_bytes, nn_resident_other)
+         ggml_budget_bytes, ggml_budget_kind, gpu_tenant) = _nn_budgets(
+            gpu_share, cpu_share, vram_bytes, nn_resident_other)
         # What an APP should price ggml SERVING against, and what kind of memory
         # that is. ENCLAVE_VRAM_BYTES could not answer this on its own: it means
         # "your slice of a card", which on a local GPU tenant IS the serve
@@ -4378,9 +4385,10 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         resident = 0
         for _bytes, _name, kind, stage in sorted(vram_stages):
             # mmap-backed ggml graphs answer to the node's RAM wherever the
-            # weights actually land there - a CPU tenant, and a shielded one,
-            # which has no local card either; everything else (and ggml on a
-            # LOCAL card) to the tenant's own budget. See _nn_budgets.
+            # weights land there (a 0-GPU tenant, and every tenant of a box
+            # with no local card); everything else to the tenant's own budget.
+            # Both figures come from _nn_budgets, so this only picks between
+            # them - ggml_budget_bytes IS the tenant budget on a GPU node.
             cap = ggml_budget_bytes if kind == "ggml" else budget_bytes
             cap_kind = "node RAM" if (cap == node_ram_bytes and kind == "ggml") else (
                 ggml_budget_kind if kind == "ggml" else budget_kind)
@@ -4440,17 +4448,14 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             nn_report["stages"] = dict(stages)
             # What this tenant will hold resident in NODE RAM once booted -
             # which follows where the weights LAND, not what the node has. A
-            # LOCAL GPU tenant's preloads sit in VRAM and the VRAM ledger owns
-            # them (charging RAM too would sell the box short twice); a 0-GPU
-            # tenant maps them into host RAM even on a GPU box, and that RAM is
-            # as unavailable to the next tenant as it is anywhere else.
-            # A SHIELDED tenant belongs with the second group, not the first:
-            # its weights are mmap'd in the CVM (the card holds only what the
-            # offload link reserves), so reporting 0 would leave them out of
-            # nn_resident_other and let the next tenant's node-RAM check clear
-            # against room this one is already using - the shared-node term
-            # exists precisely to stop that pair from thrashing.
-            nn_report["residentBytes"] = 0 if local_gpu_tenant else resident
+            # GPU tenant's preloads sit in VRAM and the VRAM ledger owns them
+            # (charging RAM too would sell the box short twice); a 0-GPU tenant
+            # maps them into host RAM even on a GPU box, and that RAM is as
+            # unavailable to the next tenant as it is anywhere else.
+            # A shielded box reaches this the same way a CPU one does: its
+            # manager is told NODE_HAS_GPU=0, so gpu_tenant is false and its
+            # weights - which really are mmap'd in the CVM - are counted.
+            nn_report["residentBytes"] = 0 if gpu_tenant else resident
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
