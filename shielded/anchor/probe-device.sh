@@ -64,7 +64,14 @@ inf_ "verified boot"      "${VBSTATE:-?}, flash.locked=${LOCKED:-?}"
 echo
 echo "${bold}AVF / pKVM protected VM${rst}  ${dim}(the tier worth buying for)${rst}"
 AVF_OK=1; AVF_PARTIAL=0
-if [ -n "$(sh_ 'ls /dev/kvm 2>/dev/null')" ]; then yes_ "/dev/kvm present"; else no_ "/dev/kvm present"; AVF_OK=0; fi
+# /dev/kvm's PRESENCE is a pKVM indicator, never an access path: AOSP sepolicy
+# confines it to crosvm --
+#   neverallow { domain -crosvm -ueventd -shell } kvm_device:chr_file getattr;
+#   neverallowxperm { domain -crosvm } kvm_device:chr_file ioctl ~{ KVM_CHECK_EXTENSION };
+# so no app opens it on any stock Android, AVF or not. The only sanctioned path
+# is the AVF VirtualMachine API behind android.software.virtualization_framework,
+# which is why that feature flag -- not this node -- gates the verdict below.
+if [ -n "$(sh_ 'ls /dev/kvm 2>/dev/null')" ]; then yes_ "/dev/kvm present" "pKVM indicator (apps reach it only via the AVF API)"; else no_ "/dev/kvm present"; AVF_OK=0; fi
 # Three hypervisor families, three device nodes. Only pKVM's /dev/kvm is
 # reachable by an app on a stock device; the other two are typically root-only,
 # so their presence means the silicon can, not that we can.
