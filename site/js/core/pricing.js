@@ -129,25 +129,55 @@ export function adoptServerSpec(a){
   return false;
 }
 
-export const pctCeil = (x) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9)));
+// NOT clamped to 100 — the runner's pctCeil isn't either, and this floor may
+// never sit BELOW the runner's or the deployment it sizes is unclaimable. A
+// ratio above 100 is the honest answer to "how much of this box would it take":
+// 769 means the app needs 7.69 of this card, which no share can buy.
+export const pctCeil = (x) => Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9));
+
+// GB of weights the named volumes carry on this enclave, from its own
+// advertised rows. Volumes it doesn't have count 0 — hasVolumes already
+// excludes that box, and inventing a size for a volume nobody published would
+// size the dial off a number nothing verified.
+export function volGbOf(a, want){
+  if (!want || !want.length) return 0;
+  const bytes = new Map(((a && a.volumes) || [])
+    .filter((v) => v && v.name).map((v) => [String(v.name), Number(v.bytes) || 0]));
+  return want.reduce((t, n) => t + (bytes.get(n) || 0), 0) / 1e9;
+}
 // v: a catalog version's exact specs (zeros = no minimum). `spec` picks the
 // hardware to divide by: omitted = the adopted fleet spec (aggregate mode),
 // or a specific enclave's hardware from enclaveSpecOf (target mode — the
 // deploy console sizes against the box the deployment would land on).
-export function minPctsOf(v, spec){
+// `opts.volGb` is the size of the model volumes this deployment will mount on
+// that box (volGbOf). It corrects the GPU floor only, exactly as the runner
+// does: on a card the weights are resident in the tenant's own slice, so a
+// declared vramMb under the volume it names is an under-declaration. On cores
+// they are node-charged page cache, never billed to the share, so the CPU
+// floor is untouched.
+export function minPctsOf(v, spec, opts){
   const s = spec || serverSpec();
+  const volGb = Math.max(0, Number(opts && opts.volGb) || 0);
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
-  const cpu = (memMb > 0 || cpuGf > 0) ? pctCeil(Math.max(memMb / (s.nodeRamGb * 1024), cpuGf / s.nodeGflops)) : 1;
+  const cpuOf = (mb) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), cpuGf / s.nodeGflops));
+  const cpu = (memMb > 0 || cpuGf > 0) ? cpuOf(memMb) : 1;
   // A version whose publisher marked the card OPTIONAL sets no GPU floor: the
   // app starts without one. Mirrors the runner's minSharesOf exactly — this
   // floor may never sit below the runner's or the deployment is unclaimable.
   // Each axis floors on its own hardware and nothing else: before rev 13 the
   // GPU floor was also lifted to the CPU floor, which only ever encoded the
   // ledger's gpuMilli >= cpuMilli rule, never a real requirement of the app.
-  const gpu = (!(v && v.gpuOptional) && (vramMb > 0 || gpuGf > 0))
-    ? pctCeil(Math.max(vramMb / 1024 / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
-  return { gpuPct: gpu, cpuPct: cpu };
+  // The volumes correct a declared card figure, never create one — a publisher
+  // who declared no VRAM is asking for cores.
+  const vramGb = vramMb > 0 ? Math.max(vramMb / 1024, volGb) : 0;
+  const need = (vramGb > 0 || gpuGf > 0)
+    ? pctCeil(Math.max(vramGb / s.cardVramGb, gpuGf / 1000 / s.cardTflops)) : 0;
+  return {
+    gpuPct: (v && v.gpuOptional) ? 0 : need,   // the enforceable floor (optional = none)
+    gpuNeedPct: need,                          // the TRUE ask on this card; may exceed 100
+    cpuPct: cpu,
+  };
 }
 /* THE LEDGER REV THAT FREED THE TWO DIALS. Revs <= 12 reverted create() and
    setShares() whenever a non-zero gpuMilli sat below cpuMilli, so every client
@@ -377,7 +407,13 @@ export function rankEnclavesFor(v, rows){
     const fits = (!needsGpu || (gpu && vramMb / 1024 <= spec.cardVramGb && gpuGf / 1000 <= spec.cardTflops))
               && memMb <= spec.nodeRamGb * 1024 && cpuGf <= spec.nodeGflops
               && hasVolumes(a, wantVols);
-    const mins = minPctsOf(v, spec);
+    const mins = minPctsOf(v, spec, { volGb: volGbOf(a, wantVols) });
+    // Whether this box would serve the model on CORES rather than its card —
+    // a card too small for the app cannot hold it at any share, so the runner
+    // falls back (gpuRouting). Only the LABEL depends on this: the floors do
+    // not, because the weights are node-charged either way.
+    const cardCanHold = gpu && mins.gpuNeedPct <= 100;
+    const weightsOnCores = hardGpu ? false : (softGpu ? !cardCanHold : true);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
     const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
     const name = nameOf(row);
@@ -386,7 +422,7 @@ export function rankEnclavesFor(v, rows){
     // Big-and-dear can beat small-and-cheap, so the ranking compares money.
     const price = enclavePriceOf(row);
     const minRate = shareRates(mins.gpuPct, mins.cpuPct, spec, price).rate;
-    return { row, name, spec, mins, free, gpu, fits, now, price, minRate };
+    return { row, name, spec, mins, free, gpu, fits, now, price, minRate, weightsOnCores };
   }).filter((c) => c.fits && (needsGpu ? c.gpu : true));
   // A GPU box CAN serve model-volume work with no GPU share — the tenant gets
   // the ggml CPU backend on the cores it bought, same as on a CPU box — but it
@@ -410,7 +446,10 @@ export function rankEnclavesFor(v, rows){
   // label it "CPU only" — what the DEPLOYMENT gets is the decision-relevant
   // fact, and it is true either way; naming the box's own hardware was not
   // (it called metal0 a GPU box).
-  const onCores = (c) => softGpu ? !c.gpu : (wantVols.length && !needsGpu && c.gpu);
+  // Soft-GPU reads the SIZING verdict rather than "does the box have a card":
+  // a card too small to hold the app is a card this deployment cannot use, and
+  // the runner will serve it on cores there. Same fact, same source.
+  const onCores = (c) => softGpu ? c.weightsOnCores : (wantVols.length && !needsGpu && c.gpu);
   return [...order(cand.filter((c) => c.now)).map((c) => ({ ...c, queued: false, cpuNn: !!onCores(c) })),
           ...order(cand.filter((c) => !c.now)).map((c) => ({ ...c, queued: true, cpuNn: !!onCores(c) }))];
 }
