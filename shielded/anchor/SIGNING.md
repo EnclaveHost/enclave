@@ -23,6 +23,46 @@ against a hash fused by the OEM, and that is the wall. On SoCs whose fuses are
 ST), the customer burns their own key hash and the entire chain — BL2/BL31, OP-TEE, TAs — is
 theirs. That is a real TrustZone TA with no gatekeeper, and it is the live route.
 
+## And attestation is solved too, by the same inversion
+
+The AVF route died on attestation: no pinnable trust anchor, and RKP factory provisioning that
+only the OEM can perform. **Both objections dissolve when we are the vendor** — we do the
+provisioning, so we hold the registry and the root.
+
+OP-TEE ships this upstream. `core/pta/attestation.c` (UUID `39800861-182a-4720-…`), gated on
+`CFG_ATTESTATION_PTA` (default `n`, depends on secure storage), exposes exactly four calls:
+
+| cmd | what it returns |
+|---|---|
+| `0x0 GET_PUBKEY` | the device attestation public key — *"typically during device provisioning"*, i.e. ours to collect and register |
+| `0x1 GET_TA_SHDR_DIGEST` | the digest from a TA binary's **signed header** |
+| `0x2 HASH_TA_MEMORY` | **nonce-signed runtime measurement** of a TA's code and read-only data |
+| `0x3 HASH_TEE_MEMORY` | **nonce-signed runtime measurement of the TEE OS kernel** itself |
+
+Both measurement calls take a caller-supplied **nonce** and return `SHA-256 || signature` under the
+device key, so it is a replay-resistant challenge-response — the shape a remote verifier needs.
+The key is an RSA keypair (`CFG_ATTESTATION_PTA_KEY_SIZE`, default 3072) persisted in
+`TEE_STORAGE_PRIVATE` secure storage, which on real hardware should be RPMB-backed
+(`HUK_SUBKEY_RPMB`); OP-TEE also derives a per-TA unique key from the hardware unique key
+(`HUK_SUBKEY_UNIQUE_TA`), so TA identity is hardware-bound.
+
+That gives the anchor everything the SNP attestation gives it, with us in Google's chair:
+
+1. **We build** the secure world, so we know the expected `HASH_TEE_MEMORY` and
+   `HASH_TA_MEMORY` values — computed from our own build, not looked up in someone's registry.
+2. **We sign** the TA (proven above), so `GET_TA_SHDR_DIGEST` binds to our key.
+3. **We provision**, so the device attestation public key is in *our* registry — the exact step
+   that is impossible on AVF, where it happens at Google's RKP factory.
+4. **We verify**, against a root we published. OP-TEE also carries a
+   `core/pta/veraison_attestation/` PTA for IETF RATS / Veraison if a standards-based
+   verifier is preferred over a bespoke one.
+
+Caveats to settle on real silicon, not in QEMU: secure storage must be RPMB-backed to make the
+device key non-clonable (needs eMMC with RPMB, standard on the SoM-class boards under
+consideration); `CFG_ATTESTATION_PTA` is off by default and must be enabled in our build; and
+the measurements cover code and read-only data, not the anchor's live secret state — which is
+correct, but means the argument is "our code is running unmodified", not "our data is intact".
+
 ---
 
 # The vendor programs, for the record
