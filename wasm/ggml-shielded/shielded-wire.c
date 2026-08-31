@@ -2,7 +2,6 @@
 #include "shielded-wire.h"
 
 #include <errno.h>
-#include <linux/vm_sockets.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -10,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <linux/vm_sockets.h>   /* after sys/socket.h: needs sa_family_t (aarch64 glibc) */
 #include <sys/uio.h>
 #include <limits.h>
 #include <time.h>
@@ -17,7 +17,17 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
+#define SH_CPU_RELAX() _mm_pause()
+#define SH_SFENCE()    _mm_sfence()
+#elif defined(__aarch64__)
+#define SH_CPU_RELAX() __asm__ __volatile__("yield")
+#define SH_SFENCE()    __asm__ __volatile__("dmb ishst" ::: "memory")
+#else
+#define SH_CPU_RELAX() ((void)0)
+#define SH_SFENCE()    __sync_synchronize()
+#endif
 
 /* A single frame is capped well below the point where a bad length header could
  * make us allocate the machine. Mirrors wire.py's MAX_FRAME. */
@@ -318,7 +328,7 @@ static inline void st_rel(uint8_t *at, uint64_t v) {
     /* The guest's mapping of the BAR may be write-combining (sysfs
      * resource2_wc): WC stores are weakly ordered, so the payload is fenced
      * before the sequence number is published. Free on a write-back mapping. */
-    _mm_sfence();
+    SH_SFENCE();
     __atomic_store_n((uint64_t *)at, v, __ATOMIC_RELEASE);
 }
 
@@ -413,7 +423,7 @@ int sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int spins = 0;; spins++) {
         if (ld_acq(r + SH_RING_OFF_REP) == seq) break;
-        _mm_pause();
+        SH_CPU_RELAX();
         if ((spins & 255) == 255) {
             clock_gettime(CLOCK_MONOTONIC, &t1);
             if ((t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L > budget) {
