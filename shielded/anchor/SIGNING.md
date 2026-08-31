@@ -100,6 +100,26 @@ apps" means "not in the public SDK and not grantable without adb", not "impossib
 - **Our exact workload needs only that one permission.** `setProtectedVm`, `setMemoryBytes`
   and `setCpuTopology` are all top-level config; `USE_CUSTOM_VIRTUAL_MACHINE` is only needed
   for a non-Microdroid VM, a custom kernel, or extra APKs.
+- **But one grant is not the whole setup**, and the first pass understated this. The AVF classes
+  are `@SystemApi`/`@hide`, so they are absent from the public SDK: a third-party APK must ALSO
+  either install `HiddenApiBypass` at `onCreate` (Android 14+) or have the blocklist exempted by
+  a second adb command --
+  `adb shell settings put global hidden_api_blacklist_exemptions 'Landroid/system/virtualmachine/VirtualMachine'`
+  -- and reach the API by reflection. That is the recipe koiTerminal documents and the approach
+  Podroid uses (`AvfReflect`, "so the APK compiles against the public SDK").
+- **The reflection path is fragile, and this is a real engineering risk.** koiTerminal issue #4
+  reports `NoSuchMethodError: No virtual method getUserId()I` on a Samsung Tab S10 FE+ (Android
+  16) *and* on a Pixel 9 Pro XL, where only Google's own preinstalled Terminal worked. Binding to
+  hidden platform internals means every Android release can break the anchor.
+- Note also a tension in Google's own wording worth resolving before relying on any of it: the
+  AVF **security** page says *"only the apps that are signed with the platform key can request
+  permission to create, own, or interact with pVMs"*, which reads more strictly than the
+  framework README's "can also be granted via `adb shell pm grant` for development purposes".
+  The field reports side with the README, but the stricter sentence is the one Google would cite.
+- **Field-confirmed on non-Pixel hardware:** Podroid issue #43 shows both permissions
+  `granted = true` on a stock Lenovo Tab M11 running Android 15. Its device table (#62), however,
+  reports `AVF = yes` **only** on Pixel; Samsung Galaxy A24, Nothing Phone (1), Honor and Huawei
+  devices all fall back to QEMU TCG software emulation.
 - The **pvmfw wall cuts in our favour**: protected VMs require a pvmfw-signed payload, so a
   custom kernel can only run NON-protected (this is what blocks Podroid, the shipping
   third-party AVF app). A native `.so` inside **stock Microdroid** is exactly the protectable
