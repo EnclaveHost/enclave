@@ -86,6 +86,10 @@
 import net from "node:net";
 import WebSocket, { createWebSocketStream } from "ws";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
+import * as connlog from "./connlog.mjs";
+
+// publish this process's connection rows for the agent to serve (tmpfs)
+connlog.startSnapshot("inbound");
 installProcessGuards("tcp-relay");
 
 const need = (k) => {
@@ -330,6 +334,12 @@ function handle(client, logicalPort) {
       // the supervisor resolves 0x-prefixed ids - restore it (depFromHost does
       // the same on the api-relay). Legacy dep- labels map back to dep_.
       const dep = /^[0-9a-f]{8,64}$/.test(label) ? "0x" + label : label.replace(/^dep-/, "dep_");
+      // Someone reached this app. Logged HERE rather than at accept() because
+      // this is the first point the connection has a deployment to belong to -
+      // before the SNI is read it is just a socket, and an unroutable one is
+      // nobody's traffic. Address and time only: there is nothing else to see
+      // through a splice that never terminates TLS.
+      connlog.note(dep, "in", client.remoteAddress, client.remotePort);
       // ONE hostname per deployment: every DECLARED tcp port routes to the
       // tenant's socket (via the in-enclave /tls/ terminator) - including 443
       // if they declared it (their socket outranks the platform HTTPS bridge).

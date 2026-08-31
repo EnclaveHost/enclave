@@ -49,6 +49,10 @@ import dns from "node:dns/promises";
 import WebSocket, { createWebSocketStream } from "ws";
 import { isBlockedHost, parseIp, bindRefusal, v6PrefixGate } from "./net-guard.mjs";
 import { createFleet, fleetConfig, installProcessGuards } from "./fleet.mjs";
+import * as connlog from "./connlog.mjs";
+
+// publish this process's connection rows for the agent to serve (tmpfs)
+connlog.startSnapshot("egress");
 installProcessGuards("egress-relay");
 
 const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
@@ -112,8 +116,17 @@ async function pickTarget(host) {
   throw new Error("denied");
 }
 
-function handleOpen(control, origin, { cid, host, port, source }) {
+function handleOpen(control, origin, { cid, host, port, source, dep }) {
   if (!cid || !host || !port) return;
+  // The app reached out. Recorded on the ATTEMPT, not after the dial: an owner
+  // asking "what is my app talking to" wants the refused and unreachable ones
+  // too, and those are the interesting rows. The destination is stored as the
+  // APP NAMED IT (a hostname where it used one) rather than the address DNS
+  // picked - "api.example.com" is the answer to that question and an anycast
+  // address is not. `dep` is absent from an enclave predating the field, and
+  // an unattributed dial is left unlogged rather than pooled under a name it
+  // might not belong to.
+  if (dep) connlog.note(dep, "out", host, port);
   // `source` present => dedicated-IP egress: source-bind, and reject a source
   // outside this box's routed /64 before we ever dial (fix 9). `source` absent
   // => PLAIN egress (the enclave routed this deployment to a relay that doesn't

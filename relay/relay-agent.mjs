@@ -42,6 +42,7 @@
 //   RELAY_PORTS           optional  the public port range it binds
 
 import WebSocket from "ws";
+import * as connlog from "./connlog.mjs";
 import { readFileSync } from "node:fs";
 
 const need = (k) => { const v = (process.env[k] || "").trim();
@@ -110,19 +111,38 @@ const availability = () => ({
   updatedAt: new Date().toISOString(),
 });
 
+// The connection log this box collected, for ONE deployment. Read-only, and
+// the narrowest thing that answers "who reached my app, and where did it reach
+// out to": an address, a direction and a time. There is nothing else here to
+// serve - the relay never terminated the TLS these connections carried.
+//
+// Deliberately requires a `dep`: without one this would be every deployment's
+// peers to anyone who asked, and the hub in front of it is public.
+function traffic(query) {
+  const dep = String((query && query.dep) || "").trim().toLowerCase();
+  if (!/^(0x)?[a-z0-9_-]{4,80}$/.test(dep)) return [400, { error: "bad_request", message: "dep is required" }];
+  const since = Number(query.since) || 0;
+  const rows = connlog.readSnapshots(dep, since);
+  return [200, { relay: NAME, dep, now: Date.now(), rows,
+                 note: "connections, not HTTP requests - one connection carries many" }];
+}
+
 const ROUTES = {
   "/availability": () => [200, availability()],
   "/v1/health":    () => [200, { ok: true, role: "relay", name: NAME }],
+  "/v1/traffic":   (q) => traffic(q),
 };
 
 function answer(frame, send) {
   const reply = (status, obj) => send({ t: "res", id: frame.id, status,
     headers: { "content-type": "application/json" },
     body: Buffer.from(JSON.stringify(obj)).toString("base64") });
-  const path = String(frame.path || "").split("?")[0];
+  const raw = String(frame.path || "");
+  const path = raw.split("?")[0];
   const route = ROUTES[path];
   if (!route) return reply(404, { error: "not_found", routes: Object.keys(ROUTES) });
-  const [status, body] = route();
+  const q = Object.fromEntries(new URLSearchParams(raw.slice(raw.indexOf("?") + 1) || ""));
+  const [status, body] = route(raw.includes("?") ? q : {});
   reply(status, body);
 }
 
