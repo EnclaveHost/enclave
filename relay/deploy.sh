@@ -46,7 +46,7 @@ ssh nan-relay 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysc
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the
 # tcp6/udp/egress relays use to follow an arbitrary, changing set of enclaves.
-scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs boxhost.js package.json package-lock.json nan-relay:/opt/nan-relay/
+scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs connlog.mjs boxhost.js package.json package-lock.json nan-relay:/opt/nan-relay/
 scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service nan-relay:/etc/systemd/system/
 # The egress relay only runs once /etc/nan-relay/egress-relay.env exists
 # (REGISTRY_ADDRESS or ENCLAVES + EGRESS_RELAY_TOKEN + EGRESS_PREFIX=<same

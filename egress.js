@@ -244,7 +244,15 @@ export function createEgress({ secret, socksPort, relayToken, sourceAddrFor, rel
       // source is OMITTED for plain egress; the relay then dials without
       // source-binding (from its own address). The chosen relay never sees a
       // source it doesn't own — the enclave, not the relay, makes that call.
-      const msg = { type: "open", cid, host, port };
+      //
+      // `dep` names WHOSE outbound this is, so the relay can show an owner
+      // where their app has been reaching. It discloses nothing the relay is
+      // not already told: on the inbound side the SNI spells the same id in
+      // clear, and on the dedicated path `source` is that deployment's public
+      // address. Additive on purpose - a relay that predates the field ignores
+      // it, and a relay that has it treats absence as "unattributed" rather
+      // than refusing the dial.
+      const msg = { type: "open", cid, host, port, dep: id };
       if (source) msg.source = source;
       ws.send(JSON.stringify(msg));
     } catch (e) { log(`[egress] control send failed: ${e.message}`); failPending(cid, REP.NET_UNREACH); }
