@@ -24,14 +24,19 @@ import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, encl
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
-function runnerMins(v, hw) {
-  const pc = (x) => Math.min(100, Math.max(1, Math.ceil(x * 100 - 1e-9)));
-  const cpu = (v.memMb || v.cpuGflops)
-    ? pc(Math.max((v.memMb || 0) / (hw.nodeRamGb * 1024), (v.cpuGflops || 0) / hw.nodeGflops)) : 0;
-  // each axis floors on its OWN hardware — no cross-lift since ledger rev 13
-  const gpu = (v.vramMb || v.gpuGflops)
-    ? pc(Math.max((v.vramMb || 0) / 1024 / hw.cardVramGb, (v.gpuGflops || 0) / 1000 / hw.cardTflops)) : 0;
-  return { gpuPct: gpu, cpuPct: cpu };
+// pc is NOT clamped at 100: a ratio above one card is the honest measure of an
+// app too big for the hardware, and clamping it made a box report "needs 1
+// card" when no share it could sell was enough.
+function runnerMins(v, hw, volGb = 0) {
+  const pc = (x) => Math.max(1, Math.ceil(x * 100 - 1e-9));
+  const cpuOf = (mb) => pc(Math.max(mb / (hw.nodeRamGb * 1024), (v.cpuGflops || 0) / hw.nodeGflops));
+  const cpu = (v.memMb || v.cpuGflops) ? cpuOf(v.memMb || 0) : 0;
+  // each axis floors on its OWN hardware — no cross-lift since ledger rev 13.
+  // Volumes correct a declared card figure; they never create one.
+  const vramGb = (v.vramMb || 0) > 0 ? Math.max(v.vramMb / 1024, volGb) : 0;
+  const need = (vramGb > 0 || v.gpuGflops)
+    ? pc(Math.max(vramGb / hw.cardVramGb, (v.gpuGflops || 0) / 1000 / hw.cardTflops)) : 0;
+  return { gpuPct: v.gpuOptional ? 0 : need, gpuNeedPct: need, cpuPct: cpu };
 }
 
 // image-generator 1.0.2 — the version that produced the stuck deployment
@@ -43,7 +48,9 @@ test("fallback floors already match the live H200 (the 0xf3d976a0 regression)", 
   assert.equal(s.live, false, "these assertions must run before any adoption");
   assert.equal(s.cardVramGb, 140.4, "fallback card must be the PROBED GiB, not the 141 datasheet");
   const m = minPctsOf(IMAGE_GEN);
-  assert.deepEqual(m, { gpuPct: 92, cpuPct: 8 });   // the old 141 constant said 91 — unclaimable
+  // the old 141 constant said 91 — unclaimable. No volumes here, so the
+  // on-cores floor equals the plain one and the need equals the floor.
+  assert.deepEqual(m, { gpuPct: 92, gpuNeedPct: 92, cpuPct: 8 });
   assert.deepEqual(m, runnerMins(IMAGE_GEN, H200));
 });
 
@@ -689,4 +696,99 @@ test("a shielded pool advertises what can be LEASED, not what is resident", () =
   const legacy = shieldedPoolOf({ availability: {
     shielded: { vramGb: 7.65, vramFreeGb: 3.25, vramBudgetGb: 6.5 } } });
   assert.equal(legacy.frac, 0.5, "no gpuShareFree -> fall back to the physical ratio");
+});
+
+// ---- sizing above one card, and the model volume as the real footprint -----
+// The eyesoff-ai case, 2026-08-31. A 27B Q6 app sized on an H200 was dialled
+// gpu 36% / cpu 12%; metal0 then joined the claiming fleet with a 6.5 GB
+// shielded card, and the SAME fraction there means 2.3 GB. The old pctCeil
+// clamped the requirement to "1 card", so metal0 read no obstacle, accepted
+// work it could not do, and the tenant died at weight-load. The fix is that a
+// requirement is allowed to exceed the hardware and SAY so.
+const EYESOFF = { vramMb: 51200, gpuGflops: 320000, memMb: 4096, cpuGflops: 10, gpuOptional: true };
+const METAL0  = { cardVramGb: 6.5, cardTflops: 42.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
+const QWEN38_GB = 25.94;      // the volume the app's config names
+
+test("a requirement bigger than the card sizes ABOVE 100% instead of clamping", () => {
+  // on the hardware it was sized for, the dial it actually bought
+  assert.equal(minPctsOf(EYESOFF, H200).gpuNeedPct, 36);
+  // on a 6.5 GB card the same app needs 7.7 whole cards, and says so
+  const m = minPctsOf(EYESOFF, METAL0);
+  assert.equal(m.gpuNeedPct, 770, "7.69 cards, rounded up to the percent grain");
+  assert.deepEqual(m, runnerMins(EYESOFF, METAL0), "console and runner agree above 100 too");
+  // the clamp used to make this indistinguishable from "one whole card", which
+  // is why a deployment dialled at the full 1.0 sailed through the floor check
+  assert.ok(m.gpuNeedPct > 100, "the box can state that no share it sells is enough");
+});
+
+test("gpuOptional waives the FLOOR without erasing the requirement", () => {
+  const m = minPctsOf(EYESOFF, METAL0);
+  assert.equal(m.gpuPct, 0, "publisher said cores are acceptable: no GPU dial is forced");
+  assert.equal(m.gpuNeedPct, 770, "but what the card would have to be is still known");
+  // the old code returned only the floor, so a box asked to serve this saw no
+  // GPU requirement at all and could not tell it was falling back
+  const hard = minPctsOf({ ...EYESOFF, gpuOptional: false }, METAL0);
+  assert.equal(hard.gpuPct, 770, "without the flag the floor IS the requirement");
+});
+
+test("a volume never inflates the CPU floor - the node is charged, not the share", () => {
+  // The tempting symmetry, and the one this must NOT have. On cores the weights
+  // are mmap'd page cache the platform charges to the NODE: wasm_manager's
+  // budget is node RAM "independent of share", and a 4% tenant may legitimately
+  // map a 17 GB GGUF. Adding the volume here would refuse deployments the box
+  // then serves perfectly well - the mistake that comment already records.
+  const bare = minPctsOf(EYESOFF, METAL0);
+  const withVol = minPctsOf(EYESOFF, METAL0, { volGb: QWEN38_GB });
+  assert.equal(withVol.cpuPct, bare.cpuPct, "26 GB of weights move the CPU floor not at all");
+  assert.equal(withVol.cpuPct, 7);
+  assert.deepEqual(withVol, runnerMins(EYESOFF, METAL0, QWEN38_GB));
+});
+
+test("volumes CORRECT a declared card figure but never invent one", () => {
+  // under-declared VRAM: the volume is bigger than the publisher's number
+  const under = { vramMb: 8192, gpuGflops: 0, memMb: 4096, cpuGflops: 0 };
+  assert.equal(minPctsOf(under, H200).gpuNeedPct, 6);                       // 8 GB / 140.4
+  assert.equal(minPctsOf(under, H200, { volGb: QWEN38_GB }).gpuNeedPct, 19); // 25.94 GB / 140.4
+  // over-declared: the declaration already covers the weights, so it stands
+  assert.equal(minPctsOf(EYESOFF, H200, { volGb: QWEN38_GB }).gpuNeedPct, 36);
+  // a publisher who declared NO card is asking for cores — a volume must not
+  // turn a CPU-only LLM app into card-bound work
+  const cpuOnly = { vramMb: 0, gpuGflops: 0, memMb: 4096, cpuGflops: 0 };
+  const m = minPctsOf(cpuOnly, METAL0, { volGb: QWEN38_GB });
+  assert.equal(m.gpuNeedPct, 0, "no declared card + a volume is still no card");
+  assert.equal(m.gpuPct, 0);
+  assert.equal(m.cpuPct, 7, "and the CPU floor stays the app's own declaration");
+  assert.deepEqual(m, runnerMins(cpuOnly, METAL0, QWEN38_GB));
+});
+
+test("ranking: a card too small to hold the app sizes the box as CPU work", () => {
+  // The divergence that would resell the same bug through the console. metal0
+  // HAS a card, so "is this box GPU" said the weights go on it and quoted the
+  // 7% node floor — while the runner, seeing 7.7x, falls back to cores and
+  // demands 47%. A deployment created at 7% is then claimable by nobody.
+  const v = { ...EYESOFF, volumes: ["qwen3.8-27b-mtp-gguf"] };
+  const vols = [{ name: "qwen3.8-27b-mtp-gguf", bytes: QWEN38_GB * 1e9 }];
+  const metal0 = row("metal0", { gpu: true, claimEnabled: true, ...METAL0,
+    nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000,
+    gpuShareFree: 0.85, cpuShareFree: 0.62, volumes: vols });
+  const kryptos = row("kryptos", { gpu: true, claimEnabled: true, ...H200,
+    nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000,
+    gpuShareFree: 0.9, cpuShareFree: 0.8, volumes: vols });
+
+  const [onMetal] = rankEnclavesFor(v, [metal0]);
+  assert.equal(onMetal.mins.gpuNeedPct, 770, "7.7 cards on a 6.5 GB card");
+  assert.equal(onMetal.cpuNn, true, "so the box is labelled CPU-only for this deployment");
+
+  // the same app on a card that can actually hold it runs ON the card
+  const [onH200] = rankEnclavesFor(v, [kryptos]);
+  assert.equal(onH200.mins.gpuNeedPct, 36);
+  assert.equal(onH200.cpuNn, false);
+
+  // ...and the CPU floor is the SAME on both. Where the weights run changes the
+  // label and the routing, never the share: they are charged to the node.
+  assert.equal(onMetal.mins.cpuPct, onH200.mins.cpuPct);
+  assert.equal(onMetal.mins.cpuPct, 7, "the app's own declaration, not the model's size");
+
+  // and given both, the box that can actually run it on its card is preferred
+  assert.equal(rankEnclavesFor(v, [metal0, kryptos])[0].name, "kryptos");
 });

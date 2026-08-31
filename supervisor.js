@@ -2269,7 +2269,17 @@ const quantizePct = (share) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.roun
 // spec, take the LARGER of the memory- and compute-derived share per pool,
 // round UP to the percent grain — the minimum share is never worth less than
 // the resources the app declared it needs.
-const pctCeil = (x) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9)));
+//
+// NOT clamped to 100, deliberately, and this is the whole difference between
+// sizing and allocating. A 50 GB app on a 6.5 GB card needs 7.69 CARDS; the old
+// Math.min(100, …) reported that as "1 card" and destroyed the only fact the
+// placer needed. Two ways it lied: a box would report `needs gpuShare 1` when
+// no share it can sell is enough, and a deployment dialled at the full 1.0
+// passed the floor check while still being 7.7x short. A ratio above 1 is a
+// legitimate answer meaning "more than this box has" — quantizePct above keeps
+// the 1..100 clamp because the MPS thread percentage genuinely is per-card and
+// integral, and that is an ALLOCATION grain, not a measure of need.
+const pctCeil = (x) => Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9));
 const gpuShareOf = (vramGb, gpuTflops = 0) => (vramGb > 0 || gpuTflops > 0)
   ? pctCeil(Math.max(vramGb / CARD_VRAM_GB, gpuTflops / CARD_TFLOPS)) / 100 : 0;
 const cpuShareOf = (memMb, cpuGflops = 0) =>
@@ -2283,17 +2293,80 @@ const cpuShareOf = (memMb, cpuGflops = 0) =>
 // dial, so the deployment may buy 0% GPU and any enclave can serve it. It does
 // NOT stop the specs meaning something - they still size the slice a deployer
 // who wants the card should buy, and the console recommends exactly that.
+// Which is why `gpuShare` and `gpuFloor` are now SEPARATE returns: the old code
+// collapsed the requirement to 0 the moment the publisher said "optional", so a
+// box asked to serve a 50 GB app on a 6.5 GB card saw no GPU requirement at all
+// and accepted the work as though the card had never mattered. The requirement
+// is always computed; `gpuOptional` decides what may be done about it, and the
+// caller - not this function - makes that call.
+//
+// `opts.volGb` is the size of the model volumes the app's effective config
+// names, and it corrects the GPU floor ONLY. On a card the weights really are
+// resident in the tenant's own VRAM slice, so a declared `vramMb` under the
+// volume it names is an under-declaration and the volume is the truth.
+//
+// It deliberately does NOT touch the CPU floor, though the symmetry is
+// tempting. On cores the weights are mmap'd page cache the kernel reclaims,
+// and the platform charges them to the NODE, not the share -
+// wasm_manager._nn_budgets: "charging 20 GB of reclaimable page cache against
+// a share was wrong twice over: it refused models a node has ample room for,
+// and it measured the wrong bytes." A 4% tenant may legitimately map a 17 GB
+// GGUF. Adding volGb here would re-introduce exactly that, and would refuse a
+// deployment the box then serves perfectly well.
 // Each axis floors on its OWN hardware: the GPU minimum from the card, the CPU
 // minimum from the node. Before rev 13 the GPU floor was additionally lifted to
 // the CPU floor, purely to keep the derived minimums legal under the ledger's
 // gpuMilli >= cpuMilli rule — it was never a statement about what the app
 // needs. site/js/core/pricing.js:minPctsOf mirrors this EXACTLY; a console
 // floor below this one sells a deployment no runner will claim.
-function minSharesOf(min) {
-  const cpu = (min.memMb || min.cpuGflops) ? cpuShareOf(min.memMb || 0, min.cpuGflops || 0) : 0;
-  const gpu = (!min.gpuOptional && (min.vramMb || min.gpuGflops))
-    ? gpuShareOf((min.vramMb || 0) / 1024, (min.gpuGflops || 0) / 1000) : 0;
-  return { gpuShare: gpu, cpuShare: cpu };
+function minSharesOf(min, opts = {}) {
+  const volGb = Math.max(0, Number(opts.volGb) || 0);
+  const memMb = min.memMb || 0, cpuGflops = min.cpuGflops || 0;
+  const cpu = (memMb || cpuGflops) ? cpuShareOf(memMb, cpuGflops) : 0;
+  // What the same work costs on cores, where the weights land in node RAM
+  // beside the guest's own linear memory instead of on a card.
+  // The volumes CORRECT a declared VRAM figure, they never create one. A
+  // publisher who declared no card is asking for cores, and folding the model
+  // size into a GPU ask there would invent a requirement nobody stated (and
+  // make every CPU-only LLM app look card-bound).
+  const vramGb = (min.vramMb || 0) > 0 ? Math.max(min.vramMb / 1024, volGb) : 0;
+  const gpu = (vramGb > 0 || min.gpuGflops)
+    ? gpuShareOf(vramGb, (min.gpuGflops || 0) / 1000) : 0;
+  return {
+    gpuShare: gpu,                              // the TRUE ask, in whole cards of THIS box (may exceed 1)
+    gpuFloor: min.gpuOptional ? 0 : gpu,        // what a dial must actually meet (optional = none)
+    cpuShare: cpu,
+    gpuOptional: !!min.gpuOptional,
+  };
+}
+
+// Can this box serve a GPU-dialled deployment's CARD ask, and if not, may the
+// work run on cores instead? Pure, so the claim gate and the SIZING_SELFTEST
+// seam share one implementation rather than two that drift.
+//
+// Two ways the ask goes unmet: no card at all, or a card too small for the app
+// whatever share is bought. allocGpu best-fits a SINGLE card and cannot span
+// one tenant across two (CC gives one trust domain per device), so a
+// requirement above 1.0 is unservable here however free the pools are. Saying
+// so is the whole point of the unclamped ratio: before it a 50 GB app on a
+// 6.5 GB card reported "needs 1 card", the box agreed it had one, and the
+// tenant died at weight-load.
+function gpuRouting(mins, { declaresGpu = false, envelopeOptional = false } = {}) {
+  const unmet = !IS_GPU ? "this enclave has no card"
+    : mins.gpuShare > 1 + 1e-9
+      ? `the app needs ${round1(mins.gpuShare)}x this box's whole card `
+        + `(${round1(CARD_VRAM_GB)} GB / ${round1(CARD_TFLOPS)} TFLOPS)`
+      : null;
+  if (!unmet) return { onGpu: true, unmet: null, refusal: null };
+  // Either flag opens the fallback; neither one can waive a HARD requirement.
+  // The envelope is the OWNER's dial and may waive their own preference; only
+  // the PUBLISHER may say a declared card need is soft, or a version that
+  // needs 128 GB of VRAM "falls back" to CPU and thrashes forever.
+  if (!(mins.gpuOptional || (envelopeOptional && !declaresGpu)))
+    return { onGpu: false, unmet,
+             refusal: `GPU work this enclave cannot serve: ${unmet}`
+                    + (declaresGpu ? " (the version declares the card required)" : "") };
+  return { onGpu: false, unmet, refusal: null };
 }
 
 // per-card free pools (vram + compute). With CC on there is exactly one whole
@@ -2676,6 +2749,41 @@ if (process.env.POOL_SELFTEST) {
     cards: gpuCards.map((k) => ({ vramFree: round1(k.vramFree), computeFree: round3(k.computeFree) })),
     maxFreeGpuShare: round3(maxFreeGpuShare()),
     dropped: [...deployments.values()].filter((r) => !r._gpu).map((r) => r.id) }));
+  process.exit(0);
+}
+
+// SIZING_SELFTEST='{"cardVramGb":6.5,"cardTflops":42.7,"isGpu":true,"volGb":25.94,
+//   "min":{"vramMb":51200,"gpuGflops":320000,"memMb":4096,"cpuGflops":10,"gpuOptional":true},
+//   "gpuMilli":360,"cpuMilli":120,"envelopeOptional":false}'
+// runs the REAL minSharesOf + gpuRouting for one app on one box's hardware and
+// prints the verdict as one JSON line, then exits — same contract as the seams
+// above (test/sizing.test.mjs drives it). This exists because the console
+// mirrors this math in site/js/core/pricing.js and a mirror that drifts is
+// exactly how a deployment gets sold that no runner will claim: the parity test
+// compares the two implementations, not two copies of one.
+if (process.env.SIZING_SELFTEST) {
+  const c = JSON.parse(process.env.SIZING_SELFTEST);
+  if (c.cardVramGb > 0) CARD_VRAM_GB = c.cardVramGb;
+  if (c.cardTflops > 0) CARD_TFLOPS = c.cardTflops;
+  if (c.isGpu != null) IS_GPU = !!c.isGpu;
+  const mins = minSharesOf(c.min || {}, { volGb: c.volGb || 0 });
+  const gpuShare = Number(c.gpuMilli || 0) / 1000, cpuShare = Number(c.cpuMilli || 0) / 1000;
+  const declaresGpu = (c.min?.vramMb || 0) > 0 || (c.min?.gpuGflops || 0) > 0;
+  const r = gpuShare > 0
+    ? gpuRouting(mins, { declaresGpu, envelopeOptional: !!c.envelopeOptional })
+    : { onGpu: false, unmet: null, refusal: null };
+  const onGpu = gpuShare > 0 && r.onGpu;
+  const needGpu = onGpu ? mins.gpuFloor : 0;
+  const needCpu = mins.cpuShare;
+  const below = !r.refusal && (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9);
+  console.log(JSON.stringify({
+    gpuShare: round3(mins.gpuShare), gpuFloor: round3(mins.gpuFloor),
+    cpuShare: round3(mins.cpuShare),
+    gpuOptional: mins.gpuOptional,
+    onGpu, asCpuFallback: gpuShare > 0 && !r.onGpu && !r.refusal,
+    unmet: r.unmet, refusal: r.refusal,
+    needGpu: round3(needGpu), needCpu: round3(needCpu), below,
+  }));
   process.exit(0);
 }
 
@@ -5394,6 +5502,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
   // gate also returns the version's exact declared resources — they become the
   // request defaults and the floor a request may not undercut.
   let appMin = { ...NO_MIN };
+  let appCfg = "";                       // the version's config, for volume-aware sizing
   // Public endpoint: anyone can reach the app's data path (hosting a website/API).
   // Private (default): only the owner's SIWE token can. Management stays owner-only
   // either way. Confidentiality is unchanged — the TEE still hides the app from the
@@ -5410,6 +5519,7 @@ app.post("/v1/deployments", authed, async (req, res) => {
         "This app charges a publisher fee, so it must be deployed on-chain (create + fund on the deployments ledger); this direct deploy path cannot pay the publisher.");
     image = { ...image, reference: g.ref };
     appMin = g.min;
+    appCfg = g.config || "";
   }
   const appPort = Number(b.port) || 8080;
   // Firewall: the app's per-version ports config from the catalog ("http" | "http:N"
@@ -5433,18 +5543,28 @@ app.post("/v1/deployments", authed, async (req, res) => {
   if (r0.share != null || r0.computeShare != null || r0.vramGb != null || r0.memMb != null
       || r0.gpuTflops != null || r0.cpuTflops != null || r0.gpuGflops != null || r0.cpuGflops != null)
     return fail(res, 422, "invalid_spec", "Deployments buy SHARES: request resources.gpuShare (0..1 of one GPU card; 0 = CPU-only) and resources.cpuShare (0..1 of the node). Exact resources (vramGb/memMb/compute) are declared by the app in the catalog and only set the minimum shares.");
-  const mins = minSharesOf(appMin);
-  const gpuShare0 = r0.gpuShare != null ? Number(r0.gpuShare) : mins.gpuShare;
+  const appVols = volumesInConfig(appCfg);
+  const mins = minSharesOf(appMin, { volGb: appVols.length
+    ? volumeGb(appVols, await vmHealth().catch(() => null)) : 0 });
+  // An ask this box's card cannot cover at ANY share is its own refusal, and it
+  // has to be said before the 0..1 validation below turns 7.69 into an
+  // unhelpful "must be in [0, 1]". This is the sizing ratio doing its job: the
+  // number IS the answer to "how much bigger a card would this need".
+  if (mins.gpuShare > 1 + 1e-9 && !mins.gpuOptional)
+    return fail(res, 409, "no_capacity", `This app needs ${round1(mins.gpuShare)}x this enclave's whole card `
+      + `(${round1(CARD_VRAM_GB)} GB / ${round1(CARD_TFLOPS)} TFLOPS); deploy it on a larger card.`);
+  const gpuShare0 = r0.gpuShare != null ? Number(r0.gpuShare) : mins.gpuFloor;
   if (!(gpuShare0 >= 0 && gpuShare0 <= 1))
     return fail(res, 422, "invalid_spec", "resources.gpuShare must be in [0, 1].");
   if (gpuShare0 > 0 && !IS_GPU)
     return fail(res, 422, "invalid_spec", "This is a CPU-only enclave: GPU shares are not served here. Set resources.gpuShare to 0 (CPU-only), or deploy to a GPU enclave.");
+  const needCpu0 = mins.cpuShare;
   const cpuShare0 = r0.cpuShare != null ? Number(r0.cpuShare)
-    : Math.max(mins.cpuShare, gpuShare0 > 0 ? Math.min(0.05, gpuShare0) : 0.05);
+    : Math.max(needCpu0, gpuShare0 > 0 ? Math.min(0.05, gpuShare0) : 0.05);
   if (!(cpuShare0 > 0 && cpuShare0 <= 1))
     return fail(res, 422, "invalid_spec", "resources.cpuShare must be in (0, 1].");
-  if (gpuShare0 < mins.gpuShare - 1e-9 || cpuShare0 < mins.cpuShare - 1e-9)
-    return fail(res, 422, "invalid_spec", `Below this app's minimum shares: its declared specs need at least gpuShare ${round3(mins.gpuShare)} and cpuShare ${round3(mins.cpuShare)} on this hardware.`);
+  if (gpuShare0 < mins.gpuFloor - 1e-9 || cpuShare0 < needCpu0 - 1e-9)
+    return fail(res, 422, "invalid_spec", `Below this app's minimum shares: its declared specs need at least gpuShare ${round3(mins.gpuFloor)} and cpuShare ${round3(needCpu0)} on this hardware.`);
 
   let slice, gpu, rate;
   if (!(gpuShare0 > 0)) {
@@ -7707,12 +7827,20 @@ async function switchTenantVersion(rec, d) {
   catch (e) { g = { error: { status: 503, msg: e.shortMessage || e.message } }; }
   if (g.error) return refuse(g.error.msg, g.error.status === 503);
   // the version must fit the shares the row NOW carries (bought at create, or
-  // re-bought by the owner's latest resize)
-  const mins = minSharesOf(g.min);
+  // re-bought by the owner's latest resize), sized against where this tenant
+  // is ACTUALLY running: a CPU-fallback tenant holds no card, so the new
+  // version's weights would land in node RAM and the volume-inclusive floor is
+  // the one it has to clear.
+  const onGpu = Number(rec.resources?.gpuShare || 0) > 0;
+  const mins = minSharesOf(g.min,
+    { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
-  if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
+  const needGpu = onGpu ? mins.gpuFloor : 0;
+  const needCpu = mins.cpuShare;
+  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
     return refuse(`the new version needs more than this deployment's shares on this hardware `
-                + `(needs gpuShare ${round3(mins.gpuShare)} / cpuShare ${round3(mins.cpuShare)})`);
+                + `(needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
+                + (onGpu ? "" : ", serving on cores") + ")");
   let firewall;
   try { firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] }); }
   catch (e) { return refuse("the new version's port spec is not servable here: " + e.message); }
@@ -8182,7 +8310,15 @@ async function depHasSecrets(id){
   } catch { return null; }
 }
 
-async function volumeGate(d, g){
+const volumesInConfig = (cfgStr) => {
+  try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) return c.volumes.map(String); } catch {}
+  return [];
+};
+
+// The model volumes the app will actually mount: the version's config, or the
+// deployment's override where it has one. Pure — no I/O, so both the volume
+// gate and the sizing math can ask.
+function neededVolumes(d, g){
   let cfgStr = g.config || "";
   try {
     const o = parseDepOptions(d.configCid, d.gpuMilli);  // strict; considerClaim already accepted it
@@ -8194,10 +8330,24 @@ async function volumeGate(d, g){
     // that is not the one about to run.
     if (o && (o.config || o.configCid)) cfgStr = o.config ? JSON.stringify(o.config) : "{}";
   } catch { /* unreachable: parsed earlier in considerClaim */ }
-  let need = [];
-  try { const c = JSON.parse(cfgStr || "{}"); if (Array.isArray(c.volumes)) need = c.volumes.map(String); } catch {}
+  return volumesInConfig(cfgStr);
+}
+
+// GB of weights those volumes carry HERE, from the manager's own advertisement
+// (the same rows /availability publishes). Volumes this box doesn't have count
+// 0 — volumeGate refuses that deployment anyway, and guessing a size for a
+// volume we cannot see would size the claim off a number nothing verified.
+function volumeGb(need, h){
+  if (!need.length) return 0;
+  const bytes = new Map((Array.isArray(h && h.volumes) ? h.volumes : [])
+    .filter((v) => v && v.name).map((v) => [String(v.name), Number(v.bytes) || 0]));
+  return need.reduce((t, n) => t + (bytes.get(n) || 0), 0) / 1e9;
+}
+
+async function volumeGate(d, g, health){
+  const need = neededVolumes(d, g);
   if (!need.length) return null;
-  const h = await vmHealth().catch(() => null);
+  const h = health !== undefined ? health : await vmHealth().catch(() => null);
   if (!h) return "app manager unreachable (volume check)";
   const have = new Set((Array.isArray(h.volumes) ? h.volumes : []).map((x) => String((x && x.name) || x)));
   const missing = need.filter((n) => !have.has(n));
@@ -8294,26 +8444,39 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // GPU box could never move back to a CPU one ("GPU work on a CPU-only
   // enclave"), even though its publisher had already said cores are fine.
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+  // The VERSION now comes before the routing decision, because what the app
+  // needs is what decides whether this box can serve the card ask at all. It
+  // also removes the second gateAppReference the CPU-only branch used to make.
+  const g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic });
+  if (g.error) return "app not deployable: " + g.error.msg;   // unapproved/unknown record (or catalog unreachable: fail closed)
+  // One /health serves the sizing, the GPU readiness check and volumeGate
+  // below. Fetched only when one of them will actually want it, so a plain CPU
+  // claim on a volume-less app costs no extra round trip. null = unreachable,
+  // which every consumer already treats as fail-closed; undefined = never
+  // asked, and volumeGate refetches if it turns out to need one.
+  const wantVols = neededVolumes(d, g);
+  const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
+  const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
+  // The PUBLISHER's own declaration, not the volume-corrected figure: this is
+  // "did the version state a card requirement", which is what decides whether
+  // the OWNER's envelope flag is allowed to waive it.
+  const declaresGpu = (g.min.vramMb || 0) > 0 || (g.min.gpuGflops || 0) > 0;
   let slice;
   let asCpuFallback = false;
-  if (gpuShare > 0 && !IS_GPU) {
-    const gg = await gateAppReference(d.appRef, { forPrivate: !d.isPublic }).catch(() => null);
-    const publisherOptional = !!(gg && gg.min && gg.min.gpuOptional);
-    const declaresGpu = !!(gg && gg.min && ((gg.min.vramMb || 0) > 0 || (gg.min.gpuGflops || 0) > 0));
-    // Either flag opens the fallback; neither one can waive a HARD requirement.
-    if (gpuOptional || publisherOptional) {
-      if (declaresGpu && !publisherOptional)
-        return "GPU work on a CPU-only enclave (gpu.optional cannot waive the app version's own VRAM/compute requirement)";
+  if (gpuShare > 0) {
+    const r = gpuRouting(mins, { declaresGpu, envelopeOptional: gpuOptional });
+    if (r.refusal) return r.refusal;
+    if (!r.onGpu) {
       asCpuFallback = true;
+      console.log(`[claim] ${d.id}: GPU requirement unmet here - ${r.unmet}; serving on cores instead`);
     }
   }
   if (gpuShare > 0 && !asCpuFallback) {
-    if (!IS_GPU) return "GPU work on a CPU-only enclave";
     // Don't claim GPU work the manager would 503: right after a boot the CUDA
     // readiness probe is still running, and a claim during that window burns
     // the user's lease on a doomed provision (observed live 2026-07-05:
     // claim -> 503 warming up -> failed release -> lease stranded 30 min).
-    const h = await vmHealth().catch(() => null);
+    const h = health;
     if (!h) return "app manager unreachable";
     // A SHIELDED card has no CUDA readiness probe to pass and never will: there
     // is no local device for the manager to warm up, and nnProbe sits at "off"
@@ -8358,14 +8521,16 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     slice = normalizeCpuReq(cpuShare);
     if (slice.cpuShare > maxFreeCpu() + 1e-9) return "no free CPU capacity here right now";
   }
-  const g = await gateAppReference(d.appRef, { forPrivate: !d.isPublic });
-  if (g.error) return "app not deployable: " + g.error.msg;   // unapproved/unknown record (or catalog unreachable: fail closed)
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
-  // the app needs is nobody's work item
-  const mins = minSharesOf(g.min);
-  if (gpuShare < mins.gpuShare - 1e-9 || cpuShare < mins.cpuShare - 1e-9)
-    return `below the app's minimum shares on this hardware (needs gpuShare ${round3(mins.gpuShare)} / cpuShare ${round3(mins.cpuShare)})`;
+  // the app needs is nobody's work item. The CPU floor is the same either way:
+  // the weights are charged to the node, never to the share (see minSharesOf).
+  const onGpu = gpuShare > 0 && !asCpuFallback;
+  const needGpu = onGpu ? mins.gpuFloor : 0;
+  const needCpu = mins.cpuShare;
+  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
+    return `below the app's minimum shares on this hardware (needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
+         + (asCpuFallback ? ", serving on cores" : "") + ")";
   // WASIp3 is a RUNTIME capability, gated like the card and the volumes: the
   // version's config declares `wasi: "0.3"` (stamped from the binary by the
   // publish path) and a box whose wasmtime cannot serve p3 could only
@@ -8436,7 +8601,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // could only claim-fail-release in a loop. Fail closed here; the boxes
   // that carry the volume claim instead. (Mattered from the first
   // heterogeneous fleet: a metal box carries no Modelwrap volumes.)
-  const volWhy = await volumeGate(d, g);
+  const volWhy = await volumeGate(d, g, health);
   if (volWhy) return volWhy;
   // Staged secrets are injected at launch via a FLEET-secret-derived auth this
   // box may not hold (SECRETS_CAPABLE=0: a metal enclave running its own
