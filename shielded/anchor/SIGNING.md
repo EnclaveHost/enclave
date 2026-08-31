@@ -132,6 +132,46 @@ is out), full NEON incl. dotprod, several GB of RAM fine, but the default is **o
 `CPU_TOPOLOGY_MATCH_HOST` must be set explicitly. I/O over vsock. Changing the payload rotates
 the VM's DICE secrets, so every app update changes its attested identity.
 
+### The attestation gap, pinned down (2026-08-31, against AOSP source)
+
+This was the open question that decides build-vs-buy. The answer is **"not established", and it
+is empirically testable in an afternoon.**
+
+Google **does** publish pinnable roots at `https://android.googleapis.com/attestation/root`
+(verified live: 2 certificates, `CE:DB:1C:B6:...:0D:FC` valid to 2042, and
+`CN=Key Attestation CA1, O=Google LLC` `6D:9D:B4:CE:...:BC:C0` valid to 2035). But they are
+documented for **Key Attestation** only, and the name of the second says so. **No public source
+states that a `"rkp-vm"` chain from the `/avf` IRPC instance chains to them**, and Google's own
+official verifier (`github.com/android/keyattestation`) contains **zero** references to the pVM
+OID `1.3.6.1.4.1.11129.2.1.29.1`, to `isVmSecure`, or to `vmComponents`.
+
+What a relying party CAN and CANNOT do:
+
+| | |
+|---|---|
+| verify the chain is internally consistent, parse `vmComponents` | **yes** — trivially, but alone it is forgeable by anyone with a self-signed root |
+| verify the DICE chain structurally | **yes** — `hwtrust dice-chain --rkp-instance avf` (Apache-2.0, source-only, not on crates.io) |
+| verify **the device is genuine** | **no** — `hwtrust` anchors on the UDS_Pub *inside the chain*. The genuineness evidence lives only in Google's private UDS_pub enrolment registry. |
+| know the expected Microdroid image hash | **no public source** — AVB digests are baked into the RKP VM binary by `extract_microdroid_kernel_hashes.py`; the design has the RKP VM check it on-device and expects the verifier to trust that transitively |
+| verify **our own payload's identity** | **yes, independently** — `codeHash` = APK Signature Scheme v4 Merkle root (SHA-256, empty salt), `authorityHash` = SHA-512 of the DER signing cert. Both recomputable from the APK we shipped. |
+
+**The trap to avoid:** AOSP's `X509Utils.validateAndParseX509CertChain` — used by *both* the
+test-mode and the real-RKP end-to-end tests — anchors on the chain's **own self-signed root**
+and disables revocation. Copying it into a production verifier accepts fully attacker-forged
+chains. There is no public server-side verifier for the pVM OID; we would write it ourselves.
+
+**Test mode is definitively worthless for production**, and worth stating so nobody is tempted:
+`enableTestAttestation()` yields a locally generated key plus a hardcoded leaf from
+`CN=Droid Unregistered Device CA, O=Google Test LLC` that **expired 2024-02-14**. It is not
+RKP-rooted; the AOSP header says so outright.
+
+> **THE DECISIVE EXPERIMENT.** On a real Pixel, obtain a genuine (non-test) RKP-backed pVM
+> attestation and check whether its chain terminates at one of the two fingerprints above. If it
+> does, the gap closes empirically and this route is viable. If it does not, **there is no
+> verifiable remote attestation** and the anchor is no stronger than a normal-world process --
+> at which point buy an SNP node instead of building this. Note a device that was never enrolled
+> answers HTTP 444 -> permanent `DEVICE_NOT_REGISTERED`, and rkpd needs network + GMS.
+
 **Buy, if this route is taken:** a Pixel, not a Samsung. **Pixel 10-class or newer** if
 attestation must be guaranteed (vendor API >= 202504); a used **Pixel 8a (~$205-250)** is
 enough to prototype the VM mechanics, with attestation to be probed rather than assumed.
