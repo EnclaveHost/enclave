@@ -15,7 +15,28 @@
 #include "shielded-field.h"
 #include "shielded-simd.h"
 
+/* OP-TEE TAs have no libm and no <math.h>. The ONLY libm user in this file is
+ * lrintf in FN(encode); on aarch64 __builtin_lrintf lowers to FCVTNS -- round
+ * to nearest, ties to even -- with no library call, which is precisely what
+ * lrintf does under the default rounding mode. SH_NO_LIBM selects that form so
+ * the file builds in S-EL0. Default builds are unchanged and still call lrintf.
+ * (The anchor's TA never calls encode at all: it takes activations already in
+ * field form. This exists so the file COMPILES there, not so it is used.) */
+#ifdef SH_NO_LIBM
+/* __builtin_lrintf still lowers to a libcall at -O3, so name the instruction:
+ * FCVTNS is round-to-nearest-ties-even, exactly lrintf's default-mode result. */
+#if defined(__aarch64__)
+static inline long sh_lrintf_nolibm(float v) {
+    long r; __asm__("fcvtns %x0, %s1" : "=r"(r) : "w"(v)); return r;
+}
+#define sh_lrintf(v) sh_lrintf_nolibm(v)
+#else
+#define sh_lrintf(v) __builtin_lrintf(v)
+#endif
+#else
 #include <math.h>
+#define sh_lrintf(v) lrintf(v)
+#endif
 #include <string.h>
 
 #ifdef SH_SIMD_AVX512
@@ -113,18 +134,18 @@ void FN(encode)(const float *src, size_t n, float scale, int64_t *x) {
         const __m512 v = _mm512_mul_ps(_mm512_loadu_ps(src + i), sc);
         const __mmask16 big = _mm512_cmp_ps_mask(_mm512_abs_ps(v), lim, _CMP_NLT_UQ);   /* |v| >= 2^30, or NaN */
         if (__builtin_expect(big != 0, 0)) {
-            for (int t = 0; t < 16; t++) x[i + t] = (int64_t)lrintf(src[i + t] * scale);
+            for (int t = 0; t < 16; t++) x[i + t] = (int64_t)sh_lrintf(src[i + t] * scale);
             continue;
         }
         const __m512i q = _mm512_cvtps_epi32(v);
         _mm512_storeu_si512((void *)(x + i),     _mm512_cvtepi32_epi64(_mm512_castsi512_si256(q)));
         _mm512_storeu_si512((void *)(x + i + 8), _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(q, 1)));
     }
-    for (; i < n; i++) x[i] = (int64_t)lrintf(src[i] * scale);
+    for (; i < n; i++) x[i] = (int64_t)sh_lrintf(src[i] * scale);
 }
 #else
 void FN(encode)(const float *src, size_t n, float scale, int64_t *x) {
-    for (size_t i = 0; i < n; i++) x[i] = (int64_t)lrintf(src[i] * scale);
+    for (size_t i = 0; i < n; i++) x[i] = (int64_t)sh_lrintf(src[i] * scale);
 }
 #endif
 

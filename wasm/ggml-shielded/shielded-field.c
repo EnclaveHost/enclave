@@ -1,5 +1,13 @@
 #include "shielded-field.h"
+/* The float half of this file is the OFFLINE weight encoder: it runs on the
+ * host that prepares a pack, never in a trusted anchor, which receives w_fixed
+ * bytes already encoded. S-EL0 has no libm, so SH_NO_LIBM compiles only the
+ * INTEGER half -- sh_balanced / sh_residue / sh_crt / sh_weights_fit_byte /
+ * sh_float_to_half -- which is all an anchor links. Default builds are
+ * unchanged and carry everything. */
+#ifndef SH_NO_LIBM
 #include <math.h>
+#endif
 #include <string.h>
 
 const int sh_primes[3] = { SH_Q0, SH_Q1, SH_Q2 };
@@ -14,6 +22,7 @@ static int32_t inv_mod(int32_t a, int32_t m) {
     return (int32_t)r;
 }
 
+#ifndef SH_NO_LIBM
 float sh_half_to_float(uint16_t h) {
     const int s = (h & 0x8000) ? -1 : 1;
     const int e = (h >> 10) & 0x1f;
@@ -22,7 +31,9 @@ float sh_half_to_float(uint16_t h) {
     if (e == 31) return f ? NAN : (float)s * INFINITY;
     return (float)s * ldexpf((float)(1024 + f), e - 25);
 }
+#endif
 
+#ifndef SH_NO_LIBM
 int64_t sh_encode_weight_fixed(uint16_t wd_half, int8_t wq) {
     /* Every intermediate is float, deliberately. Widening any of them to double
      * changes the rounding of the final floor on values that land exactly on a
@@ -31,6 +42,7 @@ int64_t sh_encode_weight_fixed(uint16_t wd_half, int8_t wq) {
     const float prod = d256 * (float)wq;
     return (int64_t)floorf(prod + 0.5f);
 }
+#endif
 
 int64_t sh_balanced(int64_t a) {
     int64_t r = a % SH_M_MOD;
@@ -104,6 +116,7 @@ uint16_t sh_float_to_half(float v) {
     return (uint16_t)(sign | (q + ((rem > half) || (rem == half && (q & 1u)))));
 }
 
+#ifndef SH_NO_LIBM
 int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
                       int64_t K, int64_t N, uint16_t *wd_scaled_out, int *f_w_out) {
     if (K % SH_QK != 0) return -1;
@@ -149,6 +162,7 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
     }
     return 0;
 }
+#endif
 
 /* One row at exponent `cand`: the block scales carry the exponent (the SAME
  * fp16 rounding as the reference form), then each block's d256 is formed ONCE
@@ -158,6 +172,7 @@ int sh_prepare_weight(const uint16_t *wd_raw, const int8_t *wq,
  * the block scale for every element and could not vectorise. Returns 1 if
  * every element fits the byte lane, 0 otherwise (the row is then retried one
  * exponent lower). No FMA anywhere: this file is built -ffp-contract=off. */
+#ifndef SH_NO_LIBM
 static int encode_row(const uint8_t *row, int64_t nb, int cand, int8_t *out) {
     const float mul = ldexpf(1.0f, cand - SH_FRAC);
     for (int64_t b = 0; b < nb; b++) {
@@ -178,7 +193,9 @@ static int encode_row(const uint8_t *row, int64_t nb, int cand, int8_t *out) {
     }
     return 1;
 }
+#endif
 
+#ifndef SH_NO_LIBM
 int sh_prepare_weight_rows_range(const void *blocks, int64_t K, int64_t N, int64_t j0, int64_t j1,
                                  int8_t *w_fixed_out, int *f_w_out) {
     if (K % SH_QK != 0) return -1;
@@ -208,14 +225,18 @@ int sh_prepare_weight_rows_range(const void *blocks, int64_t K, int64_t N, int64
     }
     return 0;
 }
+#endif
 
+#ifndef SH_NO_LIBM
 int sh_prepare_weight_rows(const void *blocks, int64_t K, int64_t N,
                            int8_t *w_fixed_out, int *f_w_out) {
     return sh_prepare_weight_rows_range(blocks, K, N, 0, N, w_fixed_out, f_w_out);
 }
+#endif
 
 /* The reference form, element by element through sh_encode_weight_fixed: kept
  * for the cross-check (prepare-selftest compares the two on random blocks). */
+#ifndef SH_NO_LIBM
 int sh_prepare_weight_rows_ref(const void *blocks, int64_t K, int64_t N,
                            int8_t *w_fixed_out, int *f_w_out) {
     if (K % SH_QK != 0) return -1;
@@ -265,3 +286,4 @@ int sh_prepare_weight_rows_ref(const void *blocks, int64_t K, int64_t N,
     }
     return 0;
 }
+#endif
