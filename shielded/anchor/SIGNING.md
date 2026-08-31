@@ -23,6 +23,24 @@ against a hash fused by the OEM, and that is the wall. On SoCs whose fuses are
 ST), the customer burns their own key hash and the entire chain — BL2/BL31, OP-TEE, TAs — is
 theirs. That is a real TrustZone TA with no gatekeeper, and it is the live route.
 
+## Two OP-TEE constraints that narrow the SoC choice (from the tree, not a datasheet)
+
+**The pager is not available everywhere.** The handoff's SRAM-anchored design (TA core and keys
+resident in on-chip SRAM, everything else AES-GCM-paged to DRAM) needs `CFG_WITH_PAGER`, and only
+these platforms configure it: `tegra sunxi hisilicon nuvoton stm32mp1 stm rzn1 amlogic versal2
+d02 d06`. **Rockchip, i.MX, TI K3 and Qualcomm are NOT on that list** — which is awkward, because
+those are exactly the lines with customer-programmable fuses and adequate compute. Either the
+pager gets ported to the chosen platform, or the design accepts a TZASC DRAM carveout with keys
+in secure DRAM (a weaker but still TrustZone-class boundary, and the trade named earlier).
+
+**Default secure carveouts are two orders of magnitude too small.** The configured
+`CFG_TZDRAM_SIZE` on the candidate platforms is 4 MB, 20 MB, 30 MB, 32 MB. Our anchor measured
+**9.0 MiB for one `gate|up` group of a 0.5B model** — before any KV cache or pad bank. There is no
+architectural cap (`CFG_CORE_ARM64_PA_BITS` is per-platform, `CFG_CORE_LARGE_PHYS_ADDR` and
+`CFG_WITH_LPAE` exist), and our 24 MiB TA heap already builds, so this is a configuration and
+TZC-400 question rather than a wall — but it is unvalidated above tens of MB and must be proven
+on real silicon before committing to a board.
+
 ## And attestation is solved too, by the same inversion
 
 The AVF route died on attestation: no pinnable trust anchor, and RKP factory provisioning that
