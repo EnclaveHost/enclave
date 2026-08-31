@@ -334,12 +334,6 @@ function handle(client, logicalPort) {
       // the supervisor resolves 0x-prefixed ids - restore it (depFromHost does
       // the same on the api-relay). Legacy dep- labels map back to dep_.
       const dep = /^[0-9a-f]{8,64}$/.test(label) ? "0x" + label : label.replace(/^dep-/, "dep_");
-      // Someone reached this app. Logged HERE rather than at accept() because
-      // this is the first point the connection has a deployment to belong to -
-      // before the SNI is read it is just a socket, and an unroutable one is
-      // nobody's traffic. Address and time only: there is nothing else to see
-      // through a splice that never terminates TLS.
-      connlog.note(dep, "in", client.remoteAddress, client.remotePort);
       // ONE hostname per deployment: every DECLARED tcp port routes to the
       // tenant's socket (via the in-enclave /tls/ terminator) - including 443
       // if they declared it (their socket outranks the platform HTTPS bridge).
@@ -469,12 +463,24 @@ function httpsRedirect(client, head) {
 }
 
 function splice(client, origin, dep, path, hello) {
+  // Someone reached this app. Recorded HERE rather than at accept() because
+  // this is the first point a connection has a deployment to belong to - before
+  // the SNI is read it is just a socket, and an unroutable one is nobody's
+  // traffic. Every routed path lands here, so this is also the only place that
+  // has to remember to do it. Address, time and (at teardown) how many bytes
+  // moved: there is nothing else to see through a splice that never terminates
+  // TLS, and the byte counts come free from the socket rather than from
+  // watching the stream.
+  const clog = connlog.note(dep, "in", client.remoteAddress, client.remotePort);
   const ws = new WebSocket(wsOrigin(origin) + path, { perMessageDeflate: false });
   const wsStream = createWebSocketStream(ws);
   // WS-open handshake timeout: a slow/never-opening enclave bridge must not pin
   // the client slot (MAX_CONNS) forever (fix 4; mirrors tcp6-relay's hsTimer).
   const hsTimer = setTimeout(() => { try { ws.terminate(); } catch {} client.destroy(); }, HS_MS);
-  const close = () => { clearTimeout(hsTimer); client.destroy(); try { ws.terminate(); } catch {} };
+  const close = () => {
+    connlog.done(clog, client.bytesRead, client.bytesWritten);
+    clearTimeout(hsTimer); client.destroy(); try { ws.terminate(); } catch {}
+  };
   ws.on("unexpected-response", (_req, res) => {
     console.log(`[relay] ${dep} ${path} refused by enclave (HTTP ${res.statusCode})`);
     close();
