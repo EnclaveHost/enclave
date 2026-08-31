@@ -1566,6 +1566,85 @@ def _probe_serve_output(extra_args, env_extra, timeout=45.0):
             pass
 
 
+def _nn_budgets(gpu_share, cpu_share, shielded_vram_gb, vram_bytes, nn_resident_other=0):
+    """Which memory a preloaded graph must fit here, and what to call it.
+
+    Returns (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
+             ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant).
+
+    Split out of _volume_args so it can be driven directly: this is the gate
+    that decides whether a mounted volume is preloaded at all, and getting it
+    wrong is silent - the model simply never appears and the app reports it
+    unfit. test/nn-budgets.test.mjs pins the four tenant shapes.
+    """
+    # CPU-ONLY NODE: the same question, but the resource behaves nothing
+    # like VRAM, so the answer is not "a slice of the node per share".
+    # ggml MMAPS a GGUF (llama.cpp: "mmap = true", "CPU_Mapped model buffer
+    # size = 20190.50 MiB"): the weights are FILE-BACKED page cache the
+    # kernel reclaims under pressure, not memory the tenant holds. What the
+    # tenant actually allocates is its KV cache and compute buffers - 512
+    # MiB for a 27B at 8k context - plus its linear memory, which
+    # `-W max-memory-size` already caps. So charging 20 GB of reclaimable
+    # page cache against a share was wrong twice over: it refused models a
+    # node has ample room for, and it measured the wrong bytes.
+    #
+    # What DOES matter is that the weights fit the NODE: a model larger
+    # than RAM page-thrashes forever rather than running slowly. So the
+    # ggml budget is the node's usable RAM (minus a reserve for the base
+    # system, other tenants' KV, and slack), independent of share. The
+    # share still governs what the tenant gets: CPU time and its own
+    # allocations. Operators who want the strict per-share rule anyway can
+    # set WASM_CPU_NN_BUDGET=share.
+    #
+    # sd/onnx are NOT mmap-backed the same way (sdcpp builds anonymous
+    # buffers, ORT sessions allocate per request), so they keep the
+    # per-share budget on a CPU node - reclaimable and resident are
+    # different promises and only ggml makes the first one.
+    # ...and node RAM is SHARED, so the node's usable pool is net of what
+    # other live tenants already hold resident. Without that term the budget
+    # is per-deployment only: two tenants each clear a 23 GiB check on a
+    # 29 GB box and the pair thrashes. Subtracting it also keeps the RAM
+    # ledger and this gate reading the same node - _rec_ram_mb charges the
+    # very bytes we deduct here.
+    share_ram_bytes = int(cpu_share * NODE_RAM_GB * (1 << 30))
+    node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)) - max(0, nn_resident_other))
+    # WHICH budget applies is a property of the TENANT, not the node: a GPU
+    # box also hosts 0-GPU tenants, and they run on cores. Keying this on
+    # NODE_HAS_GPU gave them a VRAM budget of zero, so every volume was
+    # skipped "exceeds the VRAM budget" and the app could never load.
+    gpu_tenant = NODE_HAS_GPU and gpu_share > 0
+    # ...and a SHIELDED share is not a local card, which changes the answer
+    # again for ggml. The hard VRAM gate below exists because a CUDA OOM
+    # inside compute calls ggml_abort and takes the whole wasmtime process
+    # down - so on a LOCAL card a model that cannot fit must never be
+    # preloaded, let alone probed. A shielded tenant has no local card at
+    # all (CUDA_VISIBLE_DEVICES="", ENCLAVE_GGML_N_GPU_LAYERS=0): its
+    # weights are mmap'd page cache in the CVM exactly like a CPU tenant's,
+    # and the card is reached per-matmul over the masked-offload protocol,
+    # where being too big is SLOW, not fatal. The backend already degrades
+    # on its own - placement is a policy (SHIELDED_MIN_MACS/MAX_M), a
+    # refused reservation reads as a dead link and computes in the enclave,
+    # and with no calibration it claims nothing and every matmul stays
+    # inside. Pricing its ggml graphs against the offload reservation
+    # skipped the volume entirely, so load_by_name() failed instantly and
+    # the app reported "unfit" for a model the node holds comfortably
+    # (2026-08-31, eyesoff-ai on metal0: a 24 GB model refused against a
+    # 2.3 GB reservation while 58 GB of node RAM sat free).
+    shielded_tenant = shielded_vram_gb > 0
+    local_gpu_tenant = gpu_tenant and not shielded_tenant
+    if gpu_tenant:
+        budget_bytes, budget_kind = vram_bytes, "VRAM"
+    else:
+        budget_bytes, budget_kind = share_ram_bytes, "RAM"
+    if local_gpu_tenant:
+        ggml_budget_bytes, ggml_budget_kind = vram_bytes, "VRAM"
+    else:
+        ggml_budget_bytes = share_ram_bytes if CPU_NN_BUDGET == "share" else node_ram_bytes
+        ggml_budget_kind = "RAM"
+    return (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
+            ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant)
+
+
 def _preload_support() -> dict:
     with _PRELOAD_PROBE_LOCK:
         if _PRELOAD_SUPPORT["state"] != "unprobed":
@@ -4192,48 +4271,18 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
         vram_bytes = int(vram_gb * (1 << 30)) if gpu_share > 0 else 0
         if vram_bytes:
             vol_args += ["--env", f"ENCLAVE_VRAM_BYTES={vram_bytes}"]
-        # CPU-ONLY NODE: the same question, but the resource behaves nothing
-        # like VRAM, so the answer is not "a slice of the node per share".
-        # ggml MMAPS a GGUF (llama.cpp: "mmap = true", "CPU_Mapped model buffer
-        # size = 20190.50 MiB"): the weights are FILE-BACKED page cache the
-        # kernel reclaims under pressure, not memory the tenant holds. What the
-        # tenant actually allocates is its KV cache and compute buffers - 512
-        # MiB for a 27B at 8k context - plus its linear memory, which
-        # `-W max-memory-size` already caps. So charging 20 GB of reclaimable
-        # page cache against a share was wrong twice over: it refused models a
-        # node has ample room for, and it measured the wrong bytes.
-        #
-        # What DOES matter is that the weights fit the NODE: a model larger
-        # than RAM page-thrashes forever rather than running slowly. So the
-        # ggml budget is the node's usable RAM (minus a reserve for the base
-        # system, other tenants' KV, and slack), independent of share. The
-        # share still governs what the tenant gets: CPU time and its own
-        # allocations. Operators who want the strict per-share rule anyway can
-        # set WASM_CPU_NN_BUDGET=share.
-        #
-        # sd/onnx are NOT mmap-backed the same way (sdcpp builds anonymous
-        # buffers, ORT sessions allocate per request), so they keep the
-        # per-share budget on a CPU node - reclaimable and resident are
-        # different promises and only ggml makes the first one.
-        # ...and node RAM is SHARED, so the node's usable pool is net of what
-        # other live tenants already hold resident. Without that term the budget
-        # is per-deployment only: two tenants each clear a 23 GiB check on a
-        # 29 GB box and the pair thrashes. Subtracting it also keeps the RAM
-        # ledger and this gate reading the same node - _rec_ram_mb charges the
-        # very bytes we deduct here.
-        share_ram_bytes = int(cpu_share * NODE_RAM_GB * (1 << 30))
-        node_ram_bytes = max(0, int((NODE_RAM_GB - CPU_NN_RESERVE_GB) * (1 << 30)) - max(0, nn_resident_other))
-        # WHICH budget applies is a property of the TENANT, not the node: a GPU
-        # box also hosts 0-GPU tenants, and they run on cores. Keying this on
-        # NODE_HAS_GPU gave them a VRAM budget of zero, so every volume was
-        # skipped "exceeds the VRAM budget" and the app could never load.
-        gpu_tenant = NODE_HAS_GPU and gpu_share > 0
-        if gpu_tenant:
-            budget_bytes, budget_kind = vram_bytes, "VRAM"
-            ggml_budget_bytes = vram_bytes
-        else:
-            budget_bytes, budget_kind = share_ram_bytes, "RAM"
-            ggml_budget_bytes = share_ram_bytes if CPU_NN_BUDGET == "share" else node_ram_bytes
+        (share_ram_bytes, node_ram_bytes, budget_bytes, budget_kind,
+         ggml_budget_bytes, ggml_budget_kind, gpu_tenant, local_gpu_tenant) = _nn_budgets(
+            gpu_share, cpu_share, shielded_vram_gb, vram_bytes, nn_resident_other)
+        # What an APP should price ggml SERVING against, and what kind of memory
+        # that is. ENCLAVE_VRAM_BYTES could not answer this on its own: it means
+        # "your slice of a card", which on a local GPU tenant IS the serve
+        # budget but on a shielded one is only the offload RESERVATION - so an
+        # app pricing against it refused models the node can serve on cores.
+        # Apps prefer these two and fall back to ENCLAVE_VRAM_BYTES, so an older
+        # guest keeps exactly its current behaviour.
+        vol_args += ["--env", f"ENCLAVE_NN_SERVE_BYTES={ggml_budget_bytes}",
+                     "--env", f"ENCLAVE_NN_SERVE_KIND={ggml_budget_kind}"]
         # Forward the node's ggml context tuning to the GUEST too: with the
         # window and KV cache type known, an app can price a model's KV cache
         # (weights + n_ctx x kv-bytes/token + working set) and refuse models
@@ -4328,10 +4377,13 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             skipped[name] = "no preloadable model file (data volume or ambiguous layout)"
         resident = 0
         for _bytes, _name, kind, stage in sorted(vram_stages):
-            # mmap-backed ggml graphs answer to the node's RAM on a CPU box;
-            # everything else to the tenant's own budget (see above)
-            cap = ggml_budget_bytes if (kind == "ggml" and not gpu_tenant) else budget_bytes
-            cap_kind = ("node RAM" if cap == node_ram_bytes else budget_kind) if not gpu_tenant else budget_kind
+            # mmap-backed ggml graphs answer to the node's RAM wherever the
+            # weights actually land there - a CPU tenant, and a shielded one,
+            # which has no local card either; everything else (and ggml on a
+            # LOCAL card) to the tenant's own budget. See _nn_budgets.
+            cap = ggml_budget_bytes if kind == "ggml" else budget_bytes
+            cap_kind = "node RAM" if (cap == node_ram_bytes and kind == "ggml") else (
+                ggml_budget_kind if kind == "ggml" else budget_kind)
             if cap_kind == "node RAM" and nn_resident_other > 0:
                 # say WHY the pool is small - otherwise a shrunk budget reads as
                 # a mis-sized node instead of a neighbour holding a model
@@ -4388,11 +4440,17 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             nn_report["stages"] = dict(stages)
             # What this tenant will hold resident in NODE RAM once booted -
             # which follows where the weights LAND, not what the node has. A
-            # GPU tenant's preloads sit in VRAM and the VRAM ledger owns them
-            # (charging RAM too would sell the box short twice); a 0-GPU tenant
-            # maps them into host RAM even on a GPU box, and that RAM is as
-            # unavailable to the next tenant as it is anywhere else.
-            nn_report["residentBytes"] = 0 if gpu_tenant else resident
+            # LOCAL GPU tenant's preloads sit in VRAM and the VRAM ledger owns
+            # them (charging RAM too would sell the box short twice); a 0-GPU
+            # tenant maps them into host RAM even on a GPU box, and that RAM is
+            # as unavailable to the next tenant as it is anywhere else.
+            # A SHIELDED tenant belongs with the second group, not the first:
+            # its weights are mmap'd in the CVM (the card holds only what the
+            # offload link reserves), so reporting 0 would leave them out of
+            # nn_resident_other and let the next tenant's node-RAM check clear
+            # against room this one is already using - the shared-node term
+            # exists precisely to stop that pair from thrashing.
+            nn_report["residentBytes"] = 0 if local_gpu_tenant else resident
     # enclave transparent egress (phase 2): `-S egress=<host>:<port>` makes the
     # patched wasmtime funnel ALL guest outbound through the loopback SOCKS front
     # (credential in $ENCLAVE_EGRESS_CRED, set host-side by _spawn_and_wait), so an
