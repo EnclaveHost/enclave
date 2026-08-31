@@ -425,6 +425,23 @@ async function endpointId(endpoint) {
   }
   return _hashEndpoint(endpoint);
 }
+// Seller declarations out of the registry, keyed by the SAME endpoint id the
+// ledger uses (keccak of the registered URL, which is what a claim records as
+// `runner`). Rebuilt every discovery pass from every ACTIVE, non-stale entry —
+// deliberately BEFORE the TRUSTED_OPERATORS allowlist below.
+//
+// That allowlist is a DIAL-SAFETY gate: it decides whose registered endpoint
+// this relay is willing to route traffic to (B2, alongside the https and SSRF
+// filters). Reading what a box DECLARED about itself is not a routing decision,
+// and a tunnel box is authenticated at attach time and already being served.
+// Gating the declaration on the allowlist would leave free self-hosting broken
+// for exactly the sellers the tunnel exists for: a third-party CGNAT box has no
+// reason to be on a first-party operator list, so its owner's own deployments
+// would be priced at its posted ask and read as unfundable forever. The chain is
+// the authority either way — EnclaveDeployments._hostRate prices a claim off
+// this very entry, whatever this relay believes.
+let declaredById = new Map();
+
 async function readRegistry() {
   // tunnel enclaves are locally-authenticated at attach time, so they bypass the
   // dial-based discovery filters and are simply appended to whatever the static
@@ -444,10 +461,12 @@ async function readRegistry() {
   const tuns0 = await Promise.all(tunnelHub.origins().map(async (o) =>
     o.publicUrl ? { ...o, id: await endpointId(o.publicUrl) } : o));
   const tids = new Set(tuns0.map((o) => String(o.id).toLowerCase()));
-  // Dropping the twin must not drop what only the CHAIN knows. A tunnel row is
-  // built at attach time from what the box said about itself; `payoutWallet`,
-  // `caps` and `region` are SELLER DECLARATIONS that live in the registry entry
-  // and nowhere else - payoutWallet especially, since the contract writes it
+  // A tunnel row is built at attach time from what the box said about itself,
+  // so it carries no on-chain facts at all - and the discovered twin that does
+  // is dropped just below. `payoutWallet`, `caps` and `region` are SELLER
+  // DECLARATIONS living in the registry entry and nowhere else, so they are
+  // read back from declaredById (the pre-allowlist snapshot above, keyed by the
+  // same endpoint id) - payoutWallet especially, since the contract writes it
   // only from the wallet itself (setPayoutWallet) and that is precisely what
   // makes it unforgeable. The box repeats it in its own /availability, but
   // every consumer deliberately refuses that copy: a box must not be able to
@@ -461,12 +480,11 @@ async function readRegistry() {
   // refused by the console AND the CLI, which share this one field.
   // The tunnel keeps its ROUTING fields (endpoint/id/name/publicUrl/mode): its
   // https twin would only dial back through this relay.
-  const onChain = new Map(base.filter((e) => e.id).map((e) => [String(e.id).toLowerCase(), e]));
   const tuns = tuns0.map((o) => {
-    const c = onChain.get(String(o.id).toLowerCase());
-    return c ? { ...o, payoutWallet: c.payoutWallet || null,
-                 ...(c.caps !== undefined ? { caps: c.caps } : {}),
-                 ...(c.region !== undefined ? { region: c.region } : {}) } : o;
+    const c = declaredById.get(String(o.id).toLowerCase());
+    return c ? { ...o, payoutWallet: c.payoutWallet,
+                 ...(o.caps === undefined ? { caps: c.caps } : {}),
+                 ...(o.region === undefined ? { region: c.region } : {}) } : o;
   });
   return [...base.filter((e) => !e.id || !tids.has(String(e.id).toLowerCase())), ...tuns];
 }
@@ -477,9 +495,11 @@ function endpointName(endpoint) {
   try { return new URL(endpoint).hostname.split(".")[0] || null; } catch { return null; }
 }
 async function discoverRegistry() {
-  if (STATIC_ENCLAVES.length)
+  if (STATIC_ENCLAVES.length) {
+    declaredById = new Map();     // a static list is a dev seam: no chain, nothing declared
     return Promise.all(STATIC_ENCLAVES.map(async (endpoint) =>
       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: null, lastSeen: null })));
+  }
   const c = await chain();
   // resolve the registry from the on-chain address book each cycle, so a
   // registry redeploy reaches this box with one owner tx (no env edits)
@@ -501,8 +521,14 @@ async function discoverRegistry() {
       functionName: "getPage", args: [BigInt(start), 50n] }));
   const now = Math.floor(Date.now() / 1000);
   warnIfUnauthenticated();
-  return Promise.all(out
-    .filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC)
+  const fresh = out.filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC);
+  // Snapshot every live entry's declarations before the dial-safety filters —
+  // see declaredById above. Deregistered and stale rows are excluded with the
+  // rest: a box that stopped saying it is here declares nothing.
+  declaredById = new Map(await Promise.all(fresh.map(async (e) =>
+    [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
+     { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
+  return Promise.all(fresh
     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
     .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
