@@ -126,7 +126,7 @@ function handleOpen(control, origin, { cid, host, port, source, dep }) {
   // address is not. `dep` is absent from an enclave predating the field, and
   // an unattributed dial is left unlogged rather than pooled under a name it
   // might not belong to.
-  if (dep) connlog.note(dep, "out", host, port);
+  const clog = dep ? connlog.note(dep, "out", host, port) : null;
   // `source` present => dedicated-IP egress: source-bind, and reject a source
   // outside this box's routed /64 before we ever dial (fix 9). `source` absent
   // => PLAIN egress (the enclave routed this deployment to a relay that doesn't
@@ -149,6 +149,12 @@ function handleOpen(control, origin, { cid, host, port, source, dep }) {
     const opts = { host: addr, port, family };
     if (family === 6 && source) opts.localAddress = source;
     const dst = net.connect(opts);
+    // Close the log row out with what this dial actually moved. `bytesRead` is
+    // what the destination sent back, `bytesWritten` what the app sent it, and
+    // both are maintained by the socket - nothing here watches the stream. A
+    // dial that never connects still ends up here with zeroes, which is the
+    // honest record of an attempt that moved nothing.
+    dst.once("close", () => connlog.done(clog, dst.bytesRead, dst.bytesWritten));
     connCount++;
     let settled = false;
     const dialTimer = setTimeout(() => { if (!settled) { settled = true; try { dst.destroy(); } catch {} connCount--; fail("error"); } }, DIAL_MS);

@@ -28,8 +28,18 @@ const MAX_PER_DEP = Number(process.env.CONNLOG_MAX || 500);   // rows kept per d
 const MAX_DEPS    = Number(process.env.CONNLOG_MAX_DEPS || 256);
 const MAX_AGE_MS  = Number(process.env.CONNLOG_MAX_AGE_MS || 30 * 60 * 1000);
 
-// dep -> { rows: [{t, d, a, p}], seq }
-//   t = ms epoch, d = "in" | "out", a = peer address, p = port
+// dep -> { rows: [row] }
+//   t  ms epoch the connection OPENED      d  "in" | "out"
+//   a  peer address (or the host an        p  port
+//      outbound dial named)
+//   e  ms epoch it CLOSED (absent = still open)
+//   u  bytes the peer sent us              w  bytes we sent the peer
+//
+// Bytes are per CONNECTION rather than a rolling total, because that is the
+// breakdown that answers a question totals cannot: eight open connections
+// moving nothing is a very different picture from eight moving megabytes, and
+// only the per-connection split tells them apart. Summing them gives the total
+// back whenever that is what a caller wants.
 const _log = new Map();
 
 // An IPv6-mapped IPv4 ("::ffff:1.2.3.4") is the same address a human would
@@ -57,8 +67,23 @@ export function note(dep, dir, addr, port) {
     e = { rows: [] };
     _log.set(key, e);
   }
-  e.rows.push({ t: Date.now(), d: dir === "out" ? "out" : "in", a, p: Number(port) || 0 });
+  const row = { t: Date.now(), d: dir === "out" ? "out" : "in", a, p: Number(port) || 0 };
+  e.rows.push(row);
   if (e.rows.length > MAX_PER_DEP) e.rows.splice(0, e.rows.length - MAX_PER_DEP);
+  // Handed back so the caller can close it out. A row that is never finished
+  // (relay killed mid-connection) simply keeps no `e` and no byte counts,
+  // which reads correctly as "open when we last knew".
+  return row;
+}
+
+/** Close a row out with what the connection actually moved. `up` is what the
+ *  peer sent, `down` what we sent it. Safe to call twice: a splice tears down
+ *  from either end and both ends fire. */
+export function done(row, up, down) {
+  if (!row || row.e) return;
+  row.e = Date.now();
+  row.u = Math.max(0, Number(up) || 0);
+  row.w = Math.max(0, Number(down) || 0);
 }
 
 /** Rows for one deployment, oldest first, aged out. `sinceMs` trims further. */
