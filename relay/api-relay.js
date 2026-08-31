@@ -441,9 +441,33 @@ async function readRegistry() {
   // on "claimed"). Never-registered dev tunnels keep the synthetic id. A
   // discovered twin of the same id is dropped: the tunnel is the working route
   // (its https endpoint would just dial back through this relay).
-  const tuns = await Promise.all(tunnelHub.origins().map(async (o) =>
+  const tuns0 = await Promise.all(tunnelHub.origins().map(async (o) =>
     o.publicUrl ? { ...o, id: await endpointId(o.publicUrl) } : o));
-  const tids = new Set(tuns.map((o) => String(o.id).toLowerCase()));
+  const tids = new Set(tuns0.map((o) => String(o.id).toLowerCase()));
+  // Dropping the twin must not drop what only the CHAIN knows. A tunnel row is
+  // built at attach time from what the box said about itself; `payoutWallet`,
+  // `caps` and `region` are SELLER DECLARATIONS that live in the registry entry
+  // and nowhere else - payoutWallet especially, since the contract writes it
+  // only from the wallet itself (setPayoutWallet) and that is precisely what
+  // makes it unforgeable. The box repeats it in its own /availability, but
+  // every consumer deliberately refuses that copy: a box must not be able to
+  // quote itself free.
+  // Losing it is not cosmetic. EnclaveDeployments._hostRate returns 0 when the
+  // declared payout wallet owns the deployment, so a self-hosted record's
+  // correct state is an EMPTY balance - and with payoutWallet missing, both
+  // clients price the box at its posted ask and refuse a transaction the ledger
+  // accepts ("the remaining balance can't fund even one second at the new
+  // rate"). Seen 2026-08-31 on eyesoff-ai/metal0: rate 0 on-chain, resize
+  // refused by the console AND the CLI, which share this one field.
+  // The tunnel keeps its ROUTING fields (endpoint/id/name/publicUrl/mode): its
+  // https twin would only dial back through this relay.
+  const onChain = new Map(base.filter((e) => e.id).map((e) => [String(e.id).toLowerCase(), e]));
+  const tuns = tuns0.map((o) => {
+    const c = onChain.get(String(o.id).toLowerCase());
+    return c ? { ...o, payoutWallet: c.payoutWallet || null,
+                 ...(c.caps !== undefined ? { caps: c.caps } : {}),
+                 ...(c.region !== undefined ? { region: c.region } : {}) } : o;
+  });
   return [...base.filter((e) => !e.id || !tids.has(String(e.id).toLowerCase())), ...tuns];
 }
 // Human-facing label for an https endpoint: its first hostname label
