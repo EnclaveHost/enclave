@@ -25,21 +25,34 @@ theirs. That is a real TrustZone TA with no gatekeeper, and it is the live route
 
 ## Two OP-TEE constraints that narrow the SoC choice (from the tree, not a datasheet)
 
-**The pager is not available everywhere.** The handoff's SRAM-anchored design (TA core and keys
-resident in on-chip SRAM, everything else AES-GCM-paged to DRAM) needs `CFG_WITH_PAGER`, and only
-these platforms configure it: `tegra sunxi hisilicon nuvoton stm32mp1 stm rzn1 amlogic versal2
-d02 d06`. **Rockchip, i.MX, TI K3 and Qualcomm are NOT on that list** — which is awkward, because
-those are exactly the lines with customer-programmable fuses and adequate compute. Either the
-pager gets ported to the chosen platform, or the design accepts a TZASC DRAM carveout with keys
-in secure DRAM (a weaker but still TrustZone-class boundary, and the trade named earlier).
+**CORRECTION (2026-08-31): my earlier pager list was wrong, and the real answer is simpler.**
+I had grepped for platforms whose `conf.mk` *mentions* `CFG_WITH_PAGER` and reported them as
+supporting it. Most of them mention it in order to `$(call force,CFG_WITH_PAGER,n)`. Verified
+against the tree:
 
-**Default secure carveouts are two orders of magnitude too small.** The configured
-`CFG_TZDRAM_SIZE` on the candidate platforms is 4 MB, 20 MB, 30 MB, 32 MB. Our anchor measured
-**9.0 MiB for one `gate|up` group of a 0.5B model** — before any KV cache or pad bank. There is no
-architectural cap (`CFG_CORE_ARM64_PA_BITS` is per-platform, `CFG_CORE_LARGE_PHYS_ADDR` and
-`CFG_WITH_LPAE` exist), and our 24 MiB TA heap already builds, so this is a configuration and
-TZC-400 question rather than a wall — but it is unvalidated above tens of MB and must be proven
-on real silicon before committing to a board.
+- forces the pager **OFF**: `tegra amlogic nuvoton rzn1 versal2 sunxi`
+- actually enables it: **`stm32mp1`, and only `stm32mp1`**
+
+So the handoff's SRAM-anchored paging design is not merely awkward to get — it is available on
+essentially nothing shippable. **Drop it.** It also would not have been wanted: the pager
+hashes every 4 KiB page on fault, which is ruinous for a GEMM working set, and it exists for
+parts that have no secure DRAM at all. The design takes a TZASC/RISAF DRAM carveout instead,
+with keys in secure DRAM — weaker than SRAM-resident keys, still TrustZone-class, and the trade
+already named above.
+
+**A lower ceiling than TZDRAM, which bites first.** `CFG_PGT_CACHE_ENTRIES` defaults to
+`CFG_NUM_THREADS * 2`, each entry maps one page table covering **2 MiB** under LPAE
+(`CORE_MMU_PGDIR_SHIFT = 21`), and `pgt_check_avail()` refuses a mapping past that. On a
+12-core Orin that is **24 x 2 MiB = 48 MiB of TA mappings in total, across all live TAs** — our
+TA would fail there no matter how large `CFG_TZDRAM_SIZE` is. Our TA declares 24 MiB, which is
+exactly why the limit has not shown up yet. The fix is `CFG_CORE_PREALLOC_EL0_TBLS=y` (which
+ignores the cache, and is mutually exclusive with the pager) or a much larger
+`CFG_PGT_CACHE_ENTRIES`. **Nobody has publicly demonstrated GB-scale OP-TEE TZDRAM on any
+platform, so this — not the fuses — is the program's real technical risk, and it is the first
+thing to prototype.**
+
+Default carveouts remain small by convention rather than limit: `CFG_TZDRAM_SIZE` is 32 MiB on
+`stm32mp2`, 63.5 MiB on `plat-tegra` `t234`. Both are `?=` overrides.
 
 ## And attestation is solved too, by the same inversion
 
