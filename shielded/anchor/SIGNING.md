@@ -108,6 +108,24 @@ apps" means "not in the public SDK and not grantable without adb", not "impossib
   that grants both permissions via shell identity and runs parameterised over
   `protectedVm={false,true}` — and CTS must pass on final shipping software.
 
+**Field confirmation of both halves.** Kalidroid (`com.excp.kalidroid`, kimocoder) is a shipping
+third-party APK whose own install instructions are
+`adb shell pm grant com.excp.kalidroid android.permission.MANAGE_VIRTUAL_MACHINE` — no root, no
+unlock. Its binary really does carry `libcrosvm.so`/`libvirtmgr.so` and drive
+`android.system.virtualmachine` by reflection, so the grant path is real in the wild, not just
+in AOSP source. It also confirms the pvmfw wall from the other side, in its own strings:
+*"Kalidroid's custom Linux kernel can run only as a non-protected VM. This is expected, not a
+failure"*. AOSP's `virtmgr` states the rule verbatim — app-supplied images are refused in a pVM
+*"to prevent random images which are not protected by the Android Verified Boot ... from being
+loaded in a pVM"*. **That is exactly why our shape works and theirs does not**: we ship a native
+payload inside the AVB-signed stock Microdroid and are measured as a `vmComponents` subcomponent,
+rather than supplying our own kernel image.
+
+(Do not install it to test this. It is debug-signed with the public Android debug certificate,
+ships `android:debuggable="true"` while holding `MANAGE_EXTERNAL_STORAGE`/location/mic, claims
+GPL over a 404 repo, and its current installer fetches the payload from an expired free-DDNS
+hostname anyone could re-register. Cited as evidence of the mechanism, not as software to run.)
+
 **Attestation is the actual blocker, and it is unresolved.** A pVM we cannot *prove* is a pVM
 is worth little more than a normal Android process, and:
 
