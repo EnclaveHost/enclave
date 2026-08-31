@@ -1799,7 +1799,7 @@ async function cmdDeploy(rest) {
   // anything else is refused at claim.
   if (f["config-cid"])
     throw new Error("--config-cid is retired: a CID names bytes nobody validated. The version's approved config applies automatically; to run THIS deployment on a different config pass it inline: --config '{\"key\":\"value\"}'. (For the per-IP rate limit / request filter, use --waf.)");
-  // --waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true,…}' — the
+  // --waf '{"rps":10,"burst":40,"maxConcurrent":10,"maxBodyMb":40,…}' — the
   // waf OBJECT; --config '{…}' — the app-config override OBJECT (the envelope
   // wrapper is added here). Shape-checked locally; the runner's claim gate is
   // the real validator and refuses unknown keys.
@@ -2770,7 +2770,7 @@ deployments
          [--max-rate <usd/hour>]        hourly spend ceiling (default: what the cheapest live
                                         enclave charges for these shares). Only enclaves at or
                                         under it can run the app, now or after a failover
-         [--waf '{"rps":10,"burst":40,"maxBodyMb":10,"blockScanners":true}']
+         [--waf '{"rps":10,"burst":40,"maxConcurrent":10,"maxBodyMb":40,"blockScanners":true}']
                                         per-IP rate limit + request filter, enforced in-enclave
          [--config '{"api_key":"…"}']   app-config override for THIS deployment: replaces the
                                         version's config as its ENCLAVE_CONFIG ('{}' = empty;
