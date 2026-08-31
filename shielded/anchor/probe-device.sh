@@ -65,8 +65,20 @@ echo
 echo "${bold}AVF / pKVM protected VM${rst}  ${dim}(the tier worth buying for)${rst}"
 AVF_OK=1; AVF_PARTIAL=0
 if [ -n "$(sh_ 'ls /dev/kvm 2>/dev/null')" ]; then yes_ "/dev/kvm present"; else no_ "/dev/kvm present"; AVF_OK=0; fi
-GUNYAH=$(sh_ 'ls -l /dev/gunyah 2>/dev/null')
-[ -n "$GUNYAH" ] && inf_ "/dev/gunyah" "$(echo "$GUNYAH" | tr -s ' ')  (Qualcomm; root-only = unusable by an app)"
+# Three hypervisor families, three device nodes. Only pKVM's /dev/kvm is
+# reachable by an app on a stock device; the other two are typically root-only,
+# so their presence means the silicon can, not that we can.
+for hv in "gunyah:Qualcomm Gunyah" "gzvm:MediaTek GenieZone"; do
+  node="/dev/${hv%%:*}"; label="${hv#*:}"
+  ls_out=$(sh_ "ls -l $node 2>/dev/null")
+  if [ -n "$ls_out" ]; then
+    perms=$(echo "$ls_out" | tr -s ' ' | cut -d' ' -f1,3,4)
+    case "$perms" in
+      *root\ root*) inf_ "$node" "$label — $perms (root-only: not app-reachable)" ;;
+      *)            inf_ "$node" "$label — $perms" ;;
+    esac
+  fi
+done
 HV=$(prop ro.boot.hypervisor.version)
 HVVM=$(prop ro.boot.hypervisor.vm.supported)
 HVPVM=$(prop ro.boot.hypervisor.protected_vm.supported)
