@@ -1,4 +1,31 @@
-# TA signing programs, against the phone anchor
+# TA signing: the vendor programs, and the way around them
+
+**Read this first (2026-08-31).** The three vendor programs below are all dead ends for a solo
+LLC, and the S21+ closes every one of them. But "no vendor will sign our TA" is not the same as
+"we cannot have a signed TA", and that distinction was buried under the phone research.
+
+**On OP-TEE we ARE the signing authority.** `optee_os/mk/config.mk` takes `TA_SIGN_KEY` /
+`TA_PUBLIC_KEY` as build inputs, and `core/crypto/signed_hdr.c:shdr_verify_signature()` checks
+every TA against `ta_pub_key`, which is **compiled into the OP-TEE core image**. Whoever builds
+the secure world chooses the key that admits TAs. Demonstrated, not asserted, by
+`optee/prove-signing-authority.sh` — it signs the anchor TA with OP-TEE's default key and with
+ours, then cross-verifies (diagonal = positive control):
+
+| TA signed by | vs OP-TEE default key | vs our key |
+|---|---|---|
+| OP-TEE default | ACCEPTED | REJECTED |
+| **our key** (`0e0ea502…`) | REJECTED | **ACCEPTED** |
+
+So the real question is not *who will sign our TA* — we sign it — but **which silicon lets us own
+the boot chain that loads our OP-TEE**. On a retail phone the BootROM verifies the secure world
+against a hash fused by the OEM, and that is the wall. On SoCs whose fuses are
+**customer-programmable** (the embedded/industrial lines: NXP HABv4/AHAB SRK, TI HS-FS, Rockchip,
+ST), the customer burns their own key hash and the entire chain — BL2/BL31, OP-TEE, TAs — is
+theirs. That is a real TrustZone TA with no gatekeeper, and it is the live route.
+
+---
+
+# The vendor programs, for the record
 
 Answers open question 1 of the phone-anchor handoff ("which TA signing program"), and then
 the constraint that supersedes it: **the anchor has to work on a Samsung Galaxy S21+.**
