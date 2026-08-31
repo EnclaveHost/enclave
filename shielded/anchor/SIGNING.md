@@ -77,21 +77,65 @@ device. **No signing program is reachable on it.** What remains is a normal-worl
 which runs and is bit-exact ([REPORT.md](REPORT.md) section 3) but carries a materially weaker
 trust story that must not be described as attested.
 
-## What would change the answer
+## What would change the answer: AVF, and exactly where it stands
 
-- **A different handset.** A device with an unlockable bootloader (Pixel, or an
-  international/dev-unlockable Samsung) reopens custom firmware; a 2024+ flagship reopens
-  **AVF protected VMs**, which give real isolation, an RKP-backed attestation chain, and no
-  vendor signing relationship at all. AVF is the only route on this list a solo LLC can walk
-  unaccompanied — though shipping a pVM to *retail* is still gated behind
-  `MANAGE_VIRTUAL_MACHINE` (privileged/preinstalled apps), so it is a prototype and
-  OEM-pitch vehicle rather than a distribution channel today.
-- **An OEM or SoC partnership**, which is what every TrustZone row above ultimately requires.
-- **Dropping the on-chip-SRAM requirement.** If the design can accept a TZASC DRAM carveout
-  with keys in DRAM-resident TA memory — a weaker but still TrustZone-class boundary — the
-  decisive question softens from "unprecedented" to "ordinary TA work", and the ranking above
-  becomes actionable. That is a security decision for the tier's threat model, not an
-  engineering one, and it should be made explicitly.
+Researched 2026-08-31 against AOSP source. AVF (protected VMs) is the only route a solo
+LLC can walk without a vendor relationship, so its details matter more than the TA table.
+
+**No Samsung Galaxy is a candidate.** Google's Play Console device catalog listed 361
+AVF-supporting models with **not one Samsung device on it**, and a published Galaxy S23 Ultra
+shell dump has no `/dev/kvm`, no `ro.boot.hypervisor.*` at all, only a root-only
+`/dev/gunyah`. Architecturally consistent: two independent reverse-engineering writeups put
+**Samsung's RKP/H-Arx hypervisor at EL2** (the "uH" micro-hypervisor on Exynos; embedded in
+Qualcomm's QHEE on Snapdragon), and only one thing can own EL2. Exynos 2500/2600 (Z Flip 7,
+S26, S26+) do expose AVF, but **only non-protected VMs are confirmed** — protected-VM
+capability has never been published by anyone.
+
+**The VM itself is more reachable than the docs imply.** AOSP's "not available to third party
+apps" means "not in the public SDK and not grantable without adb", not "impossible":
+
+- `MANAGE_VIRTUAL_MACHINE` is `signature|preinstalled|development`. The **`development`** flag
+  makes it grantable by `adb shell pm grant` on a **stock, locked, production** build — the
+  same mechanism `WRITE_SECURE_SETTINGS` uses. No root, no unlock, no Shizuku.
+- **Our exact workload needs only that one permission.** `setProtectedVm`, `setMemoryBytes`
+  and `setCpuTopology` are all top-level config; `USE_CUSTOM_VIRTUAL_MACHINE` is only needed
+  for a non-Microdroid VM, a custom kernel, or extra APKs.
+- The **pvmfw wall cuts in our favour**: protected VMs require a pvmfw-signed payload, so a
+  custom kernel can only run NON-protected (this is what blocks Podroid, the shipping
+  third-party AVF app). A native `.so` inside **stock Microdroid** is exactly the protectable
+  case.
+- CTS proves it works on retail: `MicrodroidTestApp` is a **non-platform-signed** CTS module
+  that grants both permissions via shell identity and runs parameterised over
+  `protectedVm={false,true}` — and CTS must pass on final shipping software.
+
+**Attestation is the actual blocker, and it is unresolved.** A pVM we cannot *prove* is a pVM
+is worth little more than a normal Android process, and:
+
+- Production `requestAttestation` needs no partner allowlist — same permission — but it fails
+  `ATTESTATION_ERROR_UNSUPPORTED` unless the OEM registered the device's UDS-rooted DICE key
+  at the **RKP factory** and threaded RKP VM markers through the vendor boot chain. That
+  cannot be added later.
+- CTS **requires** it only where `ro.vendor.api_level >= 202504` (launched with Android 16).
+  Pixel 8/9 and every upgraded device sit in the silent-skip branch.
+- **No pinnable public trust anchor is documented.** AOSP's reference verifier trusts whatever
+  self-signed root the chain carries — a consistency check, not attestation. **If Google
+  publishes no pinnable AVF RKP root, this route has no verifiable remote attestation**, and
+  that single question decides build-vs-buy.
+- `enableTestAttestation()` is a dead end: `@TestApi`, and it returns a hardcoded certificate
+  that **expired 2024-02-14**.
+- `isVmSecure` is false for any debuggable VM, so production must ship `DEBUG_LEVEL_NONE`.
+- The CDD mandates only that `getCapabilities()` return *one of* protected/non-protected —
+  **protected support is not required**, so it is a per-SoC gamble to be probed, never assumed.
+
+**Compute envelope inside a pVM:** CPU only (no GPU/NPU — so the on-device-GPU-worker topology
+is out), full NEON incl. dotprod, several GB of RAM fine, but the default is **one vCPU** so
+`CPU_TOPOLOGY_MATCH_HOST` must be set explicitly. I/O over vsock. Changing the payload rotates
+the VM's DICE secrets, so every app update changes its attested identity.
+
+**Buy, if this route is taken:** a Pixel, not a Samsung. **Pixel 10-class or newer** if
+attestation must be guaranteed (vendor API >= 202504); a used **Pixel 8a (~$205-250)** is
+enough to prototype the VM mechanics, with attestation to be probed rather than assumed.
+Run `probe-device.sh` on the unit before committing to a fleet.
 
 ## The concrete next step, if a TrustZone route is still wanted
 
