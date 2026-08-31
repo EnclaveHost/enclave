@@ -56,6 +56,47 @@ const TUNNEL_TOKEN = fw.tunnelToken || '';
 // claims funded EnclaveDeployments work, and is paid the runner share by the
 // rev-7 ledger — auto-swept to payoutAddress. Without a key the enclave still
 // serves over the tunnel; it just neither claims nor earns.
+// --- ggml engine tuning for the manager's tenants ---------------------------
+// The Tinfoil flavors set these in their compose env; metal had no channel at
+// all, so every metal box ran the ENGINE defaults. ENCLAVE_GGML_MAX_SESSIONS
+// defaults to 1, and one inference slot per graph means a chat turn's own
+// internal passes (router verdict, title) queue behind its main answer - the
+// app reports "[sessions_busy] - waiting for a free slot" and gives up after
+// five minutes. Seen on eyesoff-ai/metal0 2026-08-31, and it costs nothing to
+// fix: a session is a sequence handle into ONE shared KV pool sized by N_CTX,
+// so slots hold no memory of their own. 8 matches the hosted fleet.
+//
+// N_CTX is deliberately NOT defaulted here. It sizes the pool, so it is the
+// one knob that really does cost RAM, and the right window depends on the box
+// and the model it serves - the engine's own 8192 stays until an operator
+// chooses. A deployment can also override its own with the `nnCtx` app-config
+// key, which the manager already honours.
+//
+// ALLOWLISTED, like the shielded tenantEnv: a config typo must not reach the
+// engine, and the placement knobs are deliberately absent. ENCLAVE_GGML_N_GPU_LAYERS
+// especially - the manager sets it to 0 itself for a shielded tenant, and a
+// host-config override telling llama.cpp to offload whole layers to a CUDA
+// device that does not exist would fail the tenant at launch.
+const GGML_ALLOWED = new Set([
+  'ENCLAVE_GGML_N_CTX', 'ENCLAVE_GGML_MAX_SESSIONS', 'ENCLAVE_GGML_N_BATCH',
+  'ENCLAVE_GGML_N_UBATCH', 'ENCLAVE_GGML_KV_CACHE_TYPE', 'ENCLAVE_GGML_KV_CACHE_TYPE_V',
+  'ENCLAVE_GGML_FLASH_ATTN',
+]);
+const GGML_ENV = (() => {
+  const out = { ENCLAVE_GGML_MAX_SESSIONS: '8' };
+  const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
+  for (const [k, v] of Object.entries(cfg)) {
+    // accept either the bare knob ("maxSessions") or the full env name
+    const name = /^ENCLAVE_GGML_/.test(k) ? k
+      : 'ENCLAVE_GGML_' + k.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+    if (!GGML_ALLOWED.has(name)) { log(`ggml: dropping ${String(k).slice(0, 40)} (not a tunable knob)`); continue; }
+    const val = String(v).trim();
+    if (!/^[A-Za-z0-9_.-]{1,32}$/.test(val)) { log(`ggml: dropping ${name} (bad value)`); continue; }
+    out[name] = val;
+  }
+  return out;
+})();
+
 const REGISTRY_KEY = fw.registryKey || '';
 const PAYOUT_ADDR  = fw.payoutAddress || '';
 const FLEET_SECRET = fw.fleetSecret || '';             // first-party boxes only: joins the deployment-secrets plane
@@ -259,6 +300,7 @@ start('wasm-manager',
     WASM_CPU_WEIGHT: '100',
     WASM_ACCOUNT_STORAGE_RAM: '1',
     WASM_HEALTH_MINIMAL: '1',
+    ...GGML_ENV,
     // attached model volumes: name -> path INSIDE the chroot (plus the optional
     // third field naming the one gguf to preload out of a multi-file tree). The
     // manager advertises these on /health, the supervisor republishes them on

@@ -168,6 +168,18 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // it); without it the guest mints its own SECRET per boot and truthfully
   // advertises secrets-incapable. Anonymous sellers leave this unset.
   fleetSecret: cfg.fleetSecret || '',
+  // ggml engine tuning for the wasm-manager's tenants. The Tinfoil flavors set
+  // these in their compose env; metal had no channel for them at all, so every
+  // metal box ran the ENGINE defaults - and the one that matters is
+  // ENCLAVE_GGML_MAX_SESSIONS, whose default is 1. One inference slot per
+  // graph means a single chat turn's own internal passes queue behind its main
+  // answer, and the app sits in "[sessions_busy] - waiting for a free slot"
+  // until its 5-minute budget runs out (2026-08-31, eyesoff-ai on metal0).
+  // Raising it is FREE: sessions are sequence handles into ONE shared KV pool
+  // sized by N_CTX, so a slot costs no pre-allocated memory of its own.
+  // gsup allowlists which keys may pass; a typo'd or dangerous name is dropped
+  // there rather than reaching the engine.
+  ggml: (cfg.ggml && typeof cfg.ggml === 'object') ? cfg.ggml : {},
   // dm-verity parameters for the attached model volumes. Unmeasured on its own
   // — the guest hashes this table and refuses to mount unless it matches the
   // measured metal.vols digest above, so this is a delivery channel, not a

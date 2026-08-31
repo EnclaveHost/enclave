@@ -31,6 +31,9 @@
   "_acmeEabKid_optional": "ZEROSSL_EAB_KID_FROM_YOUR_FREE_ACCOUNT",
   "_acmeEabHmac_optional": "ZEROSSL_EAB_HMAC_KEY_see_zerossl_dashboard_Developer_page",
 
+  "_ggml_optional": { "maxSessions": 8, "nCtx": 32768, "kvCacheType": "q8_0" },
+  "_comment_ggml": "ggml engine tuning for the tenants this box serves (rename to \"ggml\"). Keys are camelCase knobs or full ENCLAVE_GGML_* names; only the tuning ones pass (nCtx, maxSessions, nBatch, nUbatch, kvCacheType, kvCacheTypeV, flashAttn) and anything else is dropped with a line in the guest log - placement knobs are deliberately not settable, since the manager sets N_GPU_LAYERS itself and a wrong value fails the tenant at launch. maxSessions defaults to 8 here (the hosted fleet's number) and you rarely want less: a session is a sequence handle into ONE shared KV pool, so slots cost no memory of their own, and at the engine's own default of 1 a single chat's internal passes queue behind its main answer until the app gives up ('waiting for a free slot'). nCtx is the opposite - it SIZES that pool, so it is the knob that costs RAM: the whole window is allocated up front and shared by all sessions of a graph. Unset = the engine's 8192, which is small for a chat app; the hosted fleet runs 180224 at q8_0. Price it before raising it (KV bytes/token = 2 x kv_layers x n_kv_heads x head_dim x element size) and remember a CPU-served model pays it out of node RAM. A single deployment can override its own window with the `nnCtx` app-config key instead.",
+
   "_volumes_optional": ["qwen2.5-0.5b-gguf", "qwen3.5-0.8b-gguf"],
   "_volumeStore_optional": "/vm/enclave-volumes",
 
