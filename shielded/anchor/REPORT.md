@@ -259,10 +259,17 @@ geometry is already at the edge. The spike's TA declares 24 MiB and would have t
    and the speedup; landing it means an `sh_simd_neon` build of `shielded-simd.c` alongside the
    AVX-512 and generic ones, selected the same way and self-checked against generic exactly as
    `sh_simd_get()` already does for AVX-512.
-6. **The OP-TEE QEMU rung is still building.** It proves the TA *shape* (heap, GP API,
-   world-switch cost, `TEEC_InvokeCommand` marshalling) and is worth finishing for any device
-   where a signing path exists — but it cannot run on this handset, so it informs the design
-   rather than this decision.
+6. ~~**The OP-TEE QEMU rung is still building.**~~ **DONE 2026-08-31: the anchor core builds and
+   signs as a GlobalPlatform TA** (`6e3f9c52-...ta`, 138,680 bytes; text 128,413; 24 MiB declared
+   heap; 13 `an_*` and 15 `sh_simd_generic_*` symbols linked). Three portability findings came out
+   of it, all now fixed behind `SH_NO_LIBM` with x86 disassembly verified byte-identical:
+   S-EL0 has **no `<math.h>` and no libm**; `__builtin_lrintf` still lowers to a libcall at `-O3`,
+   so the aarch64 path names the instruction (`FCVTNS`, round-to-nearest-ties-even = lrintf's
+   default-mode result); and `shielded-field.c` splits cleanly, since its float half is the
+   **offline weight encoder** that no anchor ever runs — a TA receives `w_fixed` already encoded
+   and links only `sh_balanced`/`sh_crt`/`sh_residue`. What remains unmeasured is the *runtime*
+   half: world-switch cost and `TEEC_InvokeCommand` marshalling need the full QEMU image, whose
+   build failed separately (missing python `cryptography`, since installed).
 7. **The tier's own threat model is unwritten.** Per the handoff, that must precede code for any
    shipping route. For the normal-world path specifically the adversary statement is much weaker
    than `SECURITY.md`'s and has to say so explicitly.
