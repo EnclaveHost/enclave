@@ -44,6 +44,11 @@ Two of those rows overturn assumptions the handoff carried:
 | pKVM / AVF protected VM | **CLOSED** | No `/dev/kvm`, no `ro.boot.hypervisor.*`. Not a configuration gap — the silicon generation predates the mandate. |
 | **normal-world aarch64 process** | **OPEN, and measured below** | Runs today via `adb`/an APK. Gives *no* isolation from a root-level adversary on the phone. |
 
+For where the anchor CAN get a hardware boundary, and the two gates that decide it (an
+adb-grantable permission, and OEM factory attestation provisioning), see
+[SIGNING.md](SIGNING.md) — "What would change the answer". Headline: no Samsung Galaxy is a
+candidate, a Pixel is, and **remote attestation, not the VM, is the open risk**.
+
 The consequence is stated plainly because it changes the tier, not just the schedule: **on this
 handset there is no path to the TrustZone-class anchor the handoff scoped.** What runs is the
 anchor's arithmetic in normal world, whose trust story is "the phone's owner and its OS are
