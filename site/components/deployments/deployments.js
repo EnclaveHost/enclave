@@ -856,6 +856,7 @@ class Deployments extends EnclaveElement {
     const summary = w ? [
       w.rps != null ? w.rps + " r/s per IP" : null,
       w.burst != null ? "burst " + w.burst : null,
+      w.maxConcurrent != null ? w.maxConcurrent + " in flight/IP" : null,
       w.maxBodyMb != null ? "max body " + w.maxBodyMb + " MB" : null,
       w.blockScanners ? "scanner paths blocked" : null,
     ].filter(Boolean).join(" \u00b7 ") : "";
@@ -1429,6 +1430,8 @@ class Deployments extends EnclaveElement {
       +   '<input id="' + fid + 'r" class="ew-rps" type="number" min="0.1" max="10000" step="0.1" value="' + esc(String(w0 && w0.rps != null ? w0.rps : 10)) + '"> r/s'
       +   '<label for="' + fid + 'b">Burst</label>'
       +   '<input id="' + fid + 'b" class="ew-burst" type="number" min="1" max="100000" step="1" value="' + esc(String(w0 && w0.burst != null ? w0.burst : "")) + '" placeholder="auto">'
+      +   '<label for="' + fid + 'c">In flight/IP <abbr title="how many requests one client IP may have OPEN at once; the limit that bites a streaming app, where a single answer holds its connection for as long as it takes to write. Empty = unlimited">?</abbr></label>'
+      +   '<input id="' + fid + 'c" class="ew-conc" type="number" min="1" max="10000" step="1" value="' + esc(String(w0 && w0.maxConcurrent != null ? w0.maxConcurrent : "")) + '" placeholder="off">'
       +   '<label for="' + fid + 'm">Max body</label>'
       +   '<input id="' + fid + 'm" class="ew-body" type="number" min="0" max="1024" step="0.1" value="' + esc(String(w0 && w0.maxBodyMb != null ? w0.maxBodyMb : "")) + '" placeholder="off"> MB'
       +   '<label class="ew-scanlbl"><input type="checkbox" class="ew-scan"' + (w0 && w0.blockScanners ? " checked" : "") + '> Block scanner paths <abbr title="drop obvious probe paths (/wp-admin, /.env, .php…) before they reach the app">?</abbr></label>'
@@ -1437,7 +1440,8 @@ class Deployments extends EnclaveElement {
       + '<div class="term enc-waf-status" role="status" aria-live="polite"></div>';
     const st = box.querySelector(".enc-waf-status"), go = box.querySelector(".ew-go");
     const en = box.querySelector(".ew-en"), rIn = box.querySelector(".ew-rps"),
-          bIn = box.querySelector(".ew-burst"), mIn = box.querySelector(".ew-body"), sc = box.querySelector(".ew-scan");
+          bIn = box.querySelector(".ew-burst"), cIn = box.querySelector(".ew-conc"),
+          mIn = box.querySelector(".ew-body"), sc = box.querySelector(".ew-scan");
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const liveEdit = !!(avail && avail.configEdit === true);
     const applyWord = liveEdit ? "a running app picks it up live within ~a minute (no restart)"
@@ -1454,18 +1458,20 @@ class Deployments extends EnclaveElement {
       const w = { rps: num(rIn, 0.1, 10000, 10) };
       const burst = parseFloat(bIn && bIn.value);
       w.burst = Number.isFinite(burst) ? Math.round(Math.min(100000, Math.max(1, burst))) : Math.max(5, Math.ceil(w.rps * 4));
+      const conc = parseFloat(cIn && cIn.value);
+      if (Number.isFinite(conc)) w.maxConcurrent = Math.round(Math.min(10000, Math.max(1, conc)));
       const body = num(mIn, 0, 1024, 0);
       if (body > 0) w.maxBodyMb = body;
       if (sc && sc.checked) w.blockScanners = true;
       return w;
     };
-    const sync = () => { const on = en.checked; [rIn, bIn, mIn, sc].forEach(el => { if (el) el.disabled = !on; });
+    const sync = () => { const on = en.checked; [rIn, bIn, cIn, mIn, sc].forEach(el => { if (el) el.disabled = !on; });
       const next = { ...cur }; if (en.checked) next.waf = spec(); else delete next.waf;
       const env = Object.keys(next).length ? JSON.stringify(next) : "";
       go.disabled = env === raw;
       go.textContent = !en.checked && w0 ? "Remove protection" : w0 ? "Apply changes" : "Enable protection";
     };
-    [en, rIn, bIn, mIn, sc].forEach(el => el && el.addEventListener("input", sync));
+    [en, rIn, bIn, cIn, mIn, sc].forEach(el => el && el.addEventListener("input", sync));
     intro(); sync();
     go.addEventListener("click", async () => {
       const next = { ...cur };

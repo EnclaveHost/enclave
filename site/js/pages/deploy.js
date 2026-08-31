@@ -44,9 +44,9 @@ const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", 
 
 /* The Protection controls -> the create() options envelope's `waf` object
    (null = off/unavailable). Mirrors the runner's parse rules (supervisor
-   parseDepOptions): rps + burst always ride together, maxBodyMb and the
-   scanner preset only when set - so what the user sees here is exactly what
-   the claim gate will accept. */
+   parseDepOptions): rps + burst always ride together, maxConcurrent,
+   maxBodyMb and the scanner preset only when set - so what the user sees here
+   is exactly what the claim gate will accept. */
 function wafSpec(){
   if (!dep.waf || !dep.wafAvail) return null;
   const num = (sel, min, max, dflt) => {
@@ -55,6 +55,12 @@ function wafSpec(){
   };
   const w = { rps: num("#wafRps", 0.1, 10000, 10) };
   w.burst = Math.round(num("#wafBurst", 1, 100000, Math.max(5, Math.ceil(w.rps * 4))));
+  // in-flight cap: absent = unlimited, which is why it is not defaulted. It is
+  // the limit that matters to a STREAMING app, where one answer holds its
+  // connection open for as long as the model takes to write it - a rate limit
+  // barely touches that, since the abusive shape is few requests held long.
+  const conc = parseFloat(($("#wafConc") && $("#wafConc").value) || "");
+  if (Number.isFinite(conc)) w.maxConcurrent = Math.round(Math.min(10000, Math.max(1, conc)));
   const body = num("#wafBody", 0.001, 1024, 0);
   if (body > 0) w.maxBodyMb = body;
   if ($("#wafScan") && $("#wafScan").checked) w.blockScanners = true;
@@ -1484,7 +1490,7 @@ function initDeploy(){
       const opts = $("#wafOpts"); if (opts) opts.hidden = !dep.waf;
       renderDeploy();
     });
-    ["#wafRps", "#wafBurst", "#wafBody"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
+    ["#wafRps", "#wafBurst", "#wafConc", "#wafBody"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
     const ws = $("#wafScan"); if (ws) ws.addEventListener("change", renderDeploy);
   }
   const cfgGpuOpt = $("#cfgGpuOpt");
@@ -1567,6 +1573,7 @@ function initDeploy(){
     const wo = $("#wafOpts"); if (wo) wo.hidden = true;
     const wr = $("#wafRps"); if (wr) wr.value = "10";
     const wb = $("#wafBurst"); if (wb) wb.value = "40";
+    const wc = $("#wafConc"); if (wc) wc.value = "";
     const wm = $("#wafBody"); if (wm) wm.value = "";
     const ws0 = $("#wafScan"); if (ws0) ws0.checked = true;
     renderAccessNote();
