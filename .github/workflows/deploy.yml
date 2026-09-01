@@ -399,9 +399,13 @@ jobs:
   # pin it, tag, measure, and publish — with the next patch version.
   release:
     needs: [detect, contracts]
+    # cpu_release alone must also run this job: the dispatch step inside picks
+    # flavors by flag, but a CPU-only change (e.g. metal/*) used to skip the
+    # whole job and cut nothing (found 2026-09-01 — v0.5.535-cpu was hand-
+    # dispatched to ship the gsup.mjs ring stand-down).
     if: >-
       !cancelled() && needs.contracts.result != 'failure' &&
-      (needs.detect.outputs.release == 'true' || needs.contracts.outputs.wired_config == 'true')
+      (needs.detect.outputs.release == 'true' || needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -446,6 +450,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           CPU: ${{ needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
+          # The GPU flavor releases only on its own triggers — without this a
+          # CPU-only change (metal/*) would repoint the whole GPU fleet for a
+          # no-op measurement bump.
+          GPU: ${{ needs.detect.outputs.release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
         run: |
           set -euo pipefail
           # Count BOTH flavors' tags: the CPU flavor releases on its own cadence
@@ -459,8 +467,11 @@ jobs:
           VERSION="v${MA}.${MI}.$((PA + 1))"
           echo "releasing $VERSION (latest was $LATEST)"
 
-          gh workflow run tinfoil-release.yml -f "version=$VERSION"
-          WAIT_FOR="refs/tags/$VERSION"
+          WAIT_FOR=""
+          if [ "$GPU" = "true" ]; then
+            gh workflow run tinfoil-release.yml -f "version=$VERSION"
+            WAIT_FOR="refs/tags/$VERSION"
+          fi
           if [ "$CPU" = "true" ]; then
             gh workflow run tinfoil-release-cpu.yml -f "version=${VERSION}-cpu"
             WAIT_FOR="$WAIT_FOR refs/tags/${VERSION}-cpu"
