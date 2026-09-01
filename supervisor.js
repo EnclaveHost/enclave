@@ -2352,11 +2352,22 @@ function minSharesOf(min, opts = {}) {
 // 6.5 GB card reported "needs 1 card", the box agreed it had one, and the
 // tenant died at weight-load.
 function gpuRouting(mins, { declaresGpu = false, envelopeOptional = false } = {}) {
+  // "Too small for the app" is the second unmet reason (the first being no card
+  // at all) — but ONLY for a LOCAL card, where the weights are resident in the
+  // tenant's own VRAM slice and a model that exceeds it dies at weight-load
+  // (ggml_abort, fatal). A SHIELDED card is the opposite: offload is per-matmul
+  // over the masked protocol, the reservation is an offload BUDGET not weight
+  // residency, and a model larger than the card is merely SLOWER (more terms
+  // stay in the enclave), never fatal. So it serves any size — the dial claims
+  // as much of the card as it buys and the backend offloads the subset that
+  // fits. Refusing it for being "too small" is exactly what dropped a 27B onto
+  // cores while a calibrated 6.5 GB shielded card sat idle (metal0, 2026-08-31).
+  // The ratio is still computed (it is what the console recommends buying); on a
+  // shielded card it just stops being a reason to decline the work.
   const unmet = !IS_GPU ? "this enclave has no card"
-    : mins.gpuShare > 1 + 1e-9
-      ? `the app needs ${round1(mins.gpuShare)}x this box's whole card `
-        + `(${round1(CARD_VRAM_GB)} GB / ${round1(CARD_TFLOPS)} TFLOPS)`
-      : null;
+    : (_shieldedAdopted || mins.gpuShare <= 1 + 1e-9) ? null
+    : `the app needs ${round1(mins.gpuShare)}x this box's whole card `
+        + `(${round1(CARD_VRAM_GB)} GB / ${round1(CARD_TFLOPS)} TFLOPS)`;
   if (!unmet) return { onGpu: true, unmet: null, refusal: null };
   // Either flag opens the fallback; neither one can waive a HARD requirement.
   // The envelope is the OWNER's dial and may waive their own preference; only
@@ -2766,6 +2777,9 @@ if (process.env.SIZING_SELFTEST) {
   if (c.cardVramGb > 0) CARD_VRAM_GB = c.cardVramGb;
   if (c.cardTflops > 0) CARD_TFLOPS = c.cardTflops;
   if (c.isGpu != null) IS_GPU = !!c.isGpu;
+  // A shielded card is a runtime adoption, not a boot constant: the seam must be
+  // able to set it so the parity test can prove the "serves any size" branch.
+  if (c.shielded) { _shieldedAdopted = true; IS_GPU = true; }
   const mins = minSharesOf(c.min || {}, { volGb: c.volGb || 0 });
   const gpuShare = Number(c.gpuMilli || 0) / 1000, cpuShare = Number(c.cpuMilli || 0) / 1000;
   const declaresGpu = (c.min?.vramMb || 0) > 0 || (c.min?.gpuGflops || 0) > 0;

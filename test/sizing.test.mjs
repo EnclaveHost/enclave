@@ -70,6 +70,25 @@ test("the same fraction on a 6.5 GB card: the requirement is stated, not clamped
   assert.equal(full.onGpu, false, "100% of a 6.5 GB card is still 7.7x short");
 });
 
+test("a SHIELDED card serves the 27B the local card refused: claim what fits, offload the rest", async () => {
+  // The same 6.5 GB card, but shielded (offload is per-matmul, the reservation
+  // is a budget not weight residency, too-big is SLOW not fatal). "7.7x short"
+  // stops being a reason to decline: the dial takes its slice of the card and
+  // the backend offloads the subset that fits. This is the metal0 case
+  // (2026-08-31): a 27B was dropped onto cores while a calibrated shielded 3070
+  // sat idle, because the local-card fit check refused it.
+  const r = await size({ ...METAL0, isGpu: true, shielded: true, min: EYESOFF, gpuMilli: 350, cpuMilli: 600 });
+  assert.equal(r.onGpu, true, "the shielded card takes the work at any model size");
+  assert.equal(r.unmet, null, "'too small' does not apply to a per-matmul offload");
+  assert.equal(r.refusal, null);
+  assert.equal(r.asCpuFallback, false, "it is NOT a CPU fallback: the card is used");
+  assert.equal(r.gpuShare, 7.7, "the advisory 'true ask' is still computed (console recommends it)");
+  // a local card of the same size still refuses (weights resident, OOM fatal):
+  // the shielded flag is the ONLY thing that changes the verdict
+  const local = await size({ ...METAL0, isGpu: true, min: EYESOFF, gpuMilli: 350, cpuMilli: 600 });
+  assert.equal(local.onGpu, false, "same card, not shielded, still refuses the 27B");
+});
+
 test("gpuOptional decides what to DO about the requirement, it does not erase it", async () => {
   const soft = await size({ ...METAL0, isGpu: true, min: EYESOFF, gpuMilli: 360, cpuMilli: 120 });
   assert.equal(soft.gpuFloor, 0, "publisher said cores are acceptable: no GPU dial forced");
