@@ -2220,6 +2220,24 @@ def _nn_arbiter_live() -> bool:
     return bool(_arbiter_support().get("supported"))
 
 
+def _nn_arb_arm(env: dict, rec: dict, gpu_share: float) -> None:
+    """Arm one tenant's runtime as an arbiter client — the ONE place the four
+    ENCLAVE_NN_ARB* vars are written, shared by the CUDA branch and the
+    shielded branch so the two can never drift. Grant weight = the launch-time
+    gpuShare (re-checked against the RECORD by the arbiter at hello). All
+    wasi-nn tenants share queue "0" today — per-card queues become a
+    launcher-side env change if per-tenant card packing lands. A no-op unless
+    the arbiter is live, which keeps OFF bit-identical to the pre-arbiter
+    fleet."""
+    if not _nn_arbiter_live():
+        return
+    env["ENCLAVE_NN_ARBITER"] = NN_ARB_SOCK
+    env["ENCLAVE_NN_ARB_TENANT"] = rec["id"]
+    env["ENCLAVE_NN_ARB_WEIGHT"] = str(gpu_share)
+    env["ENCLAVE_NN_ARB_QUEUE"] = "0"
+    rec["nnArbiter"] = True
+
+
 def _nn_arb_public() -> dict:
     out = {"enabled": NN_ARB_ENABLED, "smPct": NN_ARB_SM_PCT,
            "probe": dict(_NN_ARB_SUPPORT)}
@@ -5144,9 +5162,19 @@ def _spawn_and_wait(rec, ctx):
         vol = next(iter(vol_mounts), "") if vol_mounts else ""
         env = _shielded_tenant_env(shielded_spec, vol)
         rec["shieldedEndpoint"] = shielded_spec.get("endpoint")
+        # Same weighted turns as the CUDA branch below, same queue: shielded
+        # tenants all funnel into ONE host worker whose g_gpu mutex serializes
+        # them FCFS, so the arbiter is what makes a 50% share worth more than a
+        # 5% one under contention. The toolchain client dials at launch (that
+        # is what the capability probe observes) but only takes turns once its
+        # gpu flag knows SHIELDED_HOST graphs are GPU graphs — armed now,
+        # active on the wasmtime repin that carries that gate, fail-open
+        # (today's unarbitrated behavior) everywhere in between.
+        _nn_arb_arm(env, rec, gpu_share)
         print(f"[shielded] {rec['id']}: gpuShare={gpu_share} served by the shielded card at "
               f"{shielded_spec.get('endpoint')}"
-              + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration"),
+              + (f", calibration for {vol}" if env.get("SHIELDED_CALIB") else ", NO calibration")
+              + (", arbited" if rec.get("nnArbiter") else ""),
               flush=True)
         _shielded_profile_tail(rec)
     elif nn and NODE_HAS_GPU and gpu_share > 0:
@@ -5163,13 +5191,9 @@ def _spawn_and_wait(rec, ctx):
         # the arbiter at hello). All wasi-nn tenants share queue "0" today —
         # per-card queues become a launcher-side env change if per-tenant card
         # packing lands.
-        if _nn_arbiter_live():
-            env["ENCLAVE_NN_ARBITER"] = NN_ARB_SOCK
-            env["ENCLAVE_NN_ARB_TENANT"] = rec["id"]
-            env["ENCLAVE_NN_ARB_WEIGHT"] = str(gpu_share)
-            env["ENCLAVE_NN_ARB_QUEUE"] = "0"
+        _nn_arb_arm(env, rec, gpu_share)
+        if rec.get("nnArbiter"):
             rec["mpsPct"] = NN_ARB_SM_PCT
-            rec["nnArbiter"] = True
         # sdcpp text-encoder placement (wasm/sd-shim, ENCLAVE_SD_TE_ON_CPU):
         # an explicit deployment-config `sdTeOnCpu` wins; else AUTO - when the
         # attached SD volumes' resident weights plus the ~3 GB 1024px working
@@ -6379,7 +6403,12 @@ def main():
     threading.Thread(target=_audit_sweep, daemon=True).start()   # firewall bind + storage audit
     if _NN_PROBE["state"] == "probing":
         threading.Thread(target=_nn_probe_loop, daemon=True).start()   # gates GPU launches
-    if NN_ARB_ENABLED and NODE_HAS_GPU and NN_ENABLED and not MOCK:
+    # No NODE_HAS_GPU in this gate: a shielded (metal) box has NODE_HAS_GPU=0 —
+    # the card lives on the untrusted host — yet its GPU tenants still contend
+    # for one serialized worker and want the same weighted turns. The env is an
+    # explicit operator opt-in either way (gsup arms it only on shielded boxes;
+    # the CPU fleet never sets it), so this loosening arms nothing by itself.
+    if NN_ARB_ENABLED and NN_ENABLED and not MOCK:
         _start_nn_arbiter()          # GPU work-conserving fair share (tenants connect at launch)
     if MPS_BOOT_BOUNCE and NODE_HAS_GPU and not MOCK:
         _boot_bounce_check()         # reclaim a stranded generation BEFORE the first launch

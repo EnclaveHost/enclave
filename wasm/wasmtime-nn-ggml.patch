@@ -804,7 +804,7 @@ index 0000000..dc098cf
 +                mtp: unsafe { ell_mtp_available(model) } != 0,
 +                vision: mmproj.is_some(),
 +                mmproj: mmproj.map(|(_, c)| c),
-+                gpu: ngl != 0,
++                gpu: ngl != 0 || std::env::var_os("SHIELDED_HOST").is_some(), // shielded offload IS the card
 +            }),
 +            server: Mutex::new(None),
 +        });
