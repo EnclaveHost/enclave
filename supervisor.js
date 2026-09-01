@@ -2257,7 +2257,12 @@ const FULL_RATE       = SELL_GPU_PRICE6 / 1e6;   // a WHOLE card
 const CTX_OVERHEAD_GB = parseFloat(process.env.CTX_OVERHEAD_GB || "0.5"); // per-worker context cost, reserved on top of the cap
 let SM_TOTAL          = parseInt(process.env.SM_TOTAL || "132", 10);   // SMs per card (H200=132); for reporting granted SMs
 const MIN_COMPUTE_PCT = parseInt(process.env.MIN_COMPUTE_PCT || "1", 10); // floor; CUDA_MPS_ACTIVE_THREAD_PERCENTAGE is an integer 1..100
-const GRANULARITY_GB  = parseFloat(process.env.VRAM_GRANULARITY_GB || "1"); // request rounding; 1 GB ≈ arbitrary
+// Request rounding for the share-derived VRAM cap. The grain must stay small
+// relative to the SMALLEST card this ships to: at "1", a 1% tenant on a 6.5 GB
+// shielded card ceil'd to a whole GB and booked 15% of the card's advertised
+// VRAM (metal0, 2026-09-01). Claims re-normalize on adopt, so a changed grain
+// re-books existing tenants at the next restart/re-claim, not mid-lease.
+const GRANULARITY_GB  = parseFloat(process.env.VRAM_GRANULARITY_GB || "0.1");
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round3 = (x) => Math.round(x * 1000) / 1000;
