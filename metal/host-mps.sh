@@ -79,16 +79,28 @@ nvidia-cuda-mps-control -d || { echo "[mps] FAILED to start daemon"; exit 1; }
 trap 'echo quit | timeout 10 nvidia-cuda-mps-control >/dev/null 2>&1 || true; kill_mps' EXIT
 
 hangs=0
+deaf=0
 while true; do
   # Liveness, BOUNDED: an unguarded pipe write could itself block forever on a
-  # wedged daemon and take this loop with it.
-  if ! echo get_server_list | timeout 10 nvidia-cuda-mps-control >/dev/null 2>&1; then
-    echo "[mps] daemon not answering — restarting"
-    bounce
-    hangs=0
+  # wedged daemon and take this loop with it. TWO strikes here too, unlike the
+  # fleet sidecar: this host is somebody's desk, and a 16-way build or test run
+  # starves the control daemon long enough to miss one 10s window while being
+  # perfectly healthy — measured 2026-09-01, when a single missed window
+  # bounced the stack mid-`npm test` and took the worker's context with it.
+  # A real wedge fails the NEXT probe too; a scheduling stall does not.
+  if ! echo get_server_list | timeout 20 nvidia-cuda-mps-control >/dev/null 2>&1; then
+    deaf=$((deaf + 1))
+    echo "[mps] daemon not answering (strike $deaf/2)"
+    if [ "$deaf" -ge 2 ]; then
+      echo "[mps] daemon not answering — restarting"
+      bounce
+      deaf=0
+      hangs=0
+    fi
     sleep "$PROBE_INTERVAL"
     continue
   fi
+  deaf=0
   # Health: a real attach through the pipe.
   set +e
   timeout -k 5 "$PROBE_TIMEOUT" "$PROBE_BIN" >/dev/null 2>&1

@@ -23,6 +23,11 @@ WorkingDirectory=%h/Projects/enclave
 ExecStart=/bin/sh metal/host-mps.sh
 Restart=always
 RestartSec=5
+# The control daemon and every MPS server it spawns live in this cgroup. On a
+# desk that also runs 16-way builds, default weight let a test run starve the
+# server's RPC threads: tenant allocations failed with 6.9 GB free and the
+# liveness window blew (2026-09-01). Weight, not a quota — idle cost is zero.
+CPUWeight=1000
 
 [Install]
 WantedBy=default.target
