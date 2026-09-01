@@ -1514,6 +1514,125 @@ class Deployments extends EnclaveElement {
     });
   }
 
+  /* ---- the relay's view of this app's traffic -------------------------------
+     A relay is the only place OUTSIDE the enclave that can see anything about
+     a deployment's traffic, and it sees exactly this much: an address, a
+     direction, a time, and how many bytes the connection moved. It peeks SNI
+     without terminating TLS inbound and dials an already-authenticated
+     destination outbound, so there is no request, path or header here - not
+     because we chose not to log one, but because a box holding no key never
+     had one to see.
+
+     So this graph is BANDWIDTH and CONNECTIONS, and says so. Reading it as a
+     request count would undercount by a factor nothing here can know: one
+     connection carries many requests (h2 multiplexes, h1 keeps alive). Bytes
+     are the honest measure, and they distinguish the case that actually
+     matters - eight connections moving nothing is a very different picture
+     from eight moving megabytes, and only the per-connection split tells them
+     apart. ---- */
+  async _traffic(id, host, _preferred) {
+    if (!host) return;
+    const WINDOW_MS = 15 * 60 * 1000, BUCKETS = 30;
+    const fmtB = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB"
+                      : n >= 1e6 ? (n / 1e6).toFixed(1) + " MB"
+                      : n >= 1e3 ? (n / 1e3).toFixed(0) + " kB" : (n | 0) + " B";
+    const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+      return s < 60 ? s + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : Math.round(s / 3600) + "h ago"; };
+
+    host.innerHTML = '<div class="ap-attbar">traffic · relay view</div>'
+      + '<div class="en-traffic"><p class="en-intro dim">reading the relay…</p></div>';
+    const body = host.querySelector(".en-traffic");
+
+    // WHICH relay carries this app - the envelope answers only for a
+    // deployment that chose one, and most never do; /v1/relays resolves the
+    // fleet default too, which is the case that matters here.
+    let relay = "";
+    try {
+      const labels = await Enclave.getRelayLabels();
+      const row = labels && labels[appLabel(id)];
+      relay = (row && row.relay) || "";
+    } catch (e) { /* fall through to the no-relay note */ }
+    if (!relay) {
+      body.innerHTML = '<p class="en-intro dim">No relay is reporting for this app yet, '
+        + 'so there is nothing to show. Traffic that never crosses a relay (a direct '
+        + 'enclave origin) is invisible here by construction.</p>';
+      return;
+    }
+
+    const draw = (rows, note) => {
+      if (host.hidden || !host.isConnected) return;
+      const now = Date.now(), from = now - WINDOW_MS;
+      const live = rows.filter((r) => r.t >= from);
+      const open = live.filter((r) => !r.e).length;
+      const totIn = live.reduce((n, r) => n + (r.u || 0), 0);
+      const totOut = live.reduce((n, r) => n + (r.w || 0), 0);
+
+      // Bandwidth per bucket. A connection's bytes are only known when it
+      // CLOSES, so they land in the bucket it closed in rather than smeared
+      // across its life - honest about what the relay actually reported, and
+      // the reason a long download appears as one spike at the end.
+      const buckets = new Array(BUCKETS).fill(0).map(() => ({ i: 0, o: 0, n: 0 }));
+      const span = WINDOW_MS / BUCKETS;
+      for (const r of live) {
+        const b = buckets[Math.min(BUCKETS - 1, Math.floor((r.t - from) / span))];
+        b.n++;
+        const c = buckets[Math.min(BUCKETS - 1, Math.floor(((r.e || now) - from) / span))];
+        c.i += r.u || 0; c.o += r.w || 0;
+      }
+      const peak = Math.max(1, ...buckets.map((b) => b.i + b.o));
+      const H = 46;
+      const bars = buckets.map((b, k) => {
+        const hi = Math.round((b.i / peak) * H), ho = Math.round((b.o / peak) * H);
+        const x = k * 10;
+        const t = new Date(from + k * span).toLocaleTimeString();
+        return '<g><title>' + esc(t + " · in " + fmtB(b.i) + " · out " + fmtB(b.o)
+                 + (b.n ? " · " + b.n + " new conn" : "")) + '</title>'
+             + '<rect x="' + x + '" y="' + (H - hi - ho) + '" width="8" height="' + ho + '" class="tg-out"/>'
+             + '<rect x="' + x + '" y="' + (H - hi) + '" width="8" height="' + hi + '" class="tg-in"/>'
+             + '</g>';
+      }).join("");
+
+      // newest first: the question is almost always "what just happened"
+      const recent = live.slice().reverse().slice(0, 12).map((r) => {
+        const dir = r.d === "out" ? '<span class="tg-d out">out</span>' : '<span class="tg-d in">in</span>';
+        const bytes = r.e ? fmtB((r.u || 0) + (r.w || 0)) : '<span class="dim">open</span>';
+        const held = r.e ? Math.max(0, Math.round((r.e - r.t) / 100) / 10) + "s" : "";
+        return '<tr><td>' + esc(ago(r.t)) + '</td><td>' + dir + '</td>'
+             + '<td class="tg-peer">' + esc(r.a) + (r.p ? ':' + (r.p | 0) : '') + '</td>'
+             + '<td class="tg-b">' + bytes + '</td><td class="dim">' + esc(held) + '</td></tr>';
+      }).join("");
+
+      body.innerHTML =
+          '<div class="tg-sum"><b>' + open + '</b> open · <b>' + fmtB(totIn) + '</b> in · <b>'
+        + fmtB(totOut) + '</b> out <span class="dim">· ' + live.length + ' connections in 15 min · via '
+        + esc(relay) + '</span></div>'
+        + (live.length
+            ? '<svg class="tg-chart" viewBox="0 0 ' + (BUCKETS * 10) + ' ' + H + '" preserveAspectRatio="none" role="img" '
+              + 'aria-label="bandwidth by connection over the last 15 minutes">' + bars + '</svg>'
+              + '<table class="tg-tbl"><thead><tr><th>when</th><th>dir</th><th>peer</th><th>bytes</th><th>held</th></tr></thead>'
+              + '<tbody>' + recent + '</tbody></table>'
+            : '<p class="en-intro dim">No connections in the last 15 minutes.</p>')
+        + '<p class="en-intro dim">Connections, not requests - the relay never terminates TLS, and one '
+        + 'connection carries many requests. Bytes are counted at the socket and land in the bucket a '
+        + 'connection <em>closed</em> in. ' + esc(note || '') + '</p>';
+    };
+
+    const poll = async () => {
+      if (host.hidden || !host.isConnected) return;          // panel closed: stop
+      try {
+        const j = await Enclave.getRelayTraffic(relay, id);
+        draw(j.rows || [], j.note || "");
+      } catch (e) {
+        if (!host.isConnected) return;
+        body.innerHTML = '<p class="en-intro dim">The ' + esc(relay) + ' relay is not reporting traffic '
+          + '(it may predate this, or be unreachable right now).</p>';
+        return;                                              // stop polling a relay that cannot answer
+      }
+      setTimeout(poll, 5000);
+    };
+    poll();
+  }
+
   /* ---- per-row Network: which relay carries this app's inbound traffic ----
      A relay splices ENCRYPTED bytes on the app's name; browser TLS terminates
      inside the enclave and the relay holds no key, so this choice is about
@@ -1592,7 +1711,9 @@ class Deployments extends EnclaveElement {
       +   (opts.length ? '' : '<p class="en-intro dim">No relay is publishing an address to choose from yet, so the fleet default is the only option.</p>')
       +   '<button class="btn btn-sm btn-primary en-go" type="button">Apply</button>'
       + '</div>'
+      + '<div class="enc-net-traffic"></div>'
       + '<div class="term enc-net-status" role="status" aria-live="polite"></div>';
+    this._traffic(id, box.querySelector(".enc-net-traffic"), cur0 || (avail && avail.relayDefault) || "");
     const st = box.querySelector(".enc-net-status"), go = box.querySelector(".en-go");
     const paint = (cls, txt) => paintLine(st, cls, txt);
     const chosen = () => (box.querySelector('input[name="' + fid + '"]:checked') || {}).value || "";
