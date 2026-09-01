@@ -1444,7 +1444,7 @@
           },
           "vramGranularityGb": {
             "type": "number",
-            "example": 1
+            "example": 0.1
           },
           "formula": {
             "type": "string",
