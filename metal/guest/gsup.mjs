@@ -83,7 +83,14 @@ const GGML_ALLOWED = new Set([
   'ENCLAVE_GGML_FLASH_ATTN', 'ENCLAVE_GGML_N_THREADS',
 ]);
 const GGML_ENV = (() => {
-  const out = { ENCLAVE_GGML_MAX_SESSIONS: '8' };
+  // LLAMA_GRAPH_SLOT_ALT=0: stand the alt graph-slot ring down, matching every
+  // hosted-fleet tinfoil-config.yml (v0.5.408). Armed (the default when the
+  // env is absent) it decays decode under sustained request churn and only
+  // heals at idle — measured on metal0 2026-09-01: a 27b fell 3.6 → 0.8 tok/s
+  // across ~30 min of back-to-back turns and recovered to 3.64 after 12 idle
+  // minutes — while contributing nothing to peak (the ring stayed stood down
+  // on kryptos for the same reason).
+  const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0' };
   const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
   for (const [k, v] of Object.entries(cfg)) {
     // accept either the bare knob ("maxSessions") or the full env name
