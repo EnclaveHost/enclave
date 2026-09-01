@@ -20,8 +20,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const DIR = fs.mkdtempSync(path.join(os.tmpdir(), "connlog-"));
-process.env.CONNLOG_DIR = DIR;
+// loopback ports well away from anything else a test might bind
+process.env.CONNLOG_PORT_IN = "50931";
+process.env.CONNLOG_PORT_OUT = "50932";
 const cl = await import("../relay/connlog.mjs");
 
 test("a connection is a row: who, which way, when, and what it moved", () => {
@@ -84,29 +85,43 @@ test("the table is bounded: rows per deployment, and deployments", () => {
   assert.ok(cl.read("dep-" + (cl.limits.MAX_DEPS + 4)).length === 1, "the newest is still recorded");
 });
 
-test("the snapshot round-trips through tmpfs for the agent to serve", () => {
-  // the collectors hold the sockets and have no way out; the agent has the
-  // fleet tunnel and no sockets. This file is the whole channel between them.
-  const dep = "0xsnap";
-  const a = cl.note(dep, "in", "82.9.9.9", 443);
-  cl.done(a, 10, 20);
-  cl.note(dep, "out", "example.com", 443);
-  cl.startSnapshot("unit-test", 60_000)();          // writes once, then stops
+test("both directions file under ONE key, whichever name the caller knows", () => {
+  // inbound the relay reads an 8-hex LABEL off the SNI; outbound the enclave
+  // sends the full 64-hex id. They name the same deployment, and before this
+  // they filed under different keys - so every query found half the truth and
+  // the endpoint answered rows:[] , which looks exactly like "no traffic".
+  const full = "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c";
+  assert.equal(cl.depKey(full), "9eb4e600");
+  assert.equal(cl.depKey("9eb4e600"), "9eb4e600");
+  assert.equal(cl.depKey("0x9eb4e600"), "9eb4e600");
+  assert.equal(cl.depKey("dep_named"), "dep_named", "a non-hex name is left alone");
 
-  const rows = cl.readSnapshots(dep);
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((r) => r.d), ["in", "out"], "oldest first, both directions");
-  assert.equal(rows[0].u, 10);
-  assert.equal(rows[0].w, 20);
-  // and summing is how a caller gets a total back
-  assert.equal(rows.reduce((n, r) => n + (r.u || 0) + (r.w || 0), 0), 30);
+  cl.note("9eb4e600", "in", "82.9.9.9", 443);        // as the SNI relay files it
+  cl.note(full, "out", "example.com", 443);          // as the egress relay files it
+  const rows = cl.read(full);
+  assert.equal(rows.length, 2, "one deployment, both directions, either spelling");
+  assert.deepEqual(rows.map((r) => r.d), ["in", "out"]);
 });
 
-test("a torn or missing snapshot reads as no rows, never as a throw", () => {
-  fs.writeFileSync(path.join(DIR, "garbage.json"), "{not json");
-  assert.deepEqual(cl.readSnapshots("0xnothing"), []);
-  // and a directory that does not exist at all
-  process.env.CONNLOG_DIR = path.join(DIR, "gone");
-  assert.doesNotThrow(() => cl.readSnapshots("0xsnap"));
-  process.env.CONNLOG_DIR = DIR;
+test("the loopback channel carries rows to the agent, and tolerates a dead collector", async () => {
+  // the collectors hold the sockets and have no way out; the agent has the
+  // fleet tunnel and no sockets. A file would not do: these units run
+  // DynamicUser with ProtectSystem=strict, so /run is not writable and two
+  // ephemeral UIDs cannot share a directory anyway.
+  const dep = "0xfeed01";
+  const a = cl.note(dep, "in", "82.9.9.9", 443);
+  cl.done(a, 10, 20);
+  const srv = cl.serve(Number(process.env.CONNLOG_PORT_IN));
+  await new Promise((r) => srv.once("listening", r));
+
+  // PORT_OUT has nobody on it - that is the normal shape of a box running only
+  // the SNI relay, and it must read as "no outbound rows", never as an error
+  const rows = await cl.collect(dep);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].u, 10);
+  assert.equal(rows[0].w, 20);
+  assert.equal(rows.reduce((n, r) => n + (r.u || 0) + (r.w || 0), 0), 30);
+
+  srv.close();
+  assert.deepEqual(await cl.collect(dep), [], "every collector down reads as no rows");
 });

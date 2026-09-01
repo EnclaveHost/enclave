@@ -122,9 +122,9 @@ function traffic(query) {
   const dep = String((query && query.dep) || "").trim().toLowerCase();
   if (!/^(0x)?[a-z0-9_-]{4,80}$/.test(dep)) return [400, { error: "bad_request", message: "dep is required" }];
   const since = Number(query.since) || 0;
-  const rows = connlog.readSnapshots(dep, since);
-  return [200, { relay: NAME, dep, now: Date.now(), rows,
-                 note: "connections, not HTTP requests - one connection carries many" }];
+  return connlog.collect(dep, since).then((rows) => [200,
+    { relay: NAME, dep, now: Date.now(), rows,
+      note: "connections, not HTTP requests - one connection carries many" }]);
 }
 
 const ROUTES = {
@@ -142,8 +142,9 @@ function answer(frame, send) {
   const route = ROUTES[path];
   if (!route) return reply(404, { error: "not_found", routes: Object.keys(ROUTES) });
   const q = Object.fromEntries(new URLSearchParams(raw.slice(raw.indexOf("?") + 1) || ""));
-  const [status, body] = route(raw.includes("?") ? q : {});
-  reply(status, body);
+  Promise.resolve(route(raw.includes("?") ? q : {}))
+    .then(([status, body]) => reply(status, body))
+    .catch((e) => reply(500, { error: "internal", message: String(e && e.message || e).slice(0, 200) }));
 }
 
 // personal_sign over the hub's challenge, with the key that owns this name on
