@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,2620 @@
+@@ -0,0 +1,3193 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -353,6 +353,7 @@ index 0000000..dc098cf
 +use std::collections::{HashMap, VecDeque};
 +use std::ffi::{c_char, c_void, CString};
 +use std::path::{Path, PathBuf};
++use std::sync::atomic::{AtomicUsize, Ordering};
 +use std::sync::{Arc, Condvar, Mutex, Once, OnceLock};
 +use std::time::{Duration, Instant};
 +
@@ -607,6 +608,62 @@ index 0000000..dc098cf
 +            .unwrap_or(500)
 +            .clamp(50, 10_000)
 +    }))
++}
++
++/// PREFIX CACHE (mm32). How many prompt-state forks this graph may keep
++/// parked between requests (`ENCLAVE_GGML_PARK_SLOTS`, default 0 = off).
++///
++/// Every /v1 request re-feeds its whole rendered prompt into a fresh
++/// sequence; on a CPU-prefill node that is the dominant TTFT term (a 27B
++/// prefills at ~11 tok/s — turn N of a 2,000-token conversation pays ~175 s
++/// before its first token). But turn N's PROMPT is always a strict prefix of
++/// turn N+1's (the template appends), and `ell_seq_copy` shares attention KV
++/// cells and copy-on-writes recurrent state — so parking the pre-generation
++/// prompt state and branching the next request off it skips the re-prefill
++/// entirely (prototype: 16.5x on a 0.8B hybrid, 9.3x on a 27B; the branch's
++/// one-time COW cost measured ~0 ms at 0.8B / ~70-110 ms at 27B).
++///
++/// The FORK DIRECTION is load-bearing on hybrid models and was settled
++/// empirically: an un-diverged copy still shares its source's recurrent
++/// state cell, and removing the source kills it (wrong next token). So the
++/// ORIGINAL prompt-fed sequence becomes the park (it owns its cells) and the
++/// SESSION continues on a fresh copy, which diverges with its first
++/// generated token. Teardown then removes only the copy.
++///
++/// Costs when armed: each slot adds one sequence to the llama context
++/// (recurrent models allocate that seq's state cell up front) and a parked
++/// prompt holds its cells out of the shared n_ctx pool; a resident park also
++/// keeps the idle-reset fragmentation heal from firing until it goes stale
++/// (see PARK_TTL below). Off by default; arm per node.
++fn park_slots() -> usize {
++    static V: OnceLock<usize> = OnceLock::new();
++    *V.get_or_init(|| {
++        std::env::var("ENCLAVE_GGML_PARK_SLOTS")
++            .ok()
++            .and_then(|v| v.trim().parse::<usize>().ok())
++            .unwrap_or(0)
++            .min(8)
++    })
++}
++
++/// Prompts shorter than this are not worth a park slot: the re-prefill they
++/// save is small, and each park spends a slot, its pool cells, and (on
++/// hybrids) the session's one-time COW divergence. Pool-pressure hygiene,
++/// not a cost guard — the COW itself measured <5% of one decode token.
++fn park_min_tokens() -> usize {
++    static V: OnceLock<usize> = OnceLock::new();
++    *V.get_or_init(|| env_u32("ENCLAVE_GGML_PARK_MIN_TOKENS", 64) as usize)
++}
++
++/// A park older than this no longer blocks the idle reset (the unified
++/// pool's fragmentation heal, which needs an empty pool): when every session
++/// is gone and every park has aged past the TTL, the parks are dropped and
++/// the pool clears. Fresh parks win over the heal on purpose — a busy burst
++/// is exactly when they earn their keep, and any long quiet moment ends with
++/// the pool clean either way.
++fn park_ttl() -> Duration {
++    static V: OnceLock<u64> = OnceLock::new();
++    Duration::from_secs(*V.get_or_init(|| env_u32("ENCLAVE_GGML_PARK_TTL_S", 900) as u64))
 +}
 +
 +fn kv_type_code(s: &str) -> i32 {
@@ -1040,6 +1097,23 @@ index 0000000..dc098cf
 +    stepping: HashMap<i32, Instant>,
 +}
 +
++/// One parked prompt-state fork (see park_slots above). `seq_id` is the
++/// ORIGINAL sequence the prompt was fed into — it owns its cells; `tokens`
++/// is the exact fed prompt; `row` is the final prompt position's output,
++/// kept because an exact-match reuse never re-decodes that position and the
++/// guest still needs its logits. `pin` counts the un-diverged copies
++/// standing on this park — the donor's continuation until its first decode,
++/// and any reuse branch until ITS first decode. Removing a park while one
++/// exists would kill the copy's shared recurrent state, which is the
++/// empirically broken fork direction — eviction skips pinned parks.
++struct ParkedPrefix {
++    seq_id: i32,
++    tokens: Vec<i32>,
++    row: RowOut,
++    at: Instant,
++    pin: Arc<AtomicUsize>,
++}
++
 +/// The shared serving context for one graph: one llama context whose unified
 +/// KV pool holds every concurrent sequence. All shim calls on `raw` are
 +/// serialized by the leader protocol (submit) + the `decoding` flag (Drop);
@@ -1049,6 +1123,18 @@ index 0000000..dc098cf
 +    model: Arc<GgmlModel>,
 +    n_batch: u32,
 +    n_seq_max: u32,
++    /// n_seq_max + park_slots(): what the llama context was actually created
++    /// with. `slots` holds free ids out of THIS many; `n_seq_max` stays the
++    /// SESSION cap (what tenants bought), enforced in init_execution_context.
++    total_seqs: u32,
++    /// mm32 prefix cache: parked prompt-state forks, plus the alias map that
++    /// keeps a donor's pre-fork "caps" seq id routing to its live sequence
++    /// (copy_from/mtp_for resolve through it). Lock order where both are
++    /// taken: parked -> slots. Alias entries live for the donor session's
++    /// lifetime and are dropped with it — after a park is evicted AND its
++    /// donor is gone, the id returns to `slots` clean.
++    parked: Mutex<Vec<ParkedPrefix>>,
++    alias: Mutex<HashMap<i32, i32>>,
 +    n_vocab: usize,
 +    /// mm26: device top-k armed at K (0 = off) - small decodes return
 +    /// TopK rows, wide ones (prefill) fall back to Dense inside the shim
@@ -1262,8 +1348,13 @@ index 0000000..dc098cf
 +        if matches!(type_v, 1 | 2) && flash_attn == 0 {
 +            flash_attn = 2;
 +        }
++        // mm32: park slots ride ON TOP of the session cap — the context gets
++        // the extra sequences (a recurrent model allocates their state cells
++        // up front; that is the documented cost of arming the knob), while
++        // tenant-visible session capacity stays exactly ENCLAVE_GGML_MAX_SESSIONS.
++        let total_seqs = n_seq_max + park_slots() as u32;
 +        let raw = unsafe {
-+            ell_new_server(model.raw, n_ctx, n_batch, n_seq_max, type_k, type_v, flash_attn)
++            ell_new_server(model.raw, n_ctx, n_batch, total_seqs, type_k, type_v, flash_attn)
 +        };
 +        if raw.is_null() {
 +            return Err(err(
@@ -1283,9 +1374,12 @@ index 0000000..dc098cf
 +            model: model.clone(),
 +            n_batch,
 +            n_seq_max,
++            total_seqs,
++            parked: Mutex::new(Vec::new()),
++            alias: Mutex::new(HashMap::new()),
 +            n_vocab: model.n_vocab as usize,
 +            dev_topk,
-+            slots: Mutex::new((0..n_seq_max as i32).collect()),
++            slots: Mutex::new((0..total_seqs as i32).collect()),
 +            q: Mutex::new(DecodeQueue {
 +                next_ticket: 0,
 +                pending: VecDeque::new(),
@@ -1787,8 +1881,11 @@ index 0000000..dc098cf
 +            return Err("[mtp_unavailable] this model has no MTP head".into());
 +        }
 +        let raw = unsafe {
++            // mm32: total_seqs, not n_seq_max — after a park fork the session
++            // continues on a park-range seq id and its mtp verbs must be in
++            // range for the head context too
 +            ell_mtp_new(self.model.raw, self.raw, self.n_ctx, self.n_batch,
-+                        self.n_seq_max, self.type_k, self.type_v, self.flash_attn)
++                        self.total_seqs, self.type_k, self.type_v, self.flash_attn)
 +        };
 +        if raw.is_null() {
 +            return Err(
@@ -2082,9 +2179,15 @@ index 0000000..dc098cf
 +        // thread inside a sync host call, and enough waiters starve the
 +        // slot holders into a deadlock. Guests turn this into their own
 +        // wait-and-retry (llm-chat sleeps on a monotonic-clock pollable).
-+        let seq_id = match server.slots.lock().unwrap().pop() {
-+            Some(id) => id,
-+            None => {
++        // mm32: the SESSION cap is n_seq_max, not the free-list — parked
++        // prefix forks hold ids out of `slots` without being sessions, so
++        // "how many sessions live" is derived: total - free - parked.
++        // Lock order parked -> slots (park_now and Drop match it).
++        let seq_id = {
++            let parked = server.parked.lock().unwrap();
++            let mut slots = server.slots.lock().unwrap();
++            let active = server.total_seqs as usize - slots.len() - parked.len();
++            if active >= server.n_seq_max as usize {
 +                return Err(err(format!(
 +                    "[sessions_busy] all {} inference session slot(s) are in use; retry \
 +                     shortly (ENCLAVE_GGML_MAX_SESSIONS caps concurrent sequences in the \
@@ -2092,6 +2195,9 @@ index 0000000..dc098cf
 +                    server.n_seq_max
 +                )));
 +            }
++            // active < n_seq_max and parked <= park_slots, so outstanding ids
++            // (active + parked) < total_seqs: a free id always exists here.
++            slots.pop().expect("free-list empty below the session cap")
 +        };
 +        let ctx: Box<dyn BackendExecutionContext> = Box::new(GgmlExecutionContext {
 +            server,
@@ -2099,6 +2205,13 @@ index 0000000..dc098cf
 +            n_past: 0,
 +            pending: None,
 +            logits: None,
++            fed: Vec::new(),
++            prompt_done: false,
++            defer: None,
++            no_cache: false,
++            parked_from: None,
++            park_pin: None,
++            last_row: None,
 +        });
 +        Ok(ctx.into())
 +    }
@@ -2111,6 +2224,33 @@ index 0000000..dc098cf
 +    n_past: i32,
 +    pending: Option<Vec<i32>>,  // WITX-style set_input staging
 +    logits: Option<Tensor>,     // last compute's output for get_output
++    // -- mm32 prefix cache (all inert while ENCLAVE_GGML_PARK_SLOTS=0) --
++    /// every token fed through the WIT "tokens" paths, in order, until the
++    /// prompt completes — the exact stream a park records and a later
++    /// request matches against. Bookkeeping only; rewind truncates it.
++    fed: Vec<i32>,
++    /// latched by the first generation-shaped verb (a 1-token feed, an
++    /// mtp_round/mtp_draft, a verify pass): the prompt is over, park once.
++    prompt_done: bool,
++    /// tokens buffered instead of fed while they still match a parked
++    /// prefix; resolved (branch + tail-feed) or abandoned (fed verbatim) at
++    /// the first divergence, generation verb, or non-token verb.
++    defer: Option<Vec<i32>>,
++    /// guest opt-out ({"prefix_cache": [0]}): never defer this context's
++    /// feeds. The park side stays on — parking is invisible to the guest.
++    no_cache: bool,
++    /// the seq id this session fed its prompt into before donating it as a
++    /// park (the reversed fork). Keeps the alias entry removable at Drop.
++    parked_from: Option<i32>,
++    /// pin held on a park this session's sequence is an un-diverged copy
++    /// of (donated or reused); released by the first decode. The park is
++    /// un-evictable while its count is non-zero.
++    park_pin: Option<Arc<AtomicUsize>>,
++    /// the final prompt position's output row, captured from the last
++    /// multi-token feed so a park can serve an exact-match reuse without
++    /// re-decoding that position (self.logits only holds DENSE outputs; the
++    /// topk-flavored feeds never set it, so the row is kept in RowOut form).
++    last_row: Option<RowOut>,
 +}
 +unsafe impl Send for GgmlExecutionContext {}
 +unsafe impl Sync for GgmlExecutionContext {}
@@ -2137,6 +2277,18 @@ index 0000000..dc098cf
 +        // the MTP head keeps per-seq state (KV + draft seed); slots get
 +        // reused by other streams, so forget this one before the slot frees
 +        self.server.mtp_reset(self.seq_id);
++        // mm32: the park this session donated (if any) outlives it — that is
++        // the point — but its safety pin and its caps-id alias do not. An
++        // un-diverged copy being removed is fine either direction; only the
++        // park's own removal was direction-sensitive, and the pin has kept
++        // that at bay until here.
++        if let Some(pin) = self.park_pin.take() {
++            pin.fetch_sub(1, Ordering::AcqRel);
++        }
++        if let Some(old) = self.parked_from.take() {
++            self.server.alias.lock().unwrap().remove(&old);
++        }
++        let mut parked = self.server.parked.lock().unwrap();
 +        let mut slots = self.server.slots.lock().unwrap();
 +        slots.push(self.seq_id);
 +        // IDLE RESET: a unified pool FRAGMENTS under churn — used cells
@@ -2147,10 +2299,27 @@ index 0000000..dc098cf
 +        // the pool holds NOTHING between them, so the moment the last one
 +        // ends, clear the memory outright — fragmentation can only build
 +        // within one continuous busy burst, and any quiet moment heals it.
-+        if slots.len() == self.server.n_seq_max as usize {
-+            unsafe { ell_reset(self.server.raw) };
++        //
++        // mm32: parked prefixes ARE held between sessions, so while any park
++        // is fresh the heal must wait (their cells would be wiped). Once
++        // every park has aged past PARK_TTL with no session alive, the parks
++        // stand down and the pool clears — long-idle heals exactly as before
++        // the feature, and a busy burst keeps its parks.
++        if slots.len() + parked.len() == self.server.total_seqs as usize {
++            if parked.is_empty() {
++                unsafe { ell_reset(self.server.raw) };
++            } else if parked.iter().all(|p| {
++                p.at.elapsed() > park_ttl() && p.pin.load(Ordering::Acquire) == 0
++            }) {
++                for p in parked.drain(..) {
++                    unsafe { ell_seq_remove(self.server.raw, p.seq_id) };
++                    slots.push(p.seq_id);
++                }
++                unsafe { ell_reset(self.server.raw) };
++            }
 +        }
 +        drop(slots);
++        drop(parked);
 +        drop(q);
 +    }
 +}
@@ -2170,12 +2339,385 @@ index 0000000..dc098cf
 +        .collect())
 +}
 +
++/// mm32: what one deferred-feed step decided (see defer_step).
++enum DeferAction {
++    /// tokens buffered against a still-matching park — the caller emits a
++    /// zero-shaped output row and decodes nothing.
++    Hold,
++    /// a park covered a prefix of the buffered stream: this sequence is now
++    /// a branch of it (n_past updated). `remainder` is what still needs
++    /// feeding (at most the current call's tokens); when it is empty the
++    /// stream matched the park exactly and `row` is the stored final-row.
++    Branch { remainder: Vec<i32>, row: Option<RowOut> },
++    /// no park matches any more: feed these buffered tokens instead of the
++    /// call's own (they include it), through the caller's own verb path.
++    Replay(Vec<i32>),
++}
++
 +impl GgmlExecutionContext {
++    /// mm32: shadow a fed token stream while the prompt is still open.
++    fn shadow(&mut self, ids: &[i32]) {
++        if !self.prompt_done && park_slots() > 0 {
++            self.fed.extend_from_slice(ids);
++        }
++    }
++
++    /// mm32: the first decode on the continuation copy diverges its
++    /// recurrent state from the donated park's — from here the park stands
++    /// on its own cells and may be evicted like any other.
++    fn mark_diverged(&mut self) {
++        if let Some(pin) = self.park_pin.take() {
++            pin.fetch_sub(1, Ordering::AcqRel);
++        }
++    }
++
++    /// mm32 match-and-defer. Called with each multi-token feed while the
++    /// prompt is open; decides whether to buffer (a park still covers the
++    /// stream), branch (a park just got covered), abandon (divergence), or
++    /// stay out of the way entirely (None: feed exactly as before mm32).
++    fn defer_step(&mut self, ids: &[i32]) -> Result<Option<DeferAction>, BackendError> {
++        if park_slots() == 0 || self.no_cache || self.prompt_done {
++            return Ok(None);
++        }
++        // only a context's FIRST feeds can match a park (a park is a whole
++        // prompt from position 0); a 1-token opener is generation-shaped
++        if self.defer.is_none() && (self.n_past > 0 || ids.len() < 2) {
++            return Ok(None);
++        }
++        let mut buf = self.defer.take().unwrap_or_default();
++        // fast path: on the very first chunk, engage only if some park
++        // actually relates to it — otherwise this request never defers
++        if buf.is_empty() {
++            let parked = self.server.parked.lock().unwrap();
++            let engages = parked.iter().any(|p| {
++                let n = ids.len().min(p.tokens.len());
++                p.tokens[..n] == ids[..n]
++            });
++            if !engages {
++                return Ok(None);
++            }
++        }
++        buf.extend_from_slice(ids);
++        // Still covered by some park? Prefer the LONGEST cover — it defers
++        // the most future prefill. (Scan under the parked lock alone; the
++        // branch below re-verifies under the decode turn, because a park can
++        // be evicted between the two.)
++        let covered = {
++            let parked = self.server.parked.lock().unwrap();
++            parked.iter().any(|p| p.tokens.len() >= buf.len() && p.tokens[..buf.len()] == buf[..])
++        };
++        if covered {
++            self.defer = Some(buf);
++            return Ok(Some(DeferAction::Hold));
++        }
++        // No park covers the stream any more. If one IS a prefix of it, the
++        // stream outgrew it: branch off the longest such park and feed only
++        // the tail. Re-find by content under the decode turn (lock order
++        // q -> parked, matching Drop) so the copy cannot race an eviction.
++        let mut q = self.server.q.lock().unwrap();
++        while q.decoding {
++            q = self.server.cv.wait(q).unwrap();
++        }
++        let mut parked = self.server.parked.lock().unwrap();
++        let best = parked
++            .iter_mut()
++            .filter(|p| p.tokens.len() >= park_min_tokens() && p.tokens.len() <= buf.len()
++                        && buf[..p.tokens.len()] == p.tokens[..])
++            .max_by_key(|p| p.tokens.len());
++        let action = match best {
++            Some(p) => {
++                unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                p.at = Instant::now(); // reuse refreshes LRU age
++                // this sequence is an un-diverged copy of the park until its
++                // first decode — pin the park so eviction cannot orphan it
++                if self.park_pin.is_none() {
++                    p.pin.fetch_add(1, Ordering::AcqRel);
++                    self.park_pin = Some(p.pin.clone());
++                }
++                let plen = p.tokens.len();
++                let row = if plen == buf.len() { Some(p.row.clone()) } else { None };
++                self.n_past = plen as i32;
++                DeferAction::Branch { remainder: buf[plen..].to_vec(), row }
++            }
++            None => DeferAction::Replay(buf.clone()),
++        };
++        drop(parked);
++        drop(q);
++        // either way the shadow is the full stream so far (a Replay's n_past
++        // stays 0 and the caller feeds the whole buffer; callers never
++        // shadow again on a Some return — defer_step owns the bookkeeping)
++        self.fed = buf;
++        Ok(Some(action))
++    }
++
++    /// mm32: a generation-shaped or non-token verb arrived while feeds were
++    /// still deferred — the prompt is over. If the buffered stream exactly
++    /// equals (or outgrew) a park, branch as usual; otherwise feed it
++    /// verbatim (plain decode, rows discarded — the guest already consumed
++    /// zero-rows for those chunks and only ever samples the final ones).
++    fn resolve_defer(&mut self) -> Result<(), BackendError> {
++        let Some(buf) = self.defer.take() else { return Ok(()) };
++        self.fed = buf.clone();
++        // reuse defer_step's branch logic by simulating "stream ended here":
++        // find the longest park that is a prefix of (or equal to) buf
++        let mut q = self.server.q.lock().unwrap();
++        while q.decoding {
++            q = self.server.cv.wait(q).unwrap();
++        }
++        let mut parked = self.server.parked.lock().unwrap();
++        let hit = parked
++            .iter_mut()
++            .filter(|p| p.tokens.len() <= buf.len() && buf[..p.tokens.len()] == p.tokens[..])
++            .max_by_key(|p| p.tokens.len());
++        let (start, row) = match hit {
++            Some(p) => {
++                unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                p.at = Instant::now();
++                if self.park_pin.is_none() {
++                    p.pin.fetch_add(1, Ordering::AcqRel);
++                    self.park_pin = Some(p.pin.clone());
++                }
++                let plen = p.tokens.len();
++                (plen, if plen == buf.len() { Some(p.row.clone()) } else { None })
++            }
++            None => (0, None),
++        };
++        drop(parked);
++        drop(q);
++        self.n_past = start as i32;
++        if let Some(row) = row {
++            self.last_row = Some(row);
++            return Ok(());
++        }
++        // feed the un-covered tail in engine-sized chunks; the last chunk's
++        // row is the final prompt row this context should stand on
++        let nb = self.server.n_batch.max(1) as usize;
++        for chunk in buf[start..].chunks(nb) {
++            let row = self
++                .server
++                .submit(self.seq_id, self.n_past, chunk.to_vec())
++                .map_err(err)?;
++            self.n_past += chunk.len() as i32;
++            self.last_row = Some(row);
++        }
++        self.mark_diverged();
++        Ok(())
++    }
++
++    /// mm32: the prompt just completed (first generation-shaped verb). Park
++    /// this sequence's prompt state via the REVERSED fork: the prompt-fed
++    /// sequence itself becomes the park (it owns its cells — an un-diverged
++    /// copy would not, and removing its source corrupts it on hybrids), and
++    /// the session continues on a fresh copy that diverges with its first
++    /// decode. Skipped whenever the token shadow cannot vouch for the state
++    /// (images, rewinds) or the prompt is too short to earn a slot.
++    fn park_now(&mut self) {
++        if self.prompt_done {
++            return;
++        }
++        self.prompt_done = true;
++        if park_slots() == 0 || self.n_past <= 0 {
++            self.fed = Vec::new();
++            return;
++        }
++        let ok = self.fed.len() == self.n_past as usize
++            && self.fed.len() >= park_min_tokens()
++            && self.parked_from.is_none();
++        let Some(row) = self.last_row.clone() else {
++            self.fed = Vec::new();
++            return;
++        };
++        if !ok {
++            self.fed = Vec::new();
++            return;
++        }
++        let old = self.seq_id;
++        let mut q = self.server.q.lock().unwrap();
++        while q.decoding {
++            q = self.server.cv.wait(q).unwrap();
++        }
++        let mut parked = self.server.parked.lock().unwrap();
++        // an identical park already standing: refresh it, keep this session
++        // on its own sequence — nothing to fork
++        if let Some(p) = parked.iter_mut().find(|p| p.tokens == self.fed) {
++            p.at = Instant::now();
++            self.fed = Vec::new();
++            return;
++        }
++        // capacity: evict the oldest un-pinned park (a pinned one still
++        // shares recurrent state with an un-diverged continuation copy)
++        if parked.len() >= park_slots() {
++            let oldest = parked
++                .iter()
++                .enumerate()
++                .filter(|(_, p)| p.pin.load(Ordering::Acquire) == 0)
++                .min_by_key(|(_, p)| p.at)
++                .map(|(i, _)| i);
++            let Some(i) = oldest else {
++                self.fed = Vec::new();
++                return;
++            };
++            let old_park = parked.remove(i);
++            unsafe { ell_seq_remove(self.server.raw, old_park.seq_id) };
++            // the alias entry (if its donor still lives) dies with the park:
++            // a caps id from before THIS point stops resolving, which is the
++            // documented, deliberately narrow staleness window
++            self.server.alias.lock().unwrap().remove(&old_park.seq_id);
++            self.server.slots.lock().unwrap().push(old_park.seq_id);
++        }
++        let fresh = {
++            let mut slots = self.server.slots.lock().unwrap();
++            match slots.pop() {
++                Some(id) => id,
++                None => {
++                    // cannot happen while parked < cap and sessions <= cap,
++                    // but a missing fork must never break the session
++                    self.fed = Vec::new();
++                    return;
++                }
++            }
++        };
++        unsafe { ell_seq_copy(self.server.raw, old, fresh) };
++        let pin = Arc::new(AtomicUsize::new(1));
++        parked.push(ParkedPrefix {
++            seq_id: old,
++            tokens: std::mem::take(&mut self.fed),
++            row,
++            at: Instant::now(),
++            pin: pin.clone(),
++        });
++        drop(parked);
++        // the cohort must not wait for the donated sequence, and the MTP
++        // head's per-seq state must not ride along to a future session that
++        // reuses the id — the session's head re-warms under its fresh id
++        // within a few rounds (draft-quality dip, never correctness: verify
++        // re-checks every draft)
++        q.stepping.remove(&old);
++        drop(q);
++        self.server.mtp_reset(old);
++        self.server.alias.lock().unwrap().insert(old, fresh);
++        self.parked_from = Some(old);
++        self.park_pin = Some(pin);
++        self.seq_id = fresh;
++    }
++
++    /// mm32: every generation-shaped verb funnels through here first.
++    fn park_check(&mut self) -> Result<(), BackendError> {
++        if self.prompt_done {
++            return Ok(());
++        }
++        self.resolve_defer()?;
++        self.park_now();
++        Ok(())
++    }
++
++
++    /// mm32: the last position's row out of a submit_full flat result.
++    fn last_of(&self, flat: &RowsOut, n: usize) -> RowOut {
++        match flat {
++            RowsOut::Dense(f) => RowOut::Dense(f[(n - 1) * self.server.n_vocab..].to_vec()),
++            RowsOut::TopK { ids, vals, k } => RowOut::TopK {
++                ids: ids[(n - 1) * k..].to_vec(),
++                vals: vals[(n - 1) * k..].to_vec(),
++            },
++        }
++    }
++
++    /// mm32: feed prompt tokens through the plain path in engine-sized
++    /// chunks and return the final chunk's row.
++    fn feed_plain(&mut self, toks: &[i32]) -> Result<RowOut, BackendError> {
++        let nb = self.server.n_batch.max(1) as usize;
++        let mut last = None;
++        for chunk in toks.chunks(nb) {
++            let row = self
++                .server
++                .submit(self.seq_id, self.n_past, chunk.to_vec())
++                .map_err(err)?;
++            self.n_past += chunk.len() as i32;
++            last = Some(row);
++        }
++        self.mark_diverged();
++        last.ok_or_else(|| err("empty token feed"))
++    }
++
++    /// mm32: the same through the MTP-aware path — the head observes every
++    /// position, exactly as the un-deferred mtp-flagged feed would.
++    fn feed_mtp(&mut self, toks: &[i32]) -> Result<RowOut, BackendError> {
++        let nb = self.server.n_batch.max(1) as usize;
++        let mut last = None;
++        for chunk in toks.chunks(nb) {
++            let pos0 = self.n_past;
++            let flat = self
++                .server
++                .submit_full(self.seq_id, pos0, chunk, Some(self.seq_id))
++                .map_err(err)?;
++            self.server.mtp_observe(self.seq_id, pos0, chunk).map_err(err)?;
++            self.n_past += chunk.len() as i32;
++            last = Some(self.last_of(&flat, chunk.len()));
++        }
++        self.mark_diverged();
++        last.ok_or_else(|| err("empty token feed"))
++    }
++
++    /// mm32: render one final-position row the way this call asked for it
++    /// (the same three shapes the un-deferred paths produce).
++    fn render_row(&mut self, row: RowOut, topk: Option<usize>)
++        -> Result<Vec<NamedTensor>, BackendError>
++    {
++        if let Some(kv) = topk {
++            let (ti, tv) = match &row {
++                RowOut::Dense(r) => topk_rows(r, 1, self.server.n_vocab, kv),
++                RowOut::TopK { ids, vals } => topk_tensors(ids, vals, 1, ids.len(), kv),
++            };
++            return Ok(vec![
++                NamedTensor { name: "topk_ids".to_string(), tensor: ti },
++                NamedTensor { name: "topk_logits".to_string(), tensor: tv },
++            ]);
++        }
++        let RowOut::Dense(r) = row else {
++            return Err(err(
++                "this engine is armed for device top-k (nnDevTopk); dense \"logits\" \
++                 output is unavailable - request {\"topk\": K}",
++            ));
++        };
++        let mut data = Vec::with_capacity(r.len() * 4);
++        for v in r {
++            data.extend_from_slice(&v.to_le_bytes());
++        }
++        let t = Tensor {
++            dimensions: vec![1, self.server.model.n_vocab],
++            ty: TensorType::Fp32,
++            data,
++        };
++        self.logits = Some(t.clone());
++        Ok(vec![NamedTensor { name: "logits".to_string(), tensor: t }])
++    }
++
++    /// mm32: the zero-shaped answer a deferred prompt chunk gets. Both
++    /// first-party guests discard every non-final prompt row; a guest that
++    /// does not opts out with {"prefix_cache": [0]}.
++    fn hold_output(&self, topk: Option<usize>) -> Vec<NamedTensor> {
++        match topk {
++            Some(kv) => vec![
++                NamedTensor { name: "topk_ids".to_string(), tensor: Tensor {
++                    dimensions: vec![1, kv as u32], ty: TensorType::I32, data: vec![0; kv * 4] } },
++                NamedTensor { name: "topk_logits".to_string(), tensor: Tensor {
++                    dimensions: vec![1, kv as u32], ty: TensorType::Fp32, data: vec![0; kv * 4] } },
++            ],
++            None => vec![NamedTensor { name: "logits".to_string(), tensor: Tensor {
++                dimensions: vec![1, self.server.model.n_vocab],
++                ty: TensorType::Fp32,
++                data: vec![0; self.server.n_vocab * 4],
++            } }],
++        }
++    }
++
 +    fn decode(&mut self, tokens: &[i32]) -> Result<Tensor, BackendError> {
 +        let row = self
 +            .server
 +            .submit(self.seq_id, self.n_past, tokens.to_vec())
 +            .map_err(err)?;
++        self.mark_diverged();
 +        self.n_past += tokens.len() as i32;
 +        let RowOut::Dense(row) = row else {
 +            // mm26: a dense-logits request on a device-top-k-armed engine -
@@ -2385,6 +2927,20 @@ index 0000000..dc098cf
 +                    let t = Tensor { dimensions: vec![8], ty: TensorType::I32, data };
 +                    return Ok(Some(vec![NamedTensor { name: "gperf".to_string(), tensor: t }]));
 +                }
++                // mm32 control input {"prefix_cache": I32 [1] = 0}: opt this
++                // context out of match-and-defer (a guest that samples
++                // non-final prompt rows must send it before its first feed).
++                // Parking stays on - it is invisible to the guest. Standalone
++                // or beside a feed; standalone returns no outputs.
++                if let Some(pc) = inputs.iter().find(|nt| nt.name == "prefix_cache") {
++                    if tokens_from_tensor(&pc.tensor)?.first() == Some(&0) {
++                        self.no_cache = true;
++                        self.resolve_defer()?;
++                    }
++                    if !inputs.iter().any(|nt| nt.name == "tokens" || nt.name == "0") {
++                        return Ok(Some(vec![]));
++                    }
++                }
 +                if inputs.iter().any(|nt| nt.name == "caps") {
 +                    // mm20 sync-instr: cumulative CUDA stream-sync time and
 +                    // call count since process start (the per-decode
@@ -2436,6 +2992,11 @@ index 0000000..dc098cf
 +                        // Advisory only - the refusal is the authority, and
 +                        // it is re-evaluated every round.
 +                        self.server.shared_with(self.seq_id) as i32,
++                        // mm32: prefix-cache park slots armed on this node
++                        // (0 = off). When armed, non-final prompt-chunk rows
++                        // may come back zeroed; {"prefix_cache": [0]} opts a
++                        // context out of that deferral.
++                        park_slots() as i32,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -2460,6 +3021,11 @@ index 0000000..dc098cf
 +                // happens inside libmtmd, which is why the guest sends raw file
 +                // bytes and does no vision work of its own.
 +                if let Some(img) = inputs.iter().find(|nt| nt.name == "image") {
++                    // mm32: buffered prompt tokens must land before the image
++                    // does, or its positions would be wrong. (A prompt with
++                    // images also never parks: the token shadow cannot vouch
++                    // for state that includes encoded pictures.)
++                    self.resolve_defer()?;
 +                    if img.tensor.ty != TensorType::U8 {
 +                        return Err(err(format!(
 +                            "\"image\" must be a U8 tensor of file bytes (got {:?})",
@@ -2492,12 +3058,22 @@ index 0000000..dc098cf
 +                // full accept or re-feed only the accepted tokens on the
 +                // real sequence - no rewind on any architecture.
 +                if let Some(cp) = inputs.iter().find(|nt| nt.name == "copy_from") {
++                    // mm32: a branch target's feeds are verify content, not a
++                    // prompt - drop any deferral (the copy overwrites this
++                    // sequence wholesale) and never park it. A source id from
++                    // a pre-fork caps probe resolves to the donor's live
++                    // sequence through the alias map.
++                    self.defer = None;
++                    self.fed = Vec::new();
++                    self.prompt_done = true;
++                    self.mark_diverged();
 +                    let v = tokens_from_tensor(&cp.tensor)?;
 +                    let (src, src_n_past) = match v.as_slice() {
 +                        [s, n] => (*s, *n),
 +                        _ => return Err(err("copy_from needs [src_seq, src_n_past]")),
 +                    };
-+                    if src < 0 || src >= self.server.n_seq_max as i32 || src == self.seq_id {
++                    let src = self.server.alias.lock().unwrap().get(&src).copied().unwrap_or(src);
++                    if src < 0 || src >= self.server.total_seqs as i32 || src == self.seq_id {
 +                        return Err(err(format!(
 +                            "copy_from src {src} outside this graph's sequences"
 +                        )));
@@ -2519,6 +3095,8 @@ index 0000000..dc098cf
 +                // up to that many trailing tokens of the LAST decode
 +                // succeeds even here.
 +                if let Some(rw) = inputs.iter().find(|nt| nt.name == "rewind") {
++                    // mm32: rewind is generation-shaped - the prompt is over
++                    self.park_check()?;
 +                    let v = tokens_from_tensor(&rw.tensor)?;
 +                    let n_keep = *v.first().ok_or_else(|| err("rewind needs one i32"))?;
 +                    if n_keep < 0 || n_keep > self.n_past {
@@ -2542,6 +3120,9 @@ index 0000000..dc098cf
 +                // failed BEFORE any decode: recover exactly like the
 +                // standalone path (explicit mtp_accept, then retry unfolded).
 +                if let Some(mr) = inputs.iter().find(|nt| nt.name == "mtp_round") {
++                    // mm32: first generation verb - resolve any deferred
++                    // prompt and park it before the round decodes
++                    self.park_check()?;
 +                    let v = tokens_from_tensor(&mr.tensor)?;
 +                    let (id_last, k, pmm) = match v.as_slice() {
 +                        [i, k, p] => (*i, *k, *p),
@@ -2580,6 +3161,7 @@ index 0000000..dc098cf
 +                        .mtp_round(self.seq_id, id_last, self.n_past, k, p_min, obs, &pending,
 +                                   shared_ok(&inputs))
 +                        .map_err(err)?;
++                    self.mark_diverged();
 +                    let n_rows = pending.len() + drafts.len();
 +                    self.n_past += n_rows as i32;
 +                    let ph = *self.server.last_phases.lock().unwrap();
@@ -2624,6 +3206,7 @@ index 0000000..dc098cf
 +                // does, minus its round trip. Rows must still come from the
 +                // last mtp-flagged pass, exactly as with mtp_accept.
 +                if let Some(md) = inputs.iter().find(|nt| nt.name == "mtp_draft") {
++                    self.park_check()?;
 +                    let v = tokens_from_tensor(&md.tensor)?;
 +                    let (id_last, k, pmm) = match v.as_slice() {
 +                        [i, k, p] => (*i, *k, *p),
@@ -2665,6 +3248,7 @@ index 0000000..dc098cf
 +                // (pairs them with the rows harvested by the last mtp-flagged
 +                // pass). Rejected proposals never reach the head.
 +                if let Some(ma) = inputs.iter().find(|nt| nt.name == "mtp_accept") {
++                    self.park_check()?;
 +                    let v = tokens_from_tensor(&ma.tensor)?;
 +                    let (pos0, toks) = match v.split_first() {
 +                        Some((p, rest)) if !rest.is_empty() => (*p, rest),
@@ -2708,16 +3292,27 @@ index 0000000..dc098cf
 +                    .map(|nt| tokens_from_tensor(&nt.tensor))
 +                    .transpose()?
 +                    .and_then(|v| v.first().copied());
++                // mm32: a donor's pre-fork caps id routes to its live sequence
++                let mtp_for = mtp_for.map(|ms| {
++                    self.server.alias.lock().unwrap().get(&ms).copied().unwrap_or(ms)
++                });
 +                if let Some(ms) = mtp_for {
-+                    if ms < 0 || ms >= self.server.n_seq_max as i32 {
++                    if ms < 0 || ms >= self.server.total_seqs as i32 {
 +                        return Err(err(format!("mtp_for seq {ms} outside this graph's sequences")));
 +                    }
 +                }
++                // mm32: a single-token feed is generation-shaped - the
++                // prompt (if any) is over; resolve and park it first
++                if ids.len() == 1 {
++                    self.park_check()?;
++                }
 +                if want_all {
++                    self.park_check()?;
 +                    let flat = self
 +                        .server
 +                        .submit_full(self.seq_id, self.n_past, &ids, mtp_for)
 +                        .map_err(err)?;
++                    self.mark_diverged();
 +                    self.n_past += ids.len() as i32;
 +                    // mm9: name where the verify verb's time goes -
 +                    // "phase_us" I32 [gate, alloc, decode, harvest, topk].
@@ -2766,69 +3361,47 @@ index 0000000..dc098cf
 +                // harvested + mirrored into the head, but only the LAST
 +                // logits row returned. The speculative prefill path.
 +                if flag("mtp") {
-+                    let pos0 = self.n_past;
-+                    let flat = self
-+                        .server
-+                        .submit_full(self.seq_id, pos0, &ids, Some(self.seq_id))
-+                        .map_err(err)?;
-+                    self.server.mtp_observe(self.seq_id, pos0, &ids).map_err(err)?;
-+                    self.n_past += ids.len() as i32;
-+                    if let Some(kv) = topk {
-+                        let (ti, tv) = match &flat {
-+                            RowsOut::Dense(flat) => {
-+                                let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
-+                                topk_rows(last, 1, self.server.n_vocab, kv)
-+                            }
-+                            RowsOut::TopK { ids: ti, vals, k } => {
-+                                let last = ids.len() - 1;
-+                                topk_tensors(&ti[last * k..], &vals[last * k..], 1, *k, kv)
-+                            }
-+                        };
-+                        return Ok(Some(vec![
-+                            NamedTensor { name: "topk_ids".to_string(), tensor: ti },
-+                            NamedTensor { name: "topk_logits".to_string(), tensor: tv },
-+                        ]));
++                    // mm32: a prompt feed may match a parked prefix - buffer
++                    // it (zero rows back), branch when a park is covered, or
++                    // replay verbatim on divergence. None = feed as before.
++                    let row = if let Some(act) = self.defer_step(&ids)? {
++                        match act {
++                            DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
++                            DeferAction::Branch { remainder, row } => match row {
++                                Some(r) if remainder.is_empty() => r,
++                                _ => self.feed_mtp(&remainder)?,
++                            },
++                            DeferAction::Replay(buf) => self.feed_mtp(&buf)?,
++                        }
++                    } else {
++                        self.shadow(&ids);
++                        self.feed_mtp(&ids)?
++                    };
++                    if !self.prompt_done {
++                        self.last_row = Some(row.clone());
 +                    }
-+                    let RowsOut::Dense(flat) = flat else {
-+                        return Err(err(
-+                            "this engine is armed for device top-k (nnDevTopk); dense \"logits\" \
-+                             output is unavailable - request {\"topk\": K}",
-+                        ));
-+                    };
-+                    let last = &flat[(ids.len() - 1) * self.server.n_vocab..];
-+                    let mut data = Vec::with_capacity(last.len() * 4);
-+                    for v in last {
-+                        data.extend_from_slice(&v.to_le_bytes());
++                    return self.render_row(row, topk).map(Some);
++                }
++                // mm32: same defer/branch/replay contract as the mtp path,
++                // through the plain decode; also serves 1-token generation
++                // steps, where defer_step always stands aside.
++                let row = if let Some(act) = self.defer_step(&ids)? {
++                    match act {
++                        DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
++                        DeferAction::Branch { remainder, row } => match row {
++                            Some(r) if remainder.is_empty() => r,
++                            _ => self.feed_plain(&remainder)?,
++                        },
++                        DeferAction::Replay(buf) => self.feed_plain(&buf)?,
 +                    }
-+                    let t = Tensor {
-+                        dimensions: vec![1, self.server.model.n_vocab],
-+                        ty: TensorType::Fp32,
-+                        data,
-+                    };
-+                    self.logits = Some(t.clone());
-+                    return Ok(Some(vec![NamedTensor { name: "logits".to_string(), tensor: t }]));
++                } else {
++                    self.shadow(&ids);
++                    self.feed_plain(&ids)?
++                };
++                if !self.prompt_done {
++                    self.last_row = Some(row.clone());
 +                }
-+                if let Some(kv) = topk {
-+                    let row = self
-+                        .server
-+                        .submit(self.seq_id, self.n_past, ids.to_vec())
-+                        .map_err(err)?;
-+                    self.n_past += ids.len() as i32;
-+                    let (ti, tv) = match &row {
-+                        RowOut::Dense(row) => topk_rows(row, 1, self.server.n_vocab, kv),
-+                        RowOut::TopK { ids, vals } => topk_tensors(ids, vals, 1, ids.len(), kv),
-+                    };
-+                    return Ok(Some(vec![
-+                        NamedTensor { name: "topk_ids".to_string(), tensor: ti },
-+                        NamedTensor { name: "topk_logits".to_string(), tensor: tv },
-+                    ]));
-+                }
-+                let logits = self.decode(&ids)?;
-+                self.logits = Some(logits.clone());
-+                Ok(Some(vec![NamedTensor {
-+                    name: "logits".to_string(),
-+                    tensor: logits,
-+                }]))
++                self.render_row(row, topk).map(Some)
 +            }
 +            // WITX path: tokens staged via set_input, result via get_output
 +            None => {
