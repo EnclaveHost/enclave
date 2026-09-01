@@ -300,6 +300,14 @@ start('wasm-manager',
     WASM_CPU_WEIGHT: '100',
     WASM_ACCOUNT_STORAGE_RAM: '1',
     WASM_HEALTH_MINIMAL: '1',
+    // A shielded box arms the manager's nn arbiter (the hosted fleet's
+    // work-conserving fair share) for its GPU tenants: they take weighted
+    // turns on the shielded card instead of racing the worker's g_gpu mutex.
+    // The manager's own gate still requires the toolchain capability probe to
+    // pass, and the runtime client only takes turns once the toolchain knows
+    // a SHIELDED_HOST graph is a GPU graph — armed here, active on the next
+    // wasmtime repin, fail-open (unarbitrated) everywhere in between.
+    ...(fw.shieldedWorker && fw.shieldedWorker.port ? { WASM_NN_ARBITER: '1' } : {}),
     ...GGML_ENV,
     // attached model volumes: name -> path INSIDE the chroot (plus the optional
     // third field naming the one gguf to preload out of a multi-file tree). The
@@ -491,11 +499,18 @@ if (fw.shieldedWorker && fw.shieldedWorker.port) {
             tenantEnv[k] = String(val);
           }
         }
+        // The compute fraction the host's MPS cap enforces on the worker
+        // (enclave-metal.mjs computeShare). Rides the verdict like the price:
+        // config, not a probe result, but only meaningful for a card the
+        // probe passed. The supervisor caps its pool's computeFree with it.
+        const computeShare = Number(fw.shieldedWorker.computeShare) > 0 && Number(fw.shieldedWorker.computeShare) < 1
+          ? Number(fw.shieldedWorker.computeShare) : 0;
         fs.writeFileSync(VERDICT, JSON.stringify({
           ...v.card, endpoint: `${host}:${port}`,
           ...(vsockPort ? { vsockPort } : {}),
           ...(Object.keys(tenantEnv).length ? { tenantEnv } : {}),
           ...(priceSec6 ? { pricePerSec6: priceSec6 } : {}),
+          ...(computeShare ? { compute_share: computeShare } : {}),
           exact: v.exact, verified: v.verified, lie_rejected: v.lie_rejected,
           denylist_refused: v.denylist_refused,
           round_trip_ms: v.round_trip_ms, at: new Date().toISOString(),

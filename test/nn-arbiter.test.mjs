@@ -322,3 +322,46 @@ print(json.dumps({"supported": s["supported"], "detail": s["detail"]}))
   assert.equal(r.detail, "no nn-demo.wasm fixture",
     "the fallback must be SAYABLE, not a silent cap");
 });
+
+// --- shielded (metal) arming -------------------------------------------------
+// A shielded box's GPU tenants funnel into ONE host worker whose g_gpu mutex
+// serializes them FCFS; _nn_arb_arm is the shared arming point that gives them
+// the same weighted turns as the CUDA branch. NODE_HAS_GPU is 0 on those boxes,
+// so these run the metal shape of the environment.
+
+test("shielded tenants arm with the same arbiter env — and still no MPS caps", () => {
+  const r = run(`
+m._nn_arbiter_live = lambda: True
+env = m._shielded_tenant_env({"endpoint": "10.0.2.2:9500"})
+rec = {"id": "dep-shielded"}
+m._nn_arb_arm(env, rec, 0.35)
+print(json.dumps({
+  "sock": env.get("ENCLAVE_NN_ARBITER"), "tenant": env.get("ENCLAVE_NN_ARB_TENANT"),
+  "weight": env.get("ENCLAVE_NN_ARB_WEIGHT"), "queue": env.get("ENCLAVE_NN_ARB_QUEUE"),
+  "armed": rec.get("nnArbiter", False),
+  "mps": [k for k in env if k.startswith("CUDA_MPS_")],
+  "cvd": env.get("CUDA_VISIBLE_DEVICES"), "ngl": env.get("ENCLAVE_GGML_N_GPU_LAYERS"),
+}))
+`, { NODE_HAS_GPU: "0" });
+  assert.equal(r.sock, "/tmp/enclave-nn-arb.sock");
+  assert.equal(r.tenant, "dep-shielded");
+  assert.equal(r.weight, "0.35");
+  assert.equal(r.queue, "0");
+  assert.equal(r.armed, true);
+  assert.deepEqual(r.mps, [], "the card is on the untrusted host: arming must not re-introduce MPS env");
+  assert.equal(r.cvd, "", "no local card may be found");
+  assert.equal(r.ngl, "0", "ngl stays 0 — the toolchain's SHIELDED_HOST gate carries the gpu flag");
+});
+
+test("shielded tenants stay bit-identical when the arbiter is not live", () => {
+  const r = run(`
+m._nn_arbiter_live = lambda: False
+env = m._shielded_tenant_env({"endpoint": "10.0.2.2:9500"})
+rec = {"id": "dep-shielded"}
+m._nn_arb_arm(env, rec, 0.35)
+print(json.dumps({"arb": [k for k in env if k.startswith("ENCLAVE_NN_ARB")],
+                  "armed": rec.get("nnArbiter", False)}))
+`, { NODE_HAS_GPU: "0" });
+  assert.deepEqual(r.arb, [], "not live = not a single arbiter var");
+  assert.equal(r.armed, false);
+});

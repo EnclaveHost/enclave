@@ -66,6 +66,20 @@ test("a fully reserved card advertises no free share", async () => {
   assert.equal(r.shielded.vramReservedGb, 6.5);
 });
 
+test("compute_share caps the pool: an empty card sells only that fraction", async () => {
+  const r = await capacity({ ...good, vram_free_gb: 6.5, vram_reserved_gb: 0, compute_share: 0.5 });
+  assert.equal(r.shielded.computeShare, 0.5);
+  // computeFree binds before VRAM does: min(0.5, 6.5/6.5)
+  assert.equal(r.gpuShareFree, 0.5);
+  assert.equal(r.vramFreeGb, 3.3);   // round1(0.5 * 6.5) — nobody can book past the share cap
+});
+
+test("no compute_share = the whole card's compute, exactly as before", async () => {
+  const r = await capacity({ ...good, vram_free_gb: 6.5, vram_reserved_gb: 0 });
+  assert.equal(r.shielded.computeShare, 1);
+  assert.equal(r.gpuShareFree, 1);
+});
+
 test("a verdict that fails one of its claims is no card, whatever it says about memory", async () => {
   const r = await capacity({ ...good, lie_rejected: false });
   assert.equal(r.shielded, null);

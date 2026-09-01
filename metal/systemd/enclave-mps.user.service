@@ -1,0 +1,28 @@
+# enclave-mps — host MPS stack for the shielded worker (user unit).
+#
+# Runs the CUDA MPS control daemon on a private pipe directory plus the
+# fleet's attach-probe health loop (metal/host-mps.sh). The shielded worker
+# joins it when shieldedWorker.computeShare is set in metal/config.json
+# (enclave-metal.mjs points the worker's CUDA_MPS_* env here); everything else
+# on the desktop keeps direct, uncapped access to the card.
+#
+# Install:
+#   cp metal/systemd/enclave-mps.user.service ~/.config/systemd/user/enclave-mps.service
+#   systemctl --user daemon-reload && systemctl --user enable --now enclave-mps
+#
+# Start ordering with enclave-metal does not matter: if this daemon is down
+# the worker attaches directly (uncapped, fail-open) and a later worker
+# restart picks the cap back up — order Before= anyway so a boot gets it.
+[Unit]
+Description=Enclave MPS — control daemon + attach-probe health for the shielded worker
+Before=enclave-metal.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/enclave
+ExecStart=/bin/sh metal/host-mps.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

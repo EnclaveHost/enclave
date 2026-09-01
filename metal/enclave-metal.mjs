@@ -271,7 +271,23 @@ if (cfg.shieldedWorker) {
   // environment-variable-shaped so a typo fails at launch, not as a silently
   // unset knob.
   const workerEnv = envMap(sw.workerEnv, 'shieldedWorker.workerEnv');
-  const swEnv = { ...process.env, ...workerEnv };
+  // computeShare: the fraction of the card's COMPUTE this box sells (VRAM has
+  // vramGb). Enforced by pointing the worker at the host MPS daemon
+  // (metal/host-mps.sh + enclave-mps.user.service) with the matching SM cap —
+  // the same CUDA_MPS_ACTIVE_THREAD_PERCENTAGE mechanism the hosted fleet
+  // uses, except here it caps the ONE worker (the platform's whole footprint
+  // against this desktop's other GPU users) rather than a tenant. Fail-open by
+  // MPS's own design: if the daemon is down the worker attaches directly,
+  // uncapped — the box keeps serving, exactly like a dead worker never takes
+  // the box down. An explicit workerEnv entry wins over both defaults.
+  const computeShare = Number(sw.computeShare) > 0 && Number(sw.computeShare) < 1 ? Number(sw.computeShare) : 0;
+  const mpsEnv = computeShare ? {
+    CUDA_MPS_PIPE_DIRECTORY: `/run/user/${process.getuid()}/enclave-mps`,
+    CUDA_MPS_ACTIVE_THREAD_PERCENTAGE: String(Math.max(1, Math.round(computeShare * 100))),
+  } : {};
+  const swEnv = { ...process.env, ...mpsEnv, ...workerEnv };
+  if (computeShare)
+    console.log(`[enclave-metal] shielded worker capped to ${Math.round(computeShare * 100)}% of the card's SMs (MPS)`);
   if (Object.keys(workerEnv).length)
     console.log(`[enclave-metal] shielded worker env: ${Object.entries(workerEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
   let swRestarts = 0;
@@ -311,7 +327,10 @@ if (cfg.shieldedWorker) {
     ...(shm ? { shmMib: shm.mib } : {}),
     // the box's ask for a WHOLE shielded card, USD/hour. Config, not a probe
     // result, but it rides with the endpoint so the guest sees one object.
-    ...(Number(sw.priceUsdHr) > 0 ? { priceUsdHr: Number(sw.priceUsdHr) } : {}) };
+    ...(Number(sw.priceUsdHr) > 0 ? { priceUsdHr: Number(sw.priceUsdHr) } : {}),
+    // the compute fraction the MPS cap above enforces, so the guest's verdict
+    // (and from it the supervisor's pool) advertises only what is for sale
+    ...(computeShare ? { computeShare } : {}) };
 }
 
 // A string->string map from config, validated to be environment-shaped

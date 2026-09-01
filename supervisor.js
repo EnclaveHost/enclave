@@ -4613,8 +4613,15 @@ function adoptShieldedCard(v) {
   if (v.pricePerSec6 > 0) SELL_GPU_PRICE6 = v.pricePerSec6;
   if (gpuCards.length === 0)
     gpuCards.push({ id: 0, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 });
+  // Cap the pool to the compute fraction the host's MPS cap enforces on the
+  // worker — applied to the existing card too, not just a fresh push: a box
+  // that detected a local device at boot (a dev machine) still adopts the
+  // shielded card as THE card, and its pool must not sell compute past the cap.
+  const cs = v.computeShare > 0 ? Math.min(1, v.computeShare) : 1;
+  if (cs < 1) gpuCards[0].computeFree = Math.min(gpuCards[0].computeFree, cs);
   console.log(`[gpu] adopting the SHIELDED card as this enclave's card: ${v.card} `
             + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS rated (masked path measured ${v.gmacPerSec} G-MAC/s), `
+            + `${Math.round(cs * 100)}% of its compute for sale, `
             + `at ${v.endpoint} on the untrusted host`);
 }
 
@@ -4645,6 +4652,11 @@ function shieldedCapacity() {
         gmacPerSec: Number(v.field_gmac_per_s) || 0,
         cardTflops: Number(v.card_tflops) || 0,
         smCount: Number(v.sm_count) || 0,
+        // The fraction of the card's COMPUTE this box sells (operator config,
+        // enforced host-side by MPS on the worker). VRAM has its own budget;
+        // this caps the pool's computeFree so the ledger never sells SM time
+        // the worker cannot legally burn. Absent = the whole card, as before.
+        computeShare: Math.min(1, Number(v.compute_share) > 0 ? Number(v.compute_share) : 1),
         capability: String(v.capability || "").slice(0, 8),
         roundTripMs: Number(v.round_trip_ms) || 0,
         verifiedAt: String(v.at || ""),
