@@ -54,8 +54,18 @@ export function normAddr(a) {
 
 /** Record one connection. `dep` is the deployment id (or label), `dir` is
  *  "in" (someone reached the app) or "out" (the app reached out). */
+// Inbound the relay learns an 8-hex LABEL off the SNI; outbound the enclave
+// sends the full 64-hex id. Both name the same deployment and neither can be
+// derived from the other upward, so the LABEL is the canonical key - the same
+// short name the app zone already uses in public. Without this the two
+// directions filed under different keys and every query found half the truth.
+export function depKey(dep) {
+  const raw = String(dep || "").toLowerCase().replace(/^0x/, "").slice(0, 80);
+  return /^[0-9a-f]{8,}$/.test(raw) ? raw.slice(0, 8) : raw;
+}
+
 export function note(dep, dir, addr, port) {
-  const key = String(dep || "").toLowerCase().slice(0, 80);
+  const key = depKey(dep);
   const a = normAddr(addr);
   if (!key || !a) return;
   let e = _log.get(key);
@@ -88,7 +98,7 @@ export function done(row, up, down) {
 
 /** Rows for one deployment, oldest first, aged out. `sinceMs` trims further. */
 export function read(dep, sinceMs = 0) {
-  const e = _log.get(String(dep || "").toLowerCase());
+  const e = _log.get(depKey(dep));
   if (!e) return [];
   const floor = Math.max(Date.now() - MAX_AGE_MS, Number(sinceMs) || 0);
   return e.rows.filter((r) => r.t >= floor);
@@ -109,47 +119,61 @@ export function snapshot() {
 
 export const limits = { MAX_PER_DEP, MAX_DEPS, MAX_AGE_MS };
 
-// ---- snapshot: the relay processes collect, the AGENT serves ---------------
-// They are separate units on the same box (relay.js and egress-relay.js hold
-// the sockets; relay-agent.mjs is the only one with a way out, over the fleet
-// tunnel). So the collectors publish here and the agent reads. /run is tmpfs:
-// no disk, and gone on reboot like the rest of this module's state.
-export const SNAP_DIR = process.env.CONNLOG_DIR || "/run/enclave-relay";
+// ---- publishing: the relay processes collect, the AGENT serves -------------
+// They are separate units on the same box - relay.js and egress-relay.js hold
+// the sockets, relay-agent.mjs is the only one with a way out (the fleet
+// tunnel) - so the collectors have to hand their rows over somehow.
+//
+// NOT through a file. Every one of these units runs DynamicUser=yes with
+// ProtectSystem=strict: an ephemeral UID and a read-only filesystem, so a
+// write to /run fails, and RuntimeDirectory= does not rescue it either because
+// two collectors with two different ephemeral UIDs cannot share one directory.
+// The first cut of this wrote a tmpfs snapshot, failed silently (the write is
+// best-effort by design) and produced an endpoint that answered `rows: []`
+// forever - a shape that looks exactly like "no traffic".
+//
+// Loopback HTTP instead: no filesystem, no ownership, nothing to get right.
+// PrivateNetwork is not set on these units, so 127.0.0.1 is shared between
+// them and reachable from nowhere else.
+import http from "node:http";
 
-/** Publish this process's rows every `everyMs` under `name`.json. Best effort
- *  throughout: a relay that cannot write its snapshot must keep relaying. */
-export function startSnapshot(name, everyMs = 5000) {
-  const file = path.join(SNAP_DIR, `${String(name).replace(/[^a-z0-9_-]/gi, "")}.json`);
-  const tick = () => {
-    try {
-      fs.mkdirSync(SNAP_DIR, { recursive: true });
-      // write-then-rename: the agent must never read a half-written file
-      const tmp = file + ".tmp";
-      fs.writeFileSync(tmp, JSON.stringify({ at: Date.now(), deps: snapshot() }));
-      fs.renameSync(tmp, file);
-    } catch { /* a relay that cannot snapshot still relays */ }
-  };
-  const t = setInterval(tick, Math.max(1000, everyMs));
-  if (t.unref) t.unref();
-  tick();
-  return () => clearInterval(t);
+// Above the relay's own listener range (1-49999) and below the pinned
+// ephemeral floor (58000), so this can never race a tenant port or an
+// outbound connection for the same number.
+export const PORT_IN  = Number(process.env.CONNLOG_PORT_IN  || 50123);
+export const PORT_OUT = Number(process.env.CONNLOG_PORT_OUT || 50124);
+
+/** Publish this process's rows on loopback. Best effort: a relay that cannot
+ *  bind the port must keep relaying, so the failure is logged and dropped. */
+export function serve(port) {
+  const srv = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ at: Date.now(), deps: snapshot() }));
+  });
+  srv.on("error", (e) => console.error(`[connlog] not publishing on ${port}: ${e.message}`));
+  srv.listen(port, "127.0.0.1");
+  if (srv.unref) srv.unref();
+  return srv;
 }
 
-/** Merge every collector's snapshot on this box. Rows for one deployment come
- *  from both directions and are returned oldest-first. */
-export function readSnapshots(dep, sinceMs = 0) {
-  const key = String(dep || "").toLowerCase();
+/** Merge every collector on this box. Rows for one deployment come from both
+ *  directions and are returned oldest-first. A collector that is not running
+ *  (nan-relay runs no agent; us-west runs no udp relay) simply contributes
+ *  nothing rather than failing the read. */
+export async function collect(dep, sinceMs = 0, ports = [PORT_IN, PORT_OUT]) {
+  const key = depKey(dep);
   const floor = Math.max(Date.now() - MAX_AGE_MS, Number(sinceMs) || 0);
-  let rows = [];
-  let files = [];
-  try { files = fs.readdirSync(SNAP_DIR).filter((f) => f.endsWith(".json")); } catch { return []; }
-  for (const f of files) {
-    try {
-      const j = JSON.parse(fs.readFileSync(path.join(SNAP_DIR, f), "utf8"));
-      const got = (j && j.deps && j.deps[key]) || [];
-      for (const r of got) if (r && r.t >= floor) rows.push(r);
-    } catch { /* a torn or absent file is simply no rows */ }
-  }
+  const got = await Promise.all(ports.map((p) => new Promise((resolve) => {
+    const req = http.get({ host: "127.0.0.1", port: p, path: "/", timeout: 2000 }, (res) => {
+      let b = ""; res.setEncoding("utf8");
+      res.on("data", (d) => { if (b.length < 4e6) b += d; });
+      res.on("end", () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  })));
+  const rows = [];
+  for (const j of got) for (const r of ((j && j.deps && j.deps[key]) || [])) if (r.t >= floor) rows.push(r);
   rows.sort((a, b) => a.t - b.t);
   return rows.slice(-MAX_PER_DEP);
 }

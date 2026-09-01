@@ -51,8 +51,8 @@ import { isBlockedHost, parseIp, bindRefusal, v6PrefixGate } from "./net-guard.m
 import { createFleet, fleetConfig, installProcessGuards } from "./fleet.mjs";
 import * as connlog from "./connlog.mjs";
 
-// publish this process's connection rows for the agent to serve (tmpfs)
-connlog.startSnapshot("egress");
+// publish this process's connection rows on loopback for the agent to serve
+connlog.serve(connlog.PORT_OUT);
 installProcessGuards("egress-relay");
 
 const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };

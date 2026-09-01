@@ -88,8 +88,8 @@ import WebSocket, { createWebSocketStream } from "ws";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
 import * as connlog from "./connlog.mjs";
 
-// publish this process's connection rows for the agent to serve (tmpfs)
-connlog.startSnapshot("inbound");
+// publish this process's connection rows on loopback for the agent to serve
+connlog.serve(connlog.PORT_IN);
 installProcessGuards("tcp-relay");
 
 const need = (k) => {
