@@ -118,3 +118,23 @@ test("the default cannot be smuggled past by header case", async () => {
   const keys = Object.keys(mixed).filter((k) => k.toLowerCase() === "permissions-policy");
   assert.equal(keys.length, 1, `exactly one permissions-policy key, got ${JSON.stringify(keys)}`);
 });
+
+test("hop-by-hop headers never cross the proxy onto the client leg", async () => {
+  // The tenant leg is deliberately keep-alive:false, so every tenant response
+  // says `connection: close`; forwarding it closed the CLIENT connection after
+  // every response and put a fresh ~1.4-2s in-enclave TLS handshake under
+  // every app-zone request (measured 2026-09-01, eyesoff on metal0). The
+  // forwarded transfer-encoding was subtler: the proxy pipes the DECODED body,
+  // so clients only parsed these responses because connection-close framing
+  // let them read to EOF. Hop-by-hop headers are per-leg (RFC 9110 7.6.1).
+  const [h] = await tenantHeaders({
+    connection: "close",
+    "transfer-encoding": "chunked",
+    "keep-alive": "timeout=5",
+    "content-type": "application/json",
+  });
+  assert.equal(h["connection"], undefined, "connection is the proxy's own business");
+  assert.equal(h["transfer-encoding"], undefined, "node frames the client leg itself");
+  assert.equal(h["keep-alive"], undefined);
+  assert.equal(h["content-type"], "application/json", "end-to-end headers survive");
+});
