@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,3193 @@
+@@ -0,0 +1,3200 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -2375,7 +2375,7 @@ index 0000000..dc098cf
 +    /// prompt is open; decides whether to buffer (a park still covers the
 +    /// stream), branch (a park just got covered), abandon (divergence), or
 +    /// stay out of the way entirely (None: feed exactly as before mm32).
-+    fn defer_step(&mut self, ids: &[i32]) -> Result<Option<DeferAction>, BackendError> {
++    fn defer_step(&mut self, ids: &[i32], more: bool) -> Result<Option<DeferAction>, BackendError> {
 +        if park_slots() == 0 || self.no_cache || self.prompt_done {
 +            return Ok(None);
 +        }
@@ -2398,13 +2398,19 @@ index 0000000..dc098cf
 +            }
 +        }
 +        buf.extend_from_slice(ids);
-+        // Still covered by some park? Prefer the LONGEST cover — it defers
-+        // the most future prefill. (Scan under the parked lock alone; the
-+        // branch below re-verifies under the decode turn, because a park can
-+        // be evicted between the two.)
-+        let covered = {
++        // A zero-row Hold is only safe when the guest PROMISED another prompt
++        // chunk ({"more": [1]} beside "tokens"): guests sample their first
++        // generation token from the LAST feed's returned row, and prefill
++        // chunk sizing is adaptive, so the engine cannot infer finality — an
++        // unmarked feed is treated as possibly-final and resolved right here.
++        // (Live 2026-09-01: holding an exact-length match handed the app a
++        // zero row to sample its first token from — uniformly random,
++        // occasionally EOS.) Without the marker a single-feed prompt still
++        // gets the whole win: an exact repeat branches with the stored row,
++        // an extension branches and feeds only the tail.
++        let covered = more && {
 +            let parked = self.server.parked.lock().unwrap();
-+            parked.iter().any(|p| p.tokens.len() >= buf.len() && p.tokens[..buf.len()] == buf[..])
++            parked.iter().any(|p| p.tokens.len() > buf.len() && p.tokens[..buf.len()] == buf[..])
 +        };
 +        if covered {
 +            self.defer = Some(buf);
@@ -3362,9 +3368,10 @@ index 0000000..dc098cf
 +                // logits row returned. The speculative prefill path.
 +                if flag("mtp") {
 +                    // mm32: a prompt feed may match a parked prefix - buffer
-+                    // it (zero rows back), branch when a park is covered, or
-+                    // replay verbatim on divergence. None = feed as before.
-+                    let row = if let Some(act) = self.defer_step(&ids)? {
++                    // it (zero rows back, only under a {"more": 1} promise),
++                    // branch when a park is covered, or replay verbatim on
++                    // divergence. None = feed exactly as before mm32.
++                    let row = if let Some(act) = self.defer_step(&ids, flag("more"))? {
 +                        match act {
 +                            DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
 +                            DeferAction::Branch { remainder, row } => match row {
@@ -3385,7 +3392,7 @@ index 0000000..dc098cf
 +                // mm32: same defer/branch/replay contract as the mtp path,
 +                // through the plain decode; also serves 1-token generation
 +                // steps, where defer_step always stands aside.
-+                let row = if let Some(act) = self.defer_step(&ids)? {
++                let row = if let Some(act) = self.defer_step(&ids, flag("more"))? {
 +                    match act {
 +                        DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
 +                        DeferAction::Branch { remainder, row } => match row {
