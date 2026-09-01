@@ -55,8 +55,17 @@ nvidia-cuda-mps-control -d || { echo "[mps] FAILED to start daemon"; exit 1; }
 # both names to 15 chars ("nvidia-cuda-mps"), which is also what makes this
 # work without procps in the base image.
 kill_mps() {
+  # Scoped to OUR stack: only processes whose environment carries THIS pipe
+  # directory (the daemon gets it from this script; servers inherit it from
+  # the daemon). In the container that matches everything anyway — but this
+  # script also runs bare in tests and on metal dev boxes, where a comm-only
+  # match killed the box's OWN live MPS daemon out from under its shielded
+  # worker (2026-09-01: test/mps-bounce.test.mjs bounced with a fake control
+  # stub and a tmpdir pipe, and this loop shot the host's real stack twice).
   for p in /proc/[0-9]*; do
-    [ "$(cat "$p/comm" 2>/dev/null)" = "nvidia-cuda-mps" ] && kill -9 "${p#/proc/}" 2>/dev/null
+    [ "$(cat "$p/comm" 2>/dev/null)" = "nvidia-cuda-mps" ] || continue
+    tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "CUDA_MPS_PIPE_DIRECTORY=$CUDA_MPS_PIPE_DIRECTORY" \
+      && kill -9 "${p#/proc/}" 2>/dev/null
   done
   return 0
 }

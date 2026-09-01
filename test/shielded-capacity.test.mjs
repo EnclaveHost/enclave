@@ -66,18 +66,20 @@ test("a fully reserved card advertises no free share", async () => {
   assert.equal(r.shielded.vramReservedGb, 6.5);
 });
 
-test("compute_share: the dedicated slice IS the card — 100% available when empty", async () => {
-  const r = await capacity({ ...good, vram_free_gb: 6.5, vram_reserved_gb: 0, compute_share: 0.5 });
-  assert.equal(r.shielded.computeShare, 0.5);
-  // an empty half-card box reads 10.2/10.2, never 10.2/20.3: the advertised
-  // card is the slice, and a tenant's gpuShare is a fraction of it
-  assert.equal(r.cardTflops, 10.2);      // round1(20.3 * 0.5)
-  assert.equal(r.smTotal, 23);           // round(46 * 0.5)
+test("compute_share: the probe's figures ARE the slice — adopt verbatim, never scale twice", async () => {
+  // Under the host MPS cap the driver hands the worker a capped device, so the
+  // HELLO figures the probe relays are already the dedicated slice (metal0 at
+  // 50%: 22 SMs / 20.4 TFLOPS). v0.5.533 multiplied by compute_share on top
+  // and advertised a quarter-card (10.2/10.2). The slice must read 100%
+  // available when empty, at the slice's own size.
+  const capped = { ...good, sm_count: 22, card_tflops: 20.4,
+                   vram_free_gb: 6.5, vram_reserved_gb: 0, compute_share: 0.5 };
+  const r = await capacity(capped);
+  assert.equal(r.shielded.computeShare, 0.5);   // config context, visible in the block
+  assert.equal(r.cardTflops, 20.4);
+  assert.equal(r.smTotal, 22);
   assert.equal(r.gpuShareFree, 1);
-  assert.equal(r.vramFreeGb, 6.5);       // VRAM is NOT pro-rated: vramGb is its own budget
-  // the PHYSICAL card stays visible, unscaled, in the shielded block
-  assert.equal(r.shielded.cardTflops, 20.3);
-  assert.equal(r.shielded.smCount, 46);
+  assert.equal(r.vramFreeGb, 6.5);       // VRAM is NOT MPS-capped: vramGb is its own budget
 });
 
 test("no compute_share = the whole card, exactly as before", async () => {
