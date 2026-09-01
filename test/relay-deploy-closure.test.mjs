@@ -23,10 +23,16 @@ const deploySh = fs.readFileSync(path.join(RELAY, "deploy.sh"), "utf8");
 
 // Every `scp <files…> <host>:<dir>` line, as { host, files }. Only .js/.mjs
 // entries matter here; package.json and the systemd units are not modules.
+//
+// The host is either a literal alias (`nan:`) or the data-plane loop's
+// variable (`"$RH":`), which stands for EVERY relay the operator runs. Both
+// must be matched: the loop is exactly where a missing module would land on
+// several boxes at once, so it is the last line that should escape this check
+// by being written differently.
 function scpTargets() {
   const out = [];
   for (const line of deploySh.split("\n")) {
-    const m = line.match(/^\s*scp\s+(.+?)\s+([A-Za-z0-9_-]+):(\S+)\s*$/);
+    const m = line.match(/^\s*scp\s+(.+?)\s+("?\$?[A-Za-z0-9_{}-]+"?):(\S+)\s*$/);
     if (!m) continue;
     const files = m[1].split(/\s+/).filter((f) => /\.(mjs|js)$/.test(f));
     if (files.length) out.push({ host: m[2], dest: m[3], files });
@@ -46,7 +52,11 @@ function relativeImports(file) {
 
 test("relay/deploy.sh ships every module its entrypoints import, transitively", () => {
   const targets = scpTargets();
-  assert.ok(targets.length >= 2, "expected at least the nan-relay and nan scp lines");
+  assert.ok(targets.length >= 2, "expected at least the data-plane relay and api-relay scp lines");
+  // the data-plane payload goes out inside the host loop; if that line stops
+  // being recognised, this check silently covers only the api relay
+  assert.ok(targets.some((t) => /\$RH/.test(t.host)),
+    "the looped data-plane scp line must still be parsed - it ships to every relay");
 
   const missing = [];
   for (const { host, files } of targets) {
