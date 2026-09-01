@@ -73,8 +73,14 @@ ssh "$RH" 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysctl.d
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the
 # tcp6/udp/egress relays use to follow an arbitrary, changing set of enclaves.
-scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs connlog.mjs boxhost.js package.json package-lock.json "$RH":/opt/nan-relay/
-scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service "$RH":/etc/systemd/system/
+# relay-agent.mjs is how a relay box reports itself to the fleet - it dials the
+# hub and answers /availability and the connection log at /t/<name>. It had NO
+# deploy path at all: the unit lived in this repo but was only ever installed by
+# hand, so the one daemon whose job is to tell the fleet what this box is could
+# not be updated by a deploy. us-west answered /availability from months-old
+# code while 404ing routes that had shipped.
+scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js relay-agent.mjs fleet.mjs net-guard.mjs connlog.mjs boxhost.js package.json package-lock.json "$RH":/opt/nan-relay/
+scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service systemd/enclave-relay-agent.service "$RH":/etc/systemd/system/
 # WHICH UNITS a box runs is the box's own answer, read off its env files rather
 # than assumed. Only the SNI relay is universal: tcp6 and udp bind per-deployment
 # addresses out of a routed /64, so a relay that does not own one (us-west) would
@@ -111,7 +117,11 @@ ssh "$RH" 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-relay;
   && if [ -f /etc/nan-relay/dns.env ]; then \
        systemctl enable --now enclave-dns && systemctl restart enclave-dns \
        && systemctl is-active enclave-dns; \
-     else echo "enclave-dns: no /etc/nan-relay/dns.env yet — skipped (authoritative DNS for app./ip. zones)"; fi'
+     else echo "enclave-dns: no /etc/nan-relay/dns.env yet — skipped (authoritative DNS for app./ip. zones)"; fi \
+  && if [ -f /etc/nan-relay/relay-agent.env ]; then \
+       systemctl enable --now enclave-relay-agent && systemctl restart enclave-relay-agent \
+       && systemctl is-active enclave-relay-agent; \
+     else echo "enclave-relay-agent: no /etc/nan-relay/relay-agent.env yet — skipped (this box does not report itself)"; fi'
 done
 
 
