@@ -199,6 +199,13 @@ if (cfg.egressHelper && cfg.relayUrl) {
   const targetHost = ru.hostname, targetPort = Number(ru.port) || 443;
   net.createServer((gsock) => {
     const up = tls.connect({ host: targetHost, port: targetPort, servername: targetHost }, () => { gsock.pipe(up); up.pipe(gsock); });
+    // The WAN leg can die without a FIN (ISP drop, NAT timeout) and this dumb
+    // pipe would then hold both legs open forever — the guest's tunnel ws
+    // reads as connected while the relay hub has long detached the box.
+    // Kernel keepalive turns that silence into an error kill() can cascade to
+    // the guest, whose agent then redials. The loopback leg cannot die
+    // silently, so only the upstream needs it.
+    up.setKeepAlive(true, 30_000);
     const kill = () => { gsock.destroy(); up.destroy(); };
     up.on('error', kill); gsock.on('error', kill); up.on('close', kill); gsock.on('close', kill);
   }).listen(port, '127.0.0.1', () => console.log(`[enclave-metal] egress helper 127.0.0.1:${port} → ${targetHost}:${targetPort} (guest reaches it at 10.0.2.2:${port})`));

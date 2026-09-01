@@ -271,12 +271,28 @@ function connectTunnel() {
     if (RELAY_HOST) headers.host = RELAY_HOST;
     ws = new WebSocket(RELAY_URL, { headers, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
+    // Liveness, mirrored from the hub's side of the same contract: the hub
+    // pings every 30s and culls a tunnel silent for 90s — but a half-open
+    // socket (a WAN drop eats the FIN, NAT timeout) never fires 'close' HERE,
+    // so this agent would hold a dead ws forever while the hub has already
+    // detached the name and the box has silently left the fleet listing.
+    // Any frame refreshes the clock; 90s without one means the path is gone:
+    // terminate, and the existing 'close' path redials. The clock also starts
+    // at dial time, so a connect that hangs is bounded by the same rule.
+    let lastFrame = Date.now();
+    const liveness = setInterval(() => {
+      if (Date.now() - lastFrame > 90_000) {
+        log('tunnel silent for 90s — assuming half-open, redialing');
+        try { ws.terminate(); } catch {}
+      }
+    }, 15_000);
     ws.on('open', () => {
-      alive = true;
+      alive = true; lastFrame = Date.now();
       send({ t: 'hello', name: NAME, mode: MODE, token: TOKEN, publicUrl: process.env.METAL_PUBLIC_URL || '', transportKeyFp: keyFp.toString('hex') });
       log('tunnel open');
     });
     ws.on('message', (data) => {
+      lastFrame = Date.now();
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === 'req') forward(f, send);
       else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') stream(f, send);
@@ -296,7 +312,7 @@ function connectTunnel() {
       } else if (f.t === 'attest-result') log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
     });
     ws.on('unexpected-response', (_req, res) => { log(`tunnel handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
-    ws.on('close', () => { if (alive) log('tunnel closed'); alive = false; for (const s of [...streams.values()]) s.destroy(); streams.clear(); setTimeout(dial, 2000); });
+    ws.on('close', () => { clearInterval(liveness); if (alive) log('tunnel closed'); alive = false; for (const s of [...streams.values()]) s.destroy(); streams.clear(); setTimeout(dial, 2000); });
     ws.on('error', (e) => { log(`tunnel error: ${e.code || ''} ${e.message || String(e)}`); try { ws.terminate(); } catch {} });
   };
   dial();
