@@ -15,7 +15,7 @@
 # The wasmtime binary comes from the enclave-wasmtime toolchain image (built from
 # source with wasi-nn + onnx-cuda; see Dockerfile.wasmtime). Bump = rebuild that
 # image via the "Wasmtime Toolchain" workflow, then repin WASMTIME_IMAGE here.
-ARG WASMTIME_IMAGE=ghcr.io/enclavehost/enclave-wasmtime:ac0772970b9ad2cd53866d95db69e26311fe3b75@sha256:fc51923a7b900ac2f74d236d71cc47cc1cf110bb5cd22a8b0a5e4f9050ce64f6
+ARG WASMTIME_IMAGE=ghcr.io/enclavehost/enclave-wasmtime:ac0772970b9ad2cd53866d95db69e26311fe3b75@sha256:98a81a5513b307814c5911bfc3541cae47ccb1918288a3fe9b3de0a49d81c7ad
 FROM ${WASMTIME_IMAGE} AS wasmtime
 
 # Base pinned by DIGEST, not just the mutable tag: this image is part of the
