@@ -4607,22 +4607,27 @@ function adoptShieldedCard(v) {
   // The measured figure has not gone anywhere -- it rides in the shielded block
   // as gmacPerSec, where it describes what the masked path actually delivers.
   // These are two different questions and they now have two different fields.
-  if (v.cardTflops > 0) CARD_TFLOPS = round1(v.cardTflops);
-  else if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000);   // older probe: no rated figure
-  if (v.smCount > 0) SM_TOTAL = v.smCount;
+  //
+  // computeShare pro-rates the rated figure: the DEDICATED SLICE is this
+  // enclave's card. A box selling half its desktop's 3070 advertises a
+  // 21.4-TFLOPS, 23-SM card that is 100% available when empty — not half of a
+  // 42.7 one — and a tenant's gpuShare is a fraction of the slice, still on
+  // the vendor-rated basis (5 declared TFLOPS buys 5 rated TFLOPS of silicon
+  // here exactly as on kryptos). The physical card's full figures stay
+  // visible in the shielded block (cardTflops/smCount, unscaled). VRAM is NOT
+  // pro-rated here: the MPS SM cap does not cap memory, and vramBudgetGb is
+  // already the dedicated-VRAM knob.
+  const cs = v.computeShare > 0 ? Math.min(1, v.computeShare) : 1;
+  if (v.cardTflops > 0) CARD_TFLOPS = round1(v.cardTflops * cs);
+  else if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000 * cs);   // older probe: no rated figure
+  if (v.smCount > 0) SM_TOTAL = Math.max(1, Math.round(v.smCount * cs));
   if (v.pricePerSec6 > 0) SELL_GPU_PRICE6 = v.pricePerSec6;
   if (gpuCards.length === 0)
     gpuCards.push({ id: 0, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 });
-  // Cap the pool to the compute fraction the host's MPS cap enforces on the
-  // worker — applied to the existing card too, not just a fresh push: a box
-  // that detected a local device at boot (a dev machine) still adopts the
-  // shielded card as THE card, and its pool must not sell compute past the cap.
-  const cs = v.computeShare > 0 ? Math.min(1, v.computeShare) : 1;
-  if (cs < 1) gpuCards[0].computeFree = Math.min(gpuCards[0].computeFree, cs);
   console.log(`[gpu] adopting the SHIELDED card as this enclave's card: ${v.card} `
-            + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS rated (masked path measured ${v.gmacPerSec} G-MAC/s), `
-            + `${Math.round(cs * 100)}% of its compute for sale, `
-            + `at ${v.endpoint} on the untrusted host`);
+            + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS rated`
+            + (cs < 1 ? ` (the ${Math.round(cs * 100)}% dedicated slice of ${round1(v.cardTflops)})` : "")
+            + ` (masked path measured ${v.gmacPerSec} G-MAC/s), at ${v.endpoint} on the untrusted host`);
 }
 
 const SHIELDED_VERDICT = process.env.SHIELDED_VERDICT || "/run/shielded-gpu.json";
@@ -4684,7 +4689,9 @@ if (process.env.SHIELDED_SELFTEST) {
   const sh = shieldedCapacity();
   const gpuFree = !sh ? 0
     : Math.min(maxFreeGpuShare(), CARD_VRAM_GB > 0 ? sh.vramFreeGb / CARD_VRAM_GB : 0);
-  console.log(JSON.stringify({ shielded: sh, cardVramGb: _shieldedAdopted ? CARD_VRAM_GB : 0, gpuShareFree: round3(gpuFree),
+  console.log(JSON.stringify({ shielded: sh, cardVramGb: _shieldedAdopted ? CARD_VRAM_GB : 0,
+                               cardTflops: _shieldedAdopted ? CARD_TFLOPS : 0,
+                               smTotal: _shieldedAdopted ? SM_TOTAL : 0, gpuShareFree: round3(gpuFree),
                                vramFreeGb: _shieldedAdopted ? round1(gpuFree * CARD_VRAM_GB) : 0 }));
   process.exit(0);
 }

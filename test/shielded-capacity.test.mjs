@@ -66,17 +66,25 @@ test("a fully reserved card advertises no free share", async () => {
   assert.equal(r.shielded.vramReservedGb, 6.5);
 });
 
-test("compute_share caps the pool: an empty card sells only that fraction", async () => {
+test("compute_share: the dedicated slice IS the card — 100% available when empty", async () => {
   const r = await capacity({ ...good, vram_free_gb: 6.5, vram_reserved_gb: 0, compute_share: 0.5 });
   assert.equal(r.shielded.computeShare, 0.5);
-  // computeFree binds before VRAM does: min(0.5, 6.5/6.5)
-  assert.equal(r.gpuShareFree, 0.5);
-  assert.equal(r.vramFreeGb, 3.3);   // round1(0.5 * 6.5) — nobody can book past the share cap
+  // an empty half-card box reads 10.2/10.2, never 10.2/20.3: the advertised
+  // card is the slice, and a tenant's gpuShare is a fraction of it
+  assert.equal(r.cardTflops, 10.2);      // round1(20.3 * 0.5)
+  assert.equal(r.smTotal, 23);           // round(46 * 0.5)
+  assert.equal(r.gpuShareFree, 1);
+  assert.equal(r.vramFreeGb, 6.5);       // VRAM is NOT pro-rated: vramGb is its own budget
+  // the PHYSICAL card stays visible, unscaled, in the shielded block
+  assert.equal(r.shielded.cardTflops, 20.3);
+  assert.equal(r.shielded.smCount, 46);
 });
 
-test("no compute_share = the whole card's compute, exactly as before", async () => {
+test("no compute_share = the whole card, exactly as before", async () => {
   const r = await capacity({ ...good, vram_free_gb: 6.5, vram_reserved_gb: 0 });
   assert.equal(r.shielded.computeShare, 1);
+  assert.equal(r.cardTflops, 20.3);
+  assert.equal(r.smTotal, 46);
   assert.equal(r.gpuShareFree, 1);
 });
 
