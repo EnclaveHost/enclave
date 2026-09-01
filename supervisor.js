@@ -3951,7 +3951,25 @@ function tenantHeaders(upstream) {
   // a module-level `const` here would still be in its temporal dead zone at
   // that point and throw ReferenceError. (Found by the test, not by reading.)
   const POLICY = "publickey-credentials-get=(), publickey-credentials-create=()";
-  const h = { ...upstream };
+  // Hop-by-hop headers are per-leg (RFC 9110 7.6.1) and were being copied
+  // from the tenant leg onto the client leg verbatim. The tenant leg is
+  // deliberately keep-alive:false, so every tenant response says
+  // `connection: close` — and forwarding that told Node to close the CLIENT
+  // connection after every response, which put a fresh ~1.4-2s in-enclave
+  // TLS handshake (client → relay → tunnel → this bridge) under every
+  // request an app-zone client made. Measured 2026-09-01 on eyesoff/metal0:
+  // tls ≈ 1.3-1.7s of a ≈ 2s total per request, keep-alive never engaging,
+  // for either curl or a browser. Forwarded `transfer-encoding` was wrong
+  // the same way: pipe() writes the DECODED body, so clients only parsed
+  // these responses because connection-close framing let them read to EOF.
+  // Strip the whole hop-by-hop set and let Node frame the client leg itself.
+  // (Declared inside the function for the same hoisting/TDZ reason as POLICY.)
+  const HOP = ["connection", "keep-alive", "proxy-authenticate",
+               "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
+  const h = {};
+  for (const [k, v] of Object.entries(upstream)) {
+    if (!HOP.includes(String(k).toLowerCase())) h[k] = v;
+  }
   // Case-INSENSITIVE check, though Node lower-cases incoming header names and
   // this could just test "permissions-policy". Enforcing it here makes the
   // invariant true by construction instead of by an assumption about the
