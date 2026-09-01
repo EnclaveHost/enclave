@@ -157,6 +157,19 @@ struct sh_state {
     double link_retry_at = 0, link_backoff_ms = 1000;
     std::map<std::string, sh_calib_site> calib;
 
+    /* Reservation-aware placement. SHIELDED_RESERVE_BYTES is this tenant's slice
+     * of the card (its GPU share x the card budget) - the same figure the worker
+     * caps the link's device memory at. We place calibrated weights until that
+     * budget is full and leave the rest on CPU, so a model LARGER than the card
+     * offloads its first reservation-worth of sites cleanly. Without it the
+     * backend kept handing weights to the worker past its budget, the worker
+     * answered "allocation exceeds device memory" with a VIOLATION that CLOSES
+     * the link, and the tenant lost ALL offload and reconnected into a thrash
+     * loop. 0 = no reservation (a 4-byte HELLO): uncapped, exactly as before. */
+    int64_t reserve_cap = 0;         /* device-byte budget for offloaded weights, 0 = uncapped */
+    int64_t device_bytes = 0;        /* weight+activation device bytes we have placed */
+    bool    budget_full_logged = false;
+
     sh_link *link = nullptr;
     /* Weight tensor name -> everything needed to run and to check it. Map nodes
      * never move, so the link may borrow `w` for its lifetime. */
@@ -292,6 +305,20 @@ static void sh_env_defaults(sh_state &s) {
     s.configured = true;
     if (const char *h = getenv("SHIELDED_HOST")) if (*h) s.host = h;
     if (const char *p = getenv("SHIELDED_PORT")) if (*p) { const int v = atoi(p); if (v > 0) s.port = v; }
+    /* The card slice this tenant reserved (shielded-tee.c sends the same number
+     * to the worker at HELLO). Keep headroom below it for the activation buffers
+     * and field-GEMM scratch the worker also charges to the link - weights are
+     * the dominant term but not the only one. SHIELDED_WEIGHT_BUDGET_FRAC tunes
+     * the headroom; 0.90 leaves 10%. */
+    if (const char *r = getenv("SHIELDED_RESERVE_BYTES")) {
+        char *end = nullptr; unsigned long long v = strtoull(r, &end, 10);
+        if (end && *end == 0 && v > 0) {
+            const char *fe = getenv("SHIELDED_WEIGHT_BUDGET_FRAC");
+            double frac = (fe && *fe) ? atof(fe) : 0.90;
+            if (!(frac > 0.1 && frac <= 1.0)) frac = 0.90;
+            s.reserve_cap = (int64_t)((double)v * frac);
+        }
+    }
 }
 
 static void sh_load_calib(sh_state &s) {
@@ -371,6 +398,26 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     if (!site) return false;
     if (K % SH_QK != 0) return false;
 
+    /* Reservation budget: place calibrated weights until this tenant's slice of
+     * the card is full, then leave the rest on CPU. `dev_add` is the device
+     * memory this weight would cost the link - its installed int8 matrix plus
+     * this node's x/y activation buffers (sh_link_add_weight's abytes growth) -
+     * the same bytes the worker charges to the reservation. Checked BEFORE the
+     * O(K*N) encoding below, so a weight that will not fit costs nothing. This
+     * is what makes a partial offload settle instead of overflowing the worker
+     * (see sh_state::reserve_cap). */
+    const int64_t dev_add = K * N + (int64_t)sh_max_m() * (3 * K + N * 4);
+    if (s.reserve_cap > 0 && s.device_bytes + dev_add > s.reserve_cap) {
+        if (!s.budget_full_logged) {
+            SH_LOG("reservation full: %lld of %lld device bytes placed; %s and later "
+                   "calibrated sites stay on CPU (raise the GPU share to offload more)\n",
+                   (long long)s.device_bytes, (long long)s.reserve_cap, name.c_str());
+            s.budget_full_logged = true;
+        }
+        s.refused.insert(name);
+        return false;
+    }
+
     const double t0 = sh_now_ms();
     sh_state::entry e;
     e.K = K; e.N = N; e.site = site; e.group = sh_group_key(name);
@@ -421,6 +468,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         return false;
     }
     stored.node = node;
+    s.device_bytes += dev_add;   /* committed to the card; counts against reserve_cap */
     if (share < 0) s.group_first[stored.group] = node;
     s.group_members[stored.group].push_back(name);
     if (s.probe_group.empty()) s.probe_group = stored.group;
