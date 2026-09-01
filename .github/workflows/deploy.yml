@@ -115,7 +115,7 @@ jobs:
 
           site=false relay=false registry=false deployments=false catalog=false enclavepay=false
           paymentrouter=false
-          sup=false worker=false mps=false wasm=false config_touched=false
+          sup=false worker=false mps=false wasm=false metal=false config_touched=false
           while IFS= read -r f; do
             [ -n "$f" ] || continue
             case "$f" in
@@ -142,6 +142,15 @@ jobs:
               # file nothing in the image reads.
               wasm/.gitignore|wasm/*/.gitignore) ;;
               wasm/*)                  wasm=true ;;
+              # Metal guest/launcher code ships ONLY via tags: a metal box's
+              # update flow (metal/update.mjs) builds the guest image at the
+              # latest -cpu tag, so a metal-only change that cuts no release
+              # is undeployable (found 2026-09-01: the gsup.mjs ring
+              # stand-down sat ungated behind this filter). Docs and ignore
+              # rules are not build inputs; metal/build/ is gitignored.
+              metal/.gitignore|metal/*/.gitignore) ;;
+              metal/*.md|metal/*/*.md) ;;
+              metal/*)                 metal=true ;;
               enclaves/*)              config_touched=true ;;
             esac
           done <<< "$CHANGED"
@@ -175,9 +184,11 @@ jobs:
           if [ "$sup" = true ] || [ "$worker" = true ] || [ "$mps" = true ] || [ "$wasm" = true ] || [ "$config" = true ]; then
             release=true
           fi
-          # worker + mps images do not ship in the CPU flavor's config
+          # worker + mps images do not ship in the CPU flavor's config.
+          # Metal boxes track the -cpu tags (their update flow builds the
+          # guest at that tag), so metal code rides the CPU release.
           cpu_release=false
-          if [ "$sup" = true ] || [ "$wasm" = true ] || [ "$config" = true ]; then
+          if [ "$sup" = true ] || [ "$wasm" = true ] || [ "$config" = true ] || [ "$metal" = true ]; then
             cpu_release=true
           fi
 
