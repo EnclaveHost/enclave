@@ -27,6 +27,27 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+/* CPU threads for text-model compute. llama_context_default_params() leaves
+ * n_threads at GGML_DEFAULT_N_THREADS (4) - a fine number for the GPU fleet,
+ * where the card does the work and the CPU only orchestrates, and a silent
+ * 4x-to-16x throughput cliff on a box that serves the model on CORES: nobody
+ * sets it, llama never rethinks it, and a 16-vCPU CVM prefills a 27b on 4
+ * threads (measured on metal0, 2026-08-31: a whole first turn on ~1 core).
+ * ENCLAVE_GGML_N_THREADS overrides; unset = every online CPU, which is the
+ * right default in a CVM because the guest's vCPUs are the share the operator
+ * already bought - there is no other tenant inside this boundary to leave
+ * cores for. */
+static int32_t ell_n_threads(void) {
+    const char *e = getenv("ENCLAVE_GGML_N_THREADS");
+    if (e && *e) {
+        long v = strtol(e, NULL, 10);
+        if (v > 0 && v <= 512) { return (int32_t)v; }
+    }
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int32_t)n : 4;
+}
 
 void ell_init(void) {
     /* GGML_BACKEND_DL builds ship the compute backends (cpu, cuda) as
@@ -221,6 +242,7 @@ static enum ggml_type ell_ggml_kv_type(int32_t t) {
 void *ell_new_context(void *model, uint32_t n_ctx, uint32_t n_batch,
                       int32_t type_k, int32_t type_v, int32_t flash_attn) {
     struct llama_context_params p = llama_context_default_params();
+    p.n_threads = p.n_threads_batch = ell_n_threads();
     p.n_ctx = n_ctx;
     if (n_batch) { p.n_batch = n_batch; }
     p.type_k = ell_ggml_kv_type(type_k);
@@ -312,6 +334,7 @@ int32_t ell_server_topk_k(void *ctx) {
 void *ell_new_server(void *model, uint32_t n_ctx, uint32_t n_batch, uint32_t n_seq_max,
                      int32_t type_k, int32_t type_v, int32_t flash_attn) {
     struct llama_context_params p = llama_context_default_params();
+    p.n_threads = p.n_threads_batch = ell_n_threads();
     p.n_ctx = n_ctx;
     if (n_batch) { p.n_batch = n_batch; }
     if (n_seq_max) { p.n_seq_max = n_seq_max; }
@@ -801,6 +824,7 @@ void *ell_mtp_new(void *model, void *target_ctx, uint32_t n_ctx, uint32_t n_batc
         return NULL;
     }
     struct llama_context_params p = llama_context_default_params();
+    p.n_threads = p.n_threads_batch = ell_n_threads();
     p.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
     p.n_ctx = n_ctx;
     if (n_batch) { p.n_batch = n_batch; }

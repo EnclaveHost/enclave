@@ -32,7 +32,12 @@ const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
 
 async function size(c) {
+  // timeout is load-bearing: a selftest child that fails to exit (any path
+  // that reaches the supervisor's normal listeners) would otherwise outlive
+  // the test run as an orphan - one burned a core on a dev box for 8 hours
+  // (2026-08-31) before anyone noticed. 30s is 10x the slowest observed run.
   const { stdout } = await pexec(process.execPath, [SUPERVISOR], {
+    timeout: 30_000, killSignal: "SIGKILL",
     env: { ...process.env, SECRET: "test-secret", SIZING_SELFTEST: JSON.stringify(c),
            POOL_SELFTEST: "", SWEEP_SELFTEST: "", REACH_SELFTEST: "", ACME_SELFTEST: "",
            ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
