@@ -2,7 +2,12 @@
 # deploy.sh - push the relay daemons + systemd units to their boxes and
 # restart them. Paths are relative to relay/ however this script is invoked.
 #
-# TWO hosts (ssh aliases; Host blocks in ~/.ssh/config, CI writes equivalents):
+# HOSTS (ssh aliases; Host blocks in ~/.ssh/config, CI writes equivalents):
+#   $RELAY_HOSTS - every data-plane relay this operator runs (default
+#               "nan-relay"; CI passes the full list). Each gets the same
+#               payload and decides for itself which units to run, from its own
+#               env files - so a box that owns no /64 quietly skips tcp6/udp
+#               instead of failing the deploy.
 #   nan-relay - the TCP (SNI) + UDP relays. relay.js binds the whole 1-49999
 #               public port range there, so the API relay CANNOT share this
 #               box (its port 8100 sits inside that range). The box pins
@@ -25,7 +30,29 @@ cd "$(dirname "$0")"
 # A registry failure aborts before any restart (set -e, && chaining): the
 # running processes keep serving from their already-loaded module graph, and
 # the next deploy repairs the tree.
-echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
+# --- WHICH data-plane relays to ship to ---------------------------------------
+# Every relay this operator runs, not a hardcoded one. The list was `nan-relay`
+# alone for as long as there was one box, and the second (us-west, 2026-08-12)
+# silently stopped receiving relay/** pushes the moment it existed - it carried
+# the whole app zone on code from before it was added. A deploy that skips a
+# live box is worse than one that fails: nothing says so.
+#
+# A LIST OF SSH ALIASES, not the on-chain relay registry, and deliberately so.
+# Registration is permissionless - anyone may register a relay and most are not
+# ours. "Deploy to every registered relay" would mean SSHing into strangers'
+# machines, which cannot work and should not be attempted. The boxes we can
+# deploy to are exactly the boxes we hold a key for, so the key list is the
+# honest source.
+#
+# RELAY_HOSTS overrides (space- or comma-separated); CI passes the same names it
+# writes Host blocks for. The default keeps the historical single box, so an
+# operator who sets nothing deploys exactly as before.
+RELAY_HOSTS="${RELAY_HOSTS:-nan-relay}"
+RELAY_HOSTS=$(printf '%s' "$RELAY_HOSTS" | tr ',' ' ')
+echo "== data-plane relays: $RELAY_HOSTS"
+
+for RH in $RELAY_HOSTS; do
+echo "== $RH: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
 # --- one-time port-range widening (2026-08-05): logical labels grew from
 # 1-19999 to 1-49999 (supervisor parseFirewall / wasm_manager PORT_MAX_DECL /
 # site validator moved together). The listener range now overlaps the kernel's
@@ -37,7 +64,7 @@ echo "== nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays"
 # below prints what the restart will actually bind). This is a deliberate
 # exception to "env files are host state, never touched here", scoped to the
 # one migration, like the unit-rename block below.
-ssh nan-relay 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysctl.d/90-enclave-relay-ephemeral.conf \
+ssh "$RH" 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysctl.d/90-enclave-relay-ephemeral.conf \
   && sysctl -q -p /etc/sysctl.d/90-enclave-relay-ephemeral.conf \
   && sed -i "s/^RELAY_PORTS=1-19999$/RELAY_PORTS=1-49999/" /etc/nan-relay/tcp-relay.env \
   && grep -H "^RELAY_PORTS=" /etc/nan-relay/tcp-relay.env \
@@ -46,26 +73,37 @@ ssh nan-relay 'printf "net.ipv4.ip_local_port_range = 58000 65535\n" > /etc/sysc
 # shared with the enclave's egress.js); scp follows it and ships the content.
 # fleet.mjs is the shared fleet discovery (REGISTRY_ADDRESS / ENCLAVES) the
 # tcp6/udp/egress relays use to follow an arbitrary, changing set of enclaves.
-scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs connlog.mjs boxhost.js package.json package-lock.json nan-relay:/opt/nan-relay/
-scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service nan-relay:/etc/systemd/system/
+scp relay.js tcp6-relay.js udp-relay.js egress-relay.js dns-relay.js fleet.mjs net-guard.mjs connlog.mjs boxhost.js package.json package-lock.json "$RH":/opt/nan-relay/
+scp systemd/enclave-tcp-relay.service systemd/enclave-tcp6-relay.service systemd/enclave-udp-relay.service systemd/enclave-egress-relay.service systemd/enclave-dns.service "$RH":/etc/systemd/system/
+# WHICH UNITS a box runs is the box's own answer, read off its env files rather
+# than assumed. Only the SNI relay is universal: tcp6 and udp bind per-deployment
+# addresses out of a routed /64, so a relay that does not own one (us-west) would
+# fail EADDRNOTAVAIL and take the whole deploy down with it - for daemons it was
+# never meant to run. Same shape as the egress/dns gates below, which have always
+# worked this way.
 # The egress relay only runs once /etc/nan-relay/egress-relay.env exists
 # (REGISTRY_ADDRESS or ENCLAVES + EGRESS_RELAY_TOKEN + EGRESS_PREFIX=<same
 # /64>). Until then its restart is a no-op failure; enable it explicitly when
 # the operator adds the env.
 # One-time migration from the pre-rename nan-* unit names: the old unit must
 # be gone before the enclave-* one starts, or the two race for the same ports.
-ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-relay; do \
+ssh "$RH" 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-relay; do \
     if [ -f /etc/systemd/system/$u.service ]; then \
       systemctl disable --now $u || true; rm /etc/systemd/system/$u.service; fi; done \
   && cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund \
   && systemctl daemon-reload \
-  && systemctl enable enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
-  && systemctl restart enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay \
+  && UNITS=enclave-tcp-relay \
+  && for pair in enclave-tcp6-relay:tcp6-relay.env enclave-udp-relay:udp-relay.env; do \
+       u=${pair%%:*}; f=${pair##*:}; \
+       if [ -f "/etc/nan-relay/$f" ]; then UNITS="$UNITS $u"; \
+       else echo "$u: no /etc/nan-relay/$f here - skipped"; fi; done \
+  && systemctl enable $UNITS \
+  && systemctl restart $UNITS \
   && sleep 4 \
-  && if systemctl is-active --quiet enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay; then echo "tcp/tcp6/udp relays: active"; \
+  && if systemctl is-active --quiet $UNITS; then echo "data plane active: $UNITS"; \
      else echo "a data-plane relay FAILED to stay up after restart (crash loop?):"; \
-          systemctl is-active enclave-tcp-relay enclave-tcp6-relay enclave-udp-relay || true; \
-          journalctl -u enclave-tcp-relay -u enclave-tcp6-relay -u enclave-udp-relay -n 25 --no-pager; exit 1; fi \
+          systemctl is-active $UNITS || true; \
+          journalctl $(for u in $UNITS; do printf " -u %s" "$u"; done) -n 25 --no-pager; exit 1; fi \
   && if [ -f /etc/nan-relay/egress-relay.env ]; then \
        systemctl enable --now enclave-egress-relay && systemctl restart enclave-egress-relay \
        && systemctl is-active enclave-egress-relay; \
@@ -74,6 +112,8 @@ ssh nan-relay 'for u in nan-tcp-relay nan-tcp6-relay nan-udp-relay nan-egress-re
        systemctl enable --now enclave-dns && systemctl restart enclave-dns \
        && systemctl is-active enclave-dns; \
      else echo "enclave-dns: no /etc/nan-relay/dns.env yet — skipped (authoritative DNS for app./ip. zones)"; fi'
+done
+
 
 # --- secret-bearing env files: check, never touch ---------------------------
 # /etc/nan-relay/*.env hold real secrets — PROVISIONER_PRIVATE_KEY is a funded

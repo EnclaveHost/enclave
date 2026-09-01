@@ -34,8 +34,12 @@ else
 fi
 PUB="$(cat "$KEYFILE.pub")"
 
-# 2) install the public key on both boxes (via your existing ssh aliases)
-for h in nan nan-relay; do
+# 2) install the public key on every box the deploy touches (your ssh aliases).
+# EXTRA_RELAY_HOSTS lists the data-plane relays beyond the first, space- or
+# comma-separated - the same aliases you put in the workflow's
+# EXTRA_RELAY_SSH_HOSTS var. A relay the key never reaches is a relay that
+# silently stops receiving deploys, which is how us-west spent weeks behind.
+for h in nan nan-relay $(printf '%s' "${EXTRA_RELAY_HOSTS:-}" | tr ',' ' '); do
   if ssh -o BatchMode=yes -o ConnectTimeout=10 "$h" \
       "mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys \
        && grep -qF '$PUB' ~/.ssh/authorized_keys || echo '$PUB' >> ~/.ssh/authorized_keys"; then
