@@ -437,7 +437,11 @@ jobs:
           CPU: ${{ needs.detect.outputs.cpu_release == 'true' || needs.contracts.outputs.wired_config == 'true' }}
         run: |
           set -euo pipefail
-          LATEST="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' | sed 's#refs/tags/##' \
+          # Count BOTH flavors' tags: the CPU flavor releases on its own cadence
+          # (cpu_release gate + manual dispatches), so its counter can run ahead
+          # of the GPU one — v0.5.530-cpu existed while GPU was at v0.5.529, and
+          # a version computed from GPU tags alone collided on the -cpu tag.
+          LATEST="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' | sed 's#refs/tags/##; s#-cpu$##' \
                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
           LATEST="${LATEST:-v0.0.0}"
           IFS=. read -r MA MI PA <<<"${LATEST#v}"
