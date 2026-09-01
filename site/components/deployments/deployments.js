@@ -1559,6 +1559,7 @@ class Deployments extends EnclaveElement {
       return;
     }
 
+    let view = "peer";                 // "peer" | "conn"
     const draw = (rows, note) => {
       if (host.hidden || !host.isConnected) return;
       const now = Date.now(), from = now - WINDOW_MS;
@@ -1592,9 +1593,32 @@ class Deployments extends EnclaveElement {
              + '</g>';
       }).join("");
 
-      // newest first: the question is almost always "what just happened"
+      const dirTag = (d) => d === "out" ? '<span class="tg-d out">out</span>' : '<span class="tg-d in">in</span>';
+
+      // BY PEER is the default, because the per-connection view misleads: a
+      // browser opens several connections to load one page, each with its own
+      // ephemeral SOURCE port, so six rows that are one visitor read as six
+      // visitors. Grouping answers "who is talking to this app", which is the
+      // question people actually bring; the connection detail is one click away
+      // for when the question is "what just happened".
+      const byPeer = new Map();
+      for (const r of live) {
+        const k = r.d + " " + r.a;
+        let g = byPeer.get(k);
+        if (!g) { g = { d: r.d, a: r.a, n: 0, bytes: 0, open: 0, last: 0 }; byPeer.set(k, g); }
+        g.n++; g.bytes += (r.u || 0) + (r.w || 0);
+        if (!r.e) g.open++;
+        g.last = Math.max(g.last, r.e || r.t);
+      }
+      const peers = [...byPeer.values()].sort((x, y) => y.last - x.last).slice(0, 12).map((g) =>
+          '<tr><td>' + esc(ago(g.last)) + '</td><td>' + dirTag(g.d) + '</td>'
+        + '<td class="tg-peer">' + esc(g.a) + '</td>'
+        + '<td class="tg-b">' + fmtB(g.bytes) + '</td>'
+        + '<td class="dim">' + g.n + (g.open ? ' \u00b7 ' + g.open + ' open' : '') + '</td></tr>').join("");
+
+      // newest first: the question here is "what just happened"
       const recent = live.slice().reverse().slice(0, 12).map((r) => {
-        const dir = r.d === "out" ? '<span class="tg-d out">out</span>' : '<span class="tg-d in">in</span>';
+        const dir = dirTag(r.d);
         const bytes = r.e ? fmtB((r.u || 0) + (r.w || 0)) : '<span class="dim">open</span>';
         const held = r.e ? Math.max(0, Math.round((r.e - r.t) / 100) / 10) + "s" : "";
         return '<tr><td>' + esc(ago(r.t)) + '</td><td>' + dir + '</td>'
@@ -1609,12 +1633,22 @@ class Deployments extends EnclaveElement {
         + (live.length
             ? '<svg class="tg-chart" viewBox="0 0 ' + (BUCKETS * 10) + ' ' + H + '" preserveAspectRatio="none" role="img" '
               + 'aria-label="bandwidth by connection over the last 15 minutes">' + bars + '</svg>'
-              + '<table class="tg-tbl"><thead><tr><th>when</th><th>dir</th><th>peer</th><th>bytes</th><th>held</th></tr></thead>'
-              + '<tbody>' + recent + '</tbody></table>'
+              + '<div class="tg-tabs" role="group" aria-label="group traffic by">'
+              +   '<button type="button" class="tg-tab" data-view="peer" aria-pressed="' + (view === "peer") + '">by peer</button>'
+              +   '<button type="button" class="tg-tab" data-view="conn" aria-pressed="' + (view === "conn") + '">by connection</button>'
+              + '</div>'
+              + '<table class="tg-tbl"><thead><tr><th>' + (view === "peer" ? "last" : "when") + '</th><th>dir</th><th>peer</th>'
+              +   '<th>bytes</th><th>' + (view === "peer" ? "conns" : "held") + '</th></tr></thead>'
+              + '<tbody>' + (view === "peer" ? peers : recent) + '</tbody></table>'
             : '<p class="en-intro dim">No connections in the last 15 minutes.</p>')
         + '<p class="en-intro dim">Connections, not requests - the relay never terminates TLS, and one '
         + 'connection carries many requests. Bytes are counted at the socket and land in the bucket a '
-        + 'connection <em>closed</em> in. ' + esc(note || '') + '</p>';
+        + 'connection <em>closed</em> in. In the per-connection view the number after a peer is its '
+        + '<em>source</em> port, which the client picks fresh each time - one visitor loading a page '
+        + 'opens several. ' + esc(note || '') + '</p>';
+      body.querySelectorAll(".tg-tab").forEach((b) => b.addEventListener("click", () => {
+        view = b.dataset.view; draw(rows, note);        // same rows, redrawn - no refetch
+      }));
     };
 
     const poll = async () => {

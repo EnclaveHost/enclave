@@ -325,3 +325,12 @@ a.ed-host:hover{color:var(--jade);}
 .tg-d.in{color:var(--accent);}
 .tg-d.out{color:var(--text-dim);}
 @media (max-width:640px){ .tg-peer{max-width:14ch;} .tg-tbl th:last-child,.tg-tbl td:last-child{display:none;} }
+
+/* by peer / by connection. Peer is the default: a browser opens several
+   connections per page load, each with its own ephemeral source port, so the
+   per-connection view reads as several visitors when it is one. */
+.tg-tabs{display:flex;gap:6px;margin:0 0 6px;}
+.tg-tab{font-family:var(--font-mono);font-size:.66rem;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--line-soft);background:transparent;color:var(--text-dim);cursor:pointer;}
+.tg-tab:hover{color:var(--text);}
+.tg-tab[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);}
