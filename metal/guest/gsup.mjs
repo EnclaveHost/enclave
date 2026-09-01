@@ -90,7 +90,14 @@ const GGML_ENV = (() => {
   // across ~30 min of back-to-back turns and recovered to 3.64 after 12 idle
   // minutes — while contributing nothing to peak (the ring stayed stood down
   // on kryptos for the same reason).
-  const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0' };
+  // ENCLAVE_GGML_PARK_SLOTS=2: arm the mm32 prefix cache (parked prompt-state
+  // forks; wasm/wasmtime-nn-ggml.patch). Two slots is the working set of one
+  // interactive chat plus one repeat caller; each costs one extra sequence in
+  // the llama/MTP contexts and its prompt's cells out of the shared pool.
+  // Engines predating mm32 ignore the env, so this is safe to carry across
+  // wasmtime repins in either direction.
+  const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0',
+                ENCLAVE_GGML_PARK_SLOTS: '2' };
   const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
   for (const [k, v] of Object.entries(cfg)) {
     // accept either the bare knob ("maxSessions") or the full env name
