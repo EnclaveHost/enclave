@@ -78,29 +78,35 @@ echo "[mps] starting control daemon (pipe=$CUDA_MPS_PIPE_DIRECTORY)"
 nvidia-cuda-mps-control -d || { echo "[mps] FAILED to start daemon"; exit 1; }
 trap 'echo quit | timeout 10 nvidia-cuda-mps-control >/dev/null 2>&1 || true; kill_mps' EXIT
 
+# Is OUR control daemon process alive? Process existence, not pipe chat: on a
+# desk that also runs 16-way builds (plus a tenant decoding), the pipe misses
+# 20s windows two in a row while the daemon is perfectly healthy — measured
+# twice on 2026-09-01, each false bounce killing the worker's CUDA context
+# mid-test-run. A starved process still EXISTS; a dead one does not, and a
+# wedged-but-alive one is exactly what the attach probe below is for.
+control_alive() {
+  for p in /proc/[0-9]*; do
+    [ "$(cat "$p/comm" 2>/dev/null)" = "nvidia-cuda-mps" ] || continue
+    grep -aq -- "-control" "$p/cmdline" 2>/dev/null || continue
+    tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "CUDA_MPS_PIPE_DIRECTORY=$CUDA_MPS_PIPE_DIRECTORY" && return 0
+  done
+  return 1
+}
+
 hangs=0
-deaf=0
 while true; do
-  # Liveness, BOUNDED: an unguarded pipe write could itself block forever on a
-  # wedged daemon and take this loop with it. TWO strikes here too, unlike the
-  # fleet sidecar: this host is somebody's desk, and a 16-way build or test run
-  # starves the control daemon long enough to miss one 10s window while being
-  # perfectly healthy — measured 2026-09-01, when a single missed window
-  # bounced the stack mid-`npm test` and took the worker's context with it.
-  # A real wedge fails the NEXT probe too; a scheduling stall does not.
-  if ! echo get_server_list | timeout 20 nvidia-cuda-mps-control >/dev/null 2>&1; then
-    deaf=$((deaf + 1))
-    echo "[mps] daemon not answering (strike $deaf/2)"
-    if [ "$deaf" -ge 2 ]; then
-      echo "[mps] daemon not answering — restarting"
-      bounce
-      deaf=0
-      hangs=0
-    fi
+  # Liveness = the daemon PROCESS. Only its death restarts the stack; a slow
+  # pipe is logged and left alone (bounded so a wedged pipe cannot take this
+  # loop with it — the attach probe judges wedges, with its own two strikes).
+  if ! control_alive; then
+    echo "[mps] control daemon process is GONE — restarting the stack"
+    bounce
+    hangs=0
     sleep "$PROBE_INTERVAL"
     continue
   fi
-  deaf=0
+  echo get_server_list | timeout 20 nvidia-cuda-mps-control >/dev/null 2>&1 \
+    || echo "[mps] control pipe slow (daemon alive; not bouncing)"
   # Health: a real attach through the pipe.
   set +e
   timeout -k 5 "$PROBE_TIMEOUT" "$PROBE_BIN" >/dev/null 2>&1

@@ -4608,25 +4608,28 @@ function adoptShieldedCard(v) {
   // as gmacPerSec, where it describes what the masked path actually delivers.
   // These are two different questions and they now have two different fields.
   //
-  // computeShare pro-rates the rated figure: the DEDICATED SLICE is this
-  // enclave's card. A box selling half its desktop's 3070 advertises a
-  // 21.4-TFLOPS, 23-SM card that is 100% available when empty — not half of a
-  // 42.7 one — and a tenant's gpuShare is a fraction of the slice, still on
-  // the vendor-rated basis (5 declared TFLOPS buys 5 rated TFLOPS of silicon
-  // here exactly as on kryptos). The physical card's full figures stay
-  // visible in the shielded block (cardTflops/smCount, unscaled). VRAM is NOT
-  // pro-rated here: the MPS SM cap does not cap memory, and vramBudgetGb is
-  // already the dedicated-VRAM knob.
-  const cs = v.computeShare > 0 ? Math.min(1, v.computeShare) : 1;
-  if (v.cardTflops > 0) CARD_TFLOPS = round1(v.cardTflops * cs);
-  else if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000 * cs);   // older probe: no rated figure
-  if (v.smCount > 0) SM_TOTAL = Math.max(1, Math.round(v.smCount * cs));
+  // The DEDICATED SLICE is this enclave's card, and the worker's own report
+  // already IS the slice: under the host MPS cap (computeShare →
+  // CUDA_MPS_ACTIVE_THREAD_PERCENTAGE, enclave-metal.mjs) the driver hands the
+  // worker a capped device — cudaGetDeviceProperties on metal0 at 50% returns
+  // 22 SMs / 20.4 rated TFLOPS, not 46 / 42.7. So take the figures VERBATIM.
+  // Scaling by computeShare here books the cap twice — shipped briefly in
+  // v0.5.533 and the box advertised a 10.2-TFLOPS quarter-card. Verbatim is
+  // also right when MPS is down (fail-open): the worker then sees — and
+  // genuinely has — the whole card, and the box advertises what it can burn.
+  // A tenant's gpuShare is a fraction of the slice, still on the vendor-rated
+  // basis (5 declared TFLOPS buys 5 rated TFLOPS of silicon here exactly as
+  // on kryptos). computeShare rides the shielded block as config context.
+  // VRAM is NOT MPS-capped: vramBudgetGb is its own dedicated-VRAM knob.
+  if (v.cardTflops > 0) CARD_TFLOPS = round1(v.cardTflops);
+  else if (v.gmacPerSec > 0) CARD_TFLOPS = round1(v.gmacPerSec * 2 / 1000);   // older probe: no rated figure
+  if (v.smCount > 0) SM_TOTAL = v.smCount;
   if (v.pricePerSec6 > 0) SELL_GPU_PRICE6 = v.pricePerSec6;
   if (gpuCards.length === 0)
     gpuCards.push({ id: 0, uuid: null, vramFree: CARD_VRAM_GB, computeFree: 1 });
   console.log(`[gpu] adopting the SHIELDED card as this enclave's card: ${v.card} `
             + `${CARD_VRAM_GB} GB, ${CARD_TFLOPS} TFLOPS rated`
-            + (cs < 1 ? ` (the ${Math.round(cs * 100)}% dedicated slice of ${round1(v.cardTflops)})` : "")
+            + (v.computeShare > 0 && v.computeShare < 1 ? ` (the ${Math.round(v.computeShare * 100)}% dedicated slice, as the driver reports it)` : "")
             + ` (masked path measured ${v.gmacPerSec} G-MAC/s), at ${v.endpoint} on the untrusted host`);
 }
 
