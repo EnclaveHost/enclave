@@ -200,6 +200,36 @@ export const Enclave = {
       return r.json();
     }).then(j => (j && j.relays) || []);
   },
+  // What a RELAY saw of one deployment's traffic: a connection log, both
+  // directions, with per-connection byte counts. Served by the relay's own
+  // agent over the fleet tunnel (the hub answers for it at /t/<name>), because
+  // a relay terminates no TLS and so has no HTTPS surface of its own.
+  //
+  // Connections, NOT requests, and callers must say so: a relay peeks SNI
+  // without terminating TLS, so it never sees an HTTP request at all. One
+  // connection carries many (h2 multiplexes), so counting these as requests
+  // would undercount by a factor nothing here can know. Bandwidth is the
+  // honest measure and comes free off the socket.
+  // label -> { relay, a }: which relay actually carries each deployment right
+  // now, INCLUDING the ones that made no choice (the fleet default resolves
+  // here, not in the envelope). Asking a deployment's envelope alone would
+  // miss every app that never picked one, which is most of them.
+  getRelayLabels(){
+    const url = (this.base || "").replace(/\/v1\/?$/, "") + "/v1/relays";
+    return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+      if (!r.ok) throw new EnclaveError("relays: HTTP " + r.status, r.status);
+      return r.json();
+    }).then(j => (j && j.labels) || {});
+  },
+  getRelayTraffic(relay, dep, sinceMs){
+    const root = (this.base || "").replace(/\/v1\/?$/, "");
+    const q = "?dep=" + encodeURIComponent(dep) + (sinceMs ? "&since=" + encodeURIComponent(sinceMs) : "");
+    const url = root + "/t/" + encodeURIComponent(relay) + "/v1/traffic" + q;
+    return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+      if (!r.ok) throw new EnclaveError("traffic: HTTP " + r.status, r.status);
+      return r.json();
+    }).then(j => (j && Array.isArray(j.rows)) ? j : { rows: [], relay });
+  },
   /* Deployments. List/get are PUBLIC ledger reads: a session token gives the
      enclaves' live view (status/network), but a connected wallet alone is
      enough - the relay scopes by ?owner= (on-chain records are public data;

@@ -301,3 +301,27 @@ a.ed-host:hover{color:var(--jade);}
 
 /* "Get app" popup content (the dialog itself is the shared qd-overlay/
    qd-card idiom; these are just its download rows) */
+
+/* per-row Network traffic: the RELAY's view of a deployment's connections.
+   Bandwidth, not requests - a relay terminates no TLS, so requests are a thing
+   it structurally cannot see (see _traffic). Two colours only: what came in and
+   what went out, stacked, so the shape of a conversation is readable at a
+   glance without a legend. */
+.enc-net-traffic:empty{display:none;}
+.en-traffic{padding:12px 18px;}
+.tg-sum{font-family:var(--font-mono);font-size:.74rem;margin-bottom:8px;}
+.tg-chart{width:100%;height:56px;display:block;margin:2px 0 10px;
+  background:linear-gradient(to top,var(--well) 0,transparent 60%);border-radius:4px;}
+.tg-in{fill:var(--accent);}
+.tg-out{fill:var(--text-dim);opacity:.55;}
+.tg-tbl{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:.7rem;}
+.tg-tbl th{text-align:left;font-weight:400;color:var(--text-dim);padding:2px 8px 4px 0;}
+.tg-tbl td{padding:2px 8px 2px 0;border-top:1px solid var(--line-soft);white-space:nowrap;}
+/* a peer is the widest and least predictable column: let it be the one that
+   truncates rather than pushing the byte counts off the row */
+.tg-peer{max-width:22ch;overflow:hidden;text-overflow:ellipsis;}
+.tg-b{text-align:right;}
+.tg-d{font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;}
+.tg-d.in{color:var(--accent);}
+.tg-d.out{color:var(--text-dim);}
+@media (max-width:640px){ .tg-peer{max-width:14ch;} .tg-tbl th:last-child,.tg-tbl td:last-child{display:none;} }
