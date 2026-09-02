@@ -133,11 +133,14 @@ class FleetList extends EnclaveElement {
             // the measured enclave, iris "GPU" for one on the untrusted host
             // reached by masked offload -- the ABSENCE of "tee" is the signal,
             // and the tooltip says outright that this card is outside the
-            // enclave and outside its measurement. Plain "CPU" only when there
-            // is no card at all — a box with a GPU is not a CPU box that happens to
-            // have one, and badging it both ways buries the thing a buyer came
-            // to look for. Every row still shows its CPU POOL underneath; the
-            // badge answers what the box is, the pools answer what it has.
+            // enclave and outside its measurement. Jade "TEE CPU" only when there
+            // is no card at all: the box itself IS the confidential enclave, and
+            // every vCPU it sells runs inside the measured VM, so it earns the same
+            // green pill as an in-enclave card. A box with a GPU is not a CPU box
+            // that happens to have one, and badging it both ways buries the thing
+            // a buyer came to look for. Every row still shows its CPU POOL
+            // underneath; the badge answers what the box is, the pools answer
+            // what it has.
             + (inTee
                 ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
                   + ' enclave and covered by its attestation.">tee gpu</span>'
@@ -148,7 +151,9 @@ class FleetList extends EnclaveElement {
                   + 'verified. The card is outside the enclave and outside its measurement, '
                   + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
                   + 'masking, not by the card.">gpu</span>'
-                : '<span class="ap-badge">cpu</span>')
+                : '<span class="ap-badge ok" title="This box is a confidential VM: every'
+                  + ' vCPU it sells runs inside the measured enclave and is covered by its'
+                  + ' attestation.">tee cpu</span>')
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
