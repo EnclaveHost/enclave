@@ -424,6 +424,9 @@ containers:
       # alt graph-slot ring stood down: decode decays under sustained churn
       # with it armed on the 49-dev engine - see the GPU flavor's note
       - LLAMA_GRAPH_SLOT_ALT: "0"
+      # mm33: where the engine image keeps the static ffmpeg/ffprobe that the
+      # "video" verb spawns (Dockerfile.wasm copies them beside wasmtime)
+      - ENCLAVE_GGML_FFMPEG_DIR: "/usr/local/bin"
       # each app's memory cap is its deployment's cpuShare × NODE_RAM_GB
       # (>= the mem_mb its specs declare); WASM_APP_MIN_MEM_MB (64) is the floor
       # friendly name -> the model's auto-mount path. Tinfoil mounts each

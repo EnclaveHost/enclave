@@ -248,6 +248,9 @@ containers:
       - ENCLAVE_GGML_N_BATCH: "512"
       - ENCLAVE_GGML_MAX_SESSIONS: "8"
       - LLAMA_GRAPH_SLOT_ALT: "0"
+      # mm33: where the engine image keeps the static ffmpeg/ffprobe that the
+      # "video" verb spawns (Dockerfile.wasm copies them beside wasmtime)
+      - ENCLAVE_GGML_FFMPEG_DIR: "/usr/local/bin"
       # SD volumes + the node-global component/serving envs they resolve
       # against, same set as both GPU flavors. The sd.cpp path (including the
       # ESRGAN upscaler verb) is CPU-capable - it is where the shim is
