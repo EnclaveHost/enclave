@@ -219,10 +219,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..dc098cf
+index 0000000..775fd36
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,3339 @@
+@@ -0,0 +1,3486 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -252,6 +252,12 @@ index 0000000..dc098cf
 +//! Inference contract (WIT named tensors):
 +//!   input  "tokens"  I32  dims [1, n] (n <= n_batch)   token ids
 +//!   output "logits"  Fp32 dims [1, n_vocab]            last-token logits
++//! mm34 prefix cache: "prompt" I32 [1, N] beside a prompt's FIRST "tokens"
++//!   chunk declares the whole prompt, and the engine branches off the longest
++//!   parked prefix right there; every later chunk feeds only what lies past
++//!   the park (see PromptPlan). "more" I32 [1] = 1 on a non-final chunk is
++//!   accepted and ignored since mm34 (mm32/mm33 held such chunks back and
++//!   replayed them in one call on divergence).
 +//! Speculative-decoding verbs (see each handler in `compute`):
 +//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
 +//!   "caps" -> [seq_id, recurrent, mtp, vision, n_batch, host_tok,
@@ -2312,6 +2318,7 @@ index 0000000..dc098cf
 +            parked_from: None,
 +            park_pin: None,
 +            last_row: None,
++            plan: None,
 +        });
 +        Ok(ctx.into())
 +    }
@@ -2351,6 +2358,8 @@ index 0000000..dc098cf
 +    /// re-decoding that position (self.logits only holds DENSE outputs; the
 +    /// topk-flavored feeds never set it, so the row is kept in RowOut form).
 +    last_row: Option<RowOut>,
++    /// mm34: the branch a declared prompt settled on at its first chunk.
++    plan: Option<PromptPlan>,
 +}
 +unsafe impl Send for GgmlExecutionContext {}
 +unsafe impl Sync for GgmlExecutionContext {}
@@ -2441,9 +2450,6 @@ index 0000000..dc098cf
 +
 +/// mm32: what one deferred-feed step decided (see defer_step).
 +enum DeferAction {
-+    /// tokens buffered against a still-matching park — the caller emits a
-+    /// zero-shaped output row and decodes nothing.
-+    Hold,
 +    /// a park covered a prefix of the buffered stream: this sequence is now
 +    /// a branch of it (n_past updated). `remainder` is what still needs
 +    /// feeding (at most the current call's tokens); when it is empty the
@@ -2452,6 +2458,37 @@ index 0000000..dc098cf
 +    /// no park matches any more: feed these buffered tokens instead of the
 +    /// call's own (they include it), through the caller's own verb path.
 +    Replay(Vec<i32>),
++}
++
++/// mm34: the branch a DECLARED prompt settles on at its first chunk.
++///
++/// A guest that chunks its prefill (every guest on a CPU node must: one
++/// chunk is its unit of liveness, and a proxy cuts a stream silent for 180 s)
++/// sends {"prompt": I32 [1, N]}, the whole prompt's token ids, beside its
++/// first "tokens" feed. The engine then knows what is coming, so it can
++/// decide the whole branch right there: the longest park whose tokens are a
++/// PREFIX of the declared prompt is copied into this sequence, and each later
++/// chunk feeds only what lies past the park. A chunk never costs the guest
++/// more than its own tokens.
++///
++/// mm32 tried to reach the same win without the declaration, by HOLDING each
++/// {"more":1} chunk that still matched a park and replaying the held stream
++/// in one call when it diverged. The divergence of a new chat is its user
++/// message, i.e. the last chunk, so the replay was the whole ~3,000-token
++/// prompt inside ONE host call: ~210 s on a CPU node, no byte out, and the
++/// supervisor's idle cut killed every such turn (9eb4e600 on metal0,
++/// 2026-09-02). The hold is gone; a guest that declares nothing gets plain
++/// chunk-bounded feeds and the single-feed exact/extension branch.
++struct PromptPlan {
++    /// the declared prompt, checked chunk by chunk against what arrives
++    prompt: Vec<i32>,
++    /// prompt[..covered] is already in place from the park copy
++    covered: usize,
++    /// the park's stored final-position row when covered == prompt.len()
++    /// (an exact repeat): the last chunk answers it without a decode
++    exact_row: Option<RowOut>,
++    /// how far the guest's chunk stream has come
++    seen: usize,
 +}
 +
 +impl GgmlExecutionContext {
@@ -2471,11 +2508,15 @@ index 0000000..dc098cf
 +        }
 +    }
 +
-+    /// mm32 match-and-defer. Called with each multi-token feed while the
-+    /// prompt is open; decides whether to buffer (a park still covers the
-+    /// stream), branch (a park just got covered), abandon (divergence), or
-+    /// stay out of the way entirely (None: feed exactly as before mm32).
-+    fn defer_step(&mut self, ids: &[i32], more: bool) -> Result<Option<DeferAction>, BackendError> {
++    /// mm32 match-and-branch for a guest that declared no prompt. Called with
++    /// each multi-token feed while the prompt is open; decides whether to
++    /// branch (a park is a prefix of the stream so far), replay this feed
++    /// verbatim (no park fits), or stay out of the way entirely (None: feed
++    /// exactly as before mm32). Nothing is held back across calls any more
++    /// (see PromptPlan for why), so with chunked prefill only a park no
++    /// longer than the FIRST chunk can ever branch here; the whole-prompt
++    /// win needs the declaration.
++    fn defer_step(&mut self, ids: &[i32]) -> Result<Option<DeferAction>, BackendError> {
 +        if park_slots() == 0 || self.no_cache || self.prompt_done {
 +            return Ok(None);
 +        }
@@ -2498,27 +2539,16 @@ index 0000000..dc098cf
 +            }
 +        }
 +        buf.extend_from_slice(ids);
-+        // A zero-row Hold is only safe when the guest PROMISED another prompt
-+        // chunk ({"more": [1]} beside "tokens"): guests sample their first
-+        // generation token from the LAST feed's returned row, and prefill
-+        // chunk sizing is adaptive, so the engine cannot infer finality — an
-+        // unmarked feed is treated as possibly-final and resolved right here.
-+        // (Live 2026-09-01: holding an exact-length match handed the app a
-+        // zero row to sample its first token from — uniformly random,
-+        // occasionally EOS.) Without the marker a single-feed prompt still
-+        // gets the whole win: an exact repeat branches with the stored row,
-+        // an extension branches and feeds only the tail.
-+        let covered = more && {
-+            let parked = self.server.parked.lock().unwrap();
-+            parked.iter().any(|p| p.tokens.len() > buf.len() && p.tokens[..buf.len()] == buf[..])
-+        };
-+        if covered {
-+            self.defer = Some(buf);
-+            return Ok(Some(DeferAction::Hold));
-+        }
-+        // No park covers the stream any more. If one IS a prefix of it, the
-+        // stream outgrew it: branch off the longest such park and feed only
-+        // the tail. Re-find by content under the decode turn (lock order
++        // Every feed is treated as possibly final and resolved right here:
++        // guests sample their first generation token from the LAST feed's
++        // returned row, and the engine cannot see the end of a chunked prompt
++        // (live 2026-09-01: a held exact-length match handed the app a zero
++        // row to sample from - uniformly random, occasionally EOS). A
++        // single-feed prompt still gets the whole win: an exact repeat
++        // branches with the stored row, an extension branches and feeds only
++        // the tail.
++        // If a park IS a prefix of the stream, branch off the longest such
++        // park and feed only the tail. Re-find by content under the decode turn (lock order
 +        // q -> parked, matching Drop) so the copy cannot race an eviction.
 +        let mut q = self.server.q.lock().unwrap();
 +        while q.decoding {
@@ -2554,6 +2584,103 @@ index 0000000..dc098cf
 +        // shadow again on a Some return — defer_step owns the bookkeeping)
 +        self.fed = buf;
 +        Ok(Some(action))
++    }
++
++    /// mm34: settle the branch for a declared prompt (see PromptPlan). Only a
++    /// context's first feed may declare, and only while the cache is armed and
++    /// not opted out; anything else is ignored, exactly as an engine predating
++    /// the input would ignore it.
++    fn plan_prompt(&mut self, prompt: Vec<i32>) {
++        if park_slots() == 0 || self.no_cache || self.prompt_done || self.n_past > 0
++            || self.defer.is_some() || self.plan.is_some() || prompt.len() < 2
++        {
++            return;
++        }
++        // lock order q -> parked, matching Drop, so the copy cannot race an
++        // eviction
++        let mut q = self.server.q.lock().unwrap();
++        while q.decoding {
++            q = self.server.cv.wait(q).unwrap();
++        }
++        let mut parked = self.server.parked.lock().unwrap();
++        let best = parked
++            .iter_mut()
++            .filter(|p| p.tokens.len() >= park_min_tokens() && p.tokens.len() <= prompt.len()
++                        && prompt[..p.tokens.len()] == p.tokens[..])
++            .max_by_key(|p| p.tokens.len());
++        let (covered, exact_row) = match best {
++            Some(p) => {
++                unsafe { ell_seq_copy(self.server.raw, p.seq_id, self.seq_id) };
++                p.at = Instant::now(); // reuse refreshes LRU age
++                // an un-diverged copy of the park until its first decode -
++                // pin the park so eviction cannot orphan it
++                if self.park_pin.is_none() {
++                    p.pin.fetch_add(1, Ordering::AcqRel);
++                    self.park_pin = Some(p.pin.clone());
++                }
++                let plen = p.tokens.len();
++                (plen, if plen == prompt.len() { Some(p.row.clone()) } else { None })
++            }
++            None => (0, None),
++        };
++        drop(parked);
++        drop(q);
++        if covered == 0 {
++            return; // no park relates: plain feeds, nothing to skip
++        }
++        self.n_past = covered as i32;
++        self.fed = prompt[..covered].to_vec();
++        self.plan = Some(PromptPlan { prompt, covered, exact_row, seen: 0 });
++    }
++
++    /// mm34: one chunk of a declared prompt (see PromptPlan). None = no plan
++    /// stands, feed as before. Some(None) = the chunk lay entirely inside the
++    /// park copy: answer a zero row, which the guest discards (its FINAL chunk
++    /// excepted - an exact repeat answers the park's stored row instead).
++    /// Some(Some(row)) = the part past the park was fed; this is its row.
++    fn plan_step(&mut self, ids: &[i32], mtp: bool) -> Result<Option<Option<RowOut>>, BackendError> {
++        let (tail, last) = {
++            let Some(plan) = self.plan.as_mut() else { return Ok(None) };
++            if self.prompt_done || plan.seen >= plan.prompt.len() {
++                // the prompt ended (a generation verb), or the guest went past
++                // its declaration: the plan has served
++                self.plan = None;
++                return Ok(None);
++            }
++            let start = plan.seen;
++            let n = ids.len().min(plan.prompt.len() - start);
++            if plan.prompt[start..start + n] != ids[..n] {
++                return Err(err(format!(
++                    "prompt chunk differs from the declared prompt at position {start}"
++                )));
++            }
++            let end = start + ids.len();
++            plan.seen = end;
++            let skip = plan.covered.saturating_sub(start).min(ids.len());
++            if skip == ids.len() {
++                if end == plan.prompt.len() {
++                    let row = plan.exact_row.clone().ok_or_else(|| {
++                        err("declared prompt matched a park exactly but no row was stored")
++                    })?;
++                    self.plan = None;
++                    self.last_row = Some(row.clone());
++                    return Ok(Some(Some(row)));
++                }
++                return Ok(Some(None));
++            }
++            (ids[skip..].to_vec(), end >= plan.prompt.len())
++        };
++        if last {
++            self.plan = None;
++        }
++        // the shadow stays the exact stream (fed == n_past): the park copy
++        // supplied prompt[..covered], the tail arrives here
++        self.shadow(&tail);
++        let row = if mtp { self.feed_mtp(&tail)? } else { self.feed_plain(&tail)? };
++        if !self.prompt_done {
++            self.last_row = Some(row.clone());
++        }
++        Ok(Some(Some(row)))
 +    }
 +
 +    /// mm32: a generation-shaped or non-token verb arrived while feeds were
@@ -2802,6 +2929,9 @@ index 0000000..dc098cf
 +    /// mm32: the zero-shaped answer a deferred prompt chunk gets. Both
 +    /// first-party guests discard every non-final prompt row; a guest that
 +    /// does not opts out with {"prefix_cache": [0]}.
++    /// A zero-shaped row for a chunk that decoded nothing (mm34: it lay
++    /// inside the park copy a declared prompt branched off). The guest
++    /// discards every non-final prompt row, so its shape is all that matters.
 +    fn hold_output(&self, topk: Option<usize>) -> Vec<NamedTensor> {
 +        match topk {
 +            Some(kv) => vec![
@@ -3410,6 +3540,12 @@ index 0000000..dc098cf
 +                    .find(|nt| nt.name == "tokens" || nt.name == "0")
 +                    .ok_or_else(|| err("missing \"tokens\" input"))?;
 +                let ids = tokens_from_tensor(&tokens.tensor)?;
++                // mm34: {"prompt": I32 [1, N]} beside a prompt's FIRST chunk
++                // declares the whole prompt (see PromptPlan); the branch is
++                // settled here, before the chunk is fed
++                if let Some(pt) = inputs.iter().find(|nt| nt.name == "prompt") {
++                    self.plan_prompt(tokens_from_tensor(&pt.tensor)?);
++                }
 +                let flag = |name: &str| {
 +                    inputs.iter().any(|nt| nt.name == name
 +                        && tokens_from_tensor(&nt.tensor).map(|v| v.first() == Some(&1)).unwrap_or(false))
@@ -3506,13 +3642,19 @@ index 0000000..dc098cf
 +                // harvested + mirrored into the head, but only the LAST
 +                // logits row returned. The speculative prefill path.
 +                if flag("mtp") {
-+                    // mm32: a prompt feed may match a parked prefix - buffer
-+                    // it (zero rows back, only under a {"more": 1} promise),
-+                    // branch when a park is covered, or replay verbatim on
-+                    // divergence. None = feed exactly as before mm32.
-+                    let row = if let Some(act) = self.defer_step(&ids, flag("more"))? {
++                    // mm34: a declared prompt feeds only what lies past the
++                    // park it branched off (zero rows for the covered part)
++                    if let Some(out) = self.plan_step(&ids, true)? {
++                        return Ok(Some(match out {
++                            None => self.hold_output(topk),
++                            Some(row) => self.render_row(row, topk)?,
++                        }));
++                    }
++                    // mm32: an undeclared prompt feed may still match a park
++                    // (a prefix no longer than this feed): branch, or replay
++                    // verbatim. None = feed exactly as before mm32.
++                    let row = if let Some(act) = self.defer_step(&ids)? {
 +                        match act {
-+                            DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
 +                            DeferAction::Branch { remainder, row } => match row {
 +                                Some(r) if remainder.is_empty() => r,
 +                                _ => self.feed_mtp(&remainder)?,
@@ -3528,12 +3670,17 @@ index 0000000..dc098cf
 +                    }
 +                    return self.render_row(row, topk).map(Some);
 +                }
-+                // mm32: same defer/branch/replay contract as the mtp path,
-+                // through the plain decode; also serves 1-token generation
-+                // steps, where defer_step always stands aside.
-+                let row = if let Some(act) = self.defer_step(&ids, flag("more"))? {
++                // mm34/mm32: same plan and branch/replay contract as the mtp
++                // path, through the plain decode; also serves 1-token
++                // generation steps, where both stand aside.
++                if let Some(out) = self.plan_step(&ids, false)? {
++                    return Ok(Some(match out {
++                        None => self.hold_output(topk),
++                        Some(row) => self.render_row(row, topk)?,
++                    }));
++                }
++                let row = if let Some(act) = self.defer_step(&ids)? {
 +                    match act {
-+                        DeferAction::Hold => return Ok(Some(self.hold_output(topk))),
 +                        DeferAction::Branch { remainder, row } => match row {
 +                            Some(r) if remainder.is_empty() => r,
 +                            _ => self.feed_plain(&remainder)?,
