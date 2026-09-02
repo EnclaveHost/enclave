@@ -7,7 +7,7 @@
    already bit us once as constants (2026-07-14: "141 GB" copy
    vs the probed 140.4 GiB card sold unclaimable shares). Any
    element carrying data-live-spec is rewritten from the same
-   /availability payload the deploy console's share math adopts
+   /availability payload the quick-deploy share math adopts
    (relay spec* fleet minima - see pricing.js); the HTML keeps
    the last-known values for first paint and crawlers, and those
    baked values are written to match what the FALLBACK constants
@@ -20,7 +20,7 @@
                the catalog floor math, so no display rounding)
      vram / tflops - what data-gpu % of the card grants
      ram / vcpu / gflops - what data-cpu % of the node grants
-               (grants round like the deploy console readout)
+               (grants round like the quick-deploy readout)
      tflops-floor - data-gpu % of the card rounded DOWN: the
                "an app declaring N TFLOPS floors at X%" example
                must round down or the claimed floor goes wrong

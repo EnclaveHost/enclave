@@ -15,6 +15,7 @@
    sign-in/out edges and `enclave:auth` sign-in edges.
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import "../volume-picker/volume-picker.js";   // the Models tab's checklist
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
@@ -308,6 +309,63 @@ function varDrop(app, name){
   s[app] = varsFor(app).filter(x => x.n !== name);
   if (!s[app].length) delete s[app];
   lsSet(VAR_KEY, JSON.stringify(s));
+}
+/* ---- the per-deployment config override, planned against the ledger ----
+   The keys the enclave reads off a deployment's config to PLACE it, and so
+   the only ones that stay inline when the body moves to a CID. Lockstep with
+   DEP_MANIFEST_KEYS in supervisor.js - shorter than the catalog's
+   ROUTING_KEYS, because wasi/threads/set/mem64 describe the BINARY (read off
+   the version, unchangeable by an override) and gpuOptional has its own
+   namespace. A key added here that the runner doesn't know is refused
+   outright, so the two lists must move together. */
+const MANIFEST_KEYS = ["volumes"];
+// Sizing a split envelope before the pin: a CIDv1 base32 is 59 chars, and
+// this is only for the meta line and the fits/doesn't decision - the commit
+// re-measures the REAL envelope once the CID is known and refuses there
+// rather than signing something the ledger would reject.
+const CID_SIZE_HINT = "b".repeat(62);
+const bytesOf = (s) => new TextEncoder().encode(s).length;
+// the `volumes` key of a config object: the model volumes it mounts (deduped, as strings)
+const volumesOf = (o) => (o && Array.isArray(o.volumes)) ? [...new Set(o.volumes.map(String))] : [];
+/* What a candidate config object MEANS against the ledger - the one truth
+   Apply acts on, shared by the Config and Models panels (ctx = _cfgRead's).
+   verdictOf(o): { same } nothing to do · { clear } drops the override (o IS
+   the stock config) · { set, mode:"inline", envelope, bytes } · { set,
+   mode:"split", body, cfg, bytes } (pin the body, keep the routing manifest
+   on-chain) · { err }. The envelope's other namespaces (waf, network, gpu)
+   ride every result verbatim. */
+function cfgPlan(ctx){
+  const { raw, cur, curBase, cap, stockC, hasOv, ovCid, ovLost, o0, splitOk } = ctx;
+  const manifestOf = (o) => { const m = {}; for (const k of MANIFEST_KEYS) if (o[k] !== undefined) m[k] = o[k]; return m; };
+  const splitEnvelope = (o, cid) => {
+    const m = manifestOf(o);
+    return JSON.stringify({ ...curBase, configCid: cid, ...(Object.keys(m).length ? { config: m } : {}) });
+  };
+  const clearEnvelope = () => {
+    const next = { ...cur }; delete next.config; delete next.configCid;
+    return Object.keys(next).length ? JSON.stringify(next) : "";
+  };
+  const verdictOf = (o) => {
+    const mine = JSON.stringify(o);
+    if (stockC !== null && mine === stockC) return hasOv ? { clear: true } : { same: true };
+    // INLINE while the whole document fits the ledger's one options field
+    const inlineEnv = JSON.stringify({ ...curBase, config: o });
+    const inlineBytes = bytesOf(inlineEnv);
+    if (inlineBytes <= cap){
+      if (inlineEnv === raw) return { same: true };
+      return { set: true, envelope: inlineEnv, bytes: inlineBytes, mode: "inline" };
+    }
+    // ...otherwise SPLIT: pin the body, keep the routing manifest on-chain
+    if (!splitOk) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
+      + " - the live fleet can’t serve a config pinned off-chain yet, so for now only a smaller document can override this version. Try again after the fleet updates" };
+    const preview = splitEnvelope(o, CID_SIZE_HINT);
+    const previewBytes = bytesOf(preview);
+    if (previewBytes > cap) return { err: "even split, the envelope would be " + previewBytes + " bytes; the ledger caps it at " + cap
+      + " - the routing manifest (" + MANIFEST_KEYS.join(", ") + ") plus this deployment’s protection settings don’t leave room for the reference. Trim the volumes list" };
+    if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
+    return { set: true, bytes: previewBytes, mode: "split", body: mine, cfg: o };
+  };
+  return { verdictOf, clearEnvelope, splitEnvelope };
 }
 function encTier(d){
   const r = d.resources || {};
@@ -697,6 +755,7 @@ class Deployments extends EnclaveElement {
           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-cfgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This deployment’s app config (its ENCLAVE_CONFIG): edit it, save named variations, or reset to the version’s stock config - the catalog default and every other deployment stay untouched">Config</button>' : '') +
+          (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which relay carries this app’s inbound traffic. The relay splices encrypted bytes on the app’s name and never terminates TLS - picking one nearer your users (or nearer the enclave) shortens the network path, and changes nothing about who can read the traffic">Network</button>' : '') +
           (onchain && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Run this app on a different enclave - the current one hands its lease back (unused lease time is refunded to the balance) and the box you pick claims it. Same URL, version and balance">Move</button>' : '') +
@@ -718,6 +777,7 @@ class Deployments extends EnclaveElement {
         '<div class="enc-waf" hidden></div>' +
         '<div class="enc-net" hidden></div>' +
         '<div class="enc-cfg" hidden></div>' +
+        '<div class="enc-mod" hidden></div>' +
         '<div class="enc-mob" hidden></div>' +
         '<div class="enc-xfer" hidden></div>' +
         (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
@@ -744,6 +804,7 @@ class Deployments extends EnclaveElement {
     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
     $$(".enc-cfgbtn", body).forEach(b => b.addEventListener("click", () => this._configPanel(b.dataset.id, b)));
+    $$(".enc-modbtn", body).forEach(b => b.addEventListener("click", () => this._models(b.dataset.id, b)));
     $$(".enc-netbtn", body).forEach(b => b.addEventListener("click", () => this._network(b.dataset.id, b)));
     $$(".enc-xferbtn", body).forEach(b => b.addEventListener("click", () => this._transfer(b.dataset.id, b)));
     $$(".enc-sec[data-id]", body).forEach(el => this._secretsWire(el));
@@ -1807,35 +1868,30 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* ---- per-row Config: the deployment's app config (ENCLAVE_CONFIG) ----
-     The catalog version's config is the DEFAULT (stock); this panel writes the
-     envelope's `config` namespace - a per-deployment OVERRIDE that replaces it
-     as this one deployment's ENCLAVE_CONFIG, volumes key included. The catalog
-     entry and every other deployment stay untouched. One owner setConfig tx
-     rewrites the envelope (waf/network namespaces PRESERVED verbatim); a fleet
-     advertising configEdit restarts the app in place on the new config within
-     ~a minute. Reset drops the override: the app falls back to the version's
-     approval-covered config, resolved fresh by the runner - so it works even
-     when this page can't read the stock text. Variations are named documents
-     saved in THIS BROWSER (localStorage, one shelf per app) - nothing touches
-     the chain until Apply.
-     Fails closed like the deploy form: CREATING an override needs the fleet
+  /* ---- the deployment's config, as the ledger + catalog see it ----
+     ONE read shared by the Config and Models panels. The catalog version's
+     config is the DEFAULT (stock); the envelope's `config` namespace is a
+     per-deployment OVERRIDE that replaces it as this one deployment's
+     ENCLAVE_CONFIG, volumes key included. The catalog entry and every other
+     deployment stay untouched. One owner setConfig tx rewrites the envelope
+     (waf/network namespaces PRESERVED verbatim); a fleet advertising
+     configEdit restarts the app in place on the new config within ~a minute.
+     An override is stored one of two ways, and the panels hide the
+     difference: INLINE (`config` is the whole document) or SPLIT (`configCid`
+     holds it and `config` is only the routing manifest - the deployment-side
+     mirror of catalog rev 7). The split exists because the whole envelope
+     shares one 4096-byte ledger field with waf/network, so an app whose
+     config is bigger than that has no override without it.
+     Fails closed like the deploy gates: CREATING an override needs the fleet
      aggregate's configOverride flag (a runner that predates the namespace
      refuses the whole envelope, stranding the deployment Queued at its next
-     claim); dropping one is always safe. ---- */
-  async _configPanel(id, btn) {
-    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-cfg"); if (!box) return;
-    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
-    btn.setAttribute("aria-expanded", "true");
-    box.hidden = false;
-    const bar = '<div class="ap-attbar">app config · ' + esc(id) + '</div>';
-    box.innerHTML = bar + '<div class="term enc-cfg-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + catalog…</span></div>';
+     claim); dropping one is always safe. Returns { err } when nothing can be
+     edited, else the context cfgPlan() and the panels build on. ---- */
+  async _cfgRead(id) {
     let d = null, rev = 1, avail = null;
     try { [rev, d] = await Promise.all([depSchemaRev(), depGet(id)]); await loadCatalog(); } catch(e){ d = null; }
     try { avail = await Enclave.getAvailability(); } catch(e){}
-    if (box.hidden || !box.isConnected) return;              // closed while loading
-    const fail = (msg) => { box.querySelector(".enc-cfg-status").innerHTML = ""; paintLine(box.querySelector(".enc-cfg-status"), "warn", msg); };
-    if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+    if (!d) return { err: "[x] couldn’t read this deployment from the ledger - try again shortly" };
     // the current envelope; anything unparseable reads as empty (setConfig
     // replaces it wholesale, which is also how such a string gets healed)
     const raw = String(d.configCid || "").trim();
@@ -1843,12 +1899,6 @@ class Deployments extends EnclaveElement {
     let cur = {};
     if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch(e){} }
     if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
-    // An override is stored one of two ways, and the editor hides the
-    // difference: INLINE (`config` is the whole document) or SPLIT (`configCid`
-    // holds it and `config` is only the routing manifest - the deployment-side
-    // mirror of catalog rev 7). The split exists because the whole envelope
-    // shares one 4096-byte ledger field with waf/network, so an app whose config
-    // is bigger than that has no override without it.
     const ovCid = typeof cur.configCid === "string" ? cur.configCid : "";
     const hasOv = "config" in cur || !!ovCid;
     let o0 = null, ovLost = false;    // the override's FULL config; ovLost = stored at a CID this gateway won't serve
@@ -1861,14 +1911,14 @@ class Deployments extends EnclaveElement {
       o0 = (cur.config && typeof cur.config === "object" && !Array.isArray(cur.config)) ? cur.config : {};
     }
     if (rev < 5 && !hasOv)
-      return fail("[!] the live ledger caps the options field at 100 bytes (CID-sized), so a config override can’t fit - the Config control activates with the rev-5 ledger upgrade");
+      return { err: "[!] the live ledger caps the options field at 100 bytes (CID-sized), so a config override can’t fit - this control activates with the rev-5 ledger upgrade" };
     if (avail && avail.configOverride !== true && !hasOv)
-      return fail("[!] the live fleet doesn’t honor per-deployment config overrides yet - setting one now could strand this deployment on its next claim; try again after the fleet updates");
+      return { err: "[!] the live fleet doesn’t honor per-deployment config overrides yet - setting one now could strand this deployment on its next claim; try again after the fleet updates" };
     // The STOCK config: the catalog version this deployment references. On a
     // rev-7 catalog a large config lives at a CID (the record's inline field is
     // only the routing manifest) - fetch it for display and the diff baseline;
     // the enclave resolves and hash-verifies the same CID itself, so a silent
-    // gateway costs this panel a prefill, never the app a correct config.
+    // gateway costs a panel its prefill, never the app a correct config.
     const cr = parseCatalogRef(d.appRef);
     const app = cr && STORE.byId[cr.appId];
     const ver = app && app.versions ? app.versions[cr.index] : null;
@@ -1877,17 +1927,118 @@ class Deployments extends EnclaveElement {
       if (ver.configCid){ const real = await fetchConfigCid(ver.configCid); stock = real === null ? null : stripMedia(real); }
       else stock = stripMedia(ver.config || "");
     }
-    if (box.hidden || !box.isConnected) return;              // closed while fetching
-    const compact = (s) => { try { return s ? JSON.stringify(JSON.parse(s)) : ""; } catch(e){ return (s || "").trim(); } };
-    const pretty = (s) => { try { return s ? JSON.stringify(JSON.parse(s), null, 2) : ""; } catch(e){ return s || ""; } };
+    const compact = (x) => { try { return x ? JSON.stringify(JSON.parse(x)) : ""; } catch(e){ return (x || "").trim(); } };
     const stockC = stock === null ? null : compact(stock);
+    const cap = rev >= 5 ? 4096 : 100;
+    const liveEdit = !!(avail && avail.configEdit === true);
+    const leased = Number(d.leaseUntil) * 1000 > Date.now();
+    const applyWord = leased
+      ? (liveEdit ? "the enclave restarts the app in place on it within ~a minute (same URL, same balance)"
+                  : "it applies at the app’s next relaunch or claim")
+      : "it applies when the deployment is next claimed";
+    const curBase = { ...cur }; delete curBase.config; delete curBase.configCid;   // the envelope's OTHER namespaces, carried verbatim
+    return { d, rev, avail, raw, cur, curBase, ovCid, hasOv, o0, ovLost, cr, ver, stock, stockC, cap,
+             splitOk: !!(avail && avail.configCidOverride === true), applyWord };
+  }
+  /* one owner setConfig tx (vault rows: the same passkey-signed control op as
+     Protect/Network) rewriting the envelope - shared by the Config and Models
+     panels. ui: { box, btn, st (the panel's term), lock(), unlock() }. Resolves
+     true when the ledger took it (the panel closes itself after a beat). */
+  async _cfgSubmit(id, ctx, ui, envelope, doneWord) {
+    ui.lock();
+    const paint = (cls, txt) => paintLine(ui.st, cls, txt);
+    const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
+    try {
+      if (via){
+        paint("info", "[*] confirm with your passkey…");
+        const { vaultOp } = await import("../../js/core/vault.js");
+        await vaultOp("control", { id, action: "options", envelope });
+      } else {
+        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+        await ensureBaseChain();
+        paint("info", "[*] confirm the transaction in your wallet…");
+        const th = await sendTx(DEPLOYMENTS_ADDRESS,
+          encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
+        paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
+        await waitReceipt(th);
+      }
+      paint("ok", "[✓] " + doneWord + " - " + ctx.applyWord);
+      showToast(doneWord + " on " + id.slice(0, 10) + "…");
+      this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
+      setTimeout(() => { if (ui.box.isConnected && !ui.box.hidden){ ui.box.hidden = true; ui.box.innerHTML = ""; ui.btn.setAttribute("aria-expanded", "false"); } }, 3500);
+      return true;
+    } catch(e){
+      const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+      paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
+      ui.unlock();
+      return false;
+    } finally { if (!via) refreshWallet(); }
+  }
+  /* act on a cfgPlan verdict: clear the override, sign an inline envelope, or
+     pin the body first and sign the split one. words: { set, setPinned,
+     clear } name each outcome in the done-line. */
+  async _cfgCommit(id, ctx, ui, v, words) {
+    const plan = cfgPlan(ctx);
+    if (v.clear) return this._cfgSubmit(id, ctx, ui, plan.clearEnvelope(), words.clear);
+    if (!v.set) return false;
+    if (v.mode !== "split") return this._cfgSubmit(id, ctx, ui, v.envelope, words.set);
+    // SPLIT: pin the body FIRST, then sign the reference. Order matters - a
+    // signed envelope naming a CID nobody pinned is a deployment that claims
+    // fine and then fails every launch on the fetch, so the pin must succeed
+    // before anything reaches the ledger. The reverse (a pin nobody
+    // references) costs a pinned document and nothing else.
+    const paint = (cls, txt) => paintLine(ui.st, cls, txt);
+    ui.lock();
+    let cid;
+    try {
+      paint("info", "[*] pinning the config… (your wallet signs the upload, not a transaction)");
+      cid = await putConfig(v.body);
+      paint("dimln", "  ↳ pinned " + cid);
+    } catch(e){
+      paint("warn", "[x] " + (e.message || String(e)) + " - nothing was signed, the deployment is untouched");
+      ui.unlock();
+      return false;
+    }
+    // the size preview used a stand-in CID; this is the string that gets signed
+    const envelope = plan.splitEnvelope(v.cfg, cid);
+    if (bytesOf(envelope) > ctx.cap){
+      paint("warn", "[x] the envelope came to " + bytesOf(envelope) + " bytes with the real CID; the ledger caps it at " + ctx.cap
+        + " - nothing was signed. Trim the volumes list and try again");
+      ui.unlock();
+      return false;
+    }
+    return this._cfgSubmit(id, ctx, ui, envelope, words.setPinned);
+  }
+
+  /* ---- per-row Config: the deployment's app config (ENCLAVE_CONFIG) ----
+     The editor over _cfgRead's context: one honest textarea (the config is
+     arbitrary publisher JSON, so no form can know its fields), a live meta
+     line (verdict + envelope bytes), Apply/Reset through _cfgCommit, and the
+     variations shelf. Reset drops the override: the app falls back to the
+     version's approval-covered config, resolved fresh by the runner - so it
+     works even when this page can't read the stock text. Variations are
+     named documents saved in THIS BROWSER (localStorage, one shelf per app) -
+     nothing touches the chain until Apply. ---- */
+  async _configPanel(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-cfg"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    const bar = '<div class="ap-attbar">app config · ' + esc(id) + '</div>';
+    box.innerHTML = bar + '<div class="term enc-cfg-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + catalog…</span></div>';
+    const ctx = await this._cfgRead(id);
+    if (box.hidden || !box.isConnected) return;              // closed while loading
+    const fail = (msg) => { box.querySelector(".enc-cfg-status").innerHTML = ""; paintLine(box.querySelector(".enc-cfg-status"), "warn", msg); };
+    if (ctx.err) return fail(ctx.err);
+    const { d, cur, ovCid, hasOv, o0, ovLost, cr, stock, cap, avail } = ctx;
+    const plan = cfgPlan(ctx);
+    const pretty = (x) => { try { return x ? JSON.stringify(JSON.parse(x), null, 2) : ""; } catch(e){ return x || ""; } };
     const varKey = cr ? cr.appId : (d.appRef || id);         // one shelf per APP: every deployment/version of it
     const fid = "ec" + appLabel(id);
-    const cap = rev >= 5 ? 4096 : 100;
     box.innerHTML = bar
       + '<div class="enc-cfg-body">'
       +   '<p class="en-intro">The JSON this app receives as <b>ENCLAVE_CONFIG</b>. Editing it here sets an override for <b>this deployment only</b> - '
-      +     'the version’s stock config in the catalog and every other deployment stay untouched. Its <b>volumes</b> key names the model volumes the app mounts. '
+      +     'the version’s stock config in the catalog and every other deployment stay untouched. Its <b>volumes</b> key names the model volumes the app mounts (the Models tab edits that key as a checklist). '
       +     'A config too large for the ledger’s options field is pinned off-chain automatically, with the reference and the volumes list kept on-chain.</p>'
       +   '<textarea class="ec-ta" id="' + fid + 't" rows="10" spellcheck="false" autocomplete="off" aria-label="app config JSON"></textarea>'
       +   '<div class="ec-meta" id="' + fid + 'm" role="status" aria-live="polite"></div>'
@@ -1910,12 +2061,6 @@ class Deployments extends EnclaveElement {
           sel = box.querySelector(".ec-sel"), name = box.querySelector(".ec-name"),
           load = box.querySelector(".ec-load"), drop = box.querySelector(".ec-drop"), save = box.querySelector(".ec-save");
     const paint = (cls, txt) => paintLine(st, cls, txt);
-    const liveEdit = !!(avail && avail.configEdit === true);
-    const leased = Number(d.leaseUntil) * 1000 > Date.now();
-    const applyWord = leased
-      ? (liveEdit ? "the enclave restarts the app in place on it within ~a minute (same URL, same balance)"
-                  : "it applies at the app’s next relaunch or claim")
-      : "it applies when the deployment is next claimed";
     ta.value = ovLost ? "" : (hasOv ? pretty(JSON.stringify(o0)) : (stock ? pretty(stock) : ""));
     paint("info", ovLost ? "// this deployment runs an OVERRIDE pinned off-chain, and this gateway won’t serve it right now - the enclave fetches and hash-verifies the same CID itself, so the app is unaffected. Reset to stock still works; typing here REPLACES the override"
                          : (hasOv ? "// this deployment runs an OVERRIDE (shown above) - the version’s stock config is not in effect"
@@ -1926,27 +2071,6 @@ class Deployments extends EnclaveElement {
     if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
     if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
     if (!avail) paint("dimln", "// couldn’t read fleet availability to confirm override support - if a runner predates it, the next claim would refuse this deployment");
-    // The keys the enclave reads off a deployment's config to PLACE it, and so
-    // the only ones that stay inline when the body moves to a CID. Lockstep with
-    // DEP_MANIFEST_KEYS in supervisor.js - shorter than the catalog's
-    // ROUTING_KEYS, because wasi/threads/set/mem64 describe the BINARY (read off
-    // the version, unchangeable by an override) and gpuOptional has its own
-    // namespace. A key added here that the runner doesn't know is refused
-    // outright, so the two lists must move together.
-    const MANIFEST_KEYS = ["volumes"];
-    // Sizing a split envelope before the pin: a CIDv1 base32 is 59 chars, and
-    // this is only for the meta line and the fits/doesn't decision - submit()
-    // re-measures the REAL envelope once the CID is known and refuses there
-    // rather than signing something the ledger would reject.
-    const CID_SIZE_HINT = "b".repeat(62);
-    const splitOk = !!(avail && avail.configCidOverride === true);
-    const bytesOf = (s) => new TextEncoder().encode(s).length;
-    const curBase = { ...cur }; delete curBase.config; delete curBase.configCid;
-    const manifestOf = (o) => { const m = {}; for (const k of MANIFEST_KEYS) if (o[k] !== undefined) m[k] = o[k]; return m; };
-    const splitEnvelope = (o, cid) => {
-      const m = manifestOf(o);
-      return JSON.stringify({ ...curBase, configCid: cid, ...(Object.keys(m).length ? { config: m } : {}) });
-    };
     // what the textarea MEANS against the ledger - the one truth Apply acts on
     const verdict = () => {
       const t = ta.value.trim();
@@ -1954,28 +2078,7 @@ class Deployments extends EnclaveElement {
       let o; try { o = JSON.parse(t); } catch(e){ return { err: "not valid JSON: " + e.message }; }
       if (!o || Array.isArray(o) || typeof o !== "object") return { err: "the config must be a JSON object, e.g. {\"api_key\":\"…\"} - {} is an explicitly empty config" };
       if ("_media" in o) return { err: "config._media is reserved for the catalog’s store media and never reaches an app - remove it" };
-      const mine = JSON.stringify(o);
-      if (stockC !== null && mine === stockC) return hasOv ? { clear: true } : { same: true };
-      // INLINE while the whole document fits the ledger's one options field
-      const inlineEnv = JSON.stringify({ ...curBase, config: o });
-      const inlineBytes = bytesOf(inlineEnv);
-      if (inlineBytes <= cap){
-        if (inlineEnv === raw) return { same: true };
-        return { set: true, envelope: inlineEnv, bytes: inlineBytes, mode: "inline" };
-      }
-      // ...otherwise SPLIT: pin the body, keep the routing manifest on-chain
-      if (!splitOk) return { err: "this config is " + bytesOf(mine) + " bytes and the ledger's options field caps at " + cap
-        + " - the live fleet can’t serve a config pinned off-chain yet, so for now only a smaller document can override this version. Try again after the fleet updates" };
-      const preview = splitEnvelope(o, CID_SIZE_HINT);
-      const previewBytes = bytesOf(preview);
-      if (previewBytes > cap) return { err: "even split, the envelope would be " + previewBytes + " bytes; the ledger caps it at " + cap
-        + " - the routing manifest (" + MANIFEST_KEYS.join(", ") + ") plus this deployment’s protection settings don’t leave room for the reference. Trim the volumes list" };
-      if (ovCid && !ovLost && mine === JSON.stringify(o0)) return { same: true };
-      return { set: true, bytes: previewBytes, mode: "split", body: mine, cfg: o };
-    };
-    const clearEnvelope = () => {
-      const next = { ...cur }; delete next.config; delete next.configCid;
-      return Object.keys(next).length ? JSON.stringify(next) : "";
+      return plan.verdictOf(o);
     };
     const sync = () => {
       const v = verdict();
@@ -1996,70 +2099,13 @@ class Deployments extends EnclaveElement {
       reset.disabled = !hasOv;
     };
     ta.addEventListener("input", sync);
-    // one submit for Apply and Reset - the same owner setConfig tx, only the
-    // envelope differs (vault rows: the same passkey-signed control op as
-    // Protect/Network)
-    const submit = async (envelope, doneWord) => {
-      go.disabled = true; reset.disabled = true;
-      const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
-      try {
-        if (via){
-          paint("info", "[*] confirm with your passkey…");
-          const { vaultOp } = await import("../../js/core/vault.js");
-          await vaultOp("control", { id, action: "options", envelope });
-        } else {
-          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
-          await ensureBaseChain();
-          paint("info", "[*] confirm the transaction in your wallet…");
-          const th = await sendTx(DEPLOYMENTS_ADDRESS,
-            encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
-          paint("dimln", "  ↳ sent " + th + " · waiting for confirmation…");
-          await waitReceipt(th);
-        }
-        paint("ok", "[✓] " + doneWord + " - " + applyWord);
-        showToast(doneWord + " on " + id.slice(0, 10) + "…");
-        this._envLearn(id, envelope);          // the row badge reflects the new envelope immediately
-        setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } }, 3500);
-      } catch(e){
-        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
-        sync();
-      } finally { if (!via) refreshWallet(); }
-    };
-    go.addEventListener("click", async () => {
-      const v = verdict();
-      if (v.clear) return submit(clearEnvelope(), "config override removed (back to stock)");
-      if (!v.set) return;
-      if (v.mode !== "split") return submit(v.envelope, hasOv ? "config override updated" : "config override set");
-      // SPLIT: pin the body FIRST, then sign the reference. Order matters - a
-      // signed envelope naming a CID nobody pinned is a deployment that claims
-      // fine and then fails every launch on the fetch, so the pin must succeed
-      // before anything reaches the ledger. The reverse (a pin nobody
-      // references) costs a pinned document and nothing else.
-      go.disabled = true; reset.disabled = true;
-      let cid;
-      try {
-        paint("info", "[*] pinning the config… (your wallet signs the upload, not a transaction)");
-        cid = await putConfig(v.body);
-        paint("dimln", "  ↳ pinned " + cid);
-      } catch(e){
-        paint("warn", "[x] " + (e.message || String(e)) + " - nothing was signed, the deployment is untouched");
-        sync();
-        return;
-      }
-      // the size preview used a stand-in CID; this is the string that gets signed
-      const envelope = splitEnvelope(v.cfg, cid);
-      if (bytesOf(envelope) > cap){
-        paint("warn", "[x] the envelope came to " + bytesOf(envelope) + " bytes with the real CID; the ledger caps it at " + cap
-          + " - nothing was signed. Trim the volumes list and try again");
-        sync();
-        return;
-      }
-      submit(envelope, hasOv ? "config override updated (pinned)" : "config override set (pinned)");
-    });
+    const ui = { box, btn, st, lock: () => { go.disabled = true; reset.disabled = true; }, unlock: sync };
+    const setWord = hasOv ? "config override updated" : "config override set";
+    go.addEventListener("click", () => this._cfgCommit(id, ctx, ui, verdict(),
+      { set: setWord, setPinned: setWord + " (pinned)", clear: "config override removed (back to stock)" }));
     reset.addEventListener("click", () => {
       if (!hasOv) return;
-      submit(clearEnvelope(), "config override removed (back to stock)");
+      this._cfgSubmit(id, ctx, ui, plan.clearEnvelope(), "config override removed (back to stock)");
     });
     // ---- the variations shelf ----
     const paintVars = () => {
@@ -2092,6 +2138,133 @@ class Deployments extends EnclaveElement {
       sync();
     });
     paintVars(); sync();
+  }
+
+  /* ---- per-row Models: the model volumes this deployment mounts ----
+     The fleet's attested read-only weights (Modelwrap volumes, mounted at
+     /models/<name>) are named by the app config's `volumes` key. This panel
+     is that key as a checklist: every volume a live enclave advertises (union
+     across the fleet, each tagged with where it lives), the ones this
+     deployment mounts ticked. Apply writes the deployment's config override
+     through the same path as the Config tab - the config the deployment runs
+     today (its override, else the version's stock config) with only `volumes`
+     replaced - so the rest of the app's config is carried verbatim, a
+     document too large for the ledger's field is pinned off-chain with the
+     volumes list kept on-chain (the runner places on that manifest without a
+     fetch), and ticking back the stock set drops the override. Placement
+     follows the ticks: a volume lives on the boxes that attached it, so a
+     running app whose new set its box lacks relaunches on a box that has it
+     at its next claim - the panel says so before anything is signed. ---- */
+  async _models(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-mod"); if (!box) return;
+    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", "true");
+    box.hidden = false;
+    const bar = '<div class="ap-attbar">models · ' + esc(id) + '</div>';
+    box.innerHTML = bar + '<div class="term enc-mod-status" role="status" aria-live="polite"><span class="ln dimln">// reading the ledger + fleet…</span></div>';
+    const [ctx, fleet] = await Promise.all([this._cfgRead(id), Enclave.getEnclaves().catch(() => null)]);
+    if (box.hidden || !box.isConnected) return;              // closed while loading
+    const fail = (msg) => { const x = box.querySelector(".enc-mod-status"); x.innerHTML = ""; paintLine(x, "warn", msg); };
+    if (ctx.err) return fail(ctx.err);
+    const { cur, hasOv, ovLost, o0, stock, cap } = ctx;
+    // the config the ticks edit: the override where one exists, the version's
+    // stock config otherwise - the WHOLE document, because the override that
+    // rides out replaces the app's config, not just its volumes key
+    let base = null;
+    if (hasOv && ovLost)
+      return fail("[!] this deployment runs a config override pinned off-chain, and this gateway won’t serve it right now - the enclave fetches and hash-verifies the same CID itself, so the app is unaffected. Try again once the gateway answers, or reset the override from the Config tab");
+    if (hasOv) base = o0 || {};
+    else {
+      if (stock === null) return fail("[x] couldn’t read the version’s config right now - the volumes list is one key of it, so it can’t be edited without the rest; try again shortly");
+      try { base = stock ? JSON.parse(stock) : {}; } catch(e){ base = {}; }
+    }
+    if (!base || Array.isArray(base) || typeof base !== "object") base = {};
+    const nowVols = volumesOf(base);          // what the app mounts today
+    let stockVols = [];
+    try { stockVols = volumesOf(stock ? JSON.parse(stock) : {}); } catch(e){}
+    // the fleet's volumes (Modelwrap): union across serving enclaves, each
+    // tagged with which boxes carry it - a one-box volume pins the deployment
+    // to that box, and the picker says so
+    const byName = new Map();
+    for (const e of (fleet || [])){
+      if (!e || e.serving === false || e.relay === true) continue;
+      for (const v of ((e.availability && e.availability.volumes) || [])){
+        if (!v || !v.name) continue;
+        const c = byName.get(v.name) || { name: v.name, bytes: 0, onnx: false, gguf: false, sd: false, count: 0, hosts: [] };
+        c.bytes = Math.max(c.bytes, v.bytes || 0); c.onnx = c.onnx || !!v.onnx; c.gguf = c.gguf || !!v.gguf; c.sd = c.sd || !!v.sd; c.count++;
+        c.hosts.push(e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0]);
+        byName.set(v.name, c);
+      }
+    }
+    // a volume the config names that no live box carries is listed anyway,
+    // ticked and flagged: a name nobody serves is a deployment nobody claims,
+    // and unticking it here is the way out
+    for (const n of nowVols) if (!byName.has(n)) byName.set(n, { name: n, bytes: 0, count: 0, hosts: [], missing: true });
+    const vols = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const selected = new Set(nowVols);
+    const lr = (this._list || []).find(x => x.id === id);
+    const here = (lr && lr.enclave) || "";       // the box serving it right now (absent while queued/stopped)
+    box.innerHTML = bar
+      + '<div class="enc-mod-body">'
+      +   '<p class="en-intro">The model volumes this app mounts at <b>/models/&lt;name&gt;</b>: attested read-only weights an enclave carries, named by the <b>volumes</b> key of the app’s config. '
+      +     'Tick what <b>this deployment</b> should mount. Applying writes the list into this deployment’s own config (the config it runs today, with only the volumes changed) - '
+      +     'the version in the catalog and every other deployment stay untouched.</p>'
+      +   (vols.length ? '<c-volume-picker></c-volume-picker>'
+                       : '<p class="en-intro dim">No live enclave is carrying a model volume right now, and this deployment names none - there is nothing to pick from yet.</p>')
+      +   '<div class="ec-meta em-meta" role="status" aria-live="polite"></div>'
+      +   '<div class="ec-acts"><button class="btn btn-sm btn-primary em-go" type="button">Apply</button></div>'
+      + '</div>'
+      + '<div class="term enc-mod-status" role="status" aria-live="polite"></div>';
+    const st = box.querySelector(".enc-mod-status"), go = box.querySelector(".em-go"), meta = box.querySelector(".em-meta");
+    const picker = box.querySelector("c-volume-picker");
+    if (picker){ picker.selected = selected; picker.volumes = vols; }
+    const paint = (cls, txt) => paintLine(st, cls, txt);
+    const plan = cfgPlan(ctx);
+    paint("info", hasOv
+      ? "// this deployment runs its own config override - the ticks edit its volumes list; the rest of the override is carried verbatim"
+      : "// this deployment mounts the version’s stock volumes" + (stockVols.length ? " (" + stockVols.join(", ") + ")" : " (none)") + " - a change creates a config override for this deployment only");
+    if (here) paint("dimln", "// running on " + here + " - a volume it doesn’t carry moves the app to a box that does, on its next claim");
+    paint("dimln", "// a volume only one enclave carries pins this deployment to that box");
+    const missing0 = nowVols.filter(n => byName.get(n).missing);
+    if (missing0.length) paint("warn", "[!] " + missing0.join(", ") + ": no live enclave carries " + (missing0.length === 1 ? "it" : "these") + " right now - the fleet can’t place this deployment until one does, or until it’s unticked");
+    if ("waf" in cur) paint("dimln", "// the deployment’s protection settings are preserved untouched");
+    if (cur.network) paint("dimln", "// its relay choice is preserved untouched");
+    // the config that rides out: today's document with the ticks as its
+    // `volumes` key - the ones it already names first (in their order), new
+    // ticks after in list order; no ticks = no key
+    const nextObj = () => {
+      const o = { ...base };
+      const keep = nowVols.filter(n => selected.has(n));
+      const names = keep.concat(vols.map(v => v.name).filter(n => selected.has(n) && keep.indexOf(n) === -1));
+      if (names.length) o.volumes = names; else delete o.volumes;
+      return o;
+    };
+    const verdict = () => plan.verdictOf(nextObj());
+    const sync = () => {
+      const v = verdict();
+      const names = volumesOf(nextObj());
+      meta.classList.toggle("warn", !!v.err);
+      const list = names.length ? names.join(", ") : "no model volumes";
+      // the box serving it now lacks a tick: say the app will move, before the signature
+      // (a volume NO box carries is the warn line's business, not this note's)
+      const away = here ? names.filter(n => !byName.get(n).missing && (byName.get(n).hosts || []).indexOf(here) === -1) : [];
+      const moveNote = away.length ? " · " + here + " doesn’t carry " + away.join(", ") + ": the app relaunches on a box that does" : "";
+      if (v.err) meta.textContent = "[!] " + v.err;
+      else if (v.same) meta.textContent = list + " - unchanged";
+      else if (v.clear) meta.textContent = list + " - the version’s stock set: applying removes this deployment’s config override" + moveNote;
+      else if (v.mode === "split") meta.textContent = list + " · the config is too big for the ledger’s field, so Apply pins it off-chain and keeps the volumes list on-chain (~" + v.bytes + " of " + cap + " envelope bytes)" + moveNote;
+      else meta.textContent = list + " · " + v.bytes + " of " + cap + " envelope bytes" + moveNote;
+      go.disabled = !(v.set || v.clear);
+      go.textContent = v.clear ? "Remove override" : "Apply";
+    };
+    if (picker) picker.addEventListener("change", sync);
+    const ui = { box, btn, st, lock: () => { go.disabled = true; }, unlock: sync };
+    go.addEventListener("click", () => {
+      const names = volumesOf(nextObj());
+      const word = names.length ? "model volumes set to " + names.join(", ") : "model volumes cleared";
+      this._cfgCommit(id, ctx, ui, verdict(), { set: word, setPinned: word + " (config pinned)", clear: word + " (override removed, back to stock)" });
+    });
+    sync();
   }
 
   /* ---- per-row Secrets section: private env vars, relay-stored ----
@@ -2778,7 +2951,7 @@ class Deployments extends EnclaveElement {
     const here = leaseHostOf(d, fleet);
     // The app's own requirements decide where it can go. A catalog deployment
     // carries its version's spec (hardware + model volumes); the deployment's
-    // own config overrides the volume list, exactly as the deploy console does.
+    // own config overrides the volume list (the row's Models tab edits it).
     const cr = parseCatalogRef(d.appRef);
     const ver = cr && STORE.byId[cr.appId] && STORE.byId[cr.appId].versions
       ? STORE.byId[cr.appId].versions[cr.index] : null;
@@ -3077,7 +3250,7 @@ class Deployments extends EnclaveElement {
      rebuilds the row and strands the reveal in detached DOM (the dropdown
      "closes" under the wallet popup). The poll catches up once it clears. */
   _panelPinned() {
-    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
+    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
   }
   _startPoll() {
     if (this._poll) return;

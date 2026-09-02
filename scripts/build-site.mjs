@@ -228,30 +228,25 @@ const LASTMOD = (() => {
 fs.writeFileSync(path.join(DIST, "sitemap.xml"),
   '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-  ["", "apps/", "apps/deploy", "apps/publish", "develop", "terms", "privacy"]
+  ["", "apps/", "apps/publish", "develop", "terms", "privacy"]
     .map(u => `  <url><loc>https://enclave.host/${u}</loc><lastmod>${LASTMOD}</lastmod></url>`).join("\n") +
   "\n</urlset>\n");
 // Google's favicon crawler needs a fetchable file, and legacy fetchers ask
 // for /favicon.ico blindly - it must exist at the site root
 fs.copyFileSync(path.join(SITE, "favicon.ico"), path.join(DIST, "favicon.ico"));
-/* nested console/form URLs (/apps/deploy, /apps/publish): the SAME apps
-   document one directory deep, with <base href="../"> injected so its
-   relative asset/link URLs still resolve from the site root. The base is
-   itself RELATIVE, so path-gateway subpath mounts keep working; the router
-   reads document.baseURI, so it always knows the real root. */
+/* the nested publish-form URL (/apps/publish): the SAME apps document one
+   directory deep, with <base href="../"> injected so its relative asset/link
+   URLs still resolve from the site root. The base is itself RELATIVE, so
+   path-gateway subpath mounts keep working; the router reads
+   document.baseURI, so it always knows the real root. (/apps/deploy, the old
+   console, is a 301 to the store in _redirects now.) */
 fs.mkdirSync(path.join(DIST, "apps"), { recursive: true });
 const appsNested = fs.readFileSync(path.join(DIST, "apps.html"), "utf8")
   .replace("<head>", '<head>\n<base href="../" />');
-/* each nested view is its own indexable page: retitle the copied document so
-   /apps/deploy and /apps/publish carry their own title/description/canonical/
-   OG and a three-level breadcrumb instead of the store's */
+/* the nested view is its own indexable page: retitle the copied document so
+   /apps/publish carries its own title/description/canonical/OG and a
+   three-level breadcrumb instead of the store's */
 const VIEW_HEAD = {
-  deploy: {
-    title: "Deploy an App on a Confidential GPU · Enclave",
-    desc: "Launch a WebAssembly app on an attested H200 enclave straight from your browser: set a GPU share and a CPU share, pay per second in ETH or USDC from your wallet, and watch the live provisioning log. Your wallet is your account.",
-    url: "https://enclave.host/apps/deploy",
-    crumb: "Deploy",
-  },
   publish: {
     title: "Publish a Wasm App · Enclave",
     desc: "List your wasi:http WebAssembly component in Enclave's on-chain app catalog: wasm pinned to IPFS, one transaction on Base, immutable versions. Publishing takes a minute from the browser.",
@@ -275,7 +270,7 @@ const retitle = (html, v) => html
         { "@type": "ListItem", "position": 3, "name": v.crumb, "item": v.url },
       ],
     }) + "\n</script>");
-for (const v of ["deploy", "publish"])
+for (const v of ["publish"])
   fs.writeFileSync(path.join(DIST, "apps", v + ".html"), retitle(appsNested, VIEW_HEAD[v]));
 // the apps/ DIRECTORY now exists in the DAG, which SHADOWS the /apps ->
 // /apps.html rewrite (_redirects only fires for absent paths): give the

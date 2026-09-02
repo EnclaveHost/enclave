@@ -19,7 +19,7 @@ import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featu
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
-import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, REF_CACHE, PORTS_CACHE, SPECS_CACHE, specOf, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
+import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -332,45 +332,11 @@ function syncModTabs(me, isOwner){
   }
 }
 
-// Hand the picked version to the deploy view: stash everything it needs
-// (sessionStorage survives the navigation; the ?app= param makes the link
-// shareable - a fresh visitor's deploy console re-resolves it from the catalog).
-function useInDeploy(app, v, idx){
-  const friendly = app.slug + ":" + v.version;      // human-friendly; resolves to the version RECORD at deploy
-  REF_CACHE[friendly] = catalogRef(app.appId, idx);
-  PORTS_CACHE[friendly] = v.ports || "";
-  SPECS_CACHE[friendly] = specOf(v);
-  const manifest = v.config || "";
-  const cfgPreview = stripMedia(manifest);          // hide the _media block from the deploy config preview
-  // A rev-7 version keeps its real config at a CID and only the ROUTING
-  // MANIFEST on-chain. Handing that manifest over as the config would put
-  // {"wasi":…,"volumes":…} in the deploy console's App config box, where it
-  // diffs against the version's (empty) cached config and rides the create
-  // envelope as an override — the deployment would run with the manifest as
-  // its ENCLAVE_CONFIG and never see the publisher's real config. Pass the CID
-  // instead and let the deploy console fetch it.
-  CONFIG_CACHE[friendly] = v.configCid ? "" : cfgPreview;   // the VERSION's config -> shown read-only on the deploy form
-  MANIFEST_CACHE[friendly] = manifest;               // placement keys: always the record's inline field
-  CONFIG_CID_CACHE[friendly] = v.configCid || "";
-  try {
-    // the RAW specs ride along - the deploy page derives the dial floors from
-    // them against the fleet hardware IT has adopted (percents minted here
-    // could divide by a different, staler server spec)
-    sessionStorage.setItem("enclave_use_in_deploy", JSON.stringify({
-      friendly, appId: app.appId, index: idx, ports: v.ports || "", spec: SPECS_CACHE[friendly],
-      config: CONFIG_CACHE[friendly], manifest, configCid: v.configCid || "" }));
-  } catch(e){}
-  // the console's own URL, share-friendly: /deploy?app=hello-world_1.0.0
-  // (the "_" form keeps the query un-percent-encoded; deploy.js normalizes it
-  // back to slug:version). New search -> the router re-swaps <main>, and
-  // boot()'s applyUseInDeploy prefills from ?app=.
-  navigate("deploy?app=" + encodeURIComponent(friendly.replace(/:(?=[^:]*$)/, "_")), { push: true });
-}
-
 /* ---- quick deploy: the store card's one-decision modal. Wallet balance,
-   an amount, the runtime it buys at the app's MINIMUM shares - then the
+   an amount, the runtime it buys at the app's START shares - then the
    shared deployOnChain flow (public endpoint, catalog ports, USDC).
-   "Advanced settings" is the full console (useInDeploy). ---- */
+   Everything else about a deployment - its config, model volumes,
+   protection, relay, version, shares - is a tab on its dashboard row. ---- */
 let qdEsc = null;
 function closeQuick(){
   const host = $("#quickDeploy"); if (host) host.remove();
@@ -381,8 +347,7 @@ function quickDeploy(app, v, idx){
   // First paint sizes on the adopted aggregate; the TARGET enclave replaces
   // it the moment the fleet rows land (same live-update pattern as the
   // contract prices below) - the modal then names the box the app deploys
-  // to and sizes the minimum shares against ITS hardware, exactly like the
-  // full console's "deploys to" line.
+  // to and sizes the minimum shares against ITS hardware.
   // specOf, never the raw version: `gpuOptional` (and `volumes`) live in the
   // approved CONFIG, so sizing off `v` read the publisher's card as REQUIRED
   // and the first paint quoted a share the target pass then dropped to 0.
@@ -392,7 +357,8 @@ function quickDeploy(app, v, idx){
   // 0% GPU floor (its declared card is a preference, not a requirement), and
   // buying that floor deployed a model app onto CPU cores while the modal said
   // nothing about a card. startSharesFor buys the slice the version declares;
-  // the full console ("Advanced →") is where someone chooses CPU-only instead.
+  // a deployer who wants it on cores instead resizes from the row's Version
+  // tab afterwards (or creates at any dial from the CLI).
   // Recomputed with `mins` on every target change - the slice sizes against the
   // box this actually lands on, like the floors do.
   // A pre-13 ledger still refuses a GPU share under the CPU one, so every
@@ -446,7 +412,6 @@ function quickDeploy(app, v, idx){
               : 'payments are crypto-only, non-custodial and final, and uptime isn’t guaranteed.') + '</span></label>' +
       '<div class="qd-actions">' +
         '<button class="btn btn-primary qd-go" type="button">▸ Deploy</button>' +
-        '<button class="btn qd-adv" type="button" title="Pick shares, open ports, app config, and payment options on the full console">Advanced →</button>' +
         '<button class="btn qd-cancel" type="button">Cancel</button>' +
       '</div>' +
     '</div>';
@@ -553,8 +518,8 @@ function quickDeploy(app, v, idx){
     if (acct) capFee = "This app charges a publisher fee, which credit deploys don’t support yet - connect a wallet to deploy it.";
     paintRate();
   }).catch(() => {});
-  // WHERE this deploys: the same ranking as the full console's target
-  // dropdown - only claiming enclaves, cheapest fitting box on top as
+  // WHERE this deploys: the fleet ranking (core/pricing rankEnclavesFor) -
+  // only claiming enclaves, cheapest fitting box on top as
   // "auto", every other candidate user-selectable. The mins (and so the
   // rate) resize to the chosen box's hardware; a fleet that can't run the
   // app pins Deploy off with the reason instead.
@@ -633,7 +598,6 @@ function quickDeploy(app, v, idx){
     conn.disabled = false; loadBal();
   });
   host.querySelector(".qd-cancel").addEventListener("click", closeQuick);
-  host.querySelector(".qd-adv").addEventListener("click", () => { closeQuick(); useInDeploy(app, v, idx); });
   go.addEventListener("click", async () => {
     const { usd, ok } = amountOf(); if (!ok) return;
     // the flow lives in the deploy chunk; it navigates to the dashboard and
@@ -727,6 +691,44 @@ function moduleMem64(u8){
         if (count === 0) return false;
         const [flags] = uleb(u8, k);
         return (flags & 0x04) !== 0;              // limits flag bit 2: 64-bit index
+      }
+      i = j + size;
+    }
+  } catch(_){ return false; }
+  return false;
+}
+// wasm64 COMPONENT detection: a component (layer 1) whose first memory-bearing
+// core module (section id 1) declares a 64-bit memory. Lockstep with the CLI's
+// componentMem64 and the runner's wasm_manager._component_mem64.
+function componentMem64(u8){
+  if (u8.length < 8 || !(u8[0] === 0 && u8[1] === 0x61 && u8[2] === 0x73 && u8[3] === 0x6d) || (u8[6] | (u8[7] << 8)) !== 1) return false;
+  const uleb = (buf, i) => {
+    let r = 0, s = 0;
+    for (;;){
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7; if (s > 35) throw new Error("uleb too long");
+    }
+  };
+  const hasMemory = (m) => {
+    if (m.length < 8) return false;
+    for (let i = 8; i < m.length; ){
+      const sid = m[i];
+      const [size, j] = uleb(m, i + 1);
+      if (sid === 5){ const [count] = uleb(m, j); return count > 0; }
+      i = j + size;
+    }
+    return false;
+  };
+  try {
+    for (let i = 8; i < u8.length; ){
+      const sid = u8[i];
+      const [size, j] = uleb(u8, i + 1);
+      if (sid === 1){                             // core module
+        const inner = u8.subarray(j, j + size);
+        if (hasMemory(inner)) return moduleMem64(inner);
       }
       i = j + size;
     }
@@ -938,7 +940,7 @@ async function onPubFile(e){
     pubSet = hasBytes(pubBytes, "[set-spawn-indirect]");
     // wasm64 (memory64): structural memory-section sniff, not a marker scan
     // (publishApp stamps `mem64: true` — claim routing to mem64 engines)
-    pubMem64 = moduleMem64(pubBytes);
+    pubMem64 = moduleMem64(pubBytes) || componentMem64(pubBytes);
   } catch(_){ pubWasi = null; pubThreads = false; pubSet = false; pubMem64 = false; }
   if (seq !== pubSeq) return;
   setPubUploading(true);
@@ -1448,7 +1450,7 @@ async function prefillPublish(app){
   // stash, then navigate: "add version" fires from the app's own page
   // (apps?app=…), whose URL search differs from /apps/publish, so the router
   // SWAPS <main> - a form filled before the swap would be wiped. Persist the
-  // prefill and let the publish view apply it after it mounts (like useInDeploy).
+  // prefill and let the publish view apply it after it mounts.
   // The app + picked version ALSO ride the URL (?app=<appId>&v=<idx>): the
   // stash is single-use, so a refresh/back/shared link rebuilds the same
   // prefill from the catalog off the URL instead.
@@ -1493,43 +1495,39 @@ async function applyPrefillPublish(){
   pubStatus(s.note || "");
 }
 /* ============================================================
-   Hash-routed sub-pages that replace the store content
-   (deliberately not header tabs):
-     apps.html#publish - the publish form
-     apps.html#deploy - the deploy console (usually arriving as
-                         ?app=slug:ver from a card's Use in deploy)
+   Hash-routed sub-page that replaces the store content
+   (deliberately not a header tab):
+     apps.html#publish - the publish form (/apps/publish is its
+                         router alias; the legacy hash canonicalizes)
    Plain hash navigation gives us history, back/forward, and
    shareable links for free; the soft-nav router ignores '#'
-   hrefs, so there's no double handling.
+   hrefs, so there's no double handling. The old deploy console
+   (/apps/deploy) is gone: an app deploys from its card, and
+   everything it used to configure is a tab on the dashboard row.
    ============================================================ */
 function applyView(){
-  const store = $("#storeView"), pub = $("#publishView"), dep = document.getElementById("deploy"), det = $("#appDetailView");
-  if (!store || !pub || !dep) return;
-  // the PATHNAME names the view now (/apps/deploy and /apps/publish are
-  // router aliases of this page); the legacy #deploy/#publish hashes stay
-  // honored and canonicalize in place to the pretty nested pathname
-  // (document.baseURI = the site root - the alias documents carry <base>)
+  const store = $("#storeView"), pub = $("#publishView"), det = $("#appDetailView");
+  if (!store || !pub) return;
+  // the PATHNAME names the view now (/apps/publish is a router alias of this
+  // page); the legacy #publish hash stays honored and canonicalizes in place
+  // to the pretty nested pathname (document.baseURI = the site root - the
+  // alias document carries <base>)
   const sub = location.pathname.split("/").pop();
-  const view = sub === "deploy" || location.hash === "#deploy" ? "deploy"
-             : sub === "publish" || location.hash === "#publish" ? "publish" : "store";
-  if (sub !== view && (location.hash === "#deploy" || location.hash === "#publish"))
+  const view = sub === "publish" || location.hash === "#publish" ? "publish" : "store";
+  if (sub !== view && location.hash === "#publish")
     // a bare #publish (the toolbar link) must NOT inherit the detail page's
     // ?app - on /apps/publish that param means "prefill this app", which only
-    // the Add version button intends; #deploy keeps its ?app=slug_ver contract
-    history.replaceState(history.state, "", new URL(".", document.baseURI).pathname + "apps/" + view
-      + (view === "publish" ? "" : location.search));
+    // the Add version button intends
+    history.replaceState(history.state, "", new URL(".", document.baseURI).pathname + "apps/publish");
   // the base Apps view splits into the grid and a single app's page: apps?app=<appId>
   const appId = view === "store" ? new URLSearchParams(location.search).get("app") : null;
   const detail = !!appId;
-  store.closest("section").hidden = view === "deploy";
-  dep.hidden = view !== "deploy";
   store.hidden = view !== "store" || detail;
   if (det) det.hidden = !detail;
   pub.hidden = view !== "publish";
-  document.title = view === "publish" ? "Publish · Enclave" : view === "deploy" ? "Deploy · Enclave" : "Apps · Enclave";
+  document.title = view === "publish" ? "Publish · Enclave" : "Apps · Enclave";
   if (view !== "publish") appliedPubKey = null;         // next publish entry applies its prefill fresh
-  if (view === "deploy") ensureDeployBooted();
-  else if (view === "publish") applyPrefillPublish().catch(() => {});   // stashed "add version" prefill, or one rebuilt from ?app=<appId>&v=<idx>
+  if (view === "publish") applyPrefillPublish().catch(() => {});   // stashed "add version" prefill, or one rebuilt from ?app=<appId>&v=<idx>
   else if (detail) renderDetail(appId);
   else renderApps();   // the page size depends on the grid's real width - re-slice now that the store view is visible
   scrollTo(0, 0);
@@ -1567,8 +1565,7 @@ function renderActiveView(){
   // publish entered by URL (refresh/shared link): the ?app prefill may have
   // been waiting on this catalog read - idempotent via appliedPubKey
   if (sub === "publish") return void applyPrefillPublish().catch(() => {});
-  const onStore = sub !== "deploy";
-  const appId = onStore ? new URLSearchParams(location.search).get("app") : null;
+  const appId = new URLSearchParams(location.search).get("app");
   if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
 }
 /* the toolbar's ↻ - a real re-read of the catalog (past the 2-minute freshness
@@ -1603,21 +1600,9 @@ const nextEvent = (name, ms = 20000) => new Promise(resolve => {
   const t = setTimeout(done, ms);
   document.addEventListener(name, done);
 });
-/* the console's logic lives in the code-split deploy module; boot it the
-   first time the view opens on each <main> mount (fresh DOM per swap) */
-let deployMount = null;
-function ensureDeployBooted(){
-  const el = document.getElementById("deploy");
-  if (!el || deployMount === el) return;
-  deployMount = el;
-  import("./deploy.js").then(m => {
-    if (document.getElementById("deploy") === el) m.boot();
-    else deployMount = null;                      // mount swapped mid-import; boot on next entry
-  }).catch(e => console.warn("[apps] deploy console failed to boot:", e));
-}
 function openPublish(appId, vi){
   // same-document pathname flip: the router pushes /publish and re-signals
-  // the view (no fetch, no <main> swap - apps/deploy/publish share one).
+  // the view (no fetch, no <main> swap - apps/publish share one).
   // ?app=<appId>[&v=<idx>] makes the prefill survive a refresh: the URL is
   // the durable copy of what the single-use stash carries.
   navigate("publish" + (appId ? "?app=" + encodeURIComponent(appId) + (vi != null && vi >= 0 ? "&v=" + vi : "") : ""),

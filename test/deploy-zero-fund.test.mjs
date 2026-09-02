@@ -2,12 +2,12 @@
 // modal used to pin its Deploy button off under one cent, and the shared
 // on-chain flow paid unconditionally - so a $0 wallet deploy minted the record
 // and then died in payForRuntime's "Fund at least $0.01" with a retry offer
-// for nothing. Three things hold the new shape together, all source checks
+// for nothing. Two things hold the new shape together, both source checks
 // (the modal needs a DOM this suite doesn't have): the modal's floor comes
 // from the account kind (wallet: 0, credit: a cent - the relay refuses a
-// credit order that buys no runtime), the shared flow skips the funding step
-// at $0 instead of throwing on it, and the console's budget field carries the
-// same floor as the flow behind it.
+// credit order that buys no runtime), and the shared flow skips the funding
+// step at $0 instead of throwing on it. (The deploy console that once carried
+// the same floor in its budget field is gone - the modal is the only entry.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -41,10 +41,4 @@ test("the shared on-chain flow skips funding at $0 and only watches a claim when
   assert.match(flow, /w\.line\("warn", rejected \? "\[x\] funding rejected in wallet\."[\s\S]{0,400}?offerRetry\(w, id, fund, asset\)/);
   // credit deploys still need a budget: the vault funds inside the create op
   assert.match(flow, /if \(!\(fund > 0\)\)\{ w\.line\("warn", "\[!\] credit deploys need a budget/);
-});
-
-test("the console's budget field and its dry run agree with the flow", () => {
-  assert.match(read("site/apps.html"), /id="cfgBudget" value="10" min="0"/);
-  const src = read("site/js/pages/deploy.js");
-  assert.match(src, /"2\) no funding now \(\$0\): the record is created empty/);
 });

@@ -2,7 +2,7 @@
    Checkout - "Add credit". One number, one button: pick a
    dollar amount, pay on a Stripe-hosted page, and the balance
    lands on your account. Deploying happens where deploying
-   belongs (the Apps deploy console / dashboard) and draws on
+   belongs (an app's card in the store / the dashboard) and draws on
    this balance with a passkey tap.
 
    Credit is closed-loop prepaid service credit: spendable only

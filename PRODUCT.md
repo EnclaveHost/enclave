@@ -24,7 +24,7 @@ Supporting mechanisms (never lead, always available as proof): the full chain of
 
 ## Operating Context
 
-The site is a static, IPFS-published app (LWC-style web components, soft-nav router) at enclave.host: catalog browsing, wallet connect (passkeys + SIWE), Stripe Checkout for credit, deploy console, dashboard with live provisioning output and in-browser attestation checks, host console, developer docs with OpenAPI reference. Deployed apps serve at `https://<id>.app.enclave.host` or on customer domains with certificates minted inside the enclave. The same platform is driven by the `enclave` CLI and by coding agents via the MCP server at mcp.enclave.host — agents are first-class users, not an afterthought.
+The site is a static, IPFS-published app (LWC-style web components, soft-nav router) at enclave.host: catalog browsing, wallet connect (passkeys + SIWE), Stripe Checkout for credit, one-click deploy from an app's card, dashboard with live provisioning output, per-deployment settings tabs (config, model volumes, protection, relay, secrets, domains) and in-browser attestation checks, host console, developer docs with OpenAPI reference. Deployed apps serve at `https://<id>.app.enclave.host` or on customer domains with certificates minted inside the enclave. The same platform is driven by the `enclave` CLI and by coding agents via the MCP server at mcp.enclave.host — agents are first-class users, not an afterthought.
 
 ## Capabilities and Constraints
 

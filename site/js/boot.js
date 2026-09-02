@@ -21,7 +21,7 @@ import "./core/addressbook.js";   // resolve contract addresses from the on-chai
 
 const PAGES = {
   overview:  () => import("./pages/overview.js"),
-  apps:      () => import("./pages/apps.js"),      // also hosts #publish and the deploy console (deploy.js is its lazy chunk)
+  apps:      () => import("./pages/apps.js"),      // also hosts #publish (deploy.js is the lazy chunk behind its quick-deploy modal)
   develop:   () => import("./pages/develop.js"),
   dashboard: () => import("./pages/dashboard.js"), // signed-in view: run log + My Apps
   admin:     () => import("./pages/admin.js"),     // operator console - deliberately absent from the nav
@@ -33,15 +33,15 @@ const PAGES = {
   host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
   "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
 };
-// URL aliases: pathnames that render ANOTHER page's document. /apps/deploy
-// and /apps/publish are the canonical console/form URLs (share links read
-// /apps/deploy?app=hello-world_1.0.0), but both stay views of the Apps page -
-// apps.js's applyView picks the view from the pathname. Their documents are
-// build-time copies of apps.html carrying <base href="../">, so the router
+// URL aliases: pathnames that render ANOTHER page's document. /apps/publish
+// is the canonical publish-form URL, but it stays a view of the Apps page -
+// apps.js's applyView picks the view from the pathname. Its document is a
+// build-time copy of apps.html carrying <base href="../">, so the router
 // resolves everything against document.baseURI (= the site root, wherever
-// the site is mounted).
-const PAGE_ALIAS  = { deploy: "apps", publish: "apps" };
-const PAGE_PRETTY = { deploy: "apps/deploy", publish: "apps/publish" };
+// the site is mounted). (/apps/deploy, the old console, now 301s to the
+// store via _redirects - deploying is one click on an app's card.)
+const PAGE_ALIAS  = { publish: "apps" };
+const PAGE_PRETTY = { publish: "apps/publish" };
 const pageOf = (pathname) => {
   const segs = pathname.split("/");
   const base = (segs.pop() || segs.pop()) || "index.html";   // trailing-slash tolerant
@@ -127,7 +127,7 @@ export async function navigate(href, opts) {
   url.pathname = prettyPath(page);                           // the bar always shows the pretty form
 
   // already rendered - same document, maybe a different sub-view: an alias
-  // and its target (apps ↔ deploy/publish) share one <main>, so the flip is
+  // and its target (apps ↔ publish) share one <main>, so the flip is
   // just a URL push + the view signal; no fetch, no swap. Same search only:
   // a new ?app= must re-boot the page so its prefill logic runs.
   const curPage = pageOf(current.pathname);

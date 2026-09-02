@@ -148,7 +148,7 @@ export function volGbOf(a, want){
 // v: a catalog version's exact specs (zeros = no minimum). `spec` picks the
 // hardware to divide by: omitted = the adopted fleet spec (aggregate mode),
 // or a specific enclave's hardware from enclaveSpecOf (target mode — the
-// deploy console sizes against the box the deployment would land on).
+// quick-deploy modal sizes against the box the deployment would land on).
 // `opts.volGb` is the size of the model volumes this deployment will mount on
 // that box (volGbOf). It corrects the GPU floor only, exactly as the runner
 // does: on a card the weights are resident in the tenant's own slice, so a

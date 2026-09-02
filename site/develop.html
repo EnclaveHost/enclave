@@ -306,7 +306,7 @@ for i in $(seq 8); do curl -s 127.0.0.1:8080/ &amp; done; wait   # concurrent on
             </tbody>
           </table></div>
           <p>Unlisted CIDs can't deploy: the catalog listing carries everything a deploy needs on-chain - the resource specs that floor the dials, the open ports, the publisher's hourly fee if the version charges one (shown in the rate before you sign; paid to the publisher's wallet out of each funding), and the owner's approval of that exact CID. Built something new? Publish it first (<a href="#docs-publish">chapter 04</a>), then deploy the slug.</p>
-          <p>The easy path is the <a href="apps/deploy">Deploy console</a>: your published app's card even has a <b>Use in Deploy</b> button that prefills the reference and open ports. Tick <b>Dry run</b> to inspect every call before spending anything. The console speaks the same public API you can drive yourself:</p>
+          <p>The easy path is the <a href="apps">store</a>: your published app's card has a <b>Deploy</b> button that sizes the shares from the version's specs, applies its open ports and config, and funds it from your wallet in one step; the model volumes, config, protection and relay of a running deployment are tabs on its dashboard row. The site speaks the same public API you can drive yourself:</p>
 
           <h4>Sign in: an Ethereum signature - your wallet is your account</h4>
           <c-code fn="deploy.js · SIWE handshake"><pre><code>const API = "https://api.enclave.host/v1";
@@ -504,7 +504,7 @@ curl -X POST --data-binary 'round trip' 127.0.0.1:8080/echo</code></pre></c-code
         <!-- 09 ------------------------------------------------------------ -->
         <article class="doc" id="docs-ports">
           <h3><span class="n">09</span>Service apps: open ports &amp; ENCLAVE_PORTS</h3>
-          <p>Declaring open ports (on the version you publish, prefilled into the deploy request by <b>Use in Deploy</b>) changes how your app runs: instead of <code>wasmtime serve</code> calling your handler, the enclave launches it with <code>wasmtime run</code> as a <b>long-running command component</b> (a <code>main()</code>) granted <code>wasi:sockets</code>: it binds its declared ports itself, and may also make outbound TCP/UDP connections and DNS lookups. Rust's <code>std::net</code> on <code>wasm32-wasip2</code> maps straight onto it.</p>
+          <p>Declaring open ports (on the version you publish, applied to every deployment of it from the on-chain record) changes how your app runs: instead of <code>wasmtime serve</code> calling your handler, the enclave launches it with <code>wasmtime run</code> as a <b>long-running command component</b> (a <code>main()</code>) granted <code>wasi:sockets</code>: it binds its declared ports itself, and may also make outbound TCP/UDP connections and DNS lookups. Rust's <code>std::net</code> on <code>wasm32-wasip2</code> maps straight onto it.</p>
           <div class="tbl"><table class="params">
             <thead><tr><th scope="col">entry</th><th scope="col">meaning</th><th scope="col">reached at</th></tr></thead>
             <tbody>
@@ -868,7 +868,7 @@ curl -H "Authorization: Bearer $LOGIN_TOKEN" \
             <li><code>wasmtime serve</code> (or <code>run</code>, for service apps) runs it locally, including with the enclave-parity flags.</li>
             <li>No hardcoded ports anywhere; everything comes from <code>ENCLAVE_PORTS</code>.</li>
             <li>All writes go under <code>/data</code>, stay under the cap, and survive being wiped.</li>
-            <li>Publish on the <a href="apps">Apps</a> tab → wait for the version's <b>Approved</b> badge → <a href="apps">deploy</a> with <b>Use in Deploy</b>.</li>
+            <li>Publish on the <a href="apps">Apps</a> tab → wait for the version's <b>Approved</b> badge → <a href="apps">deploy</a> it from its card.</li>
             <li>Verify your own deployment's <a href="#docs-attest">attestation</a>, then hand the same check to your users.</li>
           </ol>
         </article>
@@ -937,7 +937,7 @@ enclave deploy hello:1 --fund 2          # create, fund $2, wait for live; share
 enclave attest 0x3f2a9c1b                # verify before you send data (any unique id prefix)
 curl https://3f2a9c1b.app.enclave.host/      # → hello from Enclave
 enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
-          <p>Everything the console does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
+          <p>Everything the site does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
         </article>
     </div>
   </div>

@@ -103,7 +103,7 @@ test("shareRates reads the adopted hardware, not constants", () => {
   assert.ok(Math.abs(r.ramGb - 0.08 * 64) < 1e-9);
 });
 
-/* ---- per-enclave targeting (the deploy console's "deploys to X" pick) ---- */
+/* ---- per-enclave targeting (the quick-deploy modal's "deploys to X" pick) ---- */
 
 const row = (name, a, extra) => ({ name, endpoint: "https://" + name + ".example", availability: a, ...(extra || {}) });
 const GPU_BOX = { gpu: true, claimEnabled: true, ...H200, gpuShareFree: 0.4, cpuShareFree: 0.79 };
