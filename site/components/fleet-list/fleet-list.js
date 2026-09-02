@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -100,6 +100,24 @@ class FleetList extends EnclaveElement {
           // silicon is, and that is exactly `sh`.
           const cls = enclaveClassOf(e);
           const inTee = cls.inTee;
+          // Whether the box's CPU is a TEE at all, from evidence (see teeCpuOf):
+          // the technology its own attestation document presented, or the
+          // relay's verified SEV-SNP attach. Independent of the card, and never
+          // inferred from the box having none.
+          const tc = teeCpuOf(e);
+          const teeCpuBadge = tc.real
+            ? '<span class="ap-badge ok" title="' + esc(tc.label) + ' confidential VM: '
+              + (tc.source === "relay"
+                  ? 'the relay verified a fresh hardware quote from this box when it attached'
+                  : 'this box\u2019s attestation document presents a hardware quote')
+              + ', so every vCPU it sells runs inside the measured enclave and is covered by'
+              + ' its attestation.">tee cpu</span>'
+            : tc.known
+            ? '<span class="ap-badge warn" title="This box reports no CPU TEE (attestation format '
+              + esc(tc.technology) + '): nothing it sells is covered by a hardware attestation.">no tee cpu</span>'
+            : '<span class="ap-badge" title="This box has not reported whether its CPU is a TEE:'
+              + ' its build predates the field, or its attestation document has not been read yet.'
+              + ' Only a hardware quote earns the green pill.">cpu</span>';
           // What is SELLABLE is the worker's budget, not the physical card: the
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
@@ -129,18 +147,22 @@ class FleetList extends EnclaveElement {
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
-            // ONE badge, naming what the box is. Jade "TEE GPU" for a card INSIDE
-            // the measured enclave, iris "GPU" for one on the untrusted host
-            // reached by masked offload -- the ABSENCE of "tee" is the signal,
-            // and the tooltip says outright that this card is outside the
-            // enclave and outside its measurement. Jade "TEE CPU" only when there
-            // is no card at all: the box itself IS the confidential enclave, and
-            // every vCPU it sells runs inside the measured VM, so it earns the same
-            // green pill as an in-enclave card. A box with a GPU is not a CPU box
-            // that happens to have one, and badging it both ways buries the thing
-            // a buyer came to look for. Every row still shows its CPU POOL
-            // underneath; the badge answers what the box is, the pools answer
-            // what it has.
+            // TWO badges, each answering a question a buyer has to ask separately.
+            // FIRST the CPU: jade "TEE CPU" only when there is EVIDENCE the box's
+            // CPU is a confidential-computing TEE (the technology its own
+            // attestation document presented, or the relay's verified SEV-SNP
+            // attach) -- never inferred from the box having no card. A separate
+            // root of trust is coming (hosts anchored on a phone), and those boxes
+            // must not inherit a green pill they did not prove: amber "NO TEE CPU"
+            // when the box reports a non-TEE document (a metal dev box), plain
+            // "CPU" when it has not said. THEN the card, if any: jade "TEE GPU"
+            // for one INSIDE the measured enclave, iris "GPU" for one on the
+            // untrusted host reached by masked offload -- the ABSENCE of "tee" is
+            // the signal, and the tooltip says outright that this card is outside
+            // the enclave and outside its measurement. Every row still shows its
+            // CPU POOL underneath; the badges answer what the box is, the pools
+            // answer what it has.
+            + teeCpuBadge
             + (inTee
                 ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
                   + ' enclave and covered by its attestation.">tee gpu</span>'
@@ -151,9 +173,7 @@ class FleetList extends EnclaveElement {
                   + 'verified. The card is outside the enclave and outside its measurement, '
                   + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
                   + 'masking, not by the card.">gpu</span>'
-                : '<span class="ap-badge ok" title="This box is a confidential VM: every'
-                  + ' vCPU it sells runs inside the measured enclave and is covered by its'
-                  + ' attestation.">tee cpu</span>')
+                : "")
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'

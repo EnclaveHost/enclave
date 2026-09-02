@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
   moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
   hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV,
-  enclaveClassOf, shieldedPoolOf } from "../site/js/core/pricing.js";
+  enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -639,6 +639,38 @@ test("a shielded card is never badged as being inside the enclave", () => {
 
   assert.equal(enclaveClassOf({ availability: { gpu: false } }).kind, "cpu");
   assert.equal(enclaveClassOf({}).kind, "cpu");            // a row with no availability is not a GPU
+});
+
+/* The fleet row's "TEE CPU" pill is EVIDENCE, not flavor. For one commit it
+   read "a box with no card is a TEE CPU", which is exactly backwards: a host
+   anchored on some other root of trust (a phone, one day) has no card either
+   and no CPU TEE, and would have worn the green pill for free. The pill has to
+   tell us whether there is a TEE CPU on the system at all. */
+test("TEE CPU is badged from evidence, never from the box having no card", () => {
+  // the box's own attestation document named the technology
+  let t = teeCpuOf({ availability: { gpu: false, teeCpu: "amd-sev-snp" } });
+  assert.equal(t.real, true); assert.equal(t.source, "attestation"); assert.equal(t.label, "AMD SEV-SNP");
+  t = teeCpuOf({ availability: { gpu: true, teeCpu: "intel-tdx" } });
+  assert.equal(t.real, true); assert.equal(t.label, "Intel TDX");
+  // the card does not enter into it: a shielded box on an SNP CPU is a TEE CPU
+  t = teeCpuOf({ availability: { gpu: true, teeCpu: "amd-sev-snp", shielded: { vramGb: 8, vramFreeGb: 4 } } });
+  assert.equal(t.real, true);
+  // the relay verified a fresh SEV-SNP quote at attach: proof from its side
+  t = teeCpuOf({ tunnel: true, mode: "snp", availability: { gpu: false } });
+  assert.equal(t.real, true); assert.equal(t.source, "relay");
+  // a token-attached tunnel proved nothing about its CPU
+  t = teeCpuOf({ tunnel: true, mode: "", availability: { gpu: false } });
+  assert.equal(t.real, false); assert.equal(t.known, false);
+  // a metal dev box says so in its format: a known NO, not an unknown
+  t = teeCpuOf({ availability: { gpu: false, teeCpu: "dev-unattested-metal-v1" } });
+  assert.equal(t.real, false); assert.equal(t.known, true); assert.equal(t.technology, "dev-unattested-metal-v1");
+  // a build that predates the field never said: unknown, and NOT green
+  t = teeCpuOf({ availability: { gpu: false } });
+  assert.equal(t.real, false); assert.equal(t.known, false);
+  assert.equal(teeCpuOf({}).real, false);
+  assert.equal(teeCpuOf({ availability: { gpu: false, teeCpu: null } }).known, false);
+  // and having no card is not evidence of anything
+  assert.equal(teeCpuOf({ availability: { gpu: false, nodeVcpus: 8 } }).real, false);
 });
 
 test("a shielded card is one pool, sized by what it can actually sell", () => {

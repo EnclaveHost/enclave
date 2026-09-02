@@ -1478,6 +1478,14 @@
               "cpu"
             ]
           },
+          "teeCpu": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The CPU-TEE technology this enclave DETECTED from its own attestation document: \"amd-sev-snp\" or \"intel-tdx\" on a confidential VM; a metal dev box reports its unattested format; null until the first document read lands. Never asserted from config or from the flavor. The fleet view badges \"TEE CPU\" only from this (or from the relay's own verified SEV-SNP attach on a tunnel box): a box with no card is not a TEE CPU by default.",
+            "example": "amd-sev-snp"
+          },
           "gpuShareFree": {
             "type": "number",
             "description": "Largest GPU share a single card can still take (0 to 1; 0 on CPU-only enclaves). Requests above this get 409.",
