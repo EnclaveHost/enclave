@@ -19,3 +19,4 @@ c-volume-picker{display:contents;}
 .vol-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
 .vol-list .vol-size{margin-left:auto;white-space:nowrap;padding-left:14px;font-variant-numeric:tabular-nums;}
 .vol-list .vol-where{white-space:nowrap;}
+.vol-list .vol-where.warn{color:var(--amber);}

@@ -8,7 +8,7 @@
    rewritten from the contract the moment the cached price read
    lands; the HTML keeps the last-known values for first paint
    (and for crawlers), same constants-then-contract idiom as the
-   deploy console.
+   quick-deploy modal.
 
    Markup: <span data-live-price="KIND" data-gpu="PCT" data-cpu="PCT">…</span>
    (share dials in whole percent, either may be omitted for 0)

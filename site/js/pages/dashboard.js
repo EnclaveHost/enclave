@@ -36,8 +36,8 @@ on("enclave:account", gate);   // passkey/card session edges gate the same way
 // rows with the same controls wallet rows get, and the credit balance lives in
 // the header popover (wallet.js) next to the wallet users' USDC balance.
 
-/* the fleet capacity panel: the relay's /enclaves table, same sort as the
-   deploy console; polled only while this page's <main> is mounted */
+/* the fleet capacity panel: the relay's /enclaves table (GPU boxes first);
+   polled only while this page's <main> is mounted */
 let _fleetPoll = null;
 async function refreshFleet(){
   const fl = document.querySelector(".dash-fleet c-fleet-list"); if (!fl) return;

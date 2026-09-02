@@ -7,8 +7,8 @@
    each stream their own narrative side by side.
 
    Lives outside any component so a run survives soft navigation:
-   the deploy flow starts on apps.html#deploy, the router swaps
-   <main> to the dashboard, and the same run keeps streaming into
+   the deploy flow starts on the Apps page (a card's Deploy), the
+   router swaps <main> to the dashboard, and the same run keeps streaming into
    the panels there (<c-deployments>' live strips + row panels).
    A HARD reload kills the writers but not the records: each run
    restores flagged `interrupted`, and the dashboard resumes every

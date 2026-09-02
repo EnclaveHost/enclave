@@ -1,222 +1,33 @@
 /* ============================================================
-   Deploy page - the console form (two dials, request preview)
-   and the on-chain create+fund flow. Validation and dry runs
-   render inline; a REAL deploy soft-navigates to the dashboard
-   and streams its narrative into its own run (js/core/runlog - 
-   <c-deployments>' live strips and row Output panels follow it;
-   deploys are concurrent, so fleets stream side by side).
-   <c-fleet-list> / <c-volume-picker> show live capacity.
+   Deploy flow - the on-chain create+fund+watch sequence behind
+   the store's quick-deploy modal (apps.js imports it lazily) and
+   the dashboard's retry/resume paths (<c-deployments>). A real
+   deploy soft-navigates to the dashboard and streams its
+   narrative into its own run (js/core/runlog - <c-deployments>'
+   live strips and row Output panels follow it; deploys are
+   concurrent, so fleets stream side by side).
+   The deploy CONSOLE that used to live in front of this flow is
+   gone: an app deploys from its card with one decision (the
+   amount), and everything else - config, model volumes,
+   protection, relay - is a tab on the deployment's dashboard row.
    ============================================================ */
-import "../../components/header/header.js";
-import "../../components/footer/footer.js";
-import "../../components/toast/toast.js";
-import "../../components/section-head/section-head.js";
-import "../../components/fleet-list/fleet-list.js";
-import "../../components/volume-picker/volume-picker.js";
 import { appLabel, appEndpoint } from "../../components/deployments/deployments.js";
 import { runlog } from "../core/runlog.js";
 import { payForRuntime } from "../core/fund.js";
 import { navigate } from "../boot.js";
-import { $, $$, esc, short, wait, fmtNum, fmtDur, hlJson, hlCode, copyText, showToast, statusCls, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
+import { esc, short, wait, fmtDur, showToast, statusCls } from "../core/util.js";
+import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
-import { vaultOp, getVault } from "../core/vault.js";
-import { minPctsOf, startSharesFor, serverSpec, shareRates, pickEnclaveFor, rankEnclavesFor, freeEnclavesFor, sharesLegalOn, liftSharesForLedger } from "../core/pricing.js";
-import { encCall, DEP_SEL, DEP_CREATED_TOPIC, APPROVAL, depGet, depRate6, depPrices6, depSchemaRev, depMaxGpuMilli, rate6Of, waitReceipt, catVersionFee } from "../core/chain.js";
+import { vaultOp } from "../core/vault.js";
+import { freeEnclavesFor } from "../core/pricing.js";
+import { encCall, DEP_SEL, DEP_CREATED_TOPIC, depGet, depRate6, depSchemaRev, depMaxGpuMilli, waitReceipt, catVersionFee } from "../core/chain.js";
+import { connectWallet, refreshWallet, ensureBaseChain, sendTx } from "../core/wallet.js";
+import { parseCatalogRef, publisherOfRef } from "../core/catalog.js";
 
-// create()'s shape on the live contract (rev 1 carried a removed sshPubKey
-// string): sniffed once at init; the samples and the real encode both use it.
-let depRev = 2;
-import { connectWallet, refreshWallet, ensureBaseChain, sendTx, usdcBalanceOf, ethBalanceOf } from "../core/wallet.js";
-import { STORE, loadCatalog, REF_CACHE, PORTS_CACHE, SPECS_CACHE, CONFIG_CACHE, CONFIG_CID_CACHE, MANIFEST_CACHE, fetchConfigCid, stripMedia, looksFriendly, resolveAppRef, catalogRef, parseCatalogRef, publisherOfRef } from "../core/catalog.js";
-
-/* component handles (assigned in initDeploy) */
-let fleetList = null, volPicker = null;
-let prices6 = null;   // the contract's live prices; estimates fall back to constants until read
-/* the My Apps panel lives on the dashboard now; resolve it at call time
+/* the My Apps panel lives on the dashboard; resolve it at call time
    (present after the deploy flow navigates there, absent otherwise) */
 const depsPanel = () => document.querySelector("c-deployments");
 
-/* ============================================================
-   Console state + request rendering
-   ============================================================ */
-const dep = { gpuPct: 25, cpuPct: 5, minGpuPct: 0, minCpuPct: 1, asset: "USDC", public: true, gpuEnclave: true, volumes: new Set(), waf: false, wafAvail: false, gpuOptional: false, gpuOptAvail: false, cfgAvail: false, devAvail: false, p3Avail: false, cfgCidAvail: false, targetPick: "" };  // targetPick: the user's explicit enclave choice from the target dropdown ("" = auto, the recommended head of the ranking)  // gpuEnclave: from /availability (gpu:false = CPU-only enclave); volumes: the picker's ticks - a MIRROR of the App config JSON's `volumes` key, never a second source; wafAvail: fleet aggregate advertises the options envelope (waf:true = every live runner enforces it - the Protection field only shows then); cfgAvail: the aggregate's configOverride flag (true = every live runner honors the envelope's `config` namespace - only then is the App config box editable)
-
-/* The Protection controls -> the create() options envelope's `waf` object
-   (null = off/unavailable). Mirrors the runner's parse rules (supervisor
-   parseDepOptions): rps + burst always ride together, maxConcurrent,
-   maxBodyMb and the scanner preset only when set - so what the user sees here
-   is exactly what the claim gate will accept. */
-function wafSpec(){
-  if (!dep.waf || !dep.wafAvail) return null;
-  const num = (sel, min, max, dflt) => {
-    const v = parseFloat(($(sel) && $(sel).value) || "");
-    return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : dflt;
-  };
-  const w = { rps: num("#wafRps", 0.1, 10000, 10) };
-  w.burst = Math.round(num("#wafBurst", 1, 100000, Math.max(5, Math.ceil(w.rps * 4))));
-  // in-flight cap: absent = unlimited, which is why it is not defaulted. It is
-  // the limit that matters to a STREAMING app, where one answer holds its
-  // connection open for as long as the model takes to write it - a rate limit
-  // barely touches that, since the abusive shape is few requests held long.
-  const conc = parseFloat(($("#wafConc") && $("#wafConc").value) || "");
-  if (Number.isFinite(conc)) w.maxConcurrent = Math.round(Math.min(10000, Math.max(1, conc)));
-  const body = num("#wafBody", 0.001, 1024, 0);
-  if (body > 0) w.maxBodyMb = body;
-  if ($("#wafScan") && $("#wafScan").checked) w.blockScanners = true;
-  return w;
-}
-function renderAccessNote(){
-  const el = $("#accessNote"); if (!el) return;
-  el.innerHTML = dep.public
-    ? "anyone can reach the app endpoint, for websites, APIs, servers; management stays owner-only."
-    : "only your wallet can reach the app, for private/confidential jobs; open it in a browser and it asks you to sign in first.";
-}
-
-// The relay's /enclaves rows (refreshFleet keeps them fresh; null = no fleet
-// view, e.g. pointed straight at one enclave — aggregate math then applies).
-let fleetRows = null;
-
-/* Which enclave the picked app would LAND ON — the dials size against that
-   box's hardware, not an anonymous fleet aggregate, so the user sees where
-   the app goes and what a share means THERE. Recomputed on every render:
-   the 20s poll refreshes the rows, so a box filling up (or dropping off)
-   REROUTES the target — or turns into an explicit "not available" refusal —
-   while the user is still configuring. null = no basis to target (unknown
-   app specs or no fleet view): the adopted-aggregate math applies as before. */
-function currentTarget(){
-  const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
-  const cached = SPECS_CACHE[input];
-  if (!cached || !fleetRows || !fleetRows.length) return null;
-  // The picker's ticks, not the version's baked list: an edited config (or an
-  // untick) changes which model volumes this deployment will ask for, and
-  // therefore which boxes can host it, before anything is signed.
-  // gpuOptional/gpuMilli are the DEPLOYMENT's intent, not the version's: they
-  // decide whether a CPU-only box is a legal home for GPU-dialled work, so the
-  // ranking has to see the dials as they stand right now.
-  const spec = { ...cached, volumes: [...dep.volumes],
-                 depGpuOptional: !!(dep.gpuOptional && dep.gpuOptAvail), gpuMilli: Math.round(dep.gpuPct * 10) };
-  const ranked = rankEnclavesFor(spec, fleetRows);
-  if (!ranked.length) return pickEnclaveFor(spec, fleetRows);   // the none-reason path
-  if (dep.targetPick){
-    const hit = ranked.find((c) => c.name === dep.targetPick);
-    if (hit) return { ...hit, ranked, picked: true };
-    dep.targetPick = "";        // the chosen box left the fleet: back to auto (runDeploy surfaces this before signing)
-  }
-  return { ...ranked[0], ranked, picked: false };
-}
-// The selected app's minimum shares for the two dials: against the TARGET
-// enclave's hardware when one is known, the adopted fleet spec otherwise.
-// Friendly slug:version refs resolve to their catalog specs; raw CIDs we
-// can't see specs for get the open floor (0% GPU / 1% CPU) - the enclave
-// still enforces the real minimums server-side.
-function currentMins(){
-  const t = currentTarget();
-  if (t && !t.none) return t.mins;
-  const input = ($("#cfgImage") ? $("#cfgImage").value : "").trim();
-  const spec = SPECS_CACHE[input];
-  return spec ? minPctsOf(spec) : { gpuPct: 0, cpuPct: 1 };
-}
-/* The "App config" box: pre-filled with the picked VERSION's config - the
-   JSON the app receives as ENCLAVE_CONFIG, straight from the on-chain record
-   the owner approved (its `volumes` key names the model volumes to mount; the
-   picker mirrors it). When the whole fleet honors the envelope's `config`
-   namespace (dep.cfgAvail) the box is EDITABLE: an edited box becomes a
-   per-deployment override riding create()'s options envelope - it replaces
-   the version's config for THIS deployment only; the catalog default and
-   every other deployment stay untouched. On an older fleet it stays
-   read-only, exactly as before.
-   Returns { obj } (null = empty) or { err } (malformed JSON). */
-function readCfgConfig(){
-  const raw = ($("#cfgConfig") && $("#cfgConfig").value || "").trim();
-  if (!raw) return { obj: null };
-  try {
-    const o = JSON.parse(raw);
-    if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
-    return { obj: o };
-  } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
-}
-/* Pre-fill the box from the picked version whenever the RESOLVED ref changes
-   (typed refs, catalog resolution landing, Use-in-Deploy handoff - the last
-   sets cfgFilledFor itself). A version CHANGE overwrites edits by design (the
-   box shows the new version's template, the deployer re-edits from there) -
-   but content typed into a never-filled box before the catalog resolved is
-   kept: cfgDirty marks hand edits, and a dirty box only yields to an actual
-   version switch. */
-let cfgFilledFor = null, cfgDirty = false;
-function syncCfgFromVersion(){
-  const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
-  const ref = REF_CACHE[raw]; if (!ref || cfgFilledFor === ref) return;
-  const ta = $("#cfgConfig"); if (!ta) return;
-  if (cfgFilledFor === null && cfgDirty && ta.value.trim()){ cfgFilledFor = ref; return; }   // first resolution meets a hand-typed box: theirs wins (it reads as an override)
-  cfgFilledFor = ref; cfgDirty = false;
-  const c = CONFIG_CACHE[raw] || "";
-  try { ta.value = c ? JSON.stringify(JSON.parse(c), null, 2) : ""; } catch(e){ ta.value = c; }
-  syncVolsFromCfg();
-  // A rev-7 version keeps its config at a CID, so the record alone cannot fill
-  // the box. Fetch it and fill in when it lands, unless the user has started
-  // typing by then (their text is an override in progress and must not be
-  // clobbered) or moved to another version. Display only: the enclave resolves
-  // and hash-verifies the same CID itself, so a gateway that never answers
-  // costs a prefill, not a correct deploy.
-  const cid = CONFIG_CID_CACHE[raw] || "";
-  if (!cid) return;
-  fetchConfigCid(cid).then((full) => {
-    if (full === null || cfgFilledFor !== ref || cfgDirty || ta.value.trim()) return;
-    const shown = stripMedia(full);
-    try { ta.value = shown ? JSON.stringify(JSON.parse(shown), null, 2) : ""; } catch(e){ ta.value = shown; }
-    CONFIG_CACHE[raw] = shown;      // so cfgOverride() diffs against the REAL config, not ""
-    syncVolsFromCfg(); renderDeploy();
-  });
-}
-/* The box vs the version's record: null = no override (empty box, or content
-   that matches the version's config - reformatting is not an override), { err }
-   = unparsable JSON, { obj } = the override object ({} = explicitly empty
-   config). Computed regardless of dep.cfgAvail; runDeploy gates on the flag so
-   an edit made while the fleet degraded refuses loudly instead of silently
-   deploying the version's config. */
-function cfgOverride(){
-  const r = readCfgConfig();
-  if (r.err) return r;
-  const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
-  const base = CONFIG_CACHE[raw] || "";
-  let baseC = ""; try { baseC = base ? JSON.stringify(JSON.parse(base)) : ""; } catch(e){ baseC = base.trim(); }
-  const mine = r.obj ? JSON.stringify(r.obj) : "";
-  if (!mine || mine === baseC) return null;
-  if ("_media" in r.obj) return { err: "config `_media` is reserved for the catalog's store media and never reaches an app - remove it from the override (runners refuse it)" };
-  return { obj: r.obj };
-}
-let lastVols = [];   // the volumes of the picked version's config (the ticks mirror these)
-/* textarea -> picker: the ticks mirror the config JSON's `volumes` key
-   (typed edits, applied templates, reset). Invalid JSON keeps the last
-   agreed ticks - there's nothing readable to mirror yet. */
-function syncVolsFromCfg(){
-  const cfg = readCfgConfig();
-  if (cfg.err) return;
-  const names = (cfg.obj && Array.isArray(cfg.obj.volumes)) ? [...new Set(cfg.obj.volumes.map(String))] : [];
-  lastVols = names;
-  if (names.length === dep.volumes.size && names.every(n => dep.volumes.has(n))) return;
-  dep.volumes.clear(); names.forEach(n => dep.volumes.add(n));
-  if (volPicker) volPicker.requestRender();
-}
-function deployBody(){
-  // `image.reference` is the app to run: a catalog slug:version resolved to
-  // its catalog://<appId>/<idx> RECORD by resolveAppRef(). The record carries
-  // everything approval covered (wasm CID, config, ports); CIDs are refused.
-  const body = { image: { reference: resolveAppRef($("#cfgImage").value, { allowPending: !dep.public && dep.devAvail }).reference } };
-  body.public = dep.public;   // public endpoint (anyone) vs private (owner token only)
-  const gp = dep.gpuEnclave ? Math.min(1, Math.max(0, Math.round(dep.gpuPct) / 100)) : 0;
-  const cp = Math.min(1, Math.max(0.01, Math.round(dep.cpuPct) / 100));
-  body.resources = { gpuShare: gp, cpuShare: cp };   // the two dials; the app's specs set the minimums
-  // GPU attestation only exists when the deployment holds a card slice.
-  if (gp > 0 && dep.gpuEnclave) body.attestationPolicy = { requireGpuAttestation: true };
-  body.region = "auto";
-  const w = wafSpec();
-  if (w) body.waf = w;   // deployer protection: rides create()'s options envelope, enforced at the enclave's /x proxy
-  const co = cfgOverride();
-  if (co && co.obj) body.config = co.obj;   // per-deployment app-config override: rides the same envelope, replaces the version's config as THIS deployment's ENCLAVE_CONFIG
-  return body;
-}
 // the create() options envelope for a spec ({waf, config, gpuOptional}) - ""
 // when none rides. `gpu.optional` only ever appears on a deployment that
 // bought GPU share: without a slice there is no card requirement to soften,
@@ -227,400 +38,6 @@ function envelopeOf(spec){
                   ...(spec.gpuOptional && Number(spec.gpuPct || 0) > 0 ? { gpu: { optional: true } } : {}) };
   return Object.keys(parts).length ? JSON.stringify(parts) : "";
 }
-// Show the GPU-requirement control only when it can mean anything: a GPU
-// share is dialled AND every live runner understands the namespace. Hidden
-// also resets the flag - a control nobody can see must not keep sending an
-// option the fleet would refuse.
-function syncGpuOptField(){
-  const f = $("#gpuOptField");
-  const usable = dep.gpuOptAvail && Number(dep.gpuPct || 0) > 0;
-  if (!usable) dep.gpuOptional = false;
-  if (f) f.hidden = !usable;
-  $$("#cfgGpuOpt button").forEach(x => segSet(x, (x.dataset.gpuopt === "1") === !!dep.gpuOptional));
-  const n = $("#gpuOptNote");
-  if (n) n.textContent = !usable ? ""
-    : dep.gpuOptional
-      ? "Preferred: a GPU enclave takes it first. If none has room, a CPU-only enclave runs it on cores instead of queueing — and the ledger bills only the CPU share there, because a box with no card posts no GPU price."
-      : "Required: only a GPU enclave can claim it. If every card is full the deployment waits in the queue rather than running slower.";
-}
-function deployFetch(b){
-  const r = (b.image && b.image.reference) || "catalog://<appId>/<versionIndex>";
-  const g = Math.round(((b.resources && b.resources.gpuShare) || 0) * 1000);
-  const c = Math.round(((b.resources && b.resources.cpuShare) || 0.05) * 1000);
-  const envStr = envelopeOf(b);
-  const env = envStr ? JSON.stringify(envStr) : '""';   // the options envelope, as a JS string literal
-  return '// Deployments are ON-CHAIN work items (EnclaveDeployments on Base): the ledger\n'
-    + '// holds the spec + funded balance, so they survive enclave updates and crashes.\n'
-    + '// 1) create() from your wallet - one tx; msg.sender owns the record:\n'
-    + '//    create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, ' + (depRev >= 2 ? "" : "sshPubKey, ") + 'configCid)\n'
-    + '//    appRef names the on-chain catalog VERSION record - it carries the wasm,\n'
-    + '//    config (ENCLAVE_CONFIG + volumes) and ports the owner approved; CID refs\n'
-    + '//    are refused and ports/appPort ride along untrusted. The last field carries\n'
-    + '//    "" or a deployment-options envelope like {"waf":{…},"config":{…}} - waf:\n'
-    + '//    per-IP rate limit + request filter, enforced by the enclave before traffic\n'
-    + '//    reaches the app; config: replaces the version\'s config as THIS\n'
-    + '//    deployment\'s ENCLAVE_CONFIG (the catalog default stays untouched).\n'
-    + 'const { id } = await createOnChain("' + DEPLOYMENTS_ADDRESS + '",\n'
-    + '  ["' + r + '", ' + g + ', ' + c + ', 8080, "", ' + !!b.public + ', ' + (depRev >= 2 ? env : '"", ' + env) + ']);\n'
-    + '//    id = topics[1] of the Created event in the receipt\n'
-    + '// 2) fund it - credited to the on-chain balance (funds forward to Enclave):\n'
-    + '//    fundWithAuthorization(id, …EIP-3009 USDC sig…)  or  fundEth(id) payable\n'
-    + '// 3) nudge the fleet (optional; the sweep claims funded work within ~1 min):\n'
-    + 'await fetch("' + Enclave.base + '/claim-hint", { method: "POST",\n'
-    + '  headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });\n'
-    + '// 4) EnclaveDeployments.get(id).runner is the serving enclave; your app origin is\n'
-    + '//    https://<first 8 hex chars of id>.' + APP_DOMAIN;
-}
-function deployCurl(b){
-  return "# deployments are created on-chain, not by POST (see the JS tab):\n"
-    + "#   1) create() + 2) fundWithAuthorization()/fundEth() from your wallet\n"
-    + "# then nudge the fleet to claim it right away:\n"
-    + "curl -X POST " + Enclave.base + "/claim-hint \\\n"
-    + '  -H "Content-Type: application/json" \\\n'
-    + "  -d '{\"id\": \"0x<deployment id>\"}'";
-}
-/* A paid app's per-second publisher fee (USDC 6dp), keyed by the resolved
-   catalog:// reference. create() adds the fee ON TOP of the platform rate, so
-   every $/hr readout here must add it too. Filled asynchronously (fees live
-   outside the Version tuple); renderDeploy repaints when a fee lands. Numbers
-   for display math only - deployOnChain re-reads the exact BigInt right
-   before the signature. */
-const FEE6_CACHE = {};
-function currentFee6(){
-  const raw = ($("#cfgImage") && $("#cfgImage").value || "").trim();
-  const ref = REF_CACHE[raw], cr = ref && parseCatalogRef(ref);
-  if (!cr) return 0;
-  if (FEE6_CACHE[ref] != null) return FEE6_CACHE[ref];
-  FEE6_CACHE[ref] = 0;   // placeholder: one fetch per record, repaint on arrival
-  catVersionFee(cr.appId, cr.index)
-    .then(f => { if (f > 0n){ FEE6_CACHE[ref] = Number(f); renderDeploy(); } })
-    .catch(() => { delete FEE6_CACHE[ref]; });
-  return 0;
-}
-
-/* The target row: "deploys to [dropdown]" — every enclave that can host the
-   app, the recommended pick on top as "auto", any entry user-selectable. The
-   <select> is rebuilt ONLY when the option set actually changes (renderDeploy
-   runs on every keystroke and every 20s poll; clobbering an open dropdown
-   for identical options would fight the user), the status note repaints
-   every time. Selecting a box re-floors the dials to ITS hardware and aims
-   the claim hint at it on deploy. */
-let _tgtOptsKey = null;
-function renderTargetRow(target, spec){
-  const tgt = $("#targetOut"); if (!tgt) return;
-  tgt.hidden = !target;
-  if (!target){ _tgtOptsKey = null; return; }
-  if (target.none){
-    _tgtOptsKey = null;
-    tgt.innerHTML = "✕ not deployable right now: " + esc(target.none);
-    return;
-  }
-  const ranked = target.ranked || [target];
-  // ONE row per enclave: the head of the ranking IS the auto row (value "",
-  // the "no explicit pick" state), labelled recommended and preselected -
-  // listing a separate "auto — X" option on top showed the same box twice.
-  // Picking any other row pins it (dep.targetPick); coming back to the
-  // recommended row restores auto, which keeps following the fleet.
-  const optOf = (c, i) => esc(c.name) + " · " + fmtNum(c.spec.nodeVcpus) + " vCPU / " + fmtNum(c.spec.nodeRamGb) + " GB"
-    + (c.mins.gpuPct > 0 ? " · " + fmtNum(c.spec.cardVramGb) + " GB card" : "")
-    + " · min " + (c.mins.gpuPct > 0 ? c.mins.gpuPct + "% GPU" : c.mins.cpuPct + "% CPU")
-    + (c.queued ? " · full, queues" : "")
-    + (i === 0 ? " · recommended" : "");
-  const key = ranked.map(optOf).join("|") + "·" + (dep.targetPick || "");
-  if (key !== _tgtOptsKey){
-    _tgtOptsKey = key;
-    tgt.innerHTML = "⤷ deploys to <select id=\"targetSel\" title=\"Every live enclave that can host this app. The recommended box is preselected and follows the fleet; pick another to size for and hint it instead.\">"
-      + ranked.map((c, i) => "<option value=\"" + (i === 0 ? "" : esc(c.name)) + "\""
-          + (dep.targetPick === c.name || (!dep.targetPick && i === 0) ? " selected" : "") + ">" + optOf(c, i) + "</option>").join("")
-      + "</select> <span class=\"tgt-note\"></span>";
-    const sel = $("#targetSel");
-    if (sel) sel.addEventListener("change", () => { dep.targetPick = sel.value; renderDeploy(); });
-  }
-  const noteEl = tgt.querySelector(".tgt-note");
-  if (noteEl) noteEl.innerHTML =
-    (target.picked ? "<b>" + esc(target.name) + "</b> · " : "")
-    + fmtNum(spec.nodeVcpus) + " vCPU / " + fmtNum(spec.nodeRamGb) + " GB node"
-    + (target.mins.gpuPct > 0 ? " · " + fmtNum(spec.cardVramGb) + " GB card" : "")
-    + (target.queued ? " · <b>currently full — a deploy waits in its queue</b>" : "")
-    + " <i>(your pick gets the claim hint first; the ledger stays an open queue)</i>";
-}
-
-function renderDeploy(){
-  syncCfgFromVersion();   // the box follows the picked version's template (no-op until the ref resolves or when it hasn't changed)
-  const body = deployBody();
-  $("#outReq").innerHTML = hlJson(body);
-  $("#outFetch").innerHTML = hlCode(deployFetch(body));
-  $("#outCurl").innerHTML = hlCode(deployCurl(body));
-  const budget = parseFloat($("#cfgBudget").value) || 0;
-  // WHERE the app would land + the floors ON THAT BOX; reflect them live.
-  // The 20s poll re-renders, so the target reroutes (or refuses) by itself.
-  const target = currentTarget();
-  dep.target = target;
-  const mins = currentMins();
-  dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
-  const spec = target && !target.none ? target.spec : serverSpec();
-  const gIn = $("#cfgGpuShare"); if (gIn) gIn.min = String(dep.gpuEnclave ? mins.gpuPct : 0);
-  const cIn = $("#cfgCpuShare"); if (cIn) cIn.min = String(mins.cpuPct);
-  renderTargetRow(target, spec);
-  const gpuPct = dep.gpuEnclave ? (dep.gpuPct || 0) : 0;
-  const cpuPct = dep.cpuPct || 0;
-  let rate, readout;
-  if (target && target.none) {
-    rate = 0; readout = "✕ " + target.none + " - the deployment would never be claimed";
-  }
-  else if (gpuPct > 100 || cpuPct > 100) {
-    rate = 0; readout = "✕ a share exceeds 100% of the " + (gpuPct > 100 ? "card" : "node");
-  }
-  else if (dep.gpuEnclave && gpuPct < mins.gpuPct) {
-    rate = 0; readout = "✕ this app needs at least a " + mins.gpuPct + "% GPU share (its specs: that much VRAM/compute on "
-      + (target ? target.name + "'s" : "the fleet's") + " " + spec.cardVramGb + " GB / " + spec.cardTflops + " TFLOPS card)";
-  }
-  else if (cpuPct < mins.cpuPct) {
-    rate = 0; readout = "✕ this app needs at least a " + mins.cpuPct + "% CPU share (its specs: that much RAM/compute on "
-      + (target ? target.name + "'s" : "the fleet's") + " " + spec.nodeRamGb + " GB / " + spec.nodeGflops + " GFLOPS node)";
-  }
-  // From ledger rev 13 the two dials are independent — a small slice of card
-  // beside most of a node is a legal, correctly-priced deployment. Older
-  // ledgers revert create(), so keep refusing there instead of burning gas.
-  else if (!sharesLegalOn(Math.round(gpuPct), Math.round(cpuPct), depRev)) {
-    rate = 0; readout = "✕ this ledger (deploymentsSchema " + depRev + ") won't take a CPU share (" + Math.round(cpuPct)
-      + "%) above the GPU share (" + Math.round(gpuPct) + "%) - the rev-13 ledger drops that rule";
-  }
-  else {
-    const g = shareRates(gpuPct, cpuPct, spec);
-    // money comes from the CONTRACT's prices + ceil math (cached read) -
-    // client constants drift; the hardware figures below stay client-side.
-    // A paid app's publisher fee rides on top, exactly as create() adds it.
-    const fee = currentFee6() / 1e6;
-    rate = (prices6 ? Number(rate6Of(prices6, g.gpuPct * 10, g.cpuPct * 10)) / 1e6 : g.rate) + fee;
-    readout = (g.gpuPct > 0
-      ? "→ " + g.gpuPct + "% of card ≈ " + g.vramGb.toFixed(0) + " GB VRAM / " + Math.round(g.tflops) + " TFLOPS · "
-      : "→ CPU-only · ")
-      + g.cpuPct + "% of node ≈ " + fmtNum(g.ramGb) + " GB RAM / " + fmtNum(g.vcpus) + " vCPU / " + Math.round(g.gflops) + " GFLOPS · $"
-      + (rate * 3600).toFixed(2) + "/hr"
-      + (fee > 0 ? " (incl. $" + (fee * 3600).toFixed(2) + "/hr to the app's publisher)" : "");
-  }
-  const t = $("#tierOut"); if (t) t.textContent = readout;
-  // capacity is a WAIT, not an error: a pick above what's free right now is
-  // still worth creating (it queues on-chain; queued demand is also what the
-  // fleet scales on) - but say so clearly before any wallet step. With a
-  // target the verdict is per-BOX (its own available pools); the aggregate covers
-  // the no-target paths.
-  const capW = $("#capWarn");
-  if (capW){
-    const q = rate > 0
-      ? (target && !target.none
-          ? ((gpuPct > 0 && gpuPct > target.free.gpuPct) || cpuPct > target.free.cpuPct
-              ? { free: gpuPct > 0 ? target.free.gpuPct + "% of " + target.name + "'s card · " + target.free.cpuPct + "% of its node available"
-                                   : target.free.cpuPct + "% of " + target.name + "'s node available" }
-              : null)
-          : (() => { const v = queuedVerdict(gpuPct, cpuPct);
-              return v && { free: gpuPct > 0 ? freePct.gpu + "% of a card · " + v.cpuFreeHere + "% of its node available" : freePct.cpuAny + "% of the node available" }; })())
-      : null;
-    capW.hidden = !q;
-    if (q) capW.textContent = "⚠ this size isn't available right now (" + q.free
-      + ") - you can still deploy: the app is created on-chain, waits as Queued, and starts automatically the moment capacity opens up. Queued time is never billed; the balance only burns while the app runs.";
-  }
-  $("#estRuntime").textContent = rate > 0 ? fmtDur(budget / rate) : "–";
-}
-// seg toggles are aria-pressed buttons: keep the state attribute in step with .on
-const segSet = (x, on) => { x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); };
-function switchPane(name, focus){
-  $$(".console-tabs button").forEach(b => {
-    const on = b.dataset.pane === name;
-    b.classList.toggle("on", on);
-    b.setAttribute("aria-selected", String(on));
-    b.tabIndex = on ? 0 : -1;
-    if (on && focus) b.focus();
-  });
-  $$(".console-body .pane").forEach(p => p.classList.toggle("on", p.dataset.pane === name));
-}
-/* pre-flight feedback (validation, dry runs) renders inline under the run
-   row - the full output console lives on the dashboard, where a real deploy
-   navigates before its first wallet step. lines: [cls, text][] */
-function note(lines){
-  const el = $("#deployNote"); if (!el) return;
-  el.hidden = !lines.length;
-  el.innerHTML = lines.map(l => '<span class="ln ' + l[0] + '">' + esc(l[1]) + '</span>').join("");
-}
-
-/* ---- real deploy: create -> pay -> provisioned, all from the browser ---- */
-async function runDeploy(){
-  const btn = $("#deployBtn"); if (btn.disabled) return;
-  note([]);
-  // resolve a friendly slug:version -> its catalog://<appId>/<idx> record (may need the catalog first)
-  const raw = $("#cfgImage").value.trim();
-  if (looksFriendly(raw) && !REF_CACHE[raw] && !STORE.loaded){
-    note([["info", "[*] resolving " + raw + " from the catalog…"]]);
-    try { await loadCatalog(); } catch(e){}
-  }
-  const rref = resolveAppRef(raw, { allowPending: !dep.public && dep.devAvail });
-  // resolveAppRef IS the pre-flight: it refuses unknown apps, yanked and
-  // unapproved versions (and CID input) with the same rules the enclave's
-  // claim gate applies to the catalog record - nothing else to re-scan. The
-  // one relaxation is dev mode: a PRIVATE deployment may run a still-pending
-  // version when the whole fleet advertises devDeploy (allowPending above).
-  if (rref.error) return note([["warn", "[!] " + rref.error]]);
-  if (rref.pending) return note([["warn", "[!] couldn’t reach the catalog to resolve " + raw + " - deploys need the on-chain listing; try again in a moment."]]);
-  if (rref.awaitingApproval)
-    note([["info", "[*] " + raw + " is awaiting catalog approval - deploying PRIVATE (dev mode): owner-only access, unlisted; it goes public only after approval + a public redeploy."]]);
-  const fund = parseFloat($("#cfgBudget").value) || 0;
-  const dry = $("#dryRun") && $("#dryRun").checked;
-
-  // App config override: unparsable JSON refuses here (never signed away),
-  // and an override on a fleet that doesn't enforce the `config` namespace
-  // refuses HARD - old runners reject the claim, so the deployment would sit
-  // Queued forever with its funding unrecoverable. The box is read-only on
-  // such a fleet; this catches the availability flipping under an open edit.
-  const co = cfgOverride();
-  if (co && co.err) return note([["warn", "[!] " + co.err]]);
-  if (co && !dep.cfgAvail)
-    return note([["warn", depRev < 5
-      ? "[!] the App config box differs from the version's config, but the live ledger predates per-deployment overrides (deploymentsSchema < 5): its create() caps the options field at 100 bytes and reverts on more. Reset the box, or retry after the rev-5 ledger upgrade."
-      : "[!] the App config box differs from the version's config, but the live fleet doesn't support per-deployment overrides - no runner would claim this deployment. Reset the box to the version's config, or retry once the fleet updates."]]);
-  // the LEDGER's own bound on create()'s options field: rev <= 4 contracts are
-  // CID-sized (100 bytes) and revert "configCid length" over it - the wallet's
-  // simulation fails and the tx never lands (observed live 2026-07-22), so
-  // refuse HERE, before any wallet popup. Rev 5 widened the field to match the
-  // runners' 4096-byte envelope cap.
-  const envBytes = new TextEncoder().encode(envelopeOf({ waf: wafSpec(), config: co && co.obj, gpuOptional: dep.gpuOptional, gpuPct: dep.gpuPct })).length;
-  const envCap = depRev >= 5 ? 4096 : 100;
-  if (envBytes > envCap)
-    return note([["warn", depRev >= 5
-      ? "[!] the deployment options (config override + protection) are " + envBytes + " bytes; runners refuse envelopes over 4096 bytes - trim the config"
-      : "[!] the deployment options are " + envBytes + " bytes, but the live ledger caps create()'s options field at 100 bytes (CID-sized; its create() reverts \"configCid length\") - " + (co ? "config overrides need the rev-5 ledger upgrade" : "trim the protection rules")]]);
-
-  // ---- ON-CHAIN deploy (EnclaveDeployments): the ledger, not any one enclave,
-  // holds the spec and the funded balance, so the deployment survives enclave
-  // updates and crashes - runners hold expiring leases and re-claim work.
-  const gpuMilli = dep.gpuEnclave ? Math.round(Math.max(0, Math.min(100, dep.gpuPct))) * 10 : 0;
-  const cpuMilli = Math.round(Math.max(1, Math.min(100, dep.cpuPct))) * 10;
-  const ports = ($("#cfgPorts") && $("#cfgPorts").value || "");
-  const { portsCsv, appPort } = portsSpec(ports);
-
-  // Fresh targeting at commit time: the 20s poll may be stale and the user is
-  // about to sign final, non-withdrawable funding. Re-read the fleet, re-pick
-  // the target box — one that filled up meanwhile REROUTES here (floors
-  // re-check against the new box; refreshFleet already repainted the form),
-  // and a fleet that lost the hardware for this app refuses OUTRIGHT before
-  // any wallet step. Dry runs preview off the last poll.
-  if (!dry) await refreshFleet();
-  const wanted = dep.targetPick;
-  const target = currentTarget();
-  // an explicit pick that vanished mid-flow falls back to auto - but never
-  // silently under a wallet signature: say so and let the user re-confirm
-  if (wanted && target && !target.none && !target.picked)
-    return note([["warn", "[!] the selected enclave (" + wanted + ") is no longer available - switched to auto ("
-      + target.name + "). Review the shares above and deploy again."]]);
-  if (target && target.none)
-    return note([["warn", "[!] " + raw + " isn't deployable right now: " + target.none + ". Nothing was signed - the form retargets automatically when the fleet changes."]]);
-
-  // WASIp3 apps: the version's config declares `wasi: "0.3"` (stamped from the
-  // binary at publish) and only p3-capable runners claim it. Fleet-AND false
-  // is a HARD refusal — the deployment would sit Queued with its funding
-  // unrecoverable — with one carve-out: an explicitly PICKED target box that
-  // itself advertises p3 (availability.p3) is the canary flow, allowed with a
-  // warning, because the ledger stays an open queue and that box will claim it.
-  // MANIFEST_CACHE, not CONFIG_CACHE: the placement keys always live in the
-  // record's inline field, whereas CONFIG_CACHE is the app's effective config
-  // and is empty for a CID version until its fetch lands — reading that would
-  // turn this hard refusal into a silent pass exactly when it matters.
-  let verWasi3 = false;
-  try { verWasi3 = JSON.parse(MANIFEST_CACHE[raw] || "{}").wasi === "0.3"; } catch(e){}
-  // A version whose config lives at a CID needs a fleet that can fetch it.
-  // Same shape as the p3 refusal and for the same reason: a box without the
-  // capability refuses the claim, so the deployment would sit Queued with its
-  // funding tied up. Same per-box canary escape hatch.
-  if (CONFIG_CID_CACHE[raw] && !dep.cfgCidAvail){
-    const boxCfg = !!(target && target.picked && target.row && target.row.availability?.configCid === true);
-    if (!boxCfg)
-      return note([["warn", "[!] " + raw + " keeps its app config off-chain and not every live runner reads that yet - it could sit Queued. Pick a capable enclave from the target list explicitly (canary), or wait for the fleet to advertise it."]]);
-    note([["info", "[*] Large-config canary: " + target.name + " reads this app's config CID and your pick sends the claim hint there first."]]);
-  }
-  if (verWasi3 && !dep.p3Avail){
-    const boxP3 = !!(target && target.picked && target.row && target.row.availability?.p3 === true);
-    if (!boxP3)
-      return note([["warn", "[!] " + raw + " is a WASIp3 app and not every live runner serves p3 yet - it could sit Queued. Pick a p3-capable enclave from the target list explicitly (canary), or wait for the fleet to advertise p3."]]);
-    note([["info", "[*] WASIp3 canary: " + target.name + " serves p3 and your pick sends the claim hint there first; the rest of the fleet will not claim this deployment until it advertises p3."]]);
-  }
-
-  // HARD floor, the last line before a wallet signature: runners divide the
-  // app's specs by their probed hardware and refuse anything below the result,
-  // and a created record's shares are IMMUTABLE - an under-provisioned
-  // deployment sits "Queued" forever, claimable by nobody, its funding
-  // unrecoverable. The dial UI enforces the same floor against the same
-  // target; this catches every other path (stale prefill, a commit-time
-  // reroute onto a smaller box, races, hand-edited fields).
-  const fmins = target ? target.mins : (SPECS_CACHE[raw] ? minPctsOf(SPECS_CACHE[raw]) : null);
-  const where = target ? "on " + target.name : "on this fleet's hardware";
-  if (fmins && fmins.gpuPct > 0 && gpuMilli < fmins.gpuPct * 10)
-    return note([["warn", !dep.gpuEnclave
-      ? "[!] " + raw + " needs a GPU (min " + fmins.gpuPct + "% of a card) and the fleet has no GPU enclave live - this deployment would never be claimed."
-      : "[!] " + raw + " needs at least a " + fmins.gpuPct + "% GPU share " + where + " - " + (gpuMilli / 10) + "% would never be claimed. Raise the GPU dial."]]);
-  if (fmins && cpuMilli < fmins.cpuPct * 10)
-    return note([["warn", "[!] " + raw + " needs at least a " + fmins.cpuPct + "% CPU share " + where + " - " + (cpuMilli / 10) + "% would never be claimed. Raise the CPU dial."]]);
-
-  // HARD ceiling, the floors' mirror: create() refuses gpuMilli above the
-  // operator-set on-chain cap (pre-cap contracts read as 1000 = uncapped).
-  // Publishing an app whose specs exceed the cap stays legal - only DEPLOYS
-  // are gated - so say which of the two the user actually hit.
-  const capMsg = await gpuCapRefusal(gpuMilli, fmins ? fmins.gpuPct : null);
-  if (capMsg) return note([["warn", "[!] " + capMsg]]);
-
-  if (dry){
-    const wafDry = wafSpec();
-    const envDryStr = envelopeOf({ waf: wafDry, config: co && co.obj, gpuOptional: dep.gpuOptional, gpuPct: dep.gpuPct });
-    const envDry = envDryStr ? JSON.stringify(envDryStr) : "\"\"";
-    const plan = [["warn", "// dry run: nothing is sent"]];
-    plan.push(["info", co
-      ? "0) YOUR edited config rides the create() options envelope and replaces the version's config as this deployment's ENCLAVE_CONFIG (volumes included) - the catalog default and every other deployment stay untouched"
-      : "0) config + volumes + ports ride the version's on-chain record (approved with it) - nothing is pinned or passed at deploy"]);
-    if (wafDry) plan.push(["info", "0b) protection rides the create() options envelope - the enclave's proxy enforces it per requester IP, the app never sees blocked traffic"]);
-    const dryFee = currentFee6();
-    if (dryFee > 0) plan.push(["info", "0c) this app charges a publisher fee of $" + (dryFee * 3600 / 1e6).toFixed(2) + "/hr - create() snapshots it and every funding pays the publisher's cut straight to their wallet"]);
-    plan.push(["p", "1) EnclaveDeployments.create(app, shares) - one wallet tx; you own the record"],
-      ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + (depRev >= 2 ? ", " + envDry + ")" : ", \"\", " + envDry + ")")],
-      ["p", !(fund > 0)
-        ? "2) no funding now ($0): the record is created empty and sits inert until funded (Top up on its row) - or runs free on an enclave that pays out to your wallet"
-        : dep.asset === "ETH"
-        ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
-        : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
-      ["p", (fund > 0 ? "3) " : "3) once funded: ") + "POST /v1/claim-hint - an enclave claims the work and serves it"],
-      ["dimln", "   the balance and spec live on Base: any enclave can take over if the runner dies"],
-      ["info", "uncheck “Dry run” to deploy for real"]);
-    return note(plan);
-  }
-
-  // the ToS gate (dry runs stay open - they send nothing). Both entry points
-  // funnel through here: the Deploy button and the fetch pane's `run`.
-  const tos = $("#tosAgree");
-  if (!(tos && tos.checked))
-    return note([["warn", "[!] real deploys need the Terms of Service box ticked (payments are crypto-only, non-custodial and final; uptime isn’t guaranteed)"]]);
-
-  // capacity gate: a size the target box can't start right now proceeds only
-  // through the queue-confirm modal's explicit checkbox
-  if (!(await confirmQueuedDeploy(gpuMilli / 10, cpuMilli / 10, target))) return;
-
-  // account/credit pre-checks: the passkey-signed vault deploy itself lives in
-  // deployOnChain (shared with the store's quick-deploy modal), but these
-  // refusals belong HERE, in the console form, before any navigation
-  if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
-    if (dry) return note([["warn", "[!] dry runs use the wallet path - credit deploys are always real"]]);
-    if (wafSpec()) return note([["warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
-    if (co) return note([["warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
-    if (!(fund > 0)) return note([["warn", "[!] credit deploys need a budget (the vault funds the record as it creates it) - a $0 create needs a wallet deploy"]]);
-  }
-
-  btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
-  try {
-    await deployOnChain({ reference: rref.reference, gpuMilli, cpuMilli, ports,
-      isPublic: dep.public, fundUsd: fund, asset: dep.asset, waf: wafSpec(), config: co && co.obj,
-      gpuOptional: dep.gpuOptional,
-      targetName: target && !target.none ? target.name : "" });
-  } finally {
-    btn.disabled = false; btn.textContent = lbl;
-  }
-}
 
 /* logical "open ports" csv -> the create() call's portsCsv + appPort */
 function portsSpec(raw){
@@ -630,12 +47,12 @@ function portsSpec(raw){
   return { portsCsv, appPort: httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080 };
 }
 
-/* The on-chain deploy flow, shared by the console form above and the store's
-   quick-deploy modal (apps.js imports this): soft-navigate to the dashboard,
-   then create -> fund -> claim-hint -> watch, narrating into ITS OWN run
-   (concurrent-safe: every call gets its own runlog writer, so a fleet of
-   deploys stream side by side). Resolves once funding lands - the claim/
-   status watch continues detached, freeing the caller for the next deploy.
+/* The on-chain deploy flow behind the store's quick-deploy modal (apps.js
+   imports this): soft-navigate to the dashboard, then create -> fund ->
+   claim-hint -> watch, narrating into ITS OWN run (concurrent-safe: every
+   call gets its own runlog writer, so a fleet of deploys stream side by
+   side). Resolves once funding lands - the claim/status watch continues
+   detached, freeing the caller for the next deploy.
    spec: { reference (catalog://<appId>/<idx>), gpuMilli, cpuMilli,
    ports (csv, informational - the version's record is what enclaves apply),
    isPublic, fundUsd, asset, waf, config }. Config/volumes ride the version's
@@ -644,13 +61,14 @@ function portsSpec(raw){
    limit + request filter, interpreted by the enclave's proxy, never shown to
    the app) and spec.config (a per-deployment app-config override - it
    replaces the version's config as THIS deployment's ENCLAVE_CONFIG; callers
-   must gate it on the fleet aggregate's configOverride flag). */
+   must gate it on the fleet aggregate's configOverride flag). The dashboard's
+   Config / Models / Protect / Network tabs rewrite the same envelope later. */
 export async function deployOnChain(spec){
   // the on-chain share-cap gate runs BEFORE the dashboard redirect: a deploy
   // create() would refuse must be refused where the user is standing (the
-  // console form, the store's quick-deploy) - not narrated into a run log
-  // they were just navigated to. Both callers re-check earlier for richer
-  // UI; this is the shared backstop for the races they can't see.
+  // store's quick-deploy modal) - not narrated into a run log they were just
+  // navigated to. The caller re-checks earlier for richer UI; this is the
+  // shared backstop for the races it can't see.
   const capMsg = await gpuCapRefusal(spec.gpuMilli);
   if (capMsg) return showToast("Deploy refused: " + capMsg);
   // The version's publisher fee is snapshotted INTO the record by create():
@@ -682,8 +100,7 @@ export async function deployOnChain(spec){
     // account-credit path: no connected wallet but a signed-in passkey/card
     // account - ONE passkey tap signs a vault op that creates + funds the
     // deployment from credit (the customer's vault owns the record on-chain).
-    // Same run, same narrative, same claim watch as a wallet deploy. Every
-    // caller lands here (console form AND the store's quick-deploy modal).
+    // Same run, same narrative, same claim watch as a wallet deploy.
     if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
       if (spec.waf){ w.line("warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (spec.config){ w.line("warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
@@ -737,8 +154,8 @@ export async function deployOnChain(spec){
     await ensureBaseChain();
 
     // capacity heads-up BEFORE the first signature (fresh read: the store's
-    // quick-deploy modal reaches here without the console's 20s poll). Not a
-    // gate - the create is still right - but nobody should sign expecting an
+    // quick-deploy modal reaches here without a capacity poll of its own). Not
+    // a gate - the create is still right - but nobody should sign expecting an
     // instant boot when the fleet is full for this size.
     try {
       adoptFreePct(await Enclave.getAvailability());
@@ -781,12 +198,11 @@ export async function deployOnChain(spec){
     // override (replacing the version's config for this deployment only).
     const envelope = envelopeOf(spec);
     if (envelope){
-      // the ledger's own bound on create()'s options field, re-checked in the
-      // shared path (quick-deploy and races skip the console's gate): rev <= 4
-      // contracts revert "configCid length" over 100 bytes - the wallet's
-      // simulation fails and the signed tx never lands (observed live
-      // 2026-07-22, a config override on the rev-4 ledger). Refuse before any
-      // wallet popup so nobody signs a create that cannot mine.
+      // the ledger's own bound on create()'s options field: rev <= 4 contracts
+      // revert "configCid length" over 100 bytes - the wallet's simulation
+      // fails and the signed tx never lands (observed live 2026-07-22, a
+      // config override on the rev-4 ledger). Refuse before any wallet popup
+      // so nobody signs a create that cannot mine.
       const cap = (await depSchemaRev()) >= 5 ? 4096 : 100;
       const bytes = new TextEncoder().encode(envelope).length;
       if (bytes > cap){
@@ -803,12 +219,12 @@ export async function deployOnChain(spec){
     // encode whichever create() shape the live contract speaks (depSchemaRev
     // sniffs once): rev 1 took a now-removed sshPubKey string before
     // configCid; rev 4 grew the publisher-fee snapshot (recipient, fee/sec)
-    const rev = (depRev = await depSchemaRev());
+    const rev = await depSchemaRev();
     // rev 8: the record also carries a SPEND CEILING. Default it to exactly
     // what we just quoted (the cheapest live enclave's price for these shares
     // plus the app's fee) so nothing dearer can ever claim it — including when
     // its host dies and the work goes back on the queue. The owner widens it
-    // later from the console (Rate cap) or `enclave rate-cap`.
+    // later from the dashboard (Rate cap) or `enclave rate-cap`.
     const maxRate6 = rate6 + fee6;
     if (rev >= 8){
       if (rate6 <= 0n){
@@ -878,7 +294,7 @@ export async function deployOnChain(spec){
     detached = true;
   } catch(e){
     if (w) w.line("warn", "[x] " + (e.message || String(e)));
-    if (w && e.status === 0) w.line("dimln", "    set a reachable API endpoint on the deploy console, then retry.");
+    if (w && e.status === 0) w.line("dimln", "    the API endpoint is unreachable right now - retry in a moment.");
   } finally {
     if (!detached && w) w.end();
     refreshWallet();
@@ -968,8 +384,8 @@ export async function retryFunding(id, usd, asset, run){
    shows a live lease; `w` is the run's bound writer (its dead() aborts us if
    the run is ended from outside). */
 async function watchClaimAndRun(id, dPre, w, prefer){
-  // prefer: the deploy's target-dropdown pick - the relay then aims the hint
-  // at that ONE box (first crack at claiming) instead of the full fan-out
+  // prefer: the modal's target pick - the relay then aims the hint at that
+  // ONE box (first crack at claiming) instead of the full fan-out
   const hintBody = JSON.stringify(prefer ? { id, enclave: prefer } : { id });
   const leased = (d) => d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now();
   let claimed = leased(dPre) ? dPre : null;
@@ -1121,14 +537,13 @@ export async function resumeDeployWatch(run){
 }
 
 /* ============================================================
-   Live capacity: the dials' caps + the fleet / volume components
+   Live capacity: the queue-wait verdict behind the deploy gates
    ============================================================ */
-let availPoll = null;
 // Last-seen free capacity in whole percent (null = no availability read yet /
 // fetch failed, so nobody warns on unknown). A pick ABOVE these is legal - the
 // record queues on-chain and the autoscaler reads queued funded demand as its
 // scale signal - but the user must know they're buying a queue slot, not an
-// instant boot: renderDeploy shows #capWarn and deployOnChain narrates it.
+// instant boot: confirmQueuedDeploy asks, and deployOnChain narrates it.
 // A GPU app's CPU slice rides its card's node, so it checks cpuOnGpuNode.
 const freePct = { gpu: null, cpuAny: null, cpuOnGpuNode: null };
 function adoptFreePct(a){
@@ -1147,21 +562,13 @@ function queuedVerdict(gpuPct, cpuPct){
   const overC = cpuPct > cpuFreeHere;
   return (overG || overC) ? { overG, overC, cpuFreeHere } : null;
 }
-/* The commit-time capacity gate, shared by the console's Deploy button and
-   the store's quick-deploy modal. #capWarn under the dials is ambient; THIS
-   is the deliberate stop: a size the fleet can't start right now only
-   proceeds through an explicit checkbox, because the user is about to sign
-   final, non-withdrawable funding for a deployment that will sit Queued.
-   Fresh /availability read at click time (the 20s poll may be stale, and
-   quick-deploy may never have polled). Resolves true to proceed -
-   immediately when the size fits or capacity is unknown - false on cancel. */
 /* The on-chain per-deployment GPU-share cap as a refusal message (null =
-   fits; pre-cap contracts read as uncapped). Shared like confirmQueuedDeploy
-   so every entry point shows it WHERE THE USER IS - the console form's note,
-   the quick-deploy modal, deployOnChain's pre-navigation toast - instead of
-   first redirecting to the dashboard for a create() that would only revert.
-   `minGpuPct` (when known) picks the honest message: an app whose MINIMUM
-   exceeds the cap is publishable but undeployable, not a dial problem. */
+   fits; pre-cap contracts read as uncapped). Shared so every entry point shows
+   it WHERE THE USER IS - the quick-deploy modal, deployOnChain's
+   pre-navigation toast - instead of first redirecting to the dashboard for a
+   create() that would only revert. `minGpuPct` (when known) picks the honest
+   message: an app whose MINIMUM exceeds the cap is publishable but
+   undeployable, not a dial problem. */
 export async function gpuCapRefusal(gpuMilli, minGpuPct){
   const cap = await depMaxGpuMilli();
   if (!(gpuMilli > cap)) return null;
@@ -1170,10 +577,18 @@ export async function gpuCapRefusal(gpuMilli, minGpuPct){
     : "the platform caps GPU deployments at " + (cap / 10) + "% of a card - lower the GPU share (asked: " + (gpuMilli / 10) + "%).";
 }
 
+/* The commit-time capacity gate behind the store's quick-deploy modal. THIS
+   is the deliberate stop: a size the fleet can't start right now only
+   proceeds through an explicit checkbox, because the user is about to sign
+   final, non-withdrawable funding for a deployment that will sit Queued.
+   With a target box the verdict is per-BOX (its own available pools);
+   otherwise a fresh /availability read at click time. Resolves true to
+   proceed - immediately when the size fits or capacity is unknown - false on
+   cancel. */
 export async function confirmQueuedDeploy(gpuPct, cpuPct, target){
   let queued, freeLine;
   if (target && !target.none){
-    // per-BOX verdict: the console targeted a specific enclave, so the wait
+    // per-BOX verdict: the modal targeted a specific enclave, so the wait
     // question is about ITS pools, phrased with its name
     queued = (gpuPct > 0 && gpuPct > target.free.gpuPct) || cpuPct > target.free.cpuPct;
     freeLine = gpuPct > 0
@@ -1212,432 +627,4 @@ export async function confirmQueuedDeploy(gpuPct, cpuPct, target){
     host.querySelector(".capq-cancel").addEventListener("click", () => done(false));
     host.addEventListener("click", (e) => { if (e.target === host) done(false); });
   });
-}
-async function refreshAvailability(){
-  const gIn = $("#cfgGpuShare"), capG = $("#gpuShareCap");
-  const cIn = $("#cfgCpuShare"), capC = $("#cpuShareCap");
-  if (!gIn) return;
-  try {
-    const a = await Enclave.getAvailability();
-    dep.gpuEnclave = a.gpu !== false;               // gpu:false = CPU-only enclave (older enclaves omit the field)
-    // Protection (options envelope): only offered when the aggregate says the
-    // WHOLE fleet enforces it - a runner that predates the envelope refuses
-    // the deployment at claim, so a mixed fleet must not sell the option.
-    dep.wafAvail = a.waf === true;
-    const wf = $("#wafField");
-    if (wf){ wf.hidden = !dep.wafAvail; if (!dep.wafAvail) dep.waf = false; }
-    // "GPU preferred, not required": same fleet-AND rule and for a harder
-    // reason - a runner that predates the `gpu` namespace refuses the WHOLE
-    // envelope, so offering it against a mixed fleet would sell a deployment
-    // that some boxes cannot claim at all.
-    dep.gpuOptAvail = a.gpuOptional === true;
-    syncGpuOptField();
-    // dev-mode deploys (a PRIVATE deployment may run a version still awaiting
-    // approval): only when EVERY live runner admits them - otherwise the
-    // create would sit Queued forever on an old runner. Same fleet-AND rule.
-    dep.devAvail = a.devDeploy === true;
-    // WASIp3 apps (a version whose config declares wasi "0.3"): the aggregate
-    // is the whole-fleet answer; a per-box `availability.p3` still admits the
-    // CANARY flow — deploying pinned to a p3-capable box while the AND is
-    // false is legitimate, so runDeploy warns rather than refuses when the
-    // picked target box itself serves p3.
-    dep.p3Avail = a.p3 === true;
-    dep.cfgCidAvail = a.configCid === true;   // rev-7 large configs: every live runner fetches + hash-verifies the version's config CID
-    // App config override (envelope `config` namespace): the box unlocks only
-    // when EVERY live runner honors it - on a mixed/older fleet an overridden
-    // deployment would be refused at claim and sit Queued forever - AND the
-    // ledger is rev 5+: earlier contracts cap create()'s options field at 100
-    // bytes (CID-sized) and revert on a real override, so the wallet would
-    // simulate a failure and the tx never lands. Fail closed on both; the
-    // fleet-ready-but-ledger-pending state gets its own hint so a locked box
-    // says WHY instead of the generic publish-a-new-version copy.
-    const cfgFleet = a.configOverride === true;
-    let cfgRev = false;
-    if (cfgFleet){ try { cfgRev = (await depSchemaRev()) >= 5; } catch(e){} }
-    dep.cfgAvail = cfgFleet && cfgRev;
-    const ccTa = $("#cfgConfig");
-    if (ccTa) ccTa.readOnly = !dep.cfgAvail;
-    const hRO = $("#cfgHintRO"), hRW = $("#cfgHintRW"), hWait = $("#cfgHintWait");
-    if (hRO) hRO.hidden = dep.cfgAvail || (cfgFleet && !cfgRev);
-    if (hRW) hRW.hidden = !dep.cfgAvail;
-    if (hWait) hWait.hidden = !(cfgFleet && !cfgRev);
-    const vRO = $("#volHintRO"), vRW = $("#volHintRW");
-    if (vRO) vRO.hidden = dep.cfgAvail;
-    if (vRW) vRW.hidden = !dep.cfgAvail;
-    const unitG = $("#gpuShareUnit");
-    if (unitG) unitG.textContent = dep.gpuEnclave ? "(% of one card · 0 = CPU-only app)" : "(CPU-only enclave · no GPU here)";
-    // getAvailability() adopted this payload into the share math already;
-    // read the capacity captions off the same adopted numbers
-    const spec = serverSpec();
-    const cardGb = spec.cardVramGb, cardTf = spec.cardTflops, nodeRamGb = spec.nodeRamGb;
-    // both pools, live: the largest free slice of one card and the node's
-    // leftover vCPU+RAM pool; maxShare = older enclaves. The dials are NOT
-    // capped at what's free - a bigger pick queues on-chain until capacity
-    // frees (renderDeploy warns) - only the structural spec floors gate.
-    const { gpuFree, cpuFree } = adoptFreePct(a);
-    if (dep.gpuEnclave) {
-      // the dial's hard top is the ON-CHAIN per-deployment cap, not what's
-      // free (a pick above free capacity queues; a pick above the cap is
-      // refused by create() itself)
-      const capPct = Math.min(100, Math.floor((await depMaxGpuMilli()) / 10));
-      gIn.max = String(capPct);
-      if (capG) capG.textContent = "· " + freePct.gpu + "% of a card free now (≈" + Math.round(gpuFree * cardGb) + " GB / " + Math.round(gpuFree * cardTf) + " TFLOPS)"
-        + (capPct < 100 ? " · platform cap: " + capPct + "% per deployment" : "");
-    } else {
-      gIn.max = "0";
-      if (capG) capG.textContent = "· GPU apps run on GPU enclaves";
-      if (dep.gpuPct !== 0 && document.activeElement !== gIn){ dep.gpuPct = 0; gIn.value = "0"; }
-    }
-    if (cIn) cIn.max = "100";
-    if (capC) capC.textContent = "· " + freePct.cpuAny + "% of the node free now (≈"
-      + fmtNum(cpuFree * nodeRamGb) + " GB RAM / ≈" + fmtNum(cpuFree * spec.nodeVcpus) + " vCPU)";
-    renderDeploy();
-  } catch(e){
-    if (capG) capG.textContent = "· live capacity unavailable, showing whole-card max (100%)";
-  }
-}
-// Per-enclave fleet view: the relay's /enclaves table, handed to the
-// <c-fleet-list> and <c-volume-picker> components. Only the relay serves
-// it - pointed directly at an enclave, both fields stay hidden.
-async function refreshFleet(){
-  const field = $("#fleetField"), volField = $("#volField");
-  if (!field || !fleetList) return null;
-  try {
-    const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
-    if (!r.ok) throw new Error("no fleet view");
-    const j = await r.json();
-    const rows = (j.enclaves || []).slice().sort((a, b) =>
-      ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
-      || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
-    fleetList.rows = rows;
-    // the deploy console targets a specific enclave off these rows: refresh
-    // them, re-render — a box that filled up or dropped off REROUTES the
-    // target (or flips the form to "not deployable") on this same tick
-    fleetRows = rows;
-    renderDeploy();
-    field.hidden = false;
-    // Model volumes the fleet advertises (Modelwrap): union across enclaves,
-    // each tagged with which enclaves carry it.
-    const byName = new Map();
-    for (const e of rows){
-      for (const v of ((e.availability && e.availability.volumes) || [])){
-        if (!v || !v.name) continue;
-        const cur = byName.get(v.name) || { name: v.name, bytes: 0, onnx: false, gguf: false, sd: false, count: 0, hosts: [] };
-        cur.bytes = Math.max(cur.bytes, v.bytes || 0); cur.onnx = cur.onnx || !!v.onnx; cur.gguf = cur.gguf || !!v.gguf; cur.sd = cur.sd || !!v.sd; cur.count++;
-        // which boxes carry it: a one-enclave volume pins the deployment to that
-        // box, and the picker says so
-        cur.hosts.push(e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0]);
-        byName.set(v.name, cur);
-      }
-    }
-    const vols = [...byName.values()].sort((a,b) => a.name.localeCompare(b.name));
-    if (volField) volField.hidden = !vols.length;
-    if (volPicker){ volPicker.selected = dep.volumes; volPicker.volumes = vols; }
-    return fleetRows;
-  } catch(e){ field.hidden = true; fleetRows = null; renderDeploy(); return null; }
-}
-function startAvailPoll(){
-  refreshAvailability(); refreshFleet();
-  if (availPoll) return;
-  // #deploy always exists on the apps page now - only poll while the deploy
-  // view is actually visible (a reopened view is at most one tick stale)
-  availPoll = setInterval(() => { const d = $("#deploy"); if (d && !d.hidden) { refreshAvailability(); refreshFleet(); } }, 20000);
-}
-
-/* ============================================================
-   Wallet-dependent console chrome
-   ============================================================ */
-/* Live balance for the selected pay asset under the Pay-with control. When
-   the order checkout is live (ACCOUNTS_ENABLED), a "Buy runtime" link offers
-   the card path: it parks the console's configured spec for the checkout
-   page and navigates there. The direct wallet-pay flow around it is
-   untouched - this is an alternative, not a replacement. */
-let _balSeq = 0;
-async function updateUsdcBalance(){
-  const el = $("#payBal"); if (!el) return;
-  if (!Enclave.address || !Enclave.provider){
-    // account users see their CREDIT here; the Deploy button spends it
-    if (ACCOUNTS_ENABLED && Enclave.accountAuthed()){
-      const seq0 = ++_balSeq;
-      const v = await getVault();
-      if (seq0 !== _balSeq) return;
-      el.innerHTML = '<div><span class="pb-k">Credit</span><span class="pb-v">' + esc(v ? "$" + v.balanceUsd : "–") + '</span></div>' +
-        '<button class="pb-buy" id="payBuyRuntime" type="button">Add credit →</button>';
-      el.hidden = false;
-      const br = $("#payBuyRuntime");
-      if (br) br.onclick = () => navigate("checkout", { push: true });
-      return;
-    }
-    el.hidden = true; return;
-  }
-  const seq = ++_balSeq;
-  try {
-    // the card follows the selected pay asset: USDC by default, ETH when the
-    // user flips the toggle
-    const wantEth = (dep.asset === "ETH");
-    const label = wantEth ? "ETH balance" : "USDC balance";
-    const val = wantEth ? (await ethBalanceOf(Enclave.address)).toFixed(4) + " ETH"
-                        : (await usdcBalanceOf(Enclave.address)).toFixed(2) + " USDC";
-    if (seq !== _balSeq) return;
-    el.innerHTML = '<div><span class="pb-k">' + label + '</span><span class="pb-v">' + esc(val) + '</span></div>';
-    el.hidden = false;
-  } catch(e){ if (seq === _balSeq) el.hidden = true; }
-}
-
-async function checkHealth(){
-  const ind = $("#epState");
-  if (ind){ ind.className = "ep-state"; ind.textContent = "checking…"; }
-  try {
-    const h = await Enclave.health();
-    if (ind){
-      ind.className = "ep-state ok";
-      // the RELAY answers even with zero enclaves: the API is reachable and
-      // deploys still work (they queue on the ledger) - say that, don't cry wolf
-      ind.textContent = (h && h.enclaves === 0)
-        ? "reachable · no live enclaves (deploys queue on-chain)"
-        : "reachable";
-    }
-  } catch(e){
-    if (ind){ ind.className = "ep-state down"; ind.textContent = "unreachable · set a live endpoint"; }
-  }
-}
-
-/* ============================================================
-   "Use in Deploy" handoff from the Apps page: apps.html stashes
-   the picked version (sessionStorage + ?app= param) and lands
-   here; a bare shared link with only ?app= resolves it from the
-   on-chain catalog instead.
-   ============================================================ */
-function applyUseInDeploy(){
-  const raw = new URLSearchParams(location.search).get("app");
-  if (!raw) return;
-  // ?app= accepts slug:version AND the share-link form slug_version (the "_"
-  // keeps the URL un-percent-encoded; the LAST one splits, so slugs with
-  // underscores survive - versions carry none)
-  const friendly = raw.includes(":") ? raw : raw.replace(/_(?=[^_]*$)/, ":");
-  const inp = $("#cfgImage"); if (!inp) return;
-  inp.value = friendly;
-  let stash = null;
-  try { stash = JSON.parse(sessionStorage.getItem("enclave_use_in_deploy") || "null"); } catch(e){}
-  const applyMins = (mins, ports, config) => {
-    // The dials open at the START shares, not at the floors: on a gpuOptional
-    // version the GPU floor is 0 and opening there turned "GPU preferred" into
-    // "GPU never" - the handoff pre-filled 0% GPU and the app ran its model on
-    // cores. `min` stays the real floor, so dialling down is still allowed.
-    // liftSharesForLedger is the identity on rev 13+; on an older ledger it
-    // rounds the card up to the CPU dial so the pre-filled pair can be created
-    const start = liftSharesForLedger(startSharesFor(SPECS_CACHE[friendly]), depRev);
-    const startGpu = Math.max(start.gpuPct, mins.gpuPct);
-    dep.minGpuPct = mins.gpuPct; dep.minCpuPct = mins.cpuPct;
-    dep.gpuPct = startGpu; dep.cpuPct = mins.cpuPct;
-    const gi = $("#cfgGpuShare"); if (gi){ gi.min = String(mins.gpuPct); gi.value = String(startGpu); }
-    const ci = $("#cfgCpuShare"); if (ci){ ci.min = String(mins.cpuPct); ci.value = String(mins.cpuPct); }
-    const fp = $("#cfgPorts"); if (fp) fp.value = ports || "";
-    // the app's default config template pre-fills the App config box
-    // (pretty-printed when it parses); the deployer edits, deploy pins the result
-    if (config){
-      const ta = $("#cfgConfig");
-      if (ta){ try { ta.value = JSON.stringify(JSON.parse(config), null, 2); } catch(e){ ta.value = config; } }
-      cfgFilledFor = REF_CACHE[friendly] || null; cfgDirty = false;   // the handoff filled the box for THIS ref; don't refill over it
-      syncVolsFromCfg();   // a template carrying {"volumes":[…]} ticks the picker
-    }
-    renderDeploy();
-    showToast("Deploy set to " + friendly + (startGpu > mins.gpuPct
-              ? " (GPU preferred: " + startGpu + "% GPU / " + mins.cpuPct + "% CPU - dial GPU to 0 to run it on cores)"
-              : " (min " + mins.gpuPct + "% GPU / " + mins.cpuPct + "% CPU)")
-            + (ports ? " · open ports " + ports : "") + (config ? " · config template applied" : ""));
-  };
-  // the stash must carry the version's RAW specs (not computed percents): the
-  // floors are recomputed HERE against the currently adopted fleet hardware -
-  // percents minted on the Apps page could predate the availability fetch.
-  // A stash without specs (older tab) falls through to the catalog re-resolve.
-  if (stash && stash.friendly === friendly && stash.appId != null && stash.index != null && stash.spec){
-    REF_CACHE[friendly] = catalogRef(stash.appId, stash.index);
-    PORTS_CACHE[friendly] = stash.ports || "";
-    SPECS_CACHE[friendly] = stash.spec;
-    CONFIG_CACHE[friendly] = stash.config || "";
-    MANIFEST_CACHE[friendly] = stash.manifest || stash.config || "";
-    CONFIG_CID_CACHE[friendly] = stash.configCid || "";
-    // a stashed CID version carries only its manifest: blank the config box
-    // rather than offering the manifest as the app's config (an edit to it
-    // would ride the create envelope as an override and REPLACE the real one)
-    if (stash.configCid) CONFIG_CACHE[friendly] = "";
-    applyMins(minPctsOf(stash.spec), stash.ports, stash.config);
-  } else {
-    // shared / bookmarked link: resolve the ref from the catalog. allowPending
-    // here only PREFILLS the form (dial floors, ports, config) for a pending
-    // version - runDeploy re-applies the real gate against the Access toggle.
-    loadCatalog().then(() => {
-      const r = resolveAppRef(friendly, { allowPending: true });
-      if (r.mins) applyMins(r.mins, PORTS_CACHE[friendly], CONFIG_CACHE[friendly]);
-      else renderDeploy();
-    }).catch(() => {});
-  }
-}
-
-/* ============================================================
-   boot
-   ============================================================ */
-function initDeploy(){
-  if (!$("#deploy")) return;
-  fleetList = $("c-fleet-list");
-  volPicker = $("c-volume-picker");
-  if (fleetList) {
-    // the component's ↻ button: the dials' caps and the fleet table show the
-    // same capacity, so refresh both (named refs = idempotent re-init)
-    fleetList.addEventListener("refresh", refreshAvailability);
-    fleetList.addEventListener("refresh", refreshFleet);
-  }
-
-  $("#cfgGpuShare").addEventListener("input", e => { dep.gpuPct = parseFloat(e.target.value) || 0; syncGpuOptField(); renderDeploy(); });
-  const cpuIn = $("#cfgCpuShare"); if (cpuIn) cpuIn.addEventListener("input", e => { dep.cpuPct = parseFloat(e.target.value) || 0; renderDeploy(); });
-  $("#cfgAsset").addEventListener("click", e => {
-    const b = e.target.closest("button[data-asset]"); if (!b) return;
-    dep.asset = b.dataset.asset; $$("#cfgAsset button").forEach(x => segSet(x, x === b));
-    renderDeploy(); updateUsdcBalance();
-  });
-  $("#cfgAccess").addEventListener("click", e => {
-    const b = e.target.closest("button[data-public]"); if (!b) return;
-    dep.public = b.dataset.public === "1"; $$("#cfgAccess button").forEach(x => segSet(x, x === b));
-    renderAccessNote(); renderDeploy();
-  });
-  renderAccessNote();
-  const cfgWaf = $("#cfgWaf");
-  if (cfgWaf){
-    cfgWaf.addEventListener("click", e => {
-      const b = e.target.closest("button[data-waf]"); if (!b) return;
-      dep.waf = b.dataset.waf === "1"; $$("#cfgWaf button").forEach(x => segSet(x, x === b));
-      const opts = $("#wafOpts"); if (opts) opts.hidden = !dep.waf;
-      renderDeploy();
-    });
-    ["#wafRps", "#wafBurst", "#wafConc", "#wafBody"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
-    const ws = $("#wafScan"); if (ws) ws.addEventListener("change", renderDeploy);
-  }
-  const cfgGpuOpt = $("#cfgGpuOpt");
-  if (cfgGpuOpt){
-    cfgGpuOpt.addEventListener("click", e => {
-      const b = e.target.closest("button[data-gpuopt]"); if (!b) return;
-      dep.gpuOptional = b.dataset.gpuopt === "1"; $$("#cfgGpuOpt button").forEach(x => segSet(x, x === b));
-      syncGpuOptField();
-      renderDeploy();
-    });
-  }
-  ["#cfgImage", "#cfgBudget", "#cfgPorts"].forEach(s => { const el = $(s); if (el) el.addEventListener("input", renderDeploy); });
-  // the config box pre-fills with the picked VERSION's config; its `volumes`
-  // key drives the ticks. On a fleet that honors the envelope's `config`
-  // namespace both are deployer-EDITABLE (the edit rides the deploy as a
-  // per-deployment override); on an older fleet both stay read-only mirrors.
-  const cc = $("#cfgConfig"); if (cc) cc.addEventListener("input", () => { cfgDirty = true; syncVolsFromCfg(); renderDeploy(); });
-  if (volPicker) volPicker.addEventListener("change", () => {
-    if (!dep.cfgAvail){
-      // read-only fleet: revert the tick to the config's volumes (the mirror)
-      dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
-      volPicker.requestRender();
-      showToast("Volumes are set by the version's config (covered by its approval) - pick a version that attaches what you need, or publish a new one");
-      renderDeploy();
-      return;
-    }
-    // editable fleet: the picker is a form control for the config JSON's
-    // `volumes` key - write the ticks into the box (the config object stays
-    // the only carrier; syncVolsFromCfg keeps the Set honest from there)
-    const r = readCfgConfig();
-    if (r.err){
-      dep.volumes.clear(); lastVols.forEach(n => dep.volumes.add(n));
-      volPicker.requestRender();
-      showToast("Fix the App config JSON first - the volume ticks live in its `volumes` key");
-      return;
-    }
-    const o = r.obj || {};
-    const names = [...dep.volumes];
-    if (names.length) o.volumes = names; else delete o.volumes;
-    const ta = $("#cfgConfig");
-    if (ta) ta.value = Object.keys(o).length ? JSON.stringify(o, null, 2) : "";
-    cfgDirty = true;   // a tick IS a hand edit (programmatic .value= fires no input event)
-    syncVolsFromCfg();
-    renderDeploy();
-  });
-  $$(".console-tabs button").forEach(b => b.addEventListener("click", () => switchPane(b.dataset.pane)));
-  // roving tabindex on the tablist: arrows/Home/End move focus AND select
-  const tl = $(".console-tabs");
-  if (tl) tl.addEventListener("keydown", e => {
-    const bs = $$(".console-tabs button"), i = bs.indexOf(document.activeElement);
-    const j = e.key === "ArrowRight" ? (i + 1) % bs.length
-            : e.key === "ArrowLeft"  ? (i - 1 + bs.length) % bs.length
-            : e.key === "Home" ? 0 : e.key === "End" ? bs.length - 1 : -1;
-    if (i < 0 || j < 0) return;
-    e.preventDefault(); switchPane(bs[j].dataset.pane, true);
-  });
-  // ToS assent is shared with the store's quick-deploy modal (same
-  // localStorage key, per terms version) - accepted once = pre-checked here
-  const tos = $("#tosAgree");
-  if (tos){
-    tos.checked = tosAccepted();
-    tos.addEventListener("change", () => { setTosAccepted(tos.checked); if (tos.checked) note([]); });
-  }
-  $("#deployBtn").addEventListener("click", runDeploy);
-  const frb = $("#fetchRunBtn"); if (frb) frb.addEventListener("click", runDeploy);   // the snippet IS the deploy flow
-  $("#resetBtn").addEventListener("click", () => {
-    $("#cfgImage").value = "";
-    const fp0 = $("#cfgPorts"); if (fp0) fp0.value = "";
-    const cc0 = $("#cfgConfig"); if (cc0) cc0.value = "";
-    cfgFilledFor = null; cfgDirty = false;   // next picked ref pre-fills the box afresh
-    syncVolsFromCfg();   // empty config = no volumes; the ticks follow
-    $("#cfgBudget").value = "10";
-    $("#cfgGpuShare").value = "25"; dep.gpuPct = 25;
-    const cp0 = $("#cfgCpuShare"); if (cp0) cp0.value = "5"; dep.cpuPct = 5;
-    dep.asset = "USDC"; dep.public = true;
-    $$("#cfgAsset button").forEach(x => segSet(x, x.dataset.asset === "USDC"));
-    $$("#cfgAccess button").forEach(x => segSet(x, x.dataset.public === "1"));
-    dep.waf = false;
-    $$("#cfgWaf button").forEach(x => segSet(x, x.dataset.waf === "0"));
-    const wo = $("#wafOpts"); if (wo) wo.hidden = true;
-    const wr = $("#wafRps"); if (wr) wr.value = "10";
-    const wb = $("#wafBurst"); if (wb) wb.value = "40";
-    const wc = $("#wafConc"); if (wc) wc.value = "";
-    const wm = $("#wafBody"); if (wm) wm.value = "";
-    const ws0 = $("#wafScan"); if (ws0) ws0.checked = true;
-    renderAccessNote();
-    note([]);
-    switchPane("req"); renderDeploy(); refreshAvailability();
-  });
-
-  // deploy console copy buttons (request body / fetch / curl panes)
-  $$(".copybtn[data-copy]").forEach(b => b.addEventListener("click", () => {
-    const k = b.dataset.copy;
-    const txt = k === "req"   ? $("#outReq").textContent
-              : k === "fetch" ? $("#outFetch").textContent
-              : k === "curl"  ? $("#outCurl").textContent : "";
-    copyText(txt, b);
-  }));
-
-  // API endpoint field + health probe
-  const ep = $("#apiBase");
-  if (ep){
-    ep.value = Enclave.base;
-    ep.addEventListener("change", () => { Enclave.setBase(ep.value); ep.value = Enclave.base; renderDeploy(); checkHealth(); });
-    ep.addEventListener("keydown", (e) => { if (e.key === "Enter") ep.blur(); });
-  }
-
-  renderDeploy();
-  depPrices6().then(p => { prices6 = p; renderDeploy(); }).catch(() => {});
-  depSchemaRev().then(r => { depRev = r; renderDeploy(); }).catch(() => {});
-  startAvailPoll();
-  checkHealth();
-  applyUseInDeploy();
-}
-
-// wallet/session signals from the shared chrome (<c-deployments> handles its
-// own). Subscribed once at module load; every callee null-guards its elements,
-// so it's inert while another page's <main> is mounted.
-on("enclave:wallet", () => {
-  updateUsdcBalance();
-});
-on("enclave:account", () => {
-  updateUsdcBalance();     // the credit panel appears/disappears on account edges
-});
-
-/* called by apps.js the first time the #deploy view opens on each <main>
-   mount (the console is a hash-routed sub-page of Apps, not a router page) */
-export function boot() {
-  initDeploy();
 }

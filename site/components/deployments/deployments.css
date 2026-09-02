@@ -208,6 +208,16 @@ c-deployments{display:contents;}
 .enc-cfg-status:empty{display:none;}
 .ap-badge.ep-cfg{font-family:var(--font-mono);}
 
+/* per-row Models (the config override's `volumes` key; setConfig). The
+   fleet's attested model volumes as a checklist - <c-volume-picker>, whose
+   rows carry name, format badges, size and where the volume lives - inside
+   the panel well; the meta line under it says what Apply will sign. */
+.enc-mod{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
+.enc-mod-body{display:flex;flex-direction:column;gap:10px;padding:12px 18px;align-items:flex-start;}
+.enc-mod-body .vol-list{width:100%;align-self:stretch;background:var(--bg-1);}
+.enc-mod-status{padding:0 18px 10px;min-height:0;}
+.enc-mod-status:empty{display:none;}
+
 /* per-row Transfer (transferDeployment: hand the record to another wallet) */
 .enc-xfer{border:1px solid var(--line-soft);border-radius:8px;margin-top:10px;overflow:hidden;background:var(--well);}
 .enc-xfer-body{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;}

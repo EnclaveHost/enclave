@@ -10,8 +10,8 @@ cd "$(dirname "$0")"    # paths below are relative to site/, however this script
 # entries (page HTML, js/boot.js) cached by a browser or
 # the CDN import the HASHED chunk names of THEIR build; a bare tree-swap
 # 404s those the moment a new deploy lands (that's what silently killed
-# the deploy console mid-churn: cached boot.js -> import("./deploy.js")
-# gone -> console never boots, empty API field). Keep a 48h local archive
+# the deploy flow mid-churn: cached boot.js -> import("./deploy.js")
+# gone -> the store's Deploy button did nothing). Keep a 48h local archive
 # of every hashed artifact and ship the union: any entry cached within the
 # TTL still finds its exact chunks. cp -n never clobbers current files;
 # hashed names are content-addressed, so name collisions are identical.

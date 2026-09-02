@@ -18,16 +18,19 @@
 /admin      /admin.html      200
 /terms      /terms.html      200
 /privacy    /privacy.html    200
-# /apps/deploy and /apps/publish are VIEWS of the Apps page (router aliases):
-# a hard load serves the nested apps document (a build-time copy carrying
-# <base href="../">) and apps.js picks the view from the pathname. The flat
-# /deploy and /publish forms stay as rewrites to the ROOT-DEPTH document
-# (no base needed there); the router canonicalizes the bar to the nested
-# form. deploy.html stays only as the legacy /deploy.html redirect stub.
-/apps/deploy   /apps/deploy.html   200
+# /apps/publish is a VIEW of the Apps page (a router alias): a hard load
+# serves the nested apps document (a build-time copy carrying <base
+# href="../">) and apps.js picks the view from the pathname. The flat /publish
+# form stays as a rewrite to the ROOT-DEPTH document (no base needed there);
+# the router canonicalizes the bar to the nested form.
 /apps/publish  /apps/publish.html  200
-/deploy        /apps.html          200
 /publish       /apps.html          200
+# the old deploy console (/apps/deploy, and the older /deploy) is gone: an app
+# deploys from its card in the store, and every setting the console carried
+# is a tab on the deployment's dashboard row. Old links land on the store.
+# deploy.html stays only as the legacy /deploy.html redirect stub.
+/apps/deploy   /apps/   301
+/deploy        /apps/   301
 # Everything else absent from the DAG: the branded 404 page with a real 404
 # status (404.html carries <base href="/"> because it serves AT the missing
 # path). Absent OLD chunk hashes now serve this HTML instead of the gateway

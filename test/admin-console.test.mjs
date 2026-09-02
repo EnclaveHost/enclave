@@ -135,7 +135,7 @@ test("publisher-fee surface pins + encodes like viem", () => {
   eq("0x" + DEP_SEL.maxFeePerSec6, toFunctionSelector("function maxFeePerSec6() view returns (uint256)"));
   eq("0x" + CAT_SEL.versionFee, toFunctionSelector("function versionFee(bytes32, uint256) view returns (uint256)"));
   eq("0x" + CAT_SEL.maxFeePerSec6, "0x" + DEP_SEL.maxFeePerSec6);   // same signature on both contracts
-  // the rev-8 create the deploy console sends (fee snapshot, then the cap)
+  // the rev-8 create the deploy flow sends (fee snapshot, then the cap)
   const ref = "catalog://0x" + "cd".repeat(32) + "/3";
   eq(encCall(DEP_SEL.create, [
       { t: "str", v: ref }, { t: "uint", v: 0 }, { t: "uint", v: 50 },

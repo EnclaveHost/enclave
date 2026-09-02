@@ -255,7 +255,7 @@ A near-black blue-green ground carrying one semantic accent family (jade), one w
 
 ## Layout
 
-One centered 1200px column (`--maxw`), 24px gutters, `z-index:1` (the body paints fixed background texture at z 0). Sections breathe at 84px vertical (60px ≤640px); section heads carry a 42px bottom margin and cap at 62ch. Prose caps range 42ch (hero lede) to 78ch (docs). Grids are bespoke per surface — 4-up principle cards, auto-fill 300px store grid, 380px+1fr deploy console, 250px+1fr docs rail — and collapse at exactly two real breakpoints: **1000px** (rails stack) and **640px** (single column, tighter rhythm); a few component-local steps (880px header, 560px type) fine-tune between. All queries are `max-width`; the design is desktop-first. Section alternation is a `--bg-1` band with soft hairline top/bottom borders.
+One centered 1200px column (`--maxw`), 24px gutters, `z-index:1` (the body paints fixed background texture at z 0). Sections breathe at 84px vertical (60px ≤640px); section heads carry a 42px bottom margin and cap at 62ch. Prose caps range 42ch (hero lede) to 78ch (docs). Grids are bespoke per surface — 4-up principle cards, auto-fill 300px store grid, 250px+1fr docs rail — and collapse at exactly two real breakpoints: **1000px** (rails stack) and **640px** (single column, tighter rhythm); a few component-local steps (880px header, 560px type) fine-tune between. All queries are `max-width`; the design is desktop-first. Section alternation is a `--bg-1` band with soft hairline top/bottom borders.
 
 ## Elevation & Depth
 

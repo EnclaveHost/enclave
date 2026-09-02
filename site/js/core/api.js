@@ -176,7 +176,7 @@ export const Enclave = {
   },
   // The relay's PER-ENCLAVE fleet table (root origin, like /availability; only
   // the relay serves it - pointed at a single enclave this 404s). Sizing that
-  // names one box - the deploy console's target, a deployment's lease holder -
+  // names one box - the quick-deploy modal's target, a deployment's lease holder -
   // reads its hardware from here, never from the aggregate.
   getEnclaves(){
     const url = (this.base || "").replace(/\/v1\/?$/, "") + "/enclaves";

@@ -41,8 +41,8 @@ export function validPortsCsv(s){
 // that field — and the site deploys independently of the catalog contract, so
 // the address in the key does not change when the site does. Rev 7 is the live
 // example: without `configCid`, a large-config version reads as though its
-// config were the small on-chain routing manifest, and the deploy console would
-// offer that manifest as the app's config for the user to "override".
+// config were the small on-chain routing manifest, and the dashboard's Config
+// tab would offer that manifest as the app's config for the user to "override".
 const CAT_CACHE_V = 2;
 export function catCacheGet(){
   try { const c = JSON.parse(lsGet("enclave_catalog_" + APP_CATALOG_ADDRESS) || "null");
@@ -53,7 +53,7 @@ export function catCacheSet(apps){ lsSet("enclave_catalog_" + APP_CATALOG_ADDRES
 // A loaded store older than this re-reads (in the background, behind the
 // current paint) on the next loadCatalog() - i.e. the next page boot. The
 // session can't get stuck on one bad read: a store that loaded empty or
-// stale heals on the next visit to the Apps/Deploy page instead of holding
+// stale heals on the next visit to the Apps page instead of holding
 // until a hard refresh.
 const FRESH_MS = 120000;
 /* The owner read gates ALL moderation UI: approve/reject/verify and the
@@ -228,7 +228,7 @@ export const appVerified = (app) => { const i = defaultIdx(app); return i >= 0 &
    unchanged - the trade-off (accepted) is that media is per-version, immutable,
    and re-reviewed on change, exactly like the rest of a version's config. The
    runner delivers the whole config as ENCLAVE_CONFIG, so an app just sees an
-   extra `_media` key it ignores; the deploy console strips it from its preview. */
+   extra `_media` key it ignores; the dashboard's Config tab strips it from its view. */
 export const MEDIA_KEY = "_media";
 const cleanCid = (c) => (typeof c === "string" && /^[a-zA-Z0-9]{10,100}$/.test(c.trim())) ? c.trim() : "";
 // Gateway URL for a media CID. SVG media carries a flag in _media because it
@@ -294,8 +294,8 @@ export const SPECS_CACHE = {};  // friendly "slug:version" -> the version's RAW 
 // `volumes` rides along with the hardware numbers because it is the same KIND
 // of requirement: a model volume is attached to a box, not fetched, so which
 // boxes can host this version depends on it exactly as it depends on the card.
-// It comes off the version's approved config (the deploy console overrides it
-// with the picker's live ticks when the config is edited before signing).
+// It comes off the version's approved config (a deployment's own config
+// override - the dashboard's Models tab - replaces it for that deployment).
 export const specOf = (v) => ({ vramMb: Number(v && v.vramMb) || 0, gpuGflops: Number(v && v.gpuGflops) || 0,
                                 memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0,
                                 volumes: volumesOfConfig(v && v.config),
@@ -334,7 +334,7 @@ export const CONFIG_CID_CACHE = {}; // friendly "slug:version" -> the CID that c
 export const MANIFEST_CACHE = {};
 
 /* A rev-7 version keeps its config at an IPFS CID; this reads it for DISPLAY
-   (the deploy console's prefill and its override diff). Display only — nothing
+   (the dashboard's Config tab prefill and its override diff). Display only — nothing
    here is a trust boundary: the enclave re-fetches the same CID and verifies
    the content hashes back to it before any of it reaches a guest, so the worst
    a lying gateway does to this path is show the operator the wrong text.
@@ -445,7 +445,7 @@ export function resolveAppRef(input, opts = {}){
   // The version's default config template (store media stripped: _media never
   // reaches an app, and an override built from this prefill must not carry it).
   // On a rev-7 version `v.config` is only the on-chain manifest, so the real
-  // config is fetched from its CID — otherwise the deploy console would prefill
+  // config is fetched from its CID — otherwise a config editor would prefill
   // the manifest and treat the user's first keystroke as an override against
   // the wrong baseline. Best effort: a gateway that won't answer leaves the
   // box empty rather than wrong, and the ENCLAVE_CONFIG the app receives is
@@ -455,8 +455,8 @@ export function resolveAppRef(input, opts = {}){
   // On a rev-7 version the line above cached only the ON-CHAIN MANIFEST. The
   // real config is at a CID and reading it is a network fetch, so it is not
   // done here (this resolver is synchronous and called from render paths):
-  // CONFIG_CID_CACHE records where to get it and the deploy console fills the
-  // box once it lands. Until then the box shows the manifest-stripped empty
+  // CONFIG_CID_CACHE records where to get it; a consumer that shows the
+  // config fetches it from there. Until then the box shows the manifest-stripped empty
   // string rather than the manifest itself, which would read as the app's
   // config and make the user's first keystroke an override against a baseline
   // that was never the config.
@@ -470,7 +470,7 @@ export function resolveAppRef(input, opts = {}){
 // `enclave:addresses` when APP_CATALOG_ADDRESS et al. are repointed on-chain)
 // leaves our loaded catalog reading the OLD contract. Re-read against the new
 // address so pages repaint - loadCatalog emits `enclave:catalog` on completion,
-// which is exactly the repaint signal the Apps/Deploy pages already listen for.
+// which is exactly the repaint signal the Apps page already listens for.
 on("enclave:addresses", ({ changed }) => {
   if (changed && changed.indexOf("APP_CATALOG_ADDRESS") !== -1){
     STORE.loaded = false; STORE.loading = false; STORE.owner = null;
