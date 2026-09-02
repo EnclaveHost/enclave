@@ -34,6 +34,7 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -46,6 +47,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.Socket;
 import java.security.SecureRandom;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -59,6 +61,7 @@ public class Main extends Activity {
     public static final class Plan {
         String payload = "libanchor.so"; int debug = 0; long memMib = 1024;
         String worker = "127.0.0.1:9500"; String mode = "bridge";
+        String relay = null; String name = "phone-anchor";
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
@@ -67,6 +70,8 @@ public class Main extends Activity {
             if (i.getStringExtra("worker") != null) p.worker = i.getStringExtra("worker");
             if (i.getStringExtra("mode") != null) p.mode = i.getStringExtra("mode");
             if (i.getStringExtra("shapes") != null) p.shapes = i.getStringExtra("shapes");
+            if (i.getStringExtra("relay") != null) p.relay = i.getStringExtra("relay");
+            if (i.getStringExtra("name") != null) p.name = i.getStringExtra("name");
             return p;
         }
     }
@@ -180,18 +185,48 @@ public class Main extends Activity {
         if (pfd == null) { say("CONTROL connect failed"); return; }
         say("CONTROL connected");
         if (plan.mode.equals("bridge")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
+        RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
-            byte[] ch = new byte[32]; new SecureRandom().nextBytes(ch);
-            StringBuilder hex = new StringBuilder(); for (byte x : ch) hex.append(String.format("%02x", x));
+            // 1. the VM's transport key is the first thing it says
+            String first = r.readLine();
+            byte[] spki = first != null && first.startsWith("SPKI ") ? RelayAttach.unhex(first.substring(5).trim()) : null;
+            say("VSOCK " + first);
+            // 2. the challenge: the relay's, bound to the transport key, or a local one
+            String chal, boundHex = "";
+            if (plan.relay != null && spki != null) {
+                relay = new RelayAttach(plan.relay, plan.name, spki);
+                try { chal = relay.challenge(); boundHex = RelayAttach.hex(relay.bound); }
+                catch (Exception e) { say("RELAY dial failed: " + e + " (continuing with a local challenge)"); relay = null; byte[] c = new byte[32]; new SecureRandom().nextBytes(c); chal = RelayAttach.hex(c); }
+            } else { byte[] c = new byte[32]; new SecureRandom().nextBytes(c); chal = RelayAttach.hex(c); }
+            if (!boundHex.isEmpty()) out.write(("BOUND " + boundHex + "\n").getBytes());
+            out.write(("CHAL " + chal + "\n").getBytes()); out.flush();
+            say("CONTROL challenge=" + chal);
+            // 3. what the VM produced: status, the chain in chunks, the signature
+            TreeMap<Integer, TreeMap<Integer, String>> certs = new TreeMap<>(); TreeMap<Integer, String> sig = new TreeMap<>();
+            String line;
+            while ((line = r.readLine()) != null) {
+                say("VSOCK " + (line.length() > 160 ? line.substring(0, 160) + "…(" + line.length() + ")" : line));
+                if (line.equals("ATTEST end")) break;
+                java.util.regex.Matcher m;
+                if ((m = java.util.regex.Pattern.compile("^CERT(\\d+)\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches())
+                    certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3));
+                else if ((m = java.util.regex.Pattern.compile("^SIG\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches())
+                    sig.put(Integer.parseInt(m.group(1)), m.group(2));
+            }
+            // 4. present it; a bound tunnel keeps serving the hub in its own thread
+            if (relay != null) {
+                JSONObject res = relay.present(certs, sig);
+                if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
+                else { relay.close(); relay = null; }
+            }
+            // 5. the run plan
             StringBuilder cmd = new StringBuilder();
-            cmd.append("CHAL ").append(hex).append('\n');
             cmd.append("WORKER ").append(plan.mode).append('\n');
             for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
-            say("CONTROL challenge=" + hex + " plan sent");
-            String line; int n = 0;
+            int n = 0;
             while ((line = r.readLine()) != null) { say("VSOCK " + line); n++; if (line.equals("END")) break; }
             say("CONTROL closed after " + n + " lines");
         } catch (Exception e) {
@@ -199,6 +234,7 @@ public class Main extends Activity {
         } finally {
             sEnded = true;
             try { pfd.close(); } catch (Exception ignored) { }
+            if (relay != null) relay.close();
         }
     }
 

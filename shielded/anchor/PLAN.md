@@ -62,7 +62,18 @@ wasmtime patch) to Microdroid: model weights arrive public over the bridge, the 
 nonlinears run in the VM, pads are banked on the spare vCPUs (i8mm/SDOT refill kernels), the
 session key is the attested key. Memory scaling: large `--mem` VMs, no 48 MiB ceiling here.
 
-### 4. Operator flow and fleet
+### 4. Operator flow and fleet (attach plumbing BUILT 2026-09-02; acceptance waits on a device that attests)
+- Done: the VM mints an Ed25519 transport key at boot (TweetNaCl, vendored under
+  `avf/payload/third_party/`) and announces its SPKI first; the app dials the relay's fleet
+  tunnel (`host/app/Ws.java`, a dependency-free RFC 6455 client), takes the nonce, sends the VM
+  `BOUND spki||nonce` and `CHAL sha256(bound)`, collects the chain and the attested key's
+  signature, presents `android-avf-pvm/v1`, logs the verdict, and if bound answers the hub
+  (`hello` mode avf, `/availability`, `/v1/health`, ping) from `host/app/RelayAttach.java`.
+  `host/local-hub.mjs` runs a hub on the workstation for the loop. Measured on the Pixel 8 Pro:
+  every step through the verdict, refused with "AVF body needs chain[]" because this unit cannot
+  attest, which is the correct answer for it.
+- Open: the real chain (Pixel 10 Pro XL), pinning a published build's codeHash + signing cert,
+  and the pieces below.
 Pair the phone with the GPU box's enclave agent (the `enclave://` pairing the mobile shell
 already uses), register a "phone-anchored shielded host", per-host pricing as today, badge.
 Distribution: `MANAGE_VIRTUAL_MACHINE` is grantable by adb only, so early operators sideload
