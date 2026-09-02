@@ -125,6 +125,7 @@ const walletNonce = async () => {
   } catch (_) { return null; }
 };
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
+import { proverProbe, proverState, planProverBind, proverVerdict, proverDeployData, pairFits } from "./provermig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -277,6 +278,16 @@ class AdminConsole extends EnclaveElement {
               .then((r) => ({ addr: E.vaultFactory, ...r }))
               .catch(() => ({ addr: E.vaultFactory, impl: null, current: null })) : null,
       ]);
+      // rev >= 9: does the prover the BOOK publishes (and the one the ledger
+      // has bound) fit THIS ledger? The rev-13 migration shipped with the
+      // book still naming the rev-12 prover, whose immutable deployments()
+      // is the OLD ledger - every checkpoint reverted "not the runner" and
+      // nothing on this page said so while every host's income stopped at
+      // the cutover. Both probes are soft (null = no address to probe).
+      if (S.dep && S.dep.schema >= 9) {
+        const probe = (a) => (a && !isZero(a)) ? proverProbe(a) : Promise.resolve(null);
+        [S.dep.boundPair, S.dep.bookPair] = await Promise.all([probe(S.dep.prover), probe(E.proofOfTime)]);
+      }
       this._note.hidden = true;
       this._paint();
     } catch (e) {
@@ -401,13 +412,36 @@ class AdminConsole extends EnclaveElement {
             bookProver === undefined && S.book.entries.registry && lc(S.book.entries.registry) !== lc(d.registry)
               ? ` <span class="warn">≠ the book's <code>registry</code> (${short(S.book.entries.registry)}) - this ledger will keep reading the one above, forever</span>` : ""
           }</div><span></span><span></span><span></span></div>`
-        + (bound
-          ? `<div class="ac-row"><div class="ac-lbl">Prover <code>setProver</code></div><div class="ac-cur">${mono(d.prover)} <span class="dim">bound and frozen ✓</span>${
-              bookProver && lc(bookProver) !== lc(d.prover) ? ` <span class="warn">the book's <code>proofOfTime</code> is ${short(bookProver)} - enclaves will send checkpoints to a contract this ledger does not accept</span>` : ""
-            }${!bookProver ? ` <span class="warn">not in the address book yet - running enclaves cannot find it; set the <code>proofOfTime</code> key above</span>` : ""}</div><span></span><span></span><span></span></div>`
-          : this._row(`Prover <code>setProver</code> <span class="warn">ONE-SHOT</span>`, `<span class="warn">unbound</span> <span class="dim">- checkpoints are rejected; hosts earn on held time until the cutover, then nothing</span>`,
-              "dep-prover", { owner: d.owner, placeholder: bookProver || "0x… (the EnclaveProofOfTime deploy)", verb: "Bind", hint: "permanent - cannot be changed or cleared" })
-            + `<div class="ac-row"><div class="ac-lbl">Confirm</div><div class="ac-cur"><span class="dim">type BIND to enable the button's transaction</span></div><input class="ac-in" id="cf-dep-prover" placeholder="BIND" spellcheck="false" autocomplete="off" /><span></span><span></span></div>`)
+        + (() => {
+          /* the verdict reads the same facts the planner does (provermig.js),
+             so what the panel says and what the flow would do never drift */
+          const verdict = proverVerdict({ ledger: d.addr, ledgerRegistry: d.registry, boundProver: d.prover, boundPair: d.boundPair,
+                                          bookProver, bookPair: d.bookPair, proofFrom: from || 0 });
+          const status = `<div class="ac-row"><div class="ac-lbl">Status</div><div class="ac-cur"><span class="${verdict.level === "ok" ? "dim" : "warn"}">${
+              verdict.level === "stranded" ? "STRANDED - " : ""}${esc(verdict.text)}</span></div><span></span><span></span><span></span></div>`;
+          if (bound) {
+            const published = bookProver && lc(bookProver) === lc(d.prover);
+            return status
+              + `<div class="ac-row"><div class="ac-lbl">Prover <code>setProver</code></div><div class="ac-cur">${mono(d.prover)} <span class="dim">bound and frozen ✓</span></div><span></span><span></span><span></span></div>`
+              + (published ? "" : `<div class="ac-mig-actions">
+                  <button class="btn btn-primary btn-sm" data-act="book-point:proofOfTime:${esc(d.prover)}" data-owner="${esc(S.book.owner)}">Publish the book key: proofOfTime → ${esc(short(d.prover))}</button>
+                  <span class="ac-hint">one book-owner tx; enclaves, relays and the CLI follow within ≤5 min</span></div>`);
+          }
+          /* unbound: ONE resumable flow - deploy (only if nothing already fits),
+             bind, publish - re-planned from live chain state on every run, so an
+             interrupted run picks up where it stopped and nothing is sent twice */
+          const bookOwnerDiffers = lc(S.book.owner) !== lc(d.owner);
+          return status
+            + `<div class="ac-mig-actions">
+                <input class="ac-in ac-in-key" id="cf-pov" aria-label="Type BIND to confirm" placeholder='type "BIND"' spellcheck="false" autocomplete="off" />
+                <button class="btn btn-primary btn-sm ac-danger-btn" data-act="pov-run" data-owner="${esc(d.owner)}">Deploy + bind + publish</button>
+                <span class="ac-hint">up to 3 wallet confirmations from the ledger owner ${esc(short(d.owner))}${bookOwnerDiffers ? ` (the book step from ${esc(short(S.book.owner))})` : ""}; a prover that already fits this ledger is reused, and re-running resumes</span>
+              </div>
+              <div class="ac-mig-log" id="povLog" role="log" aria-label="Prover binding log" hidden></div>`
+            + this._row(`…or bind one deployed elsewhere <code>setProver</code> <span class="warn">ONE-SHOT</span>`,
+                `<span class="dim">checked before sending: must carry code, point back at this ledger and read the same registry; needs BIND typed above</span>`,
+                "dep-prover", { owner: d.owner, placeholder: "0x… (an EnclaveProofOfTime deploy)", verb: "Bind", hint: "permanent - cannot be changed or cleared" });
+        })()
         + (from === null
           ? `<div class="ac-row"><div class="ac-lbl">Cutover <code>setProofRequiredFrom</code></div><div class="ac-cur"><span class="dim">not in this contract rev</span></div><span></span><span></span><span></span></div>`
           : this._row("Cutover <code>setProofRequiredFrom</code>",
@@ -665,6 +699,7 @@ class AdminConsole extends EnclaveElement {
     this._paintSigner();
     this._migPrefill();
     this._vltPrefill();
+    this._povPrefill();
     this._gate();
     this._loadMetrics();
   }
@@ -799,6 +834,36 @@ class AdminConsole extends EnclaveElement {
   _vltSaved() { try { return JSON.parse(localStorage.getItem("enclave_vaultmig") || "{}"); } catch { return {}; } }
   _vltSave(o) { try { Object.keys(o).length ? localStorage.setItem("enclave_vaultmig", JSON.stringify(o)) : localStorage.removeItem("enclave_vaultmig"); } catch {} }
 
+  /* ---------- proof-of-time prover binding (provermig.js drives) ---------- */
+
+  _povLog(cls, txt) {
+    const P = this._pov || (this._pov = {});
+    (P.log = P.log || []).push({ cls, txt });
+    this._logTo("povLog", cls, txt);
+  }
+
+  /* replay the buffered log across repaints - the flow's permanent step must
+     keep its audit trail on screen (the _vltPrefill contract) */
+  _povPrefill() {
+    const log = this._body && this._body.querySelector("#povLog");
+    if (!log) return;
+    const lines = (this._pov && this._pov.log) || [];
+    log.innerHTML = "";
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.className = l.cls; d.textContent = l.txt;
+      log.appendChild(d);
+    }
+    log.hidden = !lines.length;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /* cross-session resume state, keyed by LEDGER address: the prover a run
+     deployed before it was interrupted. Chain state alone can't name an
+     unbound, unpublished contract, and re-deploying would orphan the first. */
+  _povSaved() { try { return JSON.parse(localStorage.getItem("enclave_provermig") || "{}"); } catch { return {}; } }
+  _povSave(o) { try { Object.keys(o).length ? localStorage.setItem("enclave_provermig", JSON.stringify(o)) : localStorage.removeItem("enclave_provermig"); } catch {} }
+
   _logTo(id, cls, txt) {
     const log = this._body.querySelector("#" + id);
     log.hidden = false;
@@ -895,7 +960,7 @@ class AdminConsole extends EnclaveElement {
       if (act === "dep-prover") {
         const v = inputFor(act);
         if (!need(ADDR_RE.test(v) && !isZero(v), "enter the deployed EnclaveProofOfTime address")) return;
-        if (!need(val("cf-dep-prover") === "BIND", "type BIND to confirm - this binding is permanent")) return;
+        if (!need(val("cf-pov") === "BIND", "type BIND to confirm - this binding is permanent")) return;
         const pSelPot = CONTRACTS.EnclaveProofOfTime.sel;
         const code = await baseRpc("eth_getCode", [v, "latest"]).catch(() => "0x");
         if (!need(code && code !== "0x", "no contract code at that address on Base")) return;
@@ -907,6 +972,82 @@ class AdminConsole extends EnclaveElement {
           `that prover reads registry ${short(itsRegistry)} but this ledger reads ${short(S.dep.registry)} - proof keys would be looked up in the wrong place`)) return;
         return void this._tx(S.dep.addr, encCall(dSel.setProver, [{ t: "addr", v }]),
           `setProver(${short(v)}) — permanent`, panelStatus, true);
+      }
+      /* The same binding as ONE resumable flow: deploy (only when no prover
+         already fits this ledger) → setProver → the book's proofOfTime key.
+         provermig.js re-plans from live chain state on every run, so a run
+         that died between the deploy and the bind resumes at the bind (the
+         fresh address is kept in localStorage - chain state alone can't name
+         an unbound, unpublished contract), and nothing is ever sent twice.
+         The permanent step is guarded by the typed BIND like the row above. */
+      if (act === "pov-run") {
+        const d = S.dep, log = (cls, txt) => this._povLog(cls, txt);
+        const needP = (cond, msg) => { if (!cond) log("err", msg); return cond; };
+        if (!needP(val("cf-pov") === "BIND", "type BIND to confirm - the setProver step is permanent")) return;
+        btn.disabled = true;
+        try {
+          await this._connect();
+          const savedAll = this._povSaved();
+          log("p", `reading the pair: ledger ${d.addr} · registry ${d.registry}…`);
+          const state = await proverState({ ledger: d.addr, registry: d.registry, schema: d.schema },
+                                          S.book.entries.proofOfTime, savedAll[lc(d.addr)]);
+          const plan = planProverBind(state);
+          for (const n of plan.notes) log("p", "  " + n);
+          if (!needP(plan.ok, plan.refuse)) return;
+          if (!plan.steps.length) { log("ok", "nothing to send"); return; }
+          const total = plan.steps.length;
+          let step = 0, sent = 0, target = plan.target;
+          // the wallet picks the next nonce from ITS RPC's view: wait for it to
+          // see each mined tx before sending the next (see awaitNonce)
+          const nonce0 = await walletNonce();
+          const settled = async () => { if (nonce0 != null && sent) await awaitNonce(nonce0 + sent - 1); };
+
+          if (plan.steps.includes("deploy")) {
+            log("p", `[${++step}/${total}] deploying EnclaveProofOfTime(${d.addr}, ${d.registry}) - confirm in your wallet…`);
+            const hash = await sendTx(null, proverDeployData(d.addr, d.registry)); sent++;
+            log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+            const rcpt = await waitReceipt(hash, 90);
+            target = rcpt.contractAddress;
+            if (!needP(target && ADDR_RE.test(target), "confirmed, but the receipt carries no contract address - check the tx on basescan, then re-run")) return;
+            this._povSave({ ...savedAll, [lc(d.addr)]: target });
+            // the fresh deploy must fit the very pair it was built for, or it is
+            // never bound: a stale checked-in artifact is the only way this fails
+            const pair = await proverProbe(target);
+            if (!needP(pairFits(pair, d.addr, d.registry),
+              `the FRESH deploy reads ledger ${short(pair.ledger || ZERO)} / registry ${short(pair.registry || ZERO)} - not this pair, so it is NOT being bound. The checked-in artifact is stale: rebuild (scripts/build-contract-artifacts.mjs), redeploy the site, re-run.`)) return;
+            log("ok", `  prover ${target} ✓ (proofSchema ${pair.schema})`);
+          } else log("p", `reusing prover ${target}`);
+
+          if (plan.steps.includes("bind")) {
+            if (!needP(lc(Enclave.address) === lc(d.owner), `setProver must come from the ledger owner ${d.owner} - connect that wallet and re-run (the deploy is kept)`)) return;
+            await settled();
+            log("p", `[${++step}/${total}] setProver(${target}) - ONE-SHOT and permanent, confirm in your wallet…`);
+            const h = await sendTx(d.addr, encCall(dSel.setProver, [{ t: "addr", v: target }])); sent++;
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            await waitReceipt(h, 90);
+            const now = await rdAddrSoft(d.addr, dSel.prover);
+            if (!needP(lc(now) === lc(target), `confirmed, but the ledger reads prover ${short(now)} - check the tx on basescan before doing anything else`)) return;
+            log("ok", "  bound and frozen ✓");
+          }
+
+          if (plan.steps.includes("book")) {
+            if (!needP(lc(Enclave.address) === lc(S.book.owner), `the book key must come from the book owner ${S.book.owner} - connect that wallet and re-run (everything done so far is kept)`)) return;
+            await settled();
+            log("p", `[${++step}/${total}] book: proofOfTime → ${target} - confirm in your wallet…`);
+            const h = await sendTx(S.book.addr, encCall(CONTRACTS.EnclaveAddressBook.sel.set,
+              [{ t: "bytes32", v: encKey("proofOfTime") }, { t: "addr", v: target }])); sent++;
+            log("p", `  sent ${h.slice(0, 14)}… waiting…`);
+            await waitReceipt(h, 90);
+            log("ok", "  published ✓");
+          }
+
+          const rest = { ...savedAll }; delete rest[lc(d.addr)]; this._povSave(rest);
+          log("ok", `done - enclaves re-read the book within ≤5 min and their next 5-min round lands checkpoints: watch /v1/health .proofOfTime.proved climb (host journal: "[proof] N/M checkpoint(s) landed" with N > 0). Hosts earn from the first landed checkpoint on; time served before it stays unproven.`);
+          setTimeout(() => this.refresh(), 1500);
+        } catch (err) {
+          log("err", friendly(err) + " - re-run to resume; the plan is re-derived from live chain state, so nothing is sent twice.");
+        } finally { btn.disabled = false; }
+        return;
       }
       if (act === "dep-prooffrom") {
         const v = inputFor(act);

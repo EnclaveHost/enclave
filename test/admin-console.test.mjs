@@ -253,6 +253,7 @@ test("creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
   dep("EnclaveAppCatalog", []);
   dep("EnclavePay", [USDC, A1]);
   dep("EnclaveDeployments", [USDC, A1, REG, FEED]);
+  dep("EnclaveProofOfTime", [A1, REG]);
   // mixed static + dynamic: three addresses then two strings
   dep("EnclaveCreditVaultFactory", [USDC, REG, A1, A1, "https://enclave.host", ""]);
   dep("EnclaveCreditVaultFactory", [USDC, REG, A1, ZERO_ADDR, "https://enclave.host", "https://www.enclave.host"]);
@@ -765,4 +766,88 @@ test("every migratable contract exposes an ownership handoff and accept", async 
     assert.ok(sel.owner, `${name} (${m.contractName}) has no owner() to check against`);
     assert.ok(sel.sealImports && sel.importsSealed, `${name} (${m.contractName}) is not import-sealable`);
   }
+});
+
+/* ---- the prover binding as ONE flow (provermig.js) ----
+   setProver is permanent and the prover's ledger is immutable, so the planner
+   that decides what to deploy, what to reuse and what to refuse is pinned
+   branch by branch. The production shape that motivated it: a rev-13 ledger
+   with prover() == 0 while the book still named the rev-12 prover (built
+   against the OLD ledger) - every checkpoint reverted "not the runner" and
+   every host earned nothing from the 2026-08-30 cutover. */
+test("provermig.js: the prover creation tx encodes like viem, and the plan covers every branch", async () => {
+  const { planProverBind, proverVerdict, proverDeployData, pairFits } =
+    await import(path.join(REPO, "site/components/admin-console/provermig.js"));
+  const LEDGER = A1, REG = A2;
+  const OLD = "0x3333333333333333333333333333333333333333", NEW = "0x4444444444444444444444444444444444444444";
+  eq(proverDeployData(LEDGER, REG),
+    encodeDeployData({ abi: ABI("EnclaveProofOfTime"), bytecode: CONTRACTS.EnclaveProofOfTime.bytecode, args: [LEDGER, REG] }));
+
+  const fit = (addr) => ({ addr, code: true, ledger: LEDGER, registry: REG, schema: 2 });
+  const misfit = (addr) => ({ addr, code: true, ledger: OLD, registry: REG, schema: 2 });
+  assert.ok(pairFits(fit(NEW), LEDGER, REG));
+  assert.ok(!pairFits(misfit(NEW), LEDGER, REG));
+  assert.ok(!pairFits({ addr: NEW, code: false }, LEDGER, REG));
+  assert.ok(!pairFits(null, LEDGER, REG));
+
+  const base = { ledger: LEDGER, ledgerSchema: 13, ledgerRegistry: REG, registrySchema: 4,
+                 boundProver: ZERO, boundPair: null, bookProver: undefined, bookPair: null,
+                 savedProver: null, savedPair: null, proofFrom: 0 };
+
+  // the production shape: unbound, book names a prover built for another ledger
+  let p = planProverBind({ ...base, bookProver: OLD, bookPair: misfit(OLD) });
+  assert.equal(p.ok, true);
+  assert.equal(p.target, null);
+  assert.deepEqual(p.steps, ["deploy", "bind", "book"]);
+  assert.ok(p.notes.some((n) => /built against ledger/.test(n)), "says WHY the book's prover is useless");
+  // nothing in the book at all
+  p = planProverBind(base);
+  assert.deepEqual(p.steps, ["deploy", "bind", "book"]);
+  // a fitting book prover (deployed earlier, never bound) is reused and the book step is skipped
+  p = planProverBind({ ...base, bookProver: NEW, bookPair: fit(NEW) });
+  assert.deepEqual([p.target, p.steps], [NEW, ["bind"]]);
+  // an interrupted run's deploy resumes at the bind
+  p = planProverBind({ ...base, bookProver: OLD, bookPair: misfit(OLD), savedProver: NEW, savedPair: fit(NEW) });
+  assert.deepEqual([p.target, p.steps], [NEW, ["bind", "book"]]);
+  // a saved deploy for ANOTHER ledger is never bound
+  p = planProverBind({ ...base, savedProver: NEW, savedPair: misfit(NEW) });
+  assert.deepEqual([p.target, p.steps], [null, ["deploy", "bind", "book"]]);
+  // bound + published: nothing to send; bound + stale book: the key only
+  p = planProverBind({ ...base, boundProver: NEW, boundPair: fit(NEW), bookProver: NEW, bookPair: fit(NEW) });
+  assert.deepEqual([p.ok, p.target, p.steps], [true, NEW, []]);
+  p = planProverBind({ ...base, boundProver: NEW, boundPair: fit(NEW), bookProver: OLD, bookPair: misfit(OLD) });
+  assert.deepEqual([p.target, p.steps], [NEW, ["book"]]);
+  p = planProverBind({ ...base, boundProver: NEW, boundPair: fit(NEW) });
+  assert.deepEqual([p.target, p.steps], [NEW, ["book"]]);
+  // the live cutover is called out before the first confirmation
+  p = planProverBind({ ...base, proofFrom: 1 });
+  assert.ok(p.notes.some((n) => /already LIVE/.test(n)));
+
+  // the unfixable or unverifiable shapes refuse with a reason and NO steps
+  for (const [why, s] of [
+    ["a bound prover built for another ledger (permanent)", { ...base, boundProver: OLD, boundPair: misfit(OLD) }],
+    ["a pre-rev-9 ledger", { ...base, ledgerSchema: 8 }],
+    ["a pre-schema-3 registry", { ...base, registrySchema: 2 }],
+    ["an unreadable registry schema", { ...base, registrySchema: null }],
+    ["an unreadable prover()", { ...base, boundProver: null }],
+    ["a ledger with no registry()", { ...base, ledgerRegistry: ZERO }],
+  ]) {
+    p = planProverBind(s);
+    assert.equal(p.ok, false, why);
+    assert.deepEqual(p.steps, [], why);
+    assert.match(p.refuse, /./, why);
+  }
+
+  // the panel's verdict: live cutover with no prover = stranded; grace = warn;
+  // bound + published + fitting = ok; bound but the book disagrees = warn;
+  // bound to a misfit = stranded (only a new ledger fixes it)
+  const T = 1_800_000_000;
+  assert.equal(proverVerdict({ ...base, proofFrom: T - 10, bookProver: OLD, bookPair: misfit(OLD) }, T).level, "stranded");
+  assert.match(proverVerdict({ ...base, proofFrom: T - 10, bookProver: OLD, bookPair: misfit(OLD) }, T).text, /not the runner/);
+  assert.equal(proverVerdict({ ...base, proofFrom: T + 10 }, T).level, "warn");
+  assert.equal(proverVerdict({ ...base, proofFrom: 0 }, T).level, "warn");
+  assert.equal(proverVerdict({ ...base, boundProver: NEW, boundPair: fit(NEW), bookProver: NEW, bookPair: fit(NEW) }, T).level, "ok");
+  assert.equal(proverVerdict({ ...base, boundProver: NEW, boundPair: fit(NEW), bookProver: OLD, bookPair: misfit(OLD) }, T).level, "warn");
+  assert.equal(proverVerdict({ ...base, boundProver: NEW, boundPair: fit(NEW) }, T).level, "warn");
+  assert.equal(proverVerdict({ ...base, boundProver: OLD, boundPair: misfit(OLD), bookProver: OLD, bookPair: misfit(OLD) }, T).level, "stranded");
 });
