@@ -92,7 +92,8 @@ with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
 PYZ
 "$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
 "$BT/apksigner" sign --ks "$HERE/keys/anchor.jks" --ks-pass pass:anchor123 --ks-key-alias anchor \
-   --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+   --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
    --out "$OUT/$NAME.apk" aligned.apk
+# the v4 signature's Merkle root IS the pVM's codeHash for this apk (pins.py); vm run-app takes the file as its idsig
 "$BT/apksigner" verify --print-certs "$OUT/$NAME.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
 echo "APK: $OUT/$NAME.apk ($(stat -c %s "$OUT/$NAME.apk") bytes)"
