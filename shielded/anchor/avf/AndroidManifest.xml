@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The APK that carries a payload into a protected VM. It has no code of its
+  own (hasCode=false): Microdroid's launcher dlopens lib/arm64-v8a/<payload>.so
+  and calls AVmPayload_main. The APK's v4 Merkle root becomes the pVM's
+  `codeHash` and the SHA-512 of this APK's signing certificate its
+  `authorityHash` in the attested vmComponents, so the signing key in
+  keys/anchor.jks IS the payload's identity to a verifier.
+
+  MANAGE_VIRTUAL_MACHINE is signature|preinstalled|development: not grantable
+  from a consent dialog, but `adb shell pm grant` works on a stock, locked
+  device, and the `vm` tool run from adb shell needs no grant at all.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="host.enclave.anchor.avf"
+    android:versionCode="1"
+    android:versionName="0.1">
+    <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="35" />
+    <uses-permission android:name="android.permission.MANAGE_VIRTUAL_MACHINE" />
+    <uses-feature android:name="android.software.virtualization_framework" android:required="true" />
+    <application android:hasCode="false" android:extractNativeLibs="false" android:label="Enclave Anchor (AVF)" />
+</manifest>
