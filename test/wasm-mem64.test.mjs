@@ -25,7 +25,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,6 +47,31 @@ function syntheticModule(flags) {
     Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]),
     Buffer.from([5, payload.length]), payload,
   ]);
+}
+
+// A minimal synthetic COMPONENT (layer 1) wrapping one core module: the
+// component preamble (version 0x0d, layer 1) + a core-module section (id 1)
+// whose payload is the whole module binary. This is what a wasm64 wasip2
+// app looks like structurally — its main module is a top-level core module
+// with a 64-bit memory — and what the classifiers walk into.
+function syntheticComponent(coreModule) {
+  const size = coreModule.length;
+  const uleb = [];
+  let n = size;
+  do { let b = n & 0x7f; n >>= 7; if (n) b |= 0x80; uleb.push(b); } while (n);
+  return Buffer.concat([
+    Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00]),
+    Buffer.from([1, ...uleb]), coreModule,
+  ]);
+}
+
+// A component holding `inner` as a NESTED component (section id 4) behind a
+// wasm32 top-level core module — the shape `wac plug` emits when a wasm64
+// app is composed under the wasm32 WASI pass-through proxy.
+function composedComponent(inner, frontModule) {
+  const uleb = (n) => { const out = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; out.push(b); } while (n); return Buffer.from(out); };
+  const section = (id, body) => Buffer.concat([Buffer.from([id]), uleb(body.length), body]);
+  return Buffer.concat([Buffer.from([0, 0x61, 0x73, 0x6d, 0x0d, 0, 1, 0]), section(1, frontModule), section(4, inner)]);
 }
 
 const py = (code, env = {}) => execFileSync("python3", ["-c", code], {
@@ -93,7 +118,7 @@ if rec.get("_proc") is not None:
     try: rec["_proc"].terminate()
     except Exception: pass
 print(json.dumps({"status": rec["status"], "error": rec.get("error"),
-                  "mem64": rec.get("mem64"), "mem_mb": rec.get("mem_mb")}))
+                  "mem64": rec.get("mem64"), "cm64": rec.get("cm64"), "mem_mb": rec.get("mem_mb")}))
 `, env));
 }
 
@@ -210,4 +235,94 @@ test("a portless mem64 guest RUNS as a compute guest with its full RAM slice; a 
   const comp = launchPy(compPath, { ports: ["udp:9000"], env });
   assert.equal(comp.mem64, false);
   assert.equal(comp.mem_mb, 4096, "wasm32 guests keep the historical ceiling");
+});
+
+// ---- 5. memory64 COMPONENTS: the run-mode shape wasm64 ships in ------------
+//
+// A wasip2 app built for wasm64 is a component whose main core module has a
+// 64-bit memory. It is NOT a compute guest: it keeps ports and sockets, and
+// the only launch differences are the engine's memory64 switches and the
+// ceiling lift. Every classifier must see it, in lockstep, and never confuse
+// it with the portless core-module class.
+
+test("a memory64 component is mem64 for every classifier; a wasm32 one is not", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cm64cls-"));
+  const c64 = path.join(dir, "c64.wasm"), c32 = path.join(dir, "c32.wasm");
+  writeFileSync(c64, syntheticComponent(syntheticModule(0x04)));
+  writeFileSync(c32, syntheticComponent(syntheticModule(0x00)));
+  assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c64)}))`), true);
+  assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c32)}))`), false);
+  // the core-module classifier must NOT fire on a component
+  assert.equal(mgrPy(`m._needs_mem64(pathlib.Path(${JSON.stringify(c64)}))`), false);
+  assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c64)}, "rb").read())`), true);
+  assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c32)}, "rb").read())`), false);
+  // the gateway's contract dict stamps mem64 for the publish clients
+  const c = gwPy(`g.component_contract(open(${JSON.stringify(c64)}, "rb").read())`);
+  assert.equal(c.mem64, true);
+  // the CLI's copy agrees
+  const cli = readFileSync(path.join(REPO, "cli", "enclave.mjs"), "utf8");
+  const fn = cli.slice(cli.indexOf("function moduleMem64("), cli.indexOf("function componentContract("));
+  const f = new Function("Buffer", fn + "; return { moduleMem64, componentMem64 };")(Buffer);
+  assert.equal(f.componentMem64(readFileSync(c64)), true);
+  assert.equal(f.componentMem64(readFileSync(c32)), false);
+  assert.equal(f.moduleMem64(readFileSync(c64)), false, "the module classifier stays layer-0 only");
+});
+
+test("a memory64 component launches like any component, plus the engine switches and the ceiling lift", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cm64run-"));
+  const f = path.join(dir, "c64.wasm");
+  writeFileSync(f, syntheticComponent(syntheticModule(0x04)));
+  // port mode with a declared port: NOT the compute-guest refusal (udp-only
+  // is the waitable-port-free shape the fake engine can satisfy, as in the
+  // wasm32 control above); cpuShare 0.5 of the default 64 GB node = 32768 MB
+  const rec = launchPy(f, { ports: ["udp:9000"],
+    env: { WASMTIME_BIN: FAKE(ENGINE_OK), WASM_APPS_DIR: dir, WASM_FS: "0" } });
+  assert.equal(rec.status, "running", rec.error || "");
+  assert.equal(rec.mem64, true);
+  assert.equal(rec.cm64, true);
+  assert.equal(rec.mem_mb, 32768, "the clamp lifts to the deployment's slice for a memory64 component");
+  // the command carries the memory64 switches (a plain component's would not)
+  const cmd = mgrPy(`" ".join(m._build_cmd(m._parse_ports(["tcp:9000"]), ${JSON.stringify(f)}, 0, 1 << 30, {"tcp:9000": 31000}, cm64=True)[0])`,
+    { WASMTIME_BIN: FAKE(ENGINE_OK) });
+  assert.match(cmd, /-W memory64,component-model-memory64/);
+  const plain = mgrPy(`" ".join(m._build_cmd(m._parse_ports(["tcp:9000"]), ${JSON.stringify(f)}, 0, 1 << 30, {"tcp:9000": 31000})[0])`,
+    { WASMTIME_BIN: FAKE(ENGINE_OK) });
+  assert.doesNotMatch(plain, /component-model-memory64/);
+});
+
+test("an engine that cannot compile the memory64 COMPONENT probe refuses readably", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cm64no-"));
+  const f = path.join(dir, "c64.wasm");
+  writeFileSync(f, syntheticComponent(syntheticModule(0x04)));
+  // compile succeeds for the core-module probe but fails under the cm64 flags
+  const ENGINE_NO_CM64 = `case "$1" in compile) case "$*" in *component-model-memory64*) exit 1;; esac; exit 0;; run) exec sleep 15;; esac; exit 0`;
+  const rec = launchPy(f, { ports: ["tcp:9000"],
+    env: { WASMTIME_BIN: FAKE(ENGINE_NO_CM64), WASM_APPS_DIR: dir, WASM_FS: "0" } });
+  assert.equal(rec.status, "failed");
+  assert.match(rec.error, /component-model-memory64/);
+});
+
+test("a memory64 core nested in a composed component (wasm32 proxy in front) is mem64 for every classifier", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cm64nest-"));
+  const c = path.join(dir, "composed.wasm"), c32 = path.join(dir, "composed32.wasm");
+  writeFileSync(c, composedComponent(syntheticComponent(syntheticModule(0x04)), syntheticModule(0x00)));
+  writeFileSync(c32, composedComponent(syntheticComponent(syntheticModule(0x00)), syntheticModule(0x00)));
+  assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c)}))`), true, "the nested 64-bit core decides, not the 32-bit front module");
+  assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c32)}))`), false);
+  assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c)}, "rb").read())`), true);
+  assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c32)}, "rb").read())`), false);
+  assert.equal(gwPy(`g.component_contract(open(${JSON.stringify(c)}, "rb").read())`).mem64, true);
+  // the CLI's copy descends too
+  const cli = readFileSync(path.join(REPO, "cli", "enclave.mjs"), "utf8");
+  const cfn = cli.slice(cli.indexOf("function moduleMem64("), cli.indexOf("function componentContract("));
+  const cf = new Function("Buffer", cfn + "; return { moduleMem64, componentMem64 };")(Buffer);
+  assert.equal(cf.componentMem64(readFileSync(c)), true);
+  assert.equal(cf.componentMem64(readFileSync(c32)), false);
+  // and the site's (plain Uint8Array input, no Buffer)
+  const site = readFileSync(path.join(REPO, "site", "js", "pages", "apps.js"), "utf8");
+  const s0 = site.indexOf("function moduleMem64("), s1 = site.indexOf("function componentMem64(");
+  const sEnd = site.indexOf("\n}\n", s1) + 3;
+  const sf = new Function(site.slice(s0, sEnd) + "; return { moduleMem64, componentMem64 };")();
+  assert.equal(sf.componentMem64(new Uint8Array(readFileSync(c))), true);
+  assert.equal(sf.componentMem64(new Uint8Array(readFileSync(c32))), false);
 });

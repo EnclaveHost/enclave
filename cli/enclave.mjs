@@ -2048,6 +2048,49 @@ function moduleMem64(bytes) {
   return false;
 }
 
+// wasm64 COMPONENT detection: a component (layer 1) whose first memory-bearing
+// core module (section id 1) declares a 64-bit memory — a wasip2 app that can
+// address more than 4 GiB. Lockstep with wasm_manager._component_mem64 (the
+// launch authority) and the gateway's component_mem64.
+function componentMem64(bytes) {
+  if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 1) return false;
+  const uleb = (buf, i) => {
+    let r = 0, s = 0;
+    for (;;) {
+      const b = buf[i++];
+      if (b === undefined) throw new Error("truncated uleb128");
+      r += (b & 0x7f) * 2 ** s;
+      if (!(b & 0x80)) return [r, i];
+      s += 7;
+      if (s > 35) throw new Error("uleb128 too long");
+    }
+  };
+  const hasMemory = (m) => {
+    if (m.length < 8) return false;
+    for (let i = 8; i < m.length; ) {
+      const sid = m[i];
+      const [size, j] = uleb(m, i + 1);
+      if (sid === 5) { const [count] = uleb(m, j); return count > 0; }
+      i = j + size;
+    }
+    return false;
+  };
+  try {
+    for (let i = 8; i < bytes.length; ) {
+      const sid = bytes[i];
+      const [size, j] = uleb(bytes, i + 1);
+      const inner = bytes.subarray(j, j + size);
+      if (sid === 1) {                    // core module: any 64-bit memory decides
+        if (hasMemory(inner) && moduleMem64(inner)) return true;
+      } else if (sid === 4) {             // nested component (a wasm64 app ships composed under a wasm32 proxy)
+        if (componentMem64(Buffer.from(inner))) return true;
+      }
+      i = j + size;
+    }
+  } catch { return false; }
+  return false;
+}
+
 function componentContract(bytes) {
   const none = { wasi: null, world: null };
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 1) return none;
@@ -2157,11 +2200,13 @@ async function cmdPublish(rest) {
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100)
     throw new Error(`${file} is not a wasm binary (bad magic)`);
   const layer = bytes[6] | (bytes[7] << 8);
-  const needsMem64 = layer === 0 && moduleMem64(bytes);
+  const needsMem64 = (layer === 0 && moduleMem64(bytes)) || (layer === 1 && componentMem64(bytes));
   if (layer === 0 && !needsMem64) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize), wasm32-wasip3 (see the develop guide's WASIp3 chapter), or wasm64-wasip1 for >4 GiB memory (Dockerfile.wasm64c-build)`);
   if (layer !== 0 && layer !== 1) throw new Error(`${file} has unrecognized wasm layer ${layer} (expected a component)`);
   if (needsMem64) {
-    say("detected wasm64 (memory64): a COMPUTE guest — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp");
+    say(layer === 0
+      ? "detected wasm64 (memory64): a COMPUTE guest — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp"
+      : "detected a memory64 component: a wasip2 app that addresses more than 4 GiB — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp");
     // compute guests only: preview1 has no socket surface on the engine, so
     // a port-declaring wasm64 version promises an interface the guest cannot
     // provide and every launch would fail waiting for the bind — refuse
