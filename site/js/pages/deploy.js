@@ -580,10 +580,12 @@ async function runDeploy(){
     if (dryFee > 0) plan.push(["info", "0c) this app charges a publisher fee of $" + (dryFee * 3600 / 1e6).toFixed(2) + "/hr - create() snapshots it and every funding pays the publisher's cut straight to their wallet"]);
     plan.push(["p", "1) EnclaveDeployments.create(app, shares) - one wallet tx; you own the record"],
       ["dimln", "   create(\"" + rref.reference + "\", " + gpuMilli + ", " + cpuMilli + ", " + appPort + ", \"" + portsCsv + "\", " + dep.public + (depRev >= 2 ? ", " + envDry + ")" : ", \"\", " + envDry + ")")],
-      ["p", dep.asset === "ETH"
+      ["p", !(fund > 0)
+        ? "2) no funding now ($0): the record is created empty and sits inert until funded (Top up on its row) - or runs free on an enclave that pays out to your wallet"
+        : dep.asset === "ETH"
         ? "2) fundEth(id) with ≈ $" + fund + " of ETH - one wallet tx; credited on-chain"
         : "2) sign a " + fund + " USDC authorization (EIP-3009) + one fundWithAuthorization(id) tx - credited on-chain"],
-      ["p", "3) POST /v1/claim-hint - an enclave claims the work and serves it"],
+      ["p", (fund > 0 ? "3) " : "3) once funded: ") + "POST /v1/claim-hint - an enclave claims the work and serves it"],
       ["dimln", "   the balance and spec live on Base: any enclave can take over if the runner dies"],
       ["info", "uncheck “Dry run” to deploy for real"]);
     return note(plan);
@@ -606,7 +608,7 @@ async function runDeploy(){
     if (dry) return note([["warn", "[!] dry runs use the wallet path - credit deploys are always real"]]);
     if (wafSpec()) return note([["warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
     if (co) return note([["warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"]]);
-    if (!(fund > 0)) return note([["warn", "[!] set a budget - it buys runtime at the live per-second rate"]]);
+    if (!(fund > 0)) return note([["warn", "[!] credit deploys need a budget (the vault funds the record as it creates it) - a $0 create needs a wallet deploy"]]);
   }
 
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = "working…";
@@ -686,7 +688,7 @@ export async function deployOnChain(spec){
       if (spec.waf){ w.line("warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (spec.config){ w.line("warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (fee6 > 0n){ w.line("warn", "[!] this app charges a publisher fee, which credit deploys don't support yet - deploy it from a wallet instead"); return; }
-      if (!(fund > 0)){ w.line("warn", "[!] set a budget - it buys runtime at the live per-second rate"); return; }
+      if (!(fund > 0)){ w.line("warn", "[!] credit deploys need a budget (the vault funds the record as it creates it) - a $0 create needs a wallet deploy"); return; }
       try {
         adoptFreePct(await Enclave.getAvailability());
         if (queuedVerdict(spec.gpuMilli / 10, spec.cpuMilli / 10))
@@ -754,15 +756,17 @@ export async function deployOnChain(spec){
     // before somebody funds runtime they will never burn.
     let freeBoxes = [];
     try { freeBoxes = freeEnclavesFor(Enclave.address, await Enclave.getEnclaves()); } catch(e){}
+    const freeNames = freeBoxes.map(e => e.name || e.endpoint).join(", ");
     if (rate6 > 0n){
       const rate = Number(rate6 + fee6) / 1e6;   // the publisher's cut rides on top, exactly as create() adds it
-      w.line("info", "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr");
+      w.line("info", fund > 0
+        ? "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr"
+        : "    no funding now: the record is created with an empty balance (it would burn $" + (rate * 3600).toFixed(2) + "/hr once funded)");
       if (fee6 > 0n)
         w.line("info", "    includes the app's publisher fee: $" + (Number(fee6) * 3600 / 1e6).toFixed(2) + "/hr, paid to " + short(feeTo) + " out of each funding");
     }
     if (freeBoxes.length){
-      const names = freeBoxes.map(e => e.name || e.endpoint).join(", ");
-      w.line("ok", "[✓] you host this yourself: " + names + " pays out to this wallet, so running it there costs you nothing"
+      w.line("ok", "[✓] you host this yourself: " + freeNames + " pays out to this wallet, so running it there costs you nothing"
         + (fee6 > 0n ? " beyond the app's publisher fee" : " at all") + " - the rate above is what any OTHER enclave would charge");
       if (fee6 <= 0n && fund > 0)
         w.line("info", "    you can fund it anyway (it buys runtime on other enclaves if yours is ever down), or fund $0 and let your own box take it");
@@ -831,21 +835,37 @@ export async function deployOnChain(spec){
     w.setId(id);   // name the run explicitly: bytes32 ids read exactly like the tx hashes already in the log
     w.line("ok", "[✓] created " + id);
 
-    // 2) fund: the credit lands in the deployment's on-chain balance
-    let pricing = null;
-    try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
-    try {
-      await payForRuntime({
-        contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
-        usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        ethUsd: pricing && pricing.ethUsd,
-      }, fund, asset, w.line);
-    } catch(e){
-      const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-      w.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
-      w.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time - it starts once it has balance.");
-      offerRetry(w, id, fund, asset);
-      return;
+    // 2) fund: the credit lands in the deployment's on-chain balance. A $0
+    // deploy SKIPS this step on purpose (payForRuntime refuses a zero amount,
+    // and rightly - a zero top-up is a mistake, a zero create is a choice):
+    // the record exists, reads awaiting_payment on the ledger (inert, nothing
+    // burns), and is funded later from its row - or claimed for nothing by a
+    // box that pays out to this wallet, whose zero price an empty balance
+    // satisfies (rev 12 claimableBy). Only THAT case has a claim to watch for.
+    if (!(fund > 0)){
+      w.line("ok", "[✓] created unfunded - " + id + " sits inert (costs nothing) until it has balance");
+      if (!freeBoxes.length){
+        w.line("dimln", "    fund it any time: Top up on its row below (or the CLI's fund command) - enclaves claim it the moment it has balance");
+        const dp = depsPanel(); if (dp) dp.refresh();
+        return;
+      }
+      w.line("dimln", "    " + freeNames + " hosts it for nothing - watching for that claim");
+    } else {
+      let pricing = null;
+      try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
+      try {
+        await payForRuntime({
+          contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
+          usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          ethUsd: pricing && pricing.ethUsd,
+        }, fund, asset, w.line);
+      } catch(e){
+        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
+        w.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
+        w.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time - it starts once it has balance.");
+        offerRetry(w, id, fund, asset);
+        return;
+      }
     }
 
     // 3+4) nudge the fleet, then watch the claim and the runner's status -
