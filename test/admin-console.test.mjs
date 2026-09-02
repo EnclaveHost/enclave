@@ -876,3 +876,47 @@ test("provermig.js: a permanent step is judged by a settled read, never one stal
   r = await readUntil(async () => ZERO, (p) => p === NEW, { tries: 4, delayMs: 1, sleep });
   assert.deepEqual([r.ok, r.value, r.tries], [false, ZERO, 4]);
 });
+
+/* ---- escrow refunds (escrow.js) ----
+   refund() is owner-gated and pays the owner, so a bad encoding can only
+   waste gas - but the panel packs many refunds into one multicall, and a
+   drifted inner encoding reverts the whole batch with a message that points
+   nowhere. Pinned against viem like the migrate sweep's batches. */
+test("escrow.js: refund batches encode like viem, and the summary groups by owner", async () => {
+  const { refundTxs, refundSummary, REFUND_BATCH, DUST6 } = await import(path.join(REPO, "site/components/admin-console/escrow.js"));
+  const depAbi = ABI("EnclaveDeployments");
+  const ids = Array.from({ length: 14 }, (_, i) => "0x" + (i + 1).toString(16).padStart(2, "0").repeat(32));
+  // one batch, ids sorted, inner calls = refund(id), outer = multicall(bytes[])
+  const one = refundTxs([ids[2], ids[0], ids[1], ids[0]]);
+  assert.equal(one.length, 1);
+  assert.deepEqual(one[0].ids, [ids[0], ids[1], ids[2]], "sorted and de-duplicated");
+  eq(one[0].dataHex, encodeFunctionData({ abi: depAbi, functionName: "multicall",
+    args: [[ids[0], ids[1], ids[2]].map((id) => encodeFunctionData({ abi: depAbi, functionName: "refund", args: [id] }))] }));
+  // batching at REFUND_BATCH: 14 ids -> 12 + 2
+  const many = refundTxs(ids);
+  assert.equal(REFUND_BATCH, 12);
+  assert.deepEqual(many.map((t) => t.ids.length), [12, 2]);
+  assert.match(many[1].label, /batch 2 \(2 records\)/);
+
+  const row = (id, owner, refundable6, escrow6 = refundable6) => ({ id, owner, appRef: "catalog://0xabc/1", active: false, balance6: 0n, rate: 1n, leaseUntil: 0, refundable6, escrow6 });
+  const rows = [
+    row(ids[0], A1, 24_720_000n),           // mine
+    row(ids[1], A1.toUpperCase().replace("0X", "0x"), 290_000n),   // mine, different case
+    row(ids[2], A1, 5_000n),                // mine, dust (under DUST6)
+    row(ids[3], A1, 0n, 7_960_000n),        // mine, escrow but NOT refundable (stuck) - not listed as collectable
+    row(ids[4], A2, 500_000n),              // other wallet
+    row(ids[5], A2, 780_000n),              // other wallet
+    row(ids[6], "0x3333333333333333333333333333333333333333", 100_000n),
+  ];
+  const s = refundSummary(rows, A1.toLowerCase());
+  assert.deepEqual(s.mine.map((r) => r.id), [ids[0], ids[1]]);
+  assert.equal(s.mine6, 25_010_000n);
+  assert.deepEqual([s.dust.length, s.dust6], [1, 5_000n]);
+  assert.equal(DUST6, 10_000n);
+  assert.deepEqual(s.others.map((o) => [o.owner.toLowerCase(), o.count, o.total6]),
+    [[A2.toLowerCase(), 2, 1_280_000n], ["0x3333333333333333333333333333333333333333", 1, 100_000n]], "largest owner first");
+  assert.equal(s.others6, 1_380_000n);
+  // no wallet: nothing is "mine", everyone is listed
+  const none = refundSummary(rows, "");
+  assert.deepEqual([none.mine.length, none.others.length], [0, 3]);
+});
