@@ -74,7 +74,10 @@ async function signLeaf(csrDer) {
 
 // ---- mock DNS_API: the challenge-push daemon's /v1/txt, HMAC-checked --------
 const DNS_TXT_KEY = "cd".repeat(32);
-const dns = { records: new Map(), posts: 0, deletes: 0, badSig: 0 };
+// `cnames`: the customer's delegation records the mock CA follows (a custom
+// domain's _acme-challenge CNAMEs to the alias in our zone); `posted`: every
+// TXT name pushed, in order.
+const dns = { records: new Map(), cnames: new Map(), posted: [], posts: 0, deletes: 0, badSig: 0 };
 const dnsServer = http.createServer((req, res) => {
   const chunks = [];
   req.on("data", (d) => chunks.push(d));
@@ -83,7 +86,7 @@ const dnsServer = http.createServer((req, res) => {
     const want = createHmac("sha256", DNS_TXT_KEY).update(raw).digest("hex");
     if (req.url !== "/v1/txt" || req.headers["x-relay-sig"] !== want) { dns.badSig++; res.writeHead(401); return res.end("{}"); }
     const { name, value } = JSON.parse(raw.toString());
-    if (req.method === "POST") { dns.posts++; if (!dns.records.has(name)) dns.records.set(name, new Set()); dns.records.get(name).add(value); }
+    if (req.method === "POST") { dns.posts++; dns.posted.push(name); if (!dns.records.has(name)) dns.records.set(name, new Set()); dns.records.get(name).add(value); }
     else { dns.deletes++; dns.records.get(name)?.delete(value); }
     res.writeHead(200, { "content-type": "application/json" }); res.end("{}");
   });
@@ -97,9 +100,11 @@ const DNS_API = `http://127.0.0.1:${dnsServer.address().port}`;
 // finalize CSR with openssl. `mode` steers failure injection at newOrder /
 // newNonce: "ok" | "5xx" | "rateLimited" | "nonceHangOnce"; `slowFinalizeMs`
 // keeps a finalized order `processing` (with Retry-After: 1) for that long;
-// `slowInvalidMs` delays the challenge answer and then fails validation.
+// `slowInvalidMs` delays the challenge answer and then fails validation;
+// `certNotFound` makes that many certificate downloads answer 404 "Certificate
+// not found" first (Let's Encrypt's replication lag).
 function mockCa({ eab = null } = {}) {
-  const ca = { mode: "ok", slowFinalizeMs: 0, slowInvalidMs: 0, calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
+  const ca = { mode: "ok", slowFinalizeMs: 0, slowInvalidMs: 0, certNotFound: 0, calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
   const count = (k) => { ca.calls[k] = (ca.calls[k] || 0) + 1; };
   const nonce = () => { const n = b64u(createHash("sha256").update(String(Math.random())).digest()).slice(0, 22); ca.nonces.add(n); return n; };
   const server = http.createServer((req, res) => {
@@ -173,7 +178,8 @@ function mockCa({ eab = null } = {}) {
         count("challenge");
         if (ca.slowInvalidMs) { await new Promise((r) => setTimeout(r, ca.slowInvalidMs)); o.authz = "invalid"; return send(200, authzBody().challenges[0]); }
         const want = b64u(createHash("sha256").update(`${o.token}.${o.thumbprint}`).digest());
-        o.authz = dns.records.get(`_acme-challenge.${o.name}`)?.has(want) ? "valid" : "invalid";
+        const at = `_acme-challenge.${o.name}`;
+        o.authz = dns.records.get(dns.cnames.get(at) || at)?.has(want) ? "valid" : "invalid";
         if (o.authz === "valid") o.status = "ready";
         return send(200, authzBody().challenges[0]);
       }
@@ -194,7 +200,10 @@ function mockCa({ eab = null } = {}) {
         }
         return send(200, { status: o.status, ...(o.cert && o.status === "valid" ? { certificate: `${ca.url}/cert/${o.id}` } : {}), ...(o.error ? { error: { detail: o.error } } : {}) });
       }
-      if (m[1] === "cert") { count("cert"); res.writeHead(200, { "content-type": "application/pem-certificate-chain", "replay-nonce": nonce() }); return res.end(o.cert); }
+      if (m[1] === "cert") {
+        count("cert");
+        if (ca.certNotFound > 0) { ca.certNotFound--; return problem(404, "malformed", "Certificate not found"); }
+        res.writeHead(200, { "content-type": "application/pem-certificate-chain", "replay-nonce": nonce() }); return res.end(o.cert); }
     });
   });
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => {
@@ -219,6 +228,7 @@ Object.assign(process.env, {
 });
 const { initCerts, handleCerts, certsEnabled, issueSig, issueMessage, parseCsr, authorizeName, _internals } =
   await import("../relay/certs.js");
+const { initDomains } = await import("../relay/domains.js");     // the custom-domain store certs.js consults
 await initCerts();
 
 // ---- relayCtx double + the ledger ----------------------------------------------
@@ -290,13 +300,20 @@ test("name authorization: our zones only, one canonical label", () => {
   assert.equal(authorizeName("CDCDCDCD.app.enclave.host.").name, "cdcdcdcd.app.enclave.host");
   assert.equal(authorizeName("0xcdcdcdcd.tcp.enclave.host").zone, "tcp.enclave.host");
   assert.equal(authorizeName("dep-abc123.app.enclave.host").error, "bad_label");  // retired-era ids: not on any ledger
-  assert.equal(authorizeName("shop.example.com").error, "not_platform_zone");     // a customer's domain
+  assert.equal(authorizeName("shop.example.com").error, "unknown_domain");        // a customer's domain nobody verified
+  // a custom domain the store vouches for: the record's deployment, the alias in OUR zone as the challenge name
+  const vouch = (h) => (h === "shop.example.com" ? "0x" + "cd".repeat(32) : null);
+  assert.deepEqual(authorizeName("Shop.Example.com.", undefined, vouch),
+    { name: "shop.example.com", zone: null, label: "cdcdcdcd", id: "0x" + "cd".repeat(32), custom: true, txtName: "_acme-challenge.cdcdcdcd.app.enclave.host" });
+  assert.equal(authorizeName("other.example.com", undefined, vouch).error, "unknown_domain");
+  assert.equal(authorizeName("shop.example.com", undefined, () => "dep_old").error, "unknown_domain");   // a store record that is not a ledger id
+  assert.equal(authorizeName("cdcdcdcd.app.enclave.host", undefined, vouch).custom, false);
   assert.equal(authorizeName("app.enclave.host").error, "not_platform_zone");     // the zone apex
   assert.equal(authorizeName("enclave.host").error, "not_platform_zone");         // the platform apex
   assert.equal(authorizeName("api.enclave.host").error, "not_platform_zone");     // a reserved platform host
   assert.equal(authorizeName("box.app.enclave.host").error, "bad_label");         // not a deployment label
   assert.equal(authorizeName("x.cdcdcdcd.app.enclave.host").error, "bad_label");  // a second level
-  assert.equal(authorizeName("cdcdcdcd.app.enclave.host.evil.com").error, "not_platform_zone");
+  assert.equal(authorizeName("cdcdcdcd.app.enclave.host.evil.com").error, "unknown_domain");
   assert.equal(authorizeName("").error, "bad_name");
 });
 
@@ -305,7 +322,7 @@ test("refusals never reach a CA: customer domain, apex, reserved, bad sig, stale
   const orders = () => (ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0);
   const before = orders();
   let r = await call(await body({ name: "shop.example.com" }));
-  assert.equal(r.code, 403); assert.equal(r.body.error, "not_platform_zone");
+  assert.equal(r.code, 403); assert.equal(r.body.error, "unknown_domain");
   r = await call(await body({ name: "app.enclave.host" }));
   assert.equal(r.code, 403);
   r = await call(await body({ name: "api.enclave.host" }));
@@ -759,6 +776,80 @@ test("a relay without CERTS_KEY (SECRETS_KEY seals the store) issues for opSig-o
   assert.match(m._internals.open(ca1.url + "/directory", blob).pkcs8, /BEGIN PRIVATE KEY/);
   assert.throws(() => _internals.open(ca1.url + "/directory", blob));
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a verified custom domain is issued for its deployment's lease holder, with the dns-01 answer at the delegated alias", async () => {
+  ca1.mode = ca2.mode = "ok"; ca1.slowFinalizeMs = ca2.slowFinalizeMs = 0; for (const c of _internals.CAS) c.downUntil = 0;
+  const SHOP = "shop.customer.org", OTHER_ID = "0x" + "ef".repeat(32);
+  const rec = (hostname, deploymentId, status) => ({ hostname, deploymentId, status, token: "enclave-verify-" + "00".repeat(16),
+    createdAt: Date.now(), verifiedAt: Date.now(), checkedAt: Date.now(), strikes: 0, lastError: null, caaWarning: null, cert: null });
+  fs.writeFileSync(path.join(DIR, "domains.json"), JSON.stringify({ byHost: {
+    [SHOP]: rec(SHOP, ID, "verified"),
+    "pending.customer.org": rec("pending.customer.org", ID, "pending_dns"),
+    "orphan.customer.org": rec("orphan.customer.org", OTHER_ID, "active"),
+  } }));
+  await initDomains();
+  // the pure gate reads the real store: the record names the deployment, the challenge goes to ITS alias
+  const a = authorizeName(SHOP);
+  assert.equal(a.custom, true); assert.equal(a.id, ID); assert.equal(a.label, "cdcdcdcd");
+  assert.equal(a.txtName, "_acme-challenge.cdcdcdcd.app.enclave.host");
+  assert.equal(authorizeName(SHOP.toUpperCase() + ".").name, SHOP);
+  assert.equal(authorizeName("pending.customer.org").error, "unknown_domain");     // attached but never proven
+  assert.equal(authorizeName("nobody.customer.org").error, "unknown_domain");
+  // the CA follows the customer's delegation CNAME to our alias
+  dns.cnames.set(`_acme-challenge.${SHOP}`, a.txtName);
+  rows = [leaseRow()];
+  EP = "https://enclave7.example";
+  const posted = dns.posted.length;
+  const first = await body({ name: SHOP });
+  const r = await call(first);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(r.body.name, SHOP); assert.equal(sanOf(r.body.certPem), `DNS:${SHOP}`); assert.equal(r.body.ca, "zerossl");
+  await settle();
+  assert.deepEqual(dns.posted.slice(posted), [a.txtName], "the TXT is pushed at the alias in our zone, never under the customer's name");
+  assert.equal(dns.records.get(a.txtName)?.size || 0, 0, "TXT cleaned up");
+  // the same key again is the cache, as for a label
+  const again = await call(await body({ name: SHOP, csr: first.csr }));
+  assert.equal(again.code, 200); assert.equal(again.body.cached, true); assert.equal(again.body.certPem, r.body.certPem);
+  // a record of ANOTHER deployment: the lease check runs for that deployment
+  let x = await call(await body({ name: "orphan.customer.org" }));
+  assert.equal(x.code, 403); assert.equal(x.body.error, "not_found");
+  rows = [leaseRow(), leaseRow({ id: OTHER_ID, runner: "0x" + "bb".repeat(32) })];
+  x = await call(await body({ name: "orphan.customer.org" }));
+  assert.equal(x.code, 403); assert.equal(x.body.error, "not_lease_holder");
+  // unproven names never reach a CA
+  const orders = () => (ca1.calls.newOrder || 0) + (ca2.calls.newOrder || 0);
+  const before = orders();
+  x = await call(await body({ name: "pending.customer.org" }));
+  assert.equal(x.code, 403); assert.equal(x.body.error, "unknown_domain");
+  x = await call(await body({ name: "nobody.customer.org" }));
+  assert.equal(x.code, 403); assert.equal(x.body.error, "unknown_domain");
+  assert.equal(orders(), before);
+});
+
+test("a certificate URL that 404s after the order went valid: retried, then the order is KEPT and resumed on the next ask — never a fresh order", async () => {
+  ca1.mode = ca2.mode = "ok"; ca1.slowFinalizeMs = ca2.slowFinalizeMs = 0; for (const c of _internals.CAS) c.downUntil = 0;
+  rows = [leaseRow()];
+  EP = "https://enclave8.example";
+  // within the retry budget (CERTS_CERT_FETCH_TRIES=3): transparent
+  ca1.certNotFound = 2;
+  let r = await call(await body({ csr: await csrFor(NAME, { key: await genKey() }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.cached, false);
+  assert.equal(ca1.certNotFound, 0);
+  // past it: 202, the order persisted, no failure charged to the name, and the same key's next ask RESUMES it
+  const key2 = await genKey();
+  ca1.certNotFound = 5;
+  const orders = ca1.calls.newOrder;
+  r = await call(await body({ csr: await csrFor(NAME, { key: key2 }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.equal(Object.keys(_internals.store().data.orders).length, 1, "the order is kept");
+  assert.equal(ca1.calls.newOrder, orders + 1);
+  assert.equal(_internals.store().data.failures[NAME], undefined, "not a failure of the name");
+  r = await call(await body({ csr: await csrFor(NAME, { key: key2 }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.cached, false);
+  assert.equal(ca1.calls.newOrder, orders + 1, "resumed, not re-ordered");
+  assert.equal(Object.keys(_internals.store().data.orders).length, 0);
+  assert.equal(ca1.certNotFound, 0);
 });
 
 test("disabled module answers 503 certs_disabled", async () => {

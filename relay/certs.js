@@ -15,17 +15,25 @@
 // relay: the enclave generates the pair, builds the CSR, and asks here; the
 // relay owns the CA accounts, the EAB pair, the pacing against shared CA rate
 // limits, and the dns-01 answer (it already runs the DNS daemon the TXT goes
-// to). Caddy's /internal/tls-ask stays for CUSTOMER domains, which still take
-// the in-enclave ACME path (docs/custom-domains.md).
+// to). Since 2026-09-02 a customer's VERIFIED custom domain is issued here
+// too (docs/custom-domains.md): the relay owns the domain store, so it can
+// hold the name to the record AND to the lease, and the dns-01 answer goes to
+// the delegated alias in our zone. Before that a custom domain on a box with
+// no ZeroSSL pair of its own had ONE issuer, Let's Encrypt, whose 5-per-week
+// duplicate cap a day of restarts spends (eyesoff.ai, 2026-09-01: refused
+// handshakes for a day and a half). Caddy's /internal/tls-ask stays as the
+// routing-side gate for those names.
 //
 // WHAT THE RELAY HOLDS: CA account keys (encrypted at rest), the EAB pair, the
 // issued certificates (public), and the derived CERTS_KEY. Never a private key
 // for any certificate, never the fleet SECRET. WHAT IT REFUSES: any name that
-// is not <canonical label>.<APP_ZONE|TCP_ZONE> — a customer domain, an apex,
-// api./www./mcp., a second-level label — and any CSR that is not exactly
-// {CN==name, SAN==[name]} on a P-256 or RSA>=2048 key. The service may only
-// ever issue for names in the zones it owns; that is the operator constraint
-// and it is enforced before a CA is contacted, not by the CA.
+// is neither <canonical label>.<APP_ZONE|TCP_ZONE> nor a custom domain that
+// domains.js holds as verified/active for a deployment — an apex of ours,
+// api./www./mcp., a second-level label, a stranger's hostname — and any CSR
+// that is not exactly {CN==name, SAN==[name]} on a P-256 or RSA>=2048 key.
+// The service issues only for names the platform owns or has PROVEN a tenant
+// owns; that is the operator constraint and it is enforced before a CA is
+// contacted, not by the CA.
 //
 // THE ROUTE (relay-owned, like /v1/secrets/*):
 //   POST /v1/certs/issue  { name, csr, endpoint, ts, sig, opSig }
@@ -51,7 +59,8 @@
 //             fleet key"; naming another box's endpoint needs THAT box's key.
 //     Single-use: EVERY signature present is marked (opSig always, sig when
 //             sent); a replay of either answers 409.
-//     Authorization: the deployment the label names must have a live lease
+//     Authorization: the deployment the label names (for a custom domain:
+//     the deployment its domains.js record names) must have a live lease
 //     held by `endpoint` (runner = keccak256(endpoint)), read from the ledger
 //     exactly as secrets.js reads it for a fetch.
 //   200 { name, certPem, notBefore, notAfter, ca, cached }
@@ -81,7 +90,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, createPublicK
          timingSafeEqual, X509Certificate } from "node:crypto";
 import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
 import { endpointOperator, recoverOp, makeReplayCache, holdsLease } from "./fleet-auth.js";
-import { isReservedHostname } from "./domains.js";
+import { isReservedHostname, domainDeployment, labelFor, acmeAliasFor } from "./domains.js";
 
 const env = (k) => (process.env[k] || "").trim();
 const zone = (k) => env(k).toLowerCase().replace(/^\*?\./, "").replace(/^\.+|\.+$/g, "");
@@ -104,6 +113,9 @@ const CA_COOLDOWN_MS = parseInt(env("CERTS_CA_COOLDOWN_MS") || "120000", 10);   
 const DNS_SETTLE_MS  = parseInt(env("CERTS_DNS_SETTLE_MS") || "5000", 10);
 const POLL_MS        = parseInt(env("CERTS_POLL_MS") || "2000", 10);
 const POLL_TIMEOUT_MS = parseInt(env("CERTS_POLL_TIMEOUT_MS") || "90000", 10);
+// Downloads of a just-issued certificate that answer 404 before one is kept
+// as a pending order (acmeCollect says why); POLL_MS apart.
+const CERT_FETCH_TRIES = parseInt(env("CERTS_CERT_FETCH_TRIES") || "3", 10);
 // How long one request waits for its order before answering 202 and leaving
 // the order running; the enclave's retry finds the cache. COUPLED to the
 // supervisor's CERTS_HTTP_MS (30 s, supervisor.js acmeIssueViaPlatform): this
@@ -137,23 +149,41 @@ export function labelToId(label) {
   const hex = l.startsWith("0x") ? l.slice(2) : l;
   return /^[0-9a-f]{8,64}$/.test(hex) ? "0x" + hex : null;
 }
-// name -> { zone, label, id } or a refusal string. Every path that is not
-// exactly one canonical label directly under one of our zones is refused
+// name -> { name, zone, label, id, custom, txtName } or a refusal. Every
+// path that is not exactly one canonical label directly under one of our
+// zones, or a custom domain domains.js has PROVEN for a deployment, is refused
 // here, before any key or ledger work — this is the operator constraint.
-export function authorizeName(name, zones = zonesOf()) {
+// `txtName` is where the dns-01 answer goes: under the name itself in our
+// zones; for a custom domain the delegated alias `_acme-challenge.<label>.
+// APP_ZONE` (domains.js acmeAliasFor — the customer's permanent CNAME points
+// at it, and it is the deployment's own challenge name, so the DNS daemon
+// already authorizes a push there). `customOf` is the hostname -> deployment
+// lookup, domains.js's verified/active view; injectable for the tests.
+export function authorizeName(name, zones = zonesOf(), customOf = domainDeployment) {
   const n = String(name || "").toLowerCase().replace(/\.+$/, "");
   if (!n || n.length > 253 || !/^[a-z0-9.-]+$/.test(n)) return { error: "bad_name", message: "name must be a DNS hostname." };
   // Everything in our zones is "reserved" to domains.js (a tenant may not
   // attach it as a custom domain); a name it does NOT consider reserved is by
-  // definition somebody else's, and this service never issues for those.
-  if (!isReservedHostname(n)) return { error: "not_platform_zone", message: "This service issues only for the platform's own app zones." };
+  // definition somebody else's — issued only when domains.js holds it as a
+  // verified/active custom domain of some deployment. The record names the
+  // deployment; the lease check in the route then asks the chain whether the
+  // requesting box runs it, exactly as for a label. A record's status is the
+  // ownership proof (domains.js verified the customer's TXT and routing), so
+  // pending/failed records are as unknown as no record at all.
+  if (!isReservedHostname(n)) {
+    const id = String(customOf(n) || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id))
+      return { error: "unknown_domain", message: "This service issues for the platform's own app zones and for custom domains a deployment owner has attached and verified; this name is neither." };
+    const label = labelFor(id);
+    return { name: n, zone: null, label, id, custom: true, txtName: acmeAliasFor(label) };
+  }
   const z = zones.find((zz) => n.endsWith("." + zz));
   if (!z) return { error: "not_platform_zone", message: `name must be <label>.${zones.join(" or <label>.")}.` };
   const label = n.slice(0, -(z.length + 1));
   if (!label || label.includes(".")) return { error: "bad_label", message: "name must be exactly one label under the zone." };
   const id = labelToId(label);
   if (!id) return { error: "bad_label", message: "The label is not a deployment label." };
-  return { name: n, zone: z, label, id };
+  return { name: n, zone: z, label, id, custom: false, txtName: `_acme-challenge.${n}` };
 }
 // The ledger row a label names: exact id, or the unique row whose bytes32 id
 // starts with the hex prefix (depFromHost's rule). Ambiguity = no row.
@@ -402,6 +432,7 @@ async function acmePost(ca, url, payload, { useJwk = false, acct = ca.account } 
       if (attempt === 0 && data && /badNonce/.test(data.type || "")) continue;
       const type = isJson ? String(data?.type || "") : "";
       const e = new Error(`ACME ${r.status} at ${url}: ${isJson ? `${type || "?"} ${data?.detail || ""}`.trim() : String(data).slice(0, 200)}`);
+      e.status = r.status;
       if (r.status >= 500 || !isJson) e.caLevel = true;
       // The persisted account is gone on the CA's side (deactivated, purged,
       // an older certs.json restored) or the JWS no longer verifies for its
@@ -563,7 +594,23 @@ const pendingErr = (msg, ra) => Object.assign(new Error(msg), { orderPending: tr
 async function acmeCollect(ca, key, rec, acct = ca.account) {
   const done = await acmePoll(ca, rec.orderUrl, `order for ${rec.name}`, (o) => o.status === "valid" && o.certificate,
                               (o) => o.status === "invalid", pendingErr, acct);
-  const cert = await acmePost(ca, done.certificate, null, { acct });
+  // The certificate URL can lag the order's `valid` by seconds at Let's
+  // Encrypt (replication between its datacenters: "malformed :: Certificate
+  // not found" — 2026-09-01, eyesoff.ai, when treating it as a refusal and
+  // ordering afresh spent the name's last duplicate token of the week on a
+  // certificate nobody collected). A 404 here is the CA still writing, not a
+  // verdict on the name: a few short retries, then the order is KEPT
+  // (pendingErr) and the enclave's next ask resumes it — same account, same
+  // CSR, no new order.
+  let cert;
+  for (let i = 1; ; i++) {
+    try { cert = await acmePost(ca, done.certificate, null, { acct }); break; }
+    catch (e) {
+      if (e.status !== 404) throw e;
+      if (i >= CERT_FETCH_TRIES) throw pendingErr(`certificate for ${rec.name} is issued but not downloadable yet (${e.message})`, 15);
+      await sleepMs(POLL_MS);
+    }
+  }
   const certPem = String(cert.data);
   const leaf = new X509Certificate(certPem);
   return { certPem, notBefore: new Date(leaf.validFrom).toISOString(), notAfter: new Date(leaf.validTo).toISOString(), ca: ca.name };
@@ -573,10 +620,13 @@ const txtCleanup = (rec) => { if (rec.txtName) dnsTxt("DELETE", rec.txtName, rec
 
 // order -> TXT -> challenge -> finalize with the CALLER's CSR -> download.
 // `key` is the (name, spkiHash) cache key the in-flight order is persisted
-// under. An accountLost from the CA drops the persisted account and retries
-// the whole thing ONCE with a fresh registration.
-const acmeIssueVia = (ca, name, csrDer, key) => withAccount(ca, () => acmeIssueViaOnce(ca, name, csrDer, key));
-async function acmeIssueViaOnce(ca, name, csrDer, key) {
+// under; `txtName` is where the dns-01 answer goes (authorizeName: under the
+// name in our zones, the delegated alias for a custom domain — the CA
+// follows the customer's CNAME to it). An accountLost from the CA drops the
+// persisted account and retries the whole thing ONCE with a fresh
+// registration.
+const acmeIssueVia = (ca, name, csrDer, key, txtName) => withAccount(ca, () => acmeIssueViaOnce(ca, name, csrDer, key, txtName));
+async function acmeIssueViaOnce(ca, name, csrDer, key, txtName = `_acme-challenge.${name}`) {
   const acct = await acmeAccount(ca);
   const dir  = await acmeDir(ca);
   const order = await acmePost(ca, dir.newOrder, { identifiers: [{ type: "dns", value: name }] }, { acct });
@@ -587,7 +637,7 @@ async function acmeIssueViaOnce(ca, name, csrDer, key) {
   if (authz.data.status !== "valid") {
     const chal = (authz.data.challenges || []).find((c) => c.type === "dns-01");
     if (!chal) throw new Error(`no dns-01 challenge offered for ${name}`);
-    rec.txtName  = `_acme-challenge.${name}`;
+    rec.txtName  = txtName;
     rec.txtValue = dns01TxtValue(chal.token, acct.thumbprint);
     await dnsTxt("POST", rec.txtName, rec.txtValue);
   }
@@ -635,7 +685,7 @@ async function acmeResume(ca, key, rec) {
 // retryAfterSec } when the CA is still finishing a persisted order.
 // A persisted order for this key is resumed FIRST, on its own CA, and costs
 // no pace token (the token was spent when it was placed).
-async function acmeIssue(name, csrDer, key) {
+async function acmeIssue(name, csrDer, key, txtName) {
   const now = Date.now();
   const held = store.data.orders[key];
   if (held && now - held.at > ORDER_TTL_MS) dropOrder(key);
@@ -674,7 +724,7 @@ async function acmeIssue(name, csrDer, key) {
     if (!ca.pace(ca.name)) { console.warn(`[certs] ${ca.name}: global pace reached — skipping for ${name}`); continue; }
     tried++;
     try {
-      const issued = await acmeIssueVia(ca, name, csrDer, key);
+      const issued = await acmeIssueVia(ca, name, csrDer, key, txtName);
       ca.downUntil = 0;
       return issued;
     } catch (e) {
@@ -690,7 +740,7 @@ async function acmeIssue(name, csrDer, key) {
   if (networkProven && cooledNow.length) {
     for (const ca of cooledNow) {
       try {
-        const issued = await acmeIssueVia(ca, name, csrDer, key);
+        const issued = await acmeIssueVia(ca, name, csrDer, key, txtName);
         ca.downUntil = 0;
         console.log(`[certs] ${ca.name}: second chance succeeded for ${name}`);
         return issued;
@@ -743,7 +793,7 @@ export async function initCerts() {
   enabled = true;
   sweep();
   setInterval(sweep, 3600_000).unref?.();
-  console.log(`[certs] enabled — zones ${zonesOf().join(", ")}; CAs ${CAS.map((c) => c.name).join(" -> ")}; `
+  console.log(`[certs] enabled — zones ${zonesOf().join(", ")} + verified custom domains; CAs ${CAS.map((c) => c.name).join(" -> ")}; `
     + `${Object.keys(store.data.certs).length} cached cert(s), ${Object.keys(store.data.accounts).length} account(s), `
     + `${Object.keys(store.data.orders).length} order(s) in flight; fleet factor ${CERTS_KEY ? "verified" : "NOT CHECKED (CERTS_KEY unset: operator signature + lease authorize)"}`);
 }
@@ -795,7 +845,8 @@ export async function handleCerts(req, res, u, ctx) {
   if (typeof b.csr !== "string") return bad(ctx, res, req, 422, "bad_csr", "csr must be a PEM string.");
   if (!opSig) return bad(ctx, res, req, 403, "no_operator_sig", "opSig must be a personal_sign by this endpoint's registered operator.");
 
-  // 2. the name: our zones only, one canonical label (fail closed before any
+  // 2. the name: one canonical label in our zones, or a custom domain
+  //    domains.js has verified for a deployment (fail closed before any
   //    signature or ledger work — a refused name never costs a CA call)
   const auth = authorizeName(b.name);
   if (auth.error) return bad(ctx, res, req, 403, auth.error, auth.message);
@@ -889,7 +940,7 @@ export async function handleCerts(req, res, u, ctx) {
   //    backoff (burning pace tokens for a name a CA kept refusing slowly).
   const p = (async () => {
     try {
-      const issued = await acmeIssue(name, csr.der, key);
+      const issued = await acmeIssue(name, csr.der, key, auth.txtName);
       const rec = { name, spkiHash, keyType: csr.keyType, endpoint, issuedAt: new Date().toISOString(), ...issued };
       for (const [k, r] of Object.entries(store.data.certs)) if (r.name === name && k !== key) delete store.data.certs[k];
       store.data.certs[key] = rec;
