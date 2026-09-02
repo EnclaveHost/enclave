@@ -415,6 +415,14 @@ function quickDeploy(app, v, idx){
   // (deployOnChain branches to the passkey-signed vault op itself) - the
   // modal speaks in dollars and shows the credit balance instead
   const acct = !Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed();
+  // The least this modal deploys with. A WALLET deploy may be created EMPTY:
+  // create() is a plain tx the ledger takes without a balance (the row reads
+  // awaiting_payment - inert, nothing burns - until Top up funds it), and the
+  // rev-12 free case never needs money at all: an enclave whose payout wallet
+  // is the deployer's claims a zero-balance record at a zero price. A CREDIT
+  // deploy funds inside the same passkey-signed vault op, and the relay
+  // refuses an order that buys no runtime - so it keeps a positive floor.
+  const minUsd = acct ? 0.01 : 0;
   const host = document.createElement("div");
   host.id = "quickDeploy"; host.className = "qd-overlay";
   host.innerHTML =
@@ -426,8 +434,8 @@ function quickDeploy(app, v, idx){
       '<p class="qd-sub qd-target" hidden></p>' +
       '<p class="qd-sub qd-fee" hidden></p>' +
       '<div class="qd-bal"><span>' + (acct ? 'Your credit' : 'Your wallet') + '</span><b class="qd-balv">…</b><button class="qd-connect btn btn-sm" type="button" hidden>Connect wallet</button></div>' +
-      '<label class="qd-lbl" for="qdAmt">Amount to fund (' + (acct ? 'USD' : 'USDC') + ')</label>' +
-      '<input class="qd-amt" id="qdAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />' +
+      '<label class="qd-lbl" for="qdAmt">Amount to fund (' + (acct ? 'USD' : 'USDC · 0 = create now, fund later') + ')</label>' +
+      '<input class="qd-amt" id="qdAmt" type="number" value="5" min="' + minUsd + '" step="any" inputmode="decimal" />' +
       '<div class="qd-est">buys ≈ <b class="qd-estv"></b> of runtime</div>' +
       '<div class="qd-note" hidden></div>' +
       // the ToS gate: assent persists per terms version (core/util TOS_VERSION),
@@ -458,17 +466,26 @@ function quickDeploy(app, v, idx){
   // fee-bearing app on a credit account (capFee). First one wins the note.
   let bal = null, capTarget = null, capCap = null, capFee = null, gpuCap = null;
   const fatal = () => capTarget || capCap || capFee;
+  // The amount the modal would deploy with. `zero` is a TYPED 0 on a wallet
+  // deploy (create now, fund later - see minUsd); a blank box is not that
+  // decision, so it deploys nothing.
+  const amountOf = () => {
+    const raw = parseFloat(amt.value), usd = raw > 0 ? raw : 0;
+    const zero = !acct && Number.isFinite(raw) && !(raw > 0);
+    return { usd, zero, ok: usd > 0 ? usd >= minUsd : zero };
+  };
   const est = () => {
-    const usd = parseFloat(amt.value) || 0;
+    const { usd, zero, ok } = amountOf();
     estv.textContent = (usd > 0 && rate > 0) ? fmtDur(usd / rate) : "–";
     const shortOnFunds = bal != null && usd > bal;
     const capMsg = fatal();   // fatal outranks the adjustable short-on-funds note
-    note.hidden = !shortOnFunds && !capMsg;
+    note.hidden = !shortOnFunds && !capMsg && !zero;
     if (capMsg) note.textContent = capMsg;
     else if (shortOnFunds) note.innerHTML = acct
       ? 'That’s more than your credit balance ($' + bal.toFixed(2) + '). <a href="checkout">Add credit</a> first.'
       : "That’s more than your wallet holds ($" + bal.toFixed(2) + " USDC).";
-    go.disabled = !(usd >= 0.01) || shortOnFunds || !tos.checked || !!capMsg;
+    else if (zero) note.textContent = "Deploys with no balance: one wallet tx (gas only) creates the record, which sits inert - costing nothing - until you fund it from its row on the dashboard. An enclave that pays out to your wallet runs it for free right away.";
+    go.disabled = !ok || shortOnFunds || !tos.checked || !!capMsg;
     go.title = capMsg ? "" : tos.checked ? "" : "Agree to the Terms of Service above to deploy";
   };
   // The on-chain per-deployment GPU cap decides right at open whether this app
@@ -618,7 +635,7 @@ function quickDeploy(app, v, idx){
   host.querySelector(".qd-cancel").addEventListener("click", closeQuick);
   host.querySelector(".qd-adv").addEventListener("click", () => { closeQuick(); useInDeploy(app, v, idx); });
   go.addEventListener("click", async () => {
-    const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
+    const { usd, ok } = amountOf(); if (!ok) return;
     // the flow lives in the deploy chunk; it navigates to the dashboard and
     // narrates into the run log (deployOnChain never throws)
     const m = await import("./deploy.js");
