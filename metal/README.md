@@ -314,10 +314,13 @@ registered domain per week is shared by every seller).
 | the operator key (`registryKey`) | the CVM | sign `enclave-certs-issue:<name>:<endpoint>:<ts>`; the relay checks it against the on-chain lease holder for the name's deployment |
 | `DNS_TXT_KEY` | the relay (it already has it for the dns-01 push) | answer `_acme-challenge` for names in the platform zones only |
 
-The service issues **only** for `<label>.app.enclave.host` (and the TCP zone if
-configured), only when the requesting enclave holds that deployment's live
-lease, and caches by `(name, SPKI)` so a restart with the same key costs no
-issuance. Customer domains keep the existing in-enclave path.
+The service issues for `<label>.app.enclave.host` (and the TCP zone if
+configured) and for a **verified custom domain** attached to a deployment, only
+when the requesting enclave holds that deployment's live lease, and caches by
+`(name, SPKI)` so a restart with the same key costs no issuance. The in-enclave
+CA slots remain the fallback for both; without an EAB pair of its own a metal
+box's fallback is Let's Encrypt alone, whose 5-per-week duplicate cap a day of
+restarts can spend — the service's ZeroSSL account has no such cap.
 
 **Config on a metal box.** `certsApi` (default: the API relay origin derived
 from `relayUrl`, i.e. `https://api.enclave.host`) is all a first-party box

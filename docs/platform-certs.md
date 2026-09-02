@@ -70,12 +70,17 @@ The operator constraint is that this service may only ever issue for names in
 the zones the platform owns. It is enforced by the route, in this order, and a
 refusal never costs an issuance:
 
-1. **Name** — must be exactly one label directly under `APP_ZONE` or `TCP_ZONE`,
-   and the label must be a deployment id prefix (8–64 hex). A customer domain,
-   `enclave.host`, `app.enclave.host` itself, `api.`/`www.`/`mcp.`, a
-   second-level label, or a label like `box` is `403` (`not_platform_zone` /
-   `bad_label`). `domains.js`'s `isReservedHostname` is the first cut: a name
-   it does *not* reserve is somebody else's by definition.
+1. **Name** — either exactly one label directly under `APP_ZONE` or `TCP_ZONE`
+   whose label is a deployment id prefix (8–64 hex), **or a custom domain that
+   `domains.js` holds as verified/active for a deployment** (since 2026-09-02;
+   the record names the deployment the lease check below is run for, and the
+   dns-01 answer goes to the delegated alias `_acme-challenge.<label>.APP_ZONE`
+   the customer's CNAME already points at). `enclave.host`, `app.enclave.host`
+   itself, `api.`/`www.`/`mcp.`, a second-level label, or a label like `box` is
+   `403` (`not_platform_zone` / `bad_label`); a hostname outside our zones with
+   no verified record is `403 unknown_domain`. `domains.js`'s
+   `isReservedHostname` is the first cut: a name it does *not* reserve is
+   somebody else's, and only its own store can vouch for one of those.
 2. **CSR** — parsed from the DER, not trusted from the caller: version 0; a
    subject that is exactly `CN=<name>`; a key that is EC P-256 or RSA ≥ 2048;
    exactly one attribute (`extensionRequest`) holding exactly one extension
@@ -237,16 +242,19 @@ the fleet repoint, then drop the secret).
 
 `/internal/tls-ask` is Caddy's on-demand-TLS decision hook. For platform zones
 it has been dead weight since the in-enclave client landed (Caddy no longer
-mints those). It **stays** for the customer-domain flow, where it is the last
-gate between a request and a certificate for a name we do not own: it answers
-only from `domains.js`'s verified/active records and says no for our own zones
-no matter what any record claims. `/v1/certs/issue` is the mirror image — it
-says yes *only* for our own zones — and the two never overlap: a customer
-hostname is `403` here, a platform hostname is `400`/`403` there.
+mints those). It **stays** as the routing-side gate for customer domains: it
+answers only from `domains.js`'s verified/active records and says no for our
+own zones no matter what any record claims. `/v1/certs/issue` issues for both
+kinds of name, and for a customer hostname it consults the *same* records —
+a name `tls-ask` would refuse is `403 unknown_domain` here too. Until
+2026-09-02 custom domains were refused here and minted by the in-enclave
+client alone; on a box without its own ZeroSSL pair that meant Let's Encrypt
+and its 5-per-week duplicate cap, which a day of restarts spends
+(`eyesoff.ai`, 2026-09-01).
 
 | | `/internal/tls-ask` | `/v1/certs/issue` |
 |---|---|---|
-| names | customer-owned, verified in `domains.js` | `<label>.APP_ZONE` / `TCP_ZONE` only |
+| names | customer-owned, verified in `domains.js` | `<label>.APP_ZONE` / `TCP_ZONE`, plus customer-owned names verified in `domains.js` |
 | caller | Caddy on the relay box (internal) | the lease-holding enclave |
 | who runs ACME | the enclave (`supervisor.js`) | the relay (`certs.js`) |
 | where the key is | the CVM | the CVM |

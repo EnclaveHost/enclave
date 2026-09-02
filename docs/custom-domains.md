@@ -66,8 +66,11 @@ is why the platform runs on ZeroSSL, whose ACME has no such ceiling. A custom
 domain on tls-alpn-01 would go dark partway through a bad week of relaunches,
 and the customer would be looking at a refused handshake on *their* brand.
 
-So custom domains ride the existing dns-01 path and inherit its CA failover list
-unchanged. The customer publishes:
+So custom domains ride the existing dns-01 path: the platform certificate
+service first (`docs/platform-certs.md` — since 2026-09-02 it authorizes a
+verified custom domain against its record and the deployment's lease, and
+answers the challenge at the alias itself, under the platform's ZeroSSL
+account), then the in-enclave CA slots as the fallback. The customer publishes:
 
 ```
 _acme-challenge.shop.example.com.  CNAME  _acme-challenge.cc1f4f3f.app.enclave.host.

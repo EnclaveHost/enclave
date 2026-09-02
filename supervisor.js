@@ -833,9 +833,12 @@ for (const suf of ["", "_2", "_3"]) {
 // the service is everywhere - still certifies its app-zone names through it.
 const ACME_ENABLED = !!(APP_CERT_DOMAIN && ((ACME_CAS.length && DNS_API) || ACME_PLATFORM));
 // Is this a name the platform service may issue for? Exactly one label under
-// one of OUR zones - the relay refuses anything else (a customer domain, an
-// apex, a deeper name) with a 403 that never reaches a CA, so asking would
-// only spend a round trip.
+// one of OUR zones - the relay refuses anything else (an apex, a deeper
+// name, a stranger's hostname) with a 403 that never reaches a CA, so asking
+// would only spend a round trip. A VERIFIED custom domain is the other kind
+// of name the service issues for (acmeSlotsFor, at runtime: the relay holds
+// it to its domain record and to the lease) - not known in this pure half,
+// so the self-test seam sees only the zone rule.
 const CERT_ZONES = [APP_CERT_DOMAIN, TCP_CERT_DOMAIN].filter(Boolean);
 function platformCertName(name) {
   const n = String(name || "").toLowerCase();
@@ -4734,6 +4737,13 @@ app.get("/availability", async (_req, res) => {
   // the flavor's primary pool, kept one release for old routers.
   const shape = (cpuFree, gpuFree, source, note) => ({
     gpu: IS_GPU, type: IS_GPU ? "gpu" : "cpu",
+    // The CPU-TEE technology this box DETECTED from its own attestation document
+    // ("amd-sev-snp" / "intel-tdx"; a metal dev box reports its unattested
+    // format; null until the first document read lands). Never asserted from
+    // config or from the flavor: the fleet row badges "TEE CPU" from this, and a
+    // box with some other root of trust (a phone-anchored host, one day) must
+    // not inherit a green pill it did not prove. See vmTech().
+    teeCpu: vmTech(),
     gpuShareFree: round3(gpuFree), cpuShareFree: round3(cpuFree),
     usedGpuShare: IS_GPU ? round3(1 - gpuFree) : 0, usedCpuShare: round3(1 - cpuFree),
     maxShare: round3(IS_GPU ? gpuFree : cpuFree),
@@ -6711,7 +6721,8 @@ const desiredCertNames = (rec) => {
   // names the self-signed fallback pair and gates the /tls/ path.
   if (servesHttp(rec) || fwTcpPorts(rec).length) names.push(appCertName(rec.id));
   // …plus every custom domain the owner attached and the relay verified. These
-  // are ordinary single-name certs like the one above; what differs is only
+  // are ordinary single-name certs like the one above, issued by the same
+  // slots (the platform service first, acmeSlotsFor); what differs is only
   // WHERE the dns-01 TXT record goes (acmeChallengeName), because we cannot
   // write in the customer's zone — they delegate a name in ours to us.
   for (const h of _depDomains.get(String(rec.id).toLowerCase()) || []) names.push(h);
@@ -6762,6 +6773,7 @@ async function acmePost(ca, url, payload, { useJwk = false } = {}) {
     if (r.status >= 400) {
       if (attempt === 0 && data && /badNonce/.test(data.type || "")) continue;
       const e = new Error(`ACME ${r.status} at ${url}: ${isJson ? `${data?.type || "?"} ${data?.detail || ""}`.trim() : String(data).slice(0, 200)}`);
+      e.status = r.status;
       if (r.status >= 500 || !isJson) e.caLevel = true;
       const type = String(data?.type || "");
       // the CA named a date: carry it, the walker remembers it per (name, CA)
@@ -6900,6 +6912,14 @@ async function acmePoll(ca, url, what, isOk, isBad, timeoutMs = 90_000) {
 }
 // The full dns-01 dance for one name against ONE CA: order -> TXT ->
 // challenge -> CSR -> finalize -> download. TXT is deleted win or lose.
+// The download is retried on 404 for up to ~30 s: the certificate URL can
+// lag the order's `valid` by seconds at Let's Encrypt ("malformed ::
+// Certificate not found", replication between its datacenters), and giving
+// up throws this key away - the next round orders afresh, which on
+// 2026-09-01 spent eyesoff.ai's last duplicate token of the week on a
+// certificate nobody collected. (relay/certs.js keeps the ORDER instead; the
+// CVM has no store for that, so it waits here.)
+const ACME_CERT_FETCH_TRIES = 10, ACME_CERT_FETCH_GAP_MS = 3000;
 async function acmeIssueVia(ca, name) {
   const acct = await acmeAccount(ca);
   const dir  = await acmeDir(ca);
@@ -6929,7 +6949,15 @@ async function acmeIssueVia(ca, name) {
     await acmePost(ca, order.data.finalize, { csr: b64u(csrDer) });
     const done = await acmePoll(ca, orderUrl, `order for ${name}`, (o) => o.status === "valid" && o.certificate,
                                 (o) => o.status === "invalid");
-    const cert = await acmePost(ca, done.certificate, null);  // POST-as-GET; body = PEM chain
+    let cert;
+    for (let i = 1; ; i++) {
+      try { cert = await acmePost(ca, done.certificate, null); break; }   // POST-as-GET; body = PEM chain
+      catch (e) {
+        if (e.status !== 404 || i >= ACME_CERT_FETCH_TRIES) throw e;
+        console.warn(`[acme] ${ca.host}: certificate for ${name} not downloadable yet (${e.message}) - retrying (${i}/${ACME_CERT_FETCH_TRIES})`);
+        await sleepMs(ACME_CERT_FETCH_GAP_MS);
+      }
+    }
     const certPem = String(cert.data);
     const leaf = new X509Certificate(certPem);                // parses the first (leaf) cert of the chain
     const nb = new Date(leaf.validFrom).getTime(), na = new Date(leaf.validTo).getTime();
@@ -6941,8 +6969,8 @@ async function acmeIssueVia(ca, name) {
   }
 }
 // Issue via the first slot that can (acmeWalkSlots, up in the pure half, is
-// the walk itself): the platform service first for a name in our own zones,
-// then ACME_CAS in order. Two minutes of cool-off, not ten. The cool-off
+// the walk itself): the platform service first for a name in our own zones
+// or a custom domain attached to a deployment here, then ACME_CAS in order. Two minutes of cool-off, not ten. The cool-off
 // bounds how long a dead slot can hold the serial pump's timeouts; two
 // minutes bounds it well enough, and ten was the dark window on 2026-08-26:
 // ZeroSSL's first call after boot hung (egress was still coming up), Let's
@@ -6950,7 +6978,15 @@ async function acmeIssueVia(ca, name) {
 // certificate until ZeroSSL's cool-off ended.
 const ACME_CA_COOLDOWN_MS = parseInt(process.env.ACME_CA_COOLDOWN_MS || "120000", 10);
 const _platformPending = new Map();        // name -> { csrPem, keyPem, at }: the key behind a deferred (202) order
-const acmeSlotsFor = (name) => [...(ACME_PLATFORM && platformCertName(name) ? [ACME_PLATFORM] : []), ...ACME_CAS];
+// The platform slot serves our own zones AND every custom domain the relay
+// listed for a deployment on this box (customDomainOwner): the relay holds
+// the name to its verified record and to the on-chain lease, and answers
+// the dns-01 at the delegated alias itself. Until 2026-09-02 a custom domain
+// went straight to the in-enclave CAs, which on a box without a ZeroSSL pair
+// of its own meant Let's Encrypt alone - and its 5/week duplicate cap, spent
+// by a day of restarts (eyesoff.ai, 2026-09-01). The in-enclave CAs stay as
+// the fallback for both kinds of name.
+const acmeSlotsFor = (name) => [...(ACME_PLATFORM && (platformCertName(name) || customDomainOwner(name)) ? [ACME_PLATFORM] : []), ...ACME_CAS];
 async function acmeIssue(name) {
   return acmeWalkSlots(name, {
     slots: acmeSlotsFor(name), cooldownMs: ACME_CA_COOLDOWN_MS,
@@ -7118,7 +7154,7 @@ function startAcme() {                                        // called at the b
   acmeReconcile();                                            // boot coverage (loadState already ran)
   const t = setInterval(acmeReconcile, 600_000);              // renewals + anything the running-hook missed
   if (t.unref) t.unref();
-  const order = [...(ACME_PLATFORM ? [`platform service ${CERTS_API} (own zones)`] : []), ...ACME_CAS.map((c) => c.host)];
+  const order = [...(ACME_PLATFORM ? [`platform service ${CERTS_API} (own zones + attached custom domains)`] : []), ...ACME_CAS.map((c) => c.host)];
   console.log(`[acme] in-enclave issuance on: <label>.${APP_CERT_DOMAIN} via ${order.join(" -> ")}${ACME_CAS.length ? ` (dns-01 through ${DNS_API})` : ""}`);
 }
 

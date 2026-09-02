@@ -119,10 +119,12 @@ box, one account per CA is registered once and kept encrypted in
 `AUTH_DATA_DIR/certs.json`, and the relay paces the shared CA rate limits that
 no single enclave can see. Full design: [`docs/platform-certs.md`](../docs/platform-certs.md).
 
-- **Refuses everything outside the platform's own zones** — a customer domain,
-  an apex, `api.`/`www.`/`mcp.`, a second-level label, a label that is not a
-  deployment id prefix — before any key or ledger work. Customer domains keep
-  the in-enclave ACME path and `/internal/tls-ask` (see `domains.js`).
+- **Refuses every name it cannot vouch for** — an apex, `api.`/`www.`/`mcp.`,
+  a second-level label, a label that is not a deployment id prefix, a hostname
+  outside our zones with no verified `domains.js` record — before any key or
+  ledger work. A **verified custom domain** is issued for its deployment's
+  lease holder (the dns-01 answer goes to the delegated alias in our zone);
+  `/internal/tls-ask` stays as the routing-side gate (see `domains.js`).
 - **Auth** = `opSig` (required: a personal_sign of
   `enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>` by the endpoint's
   registered EnclaveRegistry operator) + optional `sig` =
