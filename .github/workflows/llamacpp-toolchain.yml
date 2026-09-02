@@ -247,7 +247,7 @@ jobs:
           ldd /tmp/libenclave_llama.so | grep -E "llama|ggml|mtmd"
           # the vision entry points must actually be exported - a silently
           # mtmd-less shim would look exactly like an old tarball at runtime
-          for sym in ell_mtmd_caps_file ell_mtmd_new ell_mtmd_eval_image; do
+          for sym in ell_mtmd_caps_file ell_mtmd_new ell_mtmd_eval_image ell_mtmd_eval_video; do
             nm -D --defined-only /tmp/libenclave_llama.so | grep -q " $sym\$" \
               || { echo "::error::$sym missing from the shim"; exit 1; }
           done

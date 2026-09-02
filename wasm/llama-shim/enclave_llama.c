@@ -1224,3 +1224,122 @@ int32_t ell_mtmd_eval_image(void *mp, void *lctx, int32_t seq_id, int32_t pos0,
     *n_pos_out = (int32_t)(new_n_past - (llama_pos)pos0);
     return 0;
 }
+
+/* mm33: ONE video file -> sampled frames into seq_id at pos0. Mirrors
+ * ell_mtmd_eval_image, except the bitmaps come out of libmtmd's video helper
+ * (an ffmpeg/ffprobe subprocess pair) and the tokenize text carries one
+ * marker per frame with the helper's timestamp texts spliced in between, so
+ * mtmd emits exactly the chunks this model wants around a frame sequence.
+ * Frames are read EAGERLY and capped: the helper's own lazy-bitmap path would
+ * happily hand a two-hour clip to the encoder, and here every frame is an
+ * encoder pass plus its share of the KV pool. */
+int32_t ell_mtmd_eval_video(void *mp, void *lctx, int32_t seq_id, int32_t pos0,
+                            const uint8_t *bytes, uint32_t len, int32_t n_batch,
+                            int32_t fps_milli, int32_t max_frames, int32_t timestamp_ms,
+                            const char *ffmpeg_dir,
+                            int32_t *n_pos_out, int32_t *n_frames_out) {
+    struct ell_mtmd *m = (struct ell_mtmd *)mp;
+    struct llama_context *c = (struct llama_context *)lctx;
+    if (!m || !c || !bytes || len == 0 || pos0 < 0 || n_batch <= 0 || !n_pos_out || !n_frames_out) {
+        return -1;
+    }
+    if (max_frames <= 0) { max_frames = 8; }
+    if (max_frames > 64) { max_frames = 64; }
+    if (!mtmd_helper_support_video(m->ctx)) {
+        return 4;
+    }
+    struct mtmd_helper_video_init_params p = mtmd_helper_video_init_params_default();
+    if (fps_milli > 0) { p.fps_target = (float)fps_milli / 1000.0f; }
+    p.ffmpeg_bin_dir = (ffmpeg_dir && ffmpeg_dir[0]) ? ffmpeg_dir : NULL;
+    p.timestamp_interval_ms = timestamp_ms > 0 ? (int64_t)timestamp_ms : 0;
+    mtmd_helper_video *v = mtmd_helper_video_init_from_buf(m->ctx, bytes, (size_t)len, p);
+    if (!v) {
+        return 2; /* ffprobe missing, or the bytes are not a video */
+    }
+    const char *marker = mtmd_default_marker();
+    const size_t mlen = strlen(marker);
+    const mtmd_bitmap **bmps = (const mtmd_bitmap **)calloc((size_t)max_frames, sizeof(*bmps));
+    size_t cap = 256 + (size_t)max_frames * (mlen + 32);
+    char *text = (char *)malloc(cap);
+    size_t tl = 0;
+    int32_t nf = 0;
+    int32_t rc = 0;
+    if (!bmps || !text) {
+        rc = 1;
+    }
+    while (rc == 0) {
+        mtmd_bitmap *bm = NULL;
+        char *tx = NULL;
+        int32_t r = mtmd_helper_video_read_next(v, &bm, &tx);
+        if (r == -1) { break; }          /* EOF */
+        if (r != 0) { rc = 2; break; }   /* decode error */
+        if (tx) {
+            size_t n = strlen(tx);
+            if (tl + n + mlen + 1 > cap) {
+                cap = (cap + n + mlen) * 2;
+                char *nt = (char *)realloc(text, cap);
+                if (!nt) { free(tx); rc = 1; break; }
+                text = nt;
+            }
+            memcpy(text + tl, tx, n);
+            tl += n;
+            free(tx);
+        }
+        if (bm) {
+            if (nf >= max_frames) { mtmd_bitmap_free(bm); break; }   /* cap: stop reading */
+            bmps[nf++] = bm;
+            if (tl + mlen + 1 > cap) {
+                cap = (cap + mlen) * 2;
+                char *nt = (char *)realloc(text, cap);
+                if (!nt) { rc = 1; break; }
+                text = nt;
+            }
+            memcpy(text + tl, marker, mlen);
+            tl += mlen;
+        }
+    }
+    mtmd_helper_video_free(v);
+    if (rc == 0 && nf == 0) { rc = 2; }
+    mtmd_input_chunks *chunks = NULL;
+    if (rc == 0) {
+        text[tl] = 0;
+        chunks = mtmd_input_chunks_init();
+        if (!chunks) { rc = 1; }
+    }
+    if (rc == 0) {
+        struct mtmd_input_text txt = {0};
+        txt.text = text;
+        txt.text_len = tl;
+        txt.add_special = false;
+        txt.parse_special = true;
+        if (mtmd_tokenize(m->ctx, chunks, &txt, bmps, (size_t)nf) != 0) { rc = 2; }
+    }
+    for (int32_t i = 0; i < nf; i++) { mtmd_bitmap_free((mtmd_bitmap *)bmps[i]); }
+    free(bmps);
+    free(text);
+    if (rc != 0) {
+        if (chunks) { mtmd_input_chunks_free(chunks); }
+        return rc;
+    }
+    const uint32_t n_ubatch = llama_n_ubatch(c);
+    const size_t n_chunks = mtmd_input_chunks_size(chunks);
+    for (size_t i = 0; i < n_chunks; i++) {
+        const mtmd_input_chunk *ch = mtmd_input_chunks_get(chunks, i);
+        if (mtmd_input_chunk_get_type(ch) != MTMD_INPUT_CHUNK_TYPE_IMAGE) { continue; }
+        if (mtmd_decode_use_non_causal(m->ctx, ch) &&
+            mtmd_input_chunk_get_n_tokens(ch) > (size_t)n_ubatch) {
+            mtmd_input_chunks_free(chunks);
+            return 3;
+        }
+    }
+    llama_pos new_n_past = pos0;
+    rc = mtmd_helper_eval_chunks(m->ctx, c, chunks, (llama_pos)pos0,
+                                 (llama_seq_id)seq_id, n_batch, false, &new_n_past);
+    mtmd_input_chunks_free(chunks);
+    if (rc != 0) {
+        return 1;
+    }
+    *n_pos_out = (int32_t)(new_n_past - (llama_pos)pos0);
+    *n_frames_out = nf;
+    return 0;
+}

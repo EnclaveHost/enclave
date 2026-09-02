@@ -282,6 +282,25 @@ void ell_mtp_reset(void *m, int32_t seq);
  *                     whole image in one ubatch - raise ENCLAVE_GGML_N_UBATCH);
  *                     -1 bad arguments.
  *
+ * ell_mtmd_eval_video (mm33) tokenize + encode + decode ONE video file into
+ *                     `seq_id` at `pos0` as a sampled sequence of frames,
+ *                     marker tokens and the helper's timestamp texts
+ *                     included. Frames are pulled through libmtmd's video
+ *                     helper, which spawns ffmpeg/ffprobe (ffmpeg_dir names
+ *                     the directory holding them; NULL/"" = PATH), at
+ *                     fps_milli/1000 frames per second (<= 0 = the helper's
+ *                     default), stopping after max_frames frames (<= 0 =
+ *                     8, capped at 64) - so a long clip contributes its
+ *                     FIRST max_frames/fps seconds; callers pick fps to
+ *                     spread frames over a known duration. timestamp_ms
+ *                     > 0 inserts "[Xs]" text every that many ms of video
+ *                     (<= 0 = none). Writes positions consumed and the
+ *                     number of frames used. Returns 0 ok; 1 decode
+ *                     failed; 2 not a decodable video, or ffmpeg/ffprobe
+ *                     missing; 3 a frame needs a larger n_ubatch;
+ *                     4 the engine was built without video support;
+ *                     -1 bad arguments.
+ *
  * Threading: eval is NOT thread-safe against itself or against decode on the
  * same lctx (it drives llama_decode directly and toggles the causal mask).
  * Callers serialize it exactly as they serialize decode. */
@@ -307,6 +326,11 @@ void ell_mtmd_free(void *m);
 int32_t ell_mtmd_eval_image(void *m, void *lctx, int32_t seq_id, int32_t pos0,
                             const uint8_t *bytes, uint32_t len, int32_t n_batch,
                             int32_t *n_pos_out);
+int32_t ell_mtmd_eval_video(void *m, void *lctx, int32_t seq_id, int32_t pos0,
+                            const uint8_t *bytes, uint32_t len, int32_t n_batch,
+                            int32_t fps_milli, int32_t max_frames, int32_t timestamp_ms,
+                            const char *ffmpeg_dir,
+                            int32_t *n_pos_out, int32_t *n_frames_out);
 
 #ifdef __cplusplus
 }
