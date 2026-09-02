@@ -11,6 +11,10 @@
 #include <sys/random.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(__aarch64__)
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+#endif
 
 #define SH_ALIGN 64
 static int64_t align_up(int64_t x) { return (x + SH_ALIGN - 1) & ~(int64_t)(SH_ALIGN - 1); }
@@ -31,8 +35,13 @@ double sh_prof[8];
     sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
     sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv }
+#if !defined(__aarch64__)
 static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
+#endif
 static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
+#if defined(__aarch64__)
+static const sh_simd simd_neon    = SIMD_TABLE(neon, "neon-sdot");
+#endif
 
 const sh_simd *sh_simd_generic(void) { return &simd_generic; }
 
@@ -137,6 +146,18 @@ const sh_simd *sh_simd_get(void) {
     static const sh_simd *chosen = NULL;
     if (chosen) return chosen;
     const char *off = getenv("SHIELDED_NO_SIMD");
+#if defined(__aarch64__)
+    /* The phone anchor: SDOT (FEAT_DotProd) is the whole refill win; checked
+     * against the generic build exactly as AVX-512 is on x86. */
+    bool want_neon = !(off && *off && strcmp(off, "0"));
+    if (want_neon) want_neon = (getauxval(AT_HWCAP) & HWCAP_ASIMDDP) != 0;
+    if (want_neon && !simd_agree(&simd_neon, &simd_generic)) {
+        fprintf(stderr, "[shielded] the NEON kernels disagree with the generic ones on this CPU; using generic\n");
+        want_neon = false;
+    }
+    chosen = want_neon ? &simd_neon : &simd_generic;
+    return chosen;
+#else
     bool want_avx512 = !(off && *off && strcmp(off, "0"));
     if (want_avx512) {
         __builtin_cpu_init();
@@ -150,6 +171,7 @@ const sh_simd *sh_simd_get(void) {
     }
     chosen = want_avx512 ? &simd_avx512 : &simd_generic;
     return chosen;
+#endif
 }
 const sh_simd *sh_link_simd(void) { return sh_simd_get(); }
 

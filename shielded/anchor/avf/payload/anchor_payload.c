@@ -42,6 +42,7 @@
 #include "third_party/tweetnacl.h"
 #include "anchor-core.h"
 #include "shielded-field.h"
+#include "shielded-simd.h"
 #include "shielded-wire.h"
 #include "worker-client.h"
 #include "fixture.h"
@@ -170,6 +171,29 @@ static double now_us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &
 static int cmp_d(const void *a, const void *b) { double x = *(const double *)a, y = *(const double *)b; return x < y ? -1 : x > y; }
 static double median(double *v, int n) { qsort(v, (size_t)n, sizeof *v, cmp_d); return v[n / 2]; }
 
+/* The refill kernel, generic vs SDOT, on THE SAME thread back to back, so the
+ * comparison is the kernel and not which core the scheduler handed the VM's
+ * vCPU this second (the /foreground cpuset mixes A510s and A715s). Interleaved
+ * rounds, best of each; the outputs must agree byte for byte. */
+static void bench_refill(int64_t K, int64_t N) {
+    int8_t *W = malloc((size_t)K * N); uint8_t *planes = malloc((size_t)3 * K);
+    int32_t *ug = malloc((size_t)N * 4), *un = malloc((size_t)N * 4), *acc = malloc((size_t)12 * N * 4);
+    if (!W || !planes || !ug || !un || !acc) return;
+    uint32_t s = 0x9e3779b9u;
+    for (int64_t i = 0; i < K * N; i++) { s = s * 1103515245u + 12345u; W[i] = (int8_t)((int)((s >> 8) % 239) - 119); }
+    for (int64_t i = 0; i < 3 * K; i++) { s = s * 1103515245u + 12345u; planes[i] = (uint8_t)((s >> 8) % 251); }
+    double bg = 1e18, bn = 1e18;
+    for (int round = 0; round < 5; round++) {
+        double t0 = now_us(); sh_simd_generic_refill(planes, 1, W, K, N, ug, N, acc); double t1 = now_us();
+        sh_simd_neon_refill(planes, 1, W, K, N, un, N, acc); double t2 = now_us();
+        if (t1 - t0 < bg) bg = t1 - t0; if (t2 - t1 < bn) bn = t2 - t1;
+    }
+    OUT("{\"bench\":\"refill\",\"K\":%" PRId64 ",\"N\":%" PRId64 ",\"generic_us\":%.1f,\"neon_sdot_us\":%.1f,\"speedup\":%.2f,\"agree\":%s,\"gmac_s\":{\"generic\":%.2f,\"neon\":%.2f}}",
+        K, N, bg, bn, bg / bn, memcmp(ug, un, (size_t)N * 4) == 0 ? "true" : "false",
+        12.0 * K * N / bg / 1e3, 12.0 * K * N / bn / 1e3);   /* the kernel dots 3 planes x 4 rows per weight row */
+    free(W); free(planes); free(ug); free(un); free(acc);
+}
+
 /* split-harness.c's main, as a function: same fixture, same order of draws, same digest */
 static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, int bridge_fd) {
     if (xmax <= 0) { double s_ = 900.0 * sqrt(896.0 / (double)K); xmax = (int)(s_ < 1 ? 1 : s_); }
@@ -285,6 +309,7 @@ int AVmPayload_main(void) {
     }
     if (n_shapes == 0) { SK[0]=256; SN[0]=256; Snode[0]=1; Siter[0]=30; Sx[0]=0; SK[1]=896; SN[1]=896; Snode[1]=1; Siter[1]=30; Sx[1]=0; SK[2]=896; SN[2]=4864; Snode[2]=2; Siter[2]=12; Sx[2]=0; n_shapes = 3; }
     OUT("ANCHOR worker=%s shapes=%d", bridge ? "bridge" : "local", n_shapes);
+    bench_refill(896, 896); bench_refill(896, 4864);
 
     for (int s = 0; s < n_shapes; s++) {
         int fd = -1;

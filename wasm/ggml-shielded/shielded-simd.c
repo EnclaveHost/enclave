@@ -8,6 +8,8 @@
  * be the reference for its vectorised twin, which is why nearly everything
  * here is plain loops the compiler vectorises rather than intrinsics. The one
  * exception is the refill inner product, where vpdpbusd is the whole point.
+ * On aarch64 (the phone anchor) a third build, -DSH_SIMD_NEON (suffix _neon),
+ * gives that one loop to SDOT; the x86 builds do not see a token of it.
  *
  * Every function here is arithmetic on values the TEE already holds. Nothing
  * here touches a socket, and nothing here decides what crosses to the worker.
@@ -42,6 +44,9 @@ static inline long sh_lrintf_nolibm(float v) {
 #ifdef SH_SIMD_AVX512
 #include <immintrin.h>
 #define FN(name) sh_simd_avx512_##name
+#elif defined(SH_SIMD_NEON)
+#include <arm_neon.h>
+#define FN(name) sh_simd_neon_##name
 #else
 #define FN(name) sh_simd_generic_##name
 #endif
@@ -284,6 +289,40 @@ static inline void refill_rows4(const uint8_t *planes, int b, int b0,
         acc[(2 * 4 + 1) * N + j] = _mm512_reduce_add_epi32(a21);
         acc[(2 * 4 + 2) * N + j] = _mm512_reduce_add_epi32(a22);
         acc[(2 * 4 + 3) * N + j] = _mm512_reduce_add_epi32(a23);
+    }
+}
+#elif defined(SH_SIMD_NEON)
+/* SDOT is signed x signed; the planes are unsigned residues. The exact identity
+ *   sum_k x[k]*w[k] = sum_k (x[k]-128)*w[k] + 128*sum_k w[k]
+ * with x-128 in [-128,127] (no saturation) makes it one SDOT per 16 bytes, and
+ * the row sum is public arithmetic on the public weights, once per row for the
+ * twelve dots. Measured 6.0x over the scalar loop on an A78 (anchor REPORT 4). */
+static inline void refill_rows4(const uint8_t *planes, int b, int b0,
+                                const int8_t *W, int64_t K, int64_t N, int32_t *acc) {
+    const int64_t K16 = K & ~(int64_t)15;
+    const uint8x16_t bias = vdupq_n_u8(128);
+    const uint8_t *pl[3][4];
+    for (int p = 0; p < 3; p++)
+        for (int r = 0; r < 4; r++) {
+            const int row = b0 + r < b ? b0 + r : b - 1;          /* clamp: duplicates are discarded */
+            pl[p][r] = planes + ((size_t)p * b + row) * K;
+        }
+    for (int64_t j = 0; j < N; j++) {
+        const int8_t *w = W + j * K;
+        int32_t wsum = 0;
+        for (int64_t k = 0; k < K; k++) wsum += w[k];
+        const int32_t corr = 128 * wsum;
+        for (int p = 0; p < 3; p++)
+            for (int r = 0; r < 4; r++) {
+                const uint8_t *x = pl[p][r];
+                int32x4_t a = vdupq_n_s32(0);
+                int64_t k = 0;
+                for (; k < K16; k += 16)
+                    a = vdotq_s32(a, vreinterpretq_s8_u8(vsubq_u8(vld1q_u8(x + k), bias)), vld1q_s8(w + k));
+                int32_t t = vaddvq_s32(a);
+                for (; k < K; k++) t += ((int32_t)x[k] - 128) * (int32_t)w[k];
+                acc[(p * 4 + r) * N + j] = t + corr;
+            }
     }
 }
 #else

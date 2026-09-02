@@ -56,7 +56,7 @@ evidence the fleet badge reads. Fail closed on any unpinned root or unknown hash
 - Open: pin a PUBLISHED anchor build's codeHash (the APK's v4 Merkle root, from the idsig) and the
   platform signing certificate's sha512; feed the first real chain through the CLI.
 
-### 3. The real trusted half in the pVM
+### 3. The real trusted half in the pVM (steps 1-2 DONE 2026-09-02, REPORT.md section 11: NEON SDOT variant, x86 byte-identical; shielded-tee.c + probe pass on the phone; in-pVM refill 4.0x)
 Port the ggml-shielded engine (llama.cpp CPU path + the shielded backend now living in the
 wasmtime patch) to Microdroid: model weights arrive public over the bridge, the KV cache and
 nonlinears run in the VM, pads are banked on the spare vCPUs (i8mm/SDOT refill kernels), the

@@ -14,6 +14,17 @@
 #include "shielded-field.h"
 #include "shielded-simd.h"
 
+/* The refill is the one hot loop that pays for a vector kernel (3x the token's
+ * MACs). The core stays OS-free and table-free: the build names the kernel.
+ * Default = the generic C body every other rung measured; the phone's pVM
+ * build passes -DAN_REFILL=sh_simd_neon_refill and links the SDOT object
+ * (shielded-simd.c with -DSH_SIMD_NEON). Both produce the same u: an_check_local
+ * asserts the unmasked product against the int64 truth every exchange, so a
+ * kernel that lied would fail `exact` on the first shape, not silently. */
+#ifndef AN_REFILL
+#define AN_REFILL sh_simd_generic_refill
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -177,7 +188,7 @@ int an_pad_gen(an_ctx *c) {
     sh_simd_generic_pad_planes(c->r, (size_t)c->K, c->rplanes, c->rplanes + c->K, c->rplanes + 2 * c->K);
     for (int i = 0; i < c->n_nodes; i++) {
         an_node *n = &c->nodes[i];
-        sh_simd_generic_refill(c->rplanes, 1, n->w, n->K, n->N, c->u + n->u_off, c->u_len, c->acc);
+        AN_REFILL(c->rplanes, 1, n->w, n->K, n->N, c->u + n->u_off, c->u_len, c->acc);
     }
     c->pads_issued++;
     c->pad_ready = 1;
