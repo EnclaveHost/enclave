@@ -50,13 +50,18 @@ RUN curl -fsSL -o /tmp/rclone.zip \
 # links. ldconfig registers /usr/local/lib so the dynamic linker finds them; the
 # CUDA provider .so is dlopened by libonnxruntime from the same directory.
 COPY --from=wasmtime /bin/wasmtime /usr/local/bin/wasmtime
+# mm33: the static ffmpeg/ffprobe the ggml backend's "video" verb spawns
+# (libmtmd's video helper). They ship in the artifact image's /bin beside
+# wasmtime; the engine finds them through ENCLAVE_GGML_FFMPEG_DIR, which the
+# metal guest sets to /usr/local/bin (hosted-fleet configs likewise).
+COPY --from=wasmtime /bin/ffmpeg /bin/ffprobe /usr/local/bin/
 COPY --from=wasmtime /lib/ /usr/local/lib/
 # ggml (llama.cpp) compute backends are dlopened MODULES (GGML_BACKEND_DL) -
 # libggml-cpu/-cuda in /usr/local/lib are found via this env, not ldconfig.
 # Keeps libcuda.so.1 out of the wasmtime binary's DT_NEEDED: the driver lib
 # only exists where the nvidia runtime injects it (never on CPU flavors).
 ENV ENCLAVE_GGML_BACKEND_DIR=/usr/local/lib
-RUN ldconfig && /usr/local/bin/wasmtime --version
+RUN ldconfig && /usr/local/bin/wasmtime --version && /usr/local/bin/ffprobe -version | head -1
 
 WORKDIR /opt/enclave
 
