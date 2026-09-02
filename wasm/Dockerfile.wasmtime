@@ -96,6 +96,21 @@ ENV ELL_LIB_LOCATION=/opt/enclave-llamacpp-linux-x64-gpu/lib
 # sd.cpp + its shim live in the same tarball/dir (one ggml - see above)
 ENV ESD_LIB_LOCATION=/opt/enclave-llamacpp-linux-x64-gpu/lib
 
+# mm33 VIDEO: libmtmd's video helper does not decode video itself - it spawns
+# ffmpeg/ffprobe and reads frames off a pipe - so the artifact image ships the
+# two binaries, STATIC (this is a FROM scratch image: no libc, no shared libs).
+# Pinned by sha256 like every other input; the ggml backend looks for them in
+# ENCLAVE_GGML_FFMPEG_DIR (default /bin, where they land below). Without them
+# the "video" verb refuses with [video_undecodable]; images are unaffected.
+ARG FFMPEG_STATIC_URL=https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+ARG FFMPEG_STATIC_SHA256=abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67
+RUN curl -fsSL -o /tmp/ffmpeg.tar.xz "${FFMPEG_STATIC_URL}" \
+ && echo "${FFMPEG_STATIC_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c - \
+ && mkdir -p /opt/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /opt/ffmpeg --strip-components=1 \
+ && rm -f /tmp/ffmpeg.tar.xz \
+ && file /opt/ffmpeg/ffmpeg | grep -q "statically linked" \
+ && /opt/ffmpeg/ffmpeg -version | head -1 && /opt/ffmpeg/ffprobe -version | head -1
+
 # enclave_nvenc: the video-encode shim (wasm/nvenc-shim), built HERE rather than
 # shipped in a tarball like the ggml stack. It can be, because it has no engine
 # behind it: libcuda and libnvidia-encode are dlopened at runtime and the CUDA
@@ -373,8 +388,9 @@ RUN cargo build --release \
  && cp -L "${ORT_LIB_LOCATION}/lib/libonnxruntime_providers_cuda.so" /out/lib/ \
  && cp -a "${ELL_LIB_LOCATION}"/lib*.so* /out/lib/ \
  && cp -a "${ENV_LIB_LOCATION}"/libenclave_nvenc.so /out/lib/ \
+ && cp -a /opt/ffmpeg/ffmpeg /opt/ffmpeg/ffprobe /out/bin/ \
  && ls -laR /out/
 
-# artifact-only image: /bin/wasmtime + /lib/<ORT dylibs>, nothing else
+# artifact-only image: /bin/wasmtime + /bin/ffmpeg + /bin/ffprobe (static) + /lib/<dylibs>, nothing else
 FROM scratch
 COPY --from=build /out/ /

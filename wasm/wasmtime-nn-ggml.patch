@@ -222,7 +222,7 @@ new file mode 100644
 index 0000000..dc098cf
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,3200 @@
+@@ -0,0 +1,3339 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -501,12 +501,31 @@ index 0000000..dc098cf
 +    i32,         // n_batch
 +    *mut i32,    // out: positions consumed
 +) -> i32;
++// mm33: ONE video file -> sampled frames. Optional on top of the four above:
++// a tarball that predates it still serves vision, and the "video" verb
++// refuses with [video_unavailable] instead of the backend failing to build.
++type MtmdEvalVideoFn = unsafe extern "C" fn(
++    *mut c_void,   // mtmd handle
++    *mut c_void,   // llama context
++    i32,           // seq_id
++    i32,           // pos0
++    *const u8,     // video file bytes
++    u32,           // len
++    i32,           // n_batch
++    i32,           // fps_milli (<=0 = helper default)
++    i32,           // max_frames (<=0 = 8; capped 64)
++    i32,           // timestamp_ms (<=0 = none)
++    *const c_char, // ffmpeg dir ("" = PATH)
++    *mut i32,      // out: positions consumed
++    *mut i32,      // out: frames used
++) -> i32;
 +
 +struct MtmdSyms {
 +    caps_file: MtmdCapsFn,
 +    new: MtmdNewFn,
 +    free: MtmdFreeFn,
 +    eval_image: MtmdEvalFn,
++    eval_video: Option<MtmdEvalVideoFn>,
 +}
 +unsafe impl Send for MtmdSyms {}
 +unsafe impl Sync for MtmdSyms {}
@@ -532,12 +551,16 @@ index 0000000..dc098cf
 +            if caps.is_null() || new.is_null() || free.is_null() || eval.is_null() {
 +                return None;
 +            }
++            let evv = sym("ell_mtmd_eval_video");
 +            Some(unsafe {
 +                MtmdSyms {
 +                    caps_file: std::mem::transmute::<*mut c_void, MtmdCapsFn>(caps),
 +                    new: std::mem::transmute::<*mut c_void, MtmdNewFn>(new),
 +                    free: std::mem::transmute::<*mut c_void, MtmdFreeFn>(free),
 +                    eval_image: std::mem::transmute::<*mut c_void, MtmdEvalFn>(eval),
++                    eval_video: if evv.is_null() { None } else {
++                        Some(std::mem::transmute::<*mut c_void, MtmdEvalVideoFn>(evv))
++                    },
 +                }
 +            })
 +        })
@@ -665,6 +688,20 @@ index 0000000..dc098cf
 +    static V: OnceLock<u64> = OnceLock::new();
 +    Duration::from_secs(*V.get_or_init(|| env_u32("ENCLAVE_GGML_PARK_TTL_S", 900) as u64))
 +}
++
++/// mm33 VIDEO. What one "video" verb may cost this node: frames are encoder
++/// passes plus their share of the KV pool, so the cap is per node, not per
++/// guest. ENCLAVE_GGML_VIDEO_MAX_FRAMES (8, 1..64) bounds frames per clip,
++/// ENCLAVE_GGML_VIDEO_FPS_MILLI (1000 = 1 fps) is the sampling rate a guest
++/// gets when it names none, ENCLAVE_GGML_VIDEO_MAX_BYTES (64 MiB) bounds the
++/// file, ENCLAVE_GGML_VIDEO_TIMESTAMP_MS (5000) spaces the helper's "[Xs]"
++/// texts (0 = none), and ENCLAVE_GGML_FFMPEG_DIR names where ffmpeg/ffprobe
++/// live ("" = PATH) - the engine image ships them under /bin.
++fn video_max_frames() -> i32 { env_u32("ENCLAVE_GGML_VIDEO_MAX_FRAMES", 8).clamp(1, 64) as i32 }
++fn video_fps_milli() -> i32 { env_u32("ENCLAVE_GGML_VIDEO_FPS_MILLI", 1000).clamp(100, 30_000) as i32 }
++fn video_max_bytes() -> usize { env_u32("ENCLAVE_GGML_VIDEO_MAX_BYTES", 64 << 20) as usize }
++fn video_timestamp_ms() -> i32 { env_u32("ENCLAVE_GGML_VIDEO_TIMESTAMP_MS", 5000).min(600_000) as i32 }
++fn ffmpeg_dir() -> String { std::env::var("ENCLAVE_GGML_FFMPEG_DIR").unwrap_or_else(|_| "/bin".to_string()) }
 +
 +fn kv_type_code(s: &str) -> i32 {
 +    match s.trim().to_ascii_lowercase().as_str() {
@@ -1961,6 +1998,69 @@ index 0000000..dc098cf
 +        outcome
 +    }
 +
++    /// mm33: ONE video file into `seq_id` at `pos0` as sampled frames. Same
++    /// discipline as eval_image (exclusive decode turn, projector loaded
++    /// lazily); returns (positions consumed, frames used).
++    fn eval_video(&self, seq_id: i32, pos0: i32, bytes: &[u8], fps_milli: i32, max_frames: i32)
++        -> Result<(i32, i32), String>
++    {
++        if bytes.is_empty() {
++            return Err("empty video".into());
++        }
++        if bytes.len() > video_max_bytes() || bytes.len() > u32::MAX as usize {
++            return Err(format!(
++                "[video_too_large] this node accepts video files up to {} MiB (ENCLAVE_GGML_VIDEO_MAX_BYTES)",
++                video_max_bytes() >> 20
++            ));
++        }
++        let syms = mtmd_syms().ok_or(
++            "[vision_unavailable] this node's llama.cpp toolchain predates the vision \
++             entry points (no libmtmd in the shim)",
++        )?;
++        let Some(eval_video) = syms.eval_video else {
++            return Err("[video_unavailable] this node's llama.cpp toolchain predates the video \
++                        entry point (ell_mtmd_eval_video)".into());
++        };
++        let dir = CString::new(ffmpeg_dir()).map_err(|_| "bad ENCLAVE_GGML_FFMPEG_DIR".to_string())?;
++        let mut q = self.q.lock().unwrap();
++        while q.decoding {
++            q = self.cv.wait(q).unwrap();
++        }
++        q.decoding = true;
++        drop(q);
++        let (mut n_pos, mut n_frames) = (0i32, 0i32);
++        let outcome = match self.ensure_mtmd() {
++            Err(e) => Err(e),
++            Ok(handle) => {
++                let rc = unsafe {
++                    eval_video(
++                        handle, self.raw, seq_id, pos0,
++                        bytes.as_ptr(), bytes.len() as u32, self.n_batch as i32,
++                        fps_milli, max_frames, video_timestamp_ms(), dir.as_ptr(),
++                        &mut n_pos, &mut n_frames,
++                    )
++                };
++                match rc {
++                    0 if n_pos > 0 && n_frames > 0 => Ok((n_pos, n_frames)),
++                    0 => Err("the projector consumed no positions for this video".to_string()),
++                    1 => Err(decode_err(1)),
++                    2 => Err("[video_undecodable] not a decodable video (ffprobe could not read it), \
++                              or this node has no ffmpeg/ffprobe (ENCLAVE_GGML_FFMPEG_DIR)".to_string()),
++                    3 => Err("[image_too_wide] a frame of this video needs the whole image in one \
++                              physical batch - raise ENCLAVE_GGML_N_UBATCH on this node (or send a \
++                              smaller video)".to_string()),
++                    4 => Err("[video_unavailable] this node's engine was built without video support".to_string()),
++                    other => Err(format!("video encode failed (rc {other})")),
++                }
++            }
++        };
++        let mut q = self.q.lock().unwrap();
++        q.decoding = false;
++        self.cv.notify_all();
++        drop(q);
++        outcome
++    }
++
 +    /// Load the vision projector if it is not loaded yet, returning its
 +    /// handle. Caller holds the decode turn (the load allocates on the same
 +    /// device the decode is about to use).
@@ -3003,6 +3103,10 @@ index 0000000..dc098cf
 +                        // may come back zeroed; {"prefix_cache": [0]} opts a
 +                        // context out of that deferral.
 +                        park_slots() as i32,
++                        // mm33: the "video" verb exists on this engine (the
++                        // shim carries ell_mtmd_eval_video); whether the node
++                        // also has ffmpeg is the verb's own error to report
++                        mtmd_syms().map_or(0, |s| s.eval_video.is_some() as i32),
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -3052,6 +3156,41 @@ index 0000000..dc098cf
 +                        name: "image_pos".to_string(),
 +                        tensor: t,
 +                    }]));
++                }
++                // mm33 {"video": U8 [n]} = one video FILE's bytes (whatever
++                // ffmpeg reads: mp4/webm/mov/mkv/avi/gif...), sampled into
++                // this sequence at the current position as frames, answering
++                // "video_pos" I32 [1] (positions consumed) and "video_frames"
++                // I32 [1] (frames used). Optional {"video_fps_milli": I32 [1]}
++                // and {"video_max_frames": I32 [1]} tune the sampling, both
++                // clamped to the node's ceilings. Like "image": never the end
++                // of a prompt, the text turn that follows produces the row.
++                if let Some(vid) = inputs.iter().find(|nt| nt.name == "video") {
++                    self.resolve_defer()?;
++                    if vid.tensor.ty != TensorType::U8 {
++                        return Err(err(format!(
++                            "\"video\" must be a U8 tensor of file bytes (got {:?})",
++                            vid.tensor.ty
++                        )));
++                    }
++                    let opt = |name: &str| -> Option<i32> {
++                        inputs.iter().find(|nt| nt.name == name)
++                            .and_then(|nt| tokens_from_tensor(&nt.tensor).ok())
++                            .and_then(|v| v.first().copied())
++                    };
++                    let fps = opt("video_fps_milli").filter(|v| *v > 0).unwrap_or_else(video_fps_milli).clamp(100, 30_000);
++                    let frames = opt("video_max_frames").filter(|v| *v > 0).unwrap_or_else(video_max_frames).min(video_max_frames());
++                    let (n_pos, n_frames) = self
++                        .server
++                        .eval_video(self.seq_id, self.n_past, &vid.tensor.data, fps, frames)
++                        .map_err(err)?;
++                    self.n_past += n_pos;
++                    return Ok(Some(vec![
++                        NamedTensor { name: "video_pos".to_string(), tensor: Tensor {
++                            dimensions: vec![1], ty: TensorType::I32, data: n_pos.to_le_bytes().to_vec() } },
++                        NamedTensor { name: "video_frames".to_string(), tensor: Tensor {
++                            dimensions: vec![1], ty: TensorType::I32, data: n_frames.to_le_bytes().to_vec() } },
++                    ]));
 +                }
 +                // control verb {"copy_from": I32 [2] = [src_seq, src_n_past]}:
 +                // make THIS sequence an exact branch of src_seq (previous
