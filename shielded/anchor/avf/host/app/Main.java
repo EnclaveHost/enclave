@@ -244,6 +244,7 @@ public class Main extends Activity {
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append('\n');
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads");
             }
+            if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             cmd.append("WORKER ").append(plan.mode.equals("engine") ? "bridge" : plan.mode).append('\n');
             for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }
             cmd.append("RUN\n");
@@ -258,6 +259,25 @@ public class Main extends Activity {
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
         }
+    }
+
+    /* vsock round trip, app <-> guest: the floor under every exchange the bridge carries */
+    static void echoBench(Object vm) {
+        ParcelFileDescriptor pfd = connect(vm, 7780, 100);
+        if (pfd == null) { say("ECHO connect failed"); return; }
+        try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor())) {
+            for (int size : new int[] { 64, 4096, 65536 }) {
+                byte[] b = new byte[size]; long[] us = new long[200];
+                for (int i = 0; i < 200; i++) {
+                    long t0 = System.nanoTime(); out.write(b); out.flush();
+                    int got = 0; while (got < size) { int r = in.read(b, got, size - got); if (r < 0) throw new java.io.EOFException(); got += r; }
+                    us[i] = (System.nanoTime() - t0) / 1000;
+                }
+                java.util.Arrays.sort(us);
+                say("ECHO " + size + " B: p50=" + us[100] + " us p90=" + us[180] + " us min=" + us[0] + " us");
+            }
+        } catch (Exception e) { say("ECHO error " + e); }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 
     static byte[] fileSha256(String path) {

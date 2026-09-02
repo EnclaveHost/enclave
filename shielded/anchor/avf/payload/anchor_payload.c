@@ -68,6 +68,7 @@ void randombytes(unsigned char *p, unsigned long long n) {
 static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00 };
 #define WORKER_PORT 7778
 #define MODEL_PORT  7779
+#define ECHO_PORT   7780
 #define MAX_SHAPES  16
 
 /* ---- the mouth: every line to stdout (debug VMs), logcat, and the control vsock ---- */
@@ -395,6 +396,7 @@ int AVmPayload_main(void) {
     /* the owner's instructions; without an owner (a vm-tool run) the built-in local self-test */
     int bridge = 0, n_shapes = 0; int64_t SK[MAX_SHAPES], SN[MAX_SHAPES]; int Snode[MAX_SHAPES], Siter[MAX_SHAPES], Sx[MAX_SHAPES];
     int engine = 0, eng_n = 8, eng_threads = 4; uint64_t eng_model = 0; static char eng_prompt[2048] = "The capital of France is";
+    int echo = 0;
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
@@ -413,8 +415,18 @@ int AVmPayload_main(void) {
                 long long k, n; int nd, it, xm;
                 if (sscanf(l + 6, "%lld %lld %d %d %d", &k, &n, &nd, &it, &xm) == 5) { SK[n_shapes] = k; SN[n_shapes] = n; Snode[n_shapes] = nd; Siter[n_shapes] = it; Sx[n_shapes] = xm; n_shapes++; }
             }
+            else if (!strcmp(l, "ECHO")) echo = 1;
             else if (!strcmp(l, "RUN")) break;
         }
+    }
+    if (echo) {   /* the vsock round trip itself, app <-> guest, nothing else in the loop */
+        int ls = vs_bind(ECHO_PORT); int c = vs_accept(ls, 20000);
+        OUT("ECHO %s", c >= 0 ? "connected" : "no peer");
+        if (c >= 0) { static uint8_t b[65536]; ssize_t r; while ((r = read(c, b, sizeof b)) > 0) { if (write(c, b, (size_t)r) != r) break; } close(c); }
+        if (ls >= 0) close(ls);
+        OUT("END");
+        if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
+        sleep(1); return 0;
     }
     if (engine) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
