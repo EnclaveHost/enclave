@@ -134,6 +134,8 @@ rm -f "$STAGE"/lib/arm64-v8a/*.so
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \
    -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so
 for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"; done
+# stripped copies: the dynamic symbol table (what dlopen/dlsym need) stays, the rest of libllama's 40 MB goes
+for x in "$STAGE"/lib/arm64-v8a/*.so; do "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$x"; done
 for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.calib"; done
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'

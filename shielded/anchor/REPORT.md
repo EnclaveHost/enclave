@@ -612,6 +612,9 @@ engine now reports the offload count over the control channel after the first gr
 app can't read `/data/local/tmp`, so the spike APK is marked debuggable and the model is placed
 with `run-as` once.
 
-**Open, in order.** A native bridge or guest networking for the exchange cost; stripped
-libraries; the model cache keyed by hash rather than size; and on the Pixel 10 Pro XL, the same
-run with `--es relay` for the attestation chain the platform verifier is waiting for.
+**Since then:** the bundled libraries are stripped (APK 54 MB → 7.4 MB, dynamic symbols kept),
+and the cache is keyed by the model's sha256 in a sidecar the guest writes after a complete
+stream, so a same-sized different model streams again (verified: stream-then-keep).
+**Open, in order.** A native bridge or guest networking for the exchange cost, and on the
+Pixel 10 Pro XL, the same run with `--es relay` for the attestation chain the platform verifier
+is waiting for.

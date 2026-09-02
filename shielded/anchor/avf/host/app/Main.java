@@ -239,7 +239,8 @@ public class Main extends Activity {
             StringBuilder cmd = new StringBuilder();
             if (plan.mode.equals("engine")) {
                 long bytes = new java.io.File(plan.model).length();
-                cmd.append("ENGINE model_bytes=").append(bytes).append(" n=").append(plan.n).append(" threads=").append(plan.threads)
+                String sha = RelayAttach.hex(fileSha256(plan.model));
+                cmd.append("ENGINE model_bytes=").append(bytes).append(" model_sha256=").append(sha).append(" n=").append(plan.n).append(" threads=").append(plan.threads)
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append('\n');
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads");
             }
@@ -257,6 +258,14 @@ public class Main extends Activity {
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
         }
+    }
+
+    static byte[] fileSha256(String path) {
+        try (InputStream in = new java.io.FileInputStream(path)) {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[1 << 20]; int r; while ((r = in.read(buf)) > 0) md.update(buf, 0, r);
+            return md.digest();
+        } catch (Exception e) { say("MODEL sha256 failed: " + e); return new byte[32]; }
     }
 
     /* engine mode: the public model, streamed into the guest (8-byte length, then the bytes) */

@@ -39,7 +39,7 @@ verified, sampled and cached on the phone; the GPU only ever sees masked planes.
 - Worker bridge (vsock 7778 <-> TCP): the pVM drives a real `worker-cuda` through the app.
 - Proof: the split against the RTX 3070 from inside the pVM reproduces the x86 harness's digests
   bit for bit (section 10). Runs on the Pixel 8 Pro today (attestation reports UNSUPPORTED there).
-- Open: the Java bridge costs ~4 ms per exchange (435 vs 218 ms/token in section 13); native bridge or guest networking. Strip the bundled libraries. Cache the model by hash.
+- Open: the Java bridge costs ~4 ms per exchange (435 vs 218 ms/token in section 13); native bridge or guest networking. (Libraries stripped and the model cache hash-keyed: done.)
 - Signing: the spike key is generated locally and never committed; the release key moves to the
   platform certificate service before anything ships.
 
