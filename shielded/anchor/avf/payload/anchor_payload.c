@@ -214,13 +214,23 @@ static int read_exact(int fd, void *buf, size_t n) {
  * (persistent per VM instance, so the stream happens once), else a memfd
  * (which this payload domain is denied on the phone, measured EACCES), else
  * /data. `*existing` says a same-sized file was already there. */
+/* The cache key: the owner's claimed sha256 of the model, kept in a sidecar next
+ * to the file once a stream completed. The model is public data, so a wrong
+ * claim costs output quality, never a secret; the sidecar is what makes a
+ * same-sized different model stream again instead of being mistaken for cached. */
+static char g_model_sha[80] = "";
+static void sidecar_path(char *out, size_t cap, const char *es) { snprintf(out, cap, "%s/model.gguf.sha256", es); }
 static int model_file(uint64_t bytes, int *existing) {
     *existing = 0;
     const char *es = AVmPayload_getEncryptedStoragePath();
     if (es) {
-        char path[512]; snprintf(path, sizeof path, "%s/model.gguf", es);
-        struct stat st;
-        if (stat(path, &st) == 0 && (uint64_t)st.st_size == bytes) { int fd = open(path, O_RDONLY); if (fd >= 0) { *existing = 1; return fd; } }
+        char path[512], side[512]; snprintf(path, sizeof path, "%s/model.gguf", es); sidecar_path(side, sizeof side, es);
+        struct stat st; char have[80] = "";
+        { FILE *f = fopen(side, "r"); if (f) { if (!fgets(have, sizeof have, f)) have[0] = 0; fclose(f); have[strcspn(have, "\n")] = 0; } }
+        if (stat(path, &st) == 0 && (uint64_t)st.st_size == bytes && g_model_sha[0] && !strcmp(have, g_model_sha)) {
+            int fd = open(path, O_RDONLY); if (fd >= 0) { *existing = 1; return fd; }
+        }
+        unlink(side);                                             /* whatever is there is not what the owner is offering */
         int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600);
         if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
         OUT("ENGINE encrypted storage %s: %s", path, strerror(errno));
@@ -254,6 +264,10 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
         if (got - mark >= (200u << 20)) { mark = got; OUT("ENGINE model %" PRIu64 " MiB received", got >> 20); }
     }
     close(c); fsync(fd);
+    if (g_model_sha[0] && AVmPayload_getEncryptedStoragePath()) {    /* remember what this file is, for next time */
+        char side[512]; sidecar_path(side, sizeof side, AVmPayload_getEncryptedStoragePath());
+        FILE *f = fopen(side, "w"); if (f) { fprintf(f, "%s\n", g_model_sha); fclose(f); }
+    }
     OUT("ENGINE model %" PRIu64 " MiB received in %.1f s", got >> 20, (now_us() - t0) / 1e6);
     *out_fd = fd; return 0;
 }
@@ -390,6 +404,7 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "ENGINE ", 7)) {          /* ENGINE model_bytes=N n=N threads=N prompt=<hex> */
                 engine = 1; char *q;
                 if ((q = strstr(l, "model_bytes="))) eng_model = strtoull(q + 12, NULL, 10);
+                if ((q = strstr(l, "model_sha256="))) { strncpy(g_model_sha, q + 13, 64); g_model_sha[64] = 0; }
                 if ((q = strstr(l, " n="))) eng_n = atoi(q + 3);
                 if ((q = strstr(l, "threads="))) eng_threads = atoi(q + 8);
                 if ((q = strstr(l, "prompt="))) { size_t k = unhex(q + 7, (uint8_t *)eng_prompt, sizeof eng_prompt - 1); eng_prompt[k] = 0; }
