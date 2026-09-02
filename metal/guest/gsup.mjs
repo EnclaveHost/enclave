@@ -96,8 +96,11 @@ const GGML_ENV = (() => {
   // the llama/MTP contexts and its prompt's cells out of the shared pool.
   // Engines predating mm32 ignore the env, so this is safe to carry across
   // wasmtime repins in either direction.
+  // ENCLAVE_GGML_FFMPEG_DIR: where the engine image keeps the static
+  // ffmpeg/ffprobe that the "video" verb (mm33) spawns - Dockerfile.wasm
+  // copies them beside wasmtime under /usr/local/bin.
   const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0',
-                ENCLAVE_GGML_PARK_SLOTS: '2' };
+                ENCLAVE_GGML_PARK_SLOTS: '2', ENCLAVE_GGML_FFMPEG_DIR: '/usr/local/bin' };
   const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
   for (const [k, v] of Object.entries(cfg)) {
     // accept either the bare knob ("maxSessions") or the full env name
