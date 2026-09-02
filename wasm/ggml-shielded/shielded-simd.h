@@ -72,6 +72,11 @@ const sh_simd *sh_simd_generic(void);
     void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *);
 SH_SIMD_DECL(avx512)
 SH_SIMD_DECL(generic)
+#if defined(__aarch64__)
+/* The third build, aarch64 only (-DSH_SIMD_NEON, suffix _neon): SDOT for the
+ * refill inner product, the same C body as generic for everything else. */
+SH_SIMD_DECL(neon)
+#endif
 
 #ifdef __cplusplus
 }

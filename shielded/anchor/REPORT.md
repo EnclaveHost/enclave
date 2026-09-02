@@ -460,3 +460,52 @@ engineering item, not a trust one. Pad times are the `/foreground` cpuset's A715
 
 What the Pixel 10 Pro XL adds when it arrives is one line in this same log: `ATTEST status=OK`
 followed by the certificate chain, which is phase 2's first test vector.
+
+# 11. Phase 3, first two steps: the complete trusted half on the phone, with SDOT (2026-09-02)
+
+PLAN.md's engine port starts with two things the scoping pass put first: give the refill loop
+to SDOT, and get the *complete* trusted half (`shielded-tee.c`, not the anchor subset) building
+and passing on the phone. Both are done, and neither moved a byte of the x86 build.
+
+**The kernel.** `shielded-simd.c` gains a third variant, `-DSH_SIMD_NEON` (suffix `_neon`): the
+same C body as generic everywhere except `refill_rows4`, which becomes one SDOT per 16 bytes
+via the exact identity `Σ x·w = SDOT(x−128, w) + 128·Σw` (section 4), with the public row sum
+computed once per weight row for the twelve dots. `shielded-tee.c` grows a `simd_neon` table
+and an `__aarch64__` branch of `sh_simd_get` that gates on `HWCAP_ASIMDDP` and runs the same
+`simd_agree` cross-check AVX-512 gets. Every addition sits under `__aarch64__` / `SH_SIMD_NEON`
+guards, and the proof that the shipped image is untouched is mechanical: the five x86 objects
+(`shielded-tee.o`, both `shielded-simd` builds, `field`, `wire`) rebuilt from the edited tree have
+the same sha256 as before the edit.
+
+**On the phone, normal world first.** `build.sh probe` builds `shielded-tee.c` + field + wire +
+both SIMD objects + `shielded-probe` with the NDK (bionic, static). `sh_simd_get()` on the
+Pixel 8 Pro chooses `neon-sdot`, meaning the agreement check passed on this silicon;
+`SHIELDED_NO_SIMD=1` chooses `generic`. `shielded-probe` against the live worker over
+`adb reverse` passes everything in both modes with identical output:
+
+```
+{"exact":true,"verified":true,"lie_rejected":true,"denylist_refused":true,"local_identical":true,
+ "reply_width":3,"packed_identical":true,"peak_abs_y":1981042,"field_headroom":3.65,"K":896,"N":896}
+```
+
+**Inside the protected VM.** The anchor core's one refill call site is now a build-time name
+(`AN_REFILL`, default generic); the pVM payload links the SDOT object and, because the same
+`/foreground` vCPU lands on an A510 or an A715 from one run to the next, measures both kernels
+back to back on the same thread rather than trusting run-to-run pad medians:
+
+| shape | generic refill | SDOT refill | speedup | outputs |
+|---|---|---|---|---|
+| 896×896 | 6,519 µs (1.5 GMAC/s) | 1,614 µs (6.0 GMAC/s) | **4.0×** | identical |
+| 896×4864 | 10,149 µs (5.2 GMAC/s) | 2,602 µs (20.0 GMAC/s) | **3.9×** | identical |
+
+The four-shape run's digests are unchanged (`0601bec0…`, `74789c6c…`, `ceff962c…`, `1d40d786…`),
+which is the end-to-end statement that the kernel is exact. Two notes for the sizing work
+ahead: with a pad batch of one, three quarters of the twelve dots are clamped duplicates that
+banking at b=4 would turn into real pads for free; and the refill is now a minority of pad
+generation, so the ChaCha20 + residue split + CRT path is next (section 4 measured it at
+55-60% before this change).
+
+**What this leaves for phase 3.** Steps 3-5 of the scoping: rebuild the pinned llama.cpp for
+arm64 without CUDA, build `libggml-shielded.so` against it and run `ggml-test` / `shielded-run`
+on the phone, and give `sh_link_open` an fd-adopting form so the whole trusted half can run
+inside the VM the way the anchor subset already does.

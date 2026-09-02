@@ -57,12 +57,27 @@ case "$NAME" in
   sink)  # the host side of a --debug none VM's vsock report channel (static, runs from adb shell)
          "$CLANG" -O2 -static -Wall -o "$OUT/vsock-sink" "$HERE/host/vsock-sink.c"
          echo "sink: $OUT/vsock-sink ($(stat -c %s "$OUT/vsock-sink") bytes)"; exit 0 ;;
+  probe)  # the COMPLETE trusted half (shielded-tee.c, not the anchor subset) + its probe, for the phone
+         # itself: proves the file builds on bionic/aarch64 and that the NEON SDOT table agrees with
+         # the generic one on this silicon (sh_simd_get runs simd_agree and prints the loser).
+         PF=(-O2 -Wall -march=armv8.2-a+dotprod -I"$GG")
+         "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$OUT/simd-neon.o"
+         "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$OUT/simd-generic.o"
+         "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$OUT/field.o"
+         "$CLANG" "${PF[@]}" -c "$GG/shielded-wire.c" -o "$OUT/wire.o"
+         "$CLANG" "${PF[@]}" -c "$GG/shielded-tee.c" -o "$OUT/tee.o"
+         "$CLANG" "${PF[@]}" -static -o "$OUT/shielded-probe" "$GG/shielded-probe.c" "$OUT/tee.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
+         printf '#include "shielded-simd.h"\n#include <stdio.h>\nint main(void){printf("simd=%%s\\n", sh_simd_get()->name);return 0;}\n' > "$OUT/simd-check.c"
+         "$CLANG" "${PF[@]}" -static -o "$OUT/simd-check" "$OUT/simd-check.c" "$OUT/tee.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
+         echo "probe: $OUT/shielded-probe ($(stat -c %s "$OUT/shielded-probe") bytes), simd-check"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
-  anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c)
+  anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
+                # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
+                "$CLANG" -O3 -fPIC -march=armv8.2-a+dotprod -DSH_SIMD_NEON -I"$GG" -c "$GG/shielded-simd.c" -o "$OUT/simd-neon-pic.o"
                 SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
                       "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c"
-                      "$HERE/payload/third_party/tweetnacl.c")
-                CFLAGS+=(-ffp-contract=off -I"$HERE/../harness") ;;
+                      "$HERE/payload/third_party/tweetnacl.c" "$OUT/simd-neon-pic.o")
+                CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill) ;;
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \
