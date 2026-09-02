@@ -226,6 +226,14 @@ apps" means "not in the public SDK and not grantable without adb", not "impossib
   that grants both permissions via shell identity and runs parameterised over
   `protectedVm={false,true}` — and CTS must pass on final shipping software.
 
+  **Measured 2026-09-02, and it contradicts the strict reading:** on a locked retail Pixel 8 Pro,
+  an APK signed with a throwaway key and granted `MANAGE_VIRTUAL_MACHINE` by `pm grant` (the
+  permission carries the `development` protection flag) created, owned and read a
+  **protected, non-debuggable** VM through the `@SystemApi` classes (REPORT.md §9). "Platform
+  key" is the retail-distribution gate, not the technical one: the grant is what matters, and
+  it is adb-reachable on any unit, which makes this a prototype and OEM-pitch vehicle exactly
+  as stated above.
+
 **Field confirmation of both halves.** Kalidroid (`com.excp.kalidroid`, kimocoder) is a shipping
 third-party APK whose own install instructions are
 `adb shell pm grant com.excp.kalidroid android.permission.MANAGE_VIRTUAL_MACHINE` — no root, no

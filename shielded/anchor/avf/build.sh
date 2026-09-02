@@ -3,6 +3,7 @@
 #
 #   ./build.sh attest_probe         # the RKP attestation probe
 #   ./build.sh anchor               # the anchor itself (core + simd + field)
+#   ./build.sh sink                 # host-side vsock sink for --debug none runs
 #
 # Produces out/<name>.apk, signed with keys/anchor.jks. Then, on the device:
 #   vm create-idsig <apk> <idsig>
@@ -53,6 +54,9 @@ fi
 # --- 2. the payload .so -----------------------------------------------------
 CFLAGS=(-O2 -fPIC -Wall -march=armv8.2-a+dotprod -I"$HDR" -I"$CORE" -I"$GG")
 case "$NAME" in
+  sink)  # the host side of a --debug none VM's vsock report channel (static, runs from adb shell)
+         "$CLANG" -O2 -static -Wall -o "$OUT/vsock-sink" "$HERE/host/vsock-sink.c"
+         echo "sink: $OUT/vsock-sink ($(stat -c %s "$OUT/vsock-sink") bytes)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
   anchor)       SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c")
                 CFLAGS+=(-ffp-contract=off) ;;
@@ -63,7 +67,15 @@ esac
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'
 
-# --- 3. the APK: manifest via aapt2, native lib stored uncompressed ---------
+# --- 3. the host app: one activity, system API via reflection -> classes.dex --
+JAVAC="${JAVAC:-javac}"
+mkdir -p "$STAGE/classes" "$STAGE/dex"
+"$JAVAC" --release 17 -Xlint:-options -cp "$SDK/platforms/android-$API/android.jar" -d "$STAGE/classes" "$HERE"/host/app/*.java
+"$BT/d8" --min-api 34 --output "$STAGE/dex" "$STAGE"/classes/host/enclave/anchor/avf/*.class 2>&1 | grep -v '^Warning' || true
+[ -f "$STAGE/dex/classes.dex" ] || { echo "d8 produced no classes.dex" >&2; exit 2; }
+echo "dex: $(stat -c %s "$STAGE/dex/classes.dex") bytes"
+
+# --- 4. the APK: manifest via aapt2, dex + native lib stored uncompressed ----
 cd "$STAGE"
 "$BT/aapt2" link -o unaligned.apk --manifest "$HERE/AndroidManifest.xml" \
    -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API
@@ -72,6 +84,7 @@ python3 - "$NAME" <<'PYZ'
 import sys, zipfile
 name = sys.argv[1]
 with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
+    z.write("dex/classes.dex", "classes.dex", compress_type=zipfile.ZIP_STORED)
     z.write(f"lib/arm64-v8a/lib{name}.so", f"lib/arm64-v8a/lib{name}.so", compress_type=zipfile.ZIP_STORED)
 PYZ
 "$BT/zipalign" -p -f 4 unaligned.apk aligned.apk

@@ -308,8 +308,8 @@ libanchor.so` is the launch.
 secrets — pads, Freivalds `s`, plaintext activations, the KV cache — are hidden *from the
 phone's owner*. On this device that property holds: the trusted half executes in memory the
 host kernel cannot map, and a root shell on the host reads nothing. This run was
-`--debug full` so its console could be captured; a `--debug none` protected VM (the production
-configuration, and the attestable one) also boots on this unit (CID 2049 earlier in the log).
+`--debug full` so its console could be captured; §9 closes that caveat with the `--debug none`
+shape.
 
 **What it does not yet prove: remote attestation, and the reason is exact.** The attestation
 probe (`avf/payload/attest_probe.c`) ran to completion in the pVM and `AVmPayload_requestAttestation`
@@ -322,9 +322,93 @@ rkpd and the RKP hostname are present — but the device's **vendor manifest is
 the `/avf` entry below `min-level`. `vintf` confirms: the assembled framework manifest lists the
 `/default`, `/strongbox` and `/widevine` RKP components and no `/avf`. So pVM remote attestation
 is a **launch-generation** property: a device that launched with Android 15 (vendor level
-202404 — Pixel 9 family) admits the component, and one that launched with Android 16 (202504 —
-Pixel 10 family) is CTS-required to attest. `probe-device.sh` now reports this gate directly.
+202404 — the **Pixel 9a**; the Pixel 9/9 Pro launched on Android 14 and should carry level 8 like
+this unit, so they are *not* the fix) admits the component with attestation only "strongly
+recommended", and one that launched with Android 16 (202504 — **Pixel 10 family**) is
+CTS-required to attest. `probe-device.sh` reports this gate directly; run it inside the return
+window of whatever is bought.
 
 Also learned the hard way: `AVmPayload_getDiceAttestationChain` is a *restricted* API —
 microdroid_manager refuses it (`EX_SECURITY`) for a `vm`-tool-launched payload and libvm_payload
 aborts on the refusal — and a `vm run-app` piped into `head` gets SIGPIPE and stops the VM.
+
+# 9. Phase B: the non-debuggable VM, owned by an app, reporting over vsock (2026-09-02)
+
+§8 left one caveat: the run was `--debug full`. A debuggable pVM keeps the confidentiality
+boundary but hands its owner a console, a log and a ramdump on crash, and it can never attest.
+The production shape is **`DEBUG_LEVEL_NONE`**, which has none of those — so the payload needs
+a mouth of its own, and the host needs a way to listen.
+
+**The shell cannot listen.** `host/vsock-sink.c` (a static listener on `AF_VSOCK`) run from
+`adb shell` gets `socket(AF_VSOCK): Permission denied` — the `shell` SELinux domain has no
+vsock at all, and the `vm` tool has no connect subcommand. The anchor payload launched with
+`vm run-app --debug none` still ran to `payload finished with exit code 0`, but nothing could
+come out. What AVF gives the VM's **owner** instead is `VirtualMachine.connectVsock(port)`
+through virtualizationservice, so the direction flips: the guest binds a vsock listener after
+`notifyPayloadReady`, the owner connects when `onPayloadReady` fires.
+
+**The owner is an ordinary app.** `host/app/Main.java` is a one-activity APK, self-signed with
+the spike key, granted `MANAGE_VIRTUAL_MACHINE` with `pm grant` (the permission carries the
+`development` flag), driving the `@SystemApi` `android.system.virtualmachine` classes by
+reflection since the public `android.jar` does not carry them. It builds
+`VirtualMachineConfig{protected=true, debugLevel=NONE, cpuTopology=MATCH_HOST, 1 GiB}`, runs
+it, connects on ready and copies the stream to logcat. `build.sh` compiles it with `javac`/`d8`
+into the same APK that carries the payload, so the APK's signing key is both the VM's
+`authorityHash` and the owner's identity.
+
+Result, on the locked retail Pixel 8 Pro:
+
+```
+HOST config protected=true debug=0
+VM payload started
+VM payload ready -> connectVsock 7777
+VSOCK connected
+VSOCK ANCHOR start in pVM apk=/mnt/apk vsock=host-connected
+VSOCK ANCHOR cpu nproc=9 features= ... asimddp ... i8mm bti
+VSOCK {"rung":"avf-pvm","K":256,...,"y_digest":"f1d79d878b6772df",...,"PASS":true}
+VSOCK {"rung":"avf-pvm","K":896,"N":896,...,"y_digest":"34d62e67a3282d27",...,"PASS":true}
+VSOCK {"rung":"avf-pvm","K":896,"N":4864,"nodes":2,...,"y_digest":"92328cfc4fc1e0a7",...,"PASS":true}
+VSOCK ANCHOR end
+VSOCK closed after 6 lines
+```
+
+| shape | `y_digest` §8 (`--debug full`, vm tool) | `y_digest` §9 (`DEBUG_LEVEL_NONE`, app-owned) | invariants |
+|---|---|---|---|
+| tiny 256×256 | `f1d79d878b6772df` | `f1d79d878b6772df` | all PASS |
+| attn 896×896 | `34d62e67a3282d27` | `34d62e67a3282d27` | all PASS |
+| gate\|up 896×4864 ×2 | `92328cfc4fc1e0a7` | `92328cfc4fc1e0a7` | all PASS |
+
+Bit-identical. The non-debuggable VM computes what the debuggable one computed, and the only
+bytes that reach the host are the ones the payload chose to write.
+
+**What this closes.** The goal's confidentiality half now holds in the exact configuration a
+deployment would ship: memory unmapped from the host, no console, no log, no ramdump, an
+owner that is a normal installed app rather than a platform-signed one, and a report channel
+that carries results and nothing else. SIGNING.md's reading of the AVF security page ("only
+apps signed with the platform key can own pVMs") is contradicted by this run and corrected.
+
+**Placement, measured (separate from the boundary).** The first app-owned run was slower on
+the heavy shapes than §8's vm-tool run — gate\|up pad 70.5 ms vs 10.6 ms — and a slowdown that
+scales with work is placement, not a `debug none` cost. The activity had been started onto a
+locked screen, and its process read `cpuset=/background allowed=0-3`: the four A510 little
+cores. `virtmgr`/`crosvm` are spawned from the owner's process and inherit it. The device's
+groups are `background 0-3`, `foreground 0-7` (adds the four A715), `top-app 0-8` (adds the one
+X3); a shell process is allowed 0-8, which is what §8's `vm` tool had. The keyguard could not be
+dismissed from adb (PIN), so the fix was made the production-correct way instead:
+`host/app/AnchorService.java` hosts the same VM from a **foreground service**
+(`am start-foreground-service`), which sits in `/foreground allowed=0-7` whatever the screen is
+doing.
+
+| shape | owner in `/background` (0-3) | owner = foreground service (0-7) | §8 vm tool from shell (0-8) |
+|---|---|---|---|
+| tiny pad / worker | 829.7 / 352.1 µs | 748.3 / 356.4 µs | 682.6 / 306.9 µs |
+| attn pad / worker | 7,420.8 / 3,672.9 µs | 2,217.4 / 441.7 µs | 3,747.8 / 708.7 µs |
+| gate\|up pad / worker | 70,470.9 / 39,839.6 µs | 20,347.9 / 3,894.1 µs | 10,595.6 / 3,171.7 µs |
+
+Same digests in every column. The remaining gap on the biggest pad (20.3 vs 10.6 ms) is the
+X3 that only `top-app` gets; a visible activity would recover it, and multi-threaded pad
+banking makes it moot. So an operator app hosts the anchor from a foreground service, and the
+number to plan with is the middle column.
+
+**What remains** is unchanged: remote attestation, gated by this unit's launch generation
+(§8), needs a Pixel 9a at minimum and a Pixel 10 for a CTS-guaranteed chain.
