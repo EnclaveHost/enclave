@@ -34,14 +34,15 @@ class FleetList extends EnclaveElement {
       '<span class="fleet-stat"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
       + '<b><i>≈</i>' + avail + '<i> / ' + total + '</i>' + (unit ? " " + unit : "") + '</b>'
       + '<small>' + label + '</small></span>';
-    // the price sits directly under the pool's GPU/CPU label - bright number,
+    // the price sits directly under the pool's label (its badge) - bright number,
     // dim "/hr" - in the label column's otherwise-empty second row, so it
     // costs no space and each pool names its own rate (card vs node). It is
     // the WHOLE card / node per hour, the ledger's basis; a share pays its
     // fraction. Trailing ".00" trims like the docs' rates.
     const perHr = (v) => "$" + (v * 3600).toFixed(2).replace(/\.00$/, "");
     // one pool = a [label | meter | pct] header line, the price under the
-    // label, stat cells underneath
+    // label, stat cells underneath. The label is the pool's badge (see the
+    // row builder): the pill names the pool, so nothing else has to.
     const pool = (label, pct, stats, price) =>
       '<div class="fleet-pool">'
       + '<span class="fleet-pool-label">' + label + '</span>'
@@ -100,10 +101,20 @@ class FleetList extends EnclaveElement {
           // silicon is, and that is exactly `sh`.
           const cls = enclaveClassOf(e);
           const inTee = cls.inTee;
-          // Whether the box's CPU is a TEE at all, from evidence (see teeCpuOf):
-          // the technology its own attestation document presented, or the
-          // relay's verified SEV-SNP attach. Independent of the card, and never
-          // inferred from the box having none.
+          // THE POOL LABELS ARE THE BADGES. Each pool is named by what it is, in
+          // the colour that means it, right beside its own meter; the header
+          // carries only the box's name and rating. Pills in the header and a
+          // plain "CPU"/"GPU" beside the meters said the same thing twice in two
+          // registers, and the reader had to pair them up.
+          //
+          // The CPU pool: jade "TEE CPU" only when there is EVIDENCE the box's
+          // CPU is a confidential-computing TEE (the technology its own
+          // attestation document presented, or the relay's verified SEV-SNP
+          // attach, see teeCpuOf) -- never inferred from the box having no card.
+          // A separate root of trust is coming (hosts anchored on a phone), and
+          // those boxes must not inherit a green pill they did not prove: amber
+          // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
+          // box), plain "CPU" when it has not said.
           const tc = teeCpuOf(e);
           const teeCpuBadge = tc.real
             ? '<span class="ap-badge ok" title="' + esc(tc.label) + ' confidential VM: '
@@ -118,6 +129,21 @@ class FleetList extends EnclaveElement {
             : '<span class="ap-badge" title="This box has not reported whether its CPU is a TEE:'
               + ' its build predates the field, or its attestation document has not been read yet.'
               + ' Only a hardware quote earns the green pill.">cpu</span>';
+          // The GPU pool: jade "TEE GPU" for a card INSIDE the measured enclave,
+          // iris "GPU" for one on the untrusted host reached by masked offload --
+          // the ABSENCE of "tee" is the signal, and the tooltip says outright
+          // that this card is outside the enclave and outside its measurement.
+          const cardBadge = inTee
+            ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
+              + ' enclave and covered by its attestation.">tee gpu</span>'
+            : sh
+            ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
+              + ' on this box\u2019s untrusted host, used by masked offload: it receives '
+              + 'public weights and one-time-padded activations, and every result is '
+              + 'verified. The card is outside the enclave and outside its measurement, '
+              + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
+              + 'masking, not by the card.">gpu</span>'
+            : "";
           // What is SELLABLE is the worker's budget, not the physical card: the
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
@@ -147,37 +173,10 @@ class FleetList extends EnclaveElement {
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
-            // TWO badges, each answering a question a buyer has to ask separately.
-            // FIRST the CPU: jade "TEE CPU" only when there is EVIDENCE the box's
-            // CPU is a confidential-computing TEE (the technology its own
-            // attestation document presented, or the relay's verified SEV-SNP
-            // attach) -- never inferred from the box having no card. A separate
-            // root of trust is coming (hosts anchored on a phone), and those boxes
-            // must not inherit a green pill they did not prove: amber "NO TEE CPU"
-            // when the box reports a non-TEE document (a metal dev box), plain
-            // "CPU" when it has not said. THEN the card, if any: jade "TEE GPU"
-            // for one INSIDE the measured enclave, iris "GPU" for one on the
-            // untrusted host reached by masked offload -- the ABSENCE of "tee" is
-            // the signal, and the tooltip says outright that this card is outside
-            // the enclave and outside its measurement. Every row still shows its
-            // CPU POOL underneath; the badges answer what the box is, the pools
-            // answer what it has.
-            + teeCpuBadge
-            + (inTee
-                ? '<span class="ap-badge ok" title="This card is INSIDE the confidential'
-                  + ' enclave and covered by its attestation.">tee gpu</span>'
-                : sh
-                ? '<span class="ap-badge info" title="' + esc(sh.card || "gpu")
-                  + ' on this box\u2019s untrusted host, used by masked offload: it receives '
-                  + 'public weights and one-time-padded activations, and every result is '
-                  + 'verified. The card is outside the enclave and outside its measurement, '
-                  + 'so this is NOT a TEE GPU \u2014 your activations are protected by the '
-                  + 'masking, not by the card.">gpu</span>'
-                : "")
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
-            + (sh ? pool("GPU", shPct,
+            + (sh ? pool(cardBadge, shPct,
                 stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
                 // The card's RATED figure, which is what every other row quotes and
                 // what a share is sized against. This cell used to show the MEASURED
@@ -213,10 +212,10 @@ class FleetList extends EnclaveElement {
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
             // this one too would advertise one piece of silicon twice.
-            + (inTee ? pool("GPU", gPct,
+            + (inTee ? pool(cardBadge, gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")
-            + pool("CPU", cPct,
+            + pool(teeCpuBadge, cPct,
                 // prefer the enclave's own figure (the RAM-reservation ledger,
                 // which is what actually gates admission) over the folded
                 // fraction — same precedence the VRAM cell above uses
