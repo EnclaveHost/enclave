@@ -24,6 +24,10 @@
  * a pVM run against the same worker must reproduce the x86 and S21+ digests
  * in REPORT.md section 3 bit for bit (invariant 6).
  */
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
 #include <poll.h>
@@ -32,7 +36,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <linux/vm_sockets.h>
 #include <time.h>
 #include <unistd.h>
@@ -61,6 +67,7 @@ void randombytes(unsigned char *p, unsigned long long n) {
 }
 static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00 };
 #define WORKER_PORT 7778
+#define MODEL_PORT  7779
 #define MAX_SHAPES  16
 
 /* ---- the mouth: every line to stdout (debug VMs), logcat, and the control vsock ---- */
@@ -194,6 +201,85 @@ static void bench_refill(int64_t K, int64_t N) {
     free(W); free(planes); free(ug); free(un); free(acc);
 }
 
+/* ---- ENGINE mode: the whole inference engine in this VM (PLAN.md phase 3, steps 5-6) ----
+ * The owner streams the public model over vsock 7779 into a file of ours (a memfd, or /data
+ * when the VM has encrypted storage), bridges the worker on 7778, and this dlopens the
+ * libraries from the APK (RTLD_GLOBAL, dependency order) and hands everything to
+ * libengine.so's engine_main. Nothing here touches a secret: the model is public, the
+ * worker sees ciphertext, and the calibration is public data under the attested codeHash. */
+static int read_exact(int fd, void *buf, size_t n) {
+    uint8_t *p = buf; while (n) { ssize_t r = read(fd, p, n); if (r <= 0) return -1; p += r; n -= (size_t)r; } return 0;
+}
+/* Where the model lives: the VM's encrypted storage when the owner attached some
+ * (persistent per VM instance, so the stream happens once), else a memfd
+ * (which this payload domain is denied on the phone, measured EACCES), else
+ * /data. `*existing` says a same-sized file was already there. */
+static int model_file(uint64_t bytes, int *existing) {
+    *existing = 0;
+    const char *es = AVmPayload_getEncryptedStoragePath();
+    if (es) {
+        char path[512]; snprintf(path, sizeof path, "%s/model.gguf", es);
+        struct stat st;
+        if (stat(path, &st) == 0 && (uint64_t)st.st_size == bytes) { int fd = open(path, O_RDONLY); if (fd >= 0) { *existing = 1; return fd; } }
+        int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600);
+        if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
+        OUT("ENGINE encrypted storage %s: %s", path, strerror(errno));
+        if (fd >= 0) close(fd);
+    }
+    int fd = memfd_create("model", 0);
+    if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
+    OUT("ENGINE memfd: fd=%d ftruncate errno=%d (%s)", fd, errno, strerror(errno));
+    if (fd >= 0) close(fd);
+    fd = open("/data/anchor-model.gguf", O_RDWR | O_CREAT | O_TRUNC, 0600);
+    if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
+    if (fd >= 0) close(fd);
+    return -1;
+}
+/* The stream: 8-byte length from the owner, one byte back ('K' = keep, I have
+ * it; 'S' = send), then the bytes. */
+static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
+    int c = vs_accept(ls_model, 60000);
+    if (c < 0) { OUT("ENGINE no model stream from the owner"); return -1; }
+    uint64_t hdr = 0; if (read_exact(c, &hdr, 8) != 0 || hdr != bytes) { OUT("ENGINE model stream header %" PRIu64 " != %" PRIu64, hdr, bytes); close(c); return -1; }
+    int existing = 0, fd = model_file(bytes, &existing);
+    if (fd < 0) { OUT("ENGINE nowhere to put %" PRIu64 " bytes of model (encrypted storage, memfd and /data all refused)", bytes); close(c); return -1; }
+    if (existing) { (void)!write(c, "K", 1); close(c); OUT("ENGINE model %" PRIu64 " MiB already in the VM's encrypted storage", bytes >> 20); *out_fd = fd; return 0; }
+    (void)!write(c, "S", 1);
+    static uint8_t buf[1 << 20]; uint64_t got = 0, mark = 0; double t0 = now_us();
+    while (got < bytes) {
+        size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
+        ssize_t r = read(c, buf, want); if (r <= 0) { OUT("ENGINE model stream ended at %" PRIu64, got); close(c); return -1; }
+        if (write(fd, buf, (size_t)r) != r) { OUT("ENGINE model write failed at %" PRIu64 ": %s", got, strerror(errno)); close(c); return -1; }
+        got += (uint64_t)r;
+        if (got - mark >= (200u << 20)) { mark = got; OUT("ENGINE model %" PRIu64 " MiB received", got >> 20); }
+    }
+    close(c); fsync(fd);
+    OUT("ENGINE model %" PRIu64 " MiB received in %.1f s", got >> 20, (now_us() - t0) / 1e6);
+    *out_fd = fd; return 0;
+}
+typedef int (*engine_main_fn)(int, int, int, const char *, const char *, const char *, int, int);
+static void run_engine(int ls_wk, int ls_model, const char *prompt, int n_predict, int threads, uint64_t model_bytes) {
+    const char *apk = AVmPayload_getApkContentsPath();
+    char lib_dir[512], calib[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk); snprintf(calib, sizeof calib, "%s/assets/model.calib", apk);
+    int worker_fd = vs_accept(ls_wk, 60000);
+    if (worker_fd < 0) { OUT("ENGINE no worker bridge from the owner"); return; }
+    int model_fd = -1;
+    if (receive_model(ls_model, model_bytes, &model_fd) != 0) { close(worker_fd); return; }
+    static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libggml-cpu.so", "libllama.so", "libengine.so" };
+    void *h = NULL;
+    for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
+        char path[600]; snprintf(path, sizeof path, "%s/%s", lib_dir, libs[i]);
+        h = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+        if (!h) { OUT("ENGINE dlopen %s: %s", libs[i], dlerror()); close(worker_fd); close(model_fd); return; }
+    }
+    engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
+    if (!em) { OUT("ENGINE libengine.so has no engine_main"); return; }
+    OUT("ENGINE libraries loaded from %s; starting", lib_dir);
+    int rc = em(g_ctl, worker_fd, model_fd, lib_dir, calib, prompt, n_predict, threads);
+    OUT("ENGINE exit %d", rc);
+    close(model_fd);
+}
+
 /* split-harness.c's main, as a function: same fixture, same order of draws, same digest */
 static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, int bridge_fd) {
     if (xmax <= 0) { double s_ = 900.0 * sqrt(896.0 / (double)K); xmax = (int)(s_ < 1 ? 1 : s_); }
@@ -275,7 +361,7 @@ static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, in
 
 int AVmPayload_main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
-    int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT);
+    int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT), ls_model = vs_bind(MODEL_PORT);
     crypto_sign_keypair(g_tpk, g_tsk);
     AVmPayload_notifyPayloadReady();
     g_ctl = vs_accept(ls_ctl, 20000);
@@ -294,18 +380,34 @@ int AVmPayload_main(void) {
 
     /* the owner's instructions; without an owner (a vm-tool run) the built-in local self-test */
     int bridge = 0, n_shapes = 0; int64_t SK[MAX_SHAPES], SN[MAX_SHAPES]; int Snode[MAX_SHAPES], Siter[MAX_SHAPES], Sx[MAX_SHAPES];
+    int engine = 0, eng_n = 8, eng_threads = 4; uint64_t eng_model = 0; static char eng_prompt[2048] = "The capital of France is";
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
             if (!strncmp(l, "BOUND ", 6)) { strncpy(bound, l + 6, sizeof bound - 1); bound[sizeof bound - 1] = 0; }
             else if (!strncmp(l, "CHAL ", 5)) attest(l + 5, bound);
             else if (!strncmp(l, "WORKER ", 7)) bridge = !strcmp(l + 7, "bridge");
+            else if (!strncmp(l, "ENGINE ", 7)) {          /* ENGINE model_bytes=N n=N threads=N prompt=<hex> */
+                engine = 1; char *q;
+                if ((q = strstr(l, "model_bytes="))) eng_model = strtoull(q + 12, NULL, 10);
+                if ((q = strstr(l, " n="))) eng_n = atoi(q + 3);
+                if ((q = strstr(l, "threads="))) eng_threads = atoi(q + 8);
+                if ((q = strstr(l, "prompt="))) { size_t k = unhex(q + 7, (uint8_t *)eng_prompt, sizeof eng_prompt - 1); eng_prompt[k] = 0; }
+            }
             else if (!strncmp(l, "SHAPE ", 6) && n_shapes < MAX_SHAPES) {
                 long long k, n; int nd, it, xm;
                 if (sscanf(l + 6, "%lld %lld %d %d %d", &k, &n, &nd, &it, &xm) == 5) { SK[n_shapes] = k; SN[n_shapes] = n; Snode[n_shapes] = nd; Siter[n_shapes] = it; Sx[n_shapes] = xm; n_shapes++; }
             }
             else if (!strcmp(l, "RUN")) break;
         }
+    }
+    if (engine) {
+        OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
+        run_engine(ls_wk, ls_model, eng_prompt, eng_n, eng_threads, eng_model);
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
+        if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
+        sleep(1); return 0;
     }
     if (n_shapes == 0) { SK[0]=256; SN[0]=256; Snode[0]=1; Siter[0]=30; Sx[0]=0; SK[1]=896; SN[1]=896; Snode[1]=1; Siter[1]=30; Sx[1]=0; SK[2]=896; SN[2]=4864; Snode[2]=2; Siter[2]=12; Sx[2]=0; n_shapes = 3; }
     OUT("ANCHOR worker=%s shapes=%d", bridge ? "bridge" : "local", n_shapes);
@@ -317,6 +419,7 @@ int AVmPayload_main(void) {
         run_shape(SK[s], SN[s], Snode[s], Siter[s], Sx[s], fd);
     }
     OUT("END");
+    if (ls_model >= 0) close(ls_model);
     if (ls_wk >= 0) close(ls_wk);
     if (ls_ctl >= 0) close(ls_ctl);
     if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }

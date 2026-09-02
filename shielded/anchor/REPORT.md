@@ -567,3 +567,51 @@ token) and larger models, where the phone's CPU cannot decode alone at all.
 worker link adopted from the owner's `connectVsock` via `sh_pipe_adopt_fd`, and the public
 weights streamed into the VM over a third vsock port since the VM has no filesystem the owner can
 populate. The normal-world run above is the reference those must reproduce.
+
+# 13. Phase 3, steps 5-6: the engine inside the protected VM (2026-09-02)
+
+The whole Shielded engine, running in a non-debuggable protected VM on the Pixel 8 Pro, owned
+by the foreground-service app, with the model in the VM's encrypted storage and every claimable
+GEMM on the RTX 3070 through the owner's vsock bridge:
+
+```
+ENGINE model 794 MiB already in the VM's encrypted storage
+ENGINE backends loaded, worker fd 11 adopted, stats=yes, calib readable (/mnt/apk/assets/model.calib)
+ENGINE prefill 5 tokens in 25728 ms: 139 nodes offloaded, 0 local, 2.71 GMAC, verify_fail 0
+{"engine":"avf-pvm","prompt_tokens":5,"generated":8,"completion":" Paris.\nThe capital of France is",
+ "decode_ms_per_tok":435.5,"offloaded_nodes":1251,"local_nodes":0,"gmac":8.67,"verify_fail":0,"threads":4}
+BRIDGE #1 closed, down=22049591 bytes
+```
+
+1251 nodes and 8.67 GMAC: the same offload as x86 (section 12) and as the normal-world phone
+run, now from memory the phone's owner cannot map, with the worker link an fd the trusted half
+adopted from the owner's `connectVsock` (`sh_pipe_adopt_fd`, `-Dsh_pipe_open=sh_pipe_open_hook`
+on the module's build; the shipped `shielded-tee.c` untouched). This is the configuration the
+whole search was for: the pads, the Freivalds secrets, the plaintext activations and the KV cache
+live in the VM; the GPU box and the app see ciphertext frames and public weights.
+
+**How the model gets in.** A Microdroid payload may not size a memfd (`ftruncate` EACCES, the
+payload domain) and may not write `/data`; what it may write is the encrypted storage the owner
+attaches (`setEncryptedStorageBytes`, `AVmPayload_getEncryptedStoragePath` = `/mnt/encryptedstore`,
+1.9 GiB free of a 2 GiB store). The app streams the public GGUF over a third vsock port (7779)
+into a file there, ~37 s for 794 MiB, and because the storage persists with the VM instance the
+guest answers the next run's length header with "keep" and nothing streams. Deleting the VM
+deletes the store, so the app now keeps the instance and recreates it only on an incompatible
+config. The libraries (six `.so`, 52 MB unstripped) ride in the APK under the attested codeHash
+and are dlopened from `/mnt/apk/lib/arm64-v8a` by the bootstrap payload in dependency order;
+the calibration is an APK asset.
+
+**What it costs, and why.** Decode is 435 ms/token here against 218 in the normal world with the
+same threads and the same worker: the two extra vsock hops and the Java copy loop per exchange
+(section 10), on `/foreground` cores (section 9). Prefill is the one-time weight upload through
+`adb reverse`; with the worker warm on a real network link both numbers move together. Two
+build details that decide whether anything offloads at all: the APK must carry the
+`GGML_CPU_REPACK=OFF` CPU backend (`build-ggml-arm64.sh` does; a repacking one silently makes the
+shielded backend refuse every weight, and the VM has no console to say so, which is why the
+engine now reports the offload count over the control channel after the first graph), and the
+app can't read `/data/local/tmp`, so the spike APK is marked debuggable and the model is placed
+with `run-as` once.
+
+**Open, in order.** A native bridge or guest networking for the exchange cost; stripped
+libraries; the model cache keyed by hash rather than size; and on the Pixel 10 Pro XL, the same
+run with `--es relay` for the attestation chain the platform verifier is waiting for.

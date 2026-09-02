@@ -54,7 +54,7 @@ import java.util.concurrent.Executors;
 public class Main extends Activity {
     static final String TAG = "anchor-host";
     static final String PKG = "android.system.virtualmachine.";
-    static final int CTRL_PORT = 7777, WORKER_PORT = 7778;
+    static final int CTRL_PORT = 7777, WORKER_PORT = 7778, MODEL_PORT = 7779;
     static final int VENDOR_LEVEL_ATTEST = 202404;      // /avf RKP component min-level
 
     /* run plan, from intent extras */
@@ -62,6 +62,7 @@ public class Main extends Activity {
         String payload = "libanchor.so"; int debug = 0; long memMib = 1024;
         String worker = "127.0.0.1:9500"; String mode = "bridge";
         String relay = null; String name = "phone-anchor";
+        String model = "/data/local/tmp/anchor/gg/model.gguf"; String prompt = "The capital of France is"; int n = 8; int threads = 4; long storageMib = 0;
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
@@ -72,6 +73,13 @@ public class Main extends Activity {
             if (i.getStringExtra("shapes") != null) p.shapes = i.getStringExtra("shapes");
             if (i.getStringExtra("relay") != null) p.relay = i.getStringExtra("relay");
             if (i.getStringExtra("name") != null) p.name = i.getStringExtra("name");
+            if (i.getStringExtra("model") != null) p.model = i.getStringExtra("model");
+            if (i.getStringExtra("prompt") != null) p.prompt = i.getStringExtra("prompt");
+            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            if (p.mode.equals("engine")) {                                         // the model lives in the VM
+                if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
+                if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
+            }
             return p;
         }
     }
@@ -132,7 +140,6 @@ public class Main extends Activity {
             Object vmm = ctx.getSystemService("virtualization");
             if (vmm == null) { say("HOST no VirtualMachineManager: this build of Android has no AVF"); return; }
             gate(vmm);      // informative; the run proceeds so an unsupported phone still shows what it can do
-            try { call(vmm, "delete", "anchor"); } catch (Exception ignored) { }
 
             Class<?> cBuilder = Class.forName(PKG + "VirtualMachineConfig$Builder");
             Object b = cBuilder.getConstructor(Context.class).newInstance(ctx);
@@ -141,10 +148,17 @@ public class Main extends Activity {
             call(b, "setDebugLevel", plan.debug);
             call(b, "setMemoryBytes", plan.memMib << 20);
             call(b, "setCpuTopology", 1);            // CPU_TOPOLOGY_MATCH_HOST
+            if (plan.storageMib > 0) say("HOST encrypted storage " + plan.storageMib + " MiB: " + (tryCall(b, "setEncryptedStorageBytes", plan.storageMib << 20) != null ? "set" : "not available"));
             Object cfg = call(b, "build");
             say("HOST config protected=" + call(cfg, "isProtectedVm") + " debug=" + call(cfg, "getDebugLevel"));
 
-            final Object vm = call(vmm, "getOrCreate", "anchor", cfg);
+            /* Keep the VM instance across runs: its encrypted storage is where the model
+             * lives, and deleting the VM deletes it. Recreate only when the stored
+             * config no longer matches (getOrCreate refuses an incompatible one). */
+            Object vm0;
+            try { vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
+            catch (Exception e) { say("HOST existing VM incompatible with this config (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): recreating"); try { call(vmm, "delete", "anchor"); } catch (Exception ignored) { } vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
+            final Object vm = vm0;
             Class<?> cCb = Class.forName(PKG + "VirtualMachineCallback");
             Executor ex = Executors.newSingleThreadExecutor();
             InvocationHandler h = (proxy, m, a) -> {
@@ -184,7 +198,8 @@ public class Main extends Activity {
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
         if (pfd == null) { say("CONTROL connect failed"); return; }
         say("CONTROL connected");
-        if (plan.mode.equals("bridge")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
+        if (plan.mode.equals("bridge") || plan.mode.equals("engine")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
+        if (plan.mode.equals("engine")) new Thread(() -> streamModel(vm, plan), "vsock-model").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
@@ -222,7 +237,13 @@ public class Main extends Activity {
             }
             // 5. the run plan
             StringBuilder cmd = new StringBuilder();
-            cmd.append("WORKER ").append(plan.mode).append('\n');
+            if (plan.mode.equals("engine")) {
+                long bytes = new java.io.File(plan.model).length();
+                cmd.append("ENGINE model_bytes=").append(bytes).append(" n=").append(plan.n).append(" threads=").append(plan.threads)
+                   .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append('\n');
+                say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads");
+            }
+            cmd.append("WORKER ").append(plan.mode.equals("engine") ? "bridge" : plan.mode).append('\n');
             for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
@@ -236,6 +257,25 @@ public class Main extends Activity {
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
         }
+    }
+
+    /* engine mode: the public model, streamed into the guest (8-byte length, then the bytes) */
+    static void streamModel(Object vm, Plan plan) {
+        ParcelFileDescriptor pfd = connect(vm, MODEL_PORT, 150);
+        if (pfd == null) { say("MODEL connect failed"); return; }
+        try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new java.io.FileInputStream(plan.model)) {
+            long bytes = new java.io.File(plan.model).length();
+            byte[] hdr = new byte[8]; for (int i = 0; i < 8; i++) hdr[i] = (byte) (bytes >>> (8 * i));
+            out.write(hdr); out.flush();
+            int ans = new java.io.FileInputStream(pfd.getFileDescriptor()).read();     // 'K' = the VM already holds it, 'S' = send
+            if (ans == 'K') { say("MODEL already in the VM's encrypted storage (" + (bytes >> 20) + " MiB), not streamed"); return; }
+            if (ans != 'S') { say("MODEL guest answered " + ans + ", not streaming"); return; }
+            byte[] buf = new byte[1 << 20]; long sent = 0; int r; long t0 = System.nanoTime();
+            while ((r = in.read(buf)) > 0) { out.write(buf, 0, r); sent += r; }
+            out.flush();
+            say("MODEL streamed " + (sent >> 20) + " MiB in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
+        } catch (Exception e) { say("MODEL stream error " + e); }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 
     /* one worker connection per shape: connect into the guest, dial the TCP worker, pipe both ways, repeat */
