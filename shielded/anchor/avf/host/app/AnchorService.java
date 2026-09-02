@@ -31,11 +31,9 @@ public class AnchorService extends Service {
             .setContentTitle("Enclave anchor VM").setContentText("protected VM running")
             .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).build();
         startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        final String payload = intent != null && intent.getStringExtra("payload") != null ? intent.getStringExtra("payload") : "libanchor.so";
-        final int debug = intent != null ? intent.getIntExtra("debug", 0) : 0;
-        final long memMib = intent != null ? intent.getIntExtra("mem", 1024) : 1024;
-        Log.i(Main.TAG, "SERVICE foreground, starting VM");
-        new Thread(() -> { Main.runVm(this, payload, debug, memMib); }, "anchor-service").start();
+        final Main.Plan plan = Main.Plan.from(intent);
+        Main.say("SERVICE foreground, starting VM");
+        new Thread(() -> { Main.runVm(this, plan); }, "anchor-service").start();
         return START_NOT_STICKY;
     }
 }

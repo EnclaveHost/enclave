@@ -45,6 +45,11 @@ int wc_add(wc_client *c, int64_t K, int64_t N);
 int wc_connect_install(wc_client *c, const char *host, int port,
                        const int8_t *const *w, int force32);
 
+/* The same install over a pipe the caller already holds (a pVM's accepted
+ * worker fd, wrapped by sh_pipe_open_fd from wire-fd.c). */
+int wc_install(wc_client *c, sh_pipe *pipe, const int8_t *const *w, int force32);
+sh_pipe *sh_pipe_open_fd(int fd);
+
 /* One exchange over every registered node (they share the activation):
  * planes is the 3*m*K ciphertext block. *reply / *len point into the pipe's
  * buffer -- consume before the next exchange. */

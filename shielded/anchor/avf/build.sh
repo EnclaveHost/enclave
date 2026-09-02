@@ -58,8 +58,10 @@ case "$NAME" in
          "$CLANG" -O2 -static -Wall -o "$OUT/vsock-sink" "$HERE/host/vsock-sink.c"
          echo "sink: $OUT/vsock-sink ($(stat -c %s "$OUT/vsock-sink") bytes)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
-  anchor)       SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c")
-                CFLAGS+=(-ffp-contract=off) ;;
+  anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c)
+                SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
+                      "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c")
+                CFLAGS+=(-ffp-contract=off -I"$HERE/../harness") ;;
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \

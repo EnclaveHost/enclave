@@ -412,3 +412,51 @@ number to plan with is the middle column.
 
 **What remains** is unchanged: remote attestation, gated by this unit's launch generation
 (§8), needs a Pixel 9a at minimum and a Pixel 10 for a CTS-guaranteed chain.
+
+# 10. Phase 1: the protected VM drives the real GPU worker (2026-09-02)
+
+PLAN.md's first phase, measured. The payload no longer plays its own worker: the VM's owner
+app bridges a vsock port to a TCP shielded worker, and the anchor inside the pVM runs
+`harness/split-harness.c`'s flow verbatim (same fixture, same order of draws) against the
+live `worker-cuda` on the RTX 3070, reached over `adb reverse`:
+
+```
+pVM (anchor) --vsock 7778--> owner app --TCP 127.0.0.1:9500--> adbd --USB--> adb server --> worker-cuda / RTX 3070
+             --vsock 7777--> owner app (control: challenge in, attestation + results out)
+```
+
+Only ciphertext frames cross the bridge, so the app, adbd and the GPU box stay untrusted.
+`harness/wire-fd.c` wraps an accepted fd as an `sh_pipe` without touching the shipped
+`shielded-wire.c`; `wc_install` is the harness's install over a pipe the caller holds.
+
+**Invariant 6, end to end.** Four shapes, 200 iterations each, the x86 harness and the pVM
+against the same worker in the same minute:
+
+| shape | `y_digest` x86 harness | `y_digest` pVM on Pixel 8 Pro | `peak_abs_y` (both) | invariants |
+|---|---|---|---|---|
+| tiny 256×256 | `0601bec04d97d455` | `0601bec04d97d455` | 3,135,145 | all PASS |
+| attn 896×896 | `74789c6c47040613` | `74789c6c47040613` | 3,261,997 | all PASS |
+| gate\|up 896×4864 ×2 | `ceff962ccee5c1a0` | `ceff962ccee5c1a0` | 4,334,752 | all PASS |
+| down 4864×896 | `1d40d78670218483` | `1d40d78670218483` | 3,403,638 | all PASS |
+
+Bit for bit, and `ywidth=3`: the pVM negotiated FIELD_GEMM24 with the 1.3 worker like any
+other client. (These digests differ from section 3's because that table was 30 iterations;
+the digest folds every iteration's products.)
+
+**The gate reads the deciding property directly.** On this unit:
+`vendor_api_level=34 board_api_level=202504 capabilities=3 protected_vm=true` →
+`UNSUPPORTED (launch generation 34 < 202404)`, and the attestation request in the same run
+answered `-10003` as section 8 predicted. Note the split: the *board* level is current, the
+*vendor* level is pinned to the product's launch (Android 14 = 34). That is the property a
+Pixel 9 shares with this phone and a Pixel 9a does not, and it is why the customer list reads
+"Pixel 9a, and Pixel 10 or newer".
+
+**Cost of the bridge, separate from the boundary.** Median exchange round trip from inside
+the pVM: 5.3 ms tiny, 5.7 ms attn, 9.8 ms gate\|up, 7.1 ms down, against 1.27 ms for the
+S21+'s normal-world process over the same `adb reverse` (section 5) and 18-132 µs on x86. The
+extra ~4 ms is two vsock hops and a Java copy loop per direction, not USB. A native bridge in
+the app, or `--network-supported` so the guest dials the worker itself, removes it; it is an
+engineering item, not a trust one. Pad times are the `/foreground` cpuset's A715s (section 9).
+
+What the Pixel 10 Pro XL adds when it arrives is one line in this same log: `ATTEST status=OK`
+followed by the certificate chain, which is phase 2's first test vector.
