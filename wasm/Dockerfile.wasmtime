@@ -102,14 +102,18 @@ ENV ESD_LIB_LOCATION=/opt/enclave-llamacpp-linux-x64-gpu/lib
 # Pinned by sha256 like every other input; the ggml backend looks for them in
 # ENCLAVE_GGML_FFMPEG_DIR (default /bin, where they land below). Without them
 # the "video" verb refuses with [video_undecodable]; images are unaffected.
-ARG FFMPEG_STATIC_URL=https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+# VENDORED on our own releases (like ORT and ELL): upstream johnvansickle.com
+# publishes only a floating "release" pointer, which served different bytes to
+# a CI runner within hours of the pin (2026-09-01). The asset is the 7.0.2
+# static amd64 build, GPLv3, verified against upstream's md5 at vendoring.
+ARG FFMPEG_STATIC_URL=https://github.com/EnclaveHost/enclave/releases/download/ffmpeg-static-7.0.2/ffmpeg-release-amd64-static.tar.xz
 ARG FFMPEG_STATIC_SHA256=abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67
 RUN curl -fsSL -o /tmp/ffmpeg.tar.xz "${FFMPEG_STATIC_URL}" \
  && echo "${FFMPEG_STATIC_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c - \
  && mkdir -p /opt/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /opt/ffmpeg --strip-components=1 \
  && rm -f /tmp/ffmpeg.tar.xz \
- && file /opt/ffmpeg/ffmpeg | grep -q "statically linked" \
- && /opt/ffmpeg/ffmpeg -version | head -1 && /opt/ffmpeg/ffprobe -version | head -1
+ && /opt/ffmpeg/ffmpeg -version | head -1 && /opt/ffmpeg/ffprobe -version | head -1 \
+ && { ldd /opt/ffmpeg/ffmpeg 2>&1 | grep -qiE "not a dynamic executable|statically linked" || { echo "ffmpeg is not static"; exit 1; }; }
 
 # enclave_nvenc: the video-encode shim (wasm/nvenc-shim), built HERE rather than
 # shipped in a tarball like the ggml stack. It can be, because it has no engine
