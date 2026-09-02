@@ -920,3 +920,27 @@ test("escrow.js: refund batches encode like viem, and the summary groups by owne
   const none = refundSummary(rows, "");
   assert.deepEqual([none.mine.length, none.others.length], [0, 3]);
 });
+
+test("escrow.js: a refund dry-run reads '0x' as success, and tells a revert from a dead RPC", async () => {
+  // refund() returns nothing, so a SUCCESSFUL eth_call is the empty result -
+  // the first production run skipped its only refund with "empty eth_call
+  // result" because the scan's empty-retry read was reused for it
+  const { simulateRefund } = await import(path.join(REPO, "site/components/admin-console/escrow.js"));
+  const depAbi = ABI("EnclaveDeployments");
+  const id = "0x" + "ab".repeat(32);
+  const seen = [];
+  const rpc = (answer) => async (method, params) => { seen.push([method, params]); if (answer instanceof Error) throw answer; return answer; };
+  let r = await simulateRefund(A1, id, A2, rpc("0x"));
+  assert.deepEqual(r, { ok: true });
+  assert.equal(seen[0][0], "eth_call");
+  assert.deepEqual(seen[0][1], [{ from: A2, to: A1, data: encodeFunctionData({ abi: depAbi, functionName: "refund", args: [id] }) }, "latest"],
+    "simulated AS the owner (from), against the ledger, with the exact refund calldata");
+  r = await simulateRefund(A1, id, A2, rpc(null));
+  assert.equal(r.ok, true, "a null result is not a failure either");
+  r = await simulateRefund(A1, id, A2, rpc(new Error("execution reverted: amount=0")));
+  assert.deepEqual([r.ok, r.revert, r.reason], [false, true, "amount=0"]);
+  r = await simulateRefund(A1, id, A2, rpc(new Error("execution reverted with reason string 'leased'")));
+  assert.deepEqual([r.ok, r.revert, r.reason], [false, true, "leased"]);
+  r = await simulateRefund(A1, id, A2, rpc(new Error("HTTP 502")));
+  assert.deepEqual([r.ok, r.revert, r.reason], [false, false, "HTTP 502"], "a transport failure is not the ledger refusing");
+});

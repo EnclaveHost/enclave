@@ -912,14 +912,17 @@ class AdminConsole extends EnclaveElement {
     if (!s) { host.innerHTML = ""; if (run) run.disabled = true; return; }
     const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
     const app = (ref) => { const m = /^catalog:\/\/(0x[0-9a-f]{8})[0-9a-f]*\/(\d+)$/i.exec(ref || ""); return m ? `${m[1]}…/${m[2]}` : (ref || "").slice(0, 18); };
-    const mine = s.mine.map((r) => `<tr>
-        <th scope="row"><label><input type="checkbox" data-esc-id="${esc(r.id)}" checked /> ${esc(r.id.slice(0, 10))}…</label></th>
+    // a refund DEACTIVATES the record: for a stopped one that is the point,
+    // for a running app it is an outage - so running records start
+    // unselected and say so (the Trezor's live free-hosted rows, first run)
+    const mine = s.mine.map((r) => { const live = r.leaseUntil * 1000 > Date.now(); const running = r.active || live; return `<tr>
+        <th scope="row"><label><input type="checkbox" data-esc-id="${esc(r.id)}"${running ? "" : " checked"} /> ${esc(r.id.slice(0, 10))}…</label></th>
         <td>${esc(app(r.appRef))}</td>
-        <td>${r.active ? "active" : "stopped"}${r.leaseUntil * 1000 > Date.now() ? " · leased" : ""}</td>
+        <td>${running ? `<span class="warn">${r.active ? "active" : "stopped"}${live ? " · leased" : ""} - a refund STOPS it</span>` : "stopped"}</td>
         <td>${usd(r.balance6)}</td>
         <td>${usd(r.escrow6)}</td>
         <td><b>${usd(r.refundable6)}</b></td>
-      </tr>`).join("");
+      </tr>`; }).join("");
     const others = s.others.map((o) => `<tr>
         <th scope="row">${esc(o.owner)}</th>
         <td colspan="4"><span class="dim">${o.count} record${o.count === 1 ? "" : "s"} - connect this wallet to collect</span></td>
@@ -1311,13 +1314,19 @@ class AdminConsole extends EnclaveElement {
           const byId = Object.fromEntries(E.summary.mine.map((r) => [r.id, r]));
           log("p", `simulating ${ids.length} refund${ids.length === 1 ? "" : "s"} as ${Enclave.address}…`);
           const good = [];
-          let total6 = 0n;
+          let total6 = 0n, transport = 0;
           for (const id of ids) {
             const sim = await simulateRefund(ledger, id, Enclave.address);
-            if (!sim.ok) { log("err", `  skip ${id.slice(0, 10)}…: ${sim.reason}`); continue; }
+            if (!sim.ok) {
+              if (!sim.revert) transport++;
+              log("err", `  skip ${id.slice(0, 10)}…: ${sim.revert ? "the ledger refuses it - " : "could not simulate (RPC) - "}${sim.reason}`);
+              continue;
+            }
             good.push(id); total6 += (byId[id] ? byId[id].refundable6 : 0n);
           }
-          if (!needE(good.length, "every selected refund would revert - re-scan; the ledger moved since the scan")) return;
+          if (!needE(good.length, transport
+            ? "no refund could be simulated - the RPC pool is unwell, not the ledger; wait a moment and try again"
+            : "every selected refund would revert - re-scan; the ledger moved since the scan")) return;
           const txs = refundTxs(good);
           log("p", `${good.length} refund${good.length === 1 ? "" : "s"} (${usd(total6)}) in ${txs.length} transaction${txs.length === 1 ? "" : "s"} → ${Enclave.address}`);
           let sent = 0;
