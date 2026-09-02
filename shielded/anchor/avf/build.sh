@@ -95,18 +95,46 @@ case "$NAME" in
            "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
            cp "$GA"/lib/libllama.so "$GA"/lib/libggml.so "$GA"/lib/libggml-base.so "$GA"/lib/libggml-cpu.so "$GA"/lib/libc++_shared.so "$GG/test.calib" "$E/"
            echo "engine: $E (push the directory to the phone)"; ls "$E" | grep -vE '\.o$' | tr '\n' ' '; echo; exit 0 ;;
+  engine-pvm)  # the engine FOR THE VM: the shielded module with the fd-adopting hook, and libengine.so
+           #   (shielded-run's flow, model from a memfd, worker fd adopted). Both are dlopened by the
+           #   bootstrap payload from the APK, so libengine.so may carry ordinary DT_NEEDED on llama/ggml.
+           GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; LSRC="$(dirname "$GA")/llama.cpp"
+           [ -d "$GA/lib" ] || { echo "no arm64 llama.cpp at $GA; run build-ggml-arm64.sh first" >&2; exit 2; }
+           CXX="${CLANG}++"; INC=(-I"$LSRC/include" -I"$LSRC/ggml/include" -I"$LSRC/ggml/src"); E="$OUT/engine-pvm"; mkdir -p "$E"
+           PF=(-O2 -fPIC -march=armv8.2-a+dotprod -I"$GG" -I"$HERE/../harness")
+           "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$E/simd-neon.o"
+           "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
+           "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
+           "$CLANG" "${PF[@]}" -c "$HERE/../harness/wire-fd.c" -o "$E/wire-fd.o"                       # shielded-wire.c + sh_pipe_open_fd + the hook
+           "$CLANG" "${PF[@]}" -Dsh_pipe_open=sh_pipe_open_hook -c "$GG/shielded-tee.c" -o "$E/tee.o"    # the trusted half dials through the hook
+           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
+           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
+           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
+           "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
+           echo "engine-pvm: $E/libggml-shielded.so ($(stat -c %s "$E/libggml-shielded.so") B), libengine.so ($(stat -c %s "$E/libengine.so") B)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
+  pvm_probe)    SRCS=("$HERE/payload/pvm_probe.c"); EXTRA_LIBS=("$HOME/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml-base.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml.so") ;;
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
                 "$CLANG" -O3 -fPIC -march=armv8.2-a+dotprod -DSH_SIMD_NEON -I"$GG" -c "$GG/shielded-simd.c" -o "$OUT/simd-neon-pic.o"
                 SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
                       "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c"
                       "$HERE/payload/third_party/tweetnacl.c" "$OUT/simd-neon-pic.o")
-                CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill) ;;
+                CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)
+                # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration
+                GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"
+                if [ -f "$OUT/engine-pvm/libengine.so" ]; then
+                  EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libggml-cpu.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libggml-shielded.so" "$OUT/engine-pvm/libengine.so")
+                  EXTRA_ASSETS=("${ANCHOR_CALIB:-$HERE/../../../metal/shielded-overlay/calib/qwen3.5-0.8b-mtp-gguf.calib}")
+                  echo "engine: bundling ${#EXTRA_LIBS[@]} libraries + $(basename "${EXTRA_ASSETS[0]}") as assets/model.calib"
+                fi ;;
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
+rm -f "$STAGE"/lib/arm64-v8a/*.so
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \
-   -L"$STUB" -lvm_payload -llog -lm -Wl,-soname,lib$NAME.so
+   -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so
+for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"; done
+for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.calib"; done
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'
 
@@ -126,9 +154,13 @@ cd "$STAGE"
 python3 - "$NAME" <<'PYZ'
 import sys, zipfile
 name = sys.argv[1]
+import glob, os
 with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
     z.write("dex/classes.dex", "classes.dex", compress_type=zipfile.ZIP_STORED)
-    z.write(f"lib/arm64-v8a/lib{name}.so", f"lib/arm64-v8a/lib{name}.so", compress_type=zipfile.ZIP_STORED)
+    for so in sorted(glob.glob("lib/arm64-v8a/*.so")):
+        z.write(so, so, compress_type=zipfile.ZIP_STORED)
+    for a in sorted(glob.glob("assets/*")):
+        z.write(a, a, compress_type=zipfile.ZIP_STORED)
 PYZ
 "$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
 "$BT/apksigner" sign --ks "$HERE/keys/anchor.jks" --ks-pass pass:anchor123 --ks-key-alias anchor \

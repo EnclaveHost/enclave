@@ -39,7 +39,7 @@ verified, sampled and cached on the phone; the GPU only ever sees masked planes.
 - Worker bridge (vsock 7778 <-> TCP): the pVM drives a real `worker-cuda` through the app.
 - Proof: the split against the RTX 3070 from inside the pVM reproduces the x86 harness's digests
   bit for bit (section 10). Runs on the Pixel 8 Pro today (attestation reports UNSUPPORTED there).
-- Open: the Java bridge costs ~4 ms per exchange; native bridge or guest networking.
+- Open: the Java bridge costs ~4 ms per exchange (435 vs 218 ms/token in section 13); native bridge or guest networking. Strip the bundled libraries. Cache the model by hash.
 - Signing: the spike key is generated locally and never committed; the release key moves to the
   platform certificate service before anything ships.
 
@@ -56,7 +56,7 @@ evidence the fleet badge reads. Fail closed on any unpinned root or unknown hash
 - Open: pin a PUBLISHED anchor build's codeHash (the APK's v4 Merkle root, from the idsig) and the
   platform signing certificate's sha512; feed the first real chain through the CLI.
 
-### 3. The real trusted half in the pVM (steps 1-4 DONE 2026-09-02: sections 11-12; the whole engine runs on the phone in the normal world with 1251 nodes on the GPU; steps 5-6 = into the VM)
+### 3. The real trusted half in the pVM (DONE 2026-09-02, sections 11-13: the whole engine runs INSIDE the protected VM, 1251 nodes on the GPU, model in the VM's encrypted storage)
 Port the ggml-shielded engine (llama.cpp CPU path + the shielded backend now living in the
 wasmtime patch) to Microdroid: model weights arrive public over the bridge, the KV cache and
 nonlinears run in the VM, pads are banked on the spare vCPUs (i8mm/SDOT refill kernels), the
