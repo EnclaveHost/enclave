@@ -26,6 +26,13 @@
 // cannot prove: harmless during the ledger's 14-day grace window, and a total
 // income stop after it. Do not leave the gap open across the cutover.
 //
+// THE ADMIN CONSOLE DOES 2-4 AS ONE FLOW: site/admin.html → "Proof of time" →
+// "Deploy + bind + publish" (site/components/admin-console/provermig.js) plans
+// from live chain state, reuses a prover that already fits, binds from the
+// governance wallet and publishes the book key, and resumes if interrupted.
+// That is the path for the Trezor-held owner key; this script is the CLI/CI
+// path for a key you can put in an env var.
+//
 // Deps (run from repo root):  npm i viem solc
 //
 // Usage:
