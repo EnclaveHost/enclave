@@ -69,7 +69,22 @@ test("a speculative round marks its sequence as generating", () => {
     "mark_and_share must record the sequence before answering whether it is shared");
 });
 
-test("caps exposes shared so a turn can START plain instead of downgrading", () => {
-  assert.match(added, /self\.server\.shared_with\(self\.seq_id\) as i32,\s*\n\s*\];/,
-    "the shared bit is the LAST caps element - guests length-check to read it");
+test("caps[12] is the shared bit; a guest length-checks and reads it by INDEX", () => {
+  // The guest contract is positional: `caps.len() > 12 && caps[12] != 0`. So
+  // the pin is the index, not "last" - mm32 (park_slots) and mm33 (video)
+  // appended after it, which is allowed; inserting BEFORE it would shift every
+  // guest's read onto the wrong bit, which is what this test exists to catch.
+  const m = added.match(/let vals = \[\n([\s\S]*?)\n\s*\];/);
+  assert.ok(m, "the caps vector is built as `let vals = [ ... ];`");
+  const elems = m[1]
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, "").trim())
+    .filter((l) => l.length > 0)
+    .join("\n")
+    .split(/,\n/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+  assert.equal(elems[10], "1", "caps[10] is the mtp_round flag the handoff documents - the index base is right");
+  assert.equal(elems[12], "self.server.shared_with(self.seq_id) as i32",
+    "caps[12] is the shared bit - guests read it by index after a length check");
 });
