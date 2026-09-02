@@ -90,8 +90,19 @@ const GGML_ENV = (() => {
   // across ~30 min of back-to-back turns and recovered to 3.64 after 12 idle
   // minutes — while contributing nothing to peak (the ring stayed stood down
   // on kryptos for the same reason).
-  // ENCLAVE_GGML_PARK_SLOTS=2: arm the mm32 prefix cache (parked prompt-state
-  // forks; wasm/wasmtime-nn-ggml.patch). Two slots is the working set of one
+  // ENCLAVE_GGML_PARK_SLOTS=0: the mm32 prefix cache (parked prompt-state
+  // forks; wasm/wasmtime-nn-ggml.patch) is STOOD DOWN on metal boxes until the
+  // engine carries the prompt-declared branch (mm34). Armed, the mm32/mm33
+  // engine HOLDS every {"more":1} prefill chunk that still matches a park and
+  // answers instantly, then, the moment the stream diverges (any NEW chat
+  // after a parked one - the user message is the tail), REPLAYS every held
+  // token inside ONE host call. On a CPU-prefill node that call is the whole
+  // ~3,000-token prompt at ~14 tok/s: ~210 s with no byte out, and the
+  // supervisor's 180 s idle cut kills the turn every time. Reproduced on
+  // 9eb4e600 2026-09-02 (four cuts at exactly 180 s, then a controlled turn
+  // cut at 182 s with zero output). Re-arm to '2' with the mm34 engine, whose
+  // guest declares its whole prompt up front so the engine branches at the
+  // first chunk and never holds. Two slots is the working set of one
   // interactive chat plus one repeat caller; each costs one extra sequence in
   // the llama/MTP contexts and its prompt's cells out of the shared pool.
   // Engines predating mm32 ignore the env, so this is safe to carry across
@@ -100,7 +111,7 @@ const GGML_ENV = (() => {
   // ffmpeg/ffprobe that the "video" verb (mm33) spawns - Dockerfile.wasm
   // copies them beside wasmtime under /usr/local/bin.
   const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0',
-                ENCLAVE_GGML_PARK_SLOTS: '2', ENCLAVE_GGML_FFMPEG_DIR: '/usr/local/bin' };
+                ENCLAVE_GGML_PARK_SLOTS: '0', ENCLAVE_GGML_FFMPEG_DIR: '/usr/local/bin' };
   const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
   for (const [k, v] of Object.entries(cfg)) {
     // accept either the bare knob ("maxSessions") or the full env name
