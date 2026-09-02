@@ -509,3 +509,61 @@ generation, so the ChaCha20 + residue split + CRT path is next (section 4 measur
 arm64 without CUDA, build `libggml-shielded.so` against it and run `ggml-test` / `shielded-run`
 on the phone, and give `sh_link_open` an fd-adopting form so the whole trusted half can run
 inside the VM the way the anchor subset already does.
+
+# 12. Phase 3, steps 3-4: the whole engine on the phone, GEMMs on the GPU box (2026-09-02)
+
+The pinned llama.cpp (`ddd4ec14`) rebuilt for arm64 with the NDK (`avf/build-ggml-arm64.sh`),
+the shielded ggml backend module cross-built against it (`build.sh engine`), and `shielded-run`
+generating tokens on the Pixel 8 Pro with the 0.8B Q8_0 model and its calibration, every
+claimable matmul going to the RTX 3070 worker through `adb reverse`:
+
+```
+completion  :  Paris.
+offloaded   : 1251 nodes        <- the same count, and the same 8.67 GMAC, as x86 against the same worker
+verify fail : 0
+```
+
+Normal world for now (the vsock fd-adoption hook for the pVM, `harness/wire-fd.c`, is written and
+compiles; wiring the engine into the VM payload is the next step). Four things had to be learned
+to get here, each worth more than the line it fixes:
+
+1. **The ARM CPU backend repacks Q8_0 weights at load** (`q8_0_4x8`, a `CPU_REPACK` buffer type,
+   on when built with dotprod/i8mm). The shielded encoder reads the tensor's bytes as plain Q8_0
+   rows and found "no weight exponent fits" for every row of every weight, offloading nothing;
+   the encoder itself is bit-identical to x86 on synthetic rows. `GGML_CPU_REPACK=OFF` fixes it,
+   the repacked CPU kernels buy nothing when the GEMMs leave anyway, and the backend now names
+   the cause when it meets a repacked tensor (aarch64-only code; the x86 object is byte-identical).
+2. **bionic's `dlopen` does not resolve a module's undefined symbols against the executable's other
+   libraries.** `libggml-shielded.so` calls `ggml_backend_dev_by_type`, which lives in `libggml.so`;
+   on glibc that resolves from the process, on Android the module must link `libggml` itself.
+   Likewise `RTLD_DEFAULT` cannot see a library another library dlopened, so `ggml_threadpool_new`
+   is taken from the CPU module's own handle. And the NDK's `libc++_shared.so` ships alongside.
+3. **Per-split threadpool churn.** With ~77 offloaded nodes interleaved per graph the scheduler
+   makes ~150 backend calls per token, and ggml's CPU backend without a persistent pool spawns
+   and joins its threads on every one: invisible on x86, 4 seconds per token on the phone. The
+   profile said it exactly (`graph_compute` 22 s, the link 1.8 s), pinning and refill-thread
+   counts changed nothing, and thread count scaled it 8 → 4 → 1 threads = 4.0 → 1.05 → 0.33 s.
+   A persistent `ggml_threadpool` attached to the context (`SHIELDED_RUN_THREADPOOL=1`):
+
+   | CPU threads | decode, no pool | decode, persistent pool |
+   |---|---|---|
+   | 8 | 4,030 ms/tok | 290 ms/tok |
+   | 4 | 1,048 ms/tok | **218 ms/tok (4.6 tok/s)** |
+   | 2 | — | 246 ms/tok |
+   | phone pure CPU, no offload, 8 threads | 187 ms/tok (5.3 tok/s) | |
+
+4. **The first graph pays the upload**: 139 int8 weights (~750 MB) to the worker through
+   `adb reverse` is ~20 s, all of it in "prefill". A deployment keeps the worker warm.
+
+**Reading the numbers.** Per token the link now costs ~120 ms of wire over `adb reverse` (the
+same 1.3-3 ms per exchange section 5 measured, ~55 exchanges per token) plus ~100 ms of CPU-side
+ops; the phone alone decodes this 0.8B model in 187 ms. So on a small model over a USB relay
+the offload costs about what it saves, and what it buys is the boundary: every GEMM ran on a
+GPU that never saw a plaintext activation, verified from the phone. The two levers that change
+the arithmetic are a real network path from the phone to the GPU box (the wire is 55% of the
+token) and larger models, where the phone's CPU cannot decode alone at all.
+
+**What the pVM still needs** (phase 3, steps 5-6): the engine and its libraries in the APK, the
+worker link adopted from the owner's `connectVsock` via `sh_pipe_adopt_fd`, and the public
+weights streamed into the VM over a third vsock port since the VM has no filesystem the owner can
+populate. The normal-world run above is the reference those must reproduce.

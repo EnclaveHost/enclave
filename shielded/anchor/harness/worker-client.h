@@ -49,6 +49,9 @@ int wc_connect_install(wc_client *c, const char *host, int port,
  * worker fd, wrapped by sh_pipe_open_fd from wire-fd.c). */
 int wc_install(wc_client *c, sh_pipe *pipe, const int8_t *const *w, int force32);
 sh_pipe *sh_pipe_open_fd(int fd);
+/* pVM build of the complete trusted half: the next sh_pipe_open (renamed to the
+ * hook with -Dsh_pipe_open=sh_pipe_open_hook) returns this accepted fd. */
+void sh_pipe_adopt_fd(int fd);
 
 /* One exchange over every registered node (they share the activation):
  * planes is the 3*m*K ciphertext block. *reply / *len point into the pipe's
