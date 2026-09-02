@@ -19,6 +19,8 @@ import { createHash } from "node:crypto";
 import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
+import fs from "node:fs";
+import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
 
 // ---------- SEV-SNP quote gate ------------------------------------------------
 
@@ -481,4 +483,52 @@ test("tunnel: owning the name on chain is not enough — the operator must be tr
   assert.equal(verdict.ok, false, "a valid signature over a genuinely owned name still does not attach");
   assert.match(verdict.reason, /not a trusted operator/);
   assert.equal(hub.count(), 0);
+});
+
+// ---------- AVF (phone-anchored) attach ------------------------------------
+// The same gate, a different root: a phone's protected VM presents the X.509
+// chain Google's RKP issued for its attested key. The relay binds it exactly as
+// it binds an SNP quote — challenge = sha256(transportKey || nonce) inside the
+// certificate, the attested key signing (transportKey || nonce) — and refuses
+// anything not rooted at Google, not naming an allowlisted anchor build, or
+// not carrying the signature. Its origin row says mode "avf", never "snp".
+test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode avf; wrong root, wrong code, no signature, SNP-only relay all refuse",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("avf-tunnel-");
+  const ca = makeCa(dir);
+  const policy = { codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")] };
+  const h = await hubServer({ attest: { avf: { ...policy, rootPins: [ca.rootPin] } } });
+  const hStrict = await hubServer({ attest: { avf: policy } });        // the REAL Google pins: our synthetic root must be refused
+  const hSnp = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  async function avfAttach(hub, name, { mutate = (ev) => ev, code = CODE } = {}) {
+    const r = await dial(hub.url, { "x-metal-name": name, "x-metal-attest": "1" });
+    if (r.state !== "open") return { state: r.state };
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const bound = Buffer.concat([SPKI, nonce]);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code }) });
+    const ev = mutate({ chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") });
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: "android-avf-pvm/v1", body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: SPKI.toString("base64") } }));
+    const res = await waitResult(r.frames);
+    return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, ws: r.ws };
+  }
+  try {
+    const good = await avfAttach(h, "pixel-1");
+    assert.equal(good.ok, true, good.reason);
+    assert.equal(good.measurement, CODE.toString("hex"), "the verdict carries the anchor's codeHash as the measurement");
+    const row = h.hub.origins().find((o) => o.name === "pixel-1");
+    assert.ok(row, "the phone is a tunnel origin now");
+    assert.equal(row.mode, "avf", "the badge path reads mode avf, not snp");
+    assert.equal(row.measurement, CODE.toString("hex"));
+    try { good.ws.close(); } catch {}
+
+    const wrongRoot = await avfAttach(hStrict, "pixel-2");
+    assert.equal(wrongRoot.ok, false); assert.match(wrongRoot.reason, /not a pinned Google attestation root/);
+    const wrongCode = await avfAttach(h, "pixel-3", { code: createHash("sha256").update("some other apk").digest() });
+    assert.equal(wrongCode.ok, false); assert.match(wrongCode.reason, /allowlisted codeHash/);
+    const unsigned = await avfAttach(h, "pixel-4", { mutate: (ev) => ({ chain: ev.chain }) });
+    assert.equal(unsigned.ok, false); assert.match(unsigned.reason, /signature/);
+    const off = await avfAttach(hSnp, "pixel-5");
+    assert.equal(off.ok, false); assert.match(off.reason, /not enabled/);
+  } finally { await h.close(); await hStrict.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

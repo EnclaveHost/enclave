@@ -122,6 +122,13 @@ const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((
 // lab box whose part has no KDS-published VCEK).
 const METAL_ALLOWED_MEASUREMENTS = (process.env.METAL_ALLOWED_MEASUREMENTS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
+// Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
+// (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
+// may sign them (authorityHash = sha512 of the certificate). Both empty by
+// default -> no AVF attach. The verifier pins Google's roots itself.
+const METAL_AVF_CODE_HASHES = (process.env.METAL_AVF_CODE_HASHES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const METAL_AVF_AUTHORITY_HASHES = (process.env.METAL_AVF_AUTHORITY_HASHES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const AVF_ATTEST = METAL_AVF_CODE_HASHES.length && METAL_AVF_AUTHORITY_HASHES.length ? { codeHashes: METAL_AVF_CODE_HASHES, authorityHashes: METAL_AVF_AUTHORITY_HASHES } : null;
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;
@@ -154,7 +161,7 @@ async function tunnelNameOwner(name) {
 }
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: METAL_ALLOWED_MEASUREMENTS.length ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK } : null,
+  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}) } : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
   // key that registered its endpoint on chain, instead of a token whose hash
