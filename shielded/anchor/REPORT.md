@@ -615,6 +615,22 @@ with `run-as` once.
 **Since then:** the bundled libraries are stripped (APK 54 MB → 7.4 MB, dynamic symbols kept),
 and the cache is keyed by the model's sha256 in a sidecar the guest writes after a complete
 stream, so a same-sized different model streams again (verified: stream-then-keep).
-**Open, in order.** A native bridge or guest networking for the exchange cost, and on the
-Pixel 10 Pro XL, the same run with `--es relay` for the attestation chain the platform verifier
-is waiting for.
+**Where the exchange cost actually is.** A vsock echo between the app and the guest, nothing
+else in the loop (`--es mode echo`), 200 round trips each:
+
+| payload | p50 | p90 | min |
+|---|---|---|---|
+| 64 B | 1,281 µs | 2,191 µs | 569 µs |
+| 4 KiB | 1,337 µs | 2,003 µs | 844 µs |
+| 64 KiB | 3,131 µs | 6,557 µs | 804 µs |
+
+An exchange carries ~3 KiB of planes in and 15-60 KiB of products out, so the vsock device path
+alone (virtio-vsock through crosvm in userspace, plus the wake-ups on either side) is 2-3 ms of
+the ~4 ms the bridge adds per exchange; the Java copy loop and the TCP hop are the remainder.
+A native bridge would recover a fraction of a millisecond. The levers that matter are fewer and
+larger exchanges per token (protocol-level batching beyond the same-activation groups) and, in
+deployment, the wake-up floor itself: the `min` column is what the path costs when the cores are
+already awake.
+
+**Open, in order.** Protocol-level batching for the exchange count; and on the Pixel 10 Pro XL,
+the same run with `--es relay` for the attestation chain the platform verifier is waiting for.
