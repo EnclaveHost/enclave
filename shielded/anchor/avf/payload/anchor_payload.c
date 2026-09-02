@@ -39,6 +39,7 @@
 #include <android/log.h>
 
 #include "vm_payload.h"
+#include "third_party/tweetnacl.h"
 #include "anchor-core.h"
 #include "shielded-field.h"
 #include "shielded-wire.h"
@@ -47,6 +48,17 @@
 
 #define TAG "anchor-pvm"
 #define CTRL_PORT   7777
+
+/* The transport key: an Ed25519 pair minted INSIDE the VM at every boot, the
+ * identity the relay pins this tunnel to (keyFp = sha256 of its SPKI) and the
+ * thing the attested key vouches for by signing (SPKI || nonce). The secret
+ * half never leaves the VM. TweetNaCl (public domain) does the arithmetic;
+ * randombytes() below is the guest's getrandom. */
+static unsigned char g_tpk[32], g_tsk[64];
+void randombytes(unsigned char *p, unsigned long long n) {
+    while (n) { ssize_t r = getrandom(p, (size_t)n, 0); if (r <= 0) abort(); p += r; n -= (unsigned long long)r; }
+}
+static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00 };
 #define WORKER_PORT 7778
 #define MAX_SHAPES  16
 
@@ -94,9 +106,18 @@ static int read_line(int fd, char *buf, size_t cap) {
 }
 
 /* ---- attestation: the certificate a verifier will check, bound to the owner's challenge ---- */
-static void attest(const char *hex) {
-    uint8_t ch[32] = {0};
-    for (int i = 0; i < 32 && hex[2 * i] && hex[2 * i + 1]; i++) { unsigned v; sscanf(hex + 2 * i, "%2x", &v); ch[i] = (uint8_t)v; }
+static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
+    size_t n = 0;
+    for (; n < cap && hex[2 * n] && hex[2 * n + 1]; n++) { unsigned v; if (sscanf(hex + 2 * n, "%2x", &v) != 1) break; out[n] = (uint8_t)v; }
+    return n;
+}
+/* Request the certificate over `hex` (32 bytes) and sign `bound_hex` with the
+ * attested key: the relay's binding is challenge = sha256(SPKI || nonce) and
+ * signature over (SPKI || nonce). Ends with "ATTEST end" whatever happened. */
+static void attest(const char *hex, const char *bound_hex) {
+    uint8_t ch[32] = {0}; unhex(hex, ch, 32);
+    uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
+    if (!blen) { memcpy(bound, ch, 32); blen = 32; }
     AVmAttestationResult *res = NULL;
     AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
     OUT("ATTEST status=%s code=%d", AVmAttestationStatus_toString(st), (int)st);
@@ -109,11 +130,12 @@ static void attest(const char *hex) {
             AVmAttestationResult_getCertificateAt(res, i, c, sz);
             char label[24]; snprintf(label, sizeof label, "CERT%zu", i); hexline(label, c, sz); free(c);
         }
-        size_t ssz = AVmAttestationResult_sign(res, ch, sizeof ch, NULL, 0);
+        size_t ssz = AVmAttestationResult_sign(res, bound, blen, NULL, 0);
         uint8_t *sig = malloc(ssz);
-        if (sig) { AVmAttestationResult_sign(res, ch, sizeof ch, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
+        if (sig) { AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
         AVmAttestationResult_free(res);
     }
+    OUT("ATTEST end");
 }
 
 /* ---- the untrusted half: a real worker over the bridge, or the in-guest stand-in ---- */
@@ -230,8 +252,14 @@ static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, in
 int AVmPayload_main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT);
+    crypto_sign_keypair(g_tpk, g_tsk);
     AVmPayload_notifyPayloadReady();
     g_ctl = vs_accept(ls_ctl, 20000);
+    {   /* the first thing the owner hears is the transport key it will present to the relay */
+        uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+        char hx[89]; for (int i = 0; i < 44; i++) sprintf(hx + 2 * i, "%02x", spki[i]); hx[88] = 0;
+        OUT("SPKI %s", hx);
+    }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
     {
         FILE *f = fopen("/proc/cpuinfo", "r"); char line[1024]; char feats[1024] = "?";
@@ -243,9 +271,10 @@ int AVmPayload_main(void) {
     /* the owner's instructions; without an owner (a vm-tool run) the built-in local self-test */
     int bridge = 0, n_shapes = 0; int64_t SK[MAX_SHAPES], SN[MAX_SHAPES]; int Snode[MAX_SHAPES], Siter[MAX_SHAPES], Sx[MAX_SHAPES];
     if (g_ctl >= 0) {
-        char l[512];
+        char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
-            if (!strncmp(l, "CHAL ", 5)) attest(l + 5);
+            if (!strncmp(l, "BOUND ", 6)) { strncpy(bound, l + 6, sizeof bound - 1); bound[sizeof bound - 1] = 0; }
+            else if (!strncmp(l, "CHAL ", 5)) attest(l + 5, bound);
             else if (!strncmp(l, "WORKER ", 7)) bridge = !strcmp(l + 7, "bridge");
             else if (!strncmp(l, "SHAPE ", 6) && n_shapes < MAX_SHAPES) {
                 long long k, n; int nd, it, xm;

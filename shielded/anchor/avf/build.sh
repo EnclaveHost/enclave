@@ -60,7 +60,8 @@ case "$NAME" in
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c)
                 SRCS=("$HERE/payload/anchor_payload.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
-                      "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c")
+                      "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c"
+                      "$HERE/payload/third_party/tweetnacl.c")
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness") ;;
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
