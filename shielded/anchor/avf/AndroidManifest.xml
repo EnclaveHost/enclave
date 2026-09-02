@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The APK that carries a payload into a protected VM. It has no code of its
-  own (hasCode=false): Microdroid's launcher dlopens lib/arm64-v8a/<payload>.so
-  and calls AVmPayload_main. The APK's v4 Merkle root becomes the pVM's
+  The APK that carries a payload into a protected VM. Microdroid's launcher
+  dlopens lib/arm64-v8a/<payload>.so and calls AVmPayload_main. The one
+  activity (host/app/Main.java) is the HOST side: it owns the VM and reads the
+  payload over connectVsock, which the vm tool cannot do. The APK's v4 Merkle root becomes the pVM's
   `codeHash` and the SHA-512 of this APK's signing certificate its
   `authorityHash` in the attested vmComponents, so the signing key in
   keys/anchor.jks IS the payload's identity to a verifier.
@@ -17,6 +18,19 @@
     android:versionName="0.1">
     <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.MANAGE_VIRTUAL_MACHINE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.software.virtualization_framework" android:required="true" />
-    <application android:hasCode="false" android:extractNativeLibs="false" android:label="Enclave Anchor (AVF)" />
+    <application android:hasCode="true" android:extractNativeLibs="false" android:label="Enclave Anchor (AVF)">
+        <activity android:name=".Main" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name=".AnchorService" android:exported="true" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts the Enclave Shielded anchor in a protected VM" />
+        </service>
+    </application>
 </manifest>

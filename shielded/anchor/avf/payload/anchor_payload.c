@@ -19,10 +19,14 @@
  * host side can compare directly with the S21+ and x86 rungs in REPORT.md.
  */
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <linux/vm_sockets.h>
 #include <time.h>
 #include <unistd.h>
 #include <android/log.h>
@@ -32,8 +36,35 @@
 #include "shielded-field.h"
 
 #define TAG "anchor-pvm"
-#define OUT(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); \
-                      __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__); } while (0)
+#define ANCHOR_VSOCK_PORT 7777
+
+/* Phase B: a --debug none pVM has no console and no log. The only way out is
+ * a channel the payload opens itself. Direction matters: the host's shell
+ * domain is SELinux-denied AF_VSOCK entirely (measured: socket() EACCES), but
+ * the VM's owning app may call VirtualMachine.connectVsock(port) through
+ * virtualizationservice. So the GUEST listens and the host connects. If no
+ * host shows up within the grace window the run proceeds on stdout + logcat
+ * alone (the --debug full shape), so the vm tool keeps working unchanged. */
+static int g_vs = -1;
+static void vs_listen(int grace_ms) {
+    int ls = socket(AF_VSOCK, SOCK_STREAM, 0);
+    if (ls < 0) return;
+    struct sockaddr_vm sa = { .svm_family = AF_VSOCK, .svm_port = ANCHOR_VSOCK_PORT, .svm_cid = VMADDR_CID_ANY };
+    if (bind(ls, (struct sockaddr *)&sa, sizeof sa) != 0 || listen(ls, 1) != 0) { close(ls); return; }
+    struct pollfd pf = { .fd = ls, .events = POLLIN };
+    if (poll(&pf, 1, grace_ms) > 0) g_vs = accept(ls, NULL, NULL);
+    close(ls);
+}
+static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void outf(const char *fmt, ...) {
+    char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
+    if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
+    line[n] = '\n'; line[n + 1] = 0;
+    fputs(line, stdout); fflush(stdout);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "%.*s", n, line);
+    if (g_vs >= 0) { const char *p = line; size_t left = (size_t)n + 1; while (left) { ssize_t w = write(g_vs, p, left); if (w <= 0) { close(g_vs); g_vs = -1; break; } p += w; left -= (size_t)w; } }
+}
+#define OUT(...) outf(__VA_ARGS__)
 
 static int rng_os(void *buf, size_t n) {
     uint8_t *p = buf;
@@ -125,8 +156,10 @@ static void run_shape(int64_t K, int64_t N, int n_nodes, int iters) {
 
 int AVmPayload_main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
-    OUT("ANCHOR start in pVM apk=%s", AVmPayload_getApkContentsPath());
+    /* ready first, so the host's onPayloadReady can fire its connectVsock; then wait for it */
     AVmPayload_notifyPayloadReady();
+    vs_listen(15000);
+    OUT("ANCHOR start in pVM apk=%s vsock=%s", AVmPayload_getApkContentsPath(), g_vs >= 0 ? "host-connected" : "none");
     /* what silicon does the guest actually see? */
     {
         FILE *f = fopen("/proc/cpuinfo", "r"); char line[1024]; char feats[1024] = "?";
@@ -138,6 +171,7 @@ int AVmPayload_main(void) {
     run_shape(896, 896, 1, 30);
     run_shape(896, 4864, 2, 12);
     OUT("ANCHOR end");
+    if (g_vs >= 0) { shutdown(g_vs, SHUT_WR); close(g_vs); }
     sleep(2);
     return 0;
 }
