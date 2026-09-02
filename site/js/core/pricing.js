@@ -277,6 +277,30 @@ export function enclaveClassOf(row){
   return { kind: "cpu", inTee: false, shielded: false, hasCard: false };
 }
 
+// Does this box have a CPU TEE at all? Answered from EVIDENCE, never from the
+// box's flavor: a CPU-only row is not "a TEE CPU because it has no card", and a
+// box with some other root of trust (a phone-anchored host, one day) must not
+// inherit a green pill it did not prove. Two sources count, in this order:
+//   - availability.teeCpu: the technology the box DETECTED from its own
+//     attestation document ("amd-sev-snp" / "intel-tdx"). A metal dev box
+//     reports its unattested format here, which is a known NO.
+//   - row.mode === "snp": the relay verified a fresh SEV-SNP quote (AMD
+//     signature chain included, METAL_REQUIRE_VCEK defaults on) from this
+//     tunnel box when it attached. Proof from the relay's side, and the only
+//     evidence a build that predates the field can offer.
+// Anything else is UNKNOWN, not "no": an older build simply never said.
+export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX" };
+export function teeCpuOf(row){
+  const a = (row && row.availability) || {};
+  const tech = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
+  if (tech && CPU_TEE_TECHNOLOGIES[tech])
+    return { real: true, known: true, technology: tech, label: CPU_TEE_TECHNOLOGIES[tech], source: "attestation" };
+  if (row && row.tunnel && row.mode === "snp")
+    return { real: true, known: true, technology: "amd-sev-snp", label: CPU_TEE_TECHNOLOGIES["amd-sev-snp"], source: "relay" };
+  if (tech) return { real: false, known: true, technology: tech, label: tech, source: "attestation" };
+  return { real: false, known: false, technology: null, label: null, source: null };
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
