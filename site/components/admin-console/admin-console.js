@@ -126,6 +126,7 @@ const walletNonce = async () => {
 };
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
 import { proverProbe, proverState, planProverBind, proverVerdict, proverDeployData, pairFits, readUntil } from "./provermig.js";
+import { scanRefundable, refundSummary, refundTxs, simulateRefund, REFUND_BATCH } from "./escrow.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -458,6 +459,26 @@ class AdminConsole extends EnclaveElement {
               "dep-prooffrom", { owner: d.owner, placeholder: String(from), hint: "unix seconds; 0 = never (two-way kill switch)" }))));
     }
 
+    /* -- escrow refunds (rev >= 10): the owner-side collection of runner
+       escrow no lease can still claim. Where the money of time served WITHOUT
+       a bound prover ends up - and, day to day, what a stopped record's owner
+       collects. refund() is owner-gated, so the connected wallet collects
+       only its own; every other owner's total is listed so the operator
+       knows which wallet to connect next. escrow.js scans and encodes. -- */
+    if (S.dep && S.dep.schema >= 10) {
+      parts.push(`<section class="ac-panel"><h3>Escrow refunds · ledger ${link(S.dep.addr)}</h3>
+        <p class="ac-sub"><code>refund(id)</code> pays a record's OWNER the runner escrow this ledger still holds for it and no lease can still claim (the unspent runner share of that owner's own fundings), zeroes the balance and deactivates the record (fund again to resume). Runner-credited time is never touched, and neither is a live lease's reserve. Time served with no bound prover credits nothing, so its whole runner share lands here. Scan reads every record; this wallet can only collect records it owns - other owners are listed so you know which wallet to connect. Each refund is simulated first, then the selected ones ride one <code>multicall</code> per batch of ${REFUND_BATCH}, so the collection is typically <b>one confirmation</b>.</p>
+        <div class="ac-mig-actions">
+          <button class="btn btn-sm" data-act="esc-scan">Scan ledger</button>
+          <button class="btn btn-primary btn-sm" data-act="esc-refund" disabled>Refund selected</button>
+          <span class="ac-hint" id="escHint">${Enclave.address ? `collecting for ${esc(short(Enclave.address))}` : "connect the owner wallet to collect"}</span>
+        </div>
+        <div id="escTable"></div>
+        <div class="ac-mig-log" id="escLog" role="log" aria-label="Escrow refund log" hidden></div>
+        <div class="ac-status" role="status" aria-live="polite" hidden></div>
+      </section>`);
+    }
+
     /* -- pay -- */
     if (S.pay) {
       parts.push(sec(`EnclavePay · ${link(S.pay.addr)}`,
@@ -707,6 +728,7 @@ class AdminConsole extends EnclaveElement {
     this._migPrefill();
     this._vltPrefill();
     this._povPrefill();
+    this._escPrefill();
     this._gate();
     this._loadMetrics();
   }
@@ -870,6 +892,67 @@ class AdminConsole extends EnclaveElement {
      unbound, unpublished contract, and re-deploying would orphan the first. */
   _povSaved() { try { return JSON.parse(localStorage.getItem("enclave_provermig") || "{}"); } catch { return {}; } }
   _povSave(o) { try { Object.keys(o).length ? localStorage.setItem("enclave_provermig", JSON.stringify(o)) : localStorage.removeItem("enclave_provermig"); } catch {} }
+
+  /* ---------- escrow refunds (escrow.js drives) ---------- */
+
+  _escLog(cls, txt) {
+    const E = this._esc || (this._esc = {});
+    (E.log = E.log || []).push({ cls, txt });
+    this._logTo("escLog", cls, txt);
+  }
+
+  /* the scan result as a table: the connected wallet's refundable records
+     with a checkbox each (all selected - dust never appears), then one line
+     per other owner. Re-rendered from this._esc after every repaint. */
+  _escTable() {
+    const host = this._body && this._body.querySelector("#escTable");
+    const run = this._body && this._body.querySelector('[data-act="esc-refund"]');
+    if (!host) return;
+    const E = this._esc, s = E && E.summary;
+    if (!s) { host.innerHTML = ""; if (run) run.disabled = true; return; }
+    const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+    const app = (ref) => { const m = /^catalog:\/\/(0x[0-9a-f]{8})[0-9a-f]*\/(\d+)$/i.exec(ref || ""); return m ? `${m[1]}…/${m[2]}` : (ref || "").slice(0, 18); };
+    const mine = s.mine.map((r) => `<tr>
+        <th scope="row"><label><input type="checkbox" data-esc-id="${esc(r.id)}" checked /> ${esc(r.id.slice(0, 10))}…</label></th>
+        <td>${esc(app(r.appRef))}</td>
+        <td>${r.active ? "active" : "stopped"}${r.leaseUntil * 1000 > Date.now() ? " · leased" : ""}</td>
+        <td>${usd(r.balance6)}</td>
+        <td>${usd(r.escrow6)}</td>
+        <td><b>${usd(r.refundable6)}</b></td>
+      </tr>`).join("");
+    const others = s.others.map((o) => `<tr>
+        <th scope="row">${esc(o.owner)}</th>
+        <td colspan="4"><span class="dim">${o.count} record${o.count === 1 ? "" : "s"} - connect this wallet to collect</span></td>
+        <td>${usd(o.total6)}</td>
+      </tr>`).join("");
+    host.innerHTML = (s.mine.length || s.others.length)
+      ? `<div class="ac-tbl"><div class="ac-tbl-wrap"><table>
+          <thead><tr><th>record · owner</th><th>app</th><th>state</th><th>balance</th><th>escrow</th><th>refundable</th></tr></thead>
+          <tbody>${mine}${others}</tbody>
+          <tfoot><tr><th scope="row">${E.wallet ? esc(short(E.wallet)) + " can collect" : "this wallet can collect"}</th><td colspan="4"></td><td><b>${usd(s.mine6)}</b></td></tr></tfoot>
+        </table></div></div>`
+      : `<p class="ac-sub dim">nothing refundable on this ledger right now.</p>`;
+    if (run) run.disabled = !s.mine.length;
+  }
+
+  /* replay the scan table + the log across repaints (the _vltPrefill contract) */
+  _escPrefill() {
+    const log = this._body && this._body.querySelector("#escLog");
+    if (!log) return;
+    const lines = (this._esc && this._esc.log) || [];
+    log.innerHTML = "";
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.className = l.cls; d.textContent = l.txt;
+      log.appendChild(d);
+    }
+    log.hidden = !lines.length;
+    log.scrollTop = log.scrollHeight;
+    // a scan is only good for the wallet it was made for; a repaint after a
+    // wallet switch must not offer another wallet's records
+    if (this._esc && this._esc.summary && lc(this._esc.wallet) !== lc(Enclave.address || "")) { this._esc.summary = null; this._esc.scan = null; }
+    this._escTable();
+  }
 
   _logTo(id, cls, txt) {
     const log = this._body.querySelector("#" + id);
@@ -1190,6 +1273,74 @@ class AdminConsole extends EnclaveElement {
         } finally { btn.disabled = false; }
         return;
       }
+      /* escrow refunds: scan every record, then refund the selected ones this
+         wallet owns - simulated one by one first (a revert inside a multicall
+         undoes the batch), packed into multicall batches, re-scanned after */
+      if (act === "esc-scan" || act === "esc-refund") {
+        const E = this._esc || (this._esc = {});
+        const log = (cls, txt) => this._escLog(cls, txt);
+        const needE = (cond, msg) => { if (!cond) log("err", msg); return cond; };
+        const usd = (v6) => "$" + (Number(v6) / 1e6).toFixed(2);
+        const ledger = S.dep.addr;
+        btn.disabled = true;
+        try {
+          if (act === "esc-scan") {
+            E.log = [];                                  // a fresh scan starts a fresh trail
+            const log0 = this._body.querySelector("#escLog"); if (log0) { log0.innerHTML = ""; log0.hidden = true; }
+            const wallet = Enclave.address || "";
+            log("p", `scanning ${ledger}${wallet ? ` for records owned by ${wallet}` : ""}…`);
+            const scan = await scanRefundable(ledger, (t) => log("p", "  " + t));
+            E.scan = scan; E.ledger = ledger; E.wallet = wallet;
+            E.summary = refundSummary(scan.rows, wallet);
+            const s = E.summary;
+            log("ok", `${scan.rows.length} record${scan.rows.length === 1 ? "" : "s"} still hold escrow (of ${scan.total}) - `
+              + (wallet ? `${s.mine.length} refundable to this wallet: ${usd(s.mine6)}` : "connect a wallet to see what it can collect")
+              + (s.dust.length ? ` (+ ${s.dust.length} under a cent, ${usd(s.dust6)}, left alone)` : "")
+              + (s.others.length ? `; ${usd(s.others6)} refundable by ${s.others.length} other wallet${s.others.length === 1 ? "" : "s"}` : ""));
+            const stuck = scan.rows.filter((r) => r.refundable6 === 0n && r.escrow6 > 0n);
+            if (stuck.length) log("p", `  ${stuck.length} record${stuck.length === 1 ? "" : "s"} hold ${usd(stuck.reduce((a, r) => a + r.escrow6, 0n))} of escrow nobody can refund right now (lease-reserved, or funded by a wallet that isn't the owner) - it credits the host as the record runs`);
+            this._escTable();
+            return;
+          }
+          /* esc-refund */
+          if (!needE(E.scan && lc(E.ledger) === lc(ledger), "scan first")) return;
+          await this._connect();
+          if (!needE(lc(Enclave.address) === lc(E.wallet), `the scan was for ${E.wallet || "no wallet"} - re-scan with the wallet that is connected now`)) return;
+          const ids = [...this._body.querySelectorAll("input[data-esc-id]:checked")].map((i) => i.dataset.escId);
+          if (!needE(ids.length, "nothing selected")) return;
+          const byId = Object.fromEntries(E.summary.mine.map((r) => [r.id, r]));
+          log("p", `simulating ${ids.length} refund${ids.length === 1 ? "" : "s"} as ${Enclave.address}…`);
+          const good = [];
+          let total6 = 0n;
+          for (const id of ids) {
+            const sim = await simulateRefund(ledger, id, Enclave.address);
+            if (!sim.ok) { log("err", `  skip ${id.slice(0, 10)}…: ${sim.reason}`); continue; }
+            good.push(id); total6 += (byId[id] ? byId[id].refundable6 : 0n);
+          }
+          if (!needE(good.length, "every selected refund would revert - re-scan; the ledger moved since the scan")) return;
+          const txs = refundTxs(good);
+          log("p", `${good.length} refund${good.length === 1 ? "" : "s"} (${usd(total6)}) in ${txs.length} transaction${txs.length === 1 ? "" : "s"} → ${Enclave.address}`);
+          let sent = 0;
+          const nonce0 = await walletNonce();
+          for (let i = 0; i < txs.length; i++) {
+            if (sent && nonce0 != null) await awaitNonce(nonce0 + sent - 1);
+            log("p", `[${i + 1}/${txs.length}] ${txs[i].label} - confirm in your wallet…`);
+            const hash = await sendTx(ledger, txs[i].dataHex); sent++;
+            log("p", `  sent ${hash.slice(0, 14)}… waiting…`);
+            await waitReceipt(hash, 90);
+            log("ok", `  ✓ ${txs[i].label}`);
+          }
+          log("ok", `refunded ${usd(total6)} to ${Enclave.address} ✓ - the records are deactivated; fund one again to resume it. Re-scanning…`);
+          E.scan = null;
+          this._body.querySelector('[data-act="esc-refund"]').disabled = true;
+          btn.disabled = false;
+          return void this._onClick({ target: this._body.querySelector('[data-act="esc-scan"]') });
+        } catch (err) {
+          log("err", friendly(err) + " - re-scan and retry; a runner settling between the scan and the send reverts the batch harmlessly.");
+        } finally { btn.disabled = false; }
+        return;
+      }
+
       /* credit-vault factory migration (scan → one run that deploys/repoints/
          re-mints/fronts whatever live chain state still needs) */
       if (act === "vlt-scan" || act === "vlt-run") {
