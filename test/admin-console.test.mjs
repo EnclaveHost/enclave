@@ -851,3 +851,28 @@ test("provermig.js: the prover creation tx encodes like viem, and the plan cover
   assert.equal(proverVerdict({ ...base, boundProver: NEW, boundPair: fit(NEW) }, T).level, "warn");
   assert.equal(proverVerdict({ ...base, boundProver: OLD, boundPair: misfit(OLD), bookProver: OLD, bookPair: misfit(OLD) }, T).level, "stranded");
 });
+
+test("provermig.js: a permanent step is judged by a settled read, never one stale answer", async () => {
+  // First production run (2026-09-02): setProver mined (receipt status 1,
+  // ProverSet emitted) and the read-back a moment later still said 0x0 -
+  // the pool backend serving eth_call trailed the one that served the
+  // receipt - so the flow declared a false failure one step short of the
+  // book key. readUntil keeps asking until a backend that has the block
+  // answers, and reports what it last saw when the budget runs out.
+  const { readUntil } = await import(path.join(REPO, "site/components/admin-console/provermig.js"));
+  const NEW = "0x4444444444444444444444444444444444444444";
+  const slept = [];
+  const sleep = async (ms) => { slept.push(ms); };
+  // stale, stale, then the chain catches up
+  let answers = [ZERO, ZERO, NEW];
+  let r = await readUntil(async () => answers.shift(), (p) => p === NEW, { tries: 15, delayMs: 2000, sleep });
+  assert.deepEqual([r.ok, r.value, r.tries], [true, NEW, 3]);
+  assert.deepEqual(slept, [2000, 2000], "sleeps only BETWEEN reads");
+  // a throwing read (rotated onto a dead backend) counts as a miss, not a crash
+  let n = 0;
+  r = await readUntil(async () => { if (n++ < 1) throw new Error("HTTP 502"); return NEW; }, (p) => p === NEW, { tries: 3, delayMs: 1, sleep });
+  assert.deepEqual([r.ok, r.tries], [true, 2]);
+  // the budget runs out: not ok, and the LAST value seen comes back for the message
+  r = await readUntil(async () => ZERO, (p) => p === NEW, { tries: 4, delayMs: 1, sleep });
+  assert.deepEqual([r.ok, r.value, r.tries], [false, ZERO, 4]);
+});

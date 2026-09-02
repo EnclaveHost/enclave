@@ -125,7 +125,7 @@ const walletNonce = async () => {
   } catch (_) { return null; }
 };
 import { vaultImplCurrent, scanVaults, planVaultMigration, oldTreasury, balanceOf6 } from "./vaultmig.js";
-import { proverProbe, proverState, planProverBind, proverVerdict, proverDeployData, pairFits } from "./provermig.js";
+import { proverProbe, proverState, planProverBind, proverVerdict, proverDeployData, pairFits, readUntil } from "./provermig.js";
 import { metricsPanel, paintMetrics, paintHistory, loadMetrics, redrawPlots } from "./metrics.js";
 
 const EXPLORER = "https://basescan.org";
@@ -287,6 +287,13 @@ class AdminConsole extends EnclaveElement {
       if (S.dep && S.dep.schema >= 9) {
         const probe = (a) => (a && !isZero(a)) ? proverProbe(a) : Promise.resolve(null);
         [S.dep.boundPair, S.dep.bookPair] = await Promise.all([probe(S.dep.prover), probe(E.proofOfTime)]);
+        // a run that bound its deploy but died before the book step leaves its
+        // resume entry behind; once the ledger holds a fitting prover the entry
+        // has nothing left to resume, so it goes
+        if (pairFits(S.dep.boundPair, S.dep.addr, S.dep.registry)) {
+          const saved = this._povSaved();
+          if (saved[lc(S.dep.addr)]) { delete saved[lc(S.dep.addr)]; this._povSave(saved); }
+        }
       }
       this._note.hidden = true;
       this._paint();
@@ -1012,7 +1019,10 @@ class AdminConsole extends EnclaveElement {
             this._povSave({ ...savedAll, [lc(d.addr)]: target });
             // the fresh deploy must fit the very pair it was built for, or it is
             // never bound: a stale checked-in artifact is the only way this fails
-            const pair = await proverProbe(target);
+            // - once the read is from a backend that has the block (readUntil)
+            const probed = await readUntil(() => proverProbe(target), (p) => p.code, { tries: 15, delayMs: 2000 });
+            const pair = probed.value || { code: false };
+            if (!needP(pair.code, `the receipt names ${target} but no backend in the RPC pool shows code there after ${probed.tries} reads - the deploy is KEPT (re-running resumes from it once the chain catches up)`)) return;
             if (!needP(pairFits(pair, d.addr, d.registry),
               `the FRESH deploy reads ledger ${short(pair.ledger || ZERO)} / registry ${short(pair.registry || ZERO)} - not this pair, so it is NOT being bound. The checked-in artifact is stale: rebuild (scripts/build-contract-artifacts.mjs), redeploy the site, re-run.`)) return;
             log("ok", `  prover ${target} ✓ (proofSchema ${pair.schema})`);
@@ -1024,9 +1034,12 @@ class AdminConsole extends EnclaveElement {
             log("p", `[${++step}/${total}] setProver(${target}) - ONE-SHOT and permanent, confirm in your wallet…`);
             const h = await sendTx(d.addr, encCall(dSel.setProver, [{ t: "addr", v: target }])); sent++;
             log("p", `  sent ${h.slice(0, 14)}… waiting…`);
-            await waitReceipt(h, 90);
-            const now = await rdAddrSoft(d.addr, dSel.prover);
-            if (!needP(lc(now) === lc(target), `confirmed, but the ledger reads prover ${short(now)} - check the tx on basescan before doing anything else`)) return;
+            await waitReceipt(h, 90);              // throws on a reverted receipt, so "mined" below means status 1
+            // the receipt's backend and the next read's backend differ (pool
+            // rotation): poll until one that HAS the block answers, or the
+            // permanent step gets judged by a stale 0x0 (first production run)
+            const bound = await readUntil(() => rdAddrSoft(d.addr, dSel.prover), (p) => lc(p) === lc(target), { tries: 15, delayMs: 2000 });
+            if (!needP(bound.ok, `${h.slice(0, 14)}… mined, but the ledger still reads prover ${short(bound.value || ZERO)} after ${bound.tries} reads (~30 s) - the RPC pool may be lagging: wait a minute, Refresh, and re-run (nothing is sent twice)`)) return;
             log("ok", "  bound and frozen ✓");
           }
 
