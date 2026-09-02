@@ -103,14 +103,23 @@ export function refundTxs(ids, batch = REFUND_BATCH) {
 /* Dry-run one refund as the owner. A revert inside a multicall undoes the
    whole batch, so every id is simulated on its own first and the ones that
    would revert are dropped WITH their reason (a runner settling between the
-   scan and the send is the usual one). */
-export async function simulateRefund(ledger, id, from) {
+   scan and the send is the usual one).
+
+   refund() RETURNS NOTHING, so a successful eth_call is the empty result
+   "0x" - the very shape the scan's reads treat as a lagging backend and
+   retry into an error. The first production run skipped its only refund
+   with "empty eth_call result" for exactly that reason. This read goes to
+   the pool WITHOUT the empty-retry: only a thrown error is a failure, and
+   `revert` says whether the contract refused (drop it) or the transport did
+   (retry later - the refund itself may be fine). */
+export async function simulateRefund(ledger, id, from, rpc = baseRpc) {
   try {
-    await call(ledger, encCallX(SEL.refund, [{ t: "bytes32", v: id }]), from);
+    await rpc("eth_call", [{ from, to: ledger, data: encCallX(SEL.refund, [{ t: "bytes32", v: id }]) }, "latest"]);
     return { ok: true };
   } catch (e) {
     const m = (e && e.message) || String(e);
-    const reason = (/reverted?(?: with reason string)?[:\s]+'?([^'\n]+)'?/i.exec(m) || [])[1] || m;
-    return { ok: false, reason: reason.trim().slice(0, 80) };
+    const revert = /revert/i.test(m);
+    const reason = revert ? ((/reverted?(?: with reason(?: string)?)?[:\s]+'?([^'\n]+?)'?\s*$/i.exec(m) || [])[1] || m) : m;
+    return { ok: false, revert, reason: reason.trim().slice(0, 80) };
   }
 }
