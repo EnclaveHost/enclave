@@ -659,6 +659,8 @@ test("TEE CPU is badged from evidence, never from the box having no card", () =>
   t = teeCpuOf({ tunnel: true, mode: "snp", availability: { gpu: false } });
   assert.equal(t.real, true); assert.equal(t.source, "relay");
   // a token-attached tunnel proved nothing about its CPU
+  t = teeCpuOf({ tunnel: true, mode: "avf", availability: { gpu: true } });
+  assert.equal(t.real, true); assert.equal(t.technology, "android-avf-pvm"); assert.equal(t.source, "relay");
   t = teeCpuOf({ tunnel: true, mode: "", availability: { gpu: false } });
   assert.equal(t.real, false); assert.equal(t.known, false);
   // a metal dev box says so in its format: a known NO, not an unknown

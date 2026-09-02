@@ -288,8 +288,11 @@ export function enclaveClassOf(row){
 //     signature chain included, METAL_REQUIRE_VCEK defaults on) from this
 //     tunnel box when it attached. Proof from the relay's side, and the only
 //     evidence a build that predates the field can offer.
+//   - row.mode === "avf": the relay verified an Android protected-VM
+//     attestation chain, rooted at Google, naming an allowlisted anchor build
+//     (relay/avf-verify.mjs): a PHONE-anchored host. Same rule, different root.
 // Anything else is UNKNOWN, not "no": an older build simply never said.
-export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX" };
+export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX", "android-avf-pvm": "Android protected VM" };
 export function teeCpuOf(row){
   const a = (row && row.availability) || {};
   const tech = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
@@ -297,6 +300,8 @@ export function teeCpuOf(row){
     return { real: true, known: true, technology: tech, label: CPU_TEE_TECHNOLOGIES[tech], source: "attestation" };
   if (row && row.tunnel && row.mode === "snp")
     return { real: true, known: true, technology: "amd-sev-snp", label: CPU_TEE_TECHNOLOGIES["amd-sev-snp"], source: "relay" };
+  if (row && row.tunnel && row.mode === "avf")
+    return { real: true, known: true, technology: "android-avf-pvm", label: CPU_TEE_TECHNOLOGIES["android-avf-pvm"], source: "relay" };
   if (tech) return { real: false, known: true, technology: tech, label: tech, source: "attestation" };
   return { real: false, known: false, technology: null, label: null, source: null };
 }

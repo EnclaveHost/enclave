@@ -17,6 +17,7 @@
 import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
+import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { boxOrigin } from "./boxhost.js";
 
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
@@ -55,10 +56,15 @@ function selfRoutedUrl(url, name) {
 }
 
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
-// attest: { allowedMeasurements: [hex], requireVcek }   — permissionless sellers:
+// attest: { allowedMeasurements: [hex], requireVcek,   — permissionless sellers:
+//           avf: { codeHashes: [hex], authorityHashes: [hex] } }
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
 //   on the allowlist). No token, no per-seller identity. See metal/PROTOCOL.md.
+//   `avf` admits a PHONE-ANCHORED host the same way: an Android protected-VM
+//   attestation chain (avf-verify.mjs) whose leaf carries our challenge, is
+//   rooted at Google, and names an allowlisted anchor build (codeHash) signed by
+//   our APK certificate (authorityHash). Its mode is "avf", not "snp".
 // operatorFor: async (name) -> 0x… | null                — WHO OWNS A NAME on chain.
 //   A quote proves the IMAGE, and the transport key is minted PER BOOT, so
 //   neither survives a reboot as an identity: while a seller was down, another
@@ -96,7 +102,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
-  const attestOn = !!(attest && attest.allowedMeasurements && attest.allowedMeasurements.length);
+  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
+                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 
@@ -305,12 +312,32 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           if (f.t !== "attest" || !f.rad || !f.rad.body) return;
           verifying = true;
           try {
-            if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP`);
-            const report = Buffer.from(f.rad.body, "base64");
             const spki = f.rad.transportKey ? Buffer.from(f.rad.transportKey, "base64") : null;
-            const aux = f.rad.certs ? Buffer.from(f.rad.certs, "base64") : null;
-            const res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
-              allowedMeasurements: attest.allowedMeasurements, requireVcek: !!attest.requireVcek });
+            const isAvf = /android-avf-pvm/.test(f.rad.format || "");
+            let res;
+            if (isAvf) {
+              // A phone-anchored host. Same binding as SNP's report_data, in the
+              // shape AVF offers: the pVM requested its certificate with
+              // challenge = sha256(transportKey || nonce), and its attested key
+              // signs (transportKey || nonce), so the certificate is tied to THIS
+              // transport key and THIS attach. Body is JSON { chain: [b64 DER…],
+              // signature: b64 DER-ECDSA }.
+              if (!attest.avf || !attest.avf.codeHashes || !attest.avf.codeHashes.length) return deny("AVF attach is not enabled on this relay");
+              if (!spki) return deny("AVF attach must carry transportKey");
+              let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("AVF body is not JSON"); }
+              if (!ev || !Array.isArray(ev.chain) || !ev.signature) return deny("AVF body needs chain[] and the attested key's signature over (transportKey || nonce)");
+              const bound = Buffer.concat([spki, nonce]);
+              res = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: createHash("sha256").update(bound).digest(),
+                                        signature: Buffer.from(ev.signature, "base64"), signedMessage: bound },
+                                      { allowedCodeHashes: attest.avf.codeHashes, allowedAuthorityHashes: attest.avf.authorityHashes || [],
+                                        ...(attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
+            } else {
+              if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP or AVF`);
+              const report = Buffer.from(f.rad.body, "base64");
+              const aux = f.rad.certs ? Buffer.from(f.rad.certs, "base64") : null;
+              res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
+                allowedMeasurements: attest.allowedMeasurements || [], requireVcek: !!attest.requireVcek });
+            }
             // verification is a network round trip (KDS): the timeout may have
             // denied and closed this socket while we waited. Binding it now
             // would register a dead ws whose 'close' has already fired — the
@@ -339,8 +366,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               return deny("that name is held by another enclave");
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement })); } catch {}
-            bind(name, ws, { via: res.vcekVerified ? "attestation" : "attestation(measurement-only)",
-                             measurement: res.measurement, mode: "snp", keyFp });
+            bind(name, ws, { via: isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
+                             measurement: res.measurement, mode: isAvf ? "avf" : "snp", keyFp });
           } catch (e) { deny(`verify error: ${e.message}`); }
           finally { verifying = false; }
         });
