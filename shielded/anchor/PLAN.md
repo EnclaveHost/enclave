@@ -43,12 +43,18 @@ verified, sampled and cached on the phone; the GPU only ever sees masked planes.
 - Signing: the spike key is generated locally and never committed; the release key moves to the
   platform certificate service before anything ships.
 
-### 2. The verifier (needs the Pixel 10 Pro XL's chain as the first vector)
+### 2. The verifier (BUILT 2026-09-02: relay/avf-verify.mjs + tunnel mode avf; awaiting the Pixel 10 Pro XL's chain as the first real vector)
 On the relay: parse the certificate chain the app forwards, verify to Google's RKP root, read
 the AVF extension (challenge, isVmSecure, vmComponents{codeHash, authorityHash}), pin codeHash
 to the published anchor build and authorityHash to the platform's APK signing certificate,
 bind the challenge and the VM's session key, issue the Enclave credential, and attach the
 evidence the fleet badge reads. Fail closed on any unpinned root or unknown hash.
+- Done: `relay/avf-verify.mjs` (Google roots pinned, extension parser, policy, signature check,
+  log-checking CLI), the tunnel's `android-avf-pvm` format bound as sha256(transportKey || nonce)
+  with the attested key signing (transportKey || nonce), `METAL_AVF_CODE_HASHES` /
+  `METAL_AVF_AUTHORITY_HASHES` policy env, tunnel mode `avf`, badge technology `android-avf-pvm`.
+- Open: pin a PUBLISHED anchor build's codeHash (the APK's v4 Merkle root, from the idsig) and the
+  platform signing certificate's sha512; feed the first real chain through the CLI.
 
 ### 3. The real trusted half in the pVM
 Port the ggml-shielded engine (llama.cpp CPU path + the shielded backend now living in the
