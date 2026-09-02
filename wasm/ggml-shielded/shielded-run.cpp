@@ -15,6 +15,7 @@
  * "the encoding is lossy" get mistaken for each other.
  */
 #include "llama.h"
+#include "ggml-cpu.h"
 #include "ggml-backend.h"
 #include "ggml.h"
 #include <cstdio>
@@ -63,7 +64,33 @@ int main(int argc, char **argv) {
 
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = 512; cp.n_batch = 512; cp.n_threads = 8; cp.n_threads_batch = 8;
+    /* SHIELDED_RUN_THREADS: the CPU backend's thread count. On a phone every
+     * scheduler split spins the CPU threadpool up and down (no persistent
+     * pool here), so this is the knob that exposes that cost. */
+    if (const char *t = getenv("SHIELDED_RUN_THREADS")) { cp.n_threads = cp.n_threads_batch = atoi(t) > 0 ? atoi(t) : 8; }
     llama_context *ctx = llama_init_from_model(model, cp);
+    if (!ctx) { fprintf(stderr, "context failed\n"); return 2; }
+    /* SHIELDED_RUN_THREADPOOL=1: one persistent CPU threadpool for the whole
+     * run. Without it every scheduler split (~150 per token once the matmuls
+     * are offloaded) spins the CPU backend's threads up and down; on a phone
+     * that is seconds per token (REPORT.md section 12). */
+    ggml_threadpool *tp = nullptr;
+    if (const char *e = getenv("SHIELDED_RUN_THREADPOOL"); e && *e && strcmp(e, "0")) {
+        /* ggml_threadpool_new lives in the CPU backend MODULE (loaded above via
+         * GGML_CPU_SO), not in a linked library: resolve it from the process. */
+        typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
+        /* bionic's RTLD_DEFAULT does not see a library another library dlopened
+         * RTLD_LOCAL; open the same module ourselves (same handle) and ask it. */
+        void *cpu_h = getenv("GGML_CPU_SO") ? dlopen(getenv("GGML_CPU_SO"), RTLD_NOW) : nullptr;
+        tp_new_fn tp_new = (tp_new_fn)dlsym(cpu_h ? cpu_h : RTLD_DEFAULT, "ggml_threadpool_new");
+        if (!tp_new) fprintf(stderr, "[run] persistent threadpool: ggml_threadpool_new not found (CPU backend module not loaded?)\n");
+        else {
+            ggml_threadpool_params tpp = ggml_threadpool_params_default(cp.n_threads);
+            tp = tp_new(&tpp);
+            llama_attach_threadpool(ctx, tp, tp);
+            fprintf(stderr, "[run] persistent threadpool: %d threads\n", cp.n_threads);
+        }
+    }
     if (!ctx) { fprintf(stderr, "ctx failed\n"); return 2; }
 
     std::vector<llama_token> toks(256);

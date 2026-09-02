@@ -397,6 +397,20 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const sh_calib_site *site = sh_site_for(s, name.c_str());
     if (!site) return false;
     if (K % SH_QK != 0) return false;
+#if defined(__aarch64__)
+    /* The ARM CPU backend repacks q8_0 rows into q8_0_4x8 at load time (its
+     * CPU_REPACK buffer type) when built with dotprod/i8mm kernels. The bytes
+     * are then not q8_0 rows, and the encoder below finds no exponent that fits
+     * for every row of every weight -- which is the symptom, not the cause. Say
+     * the cause. (x86 never repacks q8_0; this is arm-only so the x86 object
+     * stays byte-identical.) */
+    if (w->buffer && strstr(ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), "REPACK")) {
+        SH_LOG("%s: lives in a %s buffer: the CPU backend repacked its q8_0 rows; build ggml-cpu with GGML_CPU_REPACK=OFF\n",
+               name.c_str(), ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)));
+        s.refused.insert(name);
+        return false;
+    }
+#endif
 
     /* Reservation budget: place calibrated weights until this tenant's slice of
      * the card is full, then leave the rest on CPU. `dev_add` is the device

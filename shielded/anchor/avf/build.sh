@@ -4,6 +4,8 @@
 #   ./build.sh attest_probe         # the RKP attestation probe
 #   ./build.sh anchor               # the anchor itself (core + simd + field)
 #   ./build.sh sink                 # host-side vsock sink for --debug none runs
+#   ./build.sh probe                # the complete trusted half + shielded-probe, static, for the phone
+#   ./build.sh engine               # libggml-shielded.so + ggml-test + shielded-run for the phone (see build-ggml-arm64.sh)
 #
 # Produces out/<name>.apk, signed with keys/anchor.jks. Then, on the device:
 #   vm create-idsig <apk> <idsig>
@@ -70,6 +72,29 @@ case "$NAME" in
          printf '#include "shielded-simd.h"\n#include <stdio.h>\nint main(void){printf("simd=%%s\\n", sh_simd_get()->name);return 0;}\n' > "$OUT/simd-check.c"
          "$CLANG" "${PF[@]}" -static -o "$OUT/simd-check" "$OUT/simd-check.c" "$OUT/tee.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
          echo "probe: $OUT/shielded-probe ($(stat -c %s "$OUT/shielded-probe") bytes), simd-check"; exit 0 ;;
+  engine)  # the COMPLETE engine for the phone, normal world: libggml-shielded.so (the backend module),
+           # ggml-test and shielded-run, against the arm64 llama.cpp from build-ggml-arm64.sh.
+           #   GGML_ARM64=<prefix dir>   default out/ggml-arm64-work/prefix
+           # Run on the device with LD_LIBRARY_PATH=<dir> SHIELDED_SO=<dir>/libggml-shielded.so
+           #   GGML_CPU_SO=<dir>/libggml-cpu.so SHIELDED_HOST/PORT/CALIB (REPORT.md section 12).
+           GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; LSRC="$(dirname "$GA")/llama.cpp"
+           [ -d "$GA/lib" ] || { echo "no arm64 llama.cpp at $GA; run build-ggml-arm64.sh first" >&2; exit 2; }
+           CXX="${CLANG}++"; INC=(-I"$LSRC/include" -I"$LSRC/ggml/include" -I"$LSRC/ggml/src"); E="$OUT/engine"; mkdir -p "$E"
+           PF=(-O2 -fPIC -march=armv8.2-a+dotprod -I"$GG")
+           "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$E/simd-neon.o"
+           "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
+           "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
+           "$CLANG" "${PF[@]}" -c "$GG/shielded-wire.c" -o "$E/wire.o"
+           "$CLANG" "${PF[@]}" -c "$GG/shielded-tee.c" -o "$E/tee.o"
+           CORE=("$E/tee.o" "$E/field.o" "$E/wire.o" "$E/simd-neon.o" "$E/simd-generic.o")
+           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
+           # bionic does not resolve a dlopened module's symbols against the executable's other libraries: link libggml too
+           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lm
+           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded.o"
+           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/ggml-test" "$GG/ggml-test.cpp" "$E/ggml-shielded.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lggml-cpu -lm
+           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
+           cp "$GA"/lib/libllama.so "$GA"/lib/libggml.so "$GA"/lib/libggml-base.so "$GA"/lib/libggml-cpu.so "$GA"/lib/libc++_shared.so "$GG/test.calib" "$E/"
+           echo "engine: $E (push the directory to the phone)"; ls "$E" | grep -vE '\.o$' | tr '\n' ' '; echo; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
