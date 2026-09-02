@@ -96,17 +96,19 @@ const GGML_ENV = (() => {
   // engine HOLDS every {"more":1} prefill chunk that still matches a park and
   // answers instantly, then, the moment the stream diverges (any NEW chat
   // after a parked one - the user message is the tail), REPLAYS every held
-  // token inside ONE host call. On a CPU-prefill node that call is the whole
-  // ~3,000-token prompt at ~14 tok/s: ~210 s with no byte out, and the
-  // supervisor's 180 s idle cut kills the turn every time. Reproduced on
-  // 9eb4e600 2026-09-02 (four cuts at exactly 180 s, then a controlled turn
-  // cut at 182 s with zero output). Re-arm to '2' with the mm34 engine, whose
-  // guest declares its whole prompt up front so the engine branches at the
-  // first chunk and never holds. Two slots is the working set of one
-  // interactive chat plus one repeat caller; each costs one extra sequence in
-  // the llama/MTP contexts and its prompt's cells out of the shared pool.
-  // Engines predating mm32 ignore the env, so this is safe to carry across
-  // wasmtime repins in either direction.
+  // token inside ONE host call: on a CPU-prefill node that is the whole
+  // ~3,000-token prompt at ~14 tok/s, ~210 s with no byte out, past the
+  // supervisor's and the relay's 180 s idle cuts. (The 9eb4e600 cuts of
+  // 2026-09-02 turned out to be the app's MTP prefill loop having no
+  // keepalive at all - a controlled turn was cut at 180 s with this env at
+  // 0 too - but the hold is a defect of its own that bites the moment the
+  // app does keep the stream alive, so it stays down.) Re-arm to '2' with the
+  // mm34 engine, whose guest declares its whole prompt up front so the engine
+  // branches at the first chunk and never holds. Two slots is the working set
+  // of one interactive chat plus one repeat caller; each costs one extra
+  // sequence in the llama/MTP contexts and its prompt's cells out of the
+  // shared pool. Engines predating mm32 ignore the env, so this is safe to
+  // carry across wasmtime repins in either direction.
   // ENCLAVE_GGML_FFMPEG_DIR: where the engine image keeps the static
   // ffmpeg/ffprobe that the "video" verb (mm33) spawns - Dockerfile.wasm
   // copies them beside wasmtime under /usr/local/bin.
