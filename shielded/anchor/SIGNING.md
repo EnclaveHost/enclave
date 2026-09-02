@@ -308,6 +308,20 @@ RKP-rooted; the AOSP header says so outright.
 > at which point buy an SNP node instead of building this. Note a device that was never enrolled
 > answers HTTP 444 -> permanent `DEVICE_NOT_REGISTERED`, and rkpd needs network + GMS.
 
+**MEASURED 2026-09-02 on a Pixel 8 Pro — the VM half is real, the attestation gate is exact.**
+The anchor runs inside a protected VM on a stock, locked Pixel 8 Pro, launched from `adb shell`
+with the stock `vm` tool; all invariants pass on all shapes (REPORT.md section 8). The
+attestation call fails with *"AVF remotely provisioned component service is not declared"*,
+and the mechanism is now known rather than inferred: the APEX declares
+`IRemotelyProvisionedComponent/avf` with `min-level="202404"`, and libvintf drops it because
+the device's vendor manifest `target-level` is 8 (its Android 14 launch generation, fixed for
+the life of the device). `vintf` shows `/default`, `/strongbox`, `/widevine` and no `/avf`.
+So "attestation only on devices launched with Android 15+" is a VINTF filter, not policy,
+and it is testable in ten seconds with `probe-device.sh`. Consequence for purchasing: **Pixel
+9 family (launched Android 15, vendor 202404) admits the component; Pixel 10 family (202504)
+is CTS-required to attest.** The Pixel 8 Pro is the right unit for everything *except* the
+attestation chain, which it can never produce.
+
 **Buy, if this route is taken:** a Pixel, not a Samsung. **Pixel 10-class or newer** if
 attestation must be guaranteed (vendor API >= 202504); a used **Pixel 8a (~$205-250)** is
 enough to prototype the VM mechanics, with attestation to be probed rather than assumed.

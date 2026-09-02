@@ -106,6 +106,19 @@ CMDL=$(sh_ 'cat /proc/cmdline 2>/dev/null' | tr ' ' '\n' | grep 'kvm-arm' | tr '
 # hypervisor properties do not answer. CTS only REQUIRES pVM remote attestation
 # on devices whose first vendor API level is >= 202504 (i.e. launched with
 # Android 16); everything older is a silent-skip, so it may work or may not.
+# MEASURED ON A PIXEL 8 PRO 2026-09-02: the RKP component the attestation path needs
+# is declared in the AVF APEX (IRemotelyProvisionedComponent/avf) with
+# min-level="202404", but libvintf drops it when the device's VENDOR manifest
+# target-level (fixed at launch, never raised by OTA) is below that. On the
+# Pixel 8 Pro (target-level 8 = Android 14 launch) requestAttestation() answers
+# "AVF remotely provisioned component service is not declared" even though every
+# other gate is open. So attestation is a LAUNCH-GENERATION property.
+TL=$(sh_ 'grep -oE "target-level=\"[0-9]+\"" /vendor/etc/vintf/manifest.xml 2>/dev/null' | grep -oE '[0-9]+' | head -1)
+ML=$(sh_ 'grep -oE "min-level=\"[0-9]+\"" /apex/com.android.virt/etc/vintf/virtualizationservice.xml 2>/dev/null' | grep -oE '[0-9]+' | head -1)
+if [ -n "$ML" ]; then
+  if [ -n "$TL" ] && [ "$TL" -ge "$ML" ] 2>/dev/null; then yes_ "vendor target-level vs /avf min-level" "$TL >= $ML: RKP /avf component admitted"
+  else no_ "vendor target-level vs /avf min-level" "${TL:-?} < $ML: /avf filtered out -> requestAttestation UNSUPPORTED (launch-generation gate)"; fi
+fi
 VAPI=$(prop ro.vendor.api_level)
 RA=$(prop avf.remote_attestation.enabled)
 RPHOST=$(prop remote_provisioning.hostname)

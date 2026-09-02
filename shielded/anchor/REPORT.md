@@ -273,3 +273,58 @@ geometry is already at the edge. The spike's TA declares 24 MiB and would have t
 7. **The tier's own threat model is unwritten.** Per the handoff, that must precede code for any
    shipping route. For the normal-world path specifically the adversary statement is much weaker
    than `SECURITY.md`'s and has to say so explicitly.
+
+# 8. Pixel 8 Pro: the anchor runs inside a protected VM (2026-09-02)
+
+A second handset changes the answer. **Pixel 8 Pro (`husky`, Tensor G3, Android 16
+CP1A.260405.005, verified boot green, bootloader locked)** probes `TIER: AVF-PVM`, and the
+anchor — the real `anchor-core.c` + the shipped generic `shielded-simd.c`/`shielded-field.c`,
+built with the NDK — **runs inside a pKVM protected VM**, launched from a plain `adb shell`
+with the stock `vm` tool. No root, no unlock, no vendor signature, no permission grant.
+
+| | S21+ (normal world) | **Pixel 8 Pro (protected VM)** |
+|---|---|---|
+| owner can read the anchor's memory | yes (`/proc/PID/mem`) | **no** — pKVM unmaps donated pages from the host kernel |
+| hypervisor | none (`/dev/kvm` absent) | `kvm.arm-protected`, both protected and non-protected VMs |
+| guest ISA | — | 9 vCPUs, `asimddp` **and `i8mm`** exposed |
+| third-party code inside the boundary | impossible | an APK payload (`AVmPayload_main`) |
+
+Measured in-guest, all invariants asserted per shape (`exact`, `verified`, `lie_rejected`,
+`pads_distinct`; `verify_fail:1` is the deliberate lie test):
+
+| shape | footprint | pad (refill) | mask | worker (in-guest, scalar) | unmask+verify | PASS |
+|---|---|---|---|---|---|---|
+| tiny 256×256 | 97 KiB | 682.6 µs | 5.9 µs | 306.9 µs | 5.4 µs | yes |
+| attn 896×896 | 899 KiB | 3,747.8 µs | 10.2 µs | 708.7 µs | 7.6 µs | yes |
+| gate\|up 896×4864 ×2 | 9,213 KiB | 10,595.6 µs | 3.3 µs | 3,171.7 µs | 11.0 µs | yes |
+
+Generic C, one thread; the refill term is again the only expensive one and is bankable, and
+the guest exposes `i8mm`, so the handoff's original "NEON/i8mm" kernel plan is available here
+where it was not on SD888. `shielded/anchor/avf/` holds the APK pipeline (`build.sh`), the
+attestation probe and the anchor payload; `vm run-app --protected --payload-binary-name
+libanchor.so` is the launch.
+
+**What this proves, precisely.** The goal was a root of trust on the operator's phone whose
+secrets — pads, Freivalds `s`, plaintext activations, the KV cache — are hidden *from the
+phone's owner*. On this device that property holds: the trusted half executes in memory the
+host kernel cannot map, and a root shell on the host reads nothing. This run was
+`--debug full` so its console could be captured; a `--debug none` protected VM (the production
+configuration, and the attestable one) also boots on this unit (CID 2049 earlier in the log).
+
+**What it does not yet prove: remote attestation, and the reason is exact.** The attestation
+probe (`avf/payload/attest_probe.c`) ran to completion in the pVM and `AVmPayload_requestAttestation`
+returned `ATTESTATION_ERROR_UNSUPPORTED (-10003)`; virtualizationservice's message was
+*"AVF remotely provisioned component service is not declared"*. The APEX **does** ship the
+declaration (`/apex/com.android.virt/etc/vintf/virtualizationservice.xml`, `min-level="202404"`)
+and the RKP VM (`service_vm.bin`), `avf.remote_attestation.enabled` is unset (code default true),
+rkpd and the RKP hostname are present — but the device's **vendor manifest is
+`target-level="8"`** (its Android 14 launch generation, never raised by OTA), and libvintf drops
+the `/avf` entry below `min-level`. `vintf` confirms: the assembled framework manifest lists the
+`/default`, `/strongbox` and `/widevine` RKP components and no `/avf`. So pVM remote attestation
+is a **launch-generation** property: a device that launched with Android 15 (vendor level
+202404 — Pixel 9 family) admits the component, and one that launched with Android 16 (202504 —
+Pixel 10 family) is CTS-required to attest. `probe-device.sh` now reports this gate directly.
+
+Also learned the hard way: `AVmPayload_getDiceAttestationChain` is a *restricted* API —
+microdroid_manager refuses it (`EX_SECURITY`) for a `vm`-tool-launched payload and libvm_payload
+aborts on the refusal — and a `vm run-app` piped into `head` gets SIGPIPE and stops the VM.
