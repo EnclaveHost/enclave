@@ -163,6 +163,26 @@ export function proverVerdict(s, now = Date.now() / 1000) {
   return { level: "warn", text: `no prover bound${when ? ` - hosts earn on held time until ${when}, then nothing` : ""}.${bookNote}` };
 }
 
+/* Read until the chain agrees. baseRpc rotates through a pool of public
+   backends, and the one that served a receipt is not the one that serves the
+   next eth_call: "latest" there can trail by a block or more. The first
+   production run of this flow hit exactly that - setProver mined (receipt
+   status 1, ProverSet emitted) and the read-back a moment later still said
+   0x0, so the flow declared a false failure and stopped short of the book
+   step. A permanent binding must not be judged by one stale read: poll
+   `read` until `accept` is true or the budget runs out, and return the LAST
+   value either way so the caller can say what it saw. */
+export async function readUntil(read, accept, { tries = 15, delayMs = 2000, sleep } = {}) {
+  const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { last = await read(); if (accept(last)) return { ok: true, value: last, tries: i + 1 }; }
+    catch { last = undefined; }
+    if (i + 1 < tries) await wait(delayMs);
+  }
+  return { ok: false, value: last, tries };
+}
+
 /* the creation tx for a prover bound to (ledger, registry) - the artifact's
    bytecode + the ABI-encoded constructor tuple, like the deploy cards */
 export function proverDeployData(ledger, registry) {
