@@ -726,9 +726,11 @@ function componentMem64(u8){
     for (let i = 8; i < u8.length; ){
       const sid = u8[i];
       const [size, j] = uleb(u8, i + 1);
-      if (sid === 1){                             // core module
-        const inner = u8.subarray(j, j + size);
-        if (hasMemory(inner)) return moduleMem64(inner);
+      const inner = u8.subarray(j, j + size);
+      if (sid === 1){                             // core module: any 64-bit memory decides
+        if (hasMemory(inner) && moduleMem64(inner)) return true;
+      } else if (sid === 4){                      // nested component (a wasm64 app ships composed under a wasm32 proxy)
+        if (componentMem64(inner)) return true;
       }
       i = j + size;
     }

@@ -132,6 +132,57 @@ def module_mem64(data: bytes) -> bool:
     return False
 
 
+def component_mem64(data: bytes) -> bool:
+    """Is this COMPONENT (layer 1) built on a 64-bit linear memory? Walks the
+    sections, applies module_mem64 to every core module (section id 1) that
+    defines a memory, and descends into nested components (id 4): ANY 64-bit
+    memory anywhere makes it memory64 — a wasm64 app ships composed under a
+    wasm32 pass-through, so its 64-bit core sits in a nested component
+    beside a 32-bit top-level module. Such an app is a normal wasip2
+    component that can address more than 4 GiB; the runner launches it with
+    the engine's memory64 switches and its full RAM slice. Lockstep with
+    wasm_manager._component_mem64 (the launch authority) and the CLI/site
+    componentMem64."""
+    if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
+        return False
+    i = 8
+    while i < len(data):
+        sid = data[i]
+        try:
+            size, j = _uleb(data, i + 1)
+        except (IndexError, ValueError):
+            return False
+        inner = data[j:j + size]
+        if sid == 1:                       # core module
+            if _module_has_memory(inner) and module_mem64(inner):
+                return True
+        elif sid == 4:                     # nested component
+            if component_mem64(inner):
+                return True
+        i = j + size
+    return False
+
+
+def _module_has_memory(data: bytes) -> bool:
+    if len(data) < 8 or data[0:4] != b"\x00asm":
+        return False
+    i = 8
+    while i < len(data):
+        sid = data[i]
+        try:
+            size, i = _uleb(data, i + 1)
+        except (IndexError, ValueError):
+            return False
+        if sid == 5:
+            try:
+                count, _ = _uleb(data, i)
+            except (IndexError, ValueError):
+                return False
+            return count > 0
+        i += size
+    return False
+
+
 # Which wasi world contract does the component target? Same classifier as the
 # runner's wasm_manager._component_contract (keep them in lockstep — the
 # runner's copy is the authority at launch; this one only REPORTS, so the
@@ -169,7 +220,7 @@ def component_contract(data: bytes):
     # `mem64: true` so claim routing keeps it on mem64-capable engines.
     out = {"wasi": None, "world": None, "threads": b"[thread-" in data,
            "set": b"[set-spawn-indirect]" in data,
-           "mem64": module_mem64(data)}
+           "mem64": module_mem64(data) or component_mem64(data)}
     if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
         return out
     exports = set()
