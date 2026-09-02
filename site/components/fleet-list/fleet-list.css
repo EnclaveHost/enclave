@@ -4,7 +4,14 @@
 c-fleet-list{display:contents;}
 
 .fleet-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--well);display:block;}
-.fleet-row{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+/* The row is a grid whose first column is sized by its widest pool badge
+   ("TEE CPU", "GPU", or the rare amber "NO TEE CPU"), and each pool lays its
+   [label | meter | pct] line on that same grid via subgrid, so the two pools'
+   meters start on one edge whatever their pills say. A fixed label column
+   either wastes the width of the widest pill on every row or lets it overflow
+   into the meter. */
+.fleet-row{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+.fleet-row>*{grid-column:1/-1;}
 .fleet-row:last-child{border-bottom:0;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
 .fleet-name{color:var(--text);font-size:.76rem;overflow-wrap:anywhere;}
@@ -14,10 +21,12 @@ c-fleet-list{display:contents;}
 .fleet-relay-region{font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
 .fleet-relay-note{display:block;margin-top:6px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
 
-/* one pool = a [label | meter | pct] grid line with the stat cells underneath;
-   the meter flexes so the header line fits any aside width, the stats wrap */
-.fleet-pool{display:grid;grid-template-columns:48px minmax(48px,1fr) auto;align-items:center;column-gap:10px;row-gap:6px;}   /* label column fits "$2.50/hr" so the price can live under the label */
-.fleet-pool-label{font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);}
+/* one pool = a [label | meter | pct] line on the row's grid (subgrid) with the
+   stat cells underneath; the meter flexes so the line fits any aside width, the
+   stats wrap. The label IS the pool's badge: the pill names the pool, in the
+   colour that means it, right beside its own meter */
+.fleet-pool{display:grid;grid-template-columns:subgrid;align-items:center;row-gap:6px;}
+.fleet-pool-label{display:flex;align-items:center;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);}
 /* the pool's price, under its label: the number in stat-cell ink, "/hr" dim */
 .fleet-pool-price{grid-column:1;font-size:.66rem;white-space:nowrap;color:var(--text-dim);align-self:start;}
 .fleet-pool-price b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
