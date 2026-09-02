@@ -45,11 +45,18 @@ static int json_append(char **buf, size_t *len, size_t *cap, const char *fmt, ..
 
 int wc_connect_install(wc_client *c, const char *host, int port,
                        const int8_t *const *w, int force32) {
-    int err = SH_OK, rc;
-    uint8_t pay[256]; sh_reply rep;
+    int err = SH_OK;
+    sh_pipe *pipe = sh_pipe_open(host, port, &err);
+    if (!pipe) { snprintf(c->err, sizeof c->err, "connect %s:%d failed", host, port); return err; }
+    return wc_install(c, pipe, w, force32);
+}
 
-    c->pipe = sh_pipe_open(host, port, &err);
-    if (!c->pipe) { snprintf(c->err, sizeof c->err, "connect %s:%d failed", host, port); return err; }
+/* Install over a pipe the caller already holds: inside a protected VM the
+ * worker socket is ACCEPTED (the owner connects in), so there is no dial. */
+int wc_install(wc_client *c, sh_pipe *pipe, const int8_t *const *w, int force32) {
+    int rc;
+    uint8_t pay[256]; sh_reply rep;
+    c->pipe = pipe;
 
     size_t n = sh_pack_hello(pay, 1, 0);
     rc = sh_pipe_call(c->pipe, SH_CMD_HELLO, pay, n, &rep);
