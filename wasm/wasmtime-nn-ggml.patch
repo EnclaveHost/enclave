@@ -219,10 +219,10 @@ index b2db808..af89d10 100644
  
 diff --git a/crates/wasi-nn/src/backend/ggml.rs b/crates/wasi-nn/src/backend/ggml.rs
 new file mode 100644
-index 0000000..775fd36
+index 0000000..f121d0f
 --- /dev/null
 +++ b/crates/wasi-nn/src/backend/ggml.rs
-@@ -0,0 +1,3486 @@
+@@ -0,0 +1,3580 @@
 +//! A ggml/llama.cpp backend for wasi-nn — GGUF language models behind the
 +//! standard `wasi:nn` interface.
 +//!
@@ -257,7 +257,10 @@ index 0000000..775fd36
 +//!   parked prefix right there; every later chunk feeds only what lies past
 +//!   the park (see PromptPlan). "more" I32 [1] = 1 on a non-final chunk is
 +//!   accepted and ignored since mm34 (mm32/mm33 held such chunks back and
-+//!   replayed them in one call on divergence).
++//!   replayed them in one call on divergence). mm35: "marks" I32 [k] beside
++//!   "prompt" names positions where a shared prefix ends (system text, tool
++//!   block); the state there is parked as prefill crosses it, on its own
++//!   slot budget, so every prompt that starts the same way branches off it.
 +//! Speculative-decoding verbs (see each handler in `compute`):
 +//!   "tokens"+"all"=1 -> "logits" [n, n_vocab] (per-position verify rows);
 +//!   "caps" -> [seq_id, recurrent, mtp, vision, n_batch, host_tok,
@@ -693,6 +696,27 @@ index 0000000..775fd36
 +fn park_ttl() -> Duration {
 +    static V: OnceLock<u64> = OnceLock::new();
 +    Duration::from_secs(*V.get_or_init(|| env_u32("ENCLAVE_GGML_PARK_TTL_S", 900) as u64))
++}
++
++/// mm35 BOUNDARY parks. A guest that declares its prompt (mm34) may also
++/// declare MARKS: positions where a shared prefix ends - its system text,
++/// its tool block. As prefill crosses each mark the state so far is parked
++/// on this separate budget, so every later prompt that starts the same way
++/// (every new chat at a deployment) branches off it and pays only what
++/// follows. Turn parks come and go with conversations; these are the
++/// deployment's standing prefix and live on their own slots and clock.
++/// ENCLAVE_GGML_PREFIX_SLOTS (2 when the prefix cache is armed, 0 = off),
++/// ENCLAVE_GGML_PREFIX_TTL_S (6 h): past it an idle pool may clear them.
++fn prefix_slots() -> usize {
++    static V: OnceLock<usize> = OnceLock::new();
++    *V.get_or_init(|| {
++        if park_slots() == 0 { 0 } else { (env_u32("ENCLAVE_GGML_PREFIX_SLOTS", 2) as usize).min(8) }
++    })
++}
++
++fn prefix_ttl() -> Duration {
++    static V: OnceLock<u64> = OnceLock::new();
++    Duration::from_secs(*V.get_or_init(|| env_u32("ENCLAVE_GGML_PREFIX_TTL_S", 21600) as u64))
 +}
 +
 +/// mm33 VIDEO. What one "video" verb may cost this node: frames are encoder
@@ -1155,6 +1179,9 @@ index 0000000..775fd36
 +    row: RowOut,
 +    at: Instant,
 +    pin: Arc<AtomicUsize>,
++    /// mm35: a declared-boundary park (its own slot budget and TTL, see
++    /// prefix_slots) rather than a finished turn's prompt
++    boundary: bool,
 +}
 +
 +/// The shared serving context for one graph: one llama context whose unified
@@ -1395,7 +1422,7 @@ index 0000000..775fd36
 +        // the extra sequences (a recurrent model allocates their state cells
 +        // up front; that is the documented cost of arming the knob), while
 +        // tenant-visible session capacity stays exactly ENCLAVE_GGML_MAX_SESSIONS.
-+        let total_seqs = n_seq_max + park_slots() as u32;
++        let total_seqs = n_seq_max + park_slots() as u32 + prefix_slots() as u32;
 +        let raw = unsafe {
 +            ell_new_server(model.raw, n_ctx, n_batch, total_seqs, type_k, type_v, flash_attn)
 +        };
@@ -2418,7 +2445,8 @@ index 0000000..775fd36
 +            if parked.is_empty() {
 +                unsafe { ell_reset(self.server.raw) };
 +            } else if parked.iter().all(|p| {
-+                p.at.elapsed() > park_ttl() && p.pin.load(Ordering::Acquire) == 0
++                p.at.elapsed() > (if p.boundary { prefix_ttl() } else { park_ttl() })
++                    && p.pin.load(Ordering::Acquire) == 0
 +            }) {
 +                for p in parked.drain(..) {
 +                    unsafe { ell_seq_remove(self.server.raw, p.seq_id) };
@@ -2489,6 +2517,9 @@ index 0000000..775fd36
 +    exact_row: Option<RowOut>,
 +    /// how far the guest's chunk stream has come
 +    seen: usize,
++    /// mm35: declared boundaries still ahead (ascending, past `covered`):
++    /// the prefix so far is parked as prefill crosses each one
++    marks: Vec<usize>,
 +}
 +
 +impl GgmlExecutionContext {
@@ -2590,7 +2621,7 @@ index 0000000..775fd36
 +    /// context's first feed may declare, and only while the cache is armed and
 +    /// not opted out; anything else is ignored, exactly as an engine predating
 +    /// the input would ignore it.
-+    fn plan_prompt(&mut self, prompt: Vec<i32>) {
++    fn plan_prompt(&mut self, prompt: Vec<i32>, marks: Vec<usize>) {
 +        if park_slots() == 0 || self.no_cache || self.prompt_done || self.n_past > 0
 +            || self.defer.is_some() || self.plan.is_some() || prompt.len() < 2
 +        {
@@ -2625,12 +2656,21 @@ index 0000000..775fd36
 +        };
 +        drop(parked);
 +        drop(q);
-+        if covered == 0 {
-+            return; // no park relates: plain feeds, nothing to skip
++        // the boundaries still worth parking: past what the branch already
++        // covers, inside the prompt, and long enough to earn a slot
++        let mut marks: Vec<usize> = if prefix_slots() == 0 { Vec::new() } else {
++            marks.into_iter()
++                .filter(|&m| m > covered && m <= prompt.len() && m >= park_min_tokens())
++                .collect()
++        };
++        marks.sort_unstable();
++        marks.dedup();
++        if covered == 0 && marks.is_empty() {
++            return; // no park relates and nothing to park: plain feeds
 +        }
 +        self.n_past = covered as i32;
 +        self.fed = prompt[..covered].to_vec();
-+        self.plan = Some(PromptPlan { prompt, covered, exact_row, seen: 0 });
++        self.plan = Some(PromptPlan { prompt, covered, exact_row, seen: 0, marks });
 +    }
 +
 +    /// mm34: one chunk of a declared prompt (see PromptPlan). None = no plan
@@ -2639,7 +2679,7 @@ index 0000000..775fd36
 +    /// excepted - an exact repeat answers the park's stored row instead).
 +    /// Some(Some(row)) = the part past the park was fed; this is its row.
 +    fn plan_step(&mut self, ids: &[i32], mtp: bool) -> Result<Option<Option<RowOut>>, BackendError> {
-+        let (tail, last) = {
++        let (tail, last, pos0, marks) = {
 +            let Some(plan) = self.plan.as_mut() else { return Ok(None) };
 +            if self.prompt_done || plan.seen >= plan.prompt.len() {
 +                // the prompt ended (a generation verb), or the guest went past
@@ -2668,15 +2708,41 @@ index 0000000..775fd36
 +                }
 +                return Ok(Some(None));
 +            }
-+            (ids[skip..].to_vec(), end >= plan.prompt.len())
++            let pos0 = start + skip;
++            // the declared boundaries this chunk crosses, in order
++            let marks: Vec<usize> =
++                plan.marks.iter().copied().filter(|&m| m > pos0 && m <= end).collect();
++            plan.marks.retain(|&m| m > end);
++            (ids[skip..].to_vec(), end >= plan.prompt.len(), pos0, marks)
 +        };
 +        if last {
 +            self.plan = None;
 +        }
-+        // the shadow stays the exact stream (fed == n_past): the park copy
-+        // supplied prompt[..covered], the tail arrives here
-+        self.shadow(&tail);
-+        let row = if mtp { self.feed_mtp(&tail)? } else { self.feed_plain(&tail)? };
++        // Feed the tail, parking the prefix as each declared boundary is
++        // crossed (mm35). The shadow stays the exact stream (fed == n_past):
++        // the park copy supplied prompt[..covered], the pieces arrive here.
++        let mut off = 0usize;
++        let mut pos = pos0;
++        let mut row: Option<RowOut> = None;
++        for m in marks {
++            let n = m - pos;
++            if n > 0 {
++                let piece = &tail[off..off + n];
++                self.shadow(piece);
++                let r = if mtp { self.feed_mtp(piece)? } else { self.feed_plain(piece)? };
++                self.last_row = Some(r.clone());
++                row = Some(r);
++                off += n;
++                pos = m;
++            }
++            self.fork_park(true);
++        }
++        if off < tail.len() {
++            let piece = &tail[off..];
++            self.shadow(piece);
++            row = Some(if mtp { self.feed_mtp(piece)? } else { self.feed_plain(piece)? });
++        }
++        let row = row.ok_or_else(|| err("empty token feed"))?;
 +        if !self.prompt_done {
 +            self.last_row = Some(row.clone());
 +        }
@@ -2749,19 +2815,29 @@ index 0000000..775fd36
 +            return;
 +        }
 +        self.prompt_done = true;
-+        if park_slots() == 0 || self.n_past <= 0 {
-+            self.fed = Vec::new();
++        self.fork_park(false);
++        self.fed = Vec::new();
++    }
++
++    /// The REVERSED fork behind every park (mm32 turn parks, mm35 boundary
++    /// parks): the prompt-fed sequence itself becomes the park (it owns its
++    /// cells - an un-diverged copy would not, and removing its source
++    /// corrupts it on hybrids), and the session continues on a fresh copy
++    /// that diverges with its next decode or feed. Skipped whenever the
++    /// token shadow cannot vouch for the state (images, rewinds), the prefix
++    /// is too short to earn a slot, or an identical park already stands
++    /// (refreshed instead). A session may fork more than once - at each
++    /// declared boundary and again at the end of its prompt - and its guest
++    /// keeps addressing it by the id it was first told (`parked_from`, the
++    /// alias root), which follows the live sequence through every fork.
++    fn fork_park(&mut self, boundary: bool) {
++        let cap = if boundary { prefix_slots() } else { park_slots() };
++        if cap == 0 || self.n_past <= 0 {
 +            return;
 +        }
-+        let ok = self.fed.len() == self.n_past as usize
-+            && self.fed.len() >= park_min_tokens()
-+            && self.parked_from.is_none();
-+        let Some(row) = self.last_row.clone() else {
-+            self.fed = Vec::new();
-+            return;
-+        };
++        let ok = self.fed.len() == self.n_past as usize && self.fed.len() >= park_min_tokens();
++        let Some(row) = self.last_row.clone() else { return };
 +        if !ok {
-+            self.fed = Vec::new();
 +            return;
 +        }
 +        let old = self.seq_id;
@@ -2771,25 +2847,21 @@ index 0000000..775fd36
 +        }
 +        let mut parked = self.server.parked.lock().unwrap();
 +        // an identical park already standing: refresh it, keep this session
-+        // on its own sequence — nothing to fork
++        // on its own sequence - nothing to fork
 +        if let Some(p) = parked.iter_mut().find(|p| p.tokens == self.fed) {
 +            p.at = Instant::now();
-+            self.fed = Vec::new();
 +            return;
 +        }
-+        // capacity: evict the oldest un-pinned park (a pinned one still
-+        // shares recurrent state with an un-diverged continuation copy)
-+        if parked.len() >= park_slots() {
++        // capacity, per kind: evict the oldest un-pinned park of this kind (a
++        // pinned one still shares recurrent state with an un-diverged copy)
++        if parked.iter().filter(|p| p.boundary == boundary).count() >= cap {
 +            let oldest = parked
 +                .iter()
 +                .enumerate()
-+                .filter(|(_, p)| p.pin.load(Ordering::Acquire) == 0)
++                .filter(|(_, p)| p.boundary == boundary && p.pin.load(Ordering::Acquire) == 0)
 +                .min_by_key(|(_, p)| p.at)
 +                .map(|(i, _)| i);
-+            let Some(i) = oldest else {
-+                self.fed = Vec::new();
-+                return;
-+            };
++            let Some(i) = oldest else { return };
 +            let old_park = parked.remove(i);
 +            unsafe { ell_seq_remove(self.server.raw, old_park.seq_id) };
 +            // the alias entry (if its donor still lives) dies with the park:
@@ -2802,34 +2874,46 @@ index 0000000..775fd36
 +            let mut slots = self.server.slots.lock().unwrap();
 +            match slots.pop() {
 +                Some(id) => id,
-+                None => {
-+                    // cannot happen while parked < cap and sessions <= cap,
-+                    // but a missing fork must never break the session
-+                    self.fed = Vec::new();
-+                    return;
-+                }
++                // cannot happen while parks < cap and sessions <= cap, but a
++                // missing fork must never break the session
++                None => return,
 +            }
 +        };
 +        unsafe { ell_seq_copy(self.server.raw, old, fresh) };
 +        let pin = Arc::new(AtomicUsize::new(1));
 +        parked.push(ParkedPrefix {
 +            seq_id: old,
-+            tokens: std::mem::take(&mut self.fed),
++            // a boundary park is taken mid-prompt: the shadow carries on
++            tokens: self.fed.clone(),
 +            row,
 +            at: Instant::now(),
 +            pin: pin.clone(),
++            boundary,
 +        });
 +        drop(parked);
 +        // the cohort must not wait for the donated sequence, and the MTP
 +        // head's per-seq state must not ride along to a future session that
-+        // reuses the id — the session's head re-warms under its fresh id
++        // reuses the id - the session's head re-warms under its fresh id
 +        // within a few rounds (draft-quality dip, never correctness: verify
 +        // re-checks every draft)
 +        q.stepping.remove(&old);
 +        drop(q);
 +        self.server.mtp_reset(old);
-+        self.server.alias.lock().unwrap().insert(old, fresh);
-+        self.parked_from = Some(old);
++        {
++            let mut alias = self.server.alias.lock().unwrap();
++            alias.insert(old, fresh);
++            if let Some(root) = self.parked_from {
++                alias.insert(root, fresh);
++            }
++        }
++        if self.parked_from.is_none() {
++            self.parked_from = Some(old);
++        }
++        // a pin from an earlier fork was released by the feed that diverged
++        // the copy (mark_diverged); one still held is released here
++        if let Some(prev) = self.park_pin.take() {
++            prev.fetch_sub(1, Ordering::AcqRel);
++        }
 +        self.park_pin = Some(pin);
 +        self.seq_id = fresh;
 +    }
@@ -3237,6 +3321,9 @@ index 0000000..775fd36
 +                        // shim carries ell_mtmd_eval_video); whether the node
 +                        // also has ffmpeg is the verb's own error to report
 +                        mtmd_syms().map_or(0, |s| s.eval_video.is_some() as i32),
++                        // mm35: boundary-park slots armed (0 = off): a guest
++                        // may send "marks" beside its "prompt" declaration
++                        prefix_slots() as i32,
 +                    ];
 +                    let mut data = Vec::with_capacity(vals.len() * 4);
 +                    for v in vals {
@@ -3544,7 +3631,14 @@ index 0000000..775fd36
 +                // declares the whole prompt (see PromptPlan); the branch is
 +                // settled here, before the chunk is fed
 +                if let Some(pt) = inputs.iter().find(|nt| nt.name == "prompt") {
-+                    self.plan_prompt(tokens_from_tensor(&pt.tensor)?);
++                    // mm35: {"marks": I32 [k]} beside it names the positions
++                    // where a shared prefix ends, to be parked as crossed
++                    let marks: Vec<usize> = match inputs.iter().find(|nt| nt.name == "marks") {
++                        Some(mk) => tokens_from_tensor(&mk.tensor)?
++                            .into_iter().filter(|&m| m > 0).map(|m| m as usize).collect(),
++                        None => Vec::new(),
++                    };
++                    self.plan_prompt(tokens_from_tensor(&pt.tensor)?, marks);
 +                }
 +                let flag = |name: &str| {
 +                    inputs.iter().any(|nt| nt.name == name
