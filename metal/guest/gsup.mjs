@@ -105,8 +105,16 @@ const GGML_ENV = (() => {
   // ENCLAVE_GGML_FFMPEG_DIR: where the engine image keeps the static
   // ffmpeg/ffprobe that the "video" verb (mm33) spawns - Dockerfile.wasm
   // copies them beside wasmtime under /usr/local/bin.
+  // ENCLAVE_GGML_PREFIX_SLOTS=4 (mm35): boundary parks - the deployment's
+  // standing prompt prefix (system text, then the tool block per settings
+  // combination) - on their own budget. Two is the engine's default and was
+  // measured too tight live (2026-09-02): a page load parks the default
+  // combination, a chat on other settings parks its own, and with the
+  // system-text park holding the first slot the two evicted each other on
+  // every page load. Four holds the shared text plus three combinations.
   const out = { ENCLAVE_GGML_MAX_SESSIONS: '8', LLAMA_GRAPH_SLOT_ALT: '0',
-                ENCLAVE_GGML_PARK_SLOTS: '2', ENCLAVE_GGML_FFMPEG_DIR: '/usr/local/bin' };
+                ENCLAVE_GGML_PARK_SLOTS: '2', ENCLAVE_GGML_PREFIX_SLOTS: '4',
+                ENCLAVE_GGML_FFMPEG_DIR: '/usr/local/bin' };
   const cfg = (fw.ggml && typeof fw.ggml === 'object') ? fw.ggml : {};
   for (const [k, v] of Object.entries(cfg)) {
     // accept either the bare knob ("maxSessions") or the full env name
