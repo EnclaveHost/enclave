@@ -35,6 +35,17 @@
    this platform's trust unit, so an app learning a signed-in
    visitor's account id is accepted, not gated on a click. The only
    interaction left is signing in when there is no session.
+
+   `prompt=select_account` is the one exception, and the APP asks
+   for it: a signed-in visitor then gets a two-button card, continue
+   as the current account or use a different one. The second signs
+   the account out (this browser only) and opens the chooser. It
+   exists because the account session is one per browser and a
+   wallet connection is a separate state domain: connecting another
+   wallet never changes the account, so without this an app could
+   only switch users by sending them to sign out of enclave.host.
+   Absent the parameter nothing changes; an app cannot log a
+   visitor out by linking here, only offer the choice.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
@@ -43,7 +54,7 @@ import "../../components/section-head/section-head.js";
 import { Enclave } from "../core/api.js";
 import { APP_DOMAIN } from "../core/config.js";
 import { $, esc, showToast } from "../core/util.js";
-import { openSignIn, restoreAccountSession } from "../core/account.js";
+import { openSignIn, restoreAccountSession, signOutAccount } from "../core/account.js";
 
 const card = (html) => '<div class="lk-card">' + html + '</div>';
 
@@ -74,6 +85,27 @@ async function allowedOrigins(aud){
   return set;
 }
 
+/* Short, readable form of the signed-in account for the chooser card. */
+function accountLabel(){
+  const id = String(Enclave.accountId || "");
+  if (/^0x[0-9a-fA-F]{40}$/.test(id)) return id.slice(0, 6) + "…" + id.slice(-4) + " (wallet)";
+  if (id.startsWith("acct_")) return "your passkey account (" + id.slice(5, 13) + "…)";
+  return id || "your account";
+}
+
+/* The account chooser card (prompt=select_account only). Resolves true to
+   continue as the current account, false to use a different one. */
+function confirmAccount(body, appHost){
+  return new Promise((resolve) => {
+    body.innerHTML = card(
+      '<p class="co-note">Sign in to ' + esc(appHost) + ' as <b>' + esc(accountLabel()) + '</b>?</p>' +
+      '<button class="btn btn-primary" id="ssoContinue" type="button">Continue as this account</button> ' +
+      '<button class="btn" id="ssoSwitch" type="button">Use a different account</button>');
+    $("#ssoContinue").addEventListener("click", () => resolve(true));
+    $("#ssoSwitch").addEventListener("click", () => resolve(false));
+  });
+}
+
 async function mount(){
   const body = $("#ssoBody"); if (!body) return;
   const q = new URL(location.href).searchParams;
@@ -81,6 +113,8 @@ async function mount(){
   const redirect = String(q.get("redirect_uri") || "").trim();
   const state = String(q.get("state") || "");
   const ttl = parseInt(q.get("ttl") || "", 10) || undefined;
+  // "login" is the OpenID spelling of the same ask; both offer the choice
+  const chooseAccount = ["select_account", "login"].includes(String(q.get("prompt") || ""));
 
   // display=popup: the app opened this page in a small window whose frame IS
   // the chrome - drop the site's own, the card carries the whole story
@@ -109,6 +143,14 @@ async function mount(){
 
   try {
     restoreAccountSession();
+    if (chooseAccount && Enclave.accountAuthed()){
+      // the app asked the visitor to confirm WHO signs in: continue as the
+      // account this browser holds, or sign it out (here only) and pick
+      // another in the chooser
+      if (!(await confirmAccount(body, appHost))){
+        signOutAccount();
+      }
+    }
     if (!Enclave.accountAuthed()){
       // straight into the chooser (or a detected wallet's SIWE) - no
       // interstitial button: the app's own Sign in click brought them here,
