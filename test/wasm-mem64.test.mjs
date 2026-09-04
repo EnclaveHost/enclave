@@ -233,37 +233,37 @@ test("the portless compute-guest launch shape is gone, parameter and all", () =>
 // can size a heap, a cache or an emulated machine's RAM to the share the
 // deployer actually bought — the memory twin of ENCLAVE_AVAILABLE_PARALLELISM.
 
-test("every guest is handed its own memory ceiling, and it matches the cap the engine is given", () => {
+test("every guest is handed its own memory ceiling, on the flag the guest can actually see", () => {
+  // The FIRST version of this test read the environment the wasmtime PROCESS
+  // was launched with, and passed while the guest saw nothing: a guest
+  // inherits none of that (there is no -Sinherit-env). Only an explicit
+  // --env reaches it, which is what this asserts, and what a real deployment
+  // proved by logging "no ENCLAVE_MEM_MB from the host".
+  const memEnv = (cmd) => {
+    const i = cmd.findIndex((a) => typeof a === "string" && a.startsWith("ENCLAVE_MEM_MB="));
+    assert.ok(i > 0 && cmd[i - 1] === "--env", `ENCLAVE_MEM_MB must ride as a --env flag: ${cmd.join(" ")}`);
+    return Number(cmd[i].split("=")[1]);
+  };
+  const pspec = `{"serve": True, "http": None, "tcp": [], "udp": [{"guest": 9000, "host": 9000}], "declared": ["udp:9000"], "norm": ["udp:9000"]}`;
+  const [cmd] = mgrPy(`m._build_cmd(${pspec}, "/tmp/app.wasm", 0, 4096 * 1024 * 1024)`,
+                      { WASMTIME_BIN: FAKE(ENGINE_OK) });
+  assert.equal(memEnv(cmd), 4096, "MiB, and the same number -W max-memory-size gets");
+  assert.ok(cmd.includes("max-memory-size=4294967296"), "the engine cap and the hint are one number");
+  // the mem64 arm: a lifted ceiling is what the guest is told
+  const [big] = mgrPy(`m._build_cmd(${pspec}, "/tmp/app.wasm", 0, 32768 * 1024 * 1024, cm64=True)`,
+                      { WASMTIME_BIN: FAKE(ENGINE_OK) });
+  assert.equal(memEnv(big), 32768, "a mem64 guest is told about the lift");
+  // and it survives the whole launch, on the real command the engine gets
   const dir = mkdtempSync(path.join(tmpdir(), "memenv-"));
-  // the fake engine dumps the environment it was launched with
-  const envFile = path.join(dir, "env.txt");
-  const ENGINE_DUMP = `case "$1" in run) env > ${envFile}; exec sleep 15;; esac; exit 0`;
-  const read = () => Object.fromEntries(readFileSync(envFile, "utf8").split("\n")
-    .filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
-
-  // a wasm32 component: the historical 4096 MB clamp is what it is told
   const c32 = path.join(dir, "c32.wasm");
   copyFileSync(path.join(FIXTURES, "egress-guest-tcp.wasm"), c32);
-  const r32 = launchPy(c32, { ports: ["udp:9000"],
-    env: { WASMTIME_BIN: FAKE(ENGINE_DUMP), WASM_APPS_DIR: dir, WASM_FS: "0" } });
-  assert.equal(r32.status, "running", r32.error || "");
-  const e32 = read();
-  assert.equal(e32.ENCLAVE_MEM_MB, "4096");
-  assert.equal(Number(e32.ENCLAVE_MEM_MB), r32.mem_mb, "the guest is told exactly what the record says");
-  // ...and the engine's own cap is the same number, in bytes
-  assert.ok(e32.ENCLAVE_AVAILABLE_PARALLELISM, "the parallelism twin still rides");
-
-  // a memory64 component: it is told the LIFTED ceiling, not the clamp
-  const c64 = path.join(dir, "c64.wasm");
-  writeFileSync(c64, syntheticComponent(syntheticModule(0x04)));
-  const r64 = launchPy(c64, { ports: ["udp:9000"],
-    env: { WASMTIME_BIN: FAKE(ENGINE_DUMP), WASM_APPS_DIR: dir, WASM_FS: "0" } });
-  assert.equal(r64.status, "running", r64.error || "");
-  const e64 = read();
-  assert.equal(e64.ENCLAVE_MEM_MB, "32768", "cpuShare 0.5 of the default 64 GB node");
-  assert.equal(Number(e64.ENCLAVE_MEM_MB), r64.mem_mb);
-  assert.ok(Number(e64.ENCLAVE_MEM_MB) > Number(e32.ENCLAVE_MEM_MB),
-    "a mem64 guest is told about the lift, or it would size itself to a wall that moved");
+  const argvFile = path.join(dir, "argv.txt");
+  const ENGINE_ARGV = `case "$1" in run) printf '%s\\n' "$@" > ${argvFile}; exec sleep 15;; esac; exit 0`;
+  const rec = launchPy(c32, { ports: ["udp:9000"],
+    env: { WASMTIME_BIN: FAKE(ENGINE_ARGV), WASM_APPS_DIR: dir, WASM_FS: "0" } });
+  assert.equal(rec.status, "running", rec.error || "");
+  const argv = readFileSync(argvFile, "utf8").split("\n").filter(Boolean);
+  assert.equal(memEnv(argv), rec.mem_mb, "the launched guest is told exactly what the record says");
 });
 
 // ---- 5. memory64 COMPONENTS: the run-mode shape wasm64 ships in ------------

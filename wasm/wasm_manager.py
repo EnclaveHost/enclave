@@ -4309,7 +4309,22 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     #                       for a config past the env ceiling, so an app that
     #                       wants large configs reads the file and gets both.
     # An app checking the file first and the env second works at every size.
-    cfg_args = []
+    # The guest's memory ceiling, in MiB, as a GUEST-FACING variable. This is
+    # `-W max-memory-size` below, the cap the engine enforces on the app's
+    # linear memory: the wasm32 clamp or the mem64 lift, whichever applied.
+    #
+    # It has to be an explicit --env like the config and the ports, because a
+    # guest inherits NOTHING from this process (there is no -Sinherit-env, on
+    # purpose). Do not confuse it with ENCLAVE_AVAILABLE_PARALLELISM, which is
+    # set on the wasmtime PROCESS because the ENGINE reads that one; nothing
+    # reads this one but the app, so process-level would be invisible.
+    #
+    # Why an app wants it: the cap is enforced but unknowable from inside, so
+    # an app that sizes a heap, a cache or an emulated machine's RAM can only
+    # discover it by dying at it. It is a ceiling, not a budget — everything
+    # the guest holds lives under it, so an app must leave room for the rest
+    # of itself.
+    cfg_args = ["--env", f"ENCLAVE_MEM_MB={max(1, mem_bytes >> 20)}"]
     if enclave_config:
         if len(enclave_config.encode("utf-8")) <= CONFIG_ENV_MAX_BYTES:
             cfg_args += ["--env", "ENCLAVE_CONFIG=" + enclave_config]
@@ -5387,22 +5402,10 @@ def _spawn_and_wait(rec, ctx):
     env = dict(os.environ) if env is None else env
     env["ENCLAVE_AVAILABLE_PARALLELISM"] = str(_available_parallelism_for(cpu_share))
     rec["availableParallelism"] = _available_parallelism_for(cpu_share)
-    # The memory twin of the parallelism hint, and for the same reason: a
-    # guest that sizes a heap, a cache or an emulated machine's RAM has no
-    # way to see its own ceiling. `-W max-memory-size` is enforced by the
-    # engine but invisible from inside — a guest can only discover it by
-    # hitting it, which for a big allocation means dying rather than
-    # adapting. So hand it over: ENCLAVE_MEM_MB is EXACTLY the MiB the
-    # engine will cap this guest's linear memory at (rec["mem_mb"], the
-    # wasm32 clamp or the mem64 lift, whichever applied), so a guest can
-    # size itself to the share the deployer actually bought.
-    #
-    # It is a ceiling, not a budget: everything the guest holds lives under
-    # it, so an app that sizes something to the whole number leaves nothing
-    # for the rest of itself. Apps are expected to subtract their own
-    # working set (RISC Box, for one, subtracts its disk image and
-    # framebuffer before sizing guest RAM).
-    env["ENCLAVE_MEM_MB"] = str(rec["mem_mb"])
+    # (the guest's own memory ceiling rides as a --env flag in _build_cmd,
+    # not here: this env is the wasmtime PROCESS's, which the guest never
+    # inherits — no -Sinherit-env — so a guest-facing value set here would
+    # reach nothing.)
     if nn and enclave_config:
         # Recurrent-snapshot depth for speculative rewind (the shim's
         # ENCLAVE_GGML_N_RS_SEQ, read at ggml server-context creation):
