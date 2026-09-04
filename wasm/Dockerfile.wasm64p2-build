@@ -1,0 +1,104 @@
+# wasm64 (memory64) build image: the reproducible toolchain a publisher uses
+# to build a guest that addresses MORE THAN 4 GiB — the answer to wasm32's
+# 4 GiB ceiling. What comes out is a memory64 wasip2 COMPONENT: an ordinary
+# Enclave app (ports, sockets, HTTP, /data, volumes, config) whose linear
+# memory is 64-bit, so its heap is bounded by the deployment's RAM slice
+# rather than by 4 GiB.
+#
+#   docker build -f wasm/Dockerfile.wasm64p2-build -t enclave-wasm64p2-build wasm/
+#   # C or C++
+#   docker run --rm -v "$PWD":/src enclave-wasm64p2-build app.c -O2 -o app.wasm
+#   # Rust (a cargo crate)
+#   docker run --rm -v "$PWD":/src --entrypoint enclave-wasm64-rust \
+#     enclave-wasm64p2-build . -o app.wasm
+#
+# This REPLACES Dockerfile.wasm64c-build, which produced a wasm64-wasip1 core
+# MODULE. That class could only ever be a portless compute guest — preview1
+# has no socket surface on the engine — and it is gone: one >4 GiB class now,
+# and it is a full-surface component.
+#
+# HOW IT WORKS, in three parts (docs/wasm64.md has the whole story):
+#
+#  1. THE TARGET. There is no wasm64-wasip2 target in rustc and no wasm64
+#     wasi-libc release. wasi-libc is built here for wasm64-wasip2 with the
+#     platform's wasi-libc-mem64.patch (musl assumes 32-bit pointers in its
+#     atomics), its checked-in component-type object regenerated for wasm64
+#     (wasm-ld refuses a wasm32 object in a wasm64 link), and compiler-rt
+#     builtins built for wasm64 from the exact llvm commit the SDK's clang
+#     came from — the SDK ships wasm32 builtins only, and wasm-ld hard-
+#     requires them, so this is what makes the C/C++ path link. Rust gets a
+#     custom target spec plus std built from a widened rust-src copy.
+#
+#  2. THE ENCODER. wit-component typed every canonical pointer as i32, so a
+#     stock `clang --target=wasm64-wasip2` fails inside its own linker
+#     ("type mismatch for function `poll`: expected [I32, I32, I32] but
+#     found [I64, I64, I64]"). The wrappers stop at the core module
+#     (--skip-wit-component) and encode with a patched wasm-tools that
+#     follows the module's memory width.
+#
+#  3. THE HOST BOUNDARY. wasmtime 49 runs memory64 components, but its
+#     host-side typed canonical ABI still reads pointers and lengths as 32
+#     bits (wasmtime FIXME #4311). Its component-to-component adapters do
+#     transcode, so every build is plugged (`wac plug`) into wasm64p2's WASI
+#     pass-through proxy: a wasm32 component that re-exports every stable
+#     wasi 0.2.12 interface. The host only ever sees a 32-bit caller.
+#
+# What comes out runs ONLY on a memory64-capable engine (the wasmtime 49 pin
+# qualifies; the runner probes the exact construct per box). The publish path
+# stamps `mem64: true` from the bytes and claim routing keeps it on capable
+# engines, exactly like the `threads`/`set` stamps. The 4 GiB memory clamp in
+# wasm_manager.launch() lifts to the deployment's full RAM slice.
+#
+# Base pinned by DIGEST (a repushed tag silently changes what "the same
+# recipe" builds).
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils git ninja-build python3 patch \
+      build-essential pkg-config \
+ && rm -rf /var/lib/apt/lists/*
+
+# CMake by pinned release (wasi-libc floor 3.26; bookworm apt has 3.25)
+ARG CMAKE_VERSION=3.31.6
+RUN curl -fsSL -o /tmp/cmake.tgz "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" \
+ && tar -xzf /tmp/cmake.tgz -C /usr/local --strip-components=1 && rm /tmp/cmake.tgz
+
+# Rust: a PINNED nightly (std is built from source for the custom target, so
+# the compiler and the std sources must match) plus stable for wac, whose
+# lockfile pins a rustix newer nightlies reject.
+ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
+ARG RUST_NIGHTLY=nightly-2026-08-07
+RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain "${RUST_NIGHTLY}" \
+      --profile minimal -c rust-src -t wasm32-wasip2 \
+ && rustup toolchain install stable --profile minimal
+
+# The toolchain sources: wasm64p2/ plus the platform's canonical memory64
+# wasi-libc patch, which prepare-toolchain.sh reads from one level up.
+COPY wasm64p2/ /opt/w64-src/wasm64p2/
+COPY wasi-libc-mem64.patch /opt/w64-src/wasi-libc-mem64.patch
+ENV W64=/opt/w64 RUST_TC=${RUST_NIGHTLY}
+RUN sh /opt/w64-src/wasm64p2/prepare-toolchain.sh \
+ && rm -rf /opt/w64/dl /opt/w64/wasm-tools-src/target /opt/w64/wac-src/target \
+           /opt/w64/llvm-project /opt/w64/wasiproxy-target
+
+# One command per language, on PATH.
+RUN printf '#!/bin/sh\nexec sh /opt/w64-src/wasm64p2/build-c.sh "$@"\n' > /usr/local/bin/enclave-wasm64-cc \
+ && printf '#!/bin/sh\nexec sh /opt/w64-src/wasm64p2/build-rust.sh "$@"\n' > /usr/local/bin/enclave-wasm64-rust \
+ && chmod 755 /usr/local/bin/enclave-wasm64-cc /usr/local/bin/enclave-wasm64-rust
+
+# Smoke test at IMAGE build: a real malloc-past-4GiB program goes through the
+# WHOLE chain — clang, mem64 libc, builtins, link, encode, plug — and the
+# result must be (a) a LAYER-1 component that (b) carries a core module whose
+# memory section has the 64-bit flag (the exact structural check every
+# publish path and the runner key on) and (c) imports nothing the proxy does
+# not export (build-c.sh asserts that itself). The RUNTIME >4 GiB proof needs
+# the pinned engine and 6 GiB of commit, so it lives in docs/wasm64.md and
+# runs at toolchain-verification time, not here.
+COPY wasm64p2/smoke.c /tmp/smoke.c
+COPY wasm64p2/classify.py /tmp/classify.py
+RUN enclave-wasm64-cc /tmp/smoke.c -O2 -o /tmp/smoke.wasm \
+ && python3 /tmp/classify.py /tmp/smoke.wasm \
+ && rm -f /tmp/smoke.c /tmp/smoke.wasm /tmp/classify.py
+
+WORKDIR /src
+ENTRYPOINT ["/usr/local/bin/enclave-wasm64-cc"]
