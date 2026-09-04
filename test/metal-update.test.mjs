@@ -6,6 +6,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tagNewer, tagCmp, updateVerdict } from "../metal/update.mjs";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const BUILDER = path.join(REPO, "metal", "build-image.mjs");
+const buildImage = (args) => {
+  try {
+    return { ok: true, out: execFileSync(process.execPath, [BUILDER, ...args],
+      { encoding: "utf8", stdio: "pipe", timeout: 60000 }) };
+  } catch (e) { return { ok: false, out: `${e.stdout || ""}${e.stderr || ""}` }; }
+};
 
 const HOUR = 3600 * 1000;
 
@@ -79,4 +92,30 @@ test("the newest tag is picked by numeric order across a whole release list", ()
   assert.equal(tagCmp("v0.5.282-cpu", "v0.5.282-cpu"), 0, "equal tags must compare 0");
   assert.equal(tagCmp("v0.5.9-cpu", "v0.5.10-cpu"), -1);
   assert.equal(tagCmp("v0.5.10-cpu", "v0.5.9-cpu"), 1);
+});
+
+// The image the updater installs is only as good as the one the builder makes.
+// On 2026-09-04 metal0 built one whose module set was EMPTY — the host was
+// running 7.1.6 while /usr/lib/modules held only 7.2.2, an upgrade away — so
+// the guest came up with no virtio_net, no network, no relay tunnel and no
+// health, and only the rollback saved the box. The builder now takes the
+// module version from the kernel it PACKS, and refuses a mismatch outright.
+test("the builder resolves modules for the kernel it packs, not the one the host runs", () => {
+  const r = buildImage(["--print-kver"]);
+  assert.ok(r.ok, `--print-kver should resolve without building: ${r.out.slice(0, 300)}`);
+  const j = JSON.parse(r.out.trim().split("\n").pop());
+  assert.ok(fs.existsSync(j.modroot), `${j.modroot} must exist — an absent tree is the bug this pins`);
+  // the packed kernel and the module tree must be the same kernel: distros
+  // keep a copy beside the modules, and that copy is the proof
+  const beside = path.join(j.modroot, "vmlinuz");
+  if (fs.existsSync(beside))
+    assert.equal(Buffer.compare(fs.readFileSync(j.kernel), fs.readFileSync(beside)), 0,
+      "packing one kernel with another's modules is what shipped a netless guest");
+});
+
+test("a kernel/module mismatch fails the build instead of shipping a module-less initramfs", () => {
+  const r = buildImage(["--kver", "9.9.9-does-not-exist", "--print-kver"]);
+  assert.equal(r.ok, false, "a missing module tree must be fatal, not a warning");
+  assert.match(r.out, /no module tree at/);
+  assert.match(r.out, /--kver/, "the refusal says how to fix it");
 });

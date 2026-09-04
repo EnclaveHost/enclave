@@ -413,7 +413,14 @@ test("both publish clients refuse a core module outright and take a memory64 com
     try {
       execFileSync(process.execPath, [CLI, "publish", wasm, "--slug", "m64test",
         "--ports", "tcp:9000", "--version", "0.0.1", "--yes"],
-        { encoding: "utf8", stdio: "pipe", timeout: 60000, env: { ...process.env, ENCLAVE_KEY: "" } });
+        { encoding: "utf8", stdio: "pipe", timeout: 60000, env: { ...process.env,
+          // a throwaway key and no address book: the CLI refuses a keyless
+          // publish before it ever classifies the file, and CI has no wallet,
+          // so without these this test passes only on a developer's machine.
+          // Nothing is signed or sent — cmdPublish applies this rule before it
+          // touches a wallet or an RPC.
+          ENCLAVE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111",
+          ENCLAVE_ADDRESS_BOOK: "" } });
       return "";
     } catch (e) { return `${e.stdout || ""}${e.stderr || ""}${e.message || ""}`; }
   };
