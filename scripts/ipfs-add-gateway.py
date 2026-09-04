@@ -215,9 +215,14 @@ def component_contract(data: bytes):
     # wasi: strings below). Publish paths stamp it as `threads: true`.
     # `set`: the shared-everything-threads (⚡) marker — set-componentize wires
     # the spawn canon under `[set-spawn-indirect]`. Independent of `threads`.
-    # `mem64`: a wasm64 CORE module (64-bit linear memory, admitted by
-    # preamble_error's one core-module carve-out). Publish paths stamp it as
-    # `mem64: true` so claim routing keeps it on mem64-capable engines.
+    # `mem64`: a 64-bit linear memory, in EITHER of its two classes — a wasm64
+    # CORE module (admitted by preamble_error's one core-module carve-out; a
+    # preview1 compute guest that can never serve a port) or a memory64
+    # COMPONENT (a wasip2 app that addresses more than 4 GiB and keeps its
+    # ports). One routing key, because both need an engine that can parse a
+    # 64-bit memory; the port rule belongs to the module class alone and lives
+    # in the publish clients' mem64Class and the runner's _needs_mem64.
+    # Publish paths stamp it as `mem64: true`.
     out = {"wasi": None, "world": None, "threads": b"[thread-" in data,
            "set": b"[set-spawn-indirect]" in data,
            "mem64": module_mem64(data) or component_mem64(data)}

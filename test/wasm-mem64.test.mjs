@@ -14,6 +14,10 @@
 //      operator switch (WASM_MEM64=0) refuses with its own words.
 //   4. The memory ceiling: a mem64 guest's mem_mb is its full RAM slice —
 //      the 4 GiB wasm32 clamp lifts for it and ONLY for it.
+//   5. The two mem64 CLASSES are not one flag: a wasm64 core MODULE is a
+//      preview1 compute guest that can never serve a port, a memory64
+//      COMPONENT is a wasip2 app that keeps its ports. Both publish clients
+//      classify with mem64Class and only the module refuses --ports.
 //
 //   run: node --test test/wasm-mem64.test.mjs   (needs python3)
 //
@@ -325,4 +329,64 @@ test("a memory64 core nested in a composed component (wasm32 proxy in front) is 
   const sf = new Function(site.slice(s0, sEnd) + "; return { moduleMem64, componentMem64 };")();
   assert.equal(sf.componentMem64(new Uint8Array(readFileSync(c))), true);
   assert.equal(sf.componentMem64(new Uint8Array(readFileSync(c32))), false);
+});
+
+// ---- 6. the two classes, in the publish clients -------------------------
+//
+// `mem64` is one routing key over two classes. Conflating them cost a real
+// publish: a memory64 COMPONENT with ports was refused with "ports can never
+// be served from a preview1 module", which is true of a core module and false
+// of a component. The runner has always split them (_needs_mem64 vs
+// _needs_cm64); the CLI and the site now do too, through mem64Class.
+
+// The CLI and site copies of mem64Class, extracted from their sources.
+function classifiers() {
+  const cli = readFileSync(path.join(REPO, "cli", "enclave.mjs"), "utf8");
+  const cliSrc = cli.slice(cli.indexOf("function moduleMem64("), cli.indexOf("function componentContract("));
+  const c = new Function("Buffer", cliSrc + "; return mem64Class;")(Buffer);
+  const site = readFileSync(path.join(REPO, "site", "js", "pages", "apps.js"), "utf8");
+  const s0 = site.indexOf("function moduleMem64("), s1 = site.indexOf("function mem64Class(");
+  const siteSrc = site.slice(s0, site.indexOf("\n}\n", s1) + 3);
+  const w = new Function(siteSrc + "; return mem64Class;")();
+  return { cli: (b) => c(b), site: (b) => w(new Uint8Array(b)) };
+}
+
+test("mem64Class separates the compute-guest MODULE from the port-serving COMPONENT, in both publish clients", () => {
+  const { cli, site } = classifiers();
+  const cases = [
+    ["wasm64 core module",        syntheticModule(0x04),                                        "module"],
+    ["wasm32 core module",        syntheticModule(0x00),                                        ""],
+    ["memory64 component",        syntheticComponent(syntheticModule(0x04)),                    "component"],
+    ["wasm32 component",          syntheticComponent(syntheticModule(0x00)),                    ""],
+    // the shape wasm64 actually ships in: a wasm32 proxy in front, the
+    // 64-bit core nested behind it
+    ["proxied memory64 component", composedComponent(syntheticComponent(syntheticModule(0x04)), syntheticModule(0x00)), "component"],
+  ];
+  for (const [what, bytes, want] of cases) {
+    assert.equal(cli(bytes), want, `CLI: ${what}`);
+    assert.equal(site(bytes), want, `site: ${what}`);
+  }
+});
+
+test("publishing a memory64 COMPONENT with ports is not refused as a compute guest; a wasm64 MODULE with ports still is", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "m64pub-"));
+  const comp = path.join(dir, "c64.wasm"), mod = path.join(dir, "m64.wasm");
+  writeFileSync(comp, syntheticComponent(syntheticModule(0x04)));
+  writeFileSync(mod, syntheticModule(0x04));
+  const CLI = path.join(REPO, "cli", "enclave.mjs");
+  // cmdPublish classifies and applies this rule before it touches a wallet or
+  // an RPC, so the refusal (or its absence) is reachable with no chain at all
+  const publish = (wasm) => {
+    try {
+      execFileSync(process.execPath, [CLI, "publish", wasm, "--slug", "m64test",
+        "--ports", "tcp:9000", "--version", "0.0.1", "--yes"],
+        { encoding: "utf8", stdio: "pipe", timeout: 60000, env: { ...process.env, ENCLAVE_KEY: "" } });
+      return "";
+    } catch (e) { return `${e.stdout || ""}${e.stderr || ""}${e.message || ""}`; }
+  };
+  const modOut = publish(mod);
+  assert.match(modOut, /compute guests/, "a wasm64 core module with ports must still be refused");
+  const compOut = publish(comp);
+  assert.doesNotMatch(compOut, /compute guests/,
+    `a memory64 component keeps its ports; got: ${compOut.slice(0, 400)}`);
 });

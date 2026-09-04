@@ -737,6 +737,19 @@ function componentMem64(u8){
   } catch(_){ return false; }
   return false;
 }
+
+// Which memory64 class is this binary, if any? "" | "module" | "component".
+// Both need the `mem64` routing key, but only a wasm64 CORE MODULE is a
+// preview1 compute guest that can never serve a port; a memory64 COMPONENT is
+// an ordinary wasip2 app that addresses more than 4 GiB and keeps its ports.
+// Mirrors the runner's _needs_mem64 / _needs_cm64 split and the CLI's copy.
+function mem64Class(u8){
+  if (u8.length < 8) return "";
+  const layer = u8[6] | (u8[7] << 8);
+  if (layer === 0) return moduleMem64(u8) ? "module" : "";
+  if (layer === 1) return componentMem64(u8) ? "component" : "";
+  return "";
+}
 // Which wasi world contract does the picked component target? Same classifier
 // as the CLI (componentContract in cli/enclave.mjs) and the runner
 // (wasm_manager._component_contract) — the EXPORT decides, in the order
@@ -802,7 +815,7 @@ function hasBytes(bytes, ascii){
 // In-flight publish upload (XHR so we get upload progress - fetch can't report
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
-let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false, pubSet = false, pubMem64 = false;
+let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false, pubSet = false, pubMem64 = "";  // pubMem64: "" | "module" | "component"
 async function putWasm(file, onProgress){
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
@@ -942,12 +955,12 @@ async function onPubFile(e){
     pubSet = hasBytes(pubBytes, "[set-spawn-indirect]");
     // wasm64 (memory64): structural memory-section sniff, not a marker scan
     // (publishApp stamps `mem64: true` — claim routing to mem64 engines)
-    pubMem64 = moduleMem64(pubBytes) || componentMem64(pubBytes);
-  } catch(_){ pubWasi = null; pubThreads = false; pubSet = false; pubMem64 = false; }
+    pubMem64 = mem64Class(pubBytes);
+  } catch(_){ pubWasi = null; pubThreads = false; pubSet = false; pubMem64 = ""; }
   if (seq !== pubSeq) return;
   setPubUploading(true);
   if (bar){ bar.hidden = false; bar.firstElementChild.style.width = "0%"; bar.setAttribute("aria-valuenow", "0"); }
-  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + (pubThreads ? "threaded " : "") + (pubSet ? "parallel " : "") + (pubMem64 ? "wasm64 (>4 GiB) module" : "component") + " · uploading to IPFS… 0%");
+  pubStatus("valid " + (pubWasi === "0.3" ? "WASIp3 " : pubWasi === "0.2" ? "WASIp2 " : "") + (pubThreads ? "threaded " : "") + (pubSet ? "parallel " : "") + (pubMem64 === "module" ? "wasm64 (>4 GiB) module" : pubMem64 === "component" ? "memory64 (>4 GiB) component" : "component") + " · uploading to IPFS… 0%");
   try {
     const cid = await putWasm(f, (done, total) => {
       if (seq !== pubSeq || !total) return;
@@ -1039,11 +1052,13 @@ async function publishApp(){
       }
     } catch(_){ /* readPubConfig already validated shape; never block on the stamp */ }
   }
-  // wasm64 apps are COMPUTE guests (preview1 has no socket surface on the
+  // wasm64 MODULES are COMPUTE guests (preview1 has no socket surface on the
   // engine, so declared ports can never be served): refuse a port-declaring
   // publish HERE, before an immutable catalog slot is spent — the same rule
   // the runner enforces at launch. They get /data, volumes, config, stdio.
-  if (pubMem64 && ports) return pubStatus("wasm64 apps are compute guests: ports can never be served from a preview1 module — clear the ports field", true);
+  // A memory64 COMPONENT is NOT in this class: it is a wasip2 app that
+  // addresses more than 4 GiB and serves ports like any other component.
+  if (pubMem64 === "module" && ports) return pubStatus("wasm64 modules are compute guests: ports can never be served from a preview1 module — clear the ports field (a memory64 wasip2 component keeps its ports)", true);
   // fold the (already-uploaded) thumbnail/banner CIDs into the version config
   // under _media - they ride in the config since the catalog contract has no
   // media field. Re-check the ceiling: media adds ~150 bytes over the app config.
