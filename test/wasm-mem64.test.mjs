@@ -14,10 +14,10 @@
 //      operator switch (WASM_MEM64=0) refuses with its own words.
 //   4. The memory ceiling: a mem64 guest's mem_mb is its full RAM slice —
 //      the 4 GiB wasm32 clamp lifts for it and ONLY for it.
-//   5. The two mem64 CLASSES are not one flag: a wasm64 core MODULE is a
-//      preview1 compute guest that can never serve a port, a memory64
-//      COMPONENT is a wasip2 app that keeps its ports. Both publish clients
-//      classify with mem64Class and only the module refuses --ports.
+//   5. ONE >4 GiB class: a memory64 COMPONENT, which keeps its ports. The
+//      publish door (gateway + both clients) refuses every core module,
+//      wasm64 or not, and the advertised capability means "can run a
+//      memory64 component" — both engine probes, not just one.
 //
 //   run: node --test test/wasm-mem64.test.mjs   (needs python3)
 //
@@ -153,24 +153,32 @@ test("components and junk are never mem64 — only a layer-0 memory section coun
 
 // ---- 2. admission: gateway and runner agree ---------------------------------
 
-test("a mem64 module is admitted where a wasm32 core module keeps the refusal", () => {
+test("components only at the door: a core module is refused whether or not it is mem64", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "m64adm-"));
   const m64 = path.join(dir, "m64.wasm"), m32 = path.join(dir, "m32.wasm");
+  const c64 = path.join(dir, "c64.wasm");
   writeFileSync(m64, syntheticModule(0x04));
   writeFileSync(m32, syntheticModule(0x00));
-  // gateway tier 1
-  assert.equal(gwPy(`g.preamble_error(open(${JSON.stringify(m64)}, "rb").read())`), null);
+  writeFileSync(c64, syntheticComponent(syntheticModule(0x04)));
+  // gateway tier 1: the wasm64 carve-out is gone, so both core modules are
+  // refused, and the mem64 one is pointed at the component build image
+  const err64 = String(gwPy(`g.preamble_error(open(${JSON.stringify(m64)}, "rb").read())`));
+  assert.match(err64, /core wasm module/);
+  assert.match(err64, /wasm64p2/, "the refusal names the way to build a >4 GiB guest");
   assert.match(String(gwPy(`g.preamble_error(open(${JSON.stringify(m32)}, "rb").read())`)),
                /core wasm module/);
-  // runner's fetch-time check: same split, exception vs pass
+  assert.equal(gwPy(`g.preamble_error(open(${JSON.stringify(c64)}, "rb").read())`), null,
+               "a memory64 COMPONENT is the >4 GiB class and passes");
+  // the runner still LAUNCHES an already-published core module: an immutable
+  // catalog version outlives a change to the publish door, and that arm goes
+  // only once the catalog is confirmed clear of them.
   assert.equal(mgrPy(`m._check_component(open(${JSON.stringify(m64)}, "rb").read()) or True`), true);
   assert.throws(
     () => mgrPy(`m._check_component(open(${JSON.stringify(m32)}, "rb").read())`),
     /core wasm module/);
-  // the gateway's contract dict stamps mem64 for the publish clients
-  const c = gwPy(`g.component_contract(open(${JSON.stringify(m64)}, "rb").read())`);
+  // the gateway's contract dict stamps mem64 from the component
+  const c = gwPy(`g.component_contract(open(${JSON.stringify(c64)}, "rb").read())`);
   assert.equal(c.mem64, true);
-  assert.equal(c.wasi, null, "a p1 core module has no component world");
 });
 
 // ---- 3. launch gates: words, never exit 2 -----------------------------------
@@ -306,6 +314,25 @@ test("an engine that cannot compile the memory64 COMPONENT probe refuses readabl
   assert.match(rec.error, /component-model-memory64/);
 });
 
+test("the advertised mem64 capability requires BOTH probes: a box that cannot run a memory64 COMPONENT does not claim to serve >4 GiB", () => {
+  // the >4 GiB guest class IS a memory64 component, so a box that proved only
+  // plain memory64 would win a claim it cannot launch and queue the
+  // deployment on the wrong host. /health's `mem64` is the AND.
+  const ENGINE_NO_CM64 = `case "$1" in compile) case "$*" in *component-model-memory64*) exit 1;; esac; exit 0;; run) exec sleep 15;; esac; exit 0`;
+  const ENGINE_NO_MEM64 = `case "$1" in compile) exit 1;; run) exec sleep 15;; esac; exit 0`;
+  const advertised = (engine, env = {}) =>
+    mgrPy("m._mem64_advertised()", { WASMTIME_BIN: FAKE(engine), ...env });
+  assert.equal(advertised(ENGINE_OK), true, "an engine that compiles both probes serves the class");
+  assert.equal(advertised(ENGINE_NO_CM64), false, "component-model memory64 missing: do not advertise");
+  assert.equal(advertised(ENGINE_NO_MEM64), false, "memory64 missing: do not advertise");
+  // the operator switch still overrides a fully capable engine
+  assert.equal(advertised(ENGINE_OK, { WASM_MEM64: "0" }), false, "WASM_MEM64=0 wins");
+  // and the launch-time helper stays SEPARATE: it must not fold cm64 in, or
+  // the two refusals (plain memory64 vs component memory64) collapse into one
+  assert.equal(mgrPy("m._mem64_active()", { WASMTIME_BIN: FAKE(ENGINE_NO_CM64) }), true,
+    "_mem64_active is the plain-memory64 answer; the component probe is the advertisement's job");
+});
+
 test("a memory64 core nested in a composed component (wasm32 proxy in front) is mem64 for every classifier", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cm64nest-"));
   const c = path.join(dir, "composed.wasm"), c32 = path.join(dir, "composed32.wasm");
@@ -339,43 +366,32 @@ test("a memory64 core nested in a composed component (wasm32 proxy in front) is 
 // of a component. The runner has always split them (_needs_mem64 vs
 // _needs_cm64); the CLI and the site now do too, through mem64Class.
 
-// The CLI and site copies of mem64Class, extracted from their sources.
-function classifiers() {
-  const cli = readFileSync(path.join(REPO, "cli", "enclave.mjs"), "utf8");
-  const cliSrc = cli.slice(cli.indexOf("function moduleMem64("), cli.indexOf("function componentContract("));
-  const c = new Function("Buffer", cliSrc + "; return mem64Class;")(Buffer);
+// The site's own validateWasm, extracted and run against real File objects.
+// Its only free names are the error class and the size ceiling.
+function siteValidateWasm() {
   const site = readFileSync(path.join(REPO, "site", "js", "pages", "apps.js"), "utf8");
-  const s0 = site.indexOf("function moduleMem64("), s1 = site.indexOf("function mem64Class(");
-  const siteSrc = site.slice(s0, site.indexOf("\n}\n", s1) + 3);
-  const w = new Function(siteSrc + "; return mem64Class;")();
-  return { cli: (b) => c(b), site: (b) => w(new Uint8Array(b)) };
+  const i = site.indexOf("async function validateWasm(");
+  const src = site.slice(i, site.indexOf("\n}\n", i) + 3);
+  return new Function("EnclaveError", "MAX_WASM_BYTES", "MAX_WASM_MB",
+    src + "; return validateWasm;")(
+      class extends Error {}, 100 * 1048576, 100);
 }
 
-test("mem64Class separates the compute-guest MODULE from the port-serving COMPONENT, in both publish clients", () => {
-  const { cli, site } = classifiers();
-  const cases = [
-    ["wasm64 core module",        syntheticModule(0x04),                                        "module"],
-    ["wasm32 core module",        syntheticModule(0x00),                                        ""],
-    ["memory64 component",        syntheticComponent(syntheticModule(0x04)),                    "component"],
-    ["wasm32 component",          syntheticComponent(syntheticModule(0x00)),                    ""],
-    // the shape wasm64 actually ships in: a wasm32 proxy in front, the
-    // 64-bit core nested behind it
-    ["proxied memory64 component", composedComponent(syntheticComponent(syntheticModule(0x04)), syntheticModule(0x00)), "component"],
-  ];
-  for (const [what, bytes, want] of cases) {
-    assert.equal(cli(bytes), want, `CLI: ${what}`);
-    assert.equal(site(bytes), want, `site: ${what}`);
-  }
-});
-
-test("publishing a memory64 COMPONENT with ports is not refused as a compute guest; a wasm64 MODULE with ports still is", () => {
+test("both publish clients refuse a core module outright and take a memory64 component", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "m64pub-"));
   const comp = path.join(dir, "c64.wasm"), mod = path.join(dir, "m64.wasm");
   writeFileSync(comp, syntheticComponent(syntheticModule(0x04)));
   writeFileSync(mod, syntheticModule(0x04));
+
+  // the site, before it ever uploads
+  const validate = siteValidateWasm();
+  assert.equal(await validate(new File([readFileSync(comp)], "c64.wasm")), true);
+  await assert.rejects(() => validate(new File([readFileSync(mod)], "m64.wasm")),
+    /core wasm module/, "a wasm64 core module no longer slips through as a compute guest");
+
+  // the CLI, through the real publish path: cmdPublish classifies and applies
+  // this rule before it touches a wallet or an RPC
   const CLI = path.join(REPO, "cli", "enclave.mjs");
-  // cmdPublish classifies and applies this rule before it touches a wallet or
-  // an RPC, so the refusal (or its absence) is reachable with no chain at all
   const publish = (wasm) => {
     try {
       execFileSync(process.execPath, [CLI, "publish", wasm, "--slug", "m64test",
@@ -384,9 +400,10 @@ test("publishing a memory64 COMPONENT with ports is not refused as a compute gue
       return "";
     } catch (e) { return `${e.stdout || ""}${e.stderr || ""}${e.message || ""}`; }
   };
-  const modOut = publish(mod);
-  assert.match(modOut, /compute guests/, "a wasm64 core module with ports must still be refused");
+  assert.match(publish(mod), /core wasm module/, "a wasm64 core module is refused at publish");
+  // and a memory64 component with ports is ordinary: no compute-guest words,
+  // no port rule, it fails later on the missing key like any other publish
   const compOut = publish(comp);
-  assert.doesNotMatch(compOut, /compute guests/,
-    `a memory64 component keeps its ports; got: ${compOut.slice(0, 400)}`);
+  assert.doesNotMatch(compOut, /compute guest/, `got: ${compOut.slice(0, 300)}`);
+  assert.doesNotMatch(compOut, /core wasm module/, `got: ${compOut.slice(0, 300)}`);
 });

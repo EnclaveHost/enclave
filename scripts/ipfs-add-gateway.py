@@ -83,19 +83,20 @@ JSON_RL_PER_HR  = int(os.environ.get("ADDJSON_PER_IP_HOURLY", "60"))  # /add-jso
 
 def preamble_error(b: bytes):
     """Tier 1: return an error string if the bytes aren't a wasm component,
-    else None. One core-module class is admitted: wasm64 (a 64-bit linear
-    memory — the >4 GiB guests), which the runner launches portless as a
-    COMPUTE guest under `wasmtime run` (preview1 has no socket surface).
-    Keep in lockstep with wasm_manager._check_component."""
+    else None. Components only, with no exceptions: the wasm64 core-module
+    carve-out is gone. A guest that needs more than 4 GiB is a memory64
+    COMPONENT now (wasm/Dockerfile.wasm64p2-build builds one from C or
+    Rust), which keeps the whole socket/HTTP surface that a preview1 module
+    never had. Keep in lockstep with wasm_manager._check_component."""
     if len(b) < 8:
         return "too small to be a WebAssembly module"
     if b[0:4] != b"\x00asm":
         return "not a WebAssembly file (missing the \\0asm magic bytes)"
     layer = b[6] | (b[7] << 8)   # preamble after magic is version:u16 + layer:u16
     if layer == 0:
-        if module_mem64(b):
-            return None
-        return "this is a core wasm module, but Enclave runs wasi:http components"
+        return ("this is a core wasm module, but Enclave runs components. "
+                "For a guest that addresses more than 4 GiB, build a memory64 "
+                "COMPONENT with wasm/Dockerfile.wasm64p2-build")
     if layer != 1:
         return "unrecognized wasm layer %d — expected a component" % layer
     return None
@@ -215,17 +216,12 @@ def component_contract(data: bytes):
     # wasi: strings below). Publish paths stamp it as `threads: true`.
     # `set`: the shared-everything-threads (⚡) marker — set-componentize wires
     # the spawn canon under `[set-spawn-indirect]`. Independent of `threads`.
-    # `mem64`: a 64-bit linear memory, in EITHER of its two classes — a wasm64
-    # CORE module (admitted by preamble_error's one core-module carve-out; a
-    # preview1 compute guest that can never serve a port) or a memory64
-    # COMPONENT (a wasip2 app that addresses more than 4 GiB and keeps its
-    # ports). One routing key, because both need an engine that can parse a
-    # 64-bit memory; the port rule belongs to the module class alone and lives
-    # in the publish clients' mem64Class and the runner's _needs_mem64.
-    # Publish paths stamp it as `mem64: true`.
+    # `mem64`: a memory64 COMPONENT — a wasip2 app on a 64-bit linear memory,
+    # the only >4 GiB guest class. Publish paths stamp it as `mem64: true` so
+    # claim routing keeps it on engines that can run one.
     out = {"wasi": None, "world": None, "threads": b"[thread-" in data,
            "set": b"[set-spawn-indirect]" in data,
-           "mem64": module_mem64(data) or component_mem64(data)}
+           "mem64": component_mem64(data)}
     if len(data) < 8 or data[0:4] != b"\x00asm" or (data[6] | (data[7] << 8)) != 1:
         return out
     exports = set()
