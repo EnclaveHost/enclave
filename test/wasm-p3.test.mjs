@@ -256,17 +256,18 @@ test("the gateway's Python twin agrees with the runner's classifier", () => {
   writeFileSync(p3, syntheticComponent("wasi:http/handler@0.3.0-rc-2026-03-15"));
   for (const file of [path.join(FIXTURES, "egress-guest-http.wasm"), path.join(FIXTURES, "egress-guest-tcp.wasm"), p3]) {
     // the gateway's dict additionally carries `threads` (coop-thread marker),
-    // `set` (shared-everything-threads marker) and `mem64` (the wasm64
-    // memory-section sniff); the runner keeps those answers in
-    // _needs_coop_threads / _needs_set_threads / _needs_mem64. Lockstep now
-    // means: contract keys agree, AND each gateway marker matches the
-    // runner's sniff for the same bytes.
+    // `set` (shared-everything-threads marker) and `mem64` (the memory64
+    // COMPONENT sniff — a core module never gets this far, the door refuses
+    // it); the runner keeps those answers in _needs_coop_threads /
+    // _needs_set_threads / _needs_cm64. Lockstep now means: contract keys
+    // agree, AND each gateway marker matches the runner's sniff for the
+    // same bytes.
     const gw = classifyPy(file, "gateway");
     const { threads, set, mem64, ...contract } = gw;
     assert.deepEqual(contract, classifyPy(file, "manager"), path.basename(file));
     assert.equal(threads, sniffPy(file), path.basename(file) + " threads sniff");
     assert.equal(set, sniffPy(file, "_needs_set_threads"), path.basename(file) + " set sniff");
-    assert.equal(mem64, sniffPy(file, "_needs_mem64"), path.basename(file) + " mem64 sniff");
+    assert.equal(mem64, sniffPy(file, "_needs_cm64"), path.basename(file) + " mem64 sniff");
   }
 });
 

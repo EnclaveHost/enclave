@@ -517,18 +517,15 @@ def _load_catalog() -> dict:
 def _check_component(data: bytes):
     """Reject anything that isn't runnable before we try to run it (same
     preamble check as the upload gateway; gives a clear error vs a wasmtime
-    crash). Layer field: 0 = core module, 1 = component. Components pass;
-    the ONE core-module class that passes is wasm64 (a 64-bit linear
-    memory, the >4 GiB story) — those run portless as COMPUTE guests under
-    `wasmtime run`, which speaks preview1 to core modules natively. A wasm32
-    core module keeps the historical refusal: nothing on the platform runs
-    it."""
+    crash). Layer field: 0 = core module, 1 = component. Components pass and
+    core modules do not, with no exceptions: the wasm64 carve-out is gone
+    now that a >4 GiB guest is a memory64 COMPONENT (built by
+    wasm/Dockerfile.wasm64p2-build), which keeps the whole socket/HTTP
+    surface a preview1 module never had."""
     if len(data) < 8 or data[0:4] != b"\x00asm":
         raise ValueError("fetched bytes are not a WebAssembly file")
     layer = data[6] | (data[7] << 8)
     if layer == 0:
-        if _module_mem64(data):
-            return
         raise ValueError("fetched a core wasm module, not a wasi:http component")
     if layer != 1:
         raise ValueError(f"unrecognized wasm layer {layer} (expected a component)")
@@ -4030,20 +4027,26 @@ def _set_flags(needs_set) -> list:
 
 
 # wasm64 / memory64: 64-bit linear memory, the only guest class allowed past
-# the 4 GiB line. A wasm64 guest is a preview1 CORE MODULE (layer 0), not a
-# component — there is no memory64 component toolchain — built by
-# Dockerfile.wasm64c-build: clang --target=wasm64-wasip1 against the
-# enclave-patched wasi-libc whose bottom half marshals the wasm32 preview1
-# ABI (see wasm/wasi-libc-mem64.patch). It is a COMPUTE guest, run portless
-# under `wasmtime run` with no socket surface (_build_cmd's mem64 arm):
-# preview1 has no socket API on this engine, so its interface is /data,
-# volumes, config and stdio — the big-heap batch/dataset class.
+# the 4 GiB line. It is a COMPONENT (layer 1) whose main core module carries
+# a 64-bit memory — an ordinary wasip2 app with ports, sockets and HTTP that
+# happens to address more than 4 GiB — built by Dockerfile.wasm64p2-build
+# from C or Rust. Nothing about launch changes for it except the engine's
+# two memory64 switches and the ceiling lift.
 #
-# No launch flag is armed for it ON PURPOSE: memory64 is default-enabled in
-# the pinned engine (proven by the probe below, which compiles the construct
-# with NO flags), and the exit-2 doctrine says a flag that is not needed is a
-# flag that is not passed. If a future engine flips the default off, the
-# probe fails and mem64 guests are refused readably — the repin re-proves it.
+# It used to be a preview1 CORE MODULE instead (clang --target=wasm64-wasip1
+# against the marshalling wasi-libc in wasm/wasi-libc-mem64.patch, which the
+# component build still applies), because no memory64 component toolchain
+# existed anywhere. That class could only ever be a portless compute guest —
+# preview1 has no socket surface on this engine — and it is gone: the door
+# refuses every core module now, and a >4 GiB guest gets the full surface.
+#
+# TWO probes, because the class needs two engine features. Plain memory64 is
+# default-enabled in the pinned engine, proven below by compiling the
+# construct with NO flags (the exit-2 doctrine: a flag that is not needed is
+# a flag that is not passed). The component-model half is NOT default-on and
+# is passed explicitly; _cm64_supported probes it. _mem64_advertised is the
+# AND — what /health claims — while launch keeps the two failures apart so
+# each says what actually went wrong.
 _MEM64_ENV_ENABLED = os.environ.get("WASM_MEM64", "1").lower() not in ("0", "false", "no")
 _MEM64_FLAG = None     # None = not probed yet; True/False = the binary's answer
 
@@ -4217,16 +4220,6 @@ def _needs_cm64(wasm) -> bool:
         return False
 
 
-def _needs_mem64(wasm) -> bool:
-    """Is this a wasm64 core module? Same launch-time-truth doctrine as the
-    thread sniffs, but structural: the memory section's limits flag, not a
-    marker string (see _module_mem64)."""
-    try:
-        return _module_mem64(pathlib.Path(wasm).read_bytes())
-    except OSError:
-        return False
-
-
 _SERVE_HELP = None
 
 
@@ -4253,7 +4246,7 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
                nn=False, enclave_config=None, vol_mounts=None, egress=None, egress_transparent=None,
                enc=None, gpu_share: float = 0.0, nn_report=None, secrets=None,
                cpu_share: float = 0.0, nn_resident_other: int = 0, hosts="", wasi_contract=None,
-               threads=False, set_threads=False, cfgdir=None, mem64=False,
+               threads=False, set_threads=False, cfgdir=None,
                shielded_vram_gb: float = 0.0, cm64=False):
     """The wasmtime invocation for a ports spec. Returns (cmd, host_port, wait_ports).
     `nn_report`, when a dict, is filled with the wasi-nn preload plan:
@@ -4645,13 +4638,6 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
             pass
     # '+'-joined, NOT comma: `-S` eats commas (see _loopback_flag_supported)
     lb_args = ["-S", "loopback-allow=" + "+".join(str(p) for p in sorted(_lb))] if _loopback_flag_supported() else []
-    if mem64:
-        # wasm64 compute guest (see the docstring): no listener, no sockets,
-        # no ENCLAVE_PORTS — and no p3/thread flags either, those are
-        # component surfaces a core module cannot import. Readiness is the
-        # udp-only shape: no waitable port, alive after the grace = running.
-        return ([WASMTIME, "run", "-Scli", *nn_args, *fs_args, *cfg_args, *vol_args,
-                 "-W", f"max-memory-size={mem_bytes}", str(wasm)], 0, [])
     # A memory64 COMPONENT runs exactly like any other component, plus the
     # engine's two memory64 switches: `memory64` (default-on in the 49 pin,
     # stated anyway) and `component-model-memory64`, which the engine
@@ -4887,33 +4873,18 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
     # legacy p1 socket surface is deleted; probed), so a version that
     # declared ports promises an interface the guest cannot provide and its
     # launch would sit waiting for a bind that never comes. Refuse that in
-    # words; the portless shape runs via _build_cmd's mem64 arm (no
-    # listener, no socket grants, udp-style readiness). (b) it is the ONE
     # class whose memory ceiling is its full RAM slice rather than the
     # wasm32 4 GiB clamp — that lift happens HERE, after the bytes proved
     # the 64-bit memory and before the RAM-budget admission reads
     # rec["mem_mb"], so what the ledger charges is what the guest gets.
-    needs_mem64 = _needs_mem64(wasm)
-    # A memory64 COMPONENT (wasip2 app on a 64-bit memory) shares the
-    # capability key and the ceiling lift, but none of the compute-guest
-    # restrictions: it is a normal run/serve app that happens to address
-    # more than 4 GiB. Recorded under the same `mem64` routing key so only
-    # mem64-capable engines claim it.
-    needs_cm64 = (not needs_mem64) and _needs_cm64(wasm)
-    rec["mem64"] = needs_mem64 or needs_cm64
+    needs_cm64 = _needs_cm64(wasm)
+    rec["mem64"] = needs_cm64
     rec["cm64"] = needs_cm64
-    if needs_mem64 and not pspec["serve"]:
-        rec["status"] = "failed"
-        rec["error"] = ("wasm64 apps are compute guests: preview1 has no socket "
-                        "surface on this engine, so declared tcp:/udp: ports can "
-                        "never be served — publish the version without ports "
-                        "(it gets /data, volumes, config and stdio)")
-        return rec
-    if (needs_mem64 or needs_cm64) and not _mem64_active():
+    if needs_cm64 and not _mem64_active():
         why = ("WASM_MEM64=0 (operator switch)" if not _MEM64_ENV_ENABLED
-               else "this wasmtime cannot run memory64 modules")
+               else "this wasmtime cannot run memory64")
         rec["status"] = "failed"
-        rec["error"] = (f"app is a wasm64 (memory64) {'component' if needs_cm64 else 'module'} but this box cannot "
+        rec["error"] = (f"app is a memory64 component but this box cannot "
                         f"serve it ({why}); a mem64-capable enclave must claim it")
         return rec
     if needs_cm64 and not _cm64_supported():
@@ -4921,7 +4892,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
         rec["error"] = ("app is a memory64 component but this wasmtime cannot run a 64-bit "
                         "canonical memory (no component-model-memory64); a newer engine must claim it")
         return rec
-    if (needs_mem64 or needs_cm64) and mem_mb_raw > rec["mem_mb"]:
+    if needs_cm64 and mem_mb_raw > rec["mem_mb"]:
         rec["mem_mb"] = mem_mb_raw
 
     # per-deployment config: the JSON the guest receives as ENCLAVE_CONFIG. The
@@ -5124,7 +5095,7 @@ def launch(app_ref: str, name: str, cpu_share: float, gpu_share: float = 0.0,
            "nn": nn, "enclave_config": enclave_config, "vol_mounts": vol_mounts, "gpu_share": gpu_share,
            "log_path": log_path, "egress": egress, "enc": enc, "secrets": secrets,
            "hosts": _validate_hosts(hosts), "wasi": contract["wasi"],
-           "threads": needs_threads, "set": needs_set, "mem64": needs_mem64,
+           "threads": needs_threads, "set": needs_set,
            "cm64": needs_cm64}
     return _spawn_and_wait(rec, ctx)
 
@@ -5277,7 +5248,6 @@ def _spawn_and_wait(rec, ctx):
                                                 threads=ctx.get("threads", False),
                                                 set_threads=ctx.get("set", False),
                                                 cfgdir=rec.get("_cfgdir"),
-                                                mem64=ctx.get("mem64", False),
                                                 cm64=ctx.get("cm64", False))
     except ValueError as e:
         rec["status"], rec["error"] = "failed", str(e)

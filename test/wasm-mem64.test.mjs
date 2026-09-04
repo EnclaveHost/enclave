@@ -133,19 +133,28 @@ test("the memory section's 64-bit flag decides, min-only and min+max alike", () 
   for (const [flags, want] of [[0x00, false], [0x01, false], [0x04, true], [0x05, true]]) {
     const f = path.join(dir, `m${flags}.wasm`);
     writeFileSync(f, syntheticModule(flags));
+    // the module sniff is the primitive every classifier is built on. It is
+    // applied to a COMPONENT's inner core modules now, never to a published
+    // artifact of its own: core modules are refused at the door.
     assert.equal(
-      mgrPy(`m._needs_mem64(pathlib.Path(${JSON.stringify(f)}))`), want,
+      mgrPy(`m._module_mem64(open(${JSON.stringify(f)}, "rb").read())`), want,
       `runner: flags 0x${flags.toString(16)}`);
     assert.equal(
       gwPy(`g.module_mem64(open(${JSON.stringify(f)}, "rb").read())`), want,
       `gateway: flags 0x${flags.toString(16)}`);
+    // and the component classifier says the same of a component wrapping it
+    const c = path.join(dir, `c${flags}.wasm`);
+    writeFileSync(c, syntheticComponent(syntheticModule(flags)));
+    assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c)}))`), want,
+      `runner, wrapped: flags 0x${flags.toString(16)}`);
   }
 });
 
-test("components and junk are never mem64 — only a layer-0 memory section counts", () => {
-  // a real wasip2 COMPONENT (its nested core memories are its own business)
+test("the MODULE sniff is layer-0 only: components and junk are never mem64 by it", () => {
+  // a real wasip2 COMPONENT — its nested core memories are the component
+  // classifier's business, not this one's
   const comp = path.join(FIXTURES, "egress-guest-tcp.wasm");
-  assert.equal(mgrPy(`m._needs_mem64(pathlib.Path(${JSON.stringify(comp)}))`), false);
+  assert.equal(mgrPy(`m._module_mem64(open(${JSON.stringify(comp)}, "rb").read())`), false);
   assert.equal(gwPy(`g.module_mem64(open(${JSON.stringify(comp)}, "rb").read())`), false);
   assert.equal(mgrPy(`m._module_mem64(b"junk")`), false);
   assert.equal(gwPy(`g.module_mem64(b"\\x00asm\\x01\\x00\\x00\\x00")`), false, "no memory section");
@@ -169,13 +178,11 @@ test("components only at the door: a core module is refused whether or not it is
                /core wasm module/);
   assert.equal(gwPy(`g.preamble_error(open(${JSON.stringify(c64)}, "rb").read())`), null,
                "a memory64 COMPONENT is the >4 GiB class and passes");
-  // the runner still LAUNCHES an already-published core module: an immutable
-  // catalog version outlives a change to the publish door, and that arm goes
-  // only once the catalog is confirmed clear of them.
-  assert.equal(mgrPy(`m._check_component(open(${JSON.stringify(m64)}, "rb").read()) or True`), true);
-  assert.throws(
-    () => mgrPy(`m._check_component(open(${JSON.stringify(m32)}, "rb").read())`),
-    /core wasm module/);
+  // the runner's fetch-time check agrees: no core module runs here, mem64 or
+  // not (the catalog was audited clear of the old class before this landed)
+  for (const mod of [m64, m32])
+    assert.throws(() => mgrPy(`m._check_component(open(${JSON.stringify(mod)}, "rb").read())`),
+                  /core wasm module/);
   // the gateway's contract dict stamps mem64 from the component
   const c = gwPy(`g.component_contract(open(${JSON.stringify(c64)}, "rb").read())`);
   assert.equal(c.mem64, true);
@@ -183,23 +190,11 @@ test("components only at the door: a core module is refused whether or not it is
 
 // ---- 3. launch gates: words, never exit 2 -----------------------------------
 
-test("a port-declaring mem64 app fails at launch with the compute-guest words", () => {
-  // preview1 has no socket surface on the engine — declared ports would wait
-  // for a bind that can never come, so the refusal happens up front
-  const dir = mkdtempSync(path.join(tmpdir(), "m64prt-"));
-  const f = path.join(dir, "m64.wasm");
-  writeFileSync(f, syntheticModule(0x04));
-  const rec = launchPy(f, { ports: ["tcp:9000"],
-    env: { WASMTIME_BIN: FAKE(ENGINE_OK), WASM_APPS_DIR: dir, WASM_FS: "0" } });
-  assert.equal(rec.status, "failed");
-  assert.match(rec.error, /compute guests/);
-});
-
 test("an engine that cannot compile memory64 refuses mem64 guests readably", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "m64no-"));
-  const f = path.join(dir, "m64.wasm");
-  writeFileSync(f, syntheticModule(0x04));
-  const rec = launchPy(f, {
+  const f = path.join(dir, "c64.wasm");
+  writeFileSync(f, syntheticComponent(syntheticModule(0x04)));
+  const rec = launchPy(f, { ports: ["udp:9000"],
     env: { WASMTIME_BIN: FAKE(ENGINE_NO64), WASM_APPS_DIR: dir, WASM_FS: "0" } });
   assert.equal(rec.status, "failed");
   assert.match(rec.error, /mem64-capable enclave must claim it/);
@@ -207,46 +202,27 @@ test("an engine that cannot compile memory64 refuses mem64 guests readably", () 
 
 test("WASM_MEM64=0 is an operator kill-switch with its own words", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "m64off-"));
-  const f = path.join(dir, "m64.wasm");
-  writeFileSync(f, syntheticModule(0x04));
-  const rec = launchPy(f, {
+  const f = path.join(dir, "c64.wasm");
+  writeFileSync(f, syntheticComponent(syntheticModule(0x04)));
+  const rec = launchPy(f, { ports: ["udp:9000"],
     env: { WASMTIME_BIN: FAKE(ENGINE_OK), WASM_APPS_DIR: dir, WASM_FS: "0", WASM_MEM64: "0" } });
   assert.equal(rec.status, "failed");
   assert.match(rec.error, /WASM_MEM64=0 \(operator switch\)/);
 });
 
-test("the mem64 launch shape grants no socket surface and no component flags", () => {
+// ---- 4. no compute-guest shape survives ------------------------------------
+
+test("the portless compute-guest launch shape is gone, parameter and all", () => {
+  // the old wasm64 class had its own arm in _build_cmd: `wasmtime run` with
+  // no listener and no socket grants, because preview1 could not serve one.
+  // A memory64 component is served like any other component, so the arm and
+  // its keyword are gone — passing it must be an error, not a silent mode.
   const pspec = `{"serve": True, "http": None, "tcp": [], "udp": [], "declared": [], "norm": []}`;
-  const [cmd, hostPort, wait] = mgrPy(
-    `m._build_cmd(${pspec}, "/tmp/app.wasm", 0, 1024 * 1024, None, None, mem64=True)`,
-    { WASMTIME_BIN: FAKE(ENGINE_OK) });
-  assert.equal(cmd[1], "run", "wasmtime run, never serve");
-  for (const flag of ["-Stcp", "-Sudp", "-Sinherit-network", "-Sallow-ip-name-lookup", "-Sp3"])
-    assert.ok(!cmd.includes(flag), `${flag} must not be granted — preview1 cannot reach it`);
-  assert.ok(cmd.includes("max-memory-size=1048576"), "the ceiling rides the cmd");
-  assert.equal(hostPort, 0);
-  assert.deepEqual(wait, [], "udp-style readiness: no waitable port");
-});
-
-// ---- 4. the memory ceiling + the compute-guest launch shape -----------------
-
-test("a portless mem64 guest RUNS as a compute guest with its full RAM slice; a component keeps the 4 GiB clamp", () => {
-  // cpuShare 0.5 of the default 64 GB node = 32768 MB — past the wasm32 clamp
-  const dir = mkdtempSync(path.join(tmpdir(), "m64mem-"));
-  const f = path.join(dir, "m64.wasm");
-  writeFileSync(f, syntheticModule(0x04));
-  const env = { WASMTIME_BIN: FAKE(ENGINE_OK), WASM_APPS_DIR: dir, WASM_FS: "0" };
-  const m64 = launchPy(f, { env });
-  assert.equal(m64.mem64, true);
-  assert.equal(m64.status, "running", m64.error || "");
-  assert.equal(m64.mem_mb, 32768, "the clamp lifts to the deployment's slice");
-  // the wasm32 control: a real component through the same launch keeps 4096
-  // (copied into the apps dir — _resolve_wasm only serves paths under it)
-  const compPath = path.join(dir, "comp.wasm");
-  copyFileSync(path.join(FIXTURES, "egress-guest-tcp.wasm"), compPath);
-  const comp = launchPy(compPath, { ports: ["udp:9000"], env });
-  assert.equal(comp.mem64, false);
-  assert.equal(comp.mem_mb, 4096, "wasm32 guests keep the historical ceiling");
+  assert.throws(
+    () => mgrPy(`m._build_cmd(${pspec}, "/tmp/app.wasm", 0, 1048576, None, None, mem64=True)`,
+                { WASMTIME_BIN: FAKE(ENGINE_OK) }),
+    /mem64/,
+    "the compute-guest arm must not survive as an accepted keyword");
 });
 
 // ---- 5. memory64 COMPONENTS: the run-mode shape wasm64 ships in ------------
@@ -264,8 +240,8 @@ test("a memory64 component is mem64 for every classifier; a wasm32 one is not", 
   writeFileSync(c32, syntheticComponent(syntheticModule(0x00)));
   assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c64)}))`), true);
   assert.equal(mgrPy(`m._needs_cm64(pathlib.Path(${JSON.stringify(c32)}))`), false);
-  // the core-module classifier must NOT fire on a component
-  assert.equal(mgrPy(`m._needs_mem64(pathlib.Path(${JSON.stringify(c64)}))`), false);
+  // the MODULE sniff must not fire on a component's own bytes
+  assert.equal(mgrPy(`m._module_mem64(open(${JSON.stringify(c64)}, "rb").read())`), false);
   assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c64)}, "rb").read())`), true);
   assert.equal(gwPy(`g.component_mem64(open(${JSON.stringify(c32)}, "rb").read())`), false);
   // the gateway's contract dict stamps mem64 for the publish clients
