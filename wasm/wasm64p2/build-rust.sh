@@ -77,8 +77,9 @@ RUSTFLAGS="-C link-arg=--skip-wit-component ${RUSTFLAGS:-}" \
     --config "patch.crates-io.getrandom4.package='getrandom'" \
     "$@"
 
-CORE="$(ls -t target/wasm64-wasip2/release/*.wasm 2>/dev/null | head -1)"
-[ -n "$CORE" ] || { echo "[w64] no core module under target/wasm64-wasip2/release"; exit 1; }
+TD="${CARGO_TARGET_DIR:-target}"
+CORE="$(ls -t "$TD"/wasm64-wasip2/release/*.wasm 2>/dev/null | head -1)"
+[ -n "$CORE" ] || { echo "[w64] no core module under $TD/wasm64-wasip2/release"; exit 1; }
 
 echo "[w64] encoding the component"
 TMP="$(mktemp -d)"
