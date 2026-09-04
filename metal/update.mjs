@@ -29,17 +29,29 @@
    an immediate provision failure, so the gate also refuses an image that took
    a tenant and dropped it.
 
-   IDLE POLICY. A restart costs a tenant a relaunch AND costs the app-zone
-   hostname a fresh ACME issuance (the guest is initramfs-only; nothing
-   persists). Let's Encrypt allows 5 per 168h per name, so an updater that
-   restarts on every merge would burn a week's budget in an afternoon and take
-   the app down doing it. Default is therefore to wait for the box to be idle,
-   with a ceiling: after `maxDeferSec` the update goes ahead anyway, because a
-   box that is never idle must not fall permanently behind.
+   IDLE POLICY (off by default since 2026-09-04). A restart does cost the
+   app-zone hostname a fresh ACME issuance — the guest is initramfs-only, so
+   nothing survives, and that is intended. It used to be rationed: Let's
+   Encrypt allows 5 duplicates per 168h per name, and an updater restarting on
+   every merge would spend a week's budget in an afternoon. That premise died
+   a month later. App-zone names now go to the PLATFORM CERTIFICATE SERVICE
+   (supervisor slot 0, CERTS_API, which the launcher derives from relayUrl):
+   the relay orders from ZeroSSL under the platform EAB with Let's Encrypt
+   only behind it, and paces LE centrally for the whole fleet. A restart
+   therefore spends a ZeroSSL order, which carries no such weekly duplicate
+   limit — so certificates are no longer a reason to postpone a release.
+
+   What a restart still costs is the tenant relaunch, which is seconds and
+   visible, against a box that would otherwise sit on an old release: this
+   one waited hours to take the fix its own operator was waiting for. So the
+   default is to update as soon as a release exists. A box that would rather
+   wait for idle opts in with `autoUpdate.onlyWhenIdle: true`, and keeps the
+   `maxDeferSec` ceiling so it cannot fall behind forever.
 
    Usage:  node metal/update.mjs [--check] [--force] [--config metal/config.json]
      --check  print the verdict as JSON and exit; changes nothing
-     --force  ignore the idle policy (still health-gated, still rolls back)
+     --force  ignore the idle policy when one is configured (still
+              health-gated, still rolls back)
 */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -101,7 +113,7 @@ export const tagNewer = (a, b) => tagCmp(a, b) < 0;
      halted       a previous update failed and rolled back; a human must clear it
    Returns { act: "update" | "defer" | "skip", why }. */
 export function updateVerdict({ current, latest, running = 0, deferredSince = null, now = Date.now(),
-                                onlyWhenIdle = true, maxDeferSec = 6 * 3600, halted = false } = {}) {
+                                onlyWhenIdle = false, maxDeferSec = 6 * 3600, halted = false } = {}) {
   if (halted) return { act: 'skip', why: 'a previous update failed its health gate and was rolled back; clear the halt marker after fixing the cause' };
   if (!latest) return { act: 'skip', why: 'no published release found for this flavor' };
   if (current && !tagNewer(current, latest)) return { act: 'skip', why: `already on ${current}` };
@@ -227,7 +239,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const v = updateVerdict({
     current, latest, running,
     deferredSince: state.deferredSince || null,
-    onlyWhenIdle: AU.onlyWhenIdle !== false,
+    onlyWhenIdle: AU.onlyWhenIdle === true,   // opt-in: see IDLE POLICY above
     maxDeferSec: Number(AU.maxDeferSec || 6 * 3600),
     halted: fs.existsSync(MARKER),
   });

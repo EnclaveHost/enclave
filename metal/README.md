@@ -63,12 +63,19 @@ did not know a flag that build passes unconditionally, every tenant died at
 spawn, and the box handed back the lease it had just resumed. An unattended
 updater without this gate would have done that at 3am and left it there.
 
-**It waits for idle by default.** A restart relaunches every tenant AND costs
-one ACME issuance per app-zone hostname the box serves — the guest is
-initramfs-only, so no certificate survives it, and Let's Encrypt allows 5 per
-168h per name. Updating on every merge would spend a week's budget in an
-afternoon. `maxDeferSec` (6h) caps the wait so a permanently busy box still
-takes fixes.
+**It updates as soon as a release exists.** A restart relaunches every tenant
+and re-issues every app-zone certificate — the guest is initramfs-only, so
+nothing survives, and that is intended. Until 2026-09-04 the default waited
+for the box to be idle, because those issuances were rationed: Let's Encrypt
+allows 5 duplicates per 168h per name. App-zone names now go to the platform
+certificate service instead (`CERTS_API`, derived from `relayUrl`), which
+orders from ZeroSSL under the platform EAB and keeps Let's Encrypt behind it,
+paced centrally — so a restart no longer spends anything scarce, and a box
+should not sit on an old release for a reason that expired.
+
+A box that would rather wait for a quiet moment sets
+`autoUpdate: { "onlyWhenIdle": true }`; `maxDeferSec` (6h) then caps the wait
+so a permanently busy box still takes fixes.
 
 Note the measurement changes with the image, by design. While the relay's
 `METAL_ALLOWED_MEASUREMENTS` allowlist is empty (token-only attach) that costs
@@ -349,9 +356,10 @@ reorder, the per-box EAB pair is the fallback until the last step):
    falls back to its in-guest client, so nothing changes yet.
 2. **Release the supervisor** (push to main): boxes that pick it up try
    `CERTS_API` first and fall back to their own ACME slots on 503/unreachable.
-3. **Boxes restart on their schedule** (the metal auto-update timer waits for
-   idle; the hosted fleet repoints on release). Watch the relay log for
-   `certs: issued` lines per flavor.
+3. **Boxes restart on their schedule** (the metal auto-update timer takes the
+   release when it appears, unless the box opted into `onlyWhenIdle`; the
+   hosted fleet repoints on release). Watch the relay log for `certs: issued`
+   lines per flavor.
 4. **Remove the per-box EAB pair**: delete `acmeEabKid`/`acmeEabHmac` from every
    first-party `metal/config.json`, and drop `ACME_EAB_KID`/`ACME_EAB_HMAC` from
    `enclaves/*/tinfoil-config.yml` (Tinfoil binds secrets at container

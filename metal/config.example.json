@@ -18,8 +18,8 @@
 
   "_autoUpdate_optional": {
     "_note": "Pull-based release tracking — the self-hosted answer to 'merge to main and the Tinfoil fleet updates'. Enable the timer: cp metal/systemd/enclave-metal-update.* ~/.config/systemd/user/ && systemctl --user enable --now enclave-metal-update.timer",
-    "_onlyWhenIdle": "true (default) waits for the box to have no tenants before restarting: a restart relaunches every tenant AND costs one ACME issuance per app-zone hostname (initramfs guest, nothing persists; Let's Encrypt allows 5 per 168h per name)",
-    "onlyWhenIdle": true,
+    "_onlyWhenIdle": "false (default since 2026-09-04): take a release as soon as it exists. Set true to wait for the box to have no tenants first. A restart relaunches every tenant and re-issues every app-zone certificate (initramfs guest, nothing persists) — that used to be rationed against Let's Encrypt's 5 duplicates per 168h per name, but app-zone names go to the platform certificate service now (ZeroSSL under the platform EAB, LE only behind it, paced centrally), so it costs nothing scarce",
+    "onlyWhenIdle": false,
     "_maxDeferSec": "ceiling on that wait — a box that always has a tenant must not fall permanently behind. Default 21600 (6h)",
     "maxDeferSec": 21600,
     "_healthGraceSec": "how long the new image gets to come back healthy before it is rolled back and updates halt. Default 300",
