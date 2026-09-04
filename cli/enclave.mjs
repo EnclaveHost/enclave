@@ -2091,21 +2091,6 @@ function componentMem64(bytes) {
   return false;
 }
 
-// Which memory64 class is this binary, if any? "" | "module" | "component".
-// The two share the `mem64` routing key (both need an engine that can parse a
-// 64-bit memory, both get the deployment's full RAM slice) but NOT the port
-// rule: a wasm64 CORE MODULE is a preview1 compute guest with no socket
-// surface, while a memory64 COMPONENT is an ordinary wasip2 app that happens
-// to address more than 4 GiB and keeps ports, sockets and HTTP. Mirrors the
-// runner's _needs_mem64 / _needs_cm64 split and the site's mem64Class.
-function mem64Class(bytes) {
-  if (bytes.length < 8) return "";
-  const layer = bytes[6] | (bytes[7] << 8);
-  if (layer === 0) return moduleMem64(bytes) ? "module" : "";
-  if (layer === 1) return componentMem64(bytes) ? "component" : "";
-  return "";
-}
-
 function componentContract(bytes) {
   const none = { wasi: null, world: null };
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100 || (bytes[6] | (bytes[7] << 8)) !== 1) return none;
@@ -2215,21 +2200,11 @@ async function cmdPublish(rest) {
   if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0x6d736100)
     throw new Error(`${file} is not a wasm binary (bad magic)`);
   const layer = bytes[6] | (bytes[7] << 8);
-  const mem64 = mem64Class(bytes);          // "" | "module" | "component"
-  const needsMem64 = mem64 !== "";
-  if (layer === 0 && !needsMem64) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize), wasm32-wasip3 (see the develop guide's WASIp3 chapter), or wasm64-wasip1 for >4 GiB memory (Dockerfile.wasm64c-build)`);
+  const needsMem64 = layer === 1 && componentMem64(bytes);
+  if (layer === 0) throw new Error(`${file} is a core wasm module, not a component; build for wasm32-wasip2 (cargo component / componentize), wasm32-wasip3 (see the develop guide's WASIp3 chapter), or — for a guest that needs more than 4 GiB — a memory64 COMPONENT with wasm/Dockerfile.wasm64p2-build`);
   if (layer !== 0 && layer !== 1) throw new Error(`${file} has unrecognized wasm layer ${layer} (expected a component)`);
-  if (needsMem64) {
-    say(layer === 0
-      ? "detected wasm64 (memory64): a COMPUTE guest — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp"
-      : "detected a memory64 component: a wasip2 app that addresses more than 4 GiB — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp");
-    // compute guests only: preview1 has no socket surface on the engine, so
-    // a port-declaring wasm64 version promises an interface the guest cannot
-    // provide and every launch would fail waiting for the bind — refuse
-    // HERE, before an immutable catalog slot is spent, with the same words
-    // the runner uses. It gets /data, volumes, config and stdio.
-    if (mem64 === "module" && f.ports) throw new Error("wasm64 MODULES are compute guests: preview1 has no socket surface, so --ports can never be served — publish without --ports (a memory64 wasip2 COMPONENT keeps its ports and is unaffected)");
-  }
+  if (needsMem64)
+    say("detected a memory64 component: a wasip2 app that addresses more than 4 GiB — only mem64-capable enclaves will claim it, and its memory ceiling is the deployment's full RAM slice instead of the 4 GiB wasm32 clamp");
   // world contract, read from the binary (never asked of the publisher): a
   // wasip3 component publishes `wasi: "0.3"` in its version config so runners
   // route claims to p3-capable boxes; the runner re-classifies the bytes at

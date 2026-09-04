@@ -4135,6 +4135,24 @@ def _mem64_active() -> bool:
     return _MEM64_ENV_ENABLED and _mem64_supported()
 
 
+def _mem64_advertised() -> bool:
+    """What /health's `mem64` claims, which is NARROWER than _mem64_active().
+
+    The >4 GiB guest class is a memory64 COMPONENT (a wasip2 app on a 64-bit
+    linear memory), and running one needs the engine's component-model
+    memory64 support on top of plain memory64 — two different engine
+    features, two different probes. A box that proved only the first would
+    advertise `mem64`, win the claim for a component it cannot start, and
+    refuse at launch: the deployment queues on the wrong box instead of
+    landing on a capable one. So the capability the fleet advertises is the
+    AND of both probes.
+
+    Launch keeps the two apart on purpose (a plain-memory64 failure and a
+    component-memory64 failure say different things), so this is the
+    advertisement only."""
+    return _mem64_active() and _cm64_supported()
+
+
 def _component_mem64(data: bytes) -> bool:
     """Is this COMPONENT (layer 1) built on a 64-bit linear memory? Walks the
     component's sections, applies `_module_mem64` to every core module
@@ -6141,11 +6159,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     # does NOT require p3 (SET rides wasip2). Forwarded and
                                     # claim-gated for versions marked `set`.
                                     "set": _set_active(),
-                                    # this box serves wasm64 (memory64) core modules — the
-                                    # >4 GiB guests: the flagless compile probe passed AND
-                                    # WASM_MEM64 not switched off. Forwarded and claim-gated
-                                    # for versions marked `mem64`.
-                                    "mem64": _mem64_active(),
+                                    # this box serves the >4 GiB guest class — memory64
+                                    # components: BOTH the flagless memory64 probe and the
+                                    # component-model memory64 probe passed, AND WASM_MEM64
+                                    # is not switched off. Forwarded and claim-gated for
+                                    # versions marked `mem64` (see _mem64_advertised: the
+                                    # AND is what keeps a component off a box that could
+                                    # only parse a bare 64-bit memory).
+                                    "mem64": _mem64_advertised(),
                                     # catalog rev 7: this box resolves a version's configCid —
                                     # fetching the config from IPFS and accepting it only
                                     # because it re-hashes to the CID the approved record
