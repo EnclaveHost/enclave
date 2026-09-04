@@ -5387,6 +5387,22 @@ def _spawn_and_wait(rec, ctx):
     env = dict(os.environ) if env is None else env
     env["ENCLAVE_AVAILABLE_PARALLELISM"] = str(_available_parallelism_for(cpu_share))
     rec["availableParallelism"] = _available_parallelism_for(cpu_share)
+    # The memory twin of the parallelism hint, and for the same reason: a
+    # guest that sizes a heap, a cache or an emulated machine's RAM has no
+    # way to see its own ceiling. `-W max-memory-size` is enforced by the
+    # engine but invisible from inside — a guest can only discover it by
+    # hitting it, which for a big allocation means dying rather than
+    # adapting. So hand it over: ENCLAVE_MEM_MB is EXACTLY the MiB the
+    # engine will cap this guest's linear memory at (rec["mem_mb"], the
+    # wasm32 clamp or the mem64 lift, whichever applied), so a guest can
+    # size itself to the share the deployer actually bought.
+    #
+    # It is a ceiling, not a budget: everything the guest holds lives under
+    # it, so an app that sizes something to the whole number leaves nothing
+    # for the rest of itself. Apps are expected to subtract their own
+    # working set (RISC Box, for one, subtracts its disk image and
+    # framebuffer before sizing guest RAM).
+    env["ENCLAVE_MEM_MB"] = str(rec["mem_mb"])
     if nn and enclave_config:
         # Recurrent-snapshot depth for speculative rewind (the shim's
         # ENCLAVE_GGML_N_RS_SEQ, read at ggml server-context creation):
