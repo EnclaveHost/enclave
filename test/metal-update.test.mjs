@@ -25,23 +25,29 @@ test("an idle box takes the newest release; a current one does nothing", () => {
   assert.equal(updateVerdict({ current: "v0.5.1-cpu", latest: null, running: 0 }).act, "skip");
 });
 
-test("a busy box defers, but not forever", () => {
-  // Restarting a serving box relaunches its tenant AND burns one ACME issuance
-  // for its hostname (5 per 168h), so the default waits for idle...
+test("a busy box updates by default; deferring is opt-in, and bounded when chosen", () => {
+  // The default USED to wait for idle, to ration Let's Encrypt duplicates (5
+  // per 168h per name) across restarts. App-zone names go to the platform
+  // certificate service now — ZeroSSL under the platform EAB, LE only behind
+  // it and paced centrally — so a restart no longer spends a scarce thing,
+  // and a box must not sit on an old release for a reason that expired.
+  assert.equal(updateVerdict({ current: "v0.5.1-cpu", latest: "v0.5.2-cpu", running: 3 }).act, "update",
+               "tenants alone no longer postpone a release");
+  // an operator who wants the old behaviour asks for it...
   const busy = updateVerdict({ current: "v0.5.1-cpu", latest: "v0.5.2-cpu", running: 1,
-                               deferredSince: 0, now: 1 * HOUR });
+                               onlyWhenIdle: true, deferredSince: 0, now: 1 * HOUR });
   assert.equal(busy.act, "defer");
   assert.match(busy.why, /waiting for idle/);
   // ...with a ceiling, or a box that always has a tenant never takes a fix
   const overdue = updateVerdict({ current: "v0.5.1-cpu", latest: "v0.5.2-cpu", running: 1,
-                                  deferredSince: 0, now: 7 * HOUR });
+                                  onlyWhenIdle: true, deferredSince: 0, now: 7 * HOUR });
   assert.equal(overdue.act, "update");
   assert.match(overdue.why, /updating anyway/);
   // epoch 0 is a real timestamp, not "never deferred" — the ceiling above only
   // fires if the code tests deferredSince against null rather than truthiness
   assert.equal(updateVerdict({ current: "v0.5.1-cpu", latest: "v0.5.2-cpu", running: 1,
-                               deferredSince: null, now: 7 * HOUR }).act, "defer");
-  // an operator who opts out of the idle policy gets the restart immediately
+                               onlyWhenIdle: true, deferredSince: null, now: 7 * HOUR }).act, "defer");
+  // and opting out explicitly is still the same answer as the default
   assert.equal(updateVerdict({ current: "v0.5.1-cpu", latest: "v0.5.2-cpu", running: 3,
                                onlyWhenIdle: false }).act, "update");
 });
