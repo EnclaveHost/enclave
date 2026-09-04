@@ -35,9 +35,58 @@ const sha256File = (p) => { const h = createHash('sha256'); h.update(fs.readFile
 
 function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
 
-const KVER = arg('kver', os.release());
 const KERNEL = arg('kernel', '/boot/vmlinuz-linux');
+// The modules must match the kernel we PACK, not the one this host happens to
+// be RUNNING. On a rolling distro those diverge the moment a kernel package
+// lands and the box has not rebooted: /boot/vmlinuz-linux is already the new
+// kernel while `uname -r` still names the old one, whose /usr/lib/modules tree
+// the upgrade deleted. Taking the version from `uname -r` then points MODROOT
+// at nothing, every module "skips", and the initramfs ships with none —
+// including virtio_net, so the guest boots with NO NETWORK: no relay tunnel,
+// no egress, nothing answering health. That is not hypothetical: it happened
+// on metal0 on 2026-09-04 (host running 7.1.6, /usr/lib/modules holding only
+// 7.2.2) and only the updater's health gate and rollback saved the box.
+//
+// Distros keep the kernel image beside its own modules (Arch and Fedora both
+// ship /usr/lib/modules/<ver>/vmlinuz), so the honest answer is: whichever
+// module tree holds a byte-identical copy of the kernel we are about to pack.
+function kverOfKernel(kernelPath) {
+  let want;
+  try { want = fs.readFileSync(kernelPath); } catch { return null; }
+  let dirs = [];
+  try { dirs = fs.readdirSync('/usr/lib/modules'); } catch { return null; }
+  for (const ver of dirs) {
+    try {
+      const cand = path.join('/usr/lib/modules', ver, 'vmlinuz');
+      if (fs.existsSync(cand) && Buffer.compare(want, fs.readFileSync(cand)) === 0) return ver;
+    } catch { /* unreadable tree: try the next */ }
+  }
+  return null;
+}
+const KVER = arg('kver', kverOfKernel(KERNEL) || os.release());
 const MODROOT = arg('modroot', `/usr/lib/modules/${KVER}`);
+
+// Refuse a kernel/module mismatch before anything is built. Individual modules
+// may legitimately be absent (a kernel with them built in), but a MODROOT that
+// does not exist, or one holding a different kernel than the one being packed,
+// means the module set cannot be right — and the guest that comes out of it
+// fails in a way no test on this host would see.
+if (!fs.existsSync(MODROOT))
+  throw new Error(`no module tree at ${MODROOT} for the kernel being packed (${KERNEL}). `
+    + `This host is running ${os.release()}; if that differs from the packed kernel, its modules were `
+    + `removed by an upgrade. Reboot onto the packed kernel, or pass --kver/--modroot explicitly.`);
+{
+  const beside = path.join(MODROOT, 'vmlinuz');
+  if (fs.existsSync(beside) && Buffer.compare(fs.readFileSync(KERNEL), fs.readFileSync(beside)) !== 0)
+    throw new Error(`${MODROOT} holds a DIFFERENT kernel than ${KERNEL} — packing one kernel with `
+      + `another's modules. Pass --kernel and --kver that belong together.`);
+}
+// a cheap seam for operators and for the test: resolve and exit, build nothing
+if (process.argv.includes('--print-kver')) {
+  console.log(JSON.stringify({ kernel: KERNEL, kver: KVER, modroot: MODROOT }));
+  process.exit(0);
+}
+
 // IMAGE DEFAULTS. Getting these wrong is not a build detail: they are the two
 // images that BECOME the measured enclave, so a default that drifts changes
 // what the box attests to without anyone choosing it.
