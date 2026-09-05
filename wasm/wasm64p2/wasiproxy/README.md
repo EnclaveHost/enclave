@@ -9,8 +9,10 @@ engine *does* implement completely is the component-to-component adapter
 callee.
 
 So the wasm64 app is composed on top of this component: a wasm32 component
-that imports every stable wasi 0.2.12 interface from the host and exports
-the same interfaces, forwarding each call verbatim. The app's WASI imports
+generated per app by `../proxy-app.py`. It imports exactly the app's
+stable WASI interfaces from the host and exports those same interfaces,
+forwarding each call verbatim. The app's own versioned WIT definitions are
+extracted from its binary; they are not silently upgraded. The app's WASI imports
 are plugged into the proxy's exports (`wac plug`), the proxy's imports
 become the composed component's imports, and the host only ever sees a
 32-bit caller.
@@ -34,5 +36,17 @@ Files:
   reproduces the proxy; `wasm64/build.sh` regenerates it when the WIT
   changes).
 
-Build: `cargo build --release --target wasm32-wasip2` (stock toolchain; the
-proxy itself is ordinary wasm32).
+The checked-in world and source are the reference full surface, not the
+proxy shipped with an app. `../build-c.sh` and `../build-rust.sh` invoke
+`../proxy-app.py`, which generates a temporary crate and compiles it with
+`--locked --offline --target wasm32-unknown-unknown`. This target avoids
+implicit WASI imports from Rust's own standard library. Prepare the locked
+Cargo dependencies and target with `../prepare-toolchain.sh` first.
+
+The build checks that the proxy's host imports equal the app's imports,
+that every app import has a proxy export, and that composition preserves
+that exact import set. Unsupported interfaces fail the build. The original
+and final components are validated; there is no validation bypass here.
+
+Requires Rust even for a C app, because the proxy is generated per build.
+The publisher Docker image includes it.

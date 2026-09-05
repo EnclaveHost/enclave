@@ -67,7 +67,9 @@ out of its return area. What the engine *does* implement completely is the
 component-to-component adapter, which transcodes between a 64-bit caller and
 a 32-bit callee, resource handles included. So every build is composed
 (`wac plug`) under `wasm64p2/wasiproxy`: a generated wasm32 component that
-imports every stable wasi 0.2.12 interface and re-exports it verbatim. The
+imports exactly the app's stable WASI interfaces and re-exports them verbatim.
+`proxy-app.py` extracts the app's exact WIT versions and checks that both the
+proxy and the composed result preserve its import set. The
 host only ever sees a 32-bit caller. Cost: one copy per list or string
 crossing, one handle indirection per stream, socket or pollable.
 
@@ -188,3 +190,28 @@ the image and the extracted engine binary as above.
   RISC Box found that a Linux 5.4 image built with `CONFIG_MAXPHYSMEM_2GB`
   maps 2 GiB whatever the device tree says. That is a guest-side ceiling,
   invisible to the platform.
+
+## Threaded memory64 and proxy attenuation (2026-09-04)
+
+Threaded memory64 guests reserve virtual address space up to their existing
+`max-memory-size` cap in both serve and port modes. Shared memory cannot move
+on growth; without this reservation, one large allocation can fail even when
+incremental growth works. Reservation does not increase the purchased cap or
+commit all of that space to physical RAM.
+
+The SET libc spawn function pointer keeps the builtin's `(i32, i32) -> i32`
+shape on wasm64. Table slot getters and the componentizer's table fixup use
+the table's real index width. Both changes live in the repository now.
+
+Per-app proxy builds use `wasm32-unknown-unknown` to avoid Rust std adding
+ambient WASI imports. Hello World's 15 imports and RISC Box's 24 imports are
+preserved rather than expanded to 27; the C smoke app's WASI 0.2.0 surface
+is also preserved. This restores import-based auditing; host capability
+policy remains responsible for granting access.
+
+The proxy path deliberately keeps validation enabled. The known wasm-tools
+1.256 shared-memory component validation limitation still needs an upstream
+fix before the ordinary publisher wrapper can support combined SET/memory64
+builds without a separate engine validation workflow. The runner and libc
+fixes do not by themselves ship that combined publisher toolchain or update
+running fleet images.

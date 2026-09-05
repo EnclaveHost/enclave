@@ -40,8 +40,8 @@
 #     host-side typed canonical ABI still reads pointers and lengths as 32
 #     bits (wasmtime FIXME #4311). Its component-to-component adapters do
 #     transcode, so every build is plugged (`wac plug`) into wasm64p2's WASI
-#     pass-through proxy: a wasm32 component that re-exports every stable
-#     wasi 0.2.12 interface. The host only ever sees a 32-bit caller.
+#     pass-through proxy: a wasm32 component generated to forward exactly the app's
+#     stable WASI imports. The host only ever sees a 32-bit caller.
 #
 # What comes out runs ONLY on a memory64-capable engine (the wasmtime 49 pin
 # qualifies; the runner probes the exact construct per box). The publish path
@@ -69,7 +69,7 @@ RUN curl -fsSL -o /tmp/cmake.tgz "https://github.com/Kitware/CMake/releases/down
 ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
 ARG RUST_NIGHTLY=nightly-2026-08-07
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain "${RUST_NIGHTLY}" \
-      --profile minimal -c rust-src -t wasm32-wasip2 \
+      --profile minimal -c rust-src -t wasm32-wasip2 -t wasm32-unknown-unknown \
  && rustup toolchain install stable --profile minimal
 
 # The toolchain sources: wasm64p2/ plus the platform's canonical memory64
