@@ -74,6 +74,39 @@ const FIXUP_WAT: &str = r#"
   (start $init))
 "#;
 
+/// The fixup module for a wasm64 (memory64) target. Same shape, and every
+/// difference is forced by the width:
+///
+///   * `__indirect_function_table` is `i64`-indexed there, so `table.set`
+///     takes an i64 index;
+///   * a C function pointer IS that index, so the libc's slot getters return
+///     i64 (`uintptr_t`) rather than i32;
+///   * the BUILTINS do not change. The host call is
+///     `thread_spawn_indirect(table, elem: u32, arg: u32)` whatever the table
+///     width, so `$spawnt` stays `(i32 i32) -> i32` and the libc truncates —
+///     a table index and the low-pool context both fit, by construction.
+///
+/// Which means `$slot` and `$ap_wrap` no longer share a type, as they do at
+/// 32 bits: the getters return i64, the wrapper still returns i32.
+const FIXUP_WAT64: &str = r#"
+(module
+  (type $spawnt (func (param i32 i32) (result i32)))
+  (type $apt (shared (func (result i32))))
+  (type $slot (func (result i64)))
+  (type $apwrapt (func (result i32)))
+  (import "enclave:set" "[set-spawn-indirect]" (func $spawn (type $spawnt)))
+  (import "enclave:set" "[set-available-parallelism]" (func $ap (type $apt)))
+  (import "m" "__indirect_function_table" (table $t i64 1 funcref))
+  (import "m" "__enclave_set_spawn_slot" (func $spawn_slot (type $slot)))
+  (import "m" "__enclave_set_ap_slot" (func $ap_slot (type $slot)))
+  (func $ap_wrap (type $apwrapt) (call $ap))
+  (elem declare func $spawn $ap_wrap)
+  (func $init
+    (table.set $t (call $spawn_slot) (ref.func $spawn))
+    (table.set $t (call $ap_slot) (ref.func $ap_wrap)))
+  (start $init))
+"#;
+
 #[derive(Default, Debug)]
 struct TopLevelCounts {
     core_modules: u32,
@@ -89,6 +122,11 @@ struct MainModule {
     module_index: Option<u32>,
     /// Whether that module also exports the indirect function table.
     exports_table: bool,
+    /// Is that table `i64`-indexed? A wasm64 module's function pointers are
+    /// i64 table indices, which changes the fixup module's shape (see
+    /// FIXUP_WAT64). Read from the module's own table section rather than
+    /// assumed, because getting it wrong is a type error at instantiation.
+    table64: bool,
     /// Top-level core-instance index instantiating it.
     instance_index: Option<u32>,
 }
@@ -103,6 +141,11 @@ fn scan(bytes: &[u8]) -> Result<(TopLevelCounts, MainModule)> {
     let mut depth = 0usize;
     // While inside a depth-1 core module: its top-level module index.
     let mut inside_module: Option<u32> = None;
+    // widths of the tables the module being scanned DEFINES. A core module
+    // linked by wasm-ld defines its own `__indirect_function_table` and
+    // imports none, so "any defined table is 64-bit" answers the only
+    // question here: which fixup shape this module needs.
+    let mut table_types: Vec<bool> = Vec::new();
     let mut saw_component_header = false;
 
     for payload in Parser::new(0).parse_all(bytes) {
@@ -120,6 +163,7 @@ fn scan(bytes: &[u8]) -> Result<(TopLevelCounts, MainModule)> {
                 if depth == 0 {
                     inside_module = Some(counts.core_modules);
                     counts.core_modules += 1;
+                    table_types.clear();
                 }
                 depth += 1;
             }
@@ -131,6 +175,16 @@ fn scan(bytes: &[u8]) -> Result<(TopLevelCounts, MainModule)> {
                     depth -= 1;
                     if depth == 0 {
                         inside_module = None;
+                    }
+                }
+            }
+            Payload::TableSection(reader) => {
+                // Types of the tables this module DEFINES, in index order
+                // after any it imports (the export's index is into the joint
+                // space, so imports have to be counted).
+                if depth == 1 && inside_module.is_some() {
+                    for t in reader {
+                        table_types.push(t?.ty.table64);
                     }
                 }
             }
@@ -155,6 +209,7 @@ fn scan(bytes: &[u8]) -> Result<(TopLevelCounts, MainModule)> {
                                 (TABLE_EXPORT, ExternalKind::Table) => {
                                     if main.module_index == Some(m) || main.module_index.is_none() {
                                         main.exports_table = true;
+                                        main.table64 = table_types.iter().any(|&is64| is64);
                                     }
                                 }
                                 _ => {}
@@ -240,7 +295,8 @@ fn componentize(bytes: &[u8]) -> Result<Vec<u8>> {
         bail!("core module {main_module} is never instantiated at the top level");
     };
 
-    let fixup_bytes = wat::parse_str(FIXUP_WAT).context("internal fixup module is invalid")?;
+    let fixup_bytes = wat::parse_str(if main.table64 { FIXUP_WAT64 } else { FIXUP_WAT })
+        .context("internal fixup module is invalid")?;
 
     // New indices, all appended past the existing top-level index spaces.
     // The fixup reaches the slot getters through the "m" instance argument,

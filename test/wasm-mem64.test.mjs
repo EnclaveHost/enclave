@@ -431,3 +431,19 @@ test("both publish clients refuse a core module outright and take a memory64 com
   assert.doesNotMatch(compOut, /compute guest/, `got: ${compOut.slice(0, 300)}`);
   assert.doesNotMatch(compOut, /core wasm module/, `got: ${compOut.slice(0, 300)}`);
 });
+
+test("threaded memory64 reserves its full cap in serve and port modes", () => {
+  for (const ports of ['[]', '["tcp:9000"]']) {
+    for (const kind of ['threads', 'set_threads']) {
+      const [cmd] = mgrPy(`m._build_cmd(m._parse_ports(${ports}), "/tmp/app.wasm", 31001, 8 << 30, {"tcp:9000": 31000}, cm64=True, ${kind}=True)`,
+        { WASMTIME_BIN: FAKE(ENGINE_OK) });
+      assert.ok(cmd.includes('memory-reservation=8589934592'));
+      assert.ok(cmd.includes('max-memory-size=8589934592'), 'reservation must not raise the cap');
+    }
+  }
+  for (const flags of ['cm64=True', 'threads=True', 'set_threads=True', '']) {
+    const [cmd] = mgrPy(`m._build_cmd(m._parse_ports([]), "/tmp/app.wasm", 31001, 8 << 30${flags ? ', ' + flags : ''})`,
+      { WASMTIME_BIN: FAKE(ENGINE_OK) });
+    assert.equal(cmd.some(v => v.startsWith('memory-reservation=')), false);
+  }
+});

@@ -26,7 +26,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 W64="${W64:-$HOME/.cache/enclave-w64}"
 RUST_TC="${RUST_TC:-nightly}"
 for need in "$W64/wasi-sdk/bin/clang" "$W64/sysroot64/lib/wasm64-wasip2/libc.a" \
-            "$W64/wasm-tools" "$W64/wac" "$W64/wasiproxy.wasm" \
+            "$W64/wasm-tools" "$W64/wac" \
             "$W64/rustsrc/library/Cargo.toml" "$W64/wit-bindgen/build.rs" \
             "$W64/wasip2/Cargo.toml" "$W64/crates/getrandom-0.2.17/Cargo.toml"; do
   [ -e "$need" ] || { echo "[w64] missing $need — run prepare-toolchain.sh first"; exit 2; }
@@ -85,18 +85,6 @@ echo "[w64] encoding the component"
 TMP="$(mktemp -d)"
 "$W64/wasm-tools" component new "$CORE" -o "$TMP/raw.wasm"
 
-echo "[w64] plugging it into the wasi pass-through proxy"
-"$W64/wac" plug --plug "$W64/wasiproxy.wasm" "$TMP/raw.wasm" -o "$OUT"
-"$W64/wasm-tools" validate --features all "$OUT"
-python3 - "$OUT" "$W64/wasiproxy.wasm" "$W64/wasm-tools" <<'PY'
-import subprocess, sys, re
-def imports(p):
-    out = subprocess.run([sys.argv[3], "component", "wit", p], capture_output=True, text=True, check=True).stdout
-    return set(re.findall(r"^\s*import ([^;]+);", out, re.M))
-stray = imports(sys.argv[1]) - imports(sys.argv[2])
-assert not stray, f"imports bypass the proxy: {sorted(stray)}"
-b = open(sys.argv[1], "rb").read()
-assert b[:4] == b"\x00asm" and (b[6] | (b[7] << 8)) == 1, "not a component"
-print(f"[w64] {sys.argv[1]}: {len(b):,} bytes, component, memory64, proxied")
-PY
+echo "[w64] building and composing the app-specific WASI proxy"
+python3 "$HERE/proxy-app.py" "$TMP/raw.wasm" -o "$OUT"
 rm -rf "$TMP"

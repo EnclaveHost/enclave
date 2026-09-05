@@ -4660,6 +4660,12 @@ def _build_cmd(pspec, wasm, serve_port: int, mem_bytes: int, port_map=None, fsdi
     # the `cm64` feature", probed). Nothing else changes: sockets, egress,
     # loopback wall, p3/thread flags all ride as for a wasm32 component.
     cm64_args = ["-W", "memory64,component-model-memory64"] if cm64 else []
+    # Shared memories cannot relocate when growing. Reserve virtual address
+    # space up to this deployment's existing cap, so a single >4 GiB grow
+    # works as reliably as incremental growth. This does not raise the cap
+    # or commit the reserved pages to physical RAM.
+    if cm64 and (threads or set_threads):
+        cm64_args += ["-O", f"memory-reservation={mem_bytes}"]
     if pspec["serve"]:
         return ([WASMTIME, "serve", "-Scli", "-Shttp", *_p3_flags(), *_p3_tuning(enclave_config, wasi_contract),
                  *_threads_flags(threads), *_set_flags(set_threads),

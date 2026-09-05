@@ -27,6 +27,12 @@ import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
 import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
+// Keep search and the card title on the same resolved app identity.
+function deploymentTitle(d) {
+  return (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
+    || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
+}
+
 // The app's reachable URL. Through the gateway each deployment gets its OWN
 // origin: a per-deployment subdomain (<id>.app.enclave.host, the base36 part of
 // the deployment id; the "dep_" is dropped as redundant in this namespace), so
@@ -632,7 +638,8 @@ class Deployments extends EnclaveElement {
     $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
     if (this._q) shown = shown.filter(d =>
-      (d.id + " " + ((d.image && d.image.reference) || "") + " " + (d.status || "") + " " + (d.enclave || "")).toLowerCase().includes(this._q));
+      [d.id, deploymentTitle(d), d.image && d.image.reference, d.status, d.enclave]
+        .filter(Boolean).join(" ").toLowerCase().includes(this._q));
     const pager = this.querySelector(".enc-pager");
     const clearPager = () => { if (pager){ pager.hidden = true; pager.innerHTML = ""; } };
     if (!list.length){ body.innerHTML = '<div class="enc-empty">No apps yet. <a href="apps">Deploy one →</a></div>'; clearPager(); return; }
@@ -692,8 +699,7 @@ class Deployments extends EnclaveElement {
       // stays Terminate, and ended legacy rows offer nothing.
       const resumable = onchain && (st === "stopped" || st === "terminated" || st === "expired" || st === "failed");
       // the row's app identity, shared by the cover-art chip and the meta line
-      const appLbl = (d.app && d.app.slug ? d.app.slug + ":" + d.app.version : null)
-        || (d.image && d.image.reference ? slugOfRef(d.image.reference) || shortImg(d.image.reference) : null);
+      const appLbl = deploymentTitle(d);
       const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
       // the card leads with the APP, not the raw id: the bytes32 becomes a
       // compact copy chip (full value in data-copy/title), stated once per card

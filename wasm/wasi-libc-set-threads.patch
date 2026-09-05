@@ -2765,7 +2765,7 @@ new file mode 100644
 index 0000000..899d9ca
 --- /dev/null
 +++ b/libc-top-half/musl/src/thread/set-threads/set_spawn.c
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,127 @@
 +/* enclave/SET: thread spawning for shared-everything threads.
 + *
 + * wasi-threads spawns via a host import (`wasi.thread-spawn`). Under the
@@ -2818,7 +2818,23 @@ index 0000000..899d9ca
 +
 +void wasi_set_thread_start(void *);
 +
-+static int __set_spawn_stub(uintptr_t slot, void *arg)
++/* The builtin's guest-facing type is `(i32 i32) -> i32` whatever the memory's
++ * width: the host call is thread_spawn_indirect(table, elem: u32, arg: u32),
++ * and the table it indexes is named by the canon, not passed. So on wasm64
++ * the stub — and the pointer the fixup module table.sets the real builtin
++ * into — must take 32-bit arguments too, or the engine rejects the store as
++ * an ill-typed funcref. Both values fit by construction: a function pointer
++ * is a table index, and the context is a slot in the low start_args pool
++ * (see __enclave_set_low_args_alloc in pthread_create.c). */
++#if UINTPTR_MAX > 0xffffffffu
++typedef uint32_t set_elem_t;
++typedef uint32_t set_ctx_t;
++#else
++typedef uintptr_t set_elem_t;
++typedef void *set_ctx_t;
++#endif
++
++static int __set_spawn_stub(set_elem_t slot, set_ctx_t arg)
 +{
 +	(void)slot;
 +	(void)arg;
@@ -2830,7 +2846,7 @@ index 0000000..899d9ca
 +	return -1;
 +}
 +
-+int (*volatile __enclave_set_spawn_fp)(uintptr_t, void *) = __set_spawn_stub;
++int (*volatile __enclave_set_spawn_fp)(set_elem_t, set_ctx_t) = __set_spawn_stub;
 +int (*volatile __enclave_set_ap_fp)(void) = __set_ap_stub;
 +
 +__attribute__((export_name("__enclave_set_spawn_slot")))
@@ -2847,8 +2863,8 @@ index 0000000..899d9ca
 +
 +int __wasi_thread_spawn(void *start_arg)
 +{
-+	return __enclave_set_spawn_fp((uintptr_t)(void *)&wasi_set_thread_start,
-+	                              start_arg);
++	return __enclave_set_spawn_fp((set_elem_t)(uintptr_t)(void *)&wasi_set_thread_start,
++	                              (set_ctx_t)(uintptr_t)start_arg);
 +}
 +
 +/* Libc-assigned TIDs. wasi-threads tids come from the HOST (range

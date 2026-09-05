@@ -69,6 +69,8 @@ rustup component list --installed --toolchain "$RUST_TC" 2>/dev/null | grep -q '
   || { echo "[w64-prepare] nightly needs rust-src: rustup component add rust-src --toolchain $RUST_TC"; exit 2; }
 rustup target list --installed --toolchain "$RUST_TC" 2>/dev/null | grep -q '^wasm32-wasip2' \
   || { echo "[w64-prepare] nightly needs wasm32-wasip2 (for the proxy): rustup target add wasm32-wasip2 --toolchain $RUST_TC"; exit 2; }
+rustup target list --installed --toolchain "$RUST_TC" 2>/dev/null | grep -q '^wasm32-unknown-unknown' \
+  || { echo "[w64-prepare] proxy needs wasm32-unknown-unknown: rustup target add wasm32-unknown-unknown --toolchain $RUST_TC"; exit 2; }
 if rustup run stable cargo --version >/dev/null 2>&1; then STABLE="+stable"; else STABLE="+$RUST_TC"; fi
 
 # crates.io sources, fetched as the published tarballs (no registry cache needed)
@@ -224,22 +226,18 @@ if [ ! -f "$W64/rustsrc/library/Cargo.toml" ] || ! grep -q "$W64/wasip2" "$W64/r
   sh "$HERE/std-wasm64.sh" "$RUST_SRC" "$W64/rustsrc/library" "$W64"
 fi
 
-# 7. the WASI pass-through proxy (wasm32): the composition partner every
-# memory64 component is plugged into. Built once here so a C publisher needs
-# no Rust of their own.
-if [ ! -f "$W64/wasiproxy.wasm" ]; then
-  log "building the wasi pass-through proxy (wasm32-wasip2)"
-  ( cd "$HERE/wasiproxy" && cargo "+$RUST_TC" build --release --target wasm32-wasip2 \
-      --target-dir "$W64/wasiproxy-target" -q )
-  cp "$W64/wasiproxy-target/wasm32-wasip2/release/wasiproxy.wasm" "$W64/wasiproxy.wasm"
-fi
+# 7. Warm the locked proxy dependencies for per-app offline generation.
+# The unknown-unknown std adds no ambient WASI imports of its own.
+log "preparing the app-specific WASI proxy dependencies"
+( cd "$HERE/wasiproxy" && cargo "+$RUST_TC" build --release --locked \
+    --target wasm32-unknown-unknown --target-dir "$W64/wasiproxy-target" -q )
 
 log "toolchain ready at $W64"
 log "  clang:      $("$CLANG" --version | head -1)"
 log "  wasm-tools: $("$W64/wasm-tools" --version)"
 log "  wac:        $("$W64/wac" --version)"
 log "  rustc:      $(rustc "+$RUST_TC" --version) ($RUST_TC)"
-log "  proxy:      $W64/wasiproxy.wasm"
+log "  proxy:      generated per app (proxy-app.py)"
 log ""
 log "  build a C guest:    sh $HERE/build-c.sh app.c -o app.wasm"
 log "  build a Rust guest: sh $HERE/build-rust.sh /path/to/crate -o app.wasm"
