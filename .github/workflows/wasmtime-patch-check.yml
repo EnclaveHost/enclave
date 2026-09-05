@@ -53,7 +53,8 @@ jobs:
                    wasmtime-loopback wasmtime-nn-ggml wasmtime-nn-sdcpp \
                    wasmtime-nn-onnx-preload wasmtime-nn-arbiter \
                    wasmtime-set-threads wasmtime-socket-level-check \
-                   wasmtime-set-epochs wasmtime-shared-base-mirror; do
+                   wasmtime-set-epochs wasmtime-shared-base-mirror \
+                   wasmtime-shared-utf8-adapters; do
             git apply --check "$GITHUB_WORKSPACE/wasm/$p.patch" \
               || { echo "::error::$p.patch no longer applies (stack order or upstream drift)"; exit 1; }
             git apply "$GITHUB_WORKSPACE/wasm/$p.patch"

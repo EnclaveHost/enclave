@@ -1,0 +1,253 @@
+# Support UTF-8 fused adapters over shared memory, including memory64.
+#
+# RISC Box's shared wasm64 module uses a wasm32 WASI compatibility component.
+# FACT must preserve the shared memory's declared maximum. Its UTF-8 helper
+# snapshots bytes atomically, validates owned data, then atomically publishes
+# it, so no Rust slice borrows concurrently writable guest memory. Shared
+# adapters using other encodings remain rejected before module generation.
+#
+# Applies after wasmtime-shared-base-mirror.patch.
+# Validation: 7 component string tests (including shared roundtrips, encoding
+# guard and bounds cases), 3 SET lifecycle tests, 2 UTF-8 snapshot unit tests,
+# a proxied 5 GiB / four-thread probe, and the real wasm64 + SET RISC Box boot.
+diff --git a/crates/environ/src/component/translate/adapt.rs b/crates/environ/src/component/translate/adapt.rs
+index 8901e7f..ffd7ea6 100644
+--- a/crates/environ/src/component/translate/adapt.rs
++++ b/crates/environ/src/component/translate/adapt.rs
+@@ -195,34 +195,10 @@ impl<'data> Translator<'_, 'data> {
+         &mut self,
+         component: &mut dfg::ComponentDfg,
+     ) -> Result<()> {
+-        // enclave/SET: refuse, HERE, any fused adapter whose canonical options
+-        // name a `shared` linear memory.
+-        //
+-        // Two reasons this is a compile-time refusal rather than a runtime one.
+-        //
+-        // 1. It is the only place it can be COMPLETE. FACT generates a core
+-        //    module that IMPORTS the adapter's memory, and every adapter that
+-        //    moves a string, list or record through memory needs one — not just
+-        //    the string transcoders an earlier revision singled out. An
+-        //    instantiation-time check over "memories reachable by a transcoder"
+-        //    was both narrower than the real set and, as it turned out,
+-        //    unreachable.
+-        // 2. It is the only place it can be a clean ERROR. FACT emits its
+-        //    memory import with `maximum: None`, which is invalid wasm for a
+-        //    shared memory, so a component that got this far used to blow up in
+-        //    `.expect("invalid adapter module generated")` below — a
+-        //    guest-controlled PANIC inside `Component::new`, not a `bail!`.
+-        //
+-        // Why refuse at all: the host side of these adapters (the transcoder
+-        // libcalls, `utf8_to_utf16` and friends) reads raw guest pointers with
+-        // no way back to the memory's sharedness, so it cannot be made
+-        // copy-safe the way the canonical ABI's own lift/lower paths were. A
+-        // component that needs one over memory another thread can write
+-        // concurrently is refused, never raced.
+-        //
+-        // Nothing the SET toolchain emits hits this: a `clang -pthread`
+-        // component is one core module plus host imports, and fused adapters
+-        // only appear between two core instances of the same component.
++        // Shared adapters are supported when both sides use UTF-8. Their
++        // only string libcall snapshots source bytes atomically, validates
++        // that owned snapshot, and publishes without borrowing guest memory.
++        // Other encodings still borrow raw guest slices and remain refused.
+         for (_, adapter) in component.adapters.iter() {
+             for (which, options) in [
+                 ("lift", &adapter.lift_options),
+@@ -233,12 +209,13 @@ impl<'data> Translator<'_, 'data> {
+                     ..
+                 } = &options.data_model
+                 {
+-                    if ty.shared {
++                    if ty.shared
++                        && (adapter.lift_options.string_encoding != StringEncoding::Utf8
++                            || adapter.lower_options.string_encoding != StringEncoding::Utf8)
++                    {
+                         bail!(
+-                            "this component needs a fused adapter ({which}) over a \
+-                             `shared` linear memory, which is not supported: the \
+-                             adapter's host-side helpers would read memory another \
+-                             thread can write concurrently"
++                            "shared fused adapter ({which}) requires UTF-8 on both sides; \
++                             other transcoding helpers cannot safely borrow shared memory"
+                         );
+                     }
+                 }
+diff --git a/crates/environ/src/fact.rs b/crates/environ/src/fact.rs
+index 302bc00..f615b1f 100644
+--- a/crates/environ/src/fact.rs
++++ b/crates/environ/src/fact.rs
+@@ -379,7 +379,9 @@ impl<'a> Module<'a> {
+                             &format!("m{}", self.imported_memories.len()),
+                             MemoryType {
+                                 minimum: 0,
+-                                maximum: None,
++                                // A shared import requires a maximum. Keep
++                                // the source memory's actual declared limit.
++                                maximum: if ty.shared { ty.limits.max } else { None },
+                                 shared: ty.shared,
+                                 memory64: ty.idx_type == IndexType::I64,
+                                 page_size_log2: if ty.page_size_log2 == 16 {
+diff --git a/crates/wasmtime/src/runtime/component/instance.rs b/crates/wasmtime/src/runtime/component/instance.rs
+index 8b29108..57c757a 100644
+--- a/crates/wasmtime/src/runtime/component/instance.rs
++++ b/crates/wasmtime/src/runtime/component/instance.rs
+@@ -976,16 +976,9 @@ impl<'a> Instantiator<'a> {
+             }
+         }
+ 
+-        // enclave/SET note: a fused adapter over a `shared` linear memory is
+-        // refused at COMPILE time, in
+-        // `environ::component::translate::adapt::partition_adapter_modules`,
+-        // for two reasons a check here could not meet. It has to cover every
+-        // adapter that needs memory (not only string transcoders), and it has
+-        // to run before FACT generates the adapter module — whose shared memory
+-        // import is invalid wasm, so a check placed after this loop was both
+-        // too narrow and unreachable. Core `start` sections, which can call
+-        // adapters and can spawn, run INSIDE the loop above, which is the other
+-        // half of why "after the loop" was the wrong place.
++        // Shared fused adapters are checked during translation, before any
++        // core start section can call one: only the UTF-8 snapshot path is
++        // admitted. Other encodings still require unshared linear memories.
+         Ok(())
+     }
+ 
+diff --git a/crates/wasmtime/src/runtime/vm/component/libcalls.rs b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
+index 7ed3b91..cd475e5 100644
+--- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
++++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
+@@ -188,12 +188,28 @@ unsafe fn utf8_to_utf8(
+     len: usize,
+     dst: *mut u8,
+ ) -> Result<()> {
+-    let src = unsafe { slice::from_raw_parts(src, len) };
+-    let dst = unsafe { slice::from_raw_parts_mut(dst, len) };
+-    assert_no_overlap(src, dst);
+-    log::trace!("utf8-to-utf8 {len}");
+-    let src = core::str::from_utf8(src).map_err(|_| format_err!("invalid utf8 encoding"))?;
+-    dst.copy_from_slice(src.as_bytes());
++    unsafe { copy_utf8_snapshot(src, len, dst) }
++}
++
++/// Copy a validated UTF-8 snapshot without making Rust references to guest
++/// memory, which a SET worker may mutate concurrently. Generated FACT code
++/// has already bounds-checked both regions and shared memory never relocates.
++/// Using the same path for owned memories keeps the helper independent of
++/// memory metadata and prevents a caller from selecting an unsafe variant.
++unsafe fn copy_utf8_snapshot(src: *mut u8, len: usize, dst: *mut u8) -> Result<()> {
++    use core::sync::atomic::{AtomicU8, Ordering};
++    let src_end = (src as usize).checked_add(len).ok_or_else(|| format_err!("source range overflow"))?;
++    let dst_end = (dst as usize).checked_add(len).ok_or_else(|| format_err!("destination range overflow"))?;
++    ensure!(src_end <= dst as usize || dst_end <= src as usize, "overlapping string regions");
++    let mut snapshot = Vec::new();
++    snapshot.try_reserve_exact(len).map_err(|_| format_err!("UTF-8 snapshot allocation failed"))?;
++    for i in 0..len {
++        snapshot.push(unsafe { AtomicU8::from_ptr(src.add(i)).load(Ordering::Relaxed) });
++    }
++    core::str::from_utf8(&snapshot).map_err(|_| format_err!("invalid utf8 encoding"))?;
++    for (i, byte) in snapshot.into_iter().enumerate() {
++        unsafe { AtomicU8::from_ptr(dst.add(i)).store(byte, Ordering::Relaxed) };
++    }
+     Ok(())
+ }
+ 
+@@ -1571,3 +1587,41 @@ fn thread_yield_then_promote(
+         )
+         .map(|r| r == WaitResult::Cancelled)
+ }
++
++#[cfg(test)]
++mod shared_utf8_tests {
++    use super::copy_utf8_snapshot;
++    use core::sync::atomic::{AtomicU8, Ordering};
++
++    #[test]
++    fn shared_utf8_validates_before_publishing() {
++        let mut src = "Doom — 音楽".as_bytes().to_vec();
++        let mut dst = vec![0; src.len()];
++        unsafe { copy_utf8_snapshot(src.as_mut_ptr(), src.len(), dst.as_mut_ptr()) }.unwrap();
++        assert_eq!(src, dst);
++        src[0] = 0xff;
++        let before = dst.clone();
++        assert!(unsafe { copy_utf8_snapshot(src.as_mut_ptr(), src.len(), dst.as_mut_ptr()) }.is_err());
++        assert_eq!(dst, before);
++    }
++
++    #[test]
++    fn shared_utf8_racing_source_never_publishes_invalid_text() {
++        let source = [AtomicU8::new(b'A'), AtomicU8::new(b'B')];
++        std::thread::scope(|scope| {
++            scope.spawn(|| {
++                for i in 0..100_000 {
++                    source[0].store(if i % 2 == 0 { b'A' } else { 0xff }, Ordering::Relaxed);
++                }
++            });
++            let mut dst = [0u8; 2];
++            for _ in 0..1_000 {
++                let result = unsafe { copy_utf8_snapshot(source[0].as_ptr(), 2, dst.as_mut_ptr()) };
++                if result.is_ok() {
++                    assert!(core::str::from_utf8(&dst).is_ok());
++                    assert_eq!(dst[1], b'B');
++                }
++            }
++        });
++    }
++}
+diff --git a/tests/all/component_model/strings.rs b/tests/all/component_model/strings.rs
+index 3710d28..b4fbdf5 100644
+--- a/tests/all/component_model/strings.rs
++++ b/tests/all/component_model/strings.rs
+@@ -91,14 +91,14 @@ fn roundtrip() -> Result<()> {
+         let engine = Engine::new(&config)?;
+         for src in ENCODINGS {
+             for dst in ENCODINGS {
+-                test_roundtrip(&engine, src, dst)?;
++                test_roundtrip(&engine, src, dst, false)?;
+             }
+         }
+     }
+     Ok(())
+ }
+ 
+-fn test_roundtrip(engine: &Engine, src: &str, dst: &str) -> Result<()> {
++fn test_roundtrip(engine: &Engine, src: &str, dst: &str, shared: bool) -> Result<()> {
+     println!("src={src} dst={dst}");
+ 
+     let mk_echo = |name: &str, encoding: &str| {
+@@ -170,6 +170,13 @@ fn test_roundtrip(engine: &Engine, src: &str, dst: &str) -> Result<()> {
+ )
+ "#
+     );
++    let component = if shared {
++        component
++            .replace("(memory (export \"memory\") 1)", "(memory (export \"memory\") 1 65536 shared)")
++            .replace("(import \"libc\" \"memory\" (memory 0))", "(import \"libc\" \"memory\" (memory 0 65536 shared))")
++    } else {
++        component
++    };
+     let component = Component::new(engine, &component)?;
+     let mut store = Store::new(engine, String::new());
+     let mut linker = Linker::new(engine);
+@@ -646,3 +653,23 @@ fn pass_string_on_component_boundary() -> Result<()> {
+     func.call(&mut store, ())?;
+     Ok(())
+ }
++
++#[test]
++fn shared_utf8_roundtrip_and_encoding_guard() -> Result<()> {
++    let mut config = Config::new();
++    config.wasm_component_model(true);
++    config.wasm_component_model_threading(true);
++    config.wasm_shared_everything_threads(true);
++    config.wasm_threads(true);
++    config.shared_memory(true);
++    for debug in [false, true] {
++        config.debug_adapter_modules(debug);
++        let engine = Engine::new(&config)?;
++        test_roundtrip(&engine, "utf8", "utf8", true)?;
++        for (src, dst) in [("utf8", "utf16"), ("utf16", "utf8"), ("latin1+utf16", "utf8")] {
++            let error = test_roundtrip(&engine, src, dst, true).unwrap_err();
++            assert!(format!("{error:#}").contains("requires UTF-8 on both sides"));
++        }
++    }
++    Ok(())
++}
