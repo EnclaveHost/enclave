@@ -29,7 +29,7 @@ fi
 cd llama.cpp; git fetch -q https://github.com/ggml-org/llama.cpp "$PIN"; git checkout -q "$PIN"; echo "llama.cpp at $(git rev-parse --short HEAD) (pin $PIN)"
 cmake -B build-android -G Ninja -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-34 \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_BACKEND_DL=ON -DGGML_CUDA=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DGGML_LLAMAFILE=OFF \
-  -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+i8mm -DGGML_CPU_REPACK=OFF \
+  -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+i8mm -DGGML_CPU_REPACK=${GGML_CPU_REPACK:-OFF} \
   -DCMAKE_C_FLAGS="-DGGML_MAX_NAME=128" -DCMAKE_CXX_FLAGS="-DGGML_MAX_NAME=128" \
   -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_CURL=OFF \
   -DCMAKE_INSTALL_PREFIX="$WORK/prefix" > "$WORK/configure.log" 2>&1
