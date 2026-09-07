@@ -15,7 +15,9 @@
 #include "llama.h"
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
+#include "ggml-backend-impl.h"   /* the plain buffer type below wraps the CPU one */
 
+#include <cctype>
 #include <cerrno>
 #include <cstdarg>
 #include <cstdint>
@@ -117,6 +119,28 @@ static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
     return -1;
 }
 
+/* A plain host buffer type that is NOT ggml_backend_cpu_buffer_type() by pointer.
+ * llama.cpp's tensor_buft_overrides treat an override to the CPU type as "still
+ * consider the CPU backend's extra buffer types", i.e. REPACK wins anyway; a
+ * distinct type is taken verbatim. It delegates everything to the CPU type and
+ * relabels the buffers it hands out, so the bytes stay standard q8_0 rows the
+ * shielded link can upload. */
+static const char *sh_plain_get_name(ggml_backend_buffer_type_t) { return "CPU_plain"; }
+static ggml_backend_buffer_t sh_plain_alloc_buffer(ggml_backend_buffer_type_t buft, size_t size) {
+    ggml_backend_buffer_t b = ggml_backend_buft_alloc_buffer(ggml_backend_cpu_buffer_type(), size);
+    if (b) b->buft = buft;
+    return b;
+}
+static size_t sh_plain_get_alignment(ggml_backend_buffer_type_t) { return ggml_backend_buft_get_alignment(ggml_backend_cpu_buffer_type()); }
+static size_t sh_plain_get_max_size(ggml_backend_buffer_type_t) { return ggml_backend_buft_get_max_size(ggml_backend_cpu_buffer_type()); }
+static size_t sh_plain_get_alloc_size(ggml_backend_buffer_type_t, const struct ggml_tensor *t) { return ggml_backend_buft_get_alloc_size(ggml_backend_cpu_buffer_type(), t); }
+static bool sh_plain_is_host(ggml_backend_buffer_type_t) { return true; }
+static struct ggml_backend_buffer_type sh_plain_buft = {
+    /* .iface   = */ { sh_plain_get_name, sh_plain_alloc_buffer, sh_plain_get_alignment, sh_plain_get_max_size, sh_plain_get_alloc_size, sh_plain_is_host },
+    /* .device  = */ nullptr,
+    /* .context = */ nullptr,
+};
+
 extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *lib_dir, const char *calib_path,
                            const char *prompt, int n_predict, int n_threads, const anchor_pads *pads) {
     g_ctl = ctl_fd;
@@ -186,7 +210,47 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                    int max_m = 8; if (const char *m = getenv("SHIELDED_MAX_M")) { max_m = atoi(m); if (max_m < 2) max_m = 2; if (max_m > 32) max_m = 32; }
                    if (mtp_k > max_m - 1) mtp_k = max_m - 1; if (mtp_k < 0) mtp_k = 0; }
     float mtp_pmin = 0.0f; { const char *e = getenv("ANCHOR_MTP_PMIN"); if (e) mtp_pmin = (float)atof(e); }
+    /* Keep the calibrated (offloadable) weights as plain q8_0 rows. The ARM CPU backend
+     * otherwise repacks q8_0 into q8_0_4x8 at load (its CPU_REPACK buffer) and the shielded
+     * link refuses the bytes -- which is why the bundled libggml-cpu.so used to be built
+     * with GGML_CPU_REPACK=OFF, leaving EVERY local matmul (the vocab projection, the nextn
+     * head, prefill) on the slow generic kernels. Pinning only the calib's sites to the plain
+     * CPU buffer lets everything else repack. The site names come from the calib itself. */
+    static std::string sh_pin_pattern; static llama_model_tensor_buft_override sh_pin[2];
+    {
+        std::vector<std::string> names;
+        if (FILE *cf = fopen(calib_path, "rb")) {
+            std::string cal; char cb[65536]; size_t got;
+            while ((got = fread(cb, 1, sizeof cb, cf)) > 0) cal.append(cb, got);
+            fclose(cf);
+            for (size_t at = cal.find("blk."); at != std::string::npos; at = cal.find("blk.", at + 4)) {
+                size_t i = at + 4; while (i < cal.size() && isdigit((unsigned char)cal[i])) i++;
+                if (i == at + 4 || i >= cal.size() || cal[i] != '.') continue;
+                size_t j = ++i; while (j < cal.size() && (islower((unsigned char)cal[j]) || cal[j] == '_' || isdigit((unsigned char)cal[j]))) j++;
+                if (j == i || cal.compare(j, 7, ".weight") != 0) continue;
+                std::string nm = cal.substr(at, j + 7 - at);
+                bool dup = false; for (const std::string &x : names) if (x == nm) { dup = true; break; }
+                if (!dup) names.push_back(nm);
+            }
+        }
+        /* The calib names one node per group, but a group's other members (the attention
+         * gate, ffn_up, K and V) are claimed with it, so pin EVERY weight of the calibrated
+         * layers: any q8_0 matmul there is offloaded anyway. The nextn head and the vocab
+         * projection live outside those layers and repack. */
+        std::vector<int> layers;
+        for (const std::string &nm : names) { int li = atoi(nm.c_str() + 4); bool have = false; for (int x : layers) if (x == li) have = true; if (!have) layers.push_back(li); }
+        if (!layers.empty()) {
+            sh_pin_pattern = "^blk\\.(";
+            for (size_t n = 0; n < layers.size(); n++) { if (n) sh_pin_pattern += "|"; sh_pin_pattern += std::to_string(layers[n]); }
+            sh_pin_pattern += ")\\..*\\.weight$";
+            sh_plain_buft.device = ggml_backend_buft_get_device(ggml_backend_cpu_buffer_type());
+            sh_pin[0].pattern = sh_pin_pattern.c_str(); sh_pin[0].buft = &sh_plain_buft;
+            sh_pin[1].pattern = nullptr; sh_pin[1].buft = nullptr;
+        }
+        outf("ENGINE placement: %zu calibrated layers pinned to plain CPU rows (CPU_plain); the rest may repack", layers.size());
+    }
     llama_model_params mp = llama_model_default_params(); mp.n_gpu_layers = 0;
+    if (!sh_pin_pattern.empty()) mp.tensor_buft_overrides = sh_pin;
     mp.load_mtp = mtp_k > 0;   /* the nextn head is opt-in since the fork's ddd4ec1 pin; without it the head tensors load as "unused" */
     char path[64]; snprintf(path, sizeof path, "/proc/self/fd/%d", model_fd);
     const long t_load0 = ggml_time_us();
@@ -275,7 +339,15 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     { uint64_t o = 0, l = 0, m = 0, v = 0; if (stats) stats(&o, &l, &m, &v);
       outf("ENGINE prefill %d tokens in %.0f ms: %llu nodes offloaded, %llu local, %.2f GMAC, verify_fail %llu (first graph = weights to the worker + pool warm-up)",
            n, (t_pp1 - t_pp0) / 1e3, (unsigned long long)o, (unsigned long long)l, m / 1e9, (unsigned long long)v);
-      if (o == 0) outf("ENGINE WARNING: nothing offloaded; the CPU backend repacked the weights, or the calibration did not match this model"); }
+      if (o == 0) { outf("ENGINE WARNING: nothing offloaded; the CPU backend repacked the weights, or the calibration did not match this model");
+                    /* relay the backend's own reasons: its stderr lands in engine.err, which the host cannot read */
+                    if (err_path[0]) { fflush(stderr); if (FILE *ef = fopen(err_path, "rb")) { std::string t; char eb[4096]; size_t g;
+                        while ((g = fread(eb, 1, sizeof eb, ef)) > 0) t.append(eb, g); fclose(ef);
+                        size_t from = t.size() > 6000 ? t.size() - 6000 : 0; int shown = 0;
+                        for (size_t a = from; a < t.size() && shown < 40; ) { size_t e = t.find('\n', a); if (e == std::string::npos) e = t.size();
+                            std::string ln = t.substr(a, e - a); a = e + 1;
+                            if (ln.find("shielded") != std::string::npos || ln.find("buffer size") != std::string::npos || ln.find("REPACK") != std::string::npos || ln.find("refus") != std::string::npos)
+                                { outf("ENGINE err: %s", ln.c_str()); shown++; } } } } } }
 
     std::string out; llama_token cur = 0; int n_gen = 0;
     const int n_vocab = llama_vocab_n_tokens(vocab);
