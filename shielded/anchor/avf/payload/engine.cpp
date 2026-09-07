@@ -180,7 +180,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * as k+1 rows (the shielded link takes up to 8), the target's logits
      * verify them, rejected rows roll back through n_rs_seq recurrent-state
      * snapshots. Greedy on both sides, so the text equals plain greedy. */
-    int mtp_k = 0; { const char *e = getenv("ANCHOR_MTP_K"); if (e) mtp_k = atoi(e); if (mtp_k > 7) mtp_k = 7; if (mtp_k < 0) mtp_k = 0; }
+    int mtp_k = 0; { const char *e = getenv("ANCHOR_MTP_K"); if (e) mtp_k = atoi(e);
+                   /* k+1 verify rows must fit one shielded exchange: the backend keeps batches wider than SHIELDED_MAX_M
+                    * (default 8) in the enclave, so a k past that cap would verify on the phone's CPU. Buffer bound 31. */
+                   int max_m = 8; if (const char *m = getenv("SHIELDED_MAX_M")) { max_m = atoi(m); if (max_m < 2) max_m = 2; if (max_m > 32) max_m = 32; }
+                   if (mtp_k > max_m - 1) mtp_k = max_m - 1; if (mtp_k < 0) mtp_k = 0; }
     float mtp_pmin = 0.0f; { const char *e = getenv("ANCHOR_MTP_PMIN"); if (e) mtp_pmin = (float)atof(e); }
     llama_model_params mp = llama_model_default_params(); mp.n_gpu_layers = 0;
     mp.load_mtp = mtp_k > 0;   /* the nextn head is opt-in since the fork's ddd4ec1 pin; without it the head tensors load as "unused" */
@@ -296,7 +300,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
             if (llama_decode(ctx, llama_batch_get_one(&cur, 1))) { outf("ENGINE decode failed"); dump_err(); break; }
             n_past++; cur = argmax(llama_get_logits_ith(ctx, -1)); go = emit(cur); continue;
         }
-        int32_t d[8]; int k = mtp_k; if (k > n_predict - n_gen - 1) k = n_predict - n_gen - 1;
+        int32_t d[32]; int k = mtp_k; if (k > n_predict - n_gen - 1) k = n_predict - n_gen - 1;
         const long t_r0 = ggml_time_us();
         const int nd = k > 0 ? anchor_mtp_draft(mtp, cur, n_past, k, mtp_pmin, d) : 0;
         const long t_r1 = ggml_time_us();
