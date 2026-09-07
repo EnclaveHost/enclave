@@ -67,6 +67,7 @@ public class Main extends Activity {
         int boost = 0;                       // engine: spinning threads in the VM that keep the phone's clocks up between exchanges
         int burners = 0;                     // app-side: lowest-priority spinning threads that keep the clusters' clocks up while the VM decodes
         String shenv = "";                   // engine: extra environment for the VM engine, "K=V,K=V" (e.g. SHIELDED_LOCAL_SITES=token_embd.weight)
+        int hugepages = 0;                   // VM: setShouldUseHugepages(true) when the phone's AVF offers it
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
@@ -87,7 +88,7 @@ public class Main extends Activity {
             if (i.getStringExtra("prefixpk") != null) p.prefixPk = i.getStringExtra("prefixpk");   // the platform's prefix key (64 hex) the VM pins
             if (i.getStringExtra("prefixname") != null) p.prefixName = i.getStringExtra("prefixname");       // fetch <name>.kv/.sig/.txt from the platform's store...
             if (i.getStringExtra("prefixdigest") != null) p.prefixDigest = i.getStringExtra("prefixdigest"); // ...for this model digest, into files/prefix
-            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
@@ -167,6 +168,7 @@ public class Main extends Activity {
             call(b, "setDebugLevel", plan.debug);
             call(b, "setMemoryBytes", plan.memMib << 20);
             call(b, "setCpuTopology", 1);            // CPU_TOPOLOGY_MATCH_HOST
+            if (plan.hugepages > 0) say("HOST hugepages: " + (tryCall(b, "setShouldUseHugepages", true) != null ? "requested" : "not available"));
             if (plan.storageMib > 0) say("HOST encrypted storage " + plan.storageMib + " MiB: " + (tryCall(b, "setEncryptedStorageBytes", plan.storageMib << 20) != null ? "set" : "not available"));
             Object cfg = call(b, "build");
             say("HOST config protected=" + call(cfg, "isProtectedVm") + " debug=" + call(cfg, "getDebugLevel"));
