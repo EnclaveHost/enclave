@@ -53,8 +53,10 @@ static void outf(const char *fmt, ...) {
 /* llama's load chatter stays off the control channel; its warnings and errors
  * go to stderr (the engine.err file in the encrypted store), which the owner
  * sees as a tail when a step fails. */
+static bool g_log_info = false;   /* ENGINE_LOG_INFO=1: keep ggml INFO (registration/placement timings) in engine.err; default off */
+static bool g_export_stderr = false; static uint64_t g_export_cap = 4u << 20;   /* ENGINE_EXPORT_STDERR / _MAX, parsed once at entry */
 static void quiet_log(enum ggml_log_level level, const char *text, void *) {
-    if (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN) { fputs(text, stderr); fflush(stderr); }
+    if (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN || (g_log_info && level == GGML_LOG_LEVEL_INFO)) { fputs(text, stderr); fflush(stderr); }
 }
 
 typedef void (*stats_fn)(uint64_t *offloaded, uint64_t *local, uint64_t *macs, uint64_t *verify_fail);
@@ -69,8 +71,12 @@ typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
 #include "anchor_pads.h"
 extern "C" {
 #include "shielded-pad-grant.h"   /* static inline C over TweetNaCl: its declarations need C linkage here */
+#include "shielded-sha256.h"      /* digests for the stderr export (diagnostic, default off) */
+#include "anchor_stderr_export.h"  /* the export itself: shared with the compiled host fixture */
 }
 #include "shielded-pads.h"
+
+
 #include "prefix-kv.h"
 #include "prefix-kv-llama.h"
 #include "prefix-mtp.h"
@@ -269,6 +275,15 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     { const char *es = getenv("ANCHOR_ENCRYPTED_STORE"); snprintf(err_path, sizeof err_path, "%s/engine.err", es && *es ? es : "/data/local/tmp"); }
     if (!freopen(err_path, "w", stderr)) { outf("ENGINE stderr not captured (%s: %s)", err_path, strerror(errno)); err_path[0] = 0; }
     else outf("ENGINE stderr -> %s", err_path);
+    /* Diagnostic config is parsed and cached HERE, before any backend/model work, and an invalid value FAILS the
+     * run (exit 4) rather than being ignored: a diagnostic leg must never run with a misspelled knob. */
+    { int li = 0, ex = 0; uint64_t cap = 4u << 20; const char *cm = getenv("ENGINE_EXPORT_STDERR_MAX");
+      if (!anchor_stderr_flag_parse(getenv("ENGINE_LOG_INFO"), &li)) { outf("ENGINE config: ENGINE_LOG_INFO must be exactly 0 or 1"); return 4; }
+      if (!anchor_stderr_flag_parse(getenv("ENGINE_EXPORT_STDERR"), &ex)) { outf("ENGINE config: ENGINE_EXPORT_STDERR must be exactly 0 or 1"); return 4; }
+      if (cm && !anchor_stderr_cap_parse(cm, ANCHOR_STDERR_CAP_MIN, ANCHOR_STDERR_CAP_MAX, &cap)) { outf("ENGINE config: ENGINE_EXPORT_STDERR_MAX must be canonical decimal in [65536, 67108864]"); return 4; }
+      g_log_info = li != 0; g_export_stderr = ex != 0; g_export_cap = cap;
+      if (g_log_info) outf("ENGINE log: ggml INFO kept in engine.err (diagnostic)");
+      if (g_export_stderr) outf("ENGINE log: engine.err will be exported as a %s (cap %llu bytes)", ANCHOR_STDERR_SCOPE, (unsigned long long)cap); }
     setvbuf(stderr, NULL, _IONBF, 0);
     auto dump_err = [&]() {
         if (!err_path[0]) return;
@@ -785,5 +800,9 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b);   /* the private weight buffers outlive the model, not the run */
     g_owned.clear(); g_plain_tensors.clear();
     if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; }
+    /* ENGINE_EXPORT_STDERR=1 (diagnostic, default off, validated at entry): a FILE SNAPSHOT of engine.err taken
+     * now, after engine_main's own cleanup. The process-static shielded pool (links, refill threads) outlives this
+     * function and may still write stderr later, so the export is scoped and named as a snapshot, never "all". */
+    if (err_path[0] && g_export_stderr) { fflush(stderr); anchor_stderr_export(err_path, g_export_cap, [](void *, const char *l) { outf("%s", l); }, nullptr); }
     return failed ? 3 : 0;                   /* a broken loop is a failed run: the harness must not count it */
 }
