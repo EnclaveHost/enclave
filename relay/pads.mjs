@@ -50,6 +50,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage, windowMessageV2 } from "./pad-grant.mjs";
 import { loadPadState, savePadState } from "./pad-state.mjs";
+export { createShipmentStore } from "./pad-shipment-store.mjs";
+import { ackProgress, ackCovers, mergeAck } from "./pad-ack.mjs";
 
 /* ---- the HTTP surface, shared by api-relay.js and the local hub ----------
  * Returns true when the request was one of ours (answered), false otherwise.
@@ -75,17 +77,22 @@ export function padsRouter({ ledger, store, prefixStore, dealerToken, json, read
       const want = String(url.searchParams.get("sha256") || "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(want)) { json(res, 400, { error: "need_sha256" }); return true; }
       const hash = createHash("sha256");
-      const out = fs.createWriteStream(plan.tmp);
+      const out = fs.createWriteStream(plan.tmp, { flags: "wx", mode: 0o600 });
       let bytes = 0;
       req.on("data", (ch) => { hash.update(ch); bytes += ch.length; });
       req.pipe(out);
-      out.on("finish", () => {
+      out.on("finish", async () => {
         const got = hash.digest("hex");
         if (got !== want) { try { fs.unlinkSync(plan.tmp); } catch {} return json(res, 409, { error: "sha256_mismatch", got, want }); }
-        try { fs.renameSync(plan.tmp, plan.final); } catch (e) { return json(res, 500, { error: "store", message: e.message }); }
+        try {
+          if (st.commit) await st.commit(plan, got, bytes);
+          else fs.renameSync(plan.tmp, plan.final);
+        } catch (e) { return json(res, e.status || 500, { error: "store", message: e.message }); }
+        finally { try { fs.unlinkSync(plan.tmp); } catch {} }
         json(res, 200, { stored: name, bytes, sha256: got });
       });
-      out.on("error", (e) => json(res, 500, { error: "store", message: e.message }));
+      out.on("error", (e) => { try { fs.unlinkSync(plan.tmp); } catch {} if (!res.headersSent) json(res, 500, { error: "store", message: e.message }); });
+      req.on("aborted", () => out.destroy(new Error("upload aborted")));
       return true;
     }
     json(res, 405, { error: "method" }); return true;
@@ -118,11 +125,12 @@ export function padsRouter({ ledger, store, prefixStore, dealerToken, json, read
       const r = ledger.receipts(url.searchParams.get("seed_id") || "");
       json(res, r ? 200 : 404, r || { error: "unknown_seed" }); return true;
     }
-    if ((p === "/v1/pads/seed" || p === "/v1/pads/reserve" || p === "/v1/pads/receipt") && req.method === "POST") {
+    if ((p === "/v1/pads/seed" || p === "/v1/pads/reserve" || p === "/v1/pads/receipt" || p === "/v1/pads/ack") && req.method === "POST") {
       let body;
       try { body = JSON.parse((await readBody(req, 8192)).toString("utf8") || "{}"); }
       catch (e) { json(res, e.message === "body too large" ? 413 : 400, { error: "bad_json", message: e.message }); return true; }
-      const r = p === "/v1/pads/seed" ? ledger.seed(body || {}) : p === "/v1/pads/reserve" ? ledger.reserve(body || {}) : ledger.receipt(body || {});
+      const r = p === "/v1/pads/seed" ? ledger.seed(body || {}) : p === "/v1/pads/reserve" ? ledger.reserve(body || {}) :
+        p === "/v1/pads/ack" ? await ledger.ack(body || {}, store) : ledger.receipt(body || {});
       json(res, r.status, r.body); return true;
     }
     if (p === "/v1/pads/shipments" && req.method === "GET") {
@@ -140,42 +148,6 @@ export function padsRouter({ ledger, store, prefixStore, dealerToken, json, read
  * its own storage (the platform is the bank; an operator NVMe cache can front
  * it later). Files are ciphertext to a pad key, so GET is public; PUT/DELETE
  * take the dealer's bearer. Names are `<seed_id>-<index0>-<count>.pads`. */
-const SHIP_NAME = /^([0-9a-f]{32})-(\d+)-(\d+)\.pads$/;
-export function createShipmentStore({ dir }) {
-  const root = path.join(dir, "pads-shipments");
-  const seedDir = (seed_id) => path.join(root, seed_id);
-  const okSeed = (s) => /^[0-9a-f]{32}$/.test(String(s || ""));
-  return {
-    root,
-    nameHint: "<seed_id>-<index0>-<count>.pads, for that seed",
-    /* Where an upload lands (tmp) and its final path; the name must carry the seed it is for. */
-    plan(seed_id, name) {
-      const m = SHIP_NAME.exec(String(name || ""));
-      if (!okSeed(seed_id) || !m || m[1] !== seed_id) return null;
-      fs.mkdirSync(seedDir(seed_id), { recursive: true });
-      return { tmp: path.join(seedDir(seed_id), "." + name + ".part"), final: path.join(seedDir(seed_id), name), index0: Number(m[2]), count: Number(m[3]) };
-    },
-    list(seed_id) {
-      if (!okSeed(seed_id)) return [];
-      let names = [];
-      try { names = fs.readdirSync(seedDir(seed_id)); } catch { return []; }
-      return names.filter((n) => SHIP_NAME.test(n)).map((n) => {
-        const m = SHIP_NAME.exec(n), st = fs.statSync(path.join(seedDir(seed_id), n));
-        return { name: n, bytes: st.size, index0: Number(m[2]), count: Number(m[3]) };
-      }).sort((a, b) => a.index0 - b.index0);
-    },
-    file(seed_id, name) {
-      const p = this.plan(seed_id, name);
-      return p && fs.existsSync(p.final) ? p.final : null;
-    },
-    remove(seed_id, name) {
-      const p = this.plan(seed_id, name);
-      if (!p) return false;
-      try { fs.unlinkSync(p.final); return true; } catch { return false; }
-    },
-  };
-}
-
 export const PADS_EPOCH = Number(process.env.PADS_EPOCH || 1);   // bump (env) to re-key every pVM's seed; old shipments become foreign
 export const MAX_WINDOW = 4096;
 export const PAD_INDEX_LIMIT = 2 ** 24;          // sh_pad_r's index field; a fresh seed is required at exhaustion
@@ -222,6 +194,7 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
   const file = path.join(dir, "pads-ledger.json");
   const existing = loadPadState(file);
   const state = existing || { master: null, ledgerKey: null, seeds: {} };
+  for (const rec of Object.values(state.seeds)) ackProgress(rec);
   if (masterSeed !== null) {
     if (typeof masterSeed !== "string" || masterSeed.length !== 64 || /[^0-9a-f]/i.test(masterSeed))
       throw new Error("pad master seed must be exactly 32 bytes of hex");
@@ -326,6 +299,31 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       return { status: 200, body: { seed_id, lo, hi, iat, sig: wsig, window_version: 2, request_nonce: nonce, sig_v2 } };
     },
 
+    /* Acknowledgments are monotonic set union, so retries remain harmless
+     * across nonce eviction and restarts. They never advance reservation mark.
+     * Authenticate BEFORE hashing, and reload state AFTER that async boundary. */
+    async ack({ name, seed_id, index0, count, sha256, nonce, sig }, store) {
+      if (!/^[0-9a-f]{32}$/.test(String(seed_id || "")) || !/^[0-9a-f]{64}$/.test(String(sha256 || "")) ||
+          !Number.isSafeInteger(index0) || index0 < 0 || !Number.isSafeInteger(count) || count <= 0 || index0 >= PAD_INDEX_LIMIT || count > PAD_INDEX_LIMIT - index0)
+        return { status: 400, body: { error: "bad_ack" } };
+      const c = callerOf(name, "ack", [seed_id, index0, count, sha256], nonce, sig);
+      if (c.error) return { status: 403, body: c };
+      const rec = seedRecord(seed_id);
+      if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed" } };
+      const reply = (r) => ({ status: 200, body: { seed_id, mark: r.mark, ...ackProgress(r) } });
+      if (ackCovers(ackProgress(rec), index0, index0 + count)) return reply(rec);
+      if (!store?.digest) return { status: 503, body: { error: "ack_store_unavailable" } };
+      const got = await store.digest(seed_id, `${seed_id}-${index0}-${count}.pads`);
+      if (!got) return { status: 409, body: { error: "ack_shipment_missing" } };
+      if (got !== sha256) return { status: 409, body: { error: "digest_mismatch" } };
+      const current = seedRecord(seed_id), progress = ackProgress(current);
+      const next = mergeAck(progress, index0, index0 + count);
+      if (!next) return { status: 409, body: { error: "ack_ranges_full" } };
+      state.seeds[seed_id] = { ...current, ...next };
+      try { save(); } catch (e) { state.seeds[seed_id] = current; throw e; }
+      return reply(state.seeds[seed_id]);
+    },
+
     /* POST /v1/pads/receipt: the pVM's word on what a run consumed. Signed by
      * the same transport key as the windows, so neither the owner app nor an
      * operator can inflate it; totals are what billing and the operator payout
@@ -366,7 +364,7 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (!t || !t.keyFp) return null;
       const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
       const rec = seedRecord(seed_id);
-      return { name, keyFp: t.keyFp, padKey: t.padKey || "", seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec };
+      return { name, keyFp: t.keyFp, padKey: t.padKey || "", seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec, ...ackProgress(rec) };
     },
 
     /* GET /v1/pads/consumers: every attached tunnel with a pad key, for the
@@ -379,7 +377,7 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
         if (!t || !t.keyFp || !t.padKey) continue;
         const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
         const rec = seedRecord(seed_id);
-        out.push({ name, keyFp: t.keyFp, padKey: t.padKey, seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec });
+        out.push({ name, keyFp: t.keyFp, padKey: t.padKey, seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec, ...ackProgress(rec) });
       }
       return out;
     },
@@ -387,7 +385,7 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
     /* GET /v1/pads/ledger?seed_id= (operators and the dealer read the mark). */
     mark(seed_id) {
       const rec = seedRecord(seed_id);
-      return rec ? { seed_id, mark: rec.mark, updated: rec.updated, name: rec.name } : null;
+      return rec ? { seed_id, mark: rec.mark, updated: rec.updated, name: rec.name, ...ackProgress(rec) } : null;
     },
   };
 }
