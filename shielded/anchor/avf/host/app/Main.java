@@ -71,12 +71,14 @@ public class Main extends Activity {
         int pumpprio = 0;                    // bridge pump threads: android.os.Process priority (e.g. -19 = URGENT_AUDIO)
         int tamper = 0;                      // --ei tamper 1: after the grant, re-stage the model with one extra byte (must be refused), then honestly (must pass)
         int fresh = 0;                       // --ei fresh 1: delete the VM instance first (empty encrypted storage = a clean first boot)
+        boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
         String prefixName = "", prefixDigest = "";   // or fetch them from the platform store by (model digest, name)
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
+            p.nativeEcho = i.getBooleanExtra("nativeecho", false);
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
             p.debug = i.getIntExtra("debug", p.debug); p.memMib = i.getIntExtra("mem", (int) p.memMib);
             if (i.getStringExtra("worker") != null) p.worker = i.getStringExtra("worker");
@@ -404,6 +406,15 @@ public class Main extends Activity {
         if (plan.worker.equals("echo")) {   // measure the vsock + this pump alone: bytes from the guest go straight back
             ParcelFileDescriptor pfd = connect(vm, WORKER_PORT, 25);
             if (pfd == null) return;
+            if (plan.nativeEcho) {
+                try {
+                    if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority);
+                    say("BRIDGE native echo: " + NativeEcho.describe(pfd.getFd()));
+                    say("BRIDGE native echo closed, bytes_or_negative_errno=" + NativeEcho.run(pfd.getFd()));
+                } catch (LinkageError | RuntimeException e) { say("BRIDGE native echo failed: " + e); }
+                finally { try { pfd.close(); } catch (Exception ignored) {} }
+                return;
+            }
             say("BRIDGE echo: guest bytes returned to the guest (no TCP)");
             InputStream gi = new FileInputStream(pfd.getFileDescriptor()); OutputStream go = new FileOutputStream(pfd.getFileDescriptor());
             long n = pipe(gi, go, "echo");
