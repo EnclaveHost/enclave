@@ -29,6 +29,8 @@ typedef struct {
     int64_t (*fv_dot)(const int64_t *y, const int64_t *s, int stride, int rep, int64_t n);
     int64_t (*fv_dot_x)(const int64_t *x, const int64_t *st, int stride, int rep, int64_t n);
     void    (*fv_prepare)(const int8_t *W, int64_t K, int64_t N, const int64_t *s, int reps, int64_t *st);
+    /* acc supplies at least 12*N int32 values for every batch size, including
+     * the allocation-free fallback when blocked-kernel scratch is unavailable. */
     void    (*refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_t N,
                       int32_t *u, int64_t u_stride, int32_t *acc);
     void    (*outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y);
