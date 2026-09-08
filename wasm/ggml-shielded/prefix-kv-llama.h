@@ -7,6 +7,31 @@
 #include <vector>
 #include <exception>
 
+/* Tokenize the COMPLETE prompt using the same policy as an uncached request.
+ * Its first tokens must exactly match the signed state's token vector: BPE
+ * can merge across a text prefix boundary. On success consume the remaining
+ * tokens from that complete vector, never tokenize the suffix separately.
+ * Call before load_snapshot, which consumes the snapshot's file envelope. */
+static inline int sh_prefix_kv_match_tokens(const sh_prefix_kv_snapshot *snapshot,
+        const llama_token *prompt_tokens, size_t prompt_count, int32_t vocab_size,
+        char *err, size_t err_cap) {
+    const uint8_t *body = nullptr; size_t body_size = 0;
+    if (sh_prefix_kv_snapshot_state(snapshot, LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION,
+                                   vocab_size, &body, &body_size, err, err_cap)) return -1;
+    if (!prompt_tokens || snapshot->n_tokens >= prompt_count) {
+        // Sequence state stores KV/recurrent state, not the output logits.
+        std::snprintf(err, err_cap, "prefix must leave at least one complete-prompt token to decode"); return -1;
+    }
+    for (size_t i = 0; i < snapshot->n_tokens; i++) {
+        const uint8_t *p = snapshot->bytes + 12 + 4 * i;
+        const uint32_t signed_token = uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
+        if (prompt_tokens[i] < 0 || uint32_t(prompt_tokens[i]) != signed_token) {
+            std::snprintf(err, err_cap, "prefix token boundary or tokenizer policy differs at token %zu", i); return -1;
+        }
+    }
+    return 0;
+}
+
 /* The pinned llama fork's memory-state API adds an eight-byte envelope that
  * its sequence files omit. Obtain that envelope from the live library instead
  * of duplicating its private magic. The destination must be a fresh sequence;

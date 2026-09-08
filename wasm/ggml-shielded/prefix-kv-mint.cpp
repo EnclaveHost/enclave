@@ -69,7 +69,8 @@ int main(int argc, char **argv) {
     if (!model) { fprintf(stderr, "model load failed\n"); return 2; }
     const llama_vocab *vocab = llama_model_get_vocab(model);
     std::vector<llama_token> toks(prefix.size() + 16);
-    int n = llama_tokenize(vocab, prefix.c_str(), (int)prefix.size(), toks.data(), (int)toks.size(), true, true);
+    // Match the consumers' uncached text policy: BOS as needed, literal markers.
+    int n = llama_tokenize(vocab, prefix.c_str(), (int)prefix.size(), toks.data(), (int)toks.size(), true, false);
     if (n < 0) { fprintf(stderr, "tokenize failed\n"); return 2; }
     toks.resize(n);
     llama_context_params cp = llama_context_default_params();
