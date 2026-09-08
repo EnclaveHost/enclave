@@ -23,6 +23,15 @@ int main(void) {
     assert(!anchor_pins_load(dir, &p) && strstr(p.err, "anchor.mode missing") && p.mode == ANCHOR_MODE_INVALID);
     put(dir, "anchor.mode", "release\n");
     assert(!anchor_pins_load(dir, &p) && strstr(p.err, "neither"));
+    /* the mode is exact bytes: an embedded NUL, padding, a second newline or a longer file are all refused */
+    { char mp0[600]; snprintf(mp0, sizeof mp0, "%s/anchor.mode", dir); FILE *f = fopen(mp0, "wb"); assert(f); fwrite("dev\0junk", 1, 8, f); fclose(f); }
+    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "neither"));
+    put(dir, "anchor.mode", "dev\n\n");   assert(!anchor_pins_load(dir, &p) && strstr(p.err, "neither"));
+    put(dir, "anchor.mode", " dev");     assert(!anchor_pins_load(dir, &p) && strstr(p.err, "neither"));
+    put(dir, "anchor.mode", "devx");     assert(!anchor_pins_load(dir, &p) && strstr(p.err, "neither"));
+    put(dir, "anchor.mode", "protected                                  "); assert(!anchor_pins_load(dir, &p) && strstr(p.err, "too long"));
+    put(dir, "anchor.mode", "dev");      assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_DEV);      /* no newline: fine */
+    put(dir, "anchor.mode", "protected\n"); assert(!anchor_pins_load(dir, &p) && strstr(p.err, "protected build without pins"));
     /* dev without pins is fine and says so */
     put(dir, "anchor.mode", "dev\n");
     assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_DEV && !p.has_ledger && !p.has_model && !p.has_prefix);
