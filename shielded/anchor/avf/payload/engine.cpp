@@ -71,6 +71,7 @@ extern "C" {
 }
 #include "shielded-pads.h"
 #include "prefix-kv.h"
+#include "prefix-kv-llama.h"
 #include "anchor_gguf.h"
 #include "anchor_header_file.h"
 #include "llama-model.h"
@@ -548,14 +549,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const int rrc = sh_prefix_kv_snapshot_read(kv, kfd, pk, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
         close(kfd);
         if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        const uint8_t *state = nullptr; size_t slen = 0;
-        if (sh_prefix_kv_snapshot_state(&snap, LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION, llama_vocab_n_tokens(vocab), &state, &slen, err, sizeof err)) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        /* llama_state_seq_set_data expects its own envelope (io magic + seq id) around the file body, which the
-         * snapshot body lacks; the adapter that builds it is Astra's and is proved against the real model first.
-         * Until it lands, a prefix is verified and then REFUSED rather than loaded wrongly. */
-        (void)state; (void)slen; ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
-        outf("ENGINE prefix KV REFUSED: verified (%llu tokens) but the state adapter is not in this build", (unsigned long long)ntok);
-        return 2;
+        /* the adapter (prefix-kv-llama.h, Astra 299393ab) validates the snapshot's state body and restores it
+         * through llama's own memory-state envelope, from the private bytes only; proved on the real model */
+        const int lrc = sh_prefix_kv_load_snapshot(ctx, &snap, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
+        ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
+        if (lrc != 0) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
         n_loaded = (int)ntok;
         full_prompt = prefix + prompt;
         outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);
@@ -678,7 +676,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (f) {
             char line[1024]; int warned = 0;
             while (fgets(line, sizeof line, f)) {
-                const bool summary = strstr(line, "[shielded] profile: exchanges") || strstr(line, "[shielded] widths:");
+                const bool summary = strstr(line, "[shielded] profile: exchanges") || strstr(line, "[shielded] widths:") || strstr(line, "[shielded] wire");
                 const bool warning = strstr(line, "[shielded]") && (strstr(line, "offload failed") || strstr(line, "refus") || strstr(line, "contend") || strstr(line, "unavailable") || strstr(line, "cannot") || strstr(line, "REJECT") || strstr(line, "stopped") || strstr(line, "link:"));
                 if (!summary && !(warning && warned < 12)) continue;
                 if (warning) warned++;
