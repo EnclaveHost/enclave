@@ -29,6 +29,9 @@ own-key binding and authenticated seed bootstrap. It defaults to no builds.
 The legacy `codeHashes` list does not admit a build for pad access: earlier
 payloads could sign arbitrary transcripts, including this new v2 transcript.
 Never copy legacy code hashes into `padCodeHashes` as a compatibility shortcut.
+The production API relay exposes this list as `METAL_AVF_PAD_CODE_HASHES`
+(comma-separated), independently of `METAL_AVF_CODE_HASHES`. Both lists need
+`METAL_AVF_AUTHORITY_HASHES`; either list can be configured without the other.
 
 Legacy v1 evidence can still authenticate a routing tunnel under `codeHashes`.
 Its separately supplied pad key is discarded, so it cannot obtain pad seeds
