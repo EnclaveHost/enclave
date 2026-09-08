@@ -693,8 +693,8 @@ int AVmPayload_main(void) {
         if (anchor_pins_load("/mnt/apk/assets", &g_pins)) {
             if (g_pins.has_ledger) { memcpy(g_ledger_pk, g_pins.ledger_pk, 32); g_ledger_pinned = 1; g_have_ledger = 1; }
             if (g_pins.has_prefix) { sh_pads_bin2hex(g_pins.prefix_pk, 32, g_prefix_pk_hex); }
-            OUT("PINS mode=%s ledger=%s model=%s prefix=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
-                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app");
+            OUT("PINS mode=%s ledger=%s model=%s prefix=%s sha256=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
+                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend());
         } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
     }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
