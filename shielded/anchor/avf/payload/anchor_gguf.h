@@ -26,6 +26,9 @@ typedef struct { void (*init)(void *ctx); void (*update)(void *ctx, const uint8_
  * inspection) and nothing is authenticated. 1 on success (table allocated; free with anchor_gguf_free);
  * 0 with err on anything malformed, unknown, truncated, overlapping, duplicated or changed under the read. */
 int  anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], char *err, size_t errcap);
+/* The same, reporting progress: `progress(ctx, done, total)` after every 1 GiB and at the end (NULL = silent). */
+typedef void (*anchor_gguf_progress)(void *ctx, uint64_t done, uint64_t total);
+int  anchor_gguf_stage_p(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], anchor_gguf_progress progress, void *pctx, char *err, size_t errcap);
 void anchor_gguf_free(anchor_gguf_table *t);
 const anchor_gguf_tensor *anchor_gguf_find(const anchor_gguf_table *t, const char *name);
 #ifdef __cplusplus
