@@ -29,7 +29,10 @@ typedef struct {
  * mandatory aggregate cap for all task r/u/planes/acc/AEAD scratch and the
  * writer's shared AEAD scratch. Bounded public metadata and the writer's nonce
  * bitmap are separately limited by the v3 file/manifest policy. All scratch is
- * sized/allocated before minting, retained per thread, and wiped before return.
+ * sized before task allocation, retained per thread, and wiped before return.
+ * Each lane sizes r/u/planes/acc for its assigned groups; per-lane AEAD buffers
+ * retain the writer's maximum active-cell size. The aggregate must fit the cap
+ * before any lane scratch or shipment file is allocated.
  * Failed thread creation executes that lane on the caller exactly once.
  *
  * published is required and initialized false, then reports the same durable

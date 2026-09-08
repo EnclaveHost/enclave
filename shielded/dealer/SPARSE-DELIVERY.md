@@ -376,8 +376,12 @@ Thread count is explicit, limited to 1..64 and clamped to active groups. The
 existing deterministic cost scheduler uses checked K × output extent × row
 count estimates. A mandatory aggregate scratch budget covers all task buffers
 and the file writer's shared buffers, separately from bounded public metadata
-and the nonce bitmap. Task scratch is allocated before file creation and wiped
-before release. Failed thread creation runs that lane exactly once on the
+and the nonce bitmap. Each lane sizes r, u, planes and accumulators for the
+groups assigned to it, so the output head does not impose its largest buffers
+on every lane. Per-lane encryption buffers retain the maximum active-cell size
+required by the file writer. The complete aggregate must fit the budget before
+any lane scratch or shipment file is allocated; scratch is wiped before release.
+Failed thread creation runs that lane exactly once on the
 caller; all started workers are joined. A mint failure aborts the temporary
 file, while finish retains the explicit post-publication error contract.
 

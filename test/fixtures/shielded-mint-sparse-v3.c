@@ -106,26 +106,42 @@ int main(int argc,char **argv) {
         assert(attempts==(mode>=2?4:0));fail_threads=0;
         check(dir,name,v2);
     }
+    /* Several groups in each lane exercise changes in shape within a lane. */
+    for (int threads=2;threads<=3;threads++) {
+        char name[32];snprintf(name,sizeof name,"multi-%d.pads3",threads);
+        bool published=false;
+        assert(mint(permuted,dir,name,threads,1<<20,&published)==SH_OK && published);
+        check(dir,name,v2);
+    }
     /* Exactly one active group clamps the requested thread budget to one. */
     sh_pads_span saved[G];memcpy(saved,spans,sizeof spans);
     memset(spans,0,sizeof spans);spans[4]=saved[4];attempts=0;bool published=false;
     assert(mint(permuted,dir,"one.pads3",64,1<<20,&published)==SH_OK && published && attempts==0);check(dir,"one.pads3",v2);
     memset(spans,0,sizeof spans);refuse(permuted,dir,"empty",3,1<<20);memcpy(spans,saved,sizeof spans);
     refuse(permuted,dir,"small-scratch",3,1);refuse(permuted,dir,"threads-zero",0,1<<20);refuse(permuted,dir,"threads-many",65,1<<20);
-    /* Aggregate cap includes four task buffers AND the writer's two buffers.
-     * Active maxima K=160, u_len=N=31; each cell is 16+3*31 = 109 bytes. */
-    const uint64_t exact_scratch=4*(16*160*4+16*31*4+12*31*4+3*16*160+2*109)+2*109;
+    /* Four active groups on four lanes means one group per lane. r/u/planes/acc
+     * follow that group's geometry; AEAD still uses the largest cell (109 B).
+     * This fits below the former 86,658-byte global-max-per-lane requirement. */
+    uint64_t exact_scratch=2*109; /* writer's two buffers */
+    for (int g=0;g<G;g++) if (spans[g].count) {
+        const int u=N[g]+(g==1?7:0);
+        exact_scratch+=16*K[g]*4+16*u*4+12*N[g]*4+3*16*K[g]+2*109;
+    }
+    assert(exact_scratch==50594);
     refuse(permuted,dir,"budget-short",64,exact_scratch-1);
     assert(mint(permuted,dir,"budget-exact",64,exact_scratch,&published)==SH_OK && published);check(dir,"budget-exact",v2);
-    int all_allocations_tested=0;
-    for (int point=1;point<256;point++) {
-        allocation_calls=0;fail_allocation=point;published=true;
-        int rc=mint(permuted,dir,"oom",1,1<<20,&published);
-        fail_allocation=0;
-        if (rc==SH_OK) { assert(allocation_calls<point && published);all_allocations_tested=1;check(dir,"oom",v2);break; }
-        assert(rc==SH_ERR_NOMEM && !published && faccessat(dir,"oom",F_OK,0)!=0);
+    for (int mode=0;mode<2;mode++) {
+        const char *name=mode?"oom-lanes":"oom-single";
+        int all_allocations_tested=0;
+        for (int point=1;point<256;point++) {
+            allocation_calls=0;fail_allocation=point;published=true;
+            int rc=mint(permuted,dir,name,mode?64:1,1<<20,&published);
+            fail_allocation=0;
+            if (rc==SH_OK) { assert(allocation_calls<point && published);all_allocations_tested=1;check(dir,name,v2);break; }
+            assert(rc==SH_ERR_NOMEM && !published && faccessat(dir,name,F_OK,0)!=0);
+        }
+        assert(all_allocations_tested);
     }
-    assert(all_allocations_tested);
     for (int point=1;point<=3;point++) {
         write_calls=0;fail_write=point;refuse(permuted,dir,"write-failed",4,1<<20);fail_write=0;
     }
