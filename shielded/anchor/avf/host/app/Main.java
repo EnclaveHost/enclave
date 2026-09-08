@@ -71,6 +71,7 @@ public class Main extends Activity {
         int pumpprio = 0;                    // bridge pump threads: android.os.Process priority (e.g. -19 = URGENT_AUDIO)
         int tamper = 0;                      // --ei tamper 1: after the grant, re-stage the model with one extra byte (must be refused), then honestly (must pass)
         int fresh = 0;                       // --ei fresh 1: delete the VM instance first (empty encrypted storage = a clean first boot)
+        String vmName = "anchor";            // --es vmname: which VM instance (its own encrypted store) this run uses; [a-z0-9_-], 1-32 chars
         boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
@@ -93,7 +94,7 @@ public class Main extends Activity {
             if (i.getStringExtra("prefixpk") != null) p.prefixPk = i.getStringExtra("prefixpk");   // the platform's prefix key (64 hex) the VM pins
             if (i.getStringExtra("prefixname") != null) p.prefixName = i.getStringExtra("prefixname");       // fetch <name>.kv/.sig/.txt from the platform's store...
             if (i.getStringExtra("prefixdigest") != null) p.prefixDigest = i.getStringExtra("prefixdigest"); // ...for this model digest, into files/prefix
-            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
@@ -187,9 +188,16 @@ public class Main extends Activity {
              * lives, and deleting the VM deletes it. Recreate only when the stored
              * config no longer matches (getOrCreate refuses an incompatible one). */
             Object vm0;
-            if (plan.fresh == 1) { try { call(vmm, "delete", "anchor"); say("HOST VM instance deleted first (--ei fresh 1): empty encrypted storage, the model streams again"); } catch (Exception e) { say("HOST no instance to delete: " + e.getMessage()); } }
-            try { vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
-            catch (Exception e) { say("HOST existing VM incompatible with this config (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): recreating"); try { call(vmm, "delete", "anchor"); } catch (Exception ignored) { } vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
+            /* One named instance per store: "anchor" is the default identity; a larger test store gets its own name
+             * (--es vmname anchor64 --ei storage 65536) and never replaces it. An existing instance whose stored
+             * config no longer matches is NOT deleted on its own: only --ei fresh 1 deletes, and says so. */
+            say("HOST VM instance '" + plan.vmName + "' mem=" + plan.memMib + " MiB storage=" + plan.storageMib + " MiB");
+            if (plan.fresh == 1) { try { call(vmm, "delete", plan.vmName); say("HOST VM instance '" + plan.vmName + "' deleted first (--ei fresh 1): empty encrypted storage, the model streams again"); } catch (Exception e) { say("HOST no instance to delete: " + e.getMessage()); } }
+            try { vm0 = call(vmm, "getOrCreate", plan.vmName, cfg); }
+            catch (Exception e) {
+                say("HOST existing VM '" + plan.vmName + "' is incompatible with this config (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): NOT deleting it; run with --ei fresh 1 to replace it, or --es vmname <other> for a separate instance");
+                return;
+            }
             final Object vm = vm0;
             Class<?> cCb = Class.forName(PKG + "VirtualMachineCallback");
             Executor ex = Executors.newSingleThreadExecutor();
