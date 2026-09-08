@@ -213,6 +213,7 @@ static int weight_read(void *, const char *name, uint32_t type, const int64_t ne
     for (int i = 0; i < 4; i++) if ((uint64_t)ne[i] != e->ne[i]) return -1;
     uint64_t got = 0; uint8_t *dst = (uint8_t *)bytes;
     while (got < e->size) { ssize_t n = pread(g_stream_fd, dst + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) return -1; got += (uint64_t)n; }
+    posix_fadvise(g_stream_fd, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* the guest's cache must not swell with 22 GiB of sources */
     return 0;
 }
 typedef ggml_backend_buffer_t (*weight_source_fn)(struct ggml_tensor *, ggml_shielded_weight_reader, void *);
@@ -466,6 +467,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         tmp.resize((size_t)e->size);
         uint64_t got = 0;
         while (got < e->size) { ssize_t n = pread(src, tmp.data() + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) break; got += (uint64_t)n; }
+        posix_fadvise(src, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* read once, then out of the guest's cache */
         if (got != e->size) { outf("ENGINE refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
         if (!digest_matches(e, tmp.data(), (size_t)e->size)) { outf("ENGINE refused: %s: bytes in the staged model differ from its digest at stage time", name.c_str()); ok = false; break; }
         ggml_backend_buffer_t buf = ggml_backend_buft_alloc_buffer(buft, ggml_backend_buft_get_alloc_size(buft, t));
@@ -508,6 +510,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     { const char *e = getenv("ANCHOR_BOOST_THREADS"); int nb = e ? atoi(e) : 0; if (nb > 16) nb = 16;
       for (int i = 0; i < nb; i++) boost.emplace_back([&boost_on] { while (boost_on.load(std::memory_order_relaxed)) { for (int k = 0; k < 256; k++) __asm__ __volatile__("" ::: "memory"); } });
       if (nb > 0) outf("ENGINE boost: %d spinning threads keep the clocks up", nb); }
+    const char *mtp_fallback = "";          /* sticky: why MTP drafting stopped (unavailable | prompt_observe_failed | observe_failed); "" = it never did */
+    if (mtp_k > 0 && !mtp) mtp_fallback = "unavailable";
     if (mtp_k > 0) outf("ENGINE MTP draft: %s (k=%d, p_min=%.2f, rollback depth %u)", mtp ? "on" : "UNAVAILABLE (no nextn layer or symbols); decoding plainly", mtp_k, mtp_pmin, llama_n_rs_seq(ctx));
     /* one persistent CPU pool: without it every scheduler split respawns the threads (REPORT.md 12) */
     void *cpu_h = dlopen(cpu_so.c_str(), RTLD_NOW);
@@ -614,10 +618,14 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                                 { outf("ENGINE err: %s", ln.c_str()); shown++; } } } } } }
 
     std::string out; llama_token cur = 0; int n_gen = 0;
+    const char *status = "budget";          /* how the loop ended: budget | eos | decode_failed | rollback_refused */
+    auto json_escape = [](const std::string &in) { std::string o; o.reserve(in.size() + 8); char hex[8];
+        for (unsigned char c : in) { switch (c) { case '"': o += "\\\""; break; case '\\': o += "\\\\"; break; case '\n': o += "\\n"; break; case '\r': o += "\\r"; break; case '\t': o += "\\t"; break;
+            default: if (c < 0x20) { snprintf(hex, sizeof hex, "\\u%04x", c); o += hex; } else o += (char)c; } } return o; };
     const int n_vocab = llama_vocab_n_tokens(vocab);
     auto argmax = [&](const float *logits) { int best = 0; float bv = logits[0]; for (int t = 1; t < n_vocab; t++) if (logits[t] > bv) { bv = logits[t]; best = t; } return (llama_token)best; };
     /* false = end of generation (eog or the budget) */
-    auto emit = [&](llama_token t) { if (llama_vocab_is_eog(vocab, t)) return false;
+    auto emit = [&](llama_token t) { if (llama_vocab_is_eog(vocab, t)) { status = "eos"; return false; }
         char piece[256]; int pn = llama_token_to_piece(vocab, t, piece, sizeof piece, 0, true);
         if (pn > 0) { out.append(piece, pn); outf("TOKEN %.*s", pn, piece); }
         return ++n_gen < n_predict; };
@@ -629,12 +637,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         int32_t pre[33]; int pre_n = 0; int32_t pre_first = -1; int mtp_pre_used = 0, mtp_pre_hit = 0;   /* draft-ahead hand-off between rounds */
     const long t_tg0 = ggml_time_us();
     cur = argmax(llama_get_logits_ith(ctx, -1));
-    if (mtp && n > 0) { if (anchor_mtp_harvest(mtp, ctx, n) || anchor_mtp_observe(mtp, n_loaded, toks.data(), n)) { outf("ENGINE MTP: the head could not observe the prompt; decoding plainly"); anchor_mtp_free(mtp); mtp = nullptr; } }
+    if (mtp && n > 0) { if (anchor_mtp_harvest(mtp, ctx, n) || anchor_mtp_observe(mtp, n_loaded, toks.data(), n)) { mtp_fallback = "prompt_observe_failed"; outf("ENGINE MTP: the head could not observe the prompt; decoding plainly"); anchor_mtp_free(mtp); mtp = nullptr; } }
     bool go = n_predict > 0 && emit(cur);
     while (go) {
         if (t_steady0 == 0 && n_gen > 1) { t_steady0 = ggml_time_us(); n_gen_steady0 = n_gen; }
         if (!mtp) {
-            if (llama_decode(ctx, llama_batch_get_one(&cur, 1))) { outf("ENGINE decode failed"); dump_err(); break; }
+            if (llama_decode(ctx, llama_batch_get_one(&cur, 1))) { outf("ENGINE decode failed"); dump_err(); status = "decode_failed"; break; }
             n_past++; cur = argmax(llama_get_logits_ith(ctx, -1)); go = emit(cur); continue;
         }
         int32_t d[32]; int k = mtp_k; if (k > n_predict - n_gen - 1) k = n_predict - n_gen - 1;
@@ -664,12 +672,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const int rc = llama_decode(ctx, vb); llama_batch_free(vb);
         const long t_r2 = ggml_time_us();
         if (ahead_th.joinable()) ahead_th.join();
-        if (rc) { outf("ENGINE decode failed (verify of %d rows)", nd + 1); dump_err(); break; }
+        if (rc) { outf("ENGINE decode failed (verify of %d rows)", nd + 1); dump_err(); status = "decode_failed"; break; }
         int acc = 0; while (acc < nd && argmax(llama_get_logits_ith(ctx, acc)) == d[acc]) acc++;
         const llama_token bonus = argmax(llama_get_logits_ith(ctx, acc));
         if (ahead_ok && acc == nd && bonus == ahead_guess) { pre_n = ahead_n; pre_first = bonus; memcpy(pre, ahead, (size_t)ahead_n * sizeof(int32_t)); mtp_pre_hit++; }
-        if (acc < nd && !llama_memory_seq_rm(llama_get_memory(ctx), 0, n_past + acc + 1, -1)) { outf("ENGINE MTP: rollback of %d rows REFUSED (n_rs_seq %u)", nd - acc, llama_n_rs_seq(ctx)); break; }
-        if (anchor_mtp_harvest(mtp, ctx, acc + 1) || anchor_mtp_observe(mtp, n_past, rows, acc + 1)) { outf("ENGINE MTP: observe failed; decoding plainly from here"); anchor_mtp_free(mtp); mtp = nullptr; }
+        if (acc < nd && !llama_memory_seq_rm(llama_get_memory(ctx), 0, n_past + acc + 1, -1)) { outf("ENGINE MTP: rollback of %d rows REFUSED (n_rs_seq %u)", nd - acc, llama_n_rs_seq(ctx)); status = "rollback_refused"; break; }
+        if (anchor_mtp_harvest(mtp, ctx, acc + 1) || anchor_mtp_observe(mtp, n_past, rows, acc + 1)) { mtp_fallback = "observe_failed"; outf("ENGINE MTP: observe failed; decoding plainly from here"); anchor_mtp_free(mtp); mtp = nullptr; }
         n_past += acc + 1; mtp_rounds++; mtp_drafted += nd; mtp_accepted += acc;
         t_draft += t_r1 - t_r0; t_verify += t_r2 - t_r1; t_observe += ggml_time_us() - t_r2;
         go = true; for (int i = 0; i < acc && go; i++) go = emit(d[i]);
@@ -686,9 +694,10 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     if (stats) stats(&off, &loc, &macs, &vf);
     cache_stats_line("after decode");
-    outf("{\"engine\":\"avf-pvm\",\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
+    const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused");
+    outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
          "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d}",
-         n, n_gen, out.c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
+         status, mtp_fallback, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
          (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 / (n_gen - n_gen_steady0) : 0.0,
          (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads);
     if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + (uint64_t)n_gen); }
@@ -712,5 +721,5 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b);   /* the private weight buffers outlive the model, not the run */
     g_owned.clear(); g_plain_tensors.clear();
     if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; }
-    return 0;
+    return failed ? 3 : 0;                   /* a broken loop is a failed run: the harness must not count it */
 }
