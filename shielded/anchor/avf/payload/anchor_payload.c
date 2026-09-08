@@ -133,7 +133,6 @@ static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
  * signature over (SPKI || nonce). Ends with "ATTEST end" whatever happened. */
 
 static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) { anchor_sha256(m, n, out); }
-static int sha256_file(const char *path, uint8_t out[32], uint64_t *bytes) { return anchor_sha256_file(path, out, bytes); }
 
 /* The attested key signs exactly one thing: this pVM's own pad-binding transcript (PAD-BOOTSTRAP.md,
  * android-avf-pvm/v2): domain || OUR transport SPKI || OUR pad key || the relay's nonce, and the
@@ -326,7 +325,7 @@ static void calib_digest32(uint8_t out[32]) {   /* what shielded-dealer records:
     static uint8_t cb[1 << 20]; size_t n = fread(cb, 1, sizeof cb, cf); fclose(cf);
     uint8_t dg[64]; crypto_hash(dg, cb, n); memcpy(out, dg, 32);
 }
-static char g_seed_id_hex[33] = "", g_pad_name[64] = "", g_pads_dir[512] = "";
+static char g_seed_id_hex[33] = "", g_pad_name[65] = "", g_pads_dir[512] = "";   /* a 64-char name plus its NUL */
 static int g_have_ledger = 0, g_have_seed = 0;
 static char g_prefix_pk_hex[65] = "";        /* PREFIXPK: the platform's shared-prefix key the engine pins (prefix-kv.h) */
 static void pads_dir(char *out, size_t cap) {
@@ -413,15 +412,26 @@ static void *pads_receiver(void *arg) {
 }
 
 typedef int (*engine_main_fn)(int, int, int, const char *, const char *, const char *, int, int, const anchor_pads *);
+/* A rejected model must not survive as "cached": the sidecar carries the owner's tag, so a lying
+ * first stream (right tag, wrong bytes) would otherwise be answered 'K' on every later honest run. */
+static void model_cache_purge(void) {
+    const char *es = AVmPayload_getEncryptedStoragePath();
+    if (es) { char path[512], side[512]; snprintf(path, sizeof path, "%s/model.gguf", es); sidecar_path(side, sizeof side, es); unlink(side); unlink(path); }
+    unlink("/data/anchor-model.gguf");
+    OUT("MODEL cache purged: a rejected model is not kept");
+}
 static int model_stage(uint64_t bytes) {
     if (g_pins.mode == ANCHOR_MODE_INVALID) { OUT("MODEL fail pins-invalid"); return -1; }
-    if (g_model_fd >= 0 && g_model_state == 1 && g_model_fd_bytes == bytes) return 0;      /* staged already, unchanged */
+    if (g_model_fd >= 0 && g_model_state == 1 && g_model_fd_bytes == bytes) {              /* staged already, unchanged: say so, the owner waits for a verdict */
+        char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh); OUT("MODEL ok %s (staged already, unchanged)", dh); return 0;
+    }
     if (g_model_fd >= 0) { close(g_model_fd); g_model_fd = -1; }
     g_model_state = 0;                                                                     /* any (re)reception invalidates */
+    if (g_req_pending) { g_req_pending = 0; OUT("PADREQ2 request dropped: the model is being re-staged, request again for the new bytes"); }   /* a grant for the old digest must not land on new bytes */
     int fd = -1;
     if (receive_model(g_ls_model, bytes, &fd) != 0) { OUT("MODEL fail receive"); return -1; }
     char why[160] = "";
-    if (!anchor_pins_model_fd_check(&g_pins, fd, g_have_seed ? g_grant_model : NULL, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail %s", why); return -1; }
+    if (!anchor_pins_model_fd_check(&g_pins, fd, g_have_seed ? g_grant_model : NULL, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail %s", why); model_cache_purge(); return -1; }
     g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1;
     char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh);
     OUT("MODEL ok %s (%s)", dh, g_pins.has_model ? "matches the pin" : g_have_seed ? "matches the grant" : "unpinned: hashed only");
@@ -653,6 +663,7 @@ int AVmPayload_main(void) {
                 sh_pad_seed_grant g; memset(&g, 0, sizeof g);
                 if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PADGRANT fail pins-invalid");
                 else if (!g_req_pending) OUT("PADGRANT fail no-pending-request");
+                else if (g_model_state != 1 || memcmp(g_model_digest, g_req_model, 32) != 0) { g_req_pending = 0; OUT("PADGRANT fail model-changed-since-request"); }   /* belt to the re-stage drop above */
                 else if (sscanf(l + 9, "%u %32s %llu %64s %24s %96s %128s", &ver, sid, &epoch, epk_h, nonce_h, box_h, sig_h) != 7 || ver != 1 ||
                          strlen(sid) != 32 || strlen(epk_h) != 64 || strlen(nonce_h) != 24 || strlen(box_h) != 96 || strlen(sig_h) != 128 ||
                          !sh_pads_hex2bin(sid, g.seed_id, 16) || !sh_pads_hex2bin(epk_h, g.epk, 32) || !sh_pads_hex2bin(nonce_h, g.nonce, 12) ||

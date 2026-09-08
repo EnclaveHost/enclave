@@ -69,6 +69,8 @@ public class Main extends Activity {
         String shenv = "";                   // engine: extra environment for the VM engine, "K=V,K=V" (e.g. SHIELDED_LOCAL_SITES=token_embd.weight)
         int hugepages = 0;                   // VM: setShouldUseHugepages(true) when the phone's AVF offers it
         int pumpprio = 0;                    // bridge pump threads: android.os.Process priority (e.g. -19 = URGENT_AUDIO)
+        int tamper = 0;                      // --ei tamper 1: after the grant, re-stage the model with one extra byte (must be refused), then honestly (must pass)
+        int fresh = 0;                       // --ei fresh 1: delete the VM instance first (empty encrypted storage = a clean first boot)
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
@@ -89,7 +91,7 @@ public class Main extends Activity {
             if (i.getStringExtra("prefixpk") != null) p.prefixPk = i.getStringExtra("prefixpk");   // the platform's prefix key (64 hex) the VM pins
             if (i.getStringExtra("prefixname") != null) p.prefixName = i.getStringExtra("prefixname");       // fetch <name>.kv/.sig/.txt from the platform's store...
             if (i.getStringExtra("prefixdigest") != null) p.prefixDigest = i.getStringExtra("prefixdigest"); // ...for this model digest, into files/prefix
-            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
@@ -183,6 +185,7 @@ public class Main extends Activity {
              * lives, and deleting the VM deletes it. Recreate only when the stored
              * config no longer matches (getOrCreate refuses an incompatible one). */
             Object vm0;
+            if (plan.fresh == 1) { try { call(vmm, "delete", "anchor"); say("HOST VM instance deleted first (--ei fresh 1): empty encrypted storage, the model streams again"); } catch (Exception e) { say("HOST no instance to delete: " + e.getMessage()); } }
             try { vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
             catch (Exception e) { say("HOST existing VM incompatible with this config (" + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()) + "): recreating"); try { call(vmm, "delete", "anchor"); } catch (Exception ignored) { } vm0 = call(vmm, "getOrCreate", "anchor", cfg); }
             final Object vm = vm0;
@@ -228,7 +231,6 @@ public class Main extends Activity {
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); return; }
         say("CONTROL connected");
         if (plan.mode.equals("bridge") || plan.mode.equals("engine")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
-        if (plan.mode.equals("engine")) new Thread(() -> streamModel(vm, plan), "vsock-model").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
@@ -272,9 +274,7 @@ public class Main extends Activity {
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
             //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
             if (plan.mode.equals("engine")) {
-                long modelBytes = new java.io.File(plan.model).length();
-                out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
-                String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
+                String ml = modelStage(vm, plan, out, r, 0);
                 if (ml == null || !ml.startsWith("MODEL ok")) say("MODEL stage did not pass: " + ml + " (pads bootstrap will be refused)");
             }
             // 4b. dealt pads: once the tunnel is bound, fetch the VM's seed through the platform's ledger
@@ -293,6 +293,17 @@ public class Main extends Activity {
                 String pl = PadsClient.until(r, "PREFIXPK ");
                 prefix = pl != null && pl.startsWith("PREFIXPK ok");   // the VM says "ok (pinned)" / "ok (unpinned)"
                 say("PREFIX key " + (prefix ? "pinned in the VM" : "NOT accepted: " + pl));
+            }
+            // 4d. --ei tamper 1: the swap-after-grant regression on the real chain. The VM holds its own copy,
+            //     so the only re-receive is a different size: stream the model plus one byte under the real tag
+            //     (must be refused against the frozen grant digest and purged), then the honest bytes (must pass).
+            if (plan.tamper == 1 && plan.mode.equals("engine")) {
+                String bad = modelStage(vm, plan, out, r, 1);
+                boolean refused = bad != null && bad.startsWith("MODEL fail") && bad.contains("granted for");
+                say("TAMPER swapped model " + (refused ? "REFUSED: PASS" : "NOT refused: FAIL") + " (" + bad + ")");
+                String good = modelStage(vm, plan, out, r, 0);
+                boolean ok = good != null && good.startsWith("MODEL ok") && good.contains(pads ? "matches the grant" : "hashed only");
+                say("TAMPER honest re-stage " + (ok ? "ACCEPTED: PASS" : "NOT accepted: FAIL") + " (" + good + ")");
             }
             // 5. the run plan
             StringBuilder cmd = new StringBuilder();
@@ -356,12 +367,23 @@ public class Main extends Activity {
         } catch (Exception e) { say("MODEL sha256 failed: " + e); return new byte[32]; }
     }
 
-    /* engine mode: the public model, streamed into the guest (8-byte length, then the bytes) */
-    static void streamModel(Object vm, Plan plan) {
+    /* One model stage: a streamer for this line, "MODEL <bytes> <cache tag>" on the control channel, then the
+     * VM's verdict line ("MODEL ok ..." / "MODEL fail ..."; null when the channel ended). `extra` bytes are
+     * appended to the stream (the tamper regression); the tag is always the real file's. */
+    static String modelStage(Object vm, Plan plan, OutputStream out, BufferedReader r, long extra) throws java.io.IOException {
+        long modelBytes = new java.io.File(plan.model).length() + extra;
+        new Thread(() -> streamModel(vm, plan, extra), "vsock-model").start();
+        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
+        String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
+        return ml;
+    }
+
+    /* engine mode: the public model, streamed into the guest (8-byte length, then the bytes, then `extra` zero bytes) */
+    static void streamModel(Object vm, Plan plan, long extra) {
         ParcelFileDescriptor pfd = connect(vm, MODEL_PORT, 150);
         if (pfd == null) { say("MODEL connect failed"); return; }
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new java.io.FileInputStream(plan.model)) {
-            long bytes = new java.io.File(plan.model).length();
+            long bytes = new java.io.File(plan.model).length() + extra;
             byte[] hdr = new byte[8]; for (int i = 0; i < 8; i++) hdr[i] = (byte) (bytes >>> (8 * i));
             out.write(hdr); out.flush();
             int ans = new java.io.FileInputStream(pfd.getFileDescriptor()).read();     // 'K' = the VM already holds it, 'S' = send
@@ -369,6 +391,7 @@ public class Main extends Activity {
             if (ans != 'S') { say("MODEL guest answered " + ans + ", not streaming"); return; }
             byte[] buf = new byte[1 << 20]; long sent = 0; int r; long t0 = System.nanoTime();
             while ((r = in.read(buf)) > 0) { out.write(buf, 0, r); sent += r; }
+            for (long e = 0; e < extra; e++) out.write(0);
             out.flush();
             say("MODEL streamed " + (sent >> 20) + " MiB in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
         } catch (Exception e) { say("MODEL stream error " + e); }
