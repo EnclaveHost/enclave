@@ -267,6 +267,7 @@ static int maskbank_issue(sh_maskbank *b, int32_t *dst, size_t n) {
 typedef struct {
     char     name[64];
     const int8_t *w;            /* (N,K) borrowed */
+    sh_weight_read_fn w_read; void *w_ctx; /* optional authenticated public-weight storage */
     int64_t   K, N;
     int32_t   max_m;
     int       group;
@@ -735,6 +736,15 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
     return (int)l->n_nodes++;
 }
 
+int sh_link_set_weight_reader(sh_link *l, int node, sh_weight_read_fn reader, void *ctx) {
+    if (!l || !reader || !ctx || node < 0 || (size_t)node >= l->n_nodes ||
+        !l->dealt || !l->verify || l->pipe || l->threads_running) return SH_ERR_RANGE;
+    sh_node *nd = &l->nodes[node];
+    if (!nd->w || nd->w_read || !nd->sM || !nd->stM) return SH_ERR_RANGE;
+    nd->w_read = reader; nd->w_ctx = ctx; nd->w = NULL;
+    return SH_OK;
+}
+
 /* ---------------------------------------------------------------------------
  * Pad generation: r from the bank, u = r.W for every node of the group.
  * Runs on the refill threads, and on the request path only when the pool is
@@ -766,6 +776,7 @@ static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_
     l->simd->pad_planes(r_out, (size_t)b * K, s->planes, s->planes + (size_t)b * K, s->planes + (size_t)2 * b * K);
     for (int i = 0; i < g->n_nodes; i++) {
         const sh_node *nd = &l->nodes[g->nodes[i]];
+        if (!nd->w) return SH_ERR_RANGE; /* compact dealt nodes never mint */
         l->simd->refill(s->planes, b, nd->w, K, nd->N, u_out + nd->u_off, g->u_len, s->acc);
     }
     return SH_OK;
@@ -1335,16 +1346,26 @@ int sh_link_start(sh_link *l) {
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
         const size_t bytes = (size_t)(nd->K * nd->N);
-        const size_t CHUNK = 32u << 20;
+        const size_t CHUNK = nd->w_read ? 1u << 20 : 32u << 20;
+        uint8_t *read_buf = nd->w_read ? (uint8_t *)malloc(CHUNK) : NULL;
+        if (nd->w_read && !read_buf) return SH_ERR_NOMEM;
         for (size_t off = 0; off < bytes; off += CHUNK) {
             size_t part = bytes - off < CHUNK ? bytes - off : CHUNK;
+            const uint8_t *data = read_buf;
+            if (nd->w_read) {
+                if (nd->w_read(nd->w_ctx, off, read_buf, part) != 0) {
+                    free(read_buf); snprintf(l->err, sizeof l->err, "authenticated weight read failed: %s", nd->name);
+                    return SH_ERR_VERIFY;
+                }
+            } else data = (const uint8_t *)nd->w + off;
             uint8_t hdr[24];
             sh_pack_set_tensor_header(hdr, 1, (uint64_t)(nd->w_off + (int64_t)off), part);
-            sh_frame f = { SH_CMD_SET_TENSOR, hdr, 24, (const uint8_t *)nd->w + off, part };
+            sh_frame f = { SH_CMD_SET_TENSOR, hdr, 24, data, part };
             rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
-            if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "upload %s: %s", nd->name, sh_pipe_last_error(l->pipe)); return rc; }
+            if (rc != SH_OK) { free(read_buf); snprintf(l->err, sizeof l->err, "upload %s: %s", nd->name, sh_pipe_last_error(l->pipe)); return rc; }
             sh_reply_free(&rep);
         }
+        free(read_buf);
     }
 
     char *js = NULL; size_t jl = 0, jc = 0;
@@ -1449,6 +1470,27 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
         const sh_node *nd = &l->nodes[nodes[i]];
         const int64_t K = nd->K, N = nd->N;
         int64_t *y = y_out[i];
+        if (nd->w_read) {
+            // One bounded block of whole weight rows, reused across all inputs.
+            const int64_t rows = K < (1 << 20) ? (1 << 20) / K : 1;
+            int8_t *block = (int8_t *)malloc((size_t)rows * K);
+            if (!block) return SH_ERR_NOMEM;
+            for (int64_t j0 = 0; j0 < N; j0 += rows) {
+                const int64_t nr = N - j0 < rows ? N - j0 : rows;
+                if (nd->w_read(nd->w_ctx, (uint64_t)j0 * K, (uint8_t *)block, (size_t)nr * K) != 0) {
+                    free(block); snprintf(l->err, sizeof l->err, "authenticated weight read failed: %s", nd->name);
+                    return SH_ERR_VERIFY;
+                }
+                for (int32_t row = 0; row < m; row++) for (int64_t j = 0; j < nr; j++) {
+                    int64_t acc = 0;
+                    for (int64_t k = 0; k < K; k++) acc += x_field[(int64_t)row * K + k] * block[j * K + k];
+                    y[(int64_t)row * N + j0 + j] = sh_balanced(acc);
+                }
+            }
+            free(block);
+            l->macs += (uint64_t)m * K * N;
+            continue;
+        }
         for (int32_t row = 0; row < m; row++) {
             const int64_t *xr = x_field + (int64_t)row * K;
             int64_t *yr = y + (int64_t)row * N;
@@ -1767,6 +1809,7 @@ static void *sh_mint_worker(void *arg) {
 int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed_id[16], const uint8_t model_digest[32],
                           uint64_t index0, uint64_t count, const uint8_t consumer_pk[32], const char *path) {
     if (!l || !l->n_groups || !count) return SH_ERR_RANGE;
+    for (size_t i = 0; i < l->n_nodes; i++) if (!l->nodes[i].w) return SH_ERR_RANGE;
     sh_pads_group *table = (sh_pads_group *)calloc(l->n_groups, sizeof *table);
     if (!table) return SH_ERR_NOMEM;
     int rc = sh_link_group_table(l, table, (uint32_t)l->n_groups);

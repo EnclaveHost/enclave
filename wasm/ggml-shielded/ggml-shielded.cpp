@@ -1,6 +1,7 @@
 #include "ggml-shielded.h"
 #include "shielded-latency.h"
 #include "shielded-fusion.h"
+#include "shielded-weight-cache.h"
 #include "ggml-backend-impl.h"
 #include "ggml-impl.h"
 
@@ -193,6 +194,7 @@ struct sh_state {
         const sh_calib_site *site = nullptr;
         std::string group;
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
+        std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         std::vector<int8_t> out_cols;   /* nout x N: the outlier channels' weights, for the TEE-side term */
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
         float act_scale = 0, encode_limit = 0;
@@ -695,6 +697,19 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     int lo = e.f_w[0], hi = e.f_w[0];
     for (int64_t j = 1; j < N; j++) { if (e.f_w[j] < lo) lo = e.f_w[j]; if (e.f_w[j] > hi) hi = e.f_w[j]; }
 
+    // Dealt decoding needs only the check vectors and outlier columns in RAM.
+    // Cache before committing the node, so an I/O failure cannot leave a link
+    // borrowing a destroyed vector. No change to dealer/local-mint builds.
+    const char *cache_dir = getenv("SHIELDED_WEIGHT_CACHE_DIR");
+    if (cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {
+        e.w_cache = sh_weight_cache::create(cache_dir, e.w.data(), e.w.size());
+        if (!e.w_cache) {
+            fprintf(stderr, "[shielded] %s: cannot create authenticated encoded-weight cache; registration refused\n", name.c_str());
+            s.refused.insert(name);
+            return false;
+        }
+    }
+
     sh_state::entry &stored = s.weights[name];
     stored = std::move(e);
     stored.name = name;
@@ -707,6 +722,19 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         return false;
     }
     stored.node = node;
+    if (stored.w_cache) {
+        if (sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get()) == SH_OK) {
+            const size_t bytes = stored.w.size();
+            std::vector<int8_t>().swap(stored.w);
+            SH_LOG("%s: cached %zu encoded bytes, %zu bytes of trusted block hashes retained\n",
+                   name.c_str(), bytes, stored.w_cache->hash_bytes());
+        } else {
+            // A live link or missing pad check cannot discard its source.
+            // Retain the original lifetime contract and report that explicitly.
+            fprintf(stderr, "[shielded] %s: compact cache not admitted; encoded weights retained in RAM\n", name.c_str());
+            stored.w_cache.reset();
+        }
+    }
     s.device_bytes += dev_add;   /* committed to the card; counts against reserve_cap */
     if (share < 0) s.group_first[stored.group] = node;
     s.group_members[stored.group].push_back(name);

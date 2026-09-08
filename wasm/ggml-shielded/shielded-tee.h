@@ -116,6 +116,16 @@ const char *sh_link_last_error(const sh_link *l);
 int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with);
 
+/* Replace the borrowed weight after registration with a trusted reader of
+ * the SAME encoded bytes. The reader must authenticate storage before copying
+ * into the private output buffer; return 0 only for an exact successful read.
+ * Context must outlive the link. Dealt + verified + pad-checked links only,
+ * before start; the caller may release w_fixed only after this returns SH_OK.
+ * Upload/reconnect and exact local fallback use the reader; a read failure is
+ * SH_ERR_VERIFY and must abort the request. No disk read during normal GEMM. */
+typedef int (*sh_weight_read_fn)(void *ctx, uint64_t offset, uint8_t *out, size_t bytes);
+int sh_link_set_weight_reader(sh_link *l, int node, sh_weight_read_fn reader, void *ctx);
+
 /* Ship the public weights, install the vetted graph, start the refill threads.
  * Restartable: a weight added after start means a fresh connection carrying
  * the whole set. */
