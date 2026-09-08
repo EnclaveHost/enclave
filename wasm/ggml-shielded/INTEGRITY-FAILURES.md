@@ -33,6 +33,10 @@ Rejected files are closed, not deleted, and no window is reserved by preflight.
 
 The GGML backend similarly stops every later graph, including other cards,
 before graph planning when any card has recorded an integrity failure.
+The entry check also observes each C link's failure count under the card mutex
+and copies a background retirement into the backend counter. This enforces the
+retirement policy even for graphs that would use only verified local caches;
+it does not imply those cached products were corrupt.
 Its shared pool lives for the process, so restart the trusted engine and rebuild
 its contexts to recover. Do not retry generation on partly executed contexts.
 Verification failures from the local authenticated fallback are also counted
