@@ -87,6 +87,7 @@
 #include <tuple>
 #include <vector>
 #include "public-weight-cache.h"
+#include "captured-graphs.h"
 
 extern "C" {
 #include "shielded-field.h"
@@ -143,6 +144,10 @@ static cudaError_t dmalloc(void **p, size_t n);
 static void dfree(void *p);
 
 static bool g_quiet = false;
+static size_t g_graph_cache_entries = SH_GRAPH_CACHE_DEFAULT;
+struct DestroyCapturedGraph {
+    void operator()(cudaGraphExec_t graph) const noexcept { cudaGraphExecDestroy(graph); }
+};
 #ifdef SH_XPROF
 static double g_xp[16]; static uint64_t g_xpn; static std::chrono::steady_clock::time_point g_xpt;
 #define XP(i) do { auto _t = std::chrono::steady_clock::now(); if (i) g_xp[i] += std::chrono::duration<double, std::micro>(_t - g_xpt).count(); g_xpt = _t; } while (0)
@@ -1206,10 +1211,13 @@ struct Conn {
      * (m, node list) and replayed with one cudaGraphLaunch: 42.5 vs 45.0 us
      * per 0.5B gate|up exchange against issuing the copy and the launch
      * separately. The captured pointers are h_in, d_x and h_out, so the cache
-     * is dropped whenever any of them is reallocated; bounded at 256 entries
-     * (a 0.5B decode uses three). */
-    std::map<std::vector<uint32_t>, cudaGraphExec_t> graphs;
-    void drop_graphs() { for (auto &kv : graphs) cudaGraphExecDestroy(kv.second); graphs.clear(); }
+     * is dropped whenever any of them is reallocated. Default capacity is
+     * still 256; SHIELDED_GRAPH_CACHE_ENTRIES (1..4096) permits larger models
+     * to retain a complete pass and its row-width variants. Capacity changes
+     * are experimental until measured with the actual model and worker. */
+    CapturedGraphs<cudaGraphExec_t, DestroyCapturedGraph> graphs{g_graph_cache_entries};
+    void drop_graphs() { graphs.invalidate(); }
+    double graph_capture_ms = 0;
     uint64_t exchanges = 0, recomputes = 0;
     double gemm_ms = 0;
     int64_t kmax = 0;                        /* widest K installed: bounds a FIELD_GEMM frame */
@@ -1701,12 +1709,13 @@ struct Conn {
             XP(0);
             std::vector<uint32_t> key(nn + 2); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
             for (uint32_t i = 0; i < nn; i++) key[i + 2] = rd_u32(p + 8 + 4 * i);
-            auto git = graphs.find(key);
-            if (git == graphs.end()) {
-                if (graphs.size() >= 256) drop_graphs();
-                git = graphs.emplace(key, capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm)).first;
-            }
-            ck(cudaGraphLaunch(git->second, stream), "graph launch");
+            cudaGraphExec_t graph = graphs.get(key, [&]() {
+                const auto started = std::chrono::steady_clock::now();
+                cudaGraphExec_t captured = capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm);
+                graph_capture_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+                return captured;
+            });
+            ck(cudaGraphLaunch(graph, stream), "graph launch");
             XP(3);
             ck(cudaStreamSynchronize(stream), "exchange sync");
             XP(5);
@@ -1900,8 +1909,13 @@ struct Conn {
             (unsigned long long)g_xpn, g_xp[1]/g_xpn, g_xp[2]/g_xpn, g_xp[3]/g_xpn, g_xp[4]/g_xpn, g_xp[5]/g_xpn, g_xp[6]/g_xpn, g_xp[7]/g_xpn); memset(g_xp,0,sizeof g_xp); g_xpn=0; }
 #endif
         if (exchanges || recomputes)
-            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms on the card",
+            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync)",
                  peer.c_str(), (unsigned long long)exchanges, (unsigned long long)ring_exchanges, (unsigned long long)recomputes, gemm_ms);
+        if (exchanges)
+            logf("%s graph cache: limit=%zu high_water=%zu hits=%llu misses=%llu capacity_flushes=%llu invalidations=%llu capture=%.3f ms (host capture+instantiate, not GPU kernel time)",
+                 peer.c_str(), graphs.limit(), graphs.stats.high_water,
+                 (unsigned long long)graphs.stats.hits, (unsigned long long)graphs.stats.misses,
+                 (unsigned long long)graphs.stats.capacity_flushes, (unsigned long long)graphs.stats.invalidations, graph_capture_ms);
     }
 };
 
@@ -1968,6 +1982,10 @@ static void load_conf_beside_binary(void) {
 
 int main(int argc, char **argv) {
     load_conf_beside_binary();
+    if (!sh_graph_cache_limit(getenv("SHIELDED_GRAPH_CACHE_ENTRIES"), &g_graph_cache_entries)) {
+        fprintf(stderr, "SHIELDED_GRAPH_CACHE_ENTRIES must be an integer between 1 and 4096\n");
+        return 2;
+    }
     const char *host = "127.0.0.1";
     int port = getenv("SHIELDED_PORT") ? atoi(getenv("SHIELDED_PORT")) : 9500;
     int vsock_port = 0;
