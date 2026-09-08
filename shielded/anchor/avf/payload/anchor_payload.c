@@ -31,6 +31,7 @@
 #include "shielded-pad-grant.h"
 #include "anchor_pins.h"
 #include "anchor_names.h"
+#include "anchor_gguf.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
@@ -347,6 +348,11 @@ static anchor_pins g_pins;                 /* the measured pins (anchor_pins.h);
  * grant is refused. g_model_state: 0 nothing usable, 1 hashed and judged usable. */
 static int g_model_fd = -1, g_model_state = 0, g_ls_model = -1; static uint64_t g_model_fd_bytes = 0;
 static uint8_t g_model_digest[32], g_grant_model[32];
+/* The staged model's per-tensor digest table (27B-FEASIBILITY.md s.11): produced by the SAME read that
+ * produced the pin, so a consumer that hashes the tensor bytes it takes can tell a page the store served
+ * differently. RAM only; dropped whenever the stage is invalidated. */
+static anchor_gguf_table g_model_table;
+static const anchor_hash_ops g_hash_ops = { anchor_sha256_init, anchor_sha256_update, anchor_sha256_final };
 static char g_req_name[65]; static uint8_t g_req_nonce[32], g_req_model[32], g_req_calib[32];
 /* The calibration's identity as shielded-dealer records it: SHA-512/256 of the WHOLE file. 1 when the
  * file was read completely (size checked against fstat, read errors refused); 0 otherwise, out zeroed - a
@@ -637,13 +643,18 @@ static int model_stage(uint64_t bytes) {
         char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh); OUT("MODEL ok %s (staged already, unchanged)", dh); return 0;
     }
     if (g_model_fd >= 0) { close(g_model_fd); g_model_fd = -1; }
-    g_model_state = 0;                                                                     /* any (re)reception invalidates */
+    g_model_state = 0; anchor_gguf_free(&g_model_table);                                  /* any (re)reception invalidates */
     if (g_req_pending) { g_req_pending = 0; OUT("PADREQ2 request dropped: the model is being re-staged, request again for the new bytes"); }   /* a grant for the old digest must not land on new bytes */
     int fd = -1;
     if (receive_model(g_ls_model, bytes, &fd) != 0) { OUT("MODEL fail receive"); return -1; }
-    char why[160] = "";
-    if (!anchor_pins_model_fd_check(&g_pins, fd, g_have_seed ? g_grant_model : NULL, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail %s", why); model_cache_purge(); return -1; }
+    /* the bytes that will be parsed, judged by ONE read: GGUF header walked, whole-file digest (the pin's
+     * form) and each tensor's digest from the same pass; then the pin and the grant's frozen digest */
+    char why[256] = "";
+    if (!anchor_gguf_stage(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail not a usable GGUF: %s", why); model_cache_purge(); return -1; }
+    if (g_pins.has_model && memcmp(g_model_digest, g_pins.model_sha256, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the measured pin"); model_cache_purge(); return -1; }
+    if (g_have_seed && memcmp(g_model_digest, g_grant_model, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the one the seed was granted for"); model_cache_purge(); return -1; }
     g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1;
+    OUT("MODEL table: %zu tensors, header %zu bytes retained, data at %llu, digests from the pin's own read (%s)", g_model_table.n, g_model_table.header_len, (unsigned long long)g_model_table.data_start, anchor_sha256_backend());
     char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh);
     OUT("MODEL ok %s (%s)", dh, g_pins.has_model ? "matches the pin" : g_have_seed ? "matches the grant" : "unpinned: hashed only");
     return 0;
@@ -994,7 +1005,7 @@ int AVmPayload_main(void) {
     if (engine) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
-        else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; }
+        else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();

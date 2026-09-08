@@ -44,29 +44,55 @@ int main(void) {
     char err[256]; anchor_gguf_table t; uint8_t pin[32]; char h[65];
     write_synthetic(p, 8, 32);
     int fd = open(p, O_RDONLY); assert(fd >= 0);
-    assert(anchor_gguf_parse(fd, &t, err, sizeof err) == 1);
-    assert(t.n == 2 && t.alignment == 32 && t.version == 3);
+    assert(anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) == 1);
+    assert(t.n == 2 && t.alignment == 32 && t.version == 3 && t.t[1].ne[0] == 64 && t.t[1].n_dims == 1);
     assert(!strcmp(t.t[0].name, "a") && t.t[0].offset == 0 && t.t[0].size == 16 && t.t[0].type == 0);
     assert(!strcmp(t.t[1].name, "blk.0.b") && t.t[1].offset == 32 && t.t[1].size == 68 && t.t[1].type == 8);
     assert(anchor_gguf_find(&t, "blk.0.b") == &t.t[1] && !anchor_gguf_find(&t, "nope"));
-    assert(anchor_gguf_digest_pass(fd, &t, &OPS, pin, err, sizeof err) == 1);
+    anchor_gguf_free(&t);                                             /* a table is freed before the same slot is staged again */
+    assert(anchor_gguf_stage(fd, &t, &OPS, pin, err, sizeof err) == 1 && t.header_len > 0 && t.header[0] == 'G');
     hex(pin, 32, h); printf("synthetic %s size %llu data_start %llu pin %s\n", p, (unsigned long long)t.file_size, (unsigned long long)t.data_start, h);
     for (size_t i = 0; i < t.n; i++) { hex(t.t[i].digest, 32, h); printf("tensor %s offset %llu size %llu digest %s\n", t.t[i].name, (unsigned long long)t.t[i].offset, (unsigned long long)t.t[i].size, h); }
     anchor_gguf_free(&t); close(fd);
     /* malformed: overlapping offsets, unknown type, wrong magic, truncated */
-    write_synthetic(p, 8, 8); fd = open(p, O_RDONLY); assert(!anchor_gguf_parse(fd, &t, err, sizeof err) && strstr(err, "overlaps")); close(fd);
-    write_synthetic(p, 99, 32); fd = open(p, O_RDONLY); assert(!anchor_gguf_parse(fd, &t, err, sizeof err) && strstr(err, "unknown tensor type")); close(fd);
-    write_synthetic(p, 8, 32); { FILE *f = fopen(p, "r+b"); fputs("GGUX", f); fclose(f); } fd = open(p, O_RDONLY); assert(!anchor_gguf_parse(fd, &t, err, sizeof err) && strstr(err, "not a GGUF")); close(fd);
-    long size = write_synthetic(p, 8, 32); assert(truncate(p, size - 20) == 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_parse(fd, &t, err, sizeof err) && strstr(err, "past the end")); close(fd);
-    /* a file that shrinks between the parse and the pass is not trusted either */
-    write_synthetic(p, 8, 32); fd = open(p, O_RDONLY); assert(anchor_gguf_parse(fd, &t, err, sizeof err)); assert(truncate(p, size - 20) == 0);
-    assert(!anchor_gguf_digest_pass(fd, &t, &OPS, pin, err, sizeof err) && strstr(err, "shrank")); anchor_gguf_free(&t); close(fd);
+    write_synthetic(p, 8, 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "overlaps")); close(fd);
+    write_synthetic(p, 99, 32); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "unknown tensor type")); close(fd);
+    write_synthetic(p, 8, 32); { FILE *f = fopen(p, "r+b"); fputs("GGUX", f); fclose(f); } fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "not a GGUF")); close(fd);
+    long size = write_synthetic(p, 8, 32); assert(truncate(p, size - 20) == 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "past the end")); close(fd);
+    /* a file that shrinks while it is being read is not trusted either */
+    write_synthetic(p, 8, 32); fd = open(p, O_RDONLY); assert(truncate(p, size - 20) == 0);
+    assert(!anchor_gguf_stage(fd, &t, &OPS, pin, err, sizeof err)); close(fd);
+    /* the same name twice, a name holding a NUL, a name longer than the table's field, an unaligned offset */
+    write_synthetic(p, 8, 32); { FILE *f = fopen(p, "r+b"); fseek(f, 4 + 4 + 8 + 8 + 8 + 17 + 4 + 4 + 8 + 12 + 4 + 8 + 9 + 8, SEEK_SET); fputc('b', f); fseek(f, -1, SEEK_CUR); long at = ftell(f); (void)at; fclose(f); }
+    { /* rewrite tensor "a" as "blk.0.b" by hand: same length is not possible (1 vs 7), so build a duplicate file instead */
+      FILE *f = fopen(p, "wb"); assert(f); fputs("GGUF", f); put_u32(f, 3); put_u64(f, 2); put_u64(f, 0);
+      put_str(f, "dup"); put_u32(f, 1); put_u64(f, 4); put_u32(f, 0); put_u64(f, 0);
+      put_str(f, "dup"); put_u32(f, 1); put_u64(f, 4); put_u32(f, 0); put_u64(f, 32);
+      long hdr = ftell(f); while (ftell(f) % 32) fputc(0, f); for (int i = 0; i < 64; i++) fputc(i, f); (void)hdr; fclose(f); }
+    fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "duplicate")); close(fd);
+    { FILE *f = fopen(p, "wb"); assert(f); fputs("GGUF", f); put_u32(f, 3); put_u64(f, 1); put_u64(f, 0);
+      put_u64(f, 3); fputc('a', f); fputc(0, f); fputc('b', f); put_u32(f, 1); put_u64(f, 4); put_u32(f, 0); put_u64(f, 0);
+      while (ftell(f) % 32) fputc(0, f); for (int i = 0; i < 16; i++) fputc(i, f); fclose(f); }
+    fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "NUL")); close(fd);
+    { FILE *f = fopen(p, "wb"); assert(f); fputs("GGUF", f); put_u32(f, 3); put_u64(f, 1); put_u64(f, 0);
+      put_u64(f, 200); for (int i = 0; i < 200; i++) fputc('n', f); put_u32(f, 1); put_u64(f, 4); put_u32(f, 0); put_u64(f, 0);
+      while (ftell(f) % 32) fputc(0, f); for (int i = 0; i < 16; i++) fputc(i, f); fclose(f); }
+    fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "longer than")); close(fd);
+    { FILE *f = fopen(p, "wb"); assert(f); fputs("GGUF", f); put_u32(f, 3); put_u64(f, 1); put_u64(f, 1);
+      put_str(f, "arr"); put_u32(f, 9); put_u32(f, 9); put_u64(f, 1); put_u32(f, 4); put_u64(f, 1); put_u32(f, 7);      /* array of arrays */
+      put_str(f, "a"); put_u32(f, 1); put_u64(f, 4); put_u32(f, 0); put_u64(f, 0);
+      while (ftell(f) % 32) fputc(0, f); for (int i = 0; i < 16; i++) fputc(i, f); fclose(f); }
+    fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "nested")); close(fd);
+    write_synthetic(p, 8, 40); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "not aligned")); close(fd);
+    { FILE *f = fopen(p, "wb"); assert(f); fputs("GGUF", f); put_u32(f, 3); put_u64(f, 1); put_u64(f, 0);
+      put_str(f, "q"); put_u32(f, 2); put_u64(f, 48); put_u64(f, 2); put_u32(f, 8); put_u64(f, 0);           /* Q8_0 rows of 48: 96 elements total IS a multiple of 32, the row is not */
+      while (ftell(f) % 32) fputc(0, f); for (int i = 0; i < 102; i++) fputc(i, f); fclose(f); }
+    fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "row of 48")); close(fd);
     /* the real 0.8B when present: parses, every tensor inside the file, digests over the whole file */
     const char *real = "/home/steven/Projects/enclave-models/qwen3.5-0.8b-mtp-gguf/Qwen3.5-0.8B-Q8_0.gguf";
     fd = open(real, O_RDONLY);
     if (fd >= 0) {
-        assert(anchor_gguf_parse(fd, &t, err, sizeof err) == 1 && t.n > 100);
-        assert(anchor_gguf_digest_pass(fd, &t, &OPS, pin, err, sizeof err) == 1);
+        assert(anchor_gguf_stage(fd, &t, &OPS, pin, err, sizeof err) == 1 && t.n > 100 && t.header_len > 1000);
         hex(pin, 32, h); const anchor_gguf_tensor *e = anchor_gguf_find(&t, "token_embd.weight"); assert(e);
         char d[65]; hex(e->digest, 32, d);
         printf("real %s tensors %zu data_start %llu pin %s token_embd offset %llu size %llu digest %s\n", real, t.n, (unsigned long long)t.data_start, h, (unsigned long long)e->offset, (unsigned long long)e->size, d);
