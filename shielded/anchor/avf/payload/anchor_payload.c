@@ -28,6 +28,8 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include "shielded-avf-binding.h"
+#include "shielded-pad-grant.h"
+#include "anchor_pins.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
@@ -130,48 +132,8 @@ static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
  * attested key: the relay's binding is challenge = sha256(SPKI || nonce) and
  * signature over (SPKI || nonce). Ends with "ATTEST end" whatever happened. */
 
-/* SHA-256 (FIPS 180-4), for the attestation challenge over the pad-binding transcript. */
-static const uint32_t sha256_k[64] = {
-    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2 };
-static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) {
-    uint32_t h[8] = { 0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19 };
-    uint8_t blk[64]; size_t i = 0; uint64_t bits = (uint64_t)n * 8;
-    for (;;) {
-        size_t take = n - i < 64 ? n - i : 64;
-        memcpy(blk, m + i, take);
-        int last = 0;
-        if (take < 64) { blk[take] = 0x80; memset(blk + take + 1, 0, 64 - take - 1); if (take < 56) { for (int b = 0; b < 8; b++) blk[63 - b] = (uint8_t)(bits >> (8 * b)); last = 1; } }
-        uint32_t w[64];
-        for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
-        for (int t = 16; t < 64; t++) { uint32_t a = w[t-15], b = w[t-2]; uint32_t s0 = ((a>>7)|(a<<25)) ^ ((a>>18)|(a<<14)) ^ (a>>3), s1 = ((b>>17)|(b<<15)) ^ ((b>>19)|(b<<13)) ^ (b>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
-        uint32_t a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
-        for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
-            uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
-        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
-        if (take == 64) { i += 64; if (i == n) { /* exact multiple: one more block with the padding */ memset(blk, 0, 64); blk[0] = 0x80; for (int bb = 0; bb < 8; bb++) blk[63 - bb] = (uint8_t)(bits >> (8 * bb));
-                for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
-                for (int t = 16; t < 64; t++) { uint32_t aa = w[t-15], bb2 = w[t-2]; uint32_t s0 = ((aa>>7)|(aa<<25)) ^ ((aa>>18)|(aa<<14)) ^ (aa>>3), s1 = ((bb2>>17)|(bb2<<15)) ^ ((bb2>>19)|(bb2<<13)) ^ (bb2>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
-                a=h[0]; b=h[1]; c=h[2]; d=h[3]; e=h[4]; f=h[5]; g=h[6]; hh=h[7];
-                for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
-                    uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
-                h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh; break; }
-            continue; }
-        if (last) break;
-        /* 56 <= take < 64: the length did not fit; one more zero block carries it */
-        memset(blk, 0, 64); for (int bb = 0; bb < 8; bb++) blk[63 - bb] = (uint8_t)(bits >> (8 * bb));
-        for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
-        for (int t = 16; t < 64; t++) { uint32_t aa = w[t-15], bb2 = w[t-2]; uint32_t s0 = ((aa>>7)|(aa<<25)) ^ ((aa>>18)|(aa<<14)) ^ (aa>>3), s1 = ((bb2>>17)|(bb2<<15)) ^ ((bb2>>19)|(bb2<<13)) ^ (bb2>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
-        a=h[0]; b=h[1]; c=h[2]; d=h[3]; e=h[4]; f=h[5]; g=h[6]; hh=h[7];
-        for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
-            uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
-        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
-        break;
-    }
-    for (int j = 0; j < 8; j++) { out[4*j] = (uint8_t)(h[j] >> 24); out[4*j+1] = (uint8_t)(h[j] >> 16); out[4*j+2] = (uint8_t)(h[j] >> 8); out[4*j+3] = (uint8_t)h[j]; }
-}
+static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) { anchor_sha256(m, n, out); }
+static int sha256_file(const char *path, uint8_t out[32], uint64_t *bytes) { return anchor_sha256_file(path, out, bytes); }
 
 /* The attested key signs exactly one thing: this pVM's own pad-binding transcript (PAD-BOOTSTRAP.md,
  * android-avf-pvm/v2): domain || OUR transport SPKI || OUR pad key || the relay's nonce, and the
@@ -345,6 +307,20 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_pads.h"
 #include "shielded-pads.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
+/* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
+ * (assets/ledger.pk) when present: then PADLEDGER from the app must match, only signed grants
+ * install a seed, and the old unsigned PADSEED is refused. Without the asset (a dev build) the
+ * app's PADLEDGER is taken and the legacy path stays open, loudly. */
+static int g_ledger_pinned = 0, g_req_pending = 0;
+static anchor_pins g_pins;                 /* the measured pins (anchor_pins.h); g_pins.mode == ANCHOR_MODE_INVALID = fail closed */
+static int g_model_verified = 0;           /* the store's model.gguf equals the pinned digest (checked from bytes, cached per boot) */
+static char g_req_name[65]; static uint8_t g_req_nonce[32], g_req_model[32], g_req_calib[32];
+static void calib_digest32(uint8_t out[32]) {   /* what shielded-dealer records: SHA-512/256 of the calib file */
+    memset(out, 0, 32);
+    FILE *cf = fopen("/mnt/apk/assets/model.calib", "rb"); if (!cf) return;
+    static uint8_t cb[1 << 20]; size_t n = fread(cb, 1, sizeof cb, cf); fclose(cf);
+    uint8_t dg[64]; crypto_hash(dg, cb, n); memcpy(out, dg, 32);
+}
 static char g_seed_id_hex[33] = "", g_pad_name[64] = "", g_pads_dir[512] = "";
 static int g_have_ledger = 0, g_have_seed = 0;
 static char g_prefix_pk_hex[65] = "";        /* PREFIXPK: the platform's shared-prefix key the engine pins (prefix-kv.h) */
@@ -449,7 +425,7 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
     engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
     if (!em) { OUT("ENGINE libengine.so has no engine_main"); return; }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine.err lives there */
-    anchor_pads pads = { g_tsk, g_ledger_pk, g_pad_name, g_seed_id_hex };
+    anchor_pads pads = { g_tsk, g_ledger_pk, g_pad_name, g_seed_id_hex, g_ledger_pinned };
     const anchor_pads *pp = NULL;
     if (with_prefix) {
         /* the owner streams prefix.kv, prefix.kv.sig and prefix.txt over the
@@ -580,6 +556,14 @@ int AVmPayload_main(void) {
         char pk[65]; sh_pads_bin2hex(g_ppk, 32, pk);
         OUT("PADKEY %s", pk);
     }
+    {   /* the measured pins: mode, ledger key, model digest, prefix key (anchor_pins.h) */
+        if (anchor_pins_load("/mnt/apk/assets", &g_pins)) {
+            if (g_pins.has_ledger) { memcpy(g_ledger_pk, g_pins.ledger_pk, 32); g_ledger_pinned = 1; g_have_ledger = 1; }
+            if (g_pins.has_prefix) { sh_pads_bin2hex(g_pins.prefix_pk, 32, g_prefix_pk_hex); }
+            OUT("PINS mode=%s ledger=%s model=%s prefix=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
+                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app");
+        } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
+    }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
     {
         FILE *f = fopen("/proc/cpuinfo", "r"); char line[1024]; char feats[1024] = "?";
@@ -599,14 +583,73 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "CHAL ", 5)) attest(l + 5, bound);
             else if (!strncmp(l, "PREFIXPK ", 9)) {    /* the platform's shared-prefix key (prefix-kv.h) */
                 char h[65] = ""; uint8_t pk[32];
-                if (sscanf(l + 9, "%64s", h) == 1 && sh_pads_hex2bin(h, pk, 32)) { strncpy(g_prefix_pk_hex, h, 64); g_prefix_pk_hex[64] = 0; OUT("PREFIXPK ok"); }
+                if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PREFIXPK refused: pins invalid");
+                else if (g_pins.has_prefix) { const int same = sscanf(l + 9, "%64s", h) == 1 && sh_pads_hex2bin(h, pk, 32) && !memcmp(pk, g_pins.prefix_pk, 32);
+                                              OUT("PREFIXPK %s", same ? "ok (pinned)" : "REFUSED: not the key this build was measured with"); }
+                else if (sscanf(l + 9, "%64s", h) == 1 && sh_pads_hex2bin(h, pk, 32)) { strncpy(g_prefix_pk_hex, h, 64); g_prefix_pk_hex[64] = 0; OUT("PREFIXPK ok (unpinned)"); }
                 else { g_prefix_pk_hex[0] = 0; OUT("PREFIXPK fail"); }
             }
+            else if (!strncmp(l, "PADLEDGER ", 10) && g_pins.mode == ANCHOR_MODE_INVALID) OUT("PADLEDGER refused: pins invalid");
             else if (!strncmp(l, "PADLEDGER ", 10)) {  /* the relay's ledger key: windows are verified against it */
-                g_have_ledger = sh_pads_hex2bin(l + 10, g_ledger_pk, 32);
-                OUT("PADLEDGER %s", g_have_ledger ? "ok" : "fail");
+                if (g_ledger_pinned) { uint8_t k[32]; const int same = sh_pads_hex2bin(l + 10, k, 32) && !memcmp(k, g_ledger_pk, 32);
+                                       OUT("PADLEDGER %s", same ? "ok (pinned)" : "REFUSED: not the key this build was measured with"); }
+                else { g_have_ledger = sh_pads_hex2bin(l + 10, g_ledger_pk, 32); OUT("PADLEDGER %s", g_have_ledger ? "ok (unpinned)" : "fail"); }
             }
-            else if (!strncmp(l, "PADSEED ", 8)) {     /* PADSEED <name> <seed_id> <epoch> <epk> <nonce> <box> */
+            else if (!strncmp(l, "PADREQ2 ", 8)) {     /* PADREQ2 <name> -> PADREQ2 <name> <model_digest> <calib_digest> <nonce> <sig> | PADREQ2 fail <why> */
+                char name[65] = ""; sscanf(l + 8, "%64s", name);
+                if (!name[0]) OUT("PADREQ2 fail name");
+                else if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PADREQ2 fail pins-invalid");
+                else if (g_have_seed) OUT("PADREQ2 fail active-seed");          /* a grant may not reset a live bank into pad reuse */
+                else if (!g_have_ledger) OUT("PADREQ2 fail no-ledger-key");
+                else {
+                    char mp[512]; const char *es = AVmPayload_getEncryptedStoragePath(); snprintf(mp, sizeof mp, "%s/model.gguf", es ? es : "/nonexistent");
+                    uint64_t mb = 0; char why[160] = "";
+                    /* the digest that goes into the request is the FILE's, and with a model pin the file must BE
+                     * the measured model - signing whatever the app streamed would authenticate the app's choice */
+                    if (g_pins.has_model) { g_model_verified = anchor_pins_model_matches(&g_pins, mp, g_req_model, why, sizeof why); if (!g_model_verified) OUT("PADREQ2 fail model: %s", why); }
+                    else if (sha256_file(mp, g_req_model, &mb) != 0 || mb == 0) { strncpy(why, "no-model", sizeof why - 1); OUT("PADREQ2 fail no-model"); }
+                    if (why[0]) { /* refused above */ }
+                    else {
+                        calib_digest32(g_req_calib);
+                        randombytes(g_req_nonce, 32);
+                        strncpy(g_req_name, name, 64); g_req_name[64] = 0;
+                        char mh[65], ch[65], nh[65]; sh_pads_bin2hex(g_req_model, 32, mh); sh_pads_bin2hex(g_req_calib, 32, ch); sh_pads_bin2hex(g_req_nonce, 32, nh);
+                        const char *fields[3] = { g_req_name, mh, ch };
+                        uint8_t sig[64]; char hs[129]; sh_pads_request_sign(g_tsk, "seed-v2", fields, 3, nh, sig); sh_pads_bin2hex(sig, 64, hs);
+                        g_req_pending = 1;
+                        OUT("PADREQ2 %s %s %s %s %s", g_req_name, mh, ch, nh, hs);
+                    }
+                }
+            }
+            else if (!strncmp(l, "PADGRANT ", 9)) {    /* PADGRANT <version> <seed_id> <epoch> <epk> <nonce> <box> <grant_sig> */
+                unsigned ver = 0; char sid[33] = "", epk_h[65] = "", nonce_h[25] = "", box_h[97] = "", sig_h[129] = ""; unsigned long long epoch = 0;
+                sh_pad_seed_grant g; memset(&g, 0, sizeof g);
+                if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PADGRANT fail pins-invalid");
+                else if (!g_req_pending) OUT("PADGRANT fail no-pending-request");
+                else if (sscanf(l + 9, "%u %32s %llu %64s %24s %96s %128s", &ver, sid, &epoch, epk_h, nonce_h, box_h, sig_h) != 7 || ver != 1 ||
+                         strlen(sid) != 32 || strlen(epk_h) != 64 || strlen(nonce_h) != 24 || strlen(box_h) != 96 || strlen(sig_h) != 128 ||
+                         !sh_pads_hex2bin(sid, g.seed_id, 16) || !sh_pads_hex2bin(epk_h, g.epk, 32) || !sh_pads_hex2bin(nonce_h, g.nonce, 12) ||
+                         !sh_pads_hex2bin(box_h, g.box, 48) || !sh_pads_hex2bin(sig_h, g.sig, 64)) OUT("PADGRANT fail malformed");
+                else {
+                    g.epoch = epoch;
+                    sh_pad_grant_context c; memset(&c, 0, sizeof c);
+                    strncpy(c.name, g_req_name, 64); memcpy(c.transport_pk, g_tpk, 32); memcpy(c.pad_pk, g_ppk, 32);
+                    memcpy(c.model_digest, g_req_model, 32); memcpy(c.calib_digest, g_req_calib, 32); memcpy(c.request_nonce, g_req_nonce, 32);
+                    if (!sh_pad_grant_verify(g_ledger_pk, &c, &g)) OUT("PADGRANT fail signature (ledger key %s)", g_ledger_pinned ? "pinned" : "unpinned");
+                    else if (sh_pads_seed_open(g.epk, g.nonce, g.box, 48, g_psk, g_ppk, g_seed) != 0) OUT("PADGRANT fail box");
+                    else {
+                        g_req_pending = 0;                                     /* one grant per request, ever */
+                        memcpy(g_seed_id, g.seed_id, 16); strncpy(g_pad_name, g_req_name, sizeof g_pad_name - 1); strncpy(g_seed_id_hex, sid, 32); g_have_seed = 1;
+                        if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
+                        int dropped = pads_prune(sid, 0);
+                        OUT("PADGRANT ok %s (%s ledger key)", sid, g_ledger_pinned ? "pinned" : "UNPINNED");
+                        { struct statvfs sv; if (statvfs(g_pads_dir, &sv) == 0) OUT("PADS store: %llu MiB free of %llu", (unsigned long long)sv.f_bavail * sv.f_frsize >> 20, (unsigned long long)sv.f_blocks * sv.f_frsize >> 20); }
+                        if (dropped) OUT("PADS dropped %d shipment(s) of other seeds", dropped);
+                    }
+                }
+            }
+            else if (!strncmp(l, "PADSEED ", 8) && (g_ledger_pinned || g_pins.mode != ANCHOR_MODE_DEV)) OUT("PADSEED refused: only an unpinned dev build takes the legacy unsigned seed");
+            else if (!strncmp(l, "PADSEED ", 8)) {     /* PADSEED <name> <seed_id> <epoch> <epk> <nonce> <box> (dev builds only) */
                 char name[64] = "", sid[33] = "", epk_h[65] = "", nonce_h[25] = "", box_h[97] = ""; unsigned epoch = 0;
                 uint8_t epk[32], nonce[12], box[48];
                 if (sscanf(l + 8, "%63s %32s %u %64s %24s %96s", name, sid, &epoch, epk_h, nonce_h, box_h) == 6 &&
@@ -624,8 +667,13 @@ int AVmPayload_main(void) {
                 char *save = NULL, *kind = strtok_r(l + 8, " ", &save), *nonce = kind ? strtok_r(NULL, " ", &save) : NULL;
                 const char *fields[8]; size_t nf = 0; char *f;
                 while (nonce && nf < 8 && (f = strtok_r(NULL, " ", &save))) fields[nf++] = f;
-                if (kind && nonce) { uint8_t sig[64]; char hs[129]; sh_pads_request_sign(g_tsk, kind, fields, nf, nonce, sig); sh_pads_bin2hex(sig, 64, hs); OUT("PADSIG %s", hs); }
-                else OUT("PADSIG fail");
+                /* The transport key signs platform requests the pVM itself composes (PADREQ2, PADWIN, RECEIPT).
+                 * The only app-composed request left is the legacy unsigned-seed request of a dev build:
+                 * kind "seed" with this tunnel's name as its single field. Anything else - other kinds,
+                 * extra fields, fabricated receipts - is refused. */
+                const int legacy_seed = kind && nonce && !strcmp(kind, "seed") && nf == 1 && !g_ledger_pinned;
+                if (legacy_seed) { uint8_t sig[64]; char hs[129]; sh_pads_request_sign(g_tsk, kind, fields, nf, nonce, sig); sh_pads_bin2hex(sig, 64, hs); OUT("PADSIG %s", hs); }
+                else OUT("PADSIG refused: only the legacy seed request may be signed for the app, and only in an unpinned build");
             }
             else if (!strncmp(l, "WORKER ", 7)) bridge = !strcmp(l + 7, "bridge");
             else if (!strncmp(l, "ENGINE ", 7)) {          /* ENGINE model_bytes=N n=N threads=N prompt=<hex> */
@@ -638,7 +686,16 @@ int AVmPayload_main(void) {
                 if ((q = strstr(l, " boost="))) { char kb[8]; snprintf(kb, sizeof kb, "%d", atoi(q + 7)); setenv("ANCHOR_BOOST_THREADS", kb, 1); }   /* engine.cpp: clock-keeping spinners */
                 if ((q = strstr(l, " env="))) {                /* extra engine environment: hex of "K=V,K=V" */
                     char ev[1024]; size_t k = unhex(q + 5, (uint8_t *)ev, sizeof ev - 1); ev[k] = 0;
-                    for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) { char *eq = strchr(tok, '='); if (eq) { *eq = 0; setenv(tok, eq + 1, 1); } }
+                    /* performance knobs only: the app must not reach the keys that decide what is trusted
+                     * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
+                    static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
+                        "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
+                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", NULL };
+                    for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
+                        char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
+                        int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
+                        if (ok) setenv(tok, eq + 1, 1); else OUT("ENGINE env: refused %s (not a performance knob)", tok);
+                    }
                 }
                 if ((q = strstr(l, "prompt="))) { size_t k = unhex(q + 7, (uint8_t *)eng_prompt, sizeof eng_prompt - 1); eng_prompt[k] = 0; }
                 with_pads = strstr(l, " pads=1") != NULL;
@@ -663,7 +720,14 @@ int AVmPayload_main(void) {
     }
     if (engine) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
-        run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix);
+        if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
+        else if (g_pins.mode == ANCHOR_MODE_PROTECTED && !g_model_verified) {
+            char mp[512], why[160] = ""; const char *es = AVmPayload_getEncryptedStoragePath(); snprintf(mp, sizeof mp, "%s/model.gguf", es ? es : "/nonexistent");
+            uint8_t d[32]; g_model_verified = anchor_pins_model_matches(&g_pins, mp, d, why, sizeof why);
+            if (!g_model_verified) OUT("ENGINE refused: the model in the store is not the measured one (%s)", why);
+            else run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix);
+        }
+        else run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
