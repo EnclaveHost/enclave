@@ -1,6 +1,9 @@
 #include "anchor_pins.h"
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* ---- SHA-256 ---------------------------------------------------------------------- */
 static const uint32_t K256[64] = {
@@ -31,19 +34,25 @@ static void sha_final(sha256_ctx *c, uint8_t out[32]) {
     for (int j = 0; j < 8; j++) { out[4*j] = (uint8_t)(c->h[j] >> 24); out[4*j+1] = (uint8_t)(c->h[j] >> 16); out[4*j+2] = (uint8_t)(c->h[j] >> 8); out[4*j+3] = (uint8_t)c->h[j]; }
 }
 void anchor_sha256(const uint8_t *m, size_t n, uint8_t out[32]) { sha256_ctx c; sha_init(&c); sha_update(&c, m, n); sha_final(&c, out); }
+/* -1 on ANY failure, including a read error mid-file: a short digest must never pass for the file's. */
 int anchor_sha256_file(const char *path, uint8_t out[32], uint64_t *bytes) {
     FILE *f = fopen(path, "rb"); if (!f) return -1;
-    static uint8_t buf[1 << 20]; sha256_ctx c; sha_init(&c); size_t n; uint64_t total = 0;
-    while ((n = fread(buf, 1, sizeof buf, f)) > 0) { sha_update(&c, buf, n); total += n; }
-    fclose(f); sha_final(&c, out); if (bytes) *bytes = total; return 0;
+    uint8_t *buf = (uint8_t *)malloc(1 << 20); if (!buf) { fclose(f); return -1; }   /* per call: hashers may run on two threads */
+    sha256_ctx c; sha_init(&c); size_t n; uint64_t total = 0;
+    while ((n = fread(buf, 1, 1 << 20, f)) > 0) { sha_update(&c, buf, n); total += n; }
+    const int bad = ferror(f);
+    fclose(f); free(buf);
+    if (bad) return -1;
+    sha_final(&c, out); if (bytes) *bytes = total; return 0;
 }
 
 /* ---- pins ------------------------------------------------------------------------- */
 /* 0 = absent, 1 = well-formed 32 bytes, -1 = present but malformed */
 static int read_hex32(const char *dir, const char *name, uint8_t out[32]) {
     char path[600]; snprintf(path, sizeof path, "%s/%s", dir, name);
-    FILE *f = fopen(path, "rb"); if (!f) return 0;
-    char buf[80]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
+    FILE *f = fopen(path, "rb"); if (!f) return errno == ENOENT ? 0 : -1;   /* present but unreadable is NOT absent */
+    char buf[80]; size_t n = fread(buf, 1, sizeof buf, f); const int bad = ferror(f); fclose(f);
+    if (bad) return -1;
     if (n == 65 && buf[64] == '\n') n = 64;
     if (n != 64) return -1;
     for (size_t i = 0; i < 64; i++) {
@@ -66,9 +75,9 @@ int anchor_pins_load(const char *dir, anchor_pins *p) {
     else if (!strcmp(m, "protected")) p->mode = ANCHOR_MODE_PROTECTED;
     else { snprintf(p->err, sizeof p->err, "anchor.mode is neither dev nor protected"); return 0; }
     const int rl = read_hex32(dir, "ledger.pk", p->ledger_pk), rm = read_hex32(dir, "model.sha256", p->model_sha256), rp = read_hex32(dir, "prefix.pk", p->prefix_pk);
-    if (rl < 0) { snprintf(p->err, sizeof p->err, "ledger.pk present but malformed"); p->mode = ANCHOR_MODE_INVALID; return 0; }
-    if (rm < 0) { snprintf(p->err, sizeof p->err, "model.sha256 present but malformed"); p->mode = ANCHOR_MODE_INVALID; return 0; }
-    if (rp < 0) { snprintf(p->err, sizeof p->err, "prefix.pk present but malformed"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    if (rl < 0) { snprintf(p->err, sizeof p->err, "ledger.pk present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    if (rm < 0) { snprintf(p->err, sizeof p->err, "model.sha256 present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    if (rp < 0) { snprintf(p->err, sizeof p->err, "prefix.pk present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
     p->has_ledger = rl == 1; p->has_model = rm == 1; p->has_prefix = rp == 1;
     if (p->mode == ANCHOR_MODE_PROTECTED && !(p->has_ledger && p->has_model && p->has_prefix)) {
         snprintf(p->err, sizeof p->err, "protected build without pins:%s%s%s", p->has_ledger ? "" : " ledger", p->has_model ? "" : " model", p->has_prefix ? "" : " prefix");
@@ -83,5 +92,28 @@ int anchor_pins_model_matches(const anchor_pins *p, const char *path, uint8_t di
     if (anchor_sha256_file(path, d, &bytes) != 0 || bytes == 0) { if (err) snprintf(err, errcap, "model unreadable or empty"); return 0; }
     if (digest_out) memcpy(digest_out, d, 32);
     if (memcmp(d, p->model_sha256, 32) != 0) { if (err) snprintf(err, errcap, "model digest differs from the measured pin"); return 0; }
+    return 1;
+}
+
+int anchor_sha256_fd(int fd, uint8_t out[32], uint64_t *bytes) {
+    if (fd < 0) return -1;
+    uint8_t *buf = (uint8_t *)malloc(1 << 20); if (!buf) return -1;
+    sha256_ctx c; sha_init(&c); uint64_t off = 0;
+    for (;;) {
+        ssize_t r = pread(fd, buf, 1 << 20, (off_t)off);   /* by offset: the caller's file position is untouched */
+        if (r < 0) { if (errno == EINTR) continue; free(buf); return -1; }
+        if (r == 0) break;
+        sha_update(&c, buf, (size_t)r); off += (uint64_t)r;
+    }
+    free(buf);
+    sha_final(&c, out); if (bytes) *bytes = off; return 0;
+}
+
+int anchor_pins_model_fd_check(const anchor_pins *p, int fd, const uint8_t *frozen, uint8_t digest_out[32], char *err, size_t errcap) {
+    uint8_t d[32]; uint64_t bytes = 0;
+    if (anchor_sha256_fd(fd, d, &bytes) != 0 || bytes == 0) { if (err) snprintf(err, errcap, "model unreadable or empty"); return 0; }
+    if (digest_out) memcpy(digest_out, d, 32);
+    if (p && p->has_model && memcmp(d, p->model_sha256, 32) != 0) { if (err) snprintf(err, errcap, "model differs from the measured pin"); return 0; }
+    if (frozen && memcmp(d, frozen, 32) != 0) { if (err) snprintf(err, errcap, "model differs from the one the seed was granted for"); return 0; }
     return 1;
 }
