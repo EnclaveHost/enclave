@@ -131,9 +131,13 @@ static bool simd_agree(const sh_simd *a, const sh_simd *b) {
         if (memcmp(y32, y24a, N * sizeof(int64_t)) || memcmp(y32, y24b, N * sizeof(int64_t))) return false;
         if (f32[0] != f24a[0] || f32[1] != f24a[1] || f32[0] != f24b[0] || f32[1] != f24b[1]) return false;
         /* and the whole B*N run through the fused form as one long row */
-        a->unmask24_fv(packed, ub, s32, 1, B * N, y24a, f24a); b->unmask24_fv(packed, ub, s32, 1, B * N, y24b, f24b);
+        int32_t s_long[B * N];
+        for (int i = 0; i < B * N; i++) s_long[i] = 1 + (int32_t)(RND() % (SH_FV_S_RANGE - 1));
+        a->unmask24_fv(packed, ub, s_long, 1, B * N, y24a, f24a); b->unmask24_fv(packed, ub, s_long, 1, B * N, y24b, f24b);
         a->unmask(ua, ub, B * N, y32);
         if (memcmp(y32, y24a, sizeof y32) || memcmp(y32, y24b, sizeof y32) || f24a[0] != f24b[0]) return false;
+        a->fv_dots(y32, s_long, 1, B * N, f32);
+        if (f24a[0] != f32[0]) return false;
     }
     /* encode: the vector path rounds under MXCSR exactly as lrintf does, including
      * ties to even, and its scalar tail must agree with itself. */
