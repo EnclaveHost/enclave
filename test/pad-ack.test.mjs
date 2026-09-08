@@ -111,11 +111,16 @@ test("the HTTP store records computed hashes, upgrades old files, and refuses co
   assert.deepEqual(Buffer.from(await (await fetch(url)).arrayBuffer()), winner);
   assert.equal(f.store.list(f.seed)[0].sha256, hash(winner));
   assert.equal(await f.store.digest(f.seed, name), hash(winner));
+  const remove = () => fetch(url, { method: "DELETE", headers: { authorization: "Bearer fixture" } });
+  assert.equal((await remove()).status, 409, "even a dealer bearer cannot delete unacknowledged pads");
+  assert.equal(f.ledger.reserve(f.request("reserve", { seed_id: f.seed, want: 64 })).status, 200);
+  assert.equal((await remove()).status, 409, "reservation alone still does not authorize deletion");
   const ack = await fetch(`${base}/v1/pads/ack`, { method: "POST", body: JSON.stringify(f.ack(0, 8, hash(winner))) });
   assert.equal(ack.status, 200); assert.equal((await ack.json()).ack_floor, 8);
   const old = f.store.plan(f.seed, `${f.seed}-8-8.pads`); fs.writeFileSync(old.final, "old ciphertext");
   assert.equal(await f.store.digest(f.seed, old.name), hash("old ciphertext"));
   assert.equal(f.store.list(f.seed)[1].sha256, hash("old ciphertext"));
+  assert.equal((await remove()).status, 200, "only the durable delivered floor permits removal");
   for (const bad of [`${f.seed}-00-8.pads`, `${f.seed}-8-0.pads`, `${f.seed}-${PAD_INDEX_LIMIT}-1.pads`, `${"ab".repeat(16)}-0-8.pads`])
     assert.equal(f.store.plan(f.seed, bad), null);
 });

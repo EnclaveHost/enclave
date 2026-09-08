@@ -72,7 +72,17 @@ export function padsRouter({ ledger, store, prefixStore, dealerToken, json, read
     if (!dealerToken || auth !== "Bearer " + dealerToken) { json(res, 403, { error: "dealer_only", message: "PUT/DELETE need the dealer's bearer" }); return true; }
     const plan = st.plan(key, name);
     if (!plan) { json(res, 400, { error: "bad_name", message: st.nameHint }); return true; }
-    if (req.method === "DELETE") { json(res, st.remove(key, name) ? 200 : 404, { removed: name }); return true; }
+    if (req.method === "DELETE") {
+      // Enforce this at the store as well as the dealer: an older dealer that
+      // still mistakes reservation for delivery cannot discard pending pads.
+      if (st === store) {
+        const progress = ledger.mark(key);
+        if (!progress || plan.index0 + plan.count > progress.ack_floor) {
+          json(res, 409, { error: "shipment_not_acknowledged" }); return true;
+        }
+      }
+      json(res, st.remove(key, name) ? 200 : 404, { removed: name }); return true;
+    }
     if (req.method === "PUT") {
       const want = String(url.searchParams.get("sha256") || "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(want)) { json(res, 400, { error: "need_sha256" }); return true; }
