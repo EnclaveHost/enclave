@@ -767,7 +767,7 @@ static int run_bridgebench(int fd, const char *sizes) {
         while (*tok == ' ') tok++;
         char *end = NULL; errno = 0; unsigned long long v = strtoull(tok, &end, 10);
         if (errno || !end || *end || v < 1 || v > cap) { OUT("BENCH size '%s' out of range (1..%zu)", tok, cap); OUT("BENCH RUN FAILED"); return -1; }
-        anchor_frame_stats st;
+        anchor_frame_stats st = {0};
         const int rc = anchor_frame_bench(fd, (size_t)v, 10, 200, 30000, sbuf, rbuf, &st);
         if (rc != AFL_OK) {
             static const char *const ph[] = {"none","write_len","write_payload","read_len","read_payload"};
