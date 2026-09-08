@@ -33,6 +33,9 @@ extern "C" {
 #define SH_PADS_INDEX_LIMIT (UINT64_C(1) << 24)
 #define SH_PADS_GROUP_LIMIT (UINT32_C(1) << 16)
 #define SH_PADS_K_LIMIT     (INT64_C(8) << 24)
+/* Writer admission cap: at most 8 MiB of nonce-claim bitmap per open file.
+ * This is a resource policy, separate from the larger PRF domain limits. */
+#define SH_PADS_WRITER_MAX_CELLS (UINT64_C(1) << 26)
 
 typedef struct {
     uint32_t group;                   /* consumer's ordinal at mint time */
@@ -71,17 +74,29 @@ void sh_pad_r(const uint8_t seed[32], uint32_t group, uint64_t index, int64_t K,
 
 /* --- writer (the dealer) -------------------------------------------------- */
 typedef struct sh_pads_writer sh_pads_writer;
-/* Creates the file, mints a shipment key, boxes it to `consumer_pk`, writes
- * the header and group table, and reserves the cell area. */
+/* Creates a private temporary file beside path, mints a shipment key, boxes it
+ * to consumer_pk, and reserves the cell area. An existing destination refuses;
+ * no final .pads name is exposed until successful close. Failed/crashed temp
+ * files never match the bank's .pads scan. The parent directory must be trusted
+ * and support hard links and directory fsync (the normal local dealer store).
+ * close must run only after all writer calls/threads have finished. */
 sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest[32],
                                     const uint8_t seed_id[16], const sh_pads_group *groups, uint32_t n_groups,
                                     uint64_t index0, uint64_t index_count, const uint8_t consumer_pk[32], int *err);
-/* Cells may be written in any order; each is boxed independently. `u` is the
- * balanced row (u_len values in (-M/2, M/2]). */
+/* Cells may be written in any order, exactly once per file; each is boxed
+ * independently. A duplicate claim or failed claimed write retires the file.
+ * Retry by creating a fresh file/key, never reseal a cell under the old nonce.
+ * Internal short-write retries preserve the already-sealed ciphertext.
+ * u is the balanced row (u_len values in (-M/2, M/2]). This scratch-owning form
+ * is serialized; concurrent callers use cell_with and disjoint private scratch. */
 int  sh_pads_writer_cell(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u);
 /* thread-safe form: caller-owned scratch of sh_pads_writer_scratch_bytes(w) bytes each */
 int  sh_pads_writer_cell_with(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u, uint8_t *plain, uint8_t *cell);
 size_t sh_pads_writer_scratch_bytes(const sh_pads_writer *w);
+/* Refuses incomplete/failed files. A complete file is flushed, linked atomically
+ * without replacing an existing path, and its directory flushed. Always frees
+ * the writer and attempts to remove its temporary name. A directory-fsync failure can leave
+ * a complete final file but returns an error, never a durability success. */
 int  sh_pads_writer_close(sh_pads_writer *w);
 
 /* --- reader (the consumer: the pVM, or the CVM engine) -------------------- */

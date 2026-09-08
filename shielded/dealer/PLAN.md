@@ -98,16 +98,37 @@ header (little-endian, 4 KiB-aligned, sealed):
     per group g in registration order: u[g][i] as 3*u_len bytes
 ```
 
-Encryption: per CELL (one index, one group) `crypto_secretbox` (XSalsa20-
-Poly1305, TweetNaCl, vendored beside the engine as it already is in the pVM
-payload) under a shipment key `k`, nonce = `seed_id[0:8] || index || group`;
-`k` boxed to the consumer's X25519 pad key from an ephemeral dealer pair
-(`crypto_box`); the header and group table are authenticated by a boxed
-SHA-512 under `k`. Cells are independent because groups consume at
-different rates (the vocabulary projection is asked for far fewer rows than
-the layers), so each group keeps its own cursor and opens only its own
+Version 2 encryption: each CELL (one index, one group) uses ChaCha20-Poly1305
+under a fresh shipment key `k`, with nonce `LE64(index) || LE32(group)`.
+The key is boxed to the consumer's X25519 pad key from an ephemeral dealer
+pair using the existing NaCl-compatible key wrap. The header and group table
+are authenticated by an encrypted SHA-512 digest under `k`, with a reserved
+header nonce outside the cell domain. Version 1 used XSalsa20-Poly1305 cells.
+Cells are independent because groups consume at different rates, so each group
+keeps its own cursor and opens only its own
 cells. The operator's bank sees ciphertext and sizes only; prefetch
 granularity is one cell.
+
+The writer reserves a unique temporary name beside the destination, with mode
+0600 and close-on-exec. It exposes the final shipment name only after every
+declared cell completed exactly once, the file was flushed and closed, and an
+atomic hard link created the destination without replacing an existing file.
+It then removes the temporary name and flushes the parent directory. A crash
+during minting leaves only a temporary name ignored by the bank's `.pads` scan.
+Existing destinations are refused; callers must not use open as an overwrite
+operation. The local dealer directory must be trusted and support hard links
+and directory fsync. A directory-flush failure can leave a complete final file
+but returns an error, never a durability success.
+
+Atomic cell claims prevent concurrent or repeated sealing under the same
+shipment-key/nonce pair. A failed claimed write or duplicate retires that file;
+recovery creates a fresh file/key. Internal interrupted/short writes resume
+the same ciphertext rather than re-encrypting. The completion bitmap is capped
+at 8 MiB per open writer (2^26 cells), a resource admission limit separate from
+the PRF namespace. The caller joins every writer thread before closing.
+`test/shielded-pad-publication.test.mjs` exercises actual encrypted files with
+crashes, partial writes, failed synchronization, duplicate/concurrent claims,
+publication collisions and successful readback through the existing reader.
 
 Implemented (P1, engine side): `wasm/ggml-shielded/shielded-pads.{h,c}`
 (format, derivation, writer, reader, local ledger window),
