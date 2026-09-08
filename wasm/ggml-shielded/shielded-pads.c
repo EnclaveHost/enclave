@@ -728,16 +728,22 @@ bool sh_pads_window_verify(const uint8_t ledger_pk[32], const char *seed_id_hex,
     return crypto_sign_open(m, &mlen, sm, 64 + (unsigned long long)n, ledger_pk) == 0 && mlen == (unsigned long long)n;
 }
 
-void sh_pads_request_sign(const uint8_t transport_sk[64], const char *kind, const char *const *fields, size_t n_fields, const char *nonce_hex, uint8_t sig_out[64]) {
-    char msg[1024]; size_t at = 0;
-    at += (size_t)snprintf(msg + at, sizeof msg - at, "enclave-pads-%s", kind);
-    for (size_t i = 0; i < n_fields && at < sizeof msg; i++) at += (size_t)snprintf(msg + at, sizeof msg - at, "\n%s", fields[i]);
-    if (at < sizeof msg) at += (size_t)snprintf(msg + at, sizeof msg - at, "\n%s", nonce_hex);
-    if (at >= sizeof msg) at = sizeof msg - 1;
-    uint8_t *sm = (uint8_t *)malloc(64 + at); unsigned long long smlen = 0;
-    crypto_sign(sm, &smlen, (const uint8_t *)msg, at, transport_sk);
-    memcpy(sig_out, sm, 64);
-    free(sm);
+int sh_pads_request_sign(const uint8_t transport_sk[64], const char *kind, const char *const *fields, size_t n_fields, const char *nonce_hex, uint8_t sig_out[64]) {
+    memset(sig_out, 0, 64);
+    if (!transport_sk || !kind || !nonce_hex || (n_fields && !fields)) return SH_ERR_RANGE;
+    /* exact length first: "enclave-pads-<kind>" then "\n<field>" per field then "\n<nonce>" */
+    size_t need = strlen("enclave-pads-") + strlen(kind) + 1 + strlen(nonce_hex);
+    for (size_t i = 0; i < n_fields; i++) { if (!fields[i]) return SH_ERR_RANGE; need += 1 + strlen(fields[i]); }
+    if (need > 65536) return SH_ERR_RANGE;
+    char *msg = (char *)malloc(need + 1); uint8_t *sm = (uint8_t *)malloc(64 + need);
+    if (!msg || !sm) { free(msg); free(sm); return SH_ERR_NOMEM; }
+    size_t at = (size_t)snprintf(msg, need + 1, "enclave-pads-%s", kind);
+    for (size_t i = 0; i < n_fields; i++) at += (size_t)snprintf(msg + at, need + 1 - at, "\n%s", fields[i]);
+    at += (size_t)snprintf(msg + at, need + 1 - at, "\n%s", nonce_hex);
+    int rc = SH_ERR_RANGE;
+    if (at == need) { unsigned long long smlen = 0; crypto_sign(sm, &smlen, (const uint8_t *)msg, at, transport_sk); memcpy(sig_out, sm, 64); rc = SH_OK; }
+    memset(sm, 0, 64 + need); free(sm); free(msg);
+    return rc;
 }
 
 /* ---- hex --------------------------------------------------------------- */

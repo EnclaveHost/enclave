@@ -32,12 +32,18 @@
 #include <android/log.h>
 
 static int g_ctl = -1;
+/* The payload's locked line writer (anchor_ctl_write): the control channel is shared with the
+ * payload's receiver thread, and two writers must not interleave. Set before engine_main; without
+ * it (an older payload) lines go straight to the descriptor. */
+static int (*g_ctl_writer)(const char *, size_t) = nullptr;
+extern "C" void engine_set_ctl_writer(int (*fn)(const char *, size_t)) { g_ctl_writer = fn; }
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
     if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
     line[n] = '\n'; line[n + 1] = 0;
     fputs(line, stdout); fflush(stdout);
     __android_log_print(ANDROID_LOG_INFO, "anchor-engine", "%.*s", n, line);
+    if (g_ctl_writer) { g_ctl_writer(line, (size_t)n + 1); return; }
     if (g_ctl >= 0) { const char *p = line; size_t left = (size_t)n + 1; while (left) { ssize_t w = write(g_ctl, p, left); if (w <= 0) break; p += w; left -= (size_t)w; } }
 }
 /* llama's load chatter stays off the control channel; its warnings and errors
@@ -93,7 +99,7 @@ static void pads_receipt(const anchor_pads *p, uint64_t pads_used, uint64_t toke
     snprintf(used, sizeof used, "%llu", (unsigned long long)pads_used);
     snprintf(toks, sizeof toks, "%llu", (unsigned long long)tokens);
     const char *fields[4] = { p->name, p->seed_id_hex, used, toks };
-    sh_pads_request_sign(p->transport_sk, "receipt", fields, 4, nonce, sig);
+    if (sh_pads_request_sign(p->transport_sk, "receipt", fields, 4, nonce, sig) != SH_OK) { outf("RECEIPT not signed: transcript refused"); return; }
     sh_pads_bin2hex(sig, 64, sig_hex);
     outf("RECEIPT %s %s %s %s %s %s", p->name, p->seed_id_hex, used, toks, nonce, sig_hex);
 }
@@ -105,7 +111,7 @@ static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
     sh_pads_bin2hex(nb, 16, nonce);
     snprintf(wants, sizeof wants, "%llu", (unsigned long long)want);
     const char *fields[3] = { p->name, p->seed_id_hex, wants };
-    sh_pads_request_sign(p->transport_sk, "reserve", fields, 3, nonce, sig);
+    if (sh_pads_request_sign(p->transport_sk, "reserve", fields, 3, nonce, sig) != SH_OK) return -1;
     sh_pads_bin2hex(sig, 64, sig_hex);
     outf("PADWIN %s %s %s", wants, nonce, sig_hex);
     /* the app answers PADWIN <lo> <hi> <iat> <sig> (or PADWIN fail <why>); other lines are the app's chatter */
