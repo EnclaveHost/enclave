@@ -1,8 +1,8 @@
 # Sparse pad delivery: proposed next implementation
 
-Status: layout, canonical-manifest, descriptor-table and missing-coverage primitives implemented;
-remaining path is a design. No v3 shipment reader/writer, live relay change or
-phone support is deployed.
+Status: layout, canonical-manifest, descriptor-table, missing-coverage and
+standalone v3 file API implemented and tested; no dealer loop, live relay,
+receipt or phone consumer uses it. The remaining integration is a design.
 The current 27B baseline continues with complete v2 shipments.
 
 ## Problem and expected benefit
@@ -270,3 +270,86 @@ independent finite-set oracle and tests duplicate/overlapping/out-of-order
 coverage, empty/full coverage, nonce-domain boundaries, overflowing intervals,
 insufficient capacities, allocation failure and the maximum 5120-gap case.
 The fixture passes ASan/UBSan; the header compiles for Android35 C and C++17.
+
+## Standalone file API (integration still disabled)
+
+`shielded-pads-v3.h` declares the explicit file API. Its implementation is
+included from `shielded-pads.c` to reuse the existing key wrap, cell AEAD and
+nonce construction. It adds no environment switch or caller in the existing
+dealer, relay or engine. Integrated consumers continue to require v2.
+
+Open calls require a caller-admitted complete manifest, seed identity, signed
+reservation bounds and mandatory file/cell policy caps. Those arguments do not
+prove authorization or provenance by themselves. The manifest digest commits
+the model, calibration, encoding profile and ordered group members. Each table
+still carries all canonical groups, including empty spans; no local array
+position is substituted for a canonical mask domain. The supplied span array
+has exactly the admitted manifest's group count. An all-empty file is refused.
+
+The fixed 256-byte header is explicitly little-endian:
+
+| Offset | Bytes | Meaning |
+|---|---|---|
+| 0 | 8 | `ENCLPAD3` |
+| 8 | 4 | Version 3 |
+| 12 | 4 | Complete canonical group count |
+| 16 | 32 | Admitted canonical manifest SHA-256 |
+| 48 | 16 | Seed identity |
+| 64 | 8 | Exact file byte count |
+| 72 | 8 | Aligned payload start |
+| 80 | 8 | Payload byte count |
+| 88 | 8 | Reserved, zero |
+| 96 | 32 | Ephemeral dealer public key |
+| 128 | 48 | Wrapped fresh shipment key |
+| 176 | 80 | AEAD of the 64-byte metadata digest |
+
+The metadata digest uses the existing SHA-512 primitive over this header,
+the complete 96-byte descriptor table and zero alignment padding. Both boxes
+are zeroed for this transcript, avoiding a circular digest. The ephemeral key,
+manifest, seed and exact extents remain included. Cell nonces retain the
+existing canonical-group/absolute-index construction under the fresh file key.
+
+The writer duplicates an already opened trusted output-directory fd. That
+directory must support hard links and directory fsync, with no other writer
+removing or replacing this writer's temporary entries. All path operations use
+the retained directory; renaming its parent path cannot redirect publication.
+The final component must be new, including when an existing entry is a symlink.
+Temporary files are private and excluded from legacy bank discovery.
+
+Cells may arrive in arbitrary order. Atomic claims forbid encrypting a cell
+twice within one file; parallel callers use separate scratch buffers. A failed
+cell poisons the file. Publication requires every declared cell, file fsync
+and close, a hard link that cannot replace another final entry, and directory
+fsync. `finish` separately reports whether the final entry was published: an
+error after publication requires reconciliation, never an inferred failure to
+publish or a blind remint. `abort` attempts to remove only the writer's temporary
+file; a filesystem error can leave an entry requiring reconciliation. Both
+finish and abort clear private key and shared plaintext scratch memory.
+
+The reader duplicates and retains the supplied regular-file fd. It checks
+the admitted manifest/seed, exact file size, version, canonical padding,
+header authentication, descriptor identities, ranges and calculated extents.
+Every cell read authenticates its ciphertext and checks all packed field values
+before changing caller output. Concurrent reads use independent scratch.
+Replacing the original pathname does not replace the admitted fd.
+
+The ephemeral key wrap does not authenticate a dealer identity: anyone knowing
+the recipient public key can create a new boxed shipment key. Metadata admission
+does not authenticate unread ciphertext or establish its mathematical r.W
+correctness. The later importer must retain the existing
+private r.W check, reserve-before-use windows and irreversible cursors. Repeat
+reads are allowed; repeat consumption of a mask is not. There is no directory
+discovery, demand signing, receipt, pruning or seed-domain binding integration
+in this API yet. A v3 file is rejected by the v2 shipment checker, and vice versa.
+
+Resource limits include the manifest's 1024 groups/4096 members, at most
+2^26 declared cells per file (8 MiB nonce-claim bitmap) and a 64 MiB hard cell
+limit in addition to the caller's smaller caps. No size from an unauthenticated
+header controls metadata allocation: the admitted manifest bounds it first.
+
+`test/shielded-pads-v3.test.mjs` covers v2 opened-cell equality, independently
+encoded header/table/manifest bytes, every metadata-byte alteration, ciphertext
+tampering, validly tagged non-field values, retained-fd reads, parallel cells,
+nonce-claim races, incomplete files, and injected allocation and publication
+failures. It passes ASan/UBSan alongside the legacy v2 publication, replay and
+ordinal suites. The implementation and public C/C++ header compile for Android35.

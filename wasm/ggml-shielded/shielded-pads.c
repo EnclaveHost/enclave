@@ -879,3 +879,6 @@ void sh_pads_bin2hex(const uint8_t *in, size_t n, char *out) {
     for (size_t i = 0; i < n; i++) { out[2 * i] = d[in[i] >> 4]; out[2 * i + 1] = d[in[i] & 15]; }
     out[2 * n] = 0;
 }
+
+/* Explicit standalone API only: integrated consumers remain v2. */
+#include "shielded-pads-v3.inc"
