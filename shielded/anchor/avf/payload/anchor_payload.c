@@ -32,6 +32,7 @@
 #include "anchor_pins.h"
 #include "anchor_names.h"
 #include "anchor_gguf.h"
+#include "../host/anchor-frame-loop.h"
 #include "anchor_copy.h"
 #include <fcntl.h>
 #include <inttypes.h>
@@ -750,47 +751,26 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
 
 /* split-harness.c's main, as a function: same fixture, same order of draws, same digest */
 /* Worker-bridge frame diagnostic (BRIDGEBENCH): the guest is the client on the worker fd, so the path is
- * guest vsock -> app pump -> TCP echo and back, the same pump a real leg uses. FRAMED protocol (a bounded
- * write-then-read of one big frame can deadlock a streaming echo when both socket buffers fill; framing
- * makes the echo read the WHOLE frame before replying, so the 12.6 ms Gen-1 sequential floor for 3 MiB
- * actually applies): each direction is a 4-byte big-endian length then exactly that many payload bytes.
- * Per size: warm up 10, then 200 timed framed round trips; a content marker is checked on read-back and a
- * receive timeout turns a stuck echo into a failure line, not a hang. p50/p90/min microseconds. Toggling
- * the app's --ez nativebridge between two runs compares the Java pump and the native pump on this path. */
-static int bench_cmp(const void *a, const void *b) { double x = *(const double *)a, y = *(const double *)b; return x < y ? -1 : x > y ? 1 : 0; }
-static int bench_write_all(int fd, const uint8_t *p, size_t n) {
-    size_t off = 0; while (off < n) { ssize_t w = write(fd, p + off, n - off); if (w > 0) { off += (size_t)w; continue; } if (w < 0 && errno == EINTR) continue; return -1; } return 0;
-}
-static int bench_read_all(int fd, uint8_t *p, size_t n) {   /* SO_RCVTIMEO turns a stall into EAGAIN -> failure */
-    size_t off = 0; while (off < n) { ssize_t r = read(fd, p + off, n - off); if (r > 0) { off += (size_t)r; continue; } if (r < 0 && errno == EINTR) continue; return -1; } return 0;
-}
-static void run_bridgebench(int fd, const char *sizes) {
-    if (fd < 0) { OUT("BENCH no worker bridge"); return; }
-    static uint8_t buf[3u << 20]; uint8_t lp[4];
-    struct timeval tv = { 30, 0 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);   /* 30 s: a hung echo fails, never hangs the leg */
+ * guest vsock -> app pump -> TCP echo and back, the same pump a real leg uses. The framed round trip,
+ * absolute deadline (both directions), deterministic fill + full compare, and first-failure abort live in
+ * anchor-frame-loop.h so a host socketpair fixture exercises the identical code. Strict bounded size
+ * parse; a failure stops the whole run and prints BENCH RUN FAILED (never "done"), so the script gate and
+ * a reader cannot mistake a desynchronized socket for a result. */
+static int run_bridgebench(int fd, const char *sizes) {
+    if (fd < 0) { OUT("BENCH no worker bridge"); return -1; }
+    static uint8_t sbuf[3u << 20], rbuf[3u << 20]; const size_t cap = sizeof sbuf;
     char csv[128]; snprintf(csv, sizeof csv, "%s", sizes); if (!csv[0]) snprintf(csv, sizeof csv, "65536,262144,1048576,3145728");
     for (char *tok = strtok(csv, ","); tok; tok = strtok(NULL, ",")) {
-        size_t sz = (size_t)strtoull(tok, NULL, 10);
-        if (sz < 1 || sz > sizeof buf) { OUT("BENCH size %zu out of range", sz); continue; }
-        static double us[210]; const int warm = 10, iters = 200; int failed = 0;
-        for (int i = 0; i < warm + iters && !failed; i++) {
-            const uint8_t mark = (uint8_t)(0xA5 ^ (i & 0xff));
-            buf[0] = mark; buf[sz - 1] = (uint8_t)~mark;
-            lp[0] = (uint8_t)(sz >> 24); lp[1] = (uint8_t)(sz >> 16); lp[2] = (uint8_t)(sz >> 8); lp[3] = (uint8_t)sz;
-            const double t0 = now_us();
-            if (bench_write_all(fd, lp, 4) || bench_write_all(fd, buf, sz)) { OUT("BENCH %zu B: write failed", sz); failed = 1; break; }
-            if (bench_read_all(fd, lp, 4)) { OUT("BENCH %zu B: length read failed/timeout", sz); failed = 1; break; }
-            size_t back = ((size_t)lp[0] << 24) | ((size_t)lp[1] << 16) | ((size_t)lp[2] << 8) | lp[3];
-            if (back != sz) { OUT("BENCH %zu B: echoed length %zu != %zu", sz, back, sz); failed = 1; break; }
-            if (bench_read_all(fd, buf, sz)) { OUT("BENCH %zu B: payload read failed/timeout", sz); failed = 1; break; }
-            if (buf[0] != mark || buf[sz - 1] != (uint8_t)~mark) { OUT("BENCH %zu B: content mismatch (echo corrupted the frame)", sz); failed = 1; break; }
-            if (i >= warm) us[i - warm] = now_us() - t0;
-        }
-        if (failed) continue;
-        qsort(us, iters, sizeof us[0], bench_cmp);
-        OUT("BENCH %zu B: p50=%.0f us p90=%.0f us min=%.0f us (n=%d, framed)", sz, us[iters / 2], us[(iters * 9) / 10], us[0], iters);
+        while (*tok == ' ') tok++;
+        char *end = NULL; errno = 0; unsigned long long v = strtoull(tok, &end, 10);
+        if (errno || !end || *end || v < 1 || v > cap) { OUT("BENCH size '%s' out of range (1..%zu)", tok, cap); OUT("BENCH RUN FAILED"); return -1; }
+        anchor_frame_stats st;
+        const int rc = anchor_frame_bench(fd, (size_t)v, 10, 200, 30000, sbuf, rbuf, &st);
+        if (rc != AFL_OK) { OUT("BENCH %llu B: FAILED (%s)", v, afl_strerror(rc)); OUT("BENCH RUN FAILED"); return -1; }
+        OUT("BENCH %llu B: p50=%.0f us p90=%.0f us min=%.0f us (n=%d, framed)", v, st.p50_us, st.p90_us, st.min_us, st.iters);
     }
     OUT("BENCH done");
+    return 0;
 }
 
 static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, int bridge_fd) {
