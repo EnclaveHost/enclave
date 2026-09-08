@@ -666,16 +666,20 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         return ++n_gen < n_predict; };
     int n_past = n_loaded + n, mtp_rounds = 0, mtp_drafted = 0, mtp_accepted = 0;
     double t_draft = 0, t_verify = 0, t_observe = 0;   /* where a round's wall time goes (us) */
+    const bool eprofile = [] { const char *pf = getenv("SHIELDED_PROFILE"); return pf && *pf && strcmp(pf, "0"); }();
+    long r_steady = -1;                                /* the round index at which steady state began */
     /* steady state = after the first decode step: when the prompt prefilled on the CPU (wider than
      * the link's 8 rows) the first offloaded graph also ships the weights to the worker (~50 s) */
     long t_steady0 = 0; int n_gen_steady0 = 0;
         int32_t pre[33]; int pre_n = 0; int32_t pre_first = -1; int mtp_pre_used = 0, mtp_pre_hit = 0;   /* draft-ahead hand-off between rounds */
     const long t_tg0 = ggml_time_us();
     cur = argmax(llama_get_logits_ith(ctx, -1));
+    const long t_po0 = ggml_time_us();
     if (mtp && n > 0) { if (anchor_mtp_harvest(mtp, ctx, n) || anchor_mtp_observe(mtp, n_loaded, toks.data(), n)) { mtp_fallback = "prompt_observe_failed"; outf("ENGINE MTP: the head could not observe the prompt; decoding plainly"); anchor_mtp_free(mtp); mtp = nullptr; } }
+    if (eprofile && mtp && n > 0) outf("ENGINE MTP profile: prompt-observe %.1f ms (%d prompt rows)", (ggml_time_us() - t_po0) / 1e3, n);
     bool go = n_predict > 0 && emit(cur);
     while (go) {
-        if (t_steady0 == 0 && n_gen > 1) { t_steady0 = ggml_time_us(); n_gen_steady0 = n_gen; }
+        if (t_steady0 == 0 && n_gen > 1) { t_steady0 = ggml_time_us(); n_gen_steady0 = n_gen; r_steady = mtp_rounds; }
         if (!mtp) {
             if (llama_decode(ctx, llama_batch_get_one(&cur, 1))) { outf("ENGINE decode failed"); dump_err(); status = "decode_failed"; break; }
             n_past++; cur = argmax(llama_get_logits_ith(ctx, -1)); go = emit(cur); continue;
@@ -713,8 +717,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (ahead_ok && acc == nd && bonus == ahead_guess) { pre_n = ahead_n; pre_first = bonus; memcpy(pre, ahead, (size_t)ahead_n * sizeof(int32_t)); mtp_pre_hit++; }
         if (acc < nd && !llama_memory_seq_rm(llama_get_memory(ctx), 0, n_past + acc + 1, -1)) { outf("ENGINE MTP: rollback of %d rows REFUSED (n_rs_seq %u)", nd - acc, llama_n_rs_seq(ctx)); status = "rollback_refused"; break; }
         if (anchor_mtp_harvest(mtp, ctx, acc + 1) || anchor_mtp_observe(mtp, n_past, rows, acc + 1)) { mtp_fallback = "observe_failed"; outf("ENGINE MTP: observe failed; decoding plainly from here"); anchor_mtp_free(mtp); mtp = nullptr; }
+        const long t_r3 = ggml_time_us();
         n_past += acc + 1; mtp_rounds++; mtp_drafted += nd; mtp_accepted += acc;
-        t_draft += t_r1 - t_r0; t_verify += t_r2 - t_r1; t_observe += ggml_time_us() - t_r2;
+        t_draft += t_r1 - t_r0; t_verify += t_r2 - t_r1; t_observe += t_r3 - t_r2;
+        if (eprofile) outf("ENGINE MTP profile: round %d k=%d drafted=%d accepted=%d emitted=%d draft=%.1f verify=%.1f join+observe=%.1f ms%s",
+                           mtp_rounds, k, nd, acc, acc + 1, (t_r1 - t_r0) / 1e3, (t_r2 - t_r1) / 1e3, (t_r3 - t_r2) / 1e3, from_pre ? " (from pre-draft)" : "");
         go = true; for (int i = 0; i < acc && go; i++) go = emit(d[i]);
         if (go) go = emit(bonus);
         cur = bonus;
@@ -725,6 +732,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
              mtp_rounds, mtp_drafted, mtp_accepted, (double)(mtp_accepted + mtp_rounds) / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
              t_draft / 1e3 / mtp_rounds, rm / 1e3 / mtp_rounds, dec / 1e3 / mtp_rounds, am / 1e3 / mtp_rounds, t_verify / 1e3 / mtp_rounds, t_observe / 1e3 / mtp_rounds, ob / 1e3 / mtp_rounds); }
     if (draft_ahead && mtp_rounds) outf("ENGINE draft-ahead: %d of %d rounds started from a pre-draft (%d chains landed)", mtp_pre_used, mtp_rounds, mtp_pre_hit);
+    if (eprofile) outf("ENGINE MTP profile: steady starts at generated token %d (after round %ld); whole-decode denom = %d tokens over %.0f ms, steady denom = %d tokens over %.0f ms",
+                       n_gen_steady0, r_steady, n_gen, (t_tg1 - t_tg0) / 1e3, (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0, (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 : 0.0);
     if (mtp) anchor_mtp_free(mtp);
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     if (stats) stats(&off, &loc, &macs, &vf);
