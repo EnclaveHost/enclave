@@ -27,6 +27,28 @@ typedef struct {
     uint32_t group_count, member_count;
 } sh_pads_manifest;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Export the actual completed registration, including every ordered member
+ * and its output extent. No network, weights, masks or secrets are exported.
+ * Call on the serialized registration thread before the link starts; no
+ * concurrent registration/minting/close is permitted. A retired link refuses.
+ *
+ * Query with both arrays NULL and both capacities zero; validated counts are
+ * then returned. Otherwise both arrays must have sufficient capacity. Every
+ * output (including counts) stays unchanged on failure. Outputs must not alias.
+ * A successful export describes what registered; it does NOT prove no expected
+ * site was omitted. The producer must compare to its admitted expected set
+ * and validate asset/encoding identities before signing or minting. */
+int sh_link_manifest_geometry(const sh_link *link,
+        sh_pads_manifest_group *groups, size_t group_capacity,
+        sh_pads_member *members, size_t member_capacity,
+        uint32_t *group_count, uint32_t *member_count);
+#ifdef __cplusplus
+}
+#endif
+
 static inline int sh_pads_manifest_name(const char name[SH_PADS_NAME_MAX]) {
     const char *end = (const char *)memchr(name, 0, SH_PADS_NAME_MAX);
     if (!end || end == name) return 0;

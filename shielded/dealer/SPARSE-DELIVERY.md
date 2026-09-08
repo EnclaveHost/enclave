@@ -83,6 +83,15 @@ or enable v3 delivery. Inputs must be stable private snapshots. Current metadata
 admission caps are 1024 groups and 4096 members, separate from the larger PRF
 namespace limits. Both digest and ordinal outputs remain unchanged on failure.
 
+`sh_link_manifest_geometry` exports the actual registered groups and ordered
+members before link startup. It verifies node membership, cumulative `u_off`,
+complete node coverage, bounded names without truncation and unique member
+identities before committing any output. A size query also validates the
+registration. This removes the need to reconstruct runtime member order from a
+separate tensor-name list. It does not prove that every expected site registered:
+the producer must still compare the export to its admitted complete expected
+set before signing, and bind verified asset and encoding-profile identities.
+
 ## Proposed file representation
 
 Use an explicitly versioned v3 encoding, with canonical little-endian fields
