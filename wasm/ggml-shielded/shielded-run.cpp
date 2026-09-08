@@ -20,6 +20,7 @@
 #include "ggml.h"
 #include "prefix-kv.h"
 #include "prefix-kv-llama.h"
+#include "prefix-mtp.h"
 #include "shielded-sha256.h"
 #include "shielded-pads.h"
 extern "C" {
@@ -135,11 +136,22 @@ int main(int argc, char **argv) {
             size_t(1) << 30, llama_n_ctx(ctx), &snapshot, err, sizeof err);
         close(fd);
         if (verified) { fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2; }
-        if (sh_prefix_kv_match_tokens(&snapshot, toks.data(), toks.size(), llama_vocab_n_tokens(vocab), err, sizeof err)) {
+        sh_prefix_mtp_view compound;
+        sh_prefix_kv_snapshot *target_snapshot = &snapshot;
+        if (snapshot.size >= 8 && !memcmp(snapshot.bytes, "ENPMTP01", 8)) {
+            if (sh_prefix_mtp_open(&snapshot, llama_model_n_embd(model), LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION,
+                                   llama_vocab_n_tokens(vocab), &compound, err, sizeof err)) {
+                sh_prefix_kv_snapshot_free(&snapshot);
+                fprintf(stderr, "[run] compound prefix REFUSED: %s\n", err); return 2;
+            }
+            target_snapshot = &compound.target;
+            fprintf(stderr, "[run] compound prefix validated; this runner restores target state and has no MTP draft head\n");
+        }
+        if (sh_prefix_kv_match_tokens(target_snapshot, toks.data(), toks.size(), llama_vocab_n_tokens(vocab), err, sizeof err)) {
             sh_prefix_kv_snapshot_free(&snapshot);
             fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2;
         }
-        const int loaded = sh_prefix_kv_load_snapshot(ctx, &snapshot, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
+        const int loaded = sh_prefix_kv_load_snapshot(ctx, target_snapshot, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
         n_loaded = (int)snapshot.n_tokens;
         sh_prefix_kv_snapshot_free(&snapshot);
         if (loaded) { fprintf(stderr, "[run] prefix KV load failed: %s\n", err); return 2; }
