@@ -53,16 +53,56 @@ int sh_prefix_kv_sign(const char *kv_path, const uint8_t model_digest[32], const
     return 0;
 }
 
-/* The content hash by descriptor (pread by offset, EINTR retried): what a consumer holds open cannot be
- * swapped between the hash and the load. */
-static int fd_sha512(int fd, uint8_t out[64]) {
-    struct stat st; if (fstat(fd, &st) != 0 || st.st_size < 0) return -1;
+/* Copy once into private memory. Only this copy may be hashed and consumed;
+ * a held descriptor does not prevent mutation of its underlying storage. */
+static int fd_snapshot(int fd, size_t max_bytes, uint8_t **bytes, size_t *size) {
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_size < 0 ||
+        (uintmax_t)st.st_size > SIZE_MAX || (uintmax_t)st.st_size > max_bytes) return -1;
     const size_t n = (size_t)st.st_size;
     uint8_t *buf = (uint8_t *)malloc(n ? n : 1); if (!buf) return -1;
     size_t off = 0;
-    while (off < n) { ssize_t r = pread(fd, buf + off, n - off, (off_t)off); if (r < 0) { if (errno == EINTR) continue; free(buf); return -1; } if (r == 0) { free(buf); return -1; } off += (size_t)r; }
-    crypto_hash(out, buf, (unsigned long long)n);
-    free(buf);
+    while (off < n) {
+        size_t want = n - off;
+        if (want > 1024 * 1024) want = 1024 * 1024;
+        ssize_t r = pread(fd, buf + off, want, (off_t)off);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) { free(buf); return -1; }
+        off += (size_t)r;
+    }
+    *bytes = buf; *size = n;
+    return 0;
+}
+void sh_prefix_kv_snapshot_free(sh_prefix_kv_snapshot *snapshot) {
+    if (!snapshot) return;
+    free(snapshot->bytes);
+    memset(snapshot, 0, sizeof *snapshot);
+}
+static uint32_t prefix_u32(const uint8_t *p) {
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+int sh_prefix_kv_snapshot_state(const sh_prefix_kv_snapshot *s, uint32_t magic, uint32_t version, int32_t vocab_size,
+                                const uint8_t **state_out, size_t *size_out, char *err, size_t err_cap) {
+    if (state_out) *state_out = NULL;
+    if (size_out) *size_out = 0;
+    if (!s || !s->bytes || s->size < 12 || !state_out || !size_out || vocab_size <= 0) {
+        snprintf(err, err_cap, "missing or short prefix sequence snapshot"); return -1;
+    }
+    if (prefix_u32(s->bytes) != magic || prefix_u32(s->bytes + 4) != version) {
+        snprintf(err, err_cap, "prefix sequence magic/version mismatch"); return -1;
+    }
+    const uint32_t n = prefix_u32(s->bytes + 8);
+    if (!n || n != s->n_tokens || n > (s->size - 12) / 4) {
+        snprintf(err, err_cap, "prefix sequence token count mismatch or truncation"); return -1;
+    }
+    const size_t offset = 12 + (size_t)n * 4;
+    if (offset == s->size) { snprintf(err, err_cap, "prefix sequence has no state body"); return -1; }
+    for (size_t i = 0; i < n; i++) {
+        if (prefix_u32(s->bytes + 12 + i * 4) >= (uint32_t)vocab_size) {
+            snprintf(err, err_cap, "prefix sequence token outside vocabulary"); return -1;
+        }
+    }
+    *state_out = s->bytes + offset; *size_out = s->size - offset;
     return 0;
 }
 int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
@@ -75,7 +115,20 @@ int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t
 }
 int sh_prefix_kv_verify_fd(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                            uint64_t *n_tokens_out, char *err, size_t err_cap) {
-    char path[1024]; snprintf(path, sizeof path, "%s.sig", kv_path);
+    sh_prefix_kv_snapshot snapshot = {0};
+    const int rc = sh_prefix_kv_snapshot_read(kv_path, kv_fd, pk, model_digest, prefix, prefix_len,
+                                            SIZE_MAX, UINT64_MAX, &snapshot, err, err_cap);
+    if (rc == 0 && n_tokens_out) *n_tokens_out = snapshot.n_tokens;
+    sh_prefix_kv_snapshot_free(&snapshot);
+    return rc;
+}
+int sh_prefix_kv_snapshot_read(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
+                               size_t max_bytes, uint64_t max_tokens, sh_prefix_kv_snapshot *out, char *err, size_t err_cap) {
+    if (!out) { snprintf(err, err_cap, "missing snapshot output"); return -1; }
+    memset(out, 0, sizeof *out);
+    char path[1024];
+    const int plen = snprintf(path, sizeof path, "%s.sig", kv_path);
+    if (plen < 0 || (size_t)plen >= sizeof path) { snprintf(err, err_cap, "sidecar path too long"); return -1; }
     FILE *f = fopen(path, "r");
     if (!f) { snprintf(err, err_cap, "no sidecar %s", path); return -1; }
     char side[1024]; size_t got = fread(side, 1, sizeof side - 1, f); fclose(f); side[got] = 0;
@@ -95,15 +148,17 @@ int sh_prefix_kv_verify_fd(const char *kv_path, int kv_fd, const uint8_t pk[32],
         sscanf(side, "enclave-prefix-kv-v1\nmodel %64s\nprefix-sha512 %128s\ntokens %llu\nfile-sha512 %128s\n", md, ph, &ntok, fh) != 4) {
         snprintf(err, err_cap, "malformed sidecar"); return -1;
     }
-    uint8_t want_md[32], want_ph[64], want_fh[64]; char hex[129];
+    uint8_t want_ph[64], want_fh[64]; char hex[129];
     sh_pads_bin2hex(model_digest, 32, hex);
     if (strcmp(hex, md)) { snprintf(err, err_cap, "signed for another model (%.*s...)", 16, md); return -1; }
     crypto_hash(want_ph, (const uint8_t *)prefix, (unsigned long long)prefix_len); sh_pads_bin2hex(want_ph, 64, hex);
     if (strcmp(hex, ph)) { snprintf(err, err_cap, "signed for another prefix text"); return -1; }
-    if (fd_sha512(kv_fd, want_fh)) { snprintf(err, err_cap, "cannot hash %s", kv_path); return -1; }
+    if (ntok > max_tokens) { snprintf(err, err_cap, "signed token count exceeds limit"); return -1; }
+    uint8_t *bytes = NULL; size_t size = 0;
+    if (fd_snapshot(kv_fd, max_bytes, &bytes, &size)) { snprintf(err, err_cap, "cannot snapshot KV file (I/O, allocation or size limit)"); return -1; }
+    crypto_hash(want_fh, bytes, (unsigned long long)size);
     sh_pads_bin2hex(want_fh, 64, hex);
-    if (strcmp(hex, fh)) { snprintf(err, err_cap, "the KV file does not match its signature (tampered or truncated)"); return -1; }
-    (void)want_md;
-    if (n_tokens_out) *n_tokens_out = ntok;
+    if (strcmp(hex, fh)) { free(bytes); snprintf(err, err_cap, "the KV file does not match its signature (tampered or truncated)"); return -1; }
+    out->bytes = bytes; out->size = size; out->n_tokens = ntok;
     return 0;
 }
