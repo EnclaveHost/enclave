@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static void (*refill)(const uint8_t *, int, const int8_t *, int64_t, int64_t, int32_t *, int64_t, int32_t *);
 static int deny_allocations, aligned_attempts, malloc_attempts;
 void *__real_malloc(size_t);
 void *__real_aligned_alloc(size_t,size_t);
@@ -18,7 +19,7 @@ void *__wrap_aligned_alloc(size_t alignment,size_t n) {
 }
 static uint32_t state=721;
 static uint32_t next(void){return state=state*1664525u+1013904223u;}
-static void check(int K,int N,int b) {
+static void check(int K,int N,int b,int pattern) {
     const int stride=N+3;
     int8_t *w=malloc((size_t)K*N);
     int32_t *r=malloc((size_t)b*K*sizeof*r);
@@ -28,11 +29,18 @@ static void check(int K,int N,int b) {
     assert(w&&r&&planes&&u&&acc);
     for(size_t i=0;i<(size_t)K*N;++i)w[i]=(int)(next()%239)-119;
     for(size_t i=0;i<(size_t)b*K;++i)r[i]=(int64_t)(next()%SH_M_MOD)-SH_HALF_M;
+    if(pattern) {
+        /* M-1 yields the largest unsigned residue in every plane; varying
+         * signs exercise both extreme dot directions and adjacent columns. */
+        for(size_t i=0;i<(size_t)b*K;++i)r[i]=(i/K)%2 ? 1 : SH_M_MOD-1;
+        for(int j=0;j<N;++j)for(int k=0;k<K;++k)
+            w[(size_t)j*K+k]=((j+pattern)%2 ? -1 : 1)*SH_WEIGHT_BYTE_LIMIT;
+    }
     sh_simd_avx512_pad_planes(r,(size_t)b*K,planes,planes+(size_t)b*K,planes+(size_t)2*b*K);
     for(int mode=0;mode<2;++mode) {
         for(int i=0;i<b*stride;++i)u[i]=INT32_MIN;
         aligned_attempts=malloc_attempts=0;deny_allocations=mode;
-        sh_simd_avx512_refill(planes,b,w,K,N,u,stride,acc);
+        refill(planes,b,w,K,N,u,stride,acc);
         deny_allocations=0;
         for(int row=0;row<b;++row) {
             for(int j=0;j<N;++j) {
@@ -46,14 +54,21 @@ static void check(int K,int N,int b) {
     }
     free(w);free(r);free(planes);free(u);free(acc);
 }
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argv;
+    refill = argc > 1 ? sh_simd_avx512_refill_vector_crt : sh_simd_avx512_refill;
     __builtin_cpu_init();
     if(!__builtin_cpu_supports("avx512vnni")||!__builtin_cpu_supports("avx512bw")||
        !__builtin_cpu_supports("avx512dq")||!__builtin_cpu_supports("avx512vl"))return 77;
-    const int sizes[]={63,64,65,2048,5120,17408},widths[]={1,17,35},batches[]={5,8,9,16,33};
+    const int sizes[]={63,64,65,511,512,513,1023,1024,1025,2047,2048,2049,4095,4096,4097,8191,8192,8193,5120,17408},widths[]={1,17,35},batches[]={5,8,9,16,33};
     unsigned cases=0;
     for(unsigned k=0;k<sizeof sizes/sizeof*sizes;++k)
         for(unsigned n=0;n<sizeof widths/sizeof*widths;++n)
-            for(unsigned b=0;b<sizeof batches/sizeof*batches;++b){check(sizes[k],widths[n],batches[b]);++cases;}
+            for(unsigned b=0;b<sizeof batches/sizeof*batches;++b){check(sizes[k],widths[n],batches[b],0);++cases;}
+    const int long_k[]={5120,6144,10240,17408,65536};
+    for(unsigned k=0;k<sizeof long_k/sizeof*long_k;++k)
+        for(int b=5;b<=16;b+=11)for(int pattern=1;pattern<=2;++pattern) {
+            check(long_k[k],17,b,pattern);++cases;
+        }
     printf("refill-oom: %u normal and forced-OOM shape pairs PASS\n",cases);
 }
