@@ -7,6 +7,7 @@
 #include "shielded-pad-check.h"
 #include "shielded-sha256.h"
 #include "shielded-pad-manifest.h"
+#include "shielded-mint-balance.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -2016,12 +2017,14 @@ done:
     free(gs); free(ms); return rc;
 }
 
-/* One mint worker: its share of the groups (gi0, gi0 + step, ...), 16 indices per weight
- * pass, own scratch including the writer's (cells go to disjoint offsets of one fd). */
+/* One mint worker: its fixed stride or explicitly assigned original group IDs,
+ * 16 indices per weight pass, own scratch including the writer's (cells go to
+ * disjoint offsets of one fd). Scheduling never renumbers a group or pad. */
 typedef struct {
     sh_link *l; const uint8_t *seed; uint64_t index0, count;
     sh_pads_writer *w;
     size_t gi0, gstep; int rc;
+    const sh_mint_assignment *assignment;
 } sh_mint_task;
 
 static void *sh_mint_worker(void *arg) {
@@ -2035,7 +2038,11 @@ static void *sh_mint_worker(void *arg) {
     uint8_t *wplain = (uint8_t *)malloc(wsz), *wcell = (uint8_t *)malloc(wsz);
     s.planes = NULL; s.acc = NULL;
     int rc = (gen_scratch_init(l, &s, B) == SH_OK && r && u && wplain && wcell) ? SH_OK : SH_ERR_NOMEM;
-    for (size_t gi = t->gi0; rc == SH_OK && gi < l->n_groups; gi += t->gstep) {
+    const size_t begin = t->assignment ? t->assignment->offsets[t->gi0] : t->gi0;
+    const size_t end = t->assignment ? t->assignment->offsets[t->gi0 + 1] : l->n_groups;
+    const size_t step = t->assignment ? 1 : t->gstep;
+    for (size_t at = begin; rc == SH_OK && at < end; at += step) {
+        const size_t gi = t->assignment ? t->assignment->order[at] : at;
         const sh_group *g = &l->groups[gi];
         const int64_t K = g->K;
         for (uint64_t i0 = 0; i0 < t->count && rc == SH_OK; i0 += B) {
@@ -2058,6 +2065,22 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
                           uint64_t index0, uint64_t count, const uint8_t consumer_pk[32], const char *path) {
     if (!l || !l->n_groups || !count) return SH_ERR_RANGE;
     for (size_t i = 0; i < l->n_nodes; i++) if (!l->nodes[i].w) return SH_ERR_RANGE;
+    int nth = env_int("SHIELDED_MINT_THREADS", 1, 1, 64);
+    if ((size_t)nth > l->n_groups) nth = (int)l->n_groups;
+    sh_mint_assignment balanced;
+    const sh_mint_assignment *assignment = NULL;
+    if (nth > 1 && env_int("SHIELDED_MINT_BALANCE", 0, 0, 1)) {
+        if (l->n_groups > SH_MINT_BALANCE_GROUPS) return SH_ERR_RANGE;
+        uint64_t costs[SH_MINT_BALANCE_GROUPS];
+        for (size_t i = 0; i < l->n_groups; i++) {
+            const sh_group *g = &l->groups[i];
+            if (g->K <= 0 || g->u_len <= 0 || (uint64_t)g->K > UINT64_MAX / (uint64_t)g->u_len) return SH_ERR_RANGE;
+            costs[i] = (uint64_t)g->K * (uint64_t)g->u_len;
+        }
+        const int rc = sh_mint_balance(costs, (uint32_t)l->n_groups, (uint32_t)nth, &balanced);
+        if (rc != SH_MINT_BALANCE_OK) return rc == SH_MINT_BALANCE_NOMEM ? SH_ERR_NOMEM : SH_ERR_RANGE;
+        assignment = &balanced;
+    }
     sh_pads_group *table = (sh_pads_group *)calloc(l->n_groups, sizeof *table);
     if (!table) return SH_ERR_NOMEM;
     int rc = sh_link_group_table(l, table, (uint32_t)l->n_groups);
@@ -2068,10 +2091,8 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
     if (!w) return err;
     /* SHIELDED_MINT_THREADS: the group loop across N threads (groups are independent; the
      * refill kernel is the cost and runs single-threaded per group). 1 = the serial path. */
-    int nth = env_int("SHIELDED_MINT_THREADS", 1, 1, 64);
-    if ((size_t)nth > l->n_groups) nth = (int)l->n_groups;
     if (nth <= 1) {
-        sh_mint_task t = { l, seed, index0, count, w, 0, 1, SH_OK };
+        sh_mint_task t = { l, seed, index0, count, w, 0, 1, SH_OK, NULL };
         sh_mint_worker(&t);
         rc = t.rc;
     } else {
@@ -2079,7 +2100,7 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
         pthread_t *th = (pthread_t *)calloc((size_t)nth, sizeof *th);
         char *started = (char *)calloc((size_t)nth, 1);
         if (!tasks || !th || !started) { free(tasks); free(th); free(started); sh_pads_writer_close(w); return SH_ERR_NOMEM; }
-        for (int i = 0; i < nth; i++) { sh_mint_task t = { l, seed, index0, count, w, (size_t)i, (size_t)nth, SH_OK }; tasks[i] = t; }
+        for (int i = 0; i < nth; i++) { sh_mint_task t = { l, seed, index0, count, w, (size_t)i, (size_t)nth, SH_OK, assignment }; tasks[i] = t; }
         for (int i = 0; i < nth; i++) started[i] = pthread_create(&th[i], NULL, sh_mint_worker, &tasks[i]) == 0;
         /* a share whose thread could not start is minted here, on the calling thread: every
          * group is covered exactly once either way, so the shipment is complete or the error is real */

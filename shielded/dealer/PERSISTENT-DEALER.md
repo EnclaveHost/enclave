@@ -122,3 +122,42 @@ The Qwen3.8 27B Q8/MTP pair passed with all 262 groups and 524 opened cells
 exactly equal on 2026-09-08. This is a correctness result, not a speed result.
 
 The dealer's Makefile target includes the protocol header as a dependency.
+
+## Optional CPU group balancing
+
+`SHIELDED_MINT_BALANCE=1` assigns entire groups to mint threads by descending
+estimated work (`K * u_len`), placing each next group on the lightest lane.
+The default remains the existing fixed-stride assignment. This is independent
+of persistence and applies to CPU minting with more than one thread.
+
+Only ownership and processing order change. Original group ordinals, PRF input,
+row ranges, group tables, encryption and writer offsets remain identical.
+Every group belongs to exactly one lane; failed thread creation runs that
+lane's complete assignment on the caller before it joins the other workers.
+The planner admits at most 1024 groups and 64 lanes, checks every cost and their
+total for overflow, bounds allocation, and commits its output only on success.
+An invalid estimate or allocation failure refuses the balanced mint instead
+of silently reporting a balanced run while using another schedule.
+
+`K * u_len` estimates arithmetic work. It does not model memory placement,
+vector-kernel efficiency, encryption or storage costs. Any throughput claim
+requires matched real-model measurements; planner cost improvements alone do
+not establish a speedup.
+
+The scheduling fixture is `test/shielded-mint-balance.test.mjs`. The real MTP
+fixture above also accepts `DEALER_TEST_BALANCE=1` to compare a balanced
+16-thread persistent dealer against an unbalanced 16-thread one-shot dealer,
+checking every opened field element across the complete manifest.
+
+On 2026-09-08, three paired 64-row Qwen3.8 27B Q8/MTP refills at 16 host CPU
+threads used the same backend and two idle-between-jobs persistent children.
+Fixed-stride times were 4.262, 4.623 and 4.254 seconds; balanced times were
+3.115, 3.762 and 3.712 seconds. Median publication latency fell from 4.262 to
+3.712 seconds (12.9%); median process CPU time increased from 42.80 to 44.89
+CPU seconds. Every file was 809039872 bytes with the same 262-group public
+table. A separate real-model comparison opened all 524 cells across two
+indices and found exact equality with the unbalanced implementation.
+
+These are small-sample host refill measurements, excluding the roughly
+19.4-second one-time persistent startup. They do not measure upload latency,
+phone generation speed, GPU utilization or sustained thermal behavior.
