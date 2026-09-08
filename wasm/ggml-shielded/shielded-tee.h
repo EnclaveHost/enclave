@@ -173,6 +173,16 @@ bool sh_link_verify(const sh_link *l, int node, const int64_t *x, const int64_t 
 /* Counters, for the probe and for tests. */
 void sh_link_stats(const sh_link *l, uint64_t *exchanges, uint64_t *macs, uint64_t *verify_fail);
 
+/* Cumulative for this link only. Like sh_link_stats, the caller must serialize
+ * snapshots with operations on the SAME link. Different links own independent
+ * counters. Fresh links start at zero; reconnecting the pipe keeps the totals.
+ * wire_ms excludes the verification RHS overlapped with the request. */
+typedef struct {
+    double mask_ms, wire_ms, refill_ms, unmask_lhs_ms, rhs_ms;
+    uint64_t completed_calls, missed_pads, used_pads;
+} sh_link_profile;
+void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out);
+
 /* Dealt pads. The group table this link would bind a shipment against
  * (ordinal, first node's name, K, u_len); returns the group count. */
 int sh_link_group_table(const sh_link *l, sh_pads_group *out, uint32_t cap);

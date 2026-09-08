@@ -28,9 +28,6 @@
 static int64_t align_up(int64_t x) { return (x + SH_ALIGN - 1) & ~(int64_t)(SH_ALIGN - 1); }
 
 static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6; }
-/* Profile counters, read by the backend under SHIELDED_PROFILE:
- * 0 mask  1 wire  2 refill-on-path  3 unmask  4 verify  5 calls  6 pads missed  7 pads used */
-double sh_prof[8];
 
 /* ---------------------------------------------------------------------------
  * SIMD dispatch. The two builds of shielded-simd.c are checked against each
@@ -377,6 +374,7 @@ struct sh_link {
     sh_window_fn win_fn; void *win_ctx;     /* a provider (the pVM's owner-app path) replaces the ledger file */
 
     uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
+    sh_link_profile profile; /* caller-owned, independent of every other link */
     /* Background importers publish this monotonic latch atomically. Keep it
      * separate from the caller-owned remote-product counter. Never reset it
      * when stopping/restarting refill threads or reconnecting the socket. */
@@ -410,6 +408,9 @@ void sh_link_stats(const sh_link *l, uint64_t *e, uint64_t *m, uint64_t *v) {
     if (e) *e = l->exchanges;
     if (m) *m = l->macs;
     if (v) *v = l->verify_fail + (uint64_t)__atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE);
+}
+void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out) {
+    if (out) *out = l ? l->profile : (sh_link_profile){0};
 }
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
     if (!l) return;
@@ -1735,7 +1736,7 @@ static void sh_verify_rhs(void *ctx) {
                                l->fv_rhs + (i * (size_t)w->m + row) * SH_FV_REPS);
     }
     w->elapsed_ms = now_ms() - t0;
-    sh_prof[4] += w->elapsed_ms;
+    l->profile.rhs_ms += w->elapsed_ms;
 }
 
 /* The int32 wire format can represent much more than a field element. Check
@@ -1823,7 +1824,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         double tg = now_ms();
         rc = generate(l, g, miss, l->r, l->u, &s);
         const double elapsed_ms = now_ms() - tg;
-        sh_prof[2] += elapsed_ms;
+        l->profile.refill_ms += elapsed_ms;
         g->on_path_ms += elapsed_ms;
         if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "pad bank exhausted; stall the request"); goto fail; }
         for (int i = 0; i < miss; i++) {
@@ -1832,16 +1833,16 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         }
         l->pads_missed += (uint64_t)miss;
         g->pads_missed += (uint64_t)miss;
-        sh_prof[6] += miss;
+        l->profile.missed_pads += miss;
     }
-    l->pads_used += (uint64_t)m; sh_prof[7] += m;
+    l->pads_used += (uint64_t)m; l->profile.used_pads += (uint64_t)m;
     g->pads_used += (uint64_t)m;
 
     for (int32_t row = 0; row < m; row++)
         l->simd->mask_planes(x_field + (size_t)row * K, l->rp[row], (size_t)K,
                              l->planes + (size_t)row * K, l->planes + ((size_t)m + row) * K, l->planes + ((size_t)2 * m + row) * K);
     const size_t hn = sh_pack_field_gemm(l->hdr, (uint32_t)n_nodes, (uint32_t)m, nodes);
-    double t1 = now_ms(); sh_prof[0] += t1 - t0;
+    double t1 = now_ms(); l->profile.mask_ms += t1 - t0;
 
     {
         sh_frame f = { l->ywidth == 3 ? SH_CMD_FIELD_GEMM24 : SH_CMD_FIELD_GEMM, l->hdr, hn, l->planes, (size_t)3 * m * K };
@@ -1863,7 +1864,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
             rc = sh_pipe_exchange_work(l->pipe, &f, 1, &rep, overlap ? sh_verify_rhs : NULL, &work);
         /* Do not double-count RHS work in the phase totals. The contention
          * detector still sees the full send-to-receive wall time. */
-        double t2 = now_ms(); sh_prof[1] += t2 - t1 - work.elapsed_ms; l->last_wire_us = (t2 - t1) * 1000.0;
+        double t2 = now_ms(); l->profile.wire_ms += t2 - t1 - work.elapsed_ms; l->last_wire_us = (t2 - t1) * 1000.0;
         if (rc != SH_OK) {
             snprintf(l->err, sizeof l->err, "exchange: %s", sh_pipe_last_error(l->pipe));
             /* SH_ERR_PROTO is reserved for THIS link's pre-flight refusals
@@ -1910,10 +1911,10 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                     else
                         l->simd->unmask_fv((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
                                            y + (size_t)row * nd->N, lhs);
-                    double t4 = now_ms(); sh_prof[3] += t4 - t3;
+                    double t4 = now_ms(); l->profile.unmask_lhs_ms += t4 - t3;
                     if (!overlap) {
                         l->simd->fv_dots_x(x_field + (size_t)row * K, nd->st32, SH_FV_REPS, K, rhs_local);
-                        sh_prof[4] += now_ms() - t4;
+                        l->profile.rhs_ms += now_ms() - t4;
                     }
                     for (int rep_i = 0; rep_i < SH_FV_REPS; rep_i++) ok = ok && lhs[rep_i] == rhs[rep_i];
                 }
@@ -1925,7 +1926,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                     else
                         l->simd->unmask((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
                 }
-                sh_prof[3] += now_ms() - t3;
+                l->profile.unmask_lhs_ms += now_ms() - t3;
             }
             l->macs += (uint64_t)m * (uint64_t)nd->K * (uint64_t)nd->N;
             if (!ok) {
@@ -1936,7 +1937,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                 rc = SH_ERR_VERIFY; goto fail;
             }
         }
-        sh_prof[5] += 1;
+        l->profile.completed_calls++;
     }
     release_pads(l, g, took);
     return SH_OK;

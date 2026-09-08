@@ -36,7 +36,7 @@ CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC
 
 all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest
 
-shielded-tee.o shielded-tee.dealer.o: shielded-mint-balance.h
+shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
 
 # Built only where an engine checkout exists; `make ggml` opts in.
 ggml: ggml-test
