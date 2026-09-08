@@ -28,6 +28,28 @@ attention.
 | Pixel pVM | the trusted half | the whole ggml-shielded engine in Microdroid (anchor phase 3), transport key + attestation (phase 4), Freivalds `s~` per node | an external PAD SOURCE for the ring, PRF-derived `r` from a dealt seed, the ledger window, refusal on exhaustion, receipts |
 | User | attests, TLS into the pVM | session/TLS in the pVM (phase 1) | unchanged |
 
+## Dealer asset admission
+
+For relay-backed minting, the seed ledger preserves the model and calibration
+identities from the phone's signed v2 seed request and exposes them through
+`pvm` and `consumers`. A seed cannot later be granted for another asset pair,
+or relabelled from an older unbound seed. Start a fresh phone session instead.
+
+Before minting, uploading existing files, or pruning a bank, `dealer-loop.py`
+compares the actual selected model's SHA-256 and calibration's first 32 bytes
+of SHA-512 with those identities. Different models using the same calibration
+still refuse. Hashes are cached while file identity, size, and timestamps stay
+unchanged. This check assumes immutable local inputs on the trusted dealer and
+an authenticated connection to the platform relay; it does not protect a model
+read from hostile mutable storage during minting.
+
+Deploy the relay fields before the strict dealer, and use fresh sessions for
+old unbound records. An old development relay can be used explicitly with
+`--allow-unbound-consumer`; this permits only consumers missing both identities,
+and still refuses partial, malformed, or mismatched identities. That mode lacks
+the asset admission guarantee. Offline explicit-seed minting and read-only
+`--plan-only` remain available without a relay grant.
+
 ## The pad, exactly
 
 The engine's ring (`shielded-tee.c`, `sh_group`) holds `depth` slots of

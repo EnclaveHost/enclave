@@ -34,6 +34,52 @@ def derive_seed(master_hex: str, keyfp_hex: str, epoch: int = 1):
 
 PAD_INDEX_LIMIT = 1 << 24
 NAME_RE = re.compile(r"^([0-9a-f]{32})-(0|[1-9][0-9]*)-([1-9][0-9]*)\.pads$")
+DIGEST_RE = re.compile(r"[0-9a-f]{64}")
+
+
+class AssetIdentity:
+    """Identity of trusted publisher inputs, cached while their file metadata
+    stays unchanged. The dealer's model/calibration storage must be immutable
+    while the minting subprocess uses it; this is not an adversarial pager."""
+    def __init__(self, model, calib):
+        self.model, self.calib, self.cache = model, calib, {}
+
+    def digest(self, path, algorithm):
+        if not path:
+            raise ValueError("missing local model or calibration")
+        def stamp(st):
+            return st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+        current = stamp(os.stat(path))
+        key = (path, algorithm)
+        if key in self.cache and self.cache[key][0] == current:
+            return self.cache[key][1]
+        h = hashlib.new(algorithm)
+        with open(path, "rb") as f:
+            before = stamp(os.fstat(f.fileno()))
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+            if stamp(os.fstat(f.fileno())) != before or stamp(os.stat(path)) != before:
+                raise ValueError("local asset changed while hashing")
+        if before[2] <= 0:
+            raise ValueError("local asset is empty")
+        value = h.digest()[:32].hex()
+        self.cache[key] = (before, value)
+        return value
+
+    def mismatch(self, consumer, allow_unbound=False):
+        md, cd = consumer.get("model_digest"), consumer.get("calib_digest")
+        if md is None and cd is None and allow_unbound:
+            return None
+        if not isinstance(md, str) or not DIGEST_RE.fullmatch(md) or not isinstance(cd, str) or not DIGEST_RE.fullmatch(cd):
+            return "missing or invalid grant asset identities"
+        try:
+            if self.digest(self.model, "sha256") != md:
+                return "local model SHA256 differs from the consumer grant"
+            if self.digest(self.calib, "sha512") != cd:
+                return "local calibration SHA512/256 differs from the consumer grant"
+        except (OSError, ValueError) as e:
+            return f"cannot identify local assets: {e}"
+        return None
 
 def valid_range(index0, count):
     return type(index0) is int and type(count) is int and 0 <= index0 < PAD_INDEX_LIMIT and 0 < count <= PAD_INDEX_LIMIT - index0
@@ -114,6 +160,7 @@ def main():
     ap.add_argument("--ack-floor", type=int, default=None, help="offline delivered floor; NEVER inferred from --mark")
     ap.add_argument("--max-pending", type=int, default=1024, help="maximum unacknowledged index span retained before waiting for delivery progress")
     ap.add_argument("--model"); ap.add_argument("--calib"); ap.add_argument("--out")
+    ap.add_argument("--allow-unbound-consumer", action="store_true", help="explicit legacy development mode: allow relay consumers with neither asset identity; malformed or mismatched identities still refuse")
     ap.add_argument("--ahead", type=int, default=256); ap.add_argument("--chunk", type=int, default=64)
     ap.add_argument("--mint-batch", type=int, default=0, help="shipments per dealer run (0 = all missing at once); small values push the first shipments sooner at the cost of extra model loads")
     ap.add_argument("--once", action="store_true"); ap.add_argument("--interval", type=float, default=30.0)
@@ -121,6 +168,7 @@ def main():
     ap.add_argument("--derive-only", action="store_true"); ap.add_argument("--plan-only", action="store_true")
     ap.add_argument("--push", action="store_true", help="upload each new shipment to the relay's store and delete acknowledged ones there (needs PADS_DEALER_TOKEN)")
     a = ap.parse_args()
+    identity = AssetIdentity(a.model, a.calib)
 
     if a.derive_only:
         seed, seed_id = derive_seed(a.master, a.keyfp, a.epoch)
@@ -277,10 +325,15 @@ def main():
                 print(f"relay {a.relay} unreachable ({getattr(e, 'code', None) or getattr(e, 'reason', e)}); waiting", flush=True)
                 if a.once: return 1
                 time.sleep(a.interval); continue
-            served, jobs = 0, []
+            served, rejected, jobs = 0, 0, []
             for c in cons:
                 if not c.get("issued"):
                     continue                     # attached, but never asked for its seed: nothing to mint for yet
+                mismatch = identity.mismatch(c, a.allow_unbound_consumer) if not a.plan_only else None
+                if mismatch:
+                    print(f"consumer {c.get('name', '?')}: REFUSED ({mismatch}); no mint, upload or prune", flush=True)
+                    rejected += 1
+                    continue
                 seed, sid = derive_seed(a.master, c["keyFp"], c.get("epoch", a.epoch))
                 if sid != c["seed_id"]:
                     print(f"consumer {c['name']}: seed id mismatch (relay {c['seed_id']}, derived {sid}); skipped", flush=True); continue
@@ -288,7 +341,7 @@ def main():
                 jobs.append((seed, sid, c.get("padKey") or "", prune_and_plan(sid, c.get("mark", 0), c.get("ack_floor"), c.get("acked", []), c.get("finalized", False)))); served += 1
             mint(jobs)                           # every consumer's missing ranges, one model load
             if not served: print(f"no consumer with a seed among {len(cons)} attached; waiting", flush=True)
-            if a.once or a.plan_only: return 0
+            if a.once or a.plan_only: return 1 if rejected else 0
             time.sleep(a.interval); continue
 
         seed, seed_id, pk, mark = a.seed, a.seed_id, a.pk, a.mark
@@ -307,6 +360,11 @@ def main():
             ack_floor, acked, finalized = info.get("ack_floor"), info.get("acked", []), info.get("finalized", False)
             if info.get("issued") is False:
                 if a.once: return 0
+                time.sleep(a.interval); continue
+            mismatch = identity.mismatch(info, a.allow_unbound_consumer) if not a.plan_only else None
+            if mismatch:
+                print(f"consumer {a.name}: REFUSED ({mismatch}); no mint, upload or prune", flush=True)
+                if a.once: return 1
                 time.sleep(a.interval); continue
             if a.master:
                 seed, sid = derive_seed(a.master, info["keyFp"], info.get("epoch", a.epoch))
