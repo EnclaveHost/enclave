@@ -7,7 +7,8 @@
 #include <signal.h>
 
 enum { K = 64, N0 = 17, N1 = 5, MAX_M = 16, DEPTH = 256 };
-enum { HONEST, CORRUPT, WRAP, SHORT_LENGTH, OVERSIZE, REFUSE, TRUNCATE, DISCONNECT };
+enum { HONEST, CORRUPT, WRAP, SHORT_LENGTH, OVERSIZE, REFUSE, TRUNCATE, DISCONNECT,
+       EXTREME_POS, EXTREME_NEG, ABOVE_FIELD, BELOW_FIELD };
 typedef struct {
     int fd, mode, width, rows, count, nodes[2], calls, expected;
     bool overlap, received, ready;
@@ -73,6 +74,10 @@ static void *serve(void *arg) {
             for (int q = 0; q < 3; q++) for (int k = 0; k < K; k++)
                 residues[q] += planes[(q * p->rows + row) * K + k] * p->weights[node][j * K + k];
             int64_t value = sh_crt(residues[0], residues[1], residues[2]);
+            if (p->mode == EXTREME_POS) value = INT32_MAX;
+            if (p->mode == EXTREME_NEG) value = INT32_MIN;
+            if (p->mode == ABOVE_FIELD) value = SH_HALF_M + 1;
+            if (p->mode == BELOW_FIELD) value = -SH_HALF_M - 1;
             if (p->mode == CORRUPT && i == p->count - 1 && row == p->rows - 1 && j == 0)
                 value = sh_balanced(value + 1);
             uint32_t bits = (uint32_t)(int32_t)value;
@@ -83,7 +88,7 @@ static void *serve(void *arg) {
     h[0] = p->mode == REFUSE;
     put_u64(h + 1, p->mode == OVERSIZE ? SH_MAX_FRAME + 1 : used - (p->mode == SHORT_LENGTH));
     if (p->ring) {
-        assert(p->mode <= WRAP);
+        assert(p->mode <= WRAP || p->mode >= EXTREME_POS);
         memcpy(p->ring + SH_RING_OFF_RPH, h, sizeof h);
         memcpy(p->ring + SH_RING_OFF_RPP, reply, used);
         st_rel(p->ring + SH_RING_OFF_REP, seq);
@@ -115,6 +120,9 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
     l->ywidth = width; p.fd = sockets[1]; active = &p;
     pthread_t thread; assert(pthread_create(&thread, NULL, serve, &p) == 0);
     int64_t x[MAX_M * K], y0[MAX_M * N0], y1[MAX_M * N1];
+    const int64_t untouched = INT64_C(0x123456789abcdef);
+    for (size_t i = 0; i < sizeof y0 / sizeof y0[0]; i++) y0[i] = untouched;
+    for (size_t i = 0; i < sizeof y1 / sizeof y1[0]; i++) y1[i] = untouched;
     int64_t *out[2] = {reverse ? y1 : y0, reverse ? y0 : y1};
     for (int i = 0; i < m * K; i++) x[i] = mode == WRAP ? 1000000 : (i * 13 + m) % 101 - 50;
     const int head = l->groups[0].head, before = l->groups[0].count;
@@ -128,6 +136,12 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
         (mode == CORRUPT || mode == WRAP) ? SH_ERR_VERIFY :
         (mode == TRUNCATE || mode == DISCONNECT) ? SH_ERR_IO : SH_ERR_VIOLATION;
     assert(rc == expected_rc);
+    if (mode >= EXTREME_POS) {
+        /* Reject invalid wire values before a kernel writes any output, even
+         * if verification is disabled or the peer used the shared ring. */
+        for (size_t i = 0; i < sizeof y0 / sizeof y0[0]; i++) assert(y0[i] == untouched);
+        for (size_t i = 0; i < sizeof y1 / sizeof y1[0]; i++) assert(y1[i] == untouched);
+    }
     if (rc == SH_OK) {
         assert(p.calls == p.expected);
         for (int i = 0; i < count; i++) {
@@ -171,6 +185,8 @@ static void run_case(int enabled, bool verify, int width, int ring_mode) {
         exchange(l, w0, w1, width, widths[i], HONEST, i == 4 ? 1 : 2, i % 2 != 0, ring_mode);
     if (verify) for (int mode = CORRUPT; mode <= (ring_mode == 1 ? WRAP : DISCONNECT); mode++)
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
+    if (width == 4 || ring_mode) for (int mode = EXTREME_POS; mode <= BELOW_FIELD; mode++)
+        exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
     assert(l->pads_missed == 0);
     assert((l->fv_rhs != NULL) == (enabled > 0 && verify && !ring_mode));
     assert(l->verify_fail == (verify ? 2 : 0));
@@ -179,6 +195,13 @@ static void run_case(int enabled, bool verify, int width, int ring_mode) {
 
 int main(void) {
     signal(SIGPIPE, SIG_IGN);
+    int32_t bounds[] = { -(int32_t)SH_HALF_M, -1, 0, 1, (int32_t)SH_HALF_M };
+    assert(sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
+    const int32_t invalid[] = { INT32_MIN, -(int32_t)SH_HALF_M - 1, (int32_t)SH_HALF_M + 1, INT32_MAX };
+    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        bounds[2] = invalid[i];
+        assert(!sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
+    }
     for (int width = 3; width <= 4; width++) {
         for (int enabled = -1; enabled <= 1; enabled++) run_case(enabled, true, width, 0);
         run_case(1, false, width, 0);
