@@ -16,6 +16,8 @@ typedef struct {
     anchor_gguf_tensor *t; size_t n;
     uint64_t data_start, file_size, alignment; uint32_t version;
     uint8_t *header; size_t header_len;         /* the exact header bytes (magic .. last tensor info), verified */
+    uint8_t whole_digest[32]; int has_whole;    /* the whole-file digest (the pin) from the same read; a consumer binding
+                                                 * an artifact to THIS model (the prefix sidecar v2) uses it, not the calib */
 } anchor_gguf_table;
 /* Incremental SHA-256 as the pins module provides it (ctx is opaque storage of at least 256 bytes). */
 typedef struct { void (*init)(void *ctx); void (*update)(void *ctx, const uint8_t *m, size_t n); void (*final)(void *ctx, uint8_t out[32]); } anchor_hash_ops;
