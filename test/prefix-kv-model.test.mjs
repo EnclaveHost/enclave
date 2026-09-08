@@ -25,6 +25,8 @@ test('private prefix restore matches every resumed logit after the signed source
     run('c++', [...flags, '-std=c++17', '-I' + join(headers, 'include'), '-I' + join(headers, 'ggml/include'),
       '-I' + gg, fileURLToPath(new URL('./fixtures/prefix-kv-model.cpp', import.meta.url)), ...objs,
       '-Wl,--gc-sections', '-L' + libs, '-Wl,-rpath,' + libs, '-lllama', '-lggml', '-lggml-base', '-ldl', '-o', bin]);
-    assert.match(run(bin, [model, join(libs, 'libggml-cpu.so'), dir]), /PREFIX_SNAPSHOT_EQUIVALENT steps=8 logits=\d+ snapshot_bytes=\d+ source_truncated_before_load=1/);
+    const output = run(bin, [model, join(libs, 'libggml-cpu.so'), dir]);
+    assert.match(output, /PREFIX_TOKEN_BOUNDARIES_OK/);
+    assert.match(output, /PREFIX_SNAPSHOT_EQUIVALENT steps=8 logits=\d+ snapshot_bytes=\d+ source_truncated_before_load=1/);
   } finally {rmSync(dir, {recursive: true, force: true});}
 });

@@ -108,11 +108,13 @@ int main(int argc, char **argv) {
     /* SHIELDED_PREFIX_KV: a signed shared-prefix KV (prefix-kv.h) with
      * SHIELDED_PREFIX_KV_PK (the platform's prefix key) and
      * SHIELDED_PREFIX_FILE (the prefix text the prompt must start with).
-     * Verified before anything is loaded; the prompt's remainder is then
-     * tokenized on its own and appended, so the prefix costs no pad rows. */
-    std::vector<llama_token> toks;
+     * Verified before anything is loaded. Tokenize the complete prompt once
+     * with the uncached policy, and require the cache's exact token prefix. */
+    std::vector<llama_token> toks(strlen(prompt) + 16);
+    int n = llama_tokenize(vocab, prompt, (int)strlen(prompt), toks.data(), (int)toks.size(), true, false);
+    if (n < 0) { fprintf(stderr, "tokenize failed\n"); return 2; }
+    toks.resize(n);
     int n_loaded = 0;
-    const char *prompt_rest = prompt;
     if (const char *kv = getenv("SHIELDED_PREFIX_KV"); kv && *kv) {
         const char *pkh = getenv("SHIELDED_PREFIX_KV_PK"), *pf = getenv("SHIELDED_PREFIX_FILE"), *calib = getenv("SHIELDED_CALIB");
         uint8_t pk[32], digest[32];
@@ -133,17 +135,18 @@ int main(int argc, char **argv) {
             size_t(1) << 30, llama_n_ctx(ctx), &snapshot, err, sizeof err);
         close(fd);
         if (verified) { fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2; }
+        if (sh_prefix_kv_match_tokens(&snapshot, toks.data(), toks.size(), llama_vocab_n_tokens(vocab), err, sizeof err)) {
+            sh_prefix_kv_snapshot_free(&snapshot);
+            fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2;
+        }
         const int loaded = sh_prefix_kv_load_snapshot(ctx, &snapshot, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
         n_loaded = (int)snapshot.n_tokens;
         sh_prefix_kv_snapshot_free(&snapshot);
         if (loaded) { fprintf(stderr, "[run] prefix KV load failed: %s\n", err); return 2; }
-        prompt_rest = prompt + prefix.size();
+        toks.erase(toks.begin(), toks.begin() + n_loaded);
         fprintf(stderr, "[run] prefix KV: %d tokens loaded and verified from %s\n", n_loaded, kv);
     }
-    toks.resize(strlen(prompt_rest) + 16);
-    int n = llama_tokenize(vocab, prompt_rest, (int)strlen(prompt_rest), toks.data(), (int)toks.size(), n_loaded == 0, n_loaded != 0);
-    if (n < 0) { fprintf(stderr, "tokenize failed\n"); return 2; }
-    toks.resize(n);
+    n = (int)toks.size();
     fprintf(stderr, "[run] %d prompt tokens%s\n", n, n_loaded ? " after the prefix" : "");
 
     llama_batch batch = llama_batch_get_one(toks.data(), n);
