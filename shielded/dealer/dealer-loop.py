@@ -160,6 +160,7 @@ def main():
     ap.add_argument("--ack-floor", type=int, default=None, help="offline delivered floor; NEVER inferred from --mark")
     ap.add_argument("--max-pending", type=int, default=1024, help="maximum unacknowledged index span retained before waiting for delivery progress")
     ap.add_argument("--model"); ap.add_argument("--calib"); ap.add_argument("--out")
+    ap.add_argument("--mtp", type=int, choices=(0, 1), default=0, help="include the model's MTP head in the dealer registration; required for MTP consumers")
     ap.add_argument("--allow-unbound-consumer", action="store_true", help="explicit legacy development mode: allow relay consumers with neither asset identity; malformed or mismatched identities still refuse")
     ap.add_argument("--ahead", type=int, default=256); ap.add_argument("--chunk", type=int, default=64)
     ap.add_argument("--mint-batch", type=int, default=0, help="shipments per dealer run (0 = all missing at once); small values push the first shipments sooner at the cost of extra model loads")
@@ -270,6 +271,7 @@ def main():
                     tmpl = os.path.join(a.out, f"{seed_id}-{{index0}}-{{count}}.pads")
                     f.write(f"{seed} {seed_id} {pk} {tmpl} {ranges}\n")
             cmd = [dealer, a.model, "--jobs", jobfile]
+            if a.mtp: cmd += ["--mtp", "1"]
             if a.worker: cmd += ["--worker", a.worker]
             env = {**os.environ, "SHIELDED_CALIB": a.calib}
             t0 = time.time()

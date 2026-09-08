@@ -2,7 +2,7 @@
  *
  *   SHIELDED_SO=libggml-shielded.so GGML_CPU_SO=libggml-cpu.so SHIELDED_CALIB=model.calib \
  *   shielded-dealer model.gguf --out seed-0-64.pads --seed <64 hex> --seed-id <32 hex> \
- *                  --pk <consumer X25519 public key, 64 hex> [--index0 0] [--count 64]
+ *                  --pk <consumer X25519 public key, 64 hex> [--index0 0] [--count 64] [--mtp 1]
  *
  * Loads the model exactly as the engine does (the same registration, grouping
  * and field encoding), against a worker that is never contacted, and mints
@@ -42,6 +42,7 @@ int main(int argc, char **argv) {
     const char *model_path = argc > 1 ? argv[1] : nullptr;
     const char *out = nullptr, *seed = nullptr, *seed_id = nullptr, *pk = nullptr, *ranges = nullptr, *worker = nullptr, *jobs = nullptr;
     uint64_t index0 = 0, count = 64;
+    bool mtp = false;
     for (int i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "--out")) out = argv[i + 1];
         else if (!strcmp(argv[i], "--ranges")) ranges = argv[i + 1];   /* i0:count,i0:count,...; --out is then a template with {index0} and {count} */
@@ -50,6 +51,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--pk")) pk = argv[i + 1];
         else if (!strcmp(argv[i], "--index0")) index0 = strtoull(argv[i + 1], nullptr, 10);
         else if (!strcmp(argv[i], "--count")) count = strtoull(argv[i + 1], nullptr, 10);
+        else if (!strcmp(argv[i], "--mtp")) {
+            if (strcmp(argv[i + 1], "0") && strcmp(argv[i + 1], "1")) { fprintf(stderr, "--mtp requires 0 or 1\n"); return 2; }
+            mtp = !strcmp(argv[i + 1], "1");
+        }
         else if (!strcmp(argv[i], "--worker")) worker = argv[i + 1];   /* host:port of the DEALER'S OWN worker: r goes to it unmasked, u = r.W comes back at GPU speed */
         else if (!strcmp(argv[i], "--jobs")) jobs = argv[i + 1];       /* many seeds, ONE model load: lines of "seed seed_id pk out-template ranges" */
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
@@ -77,7 +82,7 @@ int main(int argc, char **argv) {
         joblist.push_back({ seed, seed_id, pk, out, ranges ? ranges : "" });
     }
     if (!model_path || joblist.empty() || !backend || !calib) {
-        fprintf(stderr, "usage: SHIELDED_SO=.. GGML_CPU_SO=.. SHIELDED_CALIB=.. shielded-dealer model.gguf --out F --seed H64 --seed-id H32 --pk H64 [--index0 N] [--count N] | [--ranges i0:n,i0:n --out template{index0}{count}]\n");
+        fprintf(stderr, "usage: SHIELDED_SO=.. GGML_CPU_SO=.. SHIELDED_CALIB=.. shielded-dealer model.gguf --out F --seed H64 --seed-id H32 --pk H64 [--index0 N] [--count N] [--mtp 0|1] | [--ranges i0:n,i0:n --out template{index0}{count}]\n");
         return 2;
     }
     /* The weights register against a link that is never connected: a port
@@ -111,12 +116,27 @@ int main(int argc, char **argv) {
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;
+    mp.load_mtp = mtp;
     llama_model *model = llama_model_load_from_file(model_path, mp);
     if (!model) { fprintf(stderr, "model load failed\n"); return 2; }
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = 512; cp.n_batch = 512; cp.n_threads = 8; cp.n_threads_batch = 8;
     llama_context *ctx = llama_init_from_model(model, cp);
     if (!ctx) { fprintf(stderr, "context failed\n"); return 2; }
+    /* The head's context reservation discovers its calibrated weights, just
+     * as anchor_mtp_new does on the phone. It must happen BEFORE the first
+     * target graph plans the shared link. Otherwise the dealer mints only
+     * target groups, and an MTP consumer rejects every shipment at binding. */
+    llama_context *head = nullptr;
+    if (mtp) {
+        if (llama_model_n_layer_nextn(model) <= 0) { fprintf(stderr, "--mtp 1 requires a model with an MTP head\n"); llama_free(ctx); llama_model_free(model); return 2; }
+        llama_context_params hp = cp;
+        hp.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+        hp.n_batch = 8; hp.n_seq_max = 1; hp.kv_unified = true;
+        head = llama_init_from_model(model, hp);
+        if (!head) { fprintf(stderr, "MTP context failed; refusing target-only pads\n"); llama_free(ctx); llama_model_free(model); return 2; }
+        fprintf(stderr, "dealer MTP head reserved before target registration\n");
+    }
     /* Registration happens when the FIRST graph is planned (sh_plan places
      * every pending calibrated site and registers it with the link), not at
      * context creation; so decode one token. The connect to the dead port
@@ -161,6 +181,7 @@ int main(int argc, char **argv) {
             fflush(stdout);
         }
     }
+    if (head) llama_free(head);
     llama_free(ctx);
     llama_model_free(model);
     return 0;
