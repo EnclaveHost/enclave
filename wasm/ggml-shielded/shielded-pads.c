@@ -522,33 +522,46 @@ int sh_pads_window_reserve(const char *ledger_path, uint64_t want, uint64_t *lo,
 
 
 /* ---- HMAC/HKDF-SHA512 over TweetNaCl's crypto_hash --------------------- */
-static void hmac_sha512(const uint8_t *key, size_t klen, const uint8_t *m1, size_t n1, const uint8_t *m2, size_t n2, uint8_t out[64]) {
-    uint8_t k[128] = {0}, kh[64];
-    if (klen > 128) { crypto_hash(kh, key, klen); memcpy(k, kh, 64); } else memcpy(k, key, klen);
-    uint8_t *inner = (uint8_t *)malloc(128 + n1 + n2), ih[64], outer[128 + 64];
-    if (!inner) { memset(out, 0, 64); return; }
+static void pads_wipe(void *p, size_t n) {
+    volatile uint8_t *v = (volatile uint8_t *)p;
+    while (n--) *v++ = 0;
+}
+/* Bootstrap messages are small and bounded. Never derive a known zero key or
+ * dereference NULL because an allocation failed during key derivation. */
+static int hmac_sha512(const uint8_t *key, size_t klen, const uint8_t *m1, size_t n1, const uint8_t *m2, size_t n2, uint8_t out[64]) {
+    if (n1 > 256 || n2 > 256 - n1) return SH_ERR_RANGE;
+    uint8_t k[128] = {0}, kh[64], inner[128 + 256], ih[64], outer[128 + 64];
+    if (klen > 128) { crypto_hash(kh, key, klen); memcpy(k, kh, 64); } else if (klen) memcpy(k, key, klen);
     for (int i = 0; i < 128; i++) inner[i] = k[i] ^ 0x36;
-    memcpy(inner + 128, m1, n1); memcpy(inner + 128 + n1, m2, n2);
+    if (n1) memcpy(inner + 128, m1, n1);
+    if (n2) memcpy(inner + 128 + n1, m2, n2);
     crypto_hash(ih, inner, 128 + n1 + n2);
     for (int i = 0; i < 128; i++) outer[i] = k[i] ^ 0x5c;
     memcpy(outer + 128, ih, 64);
-    crypto_hash(out, outer, 128 + 64);
-    free(inner);
+    crypto_hash(out, outer, sizeof outer);
+    pads_wipe(k, sizeof k); pads_wipe(kh, sizeof kh); pads_wipe(inner, sizeof inner);
+    pads_wipe(ih, sizeof ih); pads_wipe(outer, sizeof outer);
+    return SH_OK;
 }
-/* HKDF-SHA512 (RFC 5869), one or two blocks: what the relay's hkdfSync does. */
-static void hkdf_sha512(const uint8_t *ikm, size_t ikm_len, const uint8_t *salt, size_t salt_len,
-                        const char *info, uint8_t *okm, size_t okm_len) {
-    uint8_t prk[64], t[64]; size_t tl = 0, done = 0; uint8_t ctr = 1;
-    hmac_sha512(salt, salt_len, ikm, ikm_len, NULL, 0, prk);
-    while (done < okm_len) {
-        uint8_t *buf = (uint8_t *)malloc(tl + strlen(info) + 1);
-        memcpy(buf, t, tl); memcpy(buf + tl, info, strlen(info)); buf[tl + strlen(info)] = ctr;
-        hmac_sha512(prk, 64, buf, tl + strlen(info) + 1, NULL, 0, t);
-        free(buf);
+/* HKDF-SHA512 (RFC 5869), bounded to two blocks for this private bootstrap
+ * helper. The seed box needs only 32 bytes with a fixed info string. */
+static int hkdf_sha512(const uint8_t *ikm, size_t ikm_len, const uint8_t *salt, size_t salt_len,
+                       const char *info, uint8_t *okm, size_t okm_len) {
+    const size_t il = strlen(info);
+    if (il > 64 || okm_len > 128) return SH_ERR_RANGE;
+    uint8_t prk[64], t[64], buf[64 + 64 + 1]; size_t tl = 0, done = 0; uint8_t ctr = 1;
+    int rc = hmac_sha512(salt, salt_len, ikm, ikm_len, NULL, 0, prk);
+    while (rc == SH_OK && done < okm_len) {
+        if (tl) memcpy(buf, t, tl);
+        memcpy(buf + tl, info, il); buf[tl + il] = ctr;
+        rc = hmac_sha512(prk, 64, buf, tl + il + 1, NULL, 0, t);
+        if (rc != SH_OK) break;
         const size_t n = okm_len - done < 64 ? okm_len - done : 64;
         memcpy(okm + done, t, n); done += n; tl = 64; ctr++;
     }
-    memset(prk, 0, sizeof prk); memset(t, 0, sizeof t);
+    pads_wipe(prk, sizeof prk); pads_wipe(t, sizeof t); pads_wipe(buf, sizeof buf);
+    if (rc != SH_OK) pads_wipe(okm, okm_len);
+    return rc;
 }
 
 /* ---- ChaCha20 (RFC 8439: 32-bit counter, 96-bit nonce) + Poly1305 -------- */
@@ -590,21 +603,21 @@ static void aead_stream(const uint8_t key[32], const uint8_t nonce[12], const ui
         const size_t take = n - off < 64 ? n - off : 64;
         for (size_t i = 0; i < take; i++) out[off + i] = in[off + i] ^ blk[i];
     }
-    memset(blk, 0, sizeof blk);
+    pads_wipe(blk, sizeof blk);
 }
 static int aead_seal(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *out) {
     uint8_t blk[64], otk[32];
     chacha_ietf_block(key, 0, nonce, blk); memcpy(otk, blk, 32);
     aead_stream(key, nonce, msg, n, out + 16);
     aead_tag(otk, out + 16, n, out);
-    memset(otk, 0, sizeof otk);
+    pads_wipe(otk, sizeof otk); pads_wipe(blk, sizeof blk);
     return SH_OK;
 }
 static int aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box, size_t n, uint8_t *out) {
     uint8_t blk[64], otk[32], tag[16];
     chacha_ietf_block(key, 0, nonce, blk); memcpy(otk, blk, 32);
     aead_tag(otk, box + 16, n, tag);
-    memset(otk, 0, sizeof otk);
+    pads_wipe(otk, sizeof otk); pads_wipe(blk, sizeof blk);
     if (!poly1305_verify(tag, box)) return SH_ERR_VERIFY;
     aead_stream(key, nonce, box + 16, n, out);
     return SH_OK;
@@ -612,14 +625,27 @@ static int aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8
 
 int sh_pads_seed_open(const uint8_t epk[32], const uint8_t nonce[12], const uint8_t *box, size_t box_len,
                       const uint8_t pad_sk[32], const uint8_t pad_pk[32], uint8_t seed_out[32]) {
-    if (box_len != 32 + 16) return SH_ERR_RANGE;
-    uint8_t shared[32], salt[64], key[32];
-    if (crypto_scalarmult(shared, pad_sk, epk) != 0) return SH_ERR_VERIFY;
+    if (!seed_out) return SH_ERR_RANGE;
+    if (!epk || !nonce || !box || !pad_sk || !pad_pk || box_len != 32 + 16) {
+        pads_wipe(seed_out, 32); return SH_ERR_RANGE;
+    }
+    uint8_t shared[32], salt[64], key[32], plain[32], laid[48];
+    int rc = SH_ERR_VERIFY;
+    if (crypto_scalarmult(shared, pad_sk, epk) != 0) goto done;
+    // RFC 7748 section 6.1: low-order public inputs eliminate the recipient's
+    // secret contribution. TweetNaCl returns success even for an all-zero DH.
+    uint8_t nonzero = 0;
+    for (size_t i = 0; i < sizeof shared; i++) nonzero |= shared[i];
+    if (!nonzero) goto done;
     memcpy(salt, epk, 32); memcpy(salt + 32, pad_pk, 32);
-    hkdf_sha512(shared, 32, salt, 64, "enclave-pads-seed-box", key, 32);
-    uint8_t laid[48]; memcpy(laid, box + 32, 16); memcpy(laid + 16, box, 32);   /* Node's ct||tag -> our tag||ct */
-    const int rc = aead_open(key, nonce, laid, 32, seed_out);
-    memset(shared, 0, sizeof shared); memset(key, 0, sizeof key);
+    rc = hkdf_sha512(shared, 32, salt, 64, "enclave-pads-seed-box", key, 32);
+    if (rc != SH_OK) goto done;
+    memcpy(laid, box + 32, 16); memcpy(laid + 16, box, 32);   /* Node's ct||tag -> our tag||ct */
+    rc = aead_open(key, nonce, laid, 32, plain);
+    if (rc == SH_OK) memcpy(seed_out, plain, 32);
+ done:
+    if (rc != SH_OK) pads_wipe(seed_out, 32);
+    pads_wipe(shared, sizeof shared); pads_wipe(key, sizeof key); pads_wipe(plain, sizeof plain);
     return rc;
 }
 
