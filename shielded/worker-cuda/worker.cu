@@ -88,6 +88,7 @@
 #include <vector>
 #include "public-weight-cache.h"
 #include "captured-graphs.h"
+#include "scratch-growth.h"
 
 extern "C" {
 #include "shielded-field.h"
@@ -1277,29 +1278,29 @@ struct Conn {
         return b;
     }
     void ensure_host_in(size_t n) {
-        if (h_in_cap >= n) return;
-        if (h_in) cudaFreeHost(h_in);
-        ck(cudaHostAlloc((void **)&h_in, n, cudaHostAllocDefault), "pinned alloc"); h_in_cap = n;
-        drop_graphs();
+        grow_worker_scratch(h_in, h_in_cap, n,
+            [&] { drop_graphs(); },
+            [](uint8_t *p) { cudaFreeHost(p); },
+            [](uint8_t **p, size_t bytes) { ck(cudaHostAlloc((void **)p, bytes, cudaHostAllocDefault), "pinned alloc"); });
     }
     void ensure_host_out(size_t n) {
-        if (h_out_cap >= n) return;
-        if (h_out) cudaFreeHost(h_out);
-        ck(cudaHostAlloc((void **)&h_out, n, cudaHostAllocMapped), "pinned alloc"); h_out_cap = n;
-        ck(cudaHostGetDevicePointer((void **)&d_out, h_out, 0), "pinned map");
-        drop_graphs();
+        grow_worker_scratch(h_out, h_out_cap, n,
+            [&] { drop_graphs(); d_out = nullptr; },
+            [](uint8_t *p) { cudaFreeHost(p); },
+            [&](uint8_t **p, size_t bytes) {
+                ck(cudaHostAlloc((void **)p, bytes, cudaHostAllocMapped), "pinned alloc");
+                ck(cudaHostGetDevicePointer((void **)&d_out, *p, 0), "pinned map");
+            });
     }
     void ensure_dx(size_t n) {
-        if (d_x_cap >= n) return;
-        if (d_x) dfree(d_x);
-        ck(dmalloc((void **)&d_x, n), "device scratch alloc"); d_x_cap = n;
-        drop_graphs();
+        grow_worker_scratch(d_x, d_x_cap, n,
+            [&] { drop_graphs(); }, [](int8_t *p) { dfree(p); },
+            [](int8_t **p, size_t bytes) { ck(dmalloc((void **)p, bytes), "device scratch alloc"); });
     }
     void ensure_dy32(size_t n) {
-        if (d_y32_cap >= n) return;
-        if (d_y32) dfree(d_y32);
-        ck(dmalloc((void **)&d_y32, n), "device product alloc"); d_y32_cap = n;
-        drop_graphs();
+        grow_worker_scratch(d_y32, d_y32_cap, n,
+            [&] { drop_graphs(); }, [](int32_t *p) { dfree(p); },
+            [](int32_t **p, size_t bytes) { ck(dmalloc((void **)p, bytes), "device product alloc"); });
     }
 
     std::string hello(const uint8_t *p, size_t n) {

@@ -19,7 +19,7 @@ all: shielded-worker
 shielded-field.o: $(FIELD_DIR)/shielded-field.c $(FIELD_DIR)/shielded-field.h
 	$(CC) -O2 -ffp-contract=off -fPIC -I$(FIELD_DIR) -c $< -o $@
 
-worker.o: worker.cu public-weight-cache.h captured-graphs.h exchange-profile.h $(FIELD_DIR)/shielded-sha256.h $(FIELD_DIR)/shielded-field.h Makefile
+worker.o: worker.cu public-weight-cache.h captured-graphs.h exchange-profile.h scratch-growth.h $(FIELD_DIR)/shielded-sha256.h $(FIELD_DIR)/shielded-field.h Makefile
 	$(CUDACXX) -O3 -std=c++17 -x cuda --cuda-path=$(CUDA_HOME) --no-cuda-version-check $(ARCHS) \
 	  -ffp-contract=off -I$(FIELD_DIR) -c worker.cu -o $@
 
