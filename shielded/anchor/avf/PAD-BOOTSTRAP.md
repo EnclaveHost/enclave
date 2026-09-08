@@ -89,6 +89,28 @@ a previous boot, or duplicate grant cannot reinitialize an active pad bank.
 Legacy requests without both digests retain their old unsigned response for
 existing consumers. A protected v2 payload must not fall back to that response.
 
+## Fresh pad windows
+
+Reserve requests retain their existing signed request format. Replies add
+`window_version: 2`, `request_nonce` and `sig_v2`. The new signature covers:
+
+```
+enclave-pads-window-v2
+<seed_id>
+<lo>
+<hi>
+<iat>
+<request_nonce>
+```
+
+There is no trailing newline. `sh_pad_window_v2_verify` checks this signature
+against the pinned ledger key, expected seed identity, and nonce from the
+current pVM request (16–64 bytes, lowercase hex). The response's echoed nonce
+does not establish freshness. The protected consumer must use its own pending
+nonce and require `sig_v2`; it must not fall back to the legacy `sig` field.
+An old window remains cryptographically signed but cannot satisfy a fresh
+request after a worker reconnect or link recreation.
+
 ## Required consumer integration
 
 The transcript helper alone does not complete the trust chain. Before admitting
