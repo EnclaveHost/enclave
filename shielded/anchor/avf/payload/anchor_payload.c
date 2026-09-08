@@ -44,6 +44,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <linux/userfaultfd.h>
 #include <linux/fsverity.h>
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
@@ -428,6 +429,40 @@ struct fsverity_enable_arg_compat { uint32_t version, hash_algorithm, block_size
 #define fsverity_enable_arg fsverity_enable_arg_compat
 #define FS_VERITY_HASH_ALG_SHA256 1
 #endif
+/* userfaultfd with UFFD_USER_MODE_ONLY (allowed to unprivileged callers even with the sysctl off): API
+ * handshake, register an anonymous mapping, take ONE real fault from another thread and serve it with
+ * UFFDIO_COPY, check the byte. In this mode a kernel-side access to the region (read(2) into it) would
+ * SIGBUS, so a pager built on it must only ever be touched from user mode. */
+#ifndef UFFD_USER_MODE_ONLY
+#define UFFD_USER_MODE_ONLY 1
+#endif
+static volatile unsigned char *g_uffd_page; static volatile int g_uffd_seen = -1;
+static void *uffd_toucher(void *a) { (void)a; g_uffd_seen = g_uffd_page[0]; return NULL; }
+static const char *uffd_probe(void) {
+    static char why[160];
+    int fd = (int)syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK | UFFD_USER_MODE_ONLY);
+    if (fd < 0) { snprintf(why, sizeof why, "open: %s", strerror(errno)); return why; }
+    struct uffdio_api api; memset(&api, 0, sizeof api); api.api = UFFD_API;
+    if (ioctl(fd, UFFDIO_API, &api) != 0) { snprintf(why, sizeof why, "UFFDIO_API: %s", strerror(errno)); close(fd); return why; }
+    const long ps = sysconf(_SC_PAGESIZE);
+    void *m = mmap(NULL, (size_t)ps * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (m == MAP_FAILED) { snprintf(why, sizeof why, "mmap: %s", strerror(errno)); close(fd); return why; }
+    struct uffdio_register reg; memset(&reg, 0, sizeof reg); reg.range.start = (unsigned long)m; reg.range.len = (unsigned long)ps * 2; reg.mode = UFFDIO_REGISTER_MODE_MISSING;
+    if (ioctl(fd, UFFDIO_REGISTER, &reg) != 0) { snprintf(why, sizeof why, "UFFDIO_REGISTER: %s", strerror(errno)); munmap(m, (size_t)ps * 2); close(fd); return why; }
+    g_uffd_page = (volatile unsigned char *)m; g_uffd_seen = -1;
+    pthread_t t; if (pthread_create(&t, NULL, uffd_toucher, NULL) != 0) { snprintf(why, sizeof why, "pthread_create failed"); munmap(m, (size_t)ps * 2); close(fd); return why; }
+    struct pollfd pf = { fd, POLLIN, 0 }; struct uffd_msg msg; int got = 0;
+    for (int i = 0; i < 200 && !got; i++) { if (poll(&pf, 1, 25) > 0 && read(fd, &msg, sizeof msg) == (ssize_t)sizeof msg && msg.event == UFFD_EVENT_PAGEFAULT) got = 1; }
+    if (!got) { snprintf(why, sizeof why, "no fault message within 5 s"); pthread_detach(t); close(fd); return why; }
+    static unsigned char src[65536] __attribute__((aligned(65536))); memset(src, 0x5a, (size_t)ps);
+    struct uffdio_copy cp; memset(&cp, 0, sizeof cp); cp.dst = msg.arg.pagefault.address & ~((unsigned long)ps - 1); cp.src = (unsigned long)src; cp.len = (unsigned long)ps;
+    if (ioctl(fd, UFFDIO_COPY, &cp) != 0) { snprintf(why, sizeof why, "UFFDIO_COPY: %s", strerror(errno)); pthread_detach(t); close(fd); return why; }
+    pthread_join(t, NULL);
+    if (g_uffd_seen == 0x5a) snprintf(why, sizeof why, "WORKS (fault at %#lx served by UFFDIO_COPY, byte 0x5a seen)", (unsigned long)msg.arg.pagefault.address);
+    else snprintf(why, sizeof why, "copy done but the thread saw %#x", (unsigned)g_uffd_seen);
+    munmap(m, (size_t)ps * 2); close(fd);
+    return why;
+}
 static void storage_probe(void) {
     const char *es = AVmPayload_getEncryptedStoragePath();
     struct sysinfo si; long ram_mib = sysinfo(&si) == 0 ? (long)((unsigned long long)si.totalram * si.mem_unit >> 20) : -1;
@@ -450,6 +485,31 @@ static void storage_probe(void) {
     }
     int uffd = (int)syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK); const char *uf = uffd >= 0 ? "available" : strerror(errno); if (uffd >= 0) close(uffd);
     OUT("STORAGE %s fstype=0x%lx total=%lld MiB avail=%lld MiB fs-verity=%s userfaultfd=%s ram=%ld MiB", es, fstype, total, avail, verity, uf, ram_mib);
+    /* is the refusal policy or filesystem support? MEASURE on a plain file answers ENODATA when the ioctl is
+     * permitted (no verity on it) and EACCES when SELinux denies the ioctl itself; a second ENABLE attempt after
+     * chmod 0644 on a fresh read-only descriptor rules out the DAC write check; the mount line and our SELinux
+     * context are printed for the record; AuthFS/FUSE presence says whether a host-backed verified mount exists */
+    char mnt[256] = "?"; { FILE *m = fopen("/proc/mounts", "r"); char l[512]; if (m) { while (fgets(l, sizeof l, m)) if (strstr(l, es)) { l[strcspn(l, "\n")] = 0; snprintf(mnt, sizeof mnt, "%.255s", l); break; } fclose(m); } }
+    char ctx[128] = "?"; { FILE *c = fopen("/proc/self/attr/current", "r"); if (c) { if (fgets(ctx, sizeof ctx, c)) ctx[strcspn(ctx, "\n")] = 0; fclose(c); } }
+    const char *measure = "not tried", *enable2 = "not tried"; char mb[64], eb[64];
+    fd = open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd >= 0) {
+        static const char z2[4096] = {0}; (void)!write(fd, z2, sizeof z2); fsync(fd); close(fd);
+        fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            struct { uint8_t digest_algorithm_lo, digest_algorithm_hi, digest_size_lo, digest_size_hi; uint8_t digest[64]; } md; memset(&md, 0, sizeof md); md.digest_size_lo = 64;
+            if (ioctl(fd, _IOWR('f', 134, char[4]), &md) == 0) measure = "ok (verity file?)"; else { snprintf(mb, sizeof mb, "%s", strerror(errno)); measure = mb; }
+            struct fsverity_enable_arg arg; memset(&arg, 0, sizeof arg); arg.version = 1; arg.hash_algorithm = FS_VERITY_HASH_ALG_SHA256; arg.block_size = 4096;
+            if (ioctl(fd, FS_IOC_ENABLE_VERITY, &arg) == 0) enable2 = "ENABLED"; else { snprintf(eb, sizeof eb, "%s", strerror(errno)); enable2 = eb; }
+            close(fd);
+        }
+        unlink(path);
+    }
+    const int authfs = access("/system/bin/authfs", X_OK) == 0, authfs_svc = access("/system/bin/authfs_service", X_OK) == 0, fuse = access("/dev/fuse", F_OK) == 0;
+    int ffd = open("/dev/fuse", O_RDWR | O_CLOEXEC); const char *fuse_open = ffd >= 0 ? "opens" : strerror(errno); if (ffd >= 0) close(ffd);
+    OUT("STORAGE2 selinux=%s measure=%s enable-after-chmod=%s authfs=%d authfs_service=%d /dev/fuse=%d(%s)", ctx, measure, enable2, authfs, authfs_svc, fuse, fuse_open);
+    OUT("STORAGE2 mount=[%.200s]", mnt);
+    OUT("STORAGE3 userfaultfd(USER_MODE_ONLY)=%s", uffd_probe());
 }
 
 static int write_all(int fd, const char *p, size_t n) {
