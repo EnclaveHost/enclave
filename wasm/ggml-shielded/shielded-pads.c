@@ -192,10 +192,17 @@ fail:
 }
 
 int sh_pads_writer_cell(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u) {
+    return w ? sh_pads_writer_cell_with(w, index, group, u, w->plain, w->cell) : SH_ERR_RANGE;
+}
+
+/* The same with caller-owned scratch (each of >= cell_cap bytes): several threads may seal
+ * and write cells of one shipment concurrently - the file offsets are disjoint and pwrite
+ * on a shared fd is atomic per call; nothing else in the writer is touched. */
+int sh_pads_writer_cell_with(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u, uint8_t *plain, uint8_t *cell) {
     if (!w || group >= w->hdr.group_count) return SH_ERR_RANGE;
     if (index < w->hdr.index0 || index >= w->hdr.index0 + w->hdr.index_count) return SH_ERR_RANGE;
     const uint64_t u_len = w->groups[group].u_len;
-    uint8_t *p = w->plain;
+    uint8_t *p = plain;
     for (uint64_t j = 0; j < u_len; j++) {
         const int64_t v = (int64_t)u[j] + SH_HALF_M;
         if (v < 0 || v >= SH_M_MOD) return SH_ERR_RANGE;
@@ -203,13 +210,15 @@ int sh_pads_writer_cell(sh_pads_writer *w, uint64_t index, uint32_t group, const
     }
     uint8_t nonce[12];
     cell_nonce(nonce, index, group);
-    int rc = aead_seal(w->key, nonce, p, (size_t)(3 * u_len), w->cell);
+    int rc = aead_seal(w->key, nonce, p, (size_t)(3 * u_len), cell);
     if (rc != SH_OK) return rc;
     const uint64_t off = w->hdr.data_off + (index - w->hdr.index0) * w->hdr.row_bytes + w->group_off[group];
     const size_t n = (size_t)cell_bytes(u_len);
-    if (pwrite(w->fd, w->cell, n, (off_t)off) != (ssize_t)n) return SH_ERR_IO;
+    if (pwrite(w->fd, cell, n, (off_t)off) != (ssize_t)n) return SH_ERR_IO;
     return SH_OK;
 }
+
+size_t sh_pads_writer_scratch_bytes(const sh_pads_writer *w) { return w ? w->cell_cap : 0; }
 
 int sh_pads_writer_close(sh_pads_writer *w) {
     if (!w) return SH_OK;

@@ -729,7 +729,9 @@ typedef struct {
 static int gen_scratch_init(const sh_link *l, gen_scratch *s, int b) {
     s->planes = (uint8_t *)malloc((size_t)3 * b * l->Kmax);
     s->acc    = (int32_t *)malloc((size_t)12 * l->Nmax * sizeof(int32_t));
-    return s->planes && s->acc ? SH_OK : SH_ERR_NOMEM;
+    if (s->planes && s->acc) return SH_OK;
+    free(s->planes); free(s->acc); s->planes = NULL; s->acc = NULL;   /* half an allocation is not a scratch */
+    return SH_ERR_NOMEM;
 }
 
 static int generate(sh_link *l, const sh_group *g, int b, int32_t *r_out, int32_t *u_out, gen_scratch *s) {
@@ -1695,10 +1697,47 @@ int sh_link_group_table(const sh_link *l, sh_pads_group *out, uint32_t cap) {
     return (int)l->n_groups;
 }
 
+/* One mint worker: its share of the groups (gi0, gi0 + step, ...), 16 indices per weight
+ * pass, own scratch including the writer's (cells go to disjoint offsets of one fd). */
+typedef struct {
+    sh_link *l; const uint8_t *seed; uint64_t index0, count;
+    sh_pads_writer *w;
+    size_t gi0, gstep; int rc;
+} sh_mint_task;
+
+static void *sh_mint_worker(void *arg) {
+    sh_mint_task *t = (sh_mint_task *)arg;
+    sh_link *l = t->l;
+    enum { B = 16 };
+    gen_scratch s;
+    int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
+    int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
+    const size_t wsz = sh_pads_writer_scratch_bytes(t->w);
+    uint8_t *wplain = (uint8_t *)malloc(wsz), *wcell = (uint8_t *)malloc(wsz);
+    s.planes = NULL; s.acc = NULL;
+    int rc = (gen_scratch_init(l, &s, B) == SH_OK && r && u && wplain && wcell) ? SH_OK : SH_ERR_NOMEM;
+    for (size_t gi = t->gi0; rc == SH_OK && gi < l->n_groups; gi += t->gstep) {
+        const sh_group *g = &l->groups[gi];
+        const int64_t K = g->K;
+        for (uint64_t i0 = 0; i0 < t->count && rc == SH_OK; i0 += B) {
+            const int b = (int)((t->count - i0) < B ? (t->count - i0) : B);
+            for (int i = 0; i < b; i++) sh_pad_r(t->seed, (uint32_t)gi, t->index0 + i0 + (uint64_t)i, K, r + (size_t)i * K);
+            l->simd->pad_planes(r, (size_t)b * K, s.planes, s.planes + (size_t)b * K, s.planes + (size_t)2 * b * K);
+            for (int n = 0; n < g->n_nodes; n++) {
+                const sh_node *nd = &l->nodes[g->nodes[n]];
+                l->simd->refill(s.planes, b, nd->w, K, nd->N, u + nd->u_off, g->u_len, s.acc);
+            }
+            for (int i = 0; i < b && rc == SH_OK; i++) rc = sh_pads_writer_cell_with(t->w, t->index0 + i0 + (uint64_t)i, (uint32_t)gi, u + (size_t)i * g->u_len, wplain, wcell);
+        }
+    }
+    free(r); free(u); free(wplain); free(wcell); free(s.planes); free(s.acc);
+    t->rc = rc;
+    return NULL;
+}
+
 int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed_id[16], const uint8_t model_digest[32],
                           uint64_t index0, uint64_t count, const uint8_t consumer_pk[32], const char *path) {
     if (!l || !l->n_groups || !count) return SH_ERR_RANGE;
-    enum { B = 16 };
     sh_pads_group *table = (sh_pads_group *)calloc(l->n_groups, sizeof *table);
     if (!table) return SH_ERR_NOMEM;
     int rc = sh_link_group_table(l, table, (uint32_t)l->n_groups);
@@ -1707,26 +1746,28 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
     sh_pads_writer *w = sh_pads_writer_open(path, model_digest, seed_id, table, (uint32_t)l->n_groups, index0, count, consumer_pk, &err);
     free(table);
     if (!w) return err;
-    gen_scratch s;
-    int32_t *r = (int32_t *)malloc((size_t)B * l->Kmax * sizeof(int32_t));
-    int32_t *u = (int32_t *)malloc((size_t)B * l->ulen_max * sizeof(int32_t));
-    if (gen_scratch_init(l, &s, B) != SH_OK || !r || !u) { free(r); free(u); sh_pads_writer_close(w); return SH_ERR_NOMEM; }
-    rc = SH_OK;
-    for (size_t gi = 0; gi < l->n_groups && rc == SH_OK; gi++) {
-        const sh_group *g = &l->groups[gi];
-        const int64_t K = g->K;
-        for (uint64_t i0 = 0; i0 < count && rc == SH_OK; i0 += B) {
-            const int b = (int)((count - i0) < B ? (count - i0) : B);
-            for (int i = 0; i < b; i++) sh_pad_r(seed, (uint32_t)gi, index0 + i0 + (uint64_t)i, K, r + (size_t)i * K);
-            l->simd->pad_planes(r, (size_t)b * K, s.planes, s.planes + (size_t)b * K, s.planes + (size_t)2 * b * K);
-            for (int n = 0; n < g->n_nodes; n++) {
-                const sh_node *nd = &l->nodes[g->nodes[n]];
-                l->simd->refill(s.planes, b, nd->w, K, nd->N, u + nd->u_off, g->u_len, s.acc);
-            }
-            for (int i = 0; i < b && rc == SH_OK; i++) rc = sh_pads_writer_cell(w, index0 + i0 + (uint64_t)i, (uint32_t)gi, u + (size_t)i * g->u_len);
-        }
+    /* SHIELDED_MINT_THREADS: the group loop across N threads (groups are independent; the
+     * refill kernel is the cost and runs single-threaded per group). 1 = the serial path. */
+    int nth = env_int("SHIELDED_MINT_THREADS", 1, 1, 64);
+    if ((size_t)nth > l->n_groups) nth = (int)l->n_groups;
+    if (nth <= 1) {
+        sh_mint_task t = { l, seed, index0, count, w, 0, 1, SH_OK };
+        sh_mint_worker(&t);
+        rc = t.rc;
+    } else {
+        sh_mint_task *tasks = (sh_mint_task *)calloc((size_t)nth, sizeof *tasks);
+        pthread_t *th = (pthread_t *)calloc((size_t)nth, sizeof *th);
+        char *started = (char *)calloc((size_t)nth, 1);
+        if (!tasks || !th || !started) { free(tasks); free(th); free(started); sh_pads_writer_close(w); return SH_ERR_NOMEM; }
+        for (int i = 0; i < nth; i++) { sh_mint_task t = { l, seed, index0, count, w, (size_t)i, (size_t)nth, SH_OK }; tasks[i] = t; }
+        for (int i = 0; i < nth; i++) started[i] = pthread_create(&th[i], NULL, sh_mint_worker, &tasks[i]) == 0;
+        /* a share whose thread could not start is minted here, on the calling thread: every
+         * group is covered exactly once either way, so the shipment is complete or the error is real */
+        for (int i = 0; i < nth; i++) if (!started[i]) sh_mint_worker(&tasks[i]);
+        rc = SH_OK;
+        for (int i = 0; i < nth; i++) { if (started[i]) pthread_join(th[i], NULL); if (rc == SH_OK && tasks[i].rc != SH_OK) rc = tasks[i].rc; }
+        free(tasks); free(th); free(started);
     }
-    free(r); free(u); free(s.planes); free(s.acc);
     const int crc = sh_pads_writer_close(w);
     return rc != SH_OK ? rc : crc;
 }
