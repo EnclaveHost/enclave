@@ -49,6 +49,17 @@ extern "C" {
 typedef struct {
     uint64_t calls, request_bytes, reply_bytes, over_100ms, over_1s;
     double write_ms, work_ms, header_ms, body_ms, max_ms;
+    /* One bounded record for the slowest successful socket exchange. Ordinal
+     * is among profiled FIELD_GEMMs on this pipe, not graphs or MTP rounds.
+     * Metadata comes from OUR request, never from the untrusted reply.
+     * No activation, pad, key or product bytes are retained. The link getter
+     * resolves first_node_name; the raw pipe getter leaves that string empty. */
+    struct {
+        uint64_t call, request_bytes, reply_bytes, K;
+        uint32_t cmd, nodes, rows, first_node, metadata_valid;
+        double write_ms, work_ms, header_ms, body_ms;
+        char first_node_name[64];
+    } peak;
 } sh_wire_timing;
 /* Protocol 1.2: bind a shared-memory ring (SHIELDED_SHM) to this connection.
  * | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.

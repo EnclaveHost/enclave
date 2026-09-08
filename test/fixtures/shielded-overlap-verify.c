@@ -238,6 +238,16 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
 
 int main(void) {
     signal(SIGPIPE, SIG_IGN);
+    { // Resolve only an in-range public node id; raw pipe metadata has no name.
+        sh_pipe pipe = {0}; pipe.timing.peak.call = 7;
+        pipe.timing.peak.metadata_valid = 1; pipe.timing.peak.first_node = 1;
+        sh_node nodes[2] = {0}; snprintf(nodes[1].name, sizeof nodes[1].name, "blk.64.ffn_down.weight");
+        sh_link link = {.pipe=&pipe, .nodes=nodes, .n_nodes=2};
+        sh_wire_timing named; sh_link_wire_timing(&link, &named);
+        assert(named.peak.call == 7 && !strcmp(named.peak.first_node_name, nodes[1].name));
+        link.n_nodes = 1; sh_link_wire_timing(&link, &named); assert(!named.peak.first_node_name[0]);
+        sh_link_wire_timing(&link, NULL); sh_link_wire_timing(NULL, &named); assert(!named.peak.call);
+    }
     int32_t bounds[] = { -(int32_t)SH_HALF_M, -1, 0, 1, (int32_t)SH_HALF_M };
     assert(sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
     const int32_t invalid[] = { INT32_MIN, -(int32_t)SH_HALF_M - 1, (int32_t)SH_HALF_M + 1, INT32_MAX };

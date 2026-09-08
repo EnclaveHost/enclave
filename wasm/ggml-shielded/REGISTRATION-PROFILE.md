@@ -26,7 +26,38 @@ range scanning/allocation, Freivalds setup (`fv`), dealt-pad verification setup
 (`pad`), optional public cache identity hashing, and final node publication.
 These nested timings are already included in `link`; do not add them again.
 
-Both lines retain the `[shielded] profile` prefix accepted by the phone engine's
-existing summary filter. Failed registrations keep their existing error
-messages and do not emit a successful-registration timing line. Compare the
-same model, calibration, placement and knobs before attributing a change.
+These lines are written to engine stderr. The phone engine's current summary
+filter forwards selected exchange summaries, not every registration line;
+capture the full stderr or explicitly extend its filter to inspect registration.
+Failed registrations keep their existing error messages and do not emit a
+successful-registration timing line. Compare the same model, calibration,
+placement and knobs before attributing a change.
+
+## Socket exchange timings
+
+With `SHIELDED_PROFILE=1`, `wire phases` counts successful single-frame socket
+FIELD_GEMM calls. Unlike some older profile checks, this collector treats an
+unset, empty or `0` value as disabled. The counters are cumulative for the pipe;
+subtract additive snapshots taken before and after an interval. A prefill
+snapshot is not a per-round or steady-decode measurement. Successful shared
+memory ring calls and failed socket exchanges are outside these counters.
+
+`wire slowest` retains one bounded record of the longest successful profiled
+socket call. It reports its call ordinal, command, public first-node id/name,
+node count, row count and K, request/reply byte counts including frame headers,
+and write/overlap/header/body durations. The four phases sum to `total` before
+rounding. It reads only the request's public metadata; no activations, pads,
+keys or products enter the record. `metadata=0` means the fixed request prefix
+could not establish valid dimensions; `name=unknown` means the link could not
+resolve a node name. A later faster call leaves the record unchanged.
+
+The maximum is not additive: never subtract two peak records. Its ordinal is
+among successful profiled calls on that pipe, not model nodes, tokens or MTP
+rounds. Header wait includes remote compute and scheduling; body time includes
+reply allocation. Neither is isolated network latency. These details localize
+a slow call for the next experiment without establishing its ultimate cause.
+
+`test/shielded-wire-peak.test.mjs` uses real socket framing and an injected
+monotonic clock to distinguish header/body stalls, retain the earlier peak,
+parse split metadata, and leave evidence unchanged on disabled/non-GEMM/failed
+calls. The real-tee overlap fixture also checks bounded node-name resolution.

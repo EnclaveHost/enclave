@@ -371,6 +371,11 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                 (unsigned long long)wt.calls, (unsigned long long)wt.request_bytes, (unsigned long long)wt.reply_bytes,
                 wt.write_ms, wt.work_ms, wt.header_ms, wt.body_ms, wt.max_ms,
                 (unsigned long long)wt.over_100ms, (unsigned long long)wt.over_1s);
+        if (wt.peak.call) fprintf(stderr, "[shielded] wire slowest: call=%llu cmd=%u metadata=%u first_node=%u name=%s nodes=%u m=%u K=%llu request_bytes=%llu reply_bytes=%llu write=%.1fms overlap=%.1fms header=%.1fms body=%.1fms total=%.1fms (cumulative successful socket calls, not a round)\n",
+                (unsigned long long)wt.peak.call, wt.peak.cmd, wt.peak.metadata_valid, wt.peak.first_node,
+                wt.peak.first_node_name[0] ? wt.peak.first_node_name : "unknown", wt.peak.nodes, wt.peak.rows,
+                (unsigned long long)wt.peak.K, (unsigned long long)wt.peak.request_bytes, (unsigned long long)wt.peak.reply_bytes,
+                wt.peak.write_ms, wt.peak.work_ms, wt.peak.header_ms, wt.peak.body_ms, wt.max_ms);
         fprintf(stderr, "[shielded] widths: exchanges by rows m1=%llu m2=%llu m3=%llu m4=%llu m5=%llu m6=%llu m7=%llu m8=%llu m9+=%llu | graphs by widest matmul rows 1=%llu 2-4=%llu 5-8=%llu 9+=%llu\n",
                 (unsigned long long)s.m_hist[1], (unsigned long long)s.m_hist[2], (unsigned long long)s.m_hist[3], (unsigned long long)s.m_hist[4], (unsigned long long)s.m_hist[5], (unsigned long long)s.m_hist[6], (unsigned long long)s.m_hist[7], (unsigned long long)s.m_hist[8], (unsigned long long)s.m_hist[9],
                 (unsigned long long)s.graph_w[0], (unsigned long long)s.graph_w[1], (unsigned long long)s.graph_w[2], (unsigned long long)s.graph_w[3]);

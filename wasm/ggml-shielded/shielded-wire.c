@@ -343,7 +343,37 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         t->reply_bytes += SH_HDR + out[0].len;
         t->write_ms += wrote - begin; t->work_ms += worked - wrote;
         t->header_ms += headed - worked; t->body_ms += bodied - headed;
-        if (total > t->max_ms) t->max_ms = total;
+        if (total > t->max_ms) {
+            t->max_ms = total;
+            memset(&t->peak, 0, sizeof t->peak);
+            t->peak.call = t->calls; t->peak.cmd = frames[0].cmd;
+            t->peak.request_bytes = SH_HDR + frames[0].len + frames[0].len2;
+            t->peak.reply_bytes = SH_HDR + out[0].len;
+            t->peak.write_ms = wrote - begin; t->peak.work_ms = worked - wrote;
+            t->peak.header_ms = headed - worked; t->peak.body_ms = bodied - headed;
+            /* Read only the fixed public prefix (n, m, first node), including
+             * when split across the two borrowed request segments. Incomplete
+             * or inconsistent metadata does not become a plausible node zero. */
+            const sh_frame *f = &frames[0];
+            if (f->len <= SIZE_MAX - f->len2 && f->len + f->len2 >= 12) {
+                uint8_t prefix[12];
+                const size_t a = f->len < sizeof prefix ? f->len : sizeof prefix;
+                if (a) memcpy(prefix, f->payload, a);
+                if (a < sizeof prefix) memcpy(prefix + a, f->payload2, sizeof prefix - a);
+                uint32_t fields[3] = {0};
+                for (size_t j = 0; j < 3; j++)
+                    for (size_t k = 0; k < 4; k++) fields[j] |= (uint32_t)prefix[4*j+k] << (8*k);
+                const uint64_t total_payload = (uint64_t)f->len + f->len2;
+                const uint64_t header = 8 + (uint64_t)4 * fields[0];
+                const uint64_t plane_rows = (uint64_t)3 * fields[1];
+                if (fields[0] && fields[1] && header < total_payload &&
+                    (total_payload - header) % plane_rows == 0) {
+                    t->peak.nodes = fields[0]; t->peak.rows = fields[1];
+                    t->peak.first_node = fields[2]; t->peak.K = (total_payload - header) / plane_rows;
+                    t->peak.metadata_valid = 1;
+                }
+            }
+        }
         t->over_100ms += total > 100; t->over_1s += total > 1000;
     }
     return SH_OK;
