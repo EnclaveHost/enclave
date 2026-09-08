@@ -72,6 +72,7 @@ extern "C" {
 #include "shielded-pads.h"
 #include "prefix-kv.h"
 #include "prefix-kv-llama.h"
+#include "prefix-mtp.h"
 #include "anchor_gguf.h"
 #include "anchor_header_file.h"
 #include "llama-model.h"
@@ -561,6 +562,17 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const int rrc = sh_prefix_kv_snapshot_read_v2(kv, kfd, pk, g_table->whole_digest, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
         close(kfd);
         if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        /* compound container (prefix-mtp.h, 4bf0f01b): the target sequence, the MTP head's sequence and its
+         * pending row under the ONE v2 signature just verified; recognised by its magic, a plain sequence
+         * container keeps the old path (the head then starts blind at the prompt, ~half the acceptance).
+         * Proved on the host: FILE == FULL round-for-round (mtp-prefix-blind, 2026-09-08) */
+        const bool compound = snap.size >= 64 && !memcmp(snap.bytes, "ENPMTP01", 8);
+        sh_prefix_mtp_view view; sh_prefix_kv_snapshot *target = &snap;
+        if (compound) {
+            const int32_t embd = mtp ? (int32_t)anchor_mtp_n_embd(mtp) : (int32_t)llama_model_n_embd(model);
+            if (sh_prefix_mtp_open(&snap, embd, LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION, llama_vocab_n_tokens(vocab), &view, err, sizeof err)) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+            target = &view.target;
+        }
         /* token boundary (9479d7d6): the whole prefix+prompt is tokenized ONCE with the mint's flags and the
          * snapshot's signed token ids must be its exact head; the exact remainder is the suffix (a separate
          * tokenization of the suffix can merge differently at the seam); at least one suffix token, because
@@ -570,17 +582,24 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         int nfull = llama_tokenize(vocab, full_prompt.c_str(), (int)full_prompt.size(), full.data(), (int)full.size(), true, false);
         if (nfull < 0) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: tokenize failed"); return 2; }
         full.resize(nfull);
-        if (sh_prefix_kv_match_tokens(&snap, full.data(), full.size(), llama_vocab_n_tokens(vocab), err, sizeof err) != 0) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        if (sh_prefix_kv_match_tokens(target, full.data(), full.size(), llama_vocab_n_tokens(vocab), err, sizeof err) != 0) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        ntok = target->n_tokens;   /* before the loads: they may consume the borrowed views' headers */
         /* the adapter (299393ab) validates the snapshot's state body and restores it through llama's own
          * memory-state envelope, from the private bytes only; proved on the real model */
-        const int lrc = sh_prefix_kv_load_snapshot(ctx, &snap, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
-        ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
+        int lrc = sh_prefix_kv_load_snapshot(ctx, target, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
+        const char *head_note = compound ? (mtp ? "target + MTP head + pending row" : "target only; the head state is unused without MTP") : (mtp ? "target only; the head starts blind" : "target only");
+        if (lrc == 0 && compound && mtp) {
+            lrc = sh_prefix_kv_load_snapshot(anchor_mtp_ctx(mtp), &view.head, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
+            if (lrc == 0) { std::vector<float> pend(anchor_mtp_n_embd(mtp));
+                if (sh_prefix_mtp_pending(&view, pend.data(), pend.size()) || anchor_mtp_pending_import(mtp, pend.data(), pend.size())) { snprintf(err, sizeof err, "pending row import failed"); lrc = -1; } }
+        }
+        sh_prefix_kv_snapshot_free(&snap);
         if (lrc != 0) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
         if (ntok >= (uint64_t)nfull) { outf("ENGINE prefix KV REFUSED: no suffix token after the %llu-token prefix", (unsigned long long)ntok); return 2; }
         n_loaded = (int)ntok;
         prefix_suffix.assign(full.begin() + (ptrdiff_t)ntok, full.end());
         full_prompt = prefix + prompt;
-        outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);
+        outf("ENGINE prefix KV: %d tokens loaded and verified (%s): %s", n_loaded, kv, head_note);
     }
     std::vector<llama_token> toks; int n;
     if (n_loaded) { toks = prefix_suffix; n = (int)toks.size(); }
