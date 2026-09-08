@@ -388,29 +388,40 @@ static int write_all(int fd, const char *p, size_t n) {
     while (n) { ssize_t w = write(fd, p, n); if (w < 0) { if (errno == EINTR) continue; return -1; } if (w == 0) { errno = EIO; return -1; } p += w; n -= (size_t)w; }
     return 0;
 }
-static void dir_sync(const char *dir) { int d = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC); if (d >= 0) { fsync(d); close(d); } }
-/* A shipment that is durably in the store, judged with the grant's identity (seed, consumer key,
- * calibration digest, and its name against its own header): ours and intact -> the signed delivery
- * acknowledgment the platform's dealer prunes by (PAD-ACK.md); anything else -> removed, no
- * acknowledgment, the owner hears why. 1 = acknowledged, 0 = kept unjudged (no seed yet), -1 = removed. */
-static int pads_judge(const char *name, const char *fin) {
+/* The directory entry is durable only when this returns 0: an acknowledgment is never sent on a rename
+ * that could still be lost. */
+static int dir_sync(const char *dir) {
+    int d; do { d = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC); } while (d < 0 && errno == EINTR);
+    if (d < 0) return -1;
+    int rc; do { rc = fsync(d); } while (rc < 0 && errno == EINTR);
+    const int e = errno; close(d); errno = e;
+    return rc;
+}
+/* A shipment judged by the descriptor the receiver HOLDS (the file may still be hidden, or already
+ * published and prunable by name: an inode we hold cannot vanish under the check or the hash), with the
+ * grant's identity (seed, consumer key, calibration digest, its name against its own header). Ours and
+ * intact -> the signed delivery acknowledgment line is PREPARED into `ack` (the caller emits it only once
+ * the name is durable); anything else -> -1, the owner hears why and the caller removes the file.
+ * 0 = kept unjudged (no seed yet: ack empty). A hash failure is a failure, never a silent 'K'. */
+static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap) {
+    ack[0] = 0;
     ack_identity id; pthread_mutex_lock(&g_ack_mu); id = g_ack; pthread_mutex_unlock(&g_ack_mu);
     if (!id.valid) { OUT("PADS %s kept unjudged: no seed granted yet", name); return 0; }
     uint64_t i0 = 0, cnt = 0;
-    const int rc = sh_pads_shipment_check(fin, id.seed_id, g_psk, id.calib, &i0, &cnt);
+    const int rc = sh_pads_shipment_check_fd(fd, id.seed_id, g_psk, id.calib, &i0, &cnt);
     char sid[33] = ""; unsigned long long ni0 = 0, ncnt = 0;
-    if (rc != SH_OK) { unlink(fin); OUT("PADS %s REJECTED (%s): removed", name, rc == SH_ERR_IO ? "unreadable" : "not this seed, calibration or consumer, or damaged"); return -1; }
+    if (rc != SH_OK) { OUT("PADS %s REJECTED (%s): removed", name, rc == SH_ERR_IO ? "unreadable" : "not this seed, calibration or consumer, or damaged"); return -1; }
     if (sscanf(name, "%32[0-9a-f]-%llu-%llu.pads", sid, &ni0, &ncnt) != 3 || strcmp(sid, id.seed_id_hex) || ni0 != i0 || ncnt != cnt) {
-        unlink(fin); OUT("PADS %s REJECTED (name does not match its header %llu+%llu): removed", name, (unsigned long long)i0, (unsigned long long)cnt); return -1;
+        OUT("PADS %s REJECTED (name does not match its header %llu+%llu): removed", name, (unsigned long long)i0, (unsigned long long)cnt); return -1;
     }
     uint8_t sha[32]; uint64_t bytes = 0;
-    if (anchor_sha256_file(fin, sha, &bytes) != 0 || !bytes) { OUT("PADS %s: cannot hash it for the acknowledgment", name); return 0; }
+    if (anchor_sha256_fd(fd, sha, &bytes) != 0 || !bytes) { OUT("PADS %s REJECTED (cannot hash it for the acknowledgment: %s): removed", name, strerror(errno)); return -1; }
     char shah[65], i0s[24], cnts[24], nh[33], sh[129]; uint8_t nonce[16], sig[64];
     sh_pads_bin2hex(sha, 32, shah); snprintf(i0s, sizeof i0s, "%llu", (unsigned long long)i0); snprintf(cnts, sizeof cnts, "%llu", (unsigned long long)cnt);
     randombytes(nonce, 16); sh_pads_bin2hex(nonce, 16, nh);
     const char *fields[5] = { id.name, id.seed_id_hex, i0s, cnts, shah };     /* enclave-pads-ack\n<name>\n<seed_id>\n<index0>\n<count>\n<sha256>\n<nonce> */
     sh_pads_request_sign(g_tsk, "ack", fields, 5, nh, sig); sh_pads_bin2hex(sig, 64, sh);
-    OUT("PADACK %s %s %s %s %s %s", id.seed_id_hex, i0s, cnts, shah, nh, sh);
+    snprintf(ack, ackcap, "PADACK %s %s %s %s %s %s", id.seed_id_hex, i0s, cnts, shah, nh, sh);
     return 1;
 }
 static void *pads_receiver(void *arg) {
@@ -425,9 +436,18 @@ static void *pads_receiver(void *arg) {
         if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2 || strchr(name, '/') || strstr(name, "..")) { close(c); continue; }
         char tmp[700], fin[700]; snprintf(tmp, sizeof tmp, "%s/.%s.tmp", g_pads_dir, name); snprintf(fin, sizeof fin, "%s/%s", g_pads_dir, name);
         struct stat st;
-        if (stat(fin, &st) == 0 && (unsigned long long)st.st_size == bytes) {   /* have it: the owner may be retrying a lost acknowledgment */
-            if (pads_judge(name, fin) < 0) { (void)!write(c, "E", 1); close(c); continue; }
-            (void)!write(c, "H", 1); close(c); continue;
+        {   /* have it already? judged and hashed on a retained descriptor (the owner may be retrying a lost
+             * acknowledgment; the engine may prune the NAME at any moment, the inode we hold stays) */
+            int hfd; do { hfd = open(fin, O_RDONLY | O_CLOEXEC); } while (hfd < 0 && errno == EINTR);
+            if (hfd >= 0) {
+                if (fstat(hfd, &st) == 0 && (unsigned long long)st.st_size == bytes) {
+                    char ack[512]; const int j = pads_judge_fd(name, hfd, ack, sizeof ack); close(hfd);
+                    if (j < 0) { unlink(fin); (void)!write(c, "E", 1); }
+                    else { (void)!write(c, "H", 1); if (ack[0]) OUT("%s", ack); }
+                    close(c); continue;
+                }
+                close(hfd);                                       /* another size under that name: it is replaced below */
+            }
         }
         (void)!write(c, "G", 1);
         /* the encrypted store is shared with the model load and the engine's own writes; a transient
@@ -435,7 +455,7 @@ static void *pads_receiver(void *arg) {
          * cost the shipment: retry briefly, and say why when it still fails */
         int fd = -1, open_errno = 0;
         for (int attempt = 0; attempt < 20 && fd < 0; attempt++) {
-            fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            fd = open(tmp, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);   /* read access: judged and hashed through this descriptor */
             if (fd < 0) { open_errno = errno; usleep(100000); }
         }
         if (fd < 0) { struct statvfs sv; unsigned long long freeb = statvfs(g_pads_dir, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
@@ -449,13 +469,19 @@ static void *pads_receiver(void *arg) {
             got += (unsigned long long)r;
         }
         int synced = 0;
-        if (fd >= 0) { synced = fsync(fd) == 0; if (!synced && !write_errno) write_errno = errno; close(fd); }
-        if (got == bytes && synced && rename(tmp, fin) == 0) {
-            dir_sync(g_pads_dir);                                     /* the name is durable before anyone is told */
-            if (pads_judge(name, fin) < 0) { (void)!write(c, "E", 1); }
-            else { (void)!write(c, "K", 1); OUT("PADS %s %llu bytes", name, got); }
+        if (fd >= 0) { int rc; do { rc = fsync(fd); } while (rc < 0 && errno == EINTR); synced = rc == 0; if (!synced && !write_errno) write_errno = errno; }
+        char ack[512] = "";
+        if (fd >= 0 && got == bytes && synced) {
+            /* judged and hashed while still HIDDEN, through the descriptor we hold; then published; then the
+             * directory made durable; only then is anyone told and the prepared acknowledgment emitted */
+            const int j = pads_judge_fd(name, fd, ack, sizeof ack);
+            close(fd); fd = -1;
+            if (j < 0) { unlink(tmp); (void)!write(c, "E", 1); }
+            else if (rename(tmp, fin) != 0) { const int e = errno; unlink(tmp); (void)!write(c, "E", 1); OUT("PADS %s: publish failed: %s", name, strerror(e)); }
+            else if (dir_sync(g_pads_dir) != 0) { const int e = errno; unlink(fin); (void)!write(c, "E", 1); OUT("PADS %s: directory fsync failed (%s): withdrawn, not acknowledged", name, strerror(e)); }
+            else { (void)!write(c, "K", 1); OUT("PADS %s %llu bytes", name, got); if (ack[0]) OUT("%s", ack); }
         }
-        else { unlink(tmp); (void)!write(c, "E", 1);
+        else { if (fd >= 0) close(fd); unlink(tmp); (void)!write(c, "E", 1);
                OUT("PADS %s FAILED at %llu of %llu (sock fd %d, file fd %d, read %zd/%s, write %s)", name, got, bytes, c, fd,
                    last_r, last_r < 0 ? strerror(read_errno) : "eof", write_errno ? strerror(write_errno) : "ok"); }
         close(c);
