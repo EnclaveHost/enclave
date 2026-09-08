@@ -550,9 +550,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
         const uint8_t *state = nullptr; size_t slen = 0;
         if (sh_prefix_kv_snapshot_state(&snap, LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION, llama_vocab_n_tokens(vocab), &state, &slen, err, sizeof err)) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        const size_t consumed = llama_state_seq_set_data(ctx, state, slen, 0);
-        ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
-        if (consumed != slen) { outf("ENGINE prefix KV load failed (%zu of %zu state bytes consumed)", consumed, slen); return 2; }
+        /* llama_state_seq_set_data expects its own envelope (io magic + seq id) around the file body, which the
+         * snapshot body lacks; the adapter that builds it is Astra's and is proved against the real model first.
+         * Until it lands, a prefix is verified and then REFUSED rather than loaded wrongly. */
+        (void)state; (void)slen; ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
+        outf("ENGINE prefix KV REFUSED: verified (%llu tokens) but the state adapter is not in this build", (unsigned long long)ntok);
+        return 2;
         n_loaded = (int)ntok;
         full_prompt = prefix + prompt;
         outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);
