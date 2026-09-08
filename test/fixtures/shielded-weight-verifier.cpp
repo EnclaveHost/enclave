@@ -18,12 +18,12 @@ static int test_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
     (void)ctx; (void)want; *lo = 0; *hi = 8; return SH_OK;
 }
 
-static void reject_pad_before_start(sh_link *link, const char *dir) {
+static void reject_pad_between_graphs(sh_link *link, const char *dir) {
     sh_pads_group groups[2] = {};
     assert(sh_link_group_table(link, groups, 2) == 1);
     assert(groups[0].K == 32 && groups[0].u_len == 16);
     uint8_t zero[32] = {}, pk[32]; crypto_scalarmult_base(pk, zero);
-    const std::string path = std::string(dir) + "/start-integrity.pads";
+    const std::string path = std::string(dir) + "/background-integrity.pads";
     int err = 0;
     auto *w = sh_pads_writer_open(path.c_str(), zero, zero, groups, 1, 0, 1, pk, &err);
     assert(w && err == SH_OK);
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
     }
     sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest" && scenario != "source" && scenario != "start_integrity") {
+    if (scenario != "honest" && scenario != "source" && scenario != "background_integrity") {
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
@@ -192,20 +192,29 @@ int main(int argc, char **argv) {
         std::fill_n((float *)out->data, 8, -9876.0f);
         ggml_tensor *nodes[] = {out}; ggml_cgraph graph = {};
         graph.n_nodes = graph.size = 1; graph.nodes = nodes;
-        if (scenario == "start_integrity") {
-            reject_pad_before_start(s.link, argv[1]);
-            // Force the actual sh_link_start path. Its sticky SH_ERR_VERIFY
-            // must retire the backend rather than arm an ordinary retry.
-            s.dirty = true; s.link_failed = false;
+        sh_state healthy;
+        if (scenario == "background_integrity") {
+            reject_pad_between_graphs(s.link, argv[1]);
+            // No start or remote GEMM will run on this cached local path.
+            // Put the healthy card first BEFORE backend retirement is copied.
+            assert(s.verify_fail == 0 && !s.dirty && s.link_failed);
+            p.cards.insert(p.cards.begin(), &healthy);
+            p.pending["pending-must-not-be-planned"] = *weights[0];
         } else corrupt_cache_reads = true;
         assert(ggml_backend_shielded_graph_compute(nullptr, &graph) == GGML_STATUS_FAILED);
         assert(s.verify_fail == 1);
+        if (scenario == "background_integrity") {
+            assert(p.pending.size() == 1 && p.pending.count("pending-must-not-be-planned"));
+            p.pending.clear(); p.cards.erase(p.cards.begin());
+            uint64_t now_calls = 0;
+            ggml_backend_shielded_weight_cache_stats(&now_calls, nullptr);
+            assert(now_calls == cache_calls); // no cache reads even on the first retired graph
+        }
         corrupt_cache_reads = false;
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         const auto reads_after_failure = cache_calls;
         // Put a healthy card first: the process-wide gate must still notice
         // the failed card before planning or local execution on either card.
-        sh_state healthy;
         p.cards.insert(p.cards.begin(), &healthy);
         assert(ggml_backend_shielded_graph_compute(nullptr, &graph) == GGML_STATUS_FAILED);
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);

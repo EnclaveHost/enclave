@@ -1158,9 +1158,21 @@ static int sh_local_products(sh_state &s, const std::vector<int> &nodes,
     return SH_OK;
 }
 
+/* Called with the card mutex held. A refill thread can retire the C link
+ * between graphs without yet incrementing the backend's own counter. Observe
+ * it at entry, including graphs served entirely by verified local caches. */
+static bool sh_card_integrity_failed(sh_state &s) {
+    if (!s.verify_fail && s.link) {
+        uint64_t failures = 0;
+        sh_link_stats(s.link, nullptr, nullptr, &failures);
+        if (failures) s.verify_fail++;
+    }
+    return s.verify_fail != 0;
+}
+
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.verify_fail || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
+    if (sh_card_integrity_failed(s) || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     const sh_simd *simd = sh_link_simd();
 
@@ -1473,7 +1485,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
      * graph. This pool lives for the process: an integrity failure requires
      * restarting the trusted engine, not a transport reconnect or a retry of
      * llama_decode with the old contexts and secret verification vectors. */
-    for (const auto *s : p.cards) if (s->verify_fail) return GGML_STATUS_FAILED;
+    for (auto *s : p.cards) {
+        std::lock_guard<std::mutex> card_lock(s->mu);
+        if (sh_card_integrity_failed(*s)) return GGML_STATUS_FAILED;
+    }
     // Direct backend callers do not necessarily run supports_op first.
     for (int i = 0; i < graph->n_nodes; i++) {
         const auto *node = graph->nodes[i];
