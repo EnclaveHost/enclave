@@ -99,7 +99,7 @@ static void pads_receipt(const anchor_pads *p, uint64_t pads_used, uint64_t toke
     snprintf(used, sizeof used, "%llu", (unsigned long long)pads_used);
     snprintf(toks, sizeof toks, "%llu", (unsigned long long)tokens);
     const char *fields[4] = { p->name, p->seed_id_hex, used, toks };
-    if (sh_pads_request_sign(p->transport_sk, "receipt", fields, 4, nonce, sig) != SH_OK) { outf("RECEIPT not signed: transcript refused"); return; }
+    if (sh_pads_request_sign(p->transport_sk, "receipt", fields, 4, nonce, sig) != 0) { outf("RECEIPT not signed: transcript refused"); return; }
     sh_pads_bin2hex(sig, 64, sig_hex);
     outf("RECEIPT %s %s %s %s %s %s", p->name, p->seed_id_hex, used, toks, nonce, sig_hex);
 }
@@ -111,7 +111,7 @@ static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
     sh_pads_bin2hex(nb, 16, nonce);
     snprintf(wants, sizeof wants, "%llu", (unsigned long long)want);
     const char *fields[3] = { p->name, p->seed_id_hex, wants };
-    if (sh_pads_request_sign(p->transport_sk, "reserve", fields, 3, nonce, sig) != SH_OK) return -1;
+    if (sh_pads_request_sign(p->transport_sk, "reserve", fields, 3, nonce, sig) != 0) return -1;
     sh_pads_bin2hex(sig, 64, sig_hex);
     outf("PADWIN %s %s %s", wants, nonce, sig_hex);
     /* the app answers PADWIN <lo> <hi> <iat> <sig> (or PADWIN fail <why>); other lines are the app's chatter */
