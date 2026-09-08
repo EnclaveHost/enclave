@@ -223,8 +223,9 @@ public class Main extends Activity {
     static boolean ended() { return sEnded; }
     static void control(Object vm, Plan plan) {
         sEnded = false;
+        final PadDelivery.Session padSession = PadDelivery.begin();
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
-        if (pfd == null) { say("CONTROL connect failed"); return; }
+        if (pfd == null) { padSession.close(); say("CONTROL connect failed"); return; }
         say("CONTROL connected");
         if (plan.mode.equals("bridge") || plan.mode.equals("engine")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         if (plan.mode.equals("engine")) new Thread(() -> streamModel(vm, plan), "vsock-model").start();
@@ -271,7 +272,7 @@ public class Main extends Activity {
             // 4b. dealt pads: once the tunnel is bound, fetch the VM's seed through the platform's ledger
             boolean pads = false;
             if (relay != null && !padKey.isEmpty() && !plan.pads.isEmpty())
-                pads = PadsClient.bootstrap(PadsClient.httpBase(plan.relay), plan.name, out, r);
+                pads = PadsClient.bootstrap(padSession, PadsClient.httpBase(plan.relay), plan.name, out, r);
             // 4c. shared-prefix KV: the VM pins the platform's prefix key; the files follow over the pads port
             boolean prefix = false;
             if (plan.prefix.isEmpty() && !plan.prefixName.isEmpty() && plan.prefixDigest.matches("[0-9a-f]{64}") && relay != null) {
@@ -294,7 +295,7 @@ public class Main extends Activity {
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append('\n');
                 startBurners(plan.burners);
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads" + (plan.mtp > 0 ? ", MTP draft k=" + plan.mtp : "") + (pads ? ", dealt pads from " + plan.pads : ""));
-                if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(vm, bank), "vsock-pads").start(); }
+                if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(padSession, vm, bank), "vsock-pads").start(); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
             }
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
@@ -305,14 +306,15 @@ public class Main extends Activity {
             int n = 0;
             while ((line = r.readLine()) != null) {
                 say("VSOCK " + line); n++;
-                if (line.startsWith("PADWIN ")) PadsClient.onWindow(line, plan.name, out);   // the engine asks for a ledger window
-                if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(line);                 // the engine's signed usage
+                if (line.startsWith("PADWIN ")) PadsClient.onWindow(padSession, line, plan.name, out);   // the engine asks for a ledger window
+                if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.equals("END")) break;
             }
             say("CONTROL closed after " + n + " lines");
         } catch (Exception e) {
             say("CONTROL error " + e);
         } finally {
+            padSession.close();
             sEnded = true;
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();

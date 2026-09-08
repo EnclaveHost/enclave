@@ -20,7 +20,6 @@ import org.json.JSONObject;
 
 final class PadsClient {
     static final int PADS_PORT = 7780;
-    static volatile String base = "", seedId = "";
 
     /** The relay's HTTP base from its fleet-tunnel websocket URL. */
     static String httpBase(String wsUrl) {
@@ -28,8 +27,11 @@ final class PadsClient {
         int p = u.indexOf("/v1/"); return p > 0 ? u.substring(0, p) : u;
     }
 
-    static JSONObject http(String method, String url, JSONObject body) throws Exception {
+    static JSONObject http(PadDelivery.Session session, String method, String url, JSONObject body) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        java.io.Closeable connection = c::disconnect;
+        if (!session.track(connection)) throw new java.io.IOException("pad session ended");
+        try {
         c.setConnectTimeout(20000); c.setReadTimeout(30000); c.setRequestMethod(method);
         if (body != null) {
             c.setDoOutput(true); c.setRequestProperty("Content-Type", "application/json");
@@ -41,6 +43,7 @@ final class PadsClient {
         JSONObject j = new JSONObject(text.isEmpty() ? "{}" : text);
         j.put("_status", code);
         return j;
+        } finally { session.untrack(connection); c.disconnect(); }
     }
 
     static String nonce() { byte[] n = new byte[16]; new SecureRandom().nextBytes(n); return RelayAttach.hex(n); }
@@ -57,10 +60,10 @@ final class PadsClient {
 
     /** After the tunnel is bound: the ledger key to the VM, the VM's signed seed request to the
      *  platform, the boxed seed back to the VM. True when the VM confirmed it opened the seed. */
-    static boolean bootstrap(String httpBase, String name, OutputStream out, BufferedReader r) {
-        base = httpBase;
+    static boolean bootstrap(PadDelivery.Session session, String httpBase, String name, OutputStream out, BufferedReader r) {
+        final String base = httpBase;
         try {
-            JSONObject key = http("GET", base + "/v1/pads/key", null);
+            JSONObject key = http(session, "GET", base + "/v1/pads/key", null);
             if (key.optInt("_status") != 200) { Main.say("PADS no ledger key: " + key); return false; }
             out.write(("PADLEDGER " + key.getString("key") + "\n").getBytes()); out.flush();
             String l = until(r, "PADLEDGER ");
@@ -73,15 +76,16 @@ final class PadsClient {
             if (l != null && !l.startsWith("PADREQ2 fail")) {
                 String[] q = l.split(" ");
                 if (q.length != 6) { Main.say("PADS malformed request from the VM: " + l); return false; }
-                JSONObject res = http("POST", base + "/v1/pads/seed", new JSONObject().put("name", q[1]).put("model_digest", q[2]).put("calib_digest", q[3]).put("nonce", q[4]).put("sig", q[5]));
+                JSONObject res = http(session, "POST", base + "/v1/pads/seed", new JSONObject().put("name", q[1]).put("model_digest", q[2]).put("calib_digest", q[3]).put("nonce", q[4]).put("sig", q[5]));
                 if (res.optInt("_status") != 200) { Main.say("PADS seed grant refused: " + res); return false; }
                 if (res.optInt("grant_version", 0) != 1 || !res.has("grant_sig")) { Main.say("PADS the platform returned no signed grant (legacy relay?): " + res); return false; }
-                seedId = res.getString("seed_id");
+                String seedId = res.getString("seed_id");
                 out.write(("PADGRANT 1 " + seedId + " " + res.getLong("epoch") + " " + res.getString("epk") + " " + res.getString("nonce") + " " + res.getString("box") + " " + res.getString("grant_sig") + "\n").getBytes());
                 out.flush();
                 l = until(r, "PADGRANT ");
                 boolean ok = l != null && l.startsWith("PADGRANT ok");
                 Main.say("PADS signed seed grant " + (ok ? "accepted by the VM: " + seedId + (l.contains("UNPINNED") ? " (UNPINNED ledger key: dev build)" : "") : "REJECTED by the VM: " + l));
+                if (ok) session.bind(base, seedId);
                 return ok;
             }
             Main.say("PADS v2 request unavailable (" + l + "); trying the legacy unsigned seed (a pinned build refuses it)");
@@ -89,24 +93,26 @@ final class PadsClient {
             out.write(("PADSIGN seed " + n + " " + name + "\n").getBytes()); out.flush();
             l = until(r, "PADSIG ");
             if (l == null || l.endsWith("fail")) { Main.say("PADS the VM did not sign the seed request"); return false; }
-            JSONObject res = http("POST", base + "/v1/pads/seed", new JSONObject().put("name", name).put("nonce", n).put("sig", l.substring(7).trim()));
+            JSONObject res = http(session, "POST", base + "/v1/pads/seed", new JSONObject().put("name", name).put("nonce", n).put("sig", l.substring(7).trim()));
             if (res.optInt("_status") != 200) { Main.say("PADS seed refused: " + res); return false; }
-            seedId = res.getString("seed_id");
+            String seedId = res.getString("seed_id");
             out.write(("PADSEED " + name + " " + seedId + " " + res.getInt("epoch") + " " + res.getString("epk") + " " + res.getString("nonce") + " " + res.getString("box") + "\n").getBytes());
             out.flush();
             l = until(r, "PADSEED ");
             boolean ok = l != null && l.startsWith("PADSEED ok");
             Main.say("PADS seed " + (ok ? "installed in the VM (legacy, unsigned): " + seedId : "NOT installed: " + l));
+            if (ok) session.bind(base, seedId);
             return ok;
         } catch (Exception e) { Main.say("PADS bootstrap error " + e); return false; }
     }
 
     /** A window request from the engine (PADWIN want nonce sig): relay it, hand back the signed window. */
-    static void onWindow(String line, String name, OutputStream out) {
+    static void onWindow(PadDelivery.Session session, String line, String name, OutputStream out) {
+        final String base = session.base(), seedId = session.seed();
         try {
             String[] f = line.trim().split(" ");
             if (f.length != 4) { out.write("PADWIN fail malformed\n".getBytes()); out.flush(); return; }
-            JSONObject res = http("POST", base + "/v1/pads/reserve", new JSONObject().put("name", name).put("seed_id", seedId)
+            JSONObject res = http(session, "POST", base + "/v1/pads/reserve", new JSONObject().put("name", name).put("seed_id", seedId)
                 .put("want", Long.parseLong(f[1])).put("nonce", f[2]).put("sig", f[3]));
             if (res.optInt("_status") == 200)
                 out.write(("PADWIN " + res.getLong("lo") + " " + res.getLong("hi") + " " + res.getLong("iat") + " " + res.getString("sig") + (res.has("sig_v2") ? " " + res.getString("sig_v2") : "") + "\n").getBytes());   // sig_v2: over the VM's request nonce (PAD-BOOTSTRAP.md)
@@ -118,11 +124,12 @@ final class PadsClient {
 
     /** The engine's usage receipt (RECEIPT name seed_id pads tokens nonce sig): relay it as signed.
      *  Nothing to hand back; the platform's totals are what billing reads. */
-    static void onReceipt(String line) {
+    static void onReceipt(PadDelivery.Session session, String line) {
+        final String base = session.base();
         try {
             String[] f = line.trim().split(" ");
             if (f.length != 7) { Main.say("PADS receipt malformed"); return; }
-            JSONObject res = http("POST", base + "/v1/pads/receipt", new JSONObject().put("name", f[1]).put("seed_id", f[2])
+            JSONObject res = http(session, "POST", base + "/v1/pads/receipt", new JSONObject().put("name", f[1]).put("seed_id", f[2])
                 .put("pads", Long.parseLong(f[3])).put("tokens", Long.parseLong(f[4])).put("nonce", f[5]).put("sig", f[6]));
             Main.say("PADS receipt " + (res.optInt("_status") == 200 ? "recorded: " + f[3] + " pads, " + f[4] + " tokens (seed total " + res.optLong("pads") + "/" + res.optLong("tokens") + ", runs " + res.optLong("runs") + ")" : "refused " + res));
         } catch (Exception e) { Main.say("PADS receipt error " + e); }
@@ -130,46 +137,50 @@ final class PadsClient {
 
     /** Prefetch: the platform's store lists this seed's shipments; download the ones this phone
      *  does not hold yet (whole files, tmp-then-rename, so streamBank never sees a partial). */
-    static void syncBank(java.io.File dir, String seedIdNow) {
+    static void syncBank(PadDelivery.Session session, java.io.File dir) {
+        if (!session.ready()) return;
+        final String base = session.base(), seed = session.seed();
         try {
             dir.mkdirs();
-            JSONObject list = http("GET", base + "/v1/pads/shipments?seed_id=" + seedIdNow, null);
+            JSONObject list = http(session, "GET", base + "/v1/pads/shipments?seed_id=" + seed, null);
             org.json.JSONArray ships = list.optJSONArray("shipments");
-            if (ships == null) return;
-            /* spent rows never come back: drop local shipments wholly below the platform's mark */
-            JSONObject led = http("GET", base + "/v1/pads/ledger?seed_id=" + seedIdNow, null);
+            if (ships == null || list.optInt("_status") != 200) return;
+            JSONObject led = http(session, "GET", base + "/v1/pads/ledger?seed_id=" + seed, null);
             long mark = led.optInt("_status") == 200 ? led.optLong("mark", 0) : 0;
             java.io.File[] have = dir.listFiles((d, n) -> n.endsWith(".pads"));
             if (have != null) for (java.io.File f : have) {
-                String[] parts = f.getName().substring(0, f.getName().length() - 5).split("-");
-                boolean foreign = parts.length != 3 || !parts[0].equals(seedIdNow);
-                // "spent" by the ledger mark = RESERVED by the engine, which runs ahead of consumption: a shipment
-                // the VM has not received yet must stay until it has been streamed (the VM prunes its own copy)
-                boolean spent = !foreign && mark > 0 && Long.parseLong(parts[1]) + Long.parseLong(parts[2]) <= mark && streamed.contains(f.getName());
-                if ((foreign || spent) && f.delete()) { dropped.add(f.getName()); Main.say("PADS dropped " + f.getName() + (foreign ? " (another seed)" : " (below mark " + mark + ")")); }
+                if (session.prune(f, mark)) Main.say("PADS dropped " + f.getName() + " (delivered, below mark " + mark + ")");
+                else if (session.pruneForeign(f)) Main.say("PADS dropped " + f.getName() + " (another seed)");
             }
-            // fetch in index order: the relay lists shipments in no particular order and each is 117 MiB,
-            // so an unordered pass can pull "-448-64" before "-0-64" while the engine waits on index 0
+            // Index order prevents a later 117 MiB file from blocking index zero.
             java.util.List<JSONObject> order = new java.util.ArrayList<>();
             for (int i = 0; i < ships.length(); i++) order.add(ships.getJSONObject(i));
-            order.sort((x, y) -> Long.compare(indexOf(x.optString("name", "")), indexOf(y.optString("name", ""))));
+            order.sort((x, y) -> Long.compare(PadDelivery.indexOf(x.optString("name", "")), PadDelivery.indexOf(y.optString("name", ""))));
             for (JSONObject s : order) {
-                java.io.File f = new java.io.File(dir, s.getString("name"));
-                if (f.exists() && f.length() == s.getLong("bytes")) continue;
-                if (dropped.contains(s.getString("name"))) continue;                       // spent here already; the relay still lists it
-                String[] np = s.getString("name").replace(".pads", "").split("-");
-                if (np.length == 3 && mark > 0 && Long.parseLong(np[1]) + Long.parseLong(np[2]) <= mark) continue;   // wholly below the mark
-                java.io.File tmp = new java.io.File(dir, "." + s.getString("name") + ".part");
-                HttpURLConnection c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seedIdNow + "/" + s.getString("name")).openConnection();
-                c.setConnectTimeout(20000); c.setReadTimeout(120000);
-                if (c.getResponseCode() != 200) { Main.say("PADS fetch " + s.getString("name") + " http " + c.getResponseCode()); continue; }
-                try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
-                    byte[] buf = new byte[1 << 20]; int n; while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                }
-                if (tmp.length() == s.getLong("bytes") && tmp.renameTo(f)) Main.say("PADS fetched " + f.getName() + " (" + (f.length() >> 20) + " MiB)");
-                else { tmp.delete(); Main.say("PADS fetch of " + s.getString("name") + " incomplete"); }
+                if (!session.active()) return;
+                String name = s.getString("name");
+                // A reserved range can still be missing from the VM. Only its H/K acknowledgment
+                // can suppress a fetch; a remote ledger mark cannot establish delivery.
+                if (!session.shouldFetch(name)) continue;
+                long bytes = s.getLong("bytes");
+                if (bytes <= 0) continue;
+                java.io.File f = new java.io.File(dir, name);
+                if (f.exists() && f.length() == bytes) continue;
+                java.io.File tmp = java.io.File.createTempFile("." + name + ".", ".part", dir);
+                HttpURLConnection c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seed + "/" + name).openConnection();
+                java.io.Closeable connection = c::disconnect;
+                try {
+                    if (!session.track(connection)) return;
+                    c.setConnectTimeout(20000); c.setReadTimeout(120000);
+                    int code = c.getResponseCode();
+                    if (code != 200) { Main.say("PADS fetch " + name + " http " + code); continue; }
+                    try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
+                        session.copy(in, out, bytes);
+                    }
+                    if (session.publish(tmp, f)) Main.say("PADS fetched " + f.getName() + " (" + (f.length() >> 20) + " MiB)");
+                } finally { session.untrack(connection); c.disconnect(); tmp.delete(); }
             }
-        } catch (Exception e) { Main.say("PADS sync error " + e); }
+        } catch (Exception e) { if (session.active()) Main.say("PADS sync error " + e); }
     }
 
     /** The platform's shared-prefix artifacts (prefix-kv.h) for (model digest, name): prefix.kv,
@@ -222,53 +233,48 @@ final class PadsClient {
         }
     }
 
-    /** The bank on this phone (P3 fetches it from the operator's box): every .pads file in `dir`,
-     *  streamed into the VM one connection each. Files already streamed are skipped by name. */
-    /** <seed>-<index0>-<count>.pads -> index0 (Long.MAX_VALUE when the name does not parse). */
-    static long indexOf(String name) {
-        try { String[] p = name.substring(0, name.length() - 5).split("-"); return Long.parseLong(p[p.length - 2]); } catch (Exception e) { return Long.MAX_VALUE; }
-    }
-    static final java.util.Set<String> dropped = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
-    static final java.util.Set<String> streamed = java.util.Collections.synchronizedSet(new java.util.HashSet<>());   // accepted by the VM
-    /** The fetcher runs on its own thread: a 117 MiB download must never sit between two shipments
-     *  waiting to be streamed into the VM (a 16-row round spends a shipment in ~3 s). */
-    static void fetchLoop(java.io.File dir) {
-        for (int round = 0; round < 3600 && !Main.ended(); round++) {
-            if (!base.isEmpty() && !seedId.isEmpty()) syncBank(dir, seedId);
+    /** Fetch and stream independently, with immutable run ownership and per-run acknowledgments. */
+    static void fetchLoop(PadDelivery.Session session, java.io.File dir) {
+        for (int round = 0; round < 3600 && session.active() && !Thread.currentThread().isInterrupted(); round++) {
+            syncBank(session, dir);
             try { Thread.sleep(2000); } catch (InterruptedException e) { return; }
         }
     }
-    static void streamBank(Object vm, java.io.File dir) {
-        java.util.Set<String> done = new java.util.HashSet<>();
-        new Thread(() -> fetchLoop(dir), "pads-fetch").start();
-        for (int round = 0; round < 3600 && !Main.ended(); round++) {
-            final String mine = seedId.isEmpty() ? null : seedId + "-";
-            java.io.File[] files = mine == null ? null : dir.listFiles((d, n) -> n.endsWith(".pads") && n.startsWith(mine));   // this seed only
-            if (files != null) {
-                // by first index, not by name: "…-128-64" sorts before "…-64-64" as a string, and the engine
-                // starves at index 64 while the store fills with the later shipment (seen with 4 in flight)
-                java.util.Arrays.sort(files, (x, y) -> Long.compare(indexOf(x.getName()), indexOf(y.getName())));
-                for (java.io.File f : files) {
-                    if (done.contains(f.getName())) continue;
-                    ParcelFileDescriptor pfd = Main.connect(vm, PADS_PORT, 50);
-                    if (pfd == null) { Main.say("PADS connect failed"); return; }
-                    try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new java.io.FileInputStream(f)) {
-                        out.write(("PADS " + f.getName() + " " + f.length() + "\n").getBytes()); out.flush();
-                        java.io.FileInputStream ackIn = new java.io.FileInputStream(pfd.getFileDescriptor());
-                        int go = ackIn.read();
-                        if (go == 'H') { done.add(f.getName()); streamed.add(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
-                        if (go != 'G') { Main.say("PADS " + f.getName() + " VM refused the header"); continue; }
-                        byte[] buf = new byte[1 << 20]; int n; long sent = 0;
-                        while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); sent += n; }
-                        out.flush();
-                        int ack = ackIn.read();
-                        Main.say("PADS " + f.getName() + " " + (sent >> 20) + " MiB " + (ack == 'K' ? "accepted" : "REFUSED"));
-                        if (ack == 'K') { done.add(f.getName()); streamed.add(f.getName()); }
-                    } catch (Exception e) { Main.say("PADS stream error " + e); }
-                    finally { try { pfd.close(); } catch (Exception ignored) { } }
+    static void streamBank(PadDelivery.Session session, Object vm, java.io.File dir) {
+        Thread fetcher = new Thread(() -> fetchLoop(session, dir), "pads-fetch");
+        java.io.Closeable cancelFetch = fetcher::interrupt;
+        try {
+            if (!session.ready() || !session.track(cancelFetch)) return;
+            fetcher.start();
+            for (int round = 0; round < 3600 && session.active(); round++) {
+                java.io.File[] files = dir.listFiles((d, n) -> session.belongs(n));
+                if (files != null) {
+                    java.util.Arrays.sort(files, (x, y) -> Long.compare(PadDelivery.indexOf(x.getName()), PadDelivery.indexOf(y.getName())));
+                    for (java.io.File f : files) {
+                        if (!session.active()) return;
+                        if (session.accepted(f.getName())) continue;
+                        ParcelFileDescriptor pfd = Main.connect(vm, PADS_PORT, 50);
+                        if (pfd == null) { Main.say("PADS connect failed"); return; }
+                        try {
+                            if (!session.track(pfd)) return;
+                            try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new java.io.FileInputStream(f)) {
+                                out.write(("PADS " + f.getName() + " " + f.length() + "\n").getBytes()); out.flush();
+                                java.io.FileInputStream ackIn = new java.io.FileInputStream(pfd.getFileDescriptor());
+                                int go = ackIn.read();
+                                if (go == 'H') { session.accept(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
+                                if (go != 'G') { Main.say("PADS " + f.getName() + " VM refused the header"); continue; }
+                                session.copy(in, out, f.length()); out.flush();
+                                int ack = ackIn.read();
+                                Main.say("PADS " + f.getName() + " " + (f.length() >> 20) + " MiB " + (ack == 'K' ? "accepted" : "REFUSED"));
+                                if (ack == 'K') session.accept(f.getName());
+                            }
+                        } catch (Exception e) { if (session.active()) Main.say("PADS stream error " + e); }
+                        finally { session.untrack(pfd); try { pfd.close(); } catch (Exception ignored) { } }
+                    }
                 }
+                try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
             }
-            try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
-        }
+        } catch (Exception e) { if (session.active()) Main.say("PADS bank error " + e); }
+        finally { session.untrack(cancelFetch); fetcher.interrupt(); }
     }
 }
