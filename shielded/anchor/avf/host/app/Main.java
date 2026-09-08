@@ -74,6 +74,7 @@ public class Main extends Activity {
         int fresh = 0;                       // --ei fresh 1: delete the VM instance first (empty encrypted storage = a clean first boot)
         String vmName = "anchor";            // --es vmname: which VM instance (its own encrypted store) this run uses; [a-z0-9_-], 1-32 chars
         boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
+        boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
@@ -81,6 +82,7 @@ public class Main extends Activity {
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
+            p.nativeBridge = i.getBooleanExtra("nativebridge", false);
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
             p.debug = i.getIntExtra("debug", p.debug); p.memMib = i.getIntExtra("mem", (int) p.memMib);
             if (i.getStringExtra("worker") != null) p.worker = i.getStringExtra("worker");
@@ -358,7 +360,7 @@ public class Main extends Activity {
             say("CONTROL error " + e);
         } finally {
             padSession.close();
-            sEnded = true;
+            sEnded = true; cancelNativeBridge();
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
         }
@@ -468,6 +470,17 @@ public class Main extends Activity {
                 s.setTcpNoDelay(true);
                 final int id = conn;
                 say("BRIDGE #" + id + " guest<->" + plan.worker);
+                if (plan.nativeBridge) {
+                    /* one native thread, bounded buffers, no per-chunk JNI or Java-heap copies; Java still owns
+                     * every descriptor and closes them after the run; sEnded cancels through the socketpair */
+                    ParcelFileDescriptor[] cancel = ParcelFileDescriptor.createSocketPair();
+                    ParcelFileDescriptor spfd = ParcelFileDescriptor.fromSocket(s);
+                    sBridgeCancel = cancel[1];
+                    long[] st = new long[6]; int rc;
+                    try { if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority); rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, st); }
+                    finally { sBridgeCancel = null; try { spfd.close(); } catch (Exception ignored) { } try { cancel[0].close(); } catch (Exception ignored) { } try { cancel[1].close(); } catch (Exception ignored) { } try { pfd.close(); } catch (Exception ignored) { } }
+                    say("BRIDGE #" + id + " native closed rc=" + rc + " up=" + st[0] + " down=" + st[1] + " bytes, reads=" + st[2] + " writes=" + st[3] + " polls=" + st[4] + " max_read=" + st[5]);
+                } else {
                 InputStream gi = new FileInputStream(pfd.getFileDescriptor()); OutputStream go = new FileOutputStream(pfd.getFileDescriptor());
                 InputStream wi = s.getInputStream(); OutputStream wo = s.getOutputStream();
                 Thread up = new Thread(() -> pipe(gi, wo, "up"), "bridge-up"); up.start();
@@ -476,6 +489,7 @@ public class Main extends Activity {
                 try { pfd.close(); } catch (Exception ignored) { }
                 up.join();
                 say("BRIDGE #" + id + " closed, down=" + down[0] + " bytes");
+                }
             } catch (Exception e) {
                 say("BRIDGE error " + e);
                 try { pfd.close(); } catch (Exception ignored) { }
@@ -499,6 +513,9 @@ public class Main extends Activity {
             t.setDaemon(true); t.start();
         }
     }
+    /* the native bridge's cancel end (--ez nativebridge true): ending the run writes one byte to it */
+    static volatile ParcelFileDescriptor sBridgeCancel = null;
+    static void cancelNativeBridge() { ParcelFileDescriptor c = sBridgeCancel; if (c == null) return; try { new FileOutputStream(c.getFileDescriptor()).write(1); } catch (Exception ignored) { } }
     static volatile long paceBytesPerSec = 0;   // > 0: cap the guest->worker pump (the weight upload) to this rate; bursts up to 2 MB pass
     static volatile int pumpPriority = 0;   // ANCHOR_PUMP_PRIO via --ei pumpprio: android.os.Process priority for the pump threads (0 = leave)
     static long pipe(InputStream in, OutputStream out, String dir) {
