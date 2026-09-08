@@ -15,10 +15,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
+import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
 import fs from "node:fs";
 import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
 
@@ -497,18 +498,24 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
   const dir = tmpdir("avf-tunnel-");
   const ca = makeCa(dir);
   const policy = { codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")] };
-  const h = await hubServer({ attest: { avf: { ...policy, rootPins: [ca.rootPin] } } });
+  const h = await hubServer({ attest: { avf: { ...policy, padCodeHashes: [CODE.toString("hex")], rootPins: [ca.rootPin] } } });
+  const hLegacy = await hubServer({ attest: { avf: { ...policy, rootPins: [ca.rootPin] } } });
   const hStrict = await hubServer({ attest: { avf: policy } });        // the REAL Google pins: our synthetic root must be refused
   const hSnp = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
-  async function avfAttach(hub, name, { mutate = (ev) => ev, code = CODE } = {}) {
+  const transport = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+  const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+  async function avfAttach(hub, name, { mutate = (ev) => ev, code = CODE,
+                                      format = "android-avf-pvm/v1", mutateRad = (rad) => rad,
+                                      stale = false } = {}) {
     const r = await dial(hub.url, { "x-metal-name": name, "x-metal-attest": "1" });
     if (r.state !== "open") return { state: r.state };
     await settle();
     const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
-    const bound = Buffer.concat([SPKI, nonce]);
+    const signedNonce = stale ? Buffer.alloc(32, 9) : nonce;
+    const bound = format === AVF_PAD_FORMAT ? avfPadBinding(transport, padKey, signedNonce) : Buffer.concat([transport, signedNonce]);
     const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code }) });
     const ev = mutate({ chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") });
-    r.ws.send(JSON.stringify({ t: "attest", rad: { format: "android-avf-pvm/v1", body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: SPKI.toString("base64") } }));
+    r.ws.send(JSON.stringify({ t: "attest", rad: mutateRad({ format, body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64"), padKey }) }));
     const res = await waitResult(r.frames);
     return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, ws: r.ws };
   }
@@ -520,6 +527,7 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
     assert.ok(row, "the phone is a tunnel origin now");
     assert.equal(row.mode, "avf", "the badge path reads mode avf, not snp");
     assert.equal(row.measurement, CODE.toString("hex"));
+    assert.equal(h.hub.info("pixel-1").padKey, "", "v1 cannot authenticate a pad recipient, even when it supplies one");
     try { good.ws.close(); } catch {}
 
     const wrongRoot = await avfAttach(hStrict, "pixel-2");
@@ -530,5 +538,37 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
     assert.equal(unsigned.ok, false); assert.match(unsigned.reason, /signature/);
     const off = await avfAttach(hSnp, "pixel-5");
     assert.equal(off.ok, false); assert.match(off.reason, /not enabled/);
-  } finally { await h.close(); await hStrict.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+
+    const v2 = await avfAttach(h, "pixel-v2", { format: AVF_PAD_FORMAT });
+    assert.equal(v2.ok, true, v2.reason);
+    assert.equal(h.hub.info("pixel-v2").padKey, padKey);
+    assert.equal(h.hub.info("pixel-v2").spki, transport.toString("base64"));
+    v2.ws.close();
+    const tamper = [
+      ["pad", (rad) => ({ ...rad, padKey: "31".repeat(32) })],
+      ["transport", (rad) => ({ ...rad, transportKey: Buffer.concat([transport.subarray(0, 12), Buffer.alloc(32, 7)]).toString("base64") })],
+      ["downgrade", (rad) => ({ ...rad, format: "android-avf-pvm/v1" })],
+      ["missing-pad", (rad) => ({ ...rad, padKey: undefined })],
+      ["short-pad", (rad) => ({ ...rad, padKey: "31".repeat(31) })],
+      ["nonhex-pad", (rad) => ({ ...rad, padKey: "zz".repeat(32) })],
+      ["unknown-format", (rad) => ({ ...rad, format: "android-avf-pvm/v3" })],
+      ["format-suffix", (rad) => ({ ...rad, format: "android-avf-pvm/v2junk" })],
+      ["bad-spki", (rad) => ({ ...rad, transportKey: SPKI.toString("base64") })],
+    ];
+    for (const [name, mutateRad] of tamper) {
+      const bad = await avfAttach(h, `pixel-${name}`, { format: AVF_PAD_FORMAT, mutateRad });
+      assert.equal(bad.ok, false, `${name}: ${bad.reason}`);
+      assert.equal(h.hub.info(`pixel-${name}`), null, `${name} did not bind a tunnel`);
+    }
+    const stale = await avfAttach(h, "pixel-stale", { format: AVF_PAD_FORMAT, stale: true });
+    assert.equal(stale.ok, false, "the attested transcript cannot be replayed under a fresh relay nonce");
+    const upgraded = await avfAttach(h, "pixel-upgrade", { mutateRad: (rad) => ({ ...rad, format: AVF_PAD_FORMAT }) });
+    assert.equal(upgraded.ok, false, "v1 evidence cannot masquerade as v2");
+    const oldPolicy = await avfAttach(hLegacy, "pixel-old-policy", { format: AVF_PAD_FORMAT });
+    assert.equal(oldPolicy.ok, false, "general legacy codeHashes must not admit arbitrary-signing payloads for pads");
+    assert.match(oldPolicy.reason, /v2 pad attach is not enabled/);
+    const wrongV2Code = await avfAttach(h, "pixel-v2-other-code", { format: AVF_PAD_FORMAT, code: createHash("sha256").update("old arbitrary signing apk").digest() });
+    assert.equal(wrongV2Code.ok, false);
+    assert.match(wrongV2Code.reason, /allowlisted codeHash/);
+  } finally { await h.close(); await hLegacy.close(); await hStrict.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
