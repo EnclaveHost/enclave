@@ -26,6 +26,7 @@ public final class RelayAttach {
     final String url, name; final byte[] spki;
     Ws ws; byte[] nonce, bound; String challengeHex;
     String padKey = "";                       // the VM's X25519 pad key (PADKEY), presented with the attestation
+    static final String AVF_PAD_FORMAT = "android-avf-pvm/v2", AVF_PAD_DOMAIN = "enclave-avf-pad-bind-v1\n";
 
     RelayAttach(String url, String name, byte[] spki) { this.url = url; this.name = name; this.spki = spki; }
 
@@ -41,7 +42,18 @@ public final class RelayAttach {
         while (ch == null && (f = ws.receive()) != null) { JSONObject o = new JSONObject(f); if ("challenge".equals(o.optString("t"))) ch = o; }
         if (ch == null) throw new Exception("relay closed before sending a challenge");
         nonce = Base64.getDecoder().decode(ch.getString("nonce"));
-        bound = new byte[spki.length + nonce.length]; System.arraycopy(spki, 0, bound, 0, spki.length); System.arraycopy(nonce, 0, bound, spki.length, nonce.length);
+        // android-avf-pvm/v2 (PAD-BOOTSTRAP.md): the attested key signs the whole pad-binding transcript
+        //   "enclave-avf-pad-bind-v1\n" || Ed25519 SPKI (44) || X25519 pad key (32) || relay nonce (32)
+        // and the certificate challenge is sha256 of it. The VM rebuilds this from ITS OWN keys and
+        // refuses anything else, so this app cannot have it attest a key it does not hold.
+        if (padKey.length() != 64) throw new Exception("no pad key from the VM: cannot build the v2 binding");
+        byte[] domain = AVF_PAD_DOMAIN.getBytes("US-ASCII"), pad = unhex(padKey);
+        bound = new byte[domain.length + spki.length + pad.length + nonce.length];
+        int off = 0;
+        System.arraycopy(domain, 0, bound, off, domain.length); off += domain.length;
+        System.arraycopy(spki, 0, bound, off, spki.length); off += spki.length;
+        System.arraycopy(pad, 0, bound, off, pad.length); off += pad.length;
+        System.arraycopy(nonce, 0, bound, off, nonce.length);
         challengeHex = hex(sha256(bound));
         Main.say("RELAY " + url + " as " + name + ": nonce=" + hex(nonce).substring(0, 16) + "… challenge=" + challengeHex.substring(0, 16) + "…");
         return challengeHex;
@@ -53,7 +65,7 @@ public final class RelayAttach {
         for (TreeMap<Integer, String> chunks : certs.values()) chain.put(b64(unhex(String.join("", chunks.values()))));
         JSONObject ev = new JSONObject().put("chain", chain);
         if (!sig.isEmpty()) ev.put("signature", b64(unhex(String.join("", sig.values()))));
-        JSONObject rad = new JSONObject().put("format", "android-avf-pvm/v1").put("body", b64(ev.toString().getBytes("UTF-8")))
+        JSONObject rad = new JSONObject().put("format", AVF_PAD_FORMAT).put("body", b64(ev.toString().getBytes("UTF-8")))
             .put("transportKey", b64(spki)).put("transportKeyFp", hex(sha256(spki))).put("name", name);
         if (!padKey.isEmpty()) rad.put("padKey", padKey);
         ws.sendText(new JSONObject().put("t", "attest").put("rad", rad).toString());
