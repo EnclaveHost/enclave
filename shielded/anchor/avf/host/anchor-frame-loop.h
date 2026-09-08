@@ -18,7 +18,8 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef struct { double p50_us, p90_us, min_us; int iters; } anchor_frame_stats;
+enum { AFP_NONE = 0, AFP_WRITE_LEN, AFP_WRITE_PAYLOAD, AFP_READ_LEN, AFP_READ_PAYLOAD };
+typedef struct { double p50_us, p90_us, min_us; int iters; int fail_phase, fail_iter; unsigned long long fail_moved, fail_total; } anchor_frame_stats;
 enum { AFL_OK = 0, AFL_IO = -1, AFL_TIMEOUT = -2, AFL_LENGTH = -3, AFL_CONTENT = -4, AFL_SETUP = -5, AFL_RANGE = -6 };
 
 static inline int64_t afl_now_ms(void) { struct timespec t; if (clock_gettime(CLOCK_MONOTONIC, &t)) return -1; return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000; }
@@ -28,27 +29,29 @@ static inline void afl_restore(int fd, int saved) { if (saved >= 0) (void)fcntl(
 /* move exactly n bytes (writing!=0 to send, else receive) before the absolute monotonic `deadline` (ms);
  * partial transfers and EINTR loop, EAGAIN waits in poll with the remaining time, a passed deadline is
  * AFL_TIMEOUT, any other error AFL_IO. Bounds a blocked WRITE, not only a blocked read. */
-static inline int afl_xfer(int fd, uint8_t *p, size_t n, int writing, int64_t deadline) {
+static inline int afl_xfer(int fd, uint8_t *p, size_t n, int writing, int64_t deadline, size_t *moved) {
     size_t off = 0;
+    int rc = AFL_OK;
     while (off < n) {
-        const int64_t now = afl_now_ms(); if (now < 0) return AFL_IO;
-        if (now >= deadline) return AFL_TIMEOUT;
+        const int64_t now = afl_now_ms(); if (now < 0) { rc = AFL_IO; break; }
+        if (now >= deadline) { rc = AFL_TIMEOUT; break; }
         ssize_t r = writing ? send(fd, p + off, n - off, MSG_NOSIGNAL) : read(fd, p + off, n - off);   /* MSG_NOSIGNAL: a closed peer is EPIPE, never a signal */
         if (r > 0) { off += (size_t)r; continue; }
-        if (r == 0) return writing ? AFL_IO : AFL_IO;   /* peer closed mid-frame */
+        if (r == 0) { rc = AFL_IO; break; }   /* peer closed mid-frame */
         if (errno == EINTR) continue;
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             struct pollfd pfd = { fd, (short)(writing ? POLLOUT : POLLIN), 0 };
-            const int64_t left = deadline - afl_now_ms(); if (left <= 0) return AFL_TIMEOUT;
+            const int64_t left = deadline - afl_now_ms(); if (left <= 0) { rc = AFL_TIMEOUT; break; }
             const int pr = poll(&pfd, 1, left > 60000 ? 60000 : (int)left);
-            if (pr < 0) { if (errno == EINTR) continue; return AFL_IO; }
+            if (pr < 0) { if (errno == EINTR) continue; rc = AFL_IO; break; }
             if (pr == 0) continue;   /* re-check the deadline at the top */
-            if (pfd.revents & POLLNVAL) return AFL_IO;
+            if (pfd.revents & POLLNVAL) { rc = AFL_IO; break; }
             continue;
         }
-        return AFL_IO;
+        rc = AFL_IO; break;
     }
-    return AFL_OK;
+    if (moved) *moved = off;
+    return rc;
 }
 
 /* deterministic payload: xorshift32 seeded by (seed, size), so a corrupted or short echo is caught for
@@ -76,8 +79,8 @@ static inline int anchor_frame_control(int fd, int timeout_ms) {
     int saved = -1, rc = afl_set_nonblock(fd, &saved); if (rc != AFL_OK) return rc;
     const int64_t deadline = afl_now_ms() + timeout_ms;
     uint8_t z[4] = {0, 0, 0, 0};
-    rc = afl_xfer(fd, z, 4, 1, deadline);
-    if (rc == AFL_OK) rc = afl_xfer(fd, z, 4, 0, deadline);
+    rc = afl_xfer(fd, z, 4, 1, deadline, 0);
+    if (rc == AFL_OK) rc = afl_xfer(fd, z, 4, 0, deadline, 0);
     if (rc == AFL_OK && afl_get_be32(z) != 0) rc = AFL_LENGTH;   /* the ack must be a zero-length frame */
     afl_restore(fd, saved);
     return rc;
@@ -89,25 +92,29 @@ static inline int anchor_frame_bench(int fd, size_t sz, int warm, int iters, int
     if ((long long)warm + (long long)iters > 1000000 || (size_t)iters > SIZE_MAX / sizeof(double)) return AFL_RANGE;
     int saved = -1, rc = afl_set_nonblock(fd, &saved); if (rc != AFL_OK) return rc;
     double *us = (double *)malloc((size_t)iters * sizeof *us); if (!us) { afl_restore(fd, saved); return AFL_SETUP; }
+    int ph = AFP_NONE, fi = 0; size_t mv = 0, tot = 0;
     for (int i = 0; i < warm + iters; i++) {
+        fi = i;
         afl_fill(sbuf, sz, (uint32_t)(i + 1));
         uint8_t lp[4]; afl_put_be32(lp, (uint32_t)sz);
         const int64_t t0 = afl_now_ms(), deadline = t0 + per_rt_timeout_ms;
         double us0; { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); us0 = ts.tv_sec * 1e6 + ts.tv_nsec / 1e3; }
-        if ((rc = afl_xfer(fd, lp, 4, 1, deadline)) != AFL_OK) goto fail;
-        if ((rc = afl_xfer(fd, sbuf, sz, 1, deadline)) != AFL_OK) goto fail;
+        ph = AFP_WRITE_LEN;  tot = 4;  if ((rc = afl_xfer(fd, lp, 4, 1, deadline, &mv)) != AFL_OK) goto fail_ph;
+        ph = AFP_WRITE_PAYLOAD; tot = sz; if ((rc = afl_xfer(fd, sbuf, sz, 1, deadline, &mv)) != AFL_OK) goto fail_ph;
         uint8_t back[4];
-        if ((rc = afl_xfer(fd, back, 4, 0, deadline)) != AFL_OK) goto fail;
-        if (afl_get_be32(back) != (uint32_t)sz) { rc = AFL_LENGTH; goto fail; }
-        if ((rc = afl_xfer(fd, rbuf, sz, 0, deadline)) != AFL_OK) goto fail;
+        ph = AFP_READ_LEN;   tot = 4;  if ((rc = afl_xfer(fd, back, 4, 0, deadline, &mv)) != AFL_OK) goto fail_ph;
+        if (afl_get_be32(back) != (uint32_t)sz) { rc = AFL_LENGTH; ph = AFP_READ_LEN; mv = 4; tot = 4; goto fail_ph; }
+        ph = AFP_READ_PAYLOAD; tot = sz; if ((rc = afl_xfer(fd, rbuf, sz, 0, deadline, &mv)) != AFL_OK) goto fail_ph;
         double us1; { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); us1 = ts.tv_sec * 1e6 + ts.tv_nsec / 1e3; }
         if (!afl_equal(rbuf, sz, (uint32_t)(i + 1))) { rc = AFL_CONTENT; goto fail; }   /* full compare, outside timing */
         if (i >= warm) us[i - warm] = us1 - us0;
         (void)t0;
     }
     qsort(us, iters, sizeof *us, afl_cmp_d);
-    st->p50_us = us[iters / 2]; st->p90_us = us[(iters * 9) / 10]; st->min_us = us[0]; st->iters = iters;
+    st->p50_us = us[iters / 2]; st->p90_us = us[(iters * 9) / 10]; st->min_us = us[0]; st->iters = iters; st->fail_phase = AFP_NONE;
     free(us); afl_restore(fd, saved); return AFL_OK;
+fail_ph:
+    st->fail_phase = ph; st->fail_iter = fi; st->fail_moved = mv; st->fail_total = tot;
 fail:
     free(us); afl_restore(fd, saved); return rc;
 }
