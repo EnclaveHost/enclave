@@ -35,11 +35,33 @@ int sh_prefix_kv_sign(const char *kv_path, const uint8_t model_digest[32], const
  * -1 = not usable (err says why). Never loads anything into llama. */
 int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                         uint64_t *n_tokens_out, char *err, size_t err_cap);
-/* The same verdict over a descriptor the caller HOLDS: the sidecar is read from kv_path + ".sig", the
- * content hashed through kv_fd, so the bytes verified are the bytes the caller then loads from that
- * descriptor (/proc/self/fd/N) - a file replaced under its name between the two is not believed. */
+/* Diagnostic verification through a held descriptor. This defeats pathname
+ * replacement only: later reads can still see changed contents. Consumers
+ * must use snapshot_read and load its retained private bytes instead. */
 int sh_prefix_kv_verify_fd(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                            uint64_t *n_tokens_out, char *err, size_t err_cap);
+
+/* Owns the EXACT private bytes authenticated against the signed sidecar.
+ * The caller must consume bytes directly, never re-read the source file.
+ * Initialize to zero; pass an empty output (free an earlier snapshot first).
+ * On failure output stays empty. max_bytes/max_tokens bound untrusted storage
+ * and signed metadata before allocation. The original fd position is unchanged.
+ * snapshot_free releases public data and clears all fields. */
+typedef struct {
+    uint8_t *bytes;
+    size_t size;
+    uint64_t n_tokens;
+} sh_prefix_kv_snapshot;
+int sh_prefix_kv_snapshot_read(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
+                               size_t max_bytes, uint64_t max_tokens, sh_prefix_kv_snapshot *out, char *err, size_t err_cap);
+void sh_prefix_kv_snapshot_free(sh_prefix_kv_snapshot *snapshot);
+/* View the sequence-state body in a verified snapshot. This checks the pinned
+ * llama file magic/version, signed versus embedded token counts, bounds and
+ * token IDs. The format uses little-endian uint32 headers/tokens on our targets.
+ * Pass the returned private body directly to llama_state_seq_set_data, require
+ * that it consumes the entire body, then free the snapshot. */
+int sh_prefix_kv_snapshot_state(const sh_prefix_kv_snapshot *snapshot, uint32_t magic, uint32_t version, int32_t vocab_size,
+                                const uint8_t **state_out, size_t *size_out, char *err, size_t err_cap);
 
 #ifdef __cplusplus
 }
