@@ -64,6 +64,9 @@ typedef struct sh_link sh_link;
  *   SHIELDED_REFILL_BATCH    pads generated per batch (default 4)
  *   SHIELDED_WARM_MS         longest sh_link_start waits for one ready pad per
  *                            group before the first exchange (default 5000)
+ *   SHIELDED_OVERLAP_VERIFY  1 = compute the Freivalds input-side dots after
+ *                            sending the socket request, before reading its
+ *                            reply (default 0; no change to the ring path)
  * and at start:
  *   SHIELDED_VSOCK_PORT      try AF_VSOCK to the host on this port before TCP;
  *                            unset = the TCP port number when /dev/vsock exists, 0 = never */

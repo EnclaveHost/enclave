@@ -792,6 +792,31 @@ image gen >3× per-image wall clock at batch ≥4; STT/TTS failing realtime on b
 and masked-GPU paths; any design requiring GPU-driver/host-kernel/operator trust is dead on
 arrival. On any kill: stop and write up why, with measurements.
 
+## Phone socket verification overlap experiment
+
+`SHIELDED_OVERLAP_VERIFY=1` opts a link into computing the input-side Freivalds
+dots after writing the complete masked request and before reading the reply.
+The same trusted caller thread does this work; the Pixel pVM retains plaintext
+activations, pads and check vectors. No thread, protocol message, weight encoding,
+calibration, pad allocation or verification rule changes. The default is off.
+Shared-memory ring exchanges, including their socket retries, retain the serial
+verification path. An unverified link also retains its existing path.
+
+This can hide the input-side dot-product time under socket transport and worker
+latency; it does not reduce the exchange count or implement row-split pipelining.
+Measure paired runs with the same APK, batch width, prompt and transport before
+enabling it for a deployment. The profile's `rhs` includes the overlapping work;
+`wire` excludes that work to avoid double-counting. The latency/contention metric
+still records the full send-to-receive wall time. Compare total steady decode
+time, not a lower `wire` counter alone. Corrupt or wrapped products still abort
+before callers may use the output, and pads consumed by failed exchanges are
+never reissued.
+
+The CPU-only `test/shielded-overlap-verify.test.mjs` exercises the actual framing,
+masking, unmasking and verification against an independent scalar peer, including
+both reply widths, grouped/reordered nodes, changing batch widths, ring success
+and fallback, reply failures, corruption, field wrap, and pad-slot reuse checks.
+
 ## Open risks, ranked
 
 0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC

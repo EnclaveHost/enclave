@@ -95,6 +95,18 @@ const char *sh_pipe_last_error(const sh_pipe *p);
  * allocates nothing. */
 int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out);
 
+/* Same exchange, with caller-thread work after ALL request bytes have been
+ * written and before ANY response is read. This overlaps trusted local work
+ * with the peer/transport without another thread or a change to the wire.
+ * work(ctx) runs exactly once for a nonempty batch whose write succeeded,
+ * including when the subsequent read fails; it never runs on a failed write.
+ * The callback must not use/close this pipe, issue another exchange on it, or
+ * inspect out. All borrowed buffers must remain valid until this call returns.
+ * NULL work is the ordinary synchronous exchange. */
+typedef void (*sh_pipe_work_fn)(void *ctx);
+int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out,
+                          sh_pipe_work_fn work, void *ctx);
+
 /* Convenience: one frame, one response. */
 int sh_pipe_call(sh_pipe *p, uint8_t cmd, const void *payload, size_t len, sh_reply *out);
 
