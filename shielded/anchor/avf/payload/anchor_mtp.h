@@ -48,6 +48,18 @@ int32_t     anchor_mtp_draft(anchor_mtp *m, int32_t id_last, int32_t n_past, int
  * and leaves the tail ready for chain(); *guess receives the head's prediction after toks[]. */
 int32_t     anchor_mtp_chain(anchor_mtp *m, int32_t k, float p_min, int32_t *out);
 int         anchor_mtp_refeed(anchor_mtp *m, int32_t tok0, int32_t pos0, const int32_t *toks, int32_t n, int32_t *guess);
+/* The head's state for a shared prefix, exported by the minter and imported by the consumer (the compound
+ * prefix artifact). The head's sequence state is llama's own (its KV / recurrent state over the observed
+ * positions); pending_h is the head's private piece: the target's nextn row at the last observed position,
+ * the seed of the next draft. Import clears any draft-ahead tail. */
+size_t      anchor_mtp_n_embd(const anchor_mtp *m);
+int         anchor_mtp_pending_export(const anchor_mtp *m, float *out, size_t n_floats);   /* n_floats == n_embd; 0 / -1 */
+int         anchor_mtp_pending_import(anchor_mtp *m, const float *in, size_t n_floats);    /* exact n_embd, finite values; clears tail + harvested rows; 0 / -1 */
+/* Memory-state form of the head (harness use); the compound artifact carries SEQUENCE FILE bytes instead and
+ * restores them through the prefix adapter on anchor_mtp_ctx(m). */
+size_t      anchor_mtp_state_size(anchor_mtp *m);                                          /* llama_state_seq_get_size(head, 0) */
+size_t      anchor_mtp_state_export(anchor_mtp *m, uint8_t *dst, size_t cap);              /* bytes written, 0 on failure */
+size_t      anchor_mtp_state_import(anchor_mtp *m, const uint8_t *src, size_t n);          /* bytes consumed, must equal n */
 
 #ifdef __cplusplus
 }

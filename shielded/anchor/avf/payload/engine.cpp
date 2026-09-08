@@ -538,8 +538,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         std::string side = std::string(kv) + ".sig";
         for (int waited = 0; waited < 1200 && !(access(kv, R_OK) == 0 && access(side.c_str(), R_OK) == 0 && access(pf, R_OK) == 0); waited++) usleep(100000);
         std::string prefix, cal;
-        auto slurp = [](const char *p, std::string &o) { FILE *f = fopen(p, "rb"); if (!f) return false; char b[65536]; size_t k; while ((k = fread(b, 1, sizeof b, f)) > 0) o.append(b, k); fclose(f); return true; };
-        if (!slurp(pf, prefix) || !slurp(calib_path, cal)) { outf("ENGINE prefix KV: files never arrived (%s)", pf); return 2; }
+        /* bounded reads: a prefix text is at most 16 MiB, a calibration at most 64 MiB; anything larger is refused, never truncated */
+        auto slurp = [](const char *p, std::string &o, size_t cap) { FILE *f = fopen(p, "rb"); if (!f) return false; char b[65536]; size_t k; bool ok = true;
+            while ((k = fread(b, 1, sizeof b, f)) > 0) { if (o.size() + k > cap) { ok = false; break; } o.append(b, k); }
+            if (ferror(f)) ok = false; fclose(f); return ok; };
+        if (!slurp(pf, prefix, 16u << 20) || !slurp(calib_path, cal, 64u << 20)) { outf("ENGINE prefix KV: prefix text or calibration unreadable or over the size cap (%s)", pf); return 2; }
         { uint8_t h[64]; crypto_hash(h, (const uint8_t *)cal.data(), cal.size()); memcpy(digest, h, 32); }
         char err[256]; uint64_t ntok = 0;
         /* the EXACT private bytes the signature vouched for are what llama loads: a verified snapshot read
