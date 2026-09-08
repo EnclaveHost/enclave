@@ -5,6 +5,13 @@
 
 struct source_record { void *mapping; std::vector<uint8_t> bytes; };
 struct verifier_state { std::map<std::string, source_record> expected; int calls = 0, reads = 0; bool tamper = false, read_fail = false; };
+static void source_stats_check(const verifier_state &state) {
+    uint64_t calls = UINT64_MAX, bytes = UINT64_MAX;
+    ggml_backend_shielded_weight_source_stats(&calls, &bytes);
+    assert(calls == (uint64_t)state.reads);
+    assert(bytes == (state.read_fail ? 0 : calls * 8 * 34));
+    ggml_backend_shielded_weight_source_stats(nullptr, nullptr);
+}
 static int read_source(void *opaque, const char *name, uint32_t type, const int64_t ne[4], void *bytes, size_t n) {
     auto &state = *static_cast<verifier_state *>(opaque); state.reads++;
     if (state.read_fail) return SH_ERR_IO;
@@ -38,6 +45,7 @@ int main(int argc, char **argv) {
     setenv("SHIELDED_MIN_MACS", "0", 1); setenv("SHIELDED_MAX_M", "16", 1);
     auto *cpu = ggml_backend_cpu_init(); assert(cpu); ggml_backend_cpu_set_n_threads(cpu, 1);
     verifier_state state;
+    source_stats_check(state);
     assert(ggml_backend_shielded_set_weight_verifier(nullptr, &state) == SH_ERR_RANGE);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_OK);
     assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_ERR_RANGE);
@@ -92,6 +100,7 @@ int main(int argc, char **argv) {
         auto *view = ggml_view_1d(meta, weights[0], 32, 3*34);
         uint8_t part[17]; ggml_backend_tensor_get(view, part, 4, sizeof part);
         assert(!memcmp(part, raw.data() + 3*34 + 4, sizeof part));
+        source_stats_check(state); // view copy reads the whole source, not only 17 bytes
         ggml_backend_sched_free(sched); ggml_free(meta); ggml_backend_free(shielded);
         for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
         ggml_free(ctx); ggml_backend_free(cpu);
@@ -134,9 +143,11 @@ int main(int argc, char **argv) {
             }
         }
         assert(state.calls == 2); // no reread/reverification of the revoked source
+        assert(state.reads == (streamed ? 2 : 0));
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         assert(cache_calls > 0 && cache_bytes == cache_calls * 256); // each small cached matrix is one full authenticated block
     }
+    source_stats_check(state);
     for (auto &kv : state.expected) if (kv.second.mapping) assert(munmap(kv.second.mapping, 4096) == 0);
     for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
     ggml_free(ctx); ggml_backend_free(cpu);
