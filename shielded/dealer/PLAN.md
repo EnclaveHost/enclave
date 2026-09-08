@@ -1,5 +1,13 @@
 # Dealt pads: the Shielded tier with the pad work off the trusted half
 
+For an MTP consumer, pass `--mtp 1` to `shielded-dealer` or `dealer-loop.py`.
+The dealer loads the head and reserves its context before the target's first
+graph registers the shared link. Without that step, target-only shipments omit
+the head groups and the MTP consumer cannot bind them. Default `--mtp 0` preserves
+target-only operation. Enabling MTP requires a model with a usable head; failure
+refuses minting. Start a fresh seed when changing this mode: inserting groups
+can shift the mask ordinals, so old and new shipments must never share a seed.
+
 Steven's brief (2026-09-06) is the specification; this file maps it onto the
 code that exists, fixes the formats and indices, and orders the work. Nothing
 here changes the masking construction (SECURITY.md sections 2-5 still hold);
