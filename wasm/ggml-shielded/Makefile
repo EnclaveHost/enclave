@@ -138,8 +138,8 @@ bench: bench-batch bench-spec
 
 # The dealer: mint .pads shipments from a model; libllama for the load, the
 # backend module for the registration and the mint (shielded/dealer/PLAN.md).
-shielded-dealer: shielded-dealer.cpp $(DEALER_OBJ)
-	$(CXX) $(CXXFLAGS) $(LLAMA_INC) $(GGML_INC) -I../llama-shim -o $@ $^ \
+shielded-dealer: shielded-dealer.cpp shielded-dealer-stream.h $(DEALER_OBJ)
+	$(CXX) $(CXXFLAGS) $(LLAMA_INC) $(GGML_INC) -I../llama-shim -o $@ $< $(DEALER_OBJ) \
 	  -L$(GGML_LIB) -lllama -lggml -lggml-base -ldl $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
 bench-batch: bench-batch.cpp
