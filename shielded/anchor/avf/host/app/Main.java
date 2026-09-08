@@ -161,6 +161,11 @@ public class Main extends Activity {
                 StringBuilder caps = new StringBuilder();
                 for (java.lang.reflect.Method m : cBuilder.getMethods()) { String n = m.getName(); if (n.startsWith("set") && n.matches(".*(Network|Vsock|Cpu|Vendor|Os|Console|Gpu|Balloon|Hugepages|Extra).*")) caps.append(n).append(' '); }
                 say("HOST VirtualMachineConfig.Builder: " + caps);
+                // Does this build's virtualization service offer VM networking at all? (Only custom-image VMs
+                // can ask for it on Android 16; the Microdroid app-VM config has no setter. Hidden API: needs
+                // `settings put global hidden_api_policy 1` to be reachable from a third-party app.)
+                try { Object r = vmm.getClass().getMethod("isFeatureEnabled", String.class).invoke(vmm, "com.android.kvm.NETWORK"); say("HOST AVF feature com.android.kvm.NETWORK: " + r); }
+                catch (Throwable t) { say("HOST AVF feature com.android.kvm.NETWORK: not queryable (" + t.getClass().getSimpleName() + ")"); }
             }
             Object b = cBuilder.getConstructor(Context.class).newInstance(ctx);
             call(b, "setPayloadBinaryName", plan.payload);
