@@ -94,9 +94,10 @@ void FN(pad_planes)(const int32_t *r, size_t n, uint8_t *p0, uint8_t *p1, uint8_
     }
 }
 
-/* Balanced residue planes of (x + r) mod M -- what crosses to the worker. x is
- * the plaintext field element (any int64; a value outside the field wraps here
- * and Freivalds catches the consequence), r the one-time pad in [0,M). */
+/* Balanced residue planes of (x + r) mod M -- what crosses to the worker.
+ * The link checks |x| < SH_FV_X_LIMIT before calling this kernel. Values
+ * outside Z_M can still wrap here and fail Freivalds, but arbitrary int64
+ * inputs would violate the addition/quotient bounds. r is in [0,M). */
 void FN(mask_planes)(const int64_t *x, const int32_t *r, size_t n, int8_t *p0, int8_t *p1, int8_t *p2) {
     const double invM = 1.0 / (double)M_MOD;
     for (size_t i = 0; i < n; i++) {
@@ -154,6 +155,41 @@ void FN(encode)(const float *src, size_t n, float scale, int64_t *x) {
     for (size_t i = 0; i < n; i++) x[i] = (int64_t)sh_lrintf(src[i] * scale);
 }
 #endif
+
+/* Keep the AVX fast path's existing one range comparison: the checked limit
+ * replaces its 2^30 scalar-fallback threshold when smaller. Rejected values
+ * never reach lrintf (whose NaN/overflow result varies by architecture). */
+int FN(encode_checked)(const float *src, size_t n, float scale, float limit, int64_t *x) {
+    if (!(scale > 0.0f && scale <= 0x1.fffffep127f && limit >= (float)SH_FV_X_LIMIT && limit <= 0x1p62f)) return 0;
+    uint32_t limit_bits; memcpy(&limit_bits, &limit, sizeof limit_bits);
+    if (limit_bits & UINT32_C(0x007fffff)) return 0;
+    size_t i = 0;
+#ifdef SH_SIMD_AVX512
+    const __m512 sc = _mm512_set1_ps(scale);
+    const __m512 fast_limit = _mm512_set1_ps(limit < 0x1p30f ? limit : 0x1p30f);
+    for (; i + 16 <= n; i += 16) {
+        const __m512 v = _mm512_mul_ps(_mm512_loadu_ps(src + i), sc);
+        const __mmask16 big = _mm512_cmp_ps_mask(_mm512_abs_ps(v), fast_limit, _CMP_NLT_UQ);
+        if (__builtin_expect(big != 0, 0)) {
+            for (int t = 0; t < 16; t++) {
+                const float value = src[i + t] * scale;
+                if (!(value > -limit && value < limit)) return 0;
+                x[i + t] = (int64_t)sh_lrintf(value);
+            }
+            continue;
+        }
+        const __m512i q = _mm512_cvtps_epi32(v);
+        _mm512_storeu_si512((void *)(x + i), _mm512_cvtepi32_epi64(_mm512_castsi512_si256(q)));
+        _mm512_storeu_si512((void *)(x + i + 8), _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(q, 1)));
+    }
+#endif
+    for (; i < n; i++) {
+        const float value = src[i] * scale;
+        if (!(value > -limit && value < limit)) return 0;
+        x[i] = (int64_t)sh_lrintf(value);
+    }
+    return 1;
+}
 
 /* dst[j] = y[j] * inv[j], the per-column descale. */
 void FN(descale)(const int64_t *y, const float *inv, size_t n, float *dst) {

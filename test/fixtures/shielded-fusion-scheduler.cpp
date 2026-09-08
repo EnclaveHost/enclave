@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -28,13 +29,17 @@ static void fill_input(ggml_tensor *t, int seed) {
 static uint64_t hash_tensor(ggml_tensor *t) {
     std::vector<unsigned char> v(ggml_nbytes(t));
     ggml_backend_tensor_get(t, v.data(), 0, v.size());
+    for (size_t i = 0; i < v.size(); i += sizeof(float)) {
+        float value; std::memcpy(&value, v.data() + i, sizeof value);
+        assert(std::isfinite(value));
+    }
     uint64_t h = 14695981039346656037ULL;
     for (auto b : v) h = (h ^ b) * 1099511628211ULL;
     return h;
 }
 
 int main(int argc, char **argv) {
-    assert(argc == 3);
+    assert(argc == 3 || argc == 4);
     const int m = atoi(argv[1]);
     const std::string scenario = argv[2];
     const bool enabled = getenv("SHIELDED_FUSE_LOCAL") && atoi(getenv("SHIELDED_FUSE_LOCAL")) != 0;
@@ -99,6 +104,23 @@ int main(int argc, char **argv) {
     assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
     const auto h2 = hash_tensor(out), r2 = hash_tensor(residual_out);
     assert(h1 != h2 && r1 != r2);
+    if (argc == 4) {
+        for (float value : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+                -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(), 0x1p32f, -0x1p32f}) {
+            // Index zero is held locally in the outlier scenario; the last
+            // channel still reaches the field input check. Both must fail
+            // safely, and the same graph must work on a subsequent valid call.
+            for (size_t at : {size_t(0), size_t(64 * m - 1)}) {
+                fill_input(x, 23);
+                ggml_backend_tensor_set(x, &value, at * sizeof(float), sizeof(float));
+                const bool safe_outlier = scenario == "outliers" && at == 0 && std::fabs(value) == 0x1p32f;
+                assert(ggml_backend_sched_graph_compute(sched, g) == (safe_outlier ? GGML_STATUS_SUCCESS : GGML_STATUS_FAILED));
+                fill_input(x, 23);
+                assert(ggml_backend_sched_graph_compute(sched, g) == GGML_STATUS_SUCCESS);
+                assert(hash_tensor(out) == h2 && hash_tensor(residual_out) == r2);
+            }
+        }
+    }
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     ggml_backend_shielded_stats(&off, &loc, &macs, &vf);
     assert(off == 0 && vf == 0);

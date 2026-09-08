@@ -16,6 +16,8 @@ extern "C" {
 #endif
 
 #define SH_FV_P2 2147483647
+/* Strict activation bound for the 32-term int64 Freivalds RHS accumulators. */
+#define SH_FV_X_LIMIT (INT64_C(1) << 26)
 
 typedef struct {
     const char *name;
@@ -49,6 +51,10 @@ typedef struct {
     void    (*unmask24)(const uint8_t *ym, const int32_t *u, size_t n, int64_t *y);
     void    (*unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int reps, int64_t n,
                            int64_t *y, int64_t *out);
+    /* Checked float -> integer conversion. limit is a public power of two
+     * in [2^26, 2^62]. Rejects nonfinite values/scales and |src*scale| >= limit
+     * BEFORE integer conversion; a false return invalidates all scratch x. */
+    int     (*encode_checked)(const float *src, size_t n, float scale, float limit, int64_t *x);
 } sh_simd;
 
 const sh_simd *sh_simd_get(void);
@@ -69,7 +75,8 @@ const sh_simd *sh_simd_generic(void);
     void    sh_simd_##sfx##_fv_dots_x(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
     void    sh_simd_##sfx##_unmask_fv(const int32_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *); \
     void    sh_simd_##sfx##_unmask24(const uint8_t *, const int32_t *, size_t, int64_t *); \
-    void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *);
+    void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *); \
+    int     sh_simd_##sfx##_encode_checked(const float *, size_t, float, float, int64_t *);
 SH_SIMD_DECL(avx512)
 SH_SIMD_DECL(generic)
 #if defined(__aarch64__)

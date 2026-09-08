@@ -10,6 +10,8 @@ import net from 'node:net';
 const source = (name) => fileURLToPath(new URL(`../wasm/ggml-shielded/${name}`, import.meta.url));
 const fixture = (name) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('SHIELDED_')));
+const sanitize = process.env.SHIELDED_TEST_SANITIZE === '1' ?
+  ['-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer'] : [];
 
 test('residual projection fusion recognizes complete safe islands and rejects unsupported shapes or ordering', (t) => {
   const headers = process.env.GGML_SRC || join(homedir(), 'Projects/llama.cpp');
@@ -21,7 +23,7 @@ test('residual projection fusion recognizes complete safe islands and rejects un
   try {
     const bin = join(dir, 'pattern');
     const fixture = fileURLToPath(new URL('./fixtures/shielded-fusion-pattern.cpp', import.meta.url));
-    execFileSync('c++', ['-std=c++17', '-O1', '-Wall', '-Wextra', `-I${join(headers, 'ggml/include')}`,
+    execFileSync('c++', ['-std=c++17', '-O1', ...sanitize, '-Wall', '-Wextra', `-I${join(headers, 'ggml/include')}`,
       fixture, `-L${libs}`, '-lggml-cpu', '-lggml-base', `-Wl,-rpath,${libs}`, '-o', bin], { timeout: 30_000, stdio: 'pipe' });
     execFileSync(bin, { timeout: 10_000, stdio: 'pipe', env: { ...cleanEnv, OMP_NUM_THREADS: '1' } });
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -41,7 +43,7 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
   const port = server.address().port;
   await new Promise((resolve) => server.close(resolve));
   try {
-    const cflags = ['-O1', '-ffunction-sections', '-fdata-sections'];
+    const cflags = ['-O1', ...sanitize, '-ffunction-sections', '-fdata-sections'];
     const objects = [];
     for (const name of ['shielded-field', 'shielded-wire', 'shielded-tee', 'shielded-pads', 'shielded-bank',
       'shielded-http', 'tweetnacl', 'poly1305-donna', 'shielded-simd']) {
@@ -58,10 +60,13 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
       source('ggml-shielded.cpp'), fixture('shielded-fusion-scheduler.cpp'), ...objects, '-Wl,--gc-sections',
       `-L${libs}`, '-lggml', '-lggml-cpu', '-lggml-base', '-lpthread', '-lm', `-Wl,-rpath,${libs}`, '-o', bin],
       { timeout: 60_000, stdio: 'pipe' });
-    for (const scenario of ['attn', 'ssm', 'first-local', 'next-local', 'next-uncalibrated', 'invalid-pool']) {
+    for (const scenario of ['attn', 'ssm', 'outliers', 'bad-exponent', 'bad-negative', 'bad-delta', 'bad-inverse',
+      'first-local', 'next-local', 'next-uncalibrated', 'invalid-pool']) {
       const calib = join(dir, `${scenario}.calib`);
       const names = ['attn_output', 'ssm_out', ...(scenario === 'next-uncalibrated' ? [] : ['ffn_gate', 'ffn_up'])];
-      writeFileSync(calib, '# shielded-calib 1\n' + names.map(n => `site blk.3.${n}.weight 8 0\n`).join(''));
+      const af = scenario === 'bad-exponent' ? 2147483647 : scenario === 'bad-negative' ? -2147483648 :
+        scenario === 'bad-inverse' ? -130 : 8;
+      writeFileSync(calib, '# shielded-calib 1\n' + names.map(n => `site blk.3.${n}.weight ${af} ${scenario === 'outliers' ? '1 0' : '0'}\n`).join(''));
       for (const m of (scenario === 'attn' || scenario === 'ssm' ? [1, 3, 8, 16, 32] : [3])) {
         const env = { ...cleanEnv, SHIELDED_CALIB: calib, SHIELDED_HOST: '127.0.0.1', SHIELDED_PORT: String(port),
           SHIELDED_MIN_MACS: '0', SHIELDED_MAX_M: '16', SHIELDED_LOCAL_EXACT: '1', SHIELDED_NO_SIMD: '1',
@@ -69,7 +74,9 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
         if (scenario === 'first-local') env.SHIELDED_LOCAL_SITES = 'blk.3.attn_output.weight';
         if (scenario === 'next-local') env.SHIELDED_LOCAL_SITES = 'blk.3.ffn_gate.weight,blk.3.ffn_up.weight';
         if (scenario === 'invalid-pool') env.SHIELDED_WORKERS = '';
-        const run = (knob) => JSON.parse(execFileSync(bin, [String(m), scenario], {
+        if (scenario === 'bad-delta') env.SHIELDED_AF_DELTA = '2147483647';
+        const invalidCases = m === 3 && (scenario === 'attn' || scenario === 'outliers') ? ['invalid'] : [];
+        const run = (knob) => JSON.parse(execFileSync(bin, [String(m), scenario, ...invalidCases], {
           timeout: 15_000, encoding: 'utf8', stdio: 'pipe',
           env: knob === undefined ? env : { ...env, SHIELDED_FUSE_LOCAL: knob },
         }).trim().split('\n').at(-1));
@@ -77,7 +84,7 @@ test('the real scheduler admits only opted-in calibrated islands and preserves b
         assert.deepEqual(off, baseline, `${scenario} m=${m}: default differs from explicit off`);
         assert.deepEqual(on.output, baseline.output, `${scenario} m=${m}: final FFN result changed`);
         assert.deepEqual(on.residual, baseline.residual, `${scenario} m=${m}: residual lifetime changed`);
-        assert.equal(on.island_nodes, (scenario === 'attn' || scenario === 'ssm') && m <= 16 ? 3 : 0);
+        assert.equal(on.island_nodes, (scenario === 'attn' || scenario === 'ssm' || scenario === 'outliers' || scenario.startsWith('bad-')) && m <= 16 ? 3 : 0);
       }
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }

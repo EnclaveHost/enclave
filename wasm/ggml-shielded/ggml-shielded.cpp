@@ -11,6 +11,7 @@ extern "C" {
 
 #include <chrono>
 #include <cmath>
+#include <cfloat>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -67,7 +68,7 @@ static int sh_af_delta_env() {
     return d;
 }
 struct sh_state;
-static int sh_af_delta(const sh_state &s);
+static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
 
 /* --------------------------------------------------------------------------
@@ -194,6 +195,7 @@ struct sh_state {
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
         std::vector<int8_t> out_cols;   /* nout x N: the outlier channels' weights, for the TEE-side term */
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
+        float act_scale = 0, encode_limit = 0;
     };
     std::map<std::string, entry> weights;
     std::map<std::string, int> group_first;   /* group key -> first node in it */
@@ -282,7 +284,7 @@ static void sh_plan(sh_pool &p);
 
 /* The correction every site's calibrated exponent gets: the file format's own
  * (see calib_version) plus the process-wide SHIELDED_AF_DELTA. */
-static int sh_af_delta(const sh_state &s) { return (s.calib_version == 1 ? -5 : 0) + sh_af_delta_env(); }
+static int64_t sh_af_delta(const sh_state &s) { return (s.calib_version == 1 ? INT64_C(-5) : 0) + sh_af_delta_env(); }
 
 void ggml_backend_shielded_configure(const char *host, int port, const char *calib_path) {
     sh_state &s = sh_get();
@@ -649,9 +651,34 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         if (k < 0 || k >= K) { SH_LOG("%s: outlier channel %lld out of range\n", name.c_str(), (long long)k); s.refused.insert(name); return false; }
         for (int64_t j = 0; j < N; j++) e.out_cols[c * (size_t)N + j] = e.w[(size_t)j * K + k];
     }
-    const int af = site->act_frac + sh_af_delta(s);
+    const int64_t af = (int64_t)site->act_frac + sh_af_delta(s);
+    if (af < -149 || af > 127) {
+        SH_LOG("%s: activation exponent cannot produce a finite positive float scale; staying on CPU\n", name.c_str());
+        s.refused.insert(name); return false;
+    }
+    e.act_scale = ldexpf(1.0f, (int)af);
+    // A public power-of-two bound keeps every local outlier sum inside int64,
+    // including its already-unmasked field term. The normal, non-outlier
+    // lanes get the stricter Freivalds bound at the link boundary.
+    uint64_t limit = (uint64_t)SH_FV_X_LIMIT;
+    if (nout) {
+        const uint64_t safe = ((uint64_t)INT64_MAX - SH_HALF_M) / SH_WEIGHT_BYTE_LIMIT / nout;
+        limit = UINT64_C(1) << 62;
+        while (limit > safe) limit >>= 1;
+    }
+    if (limit < (uint64_t)SH_FV_X_LIMIT) { s.refused.insert(name); return false; }
+    e.encode_limit = (float)limit;
     e.inv.resize((size_t)N);
-    for (int64_t j = 0; j < N; j++) e.inv[j] = ldexpf(1.0f, -(af + e.f_w[j]));
+    const double worst_y = (double)SH_HALF_M + (double)nout * SH_WEIGHT_BYTE_LIMIT * (double)limit;
+    for (int64_t j = 0; j < N; j++) {
+        const int64_t exponent = -(af + (int64_t)e.f_w[j]);
+        const float inv = exponent < -149 || exponent > 127 ? 0 : ldexpf(1.0f, (int)exponent);
+        if (!(inv > 0) || !std::isfinite(inv) || (double)inv * worst_y > (double)FLT_MAX / 2) {
+            SH_LOG("%s: output exponent cannot safely descale the supported integer range; staying on CPU\n", name.c_str());
+            s.refused.insert(name); return false;
+        }
+        e.inv[j] = inv;
+    }
 
     if (!s.link) {
         int err = SH_OK;
@@ -1070,7 +1097,6 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
          * was refused as m outside [1,max_m] and, worse, that refusal used to
          * mark the link dead for the rest of the process. */
         if (m == 0) continue;
-        const int af = e0.site->act_frac + sh_af_delta(s);
 
         /* x_field = round(x * 2^af), with the outlier channels held back. The
          * exponent is a public model constant; deriving it from the activation in
@@ -1078,7 +1104,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         const double te0 = sh_now_ms();
         std::vector<int64_t> &x_gpu = s.x_gpu, &x_tee = s.x_tee;
         if (x_gpu.size() < (size_t)m * K) x_gpu.resize((size_t)m * K);
-        simd->encode((const float *)a->data, (size_t)m * K, ldexpf(1.0f, af), x_gpu.data());
+        if (!simd->encode_checked((const float *)a->data, (size_t)m * K, e0.act_scale, e0.encode_limit, x_gpu.data())) {
+            fprintf(stderr, "[shielded] %s: nonfinite or unsupported activation range; aborting the graph\n", ggml_get_name(node->src[0]));
+            return GGML_STATUS_FAILED;
+        }
         const size_t nout = e0.site->outliers.size();
         if (nout) {
             if (x_tee.size() < (size_t)m * nout) x_tee.resize((size_t)m * nout);
@@ -1214,6 +1243,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             s.local_nodes += members.size();
         }
         s.t_link += sh_now_ms() - tl0;
+        if (rc == SH_ERR_VERIFY) {
+            fprintf(stderr, "[shielded] %s\n", sh_link_last_error(s.link));
+            return GGML_STATUS_FAILED;
+        }
         if (rc != SH_OK) {
             // Not a verification failure (that returned above) -- a transport or
             // bookkeeping problem. The honest answer is still available locally.
