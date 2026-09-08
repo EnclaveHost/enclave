@@ -35,6 +35,7 @@ import android.util.Log;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONObject;
+import java.nio.charset.StandardCharsets;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -319,7 +320,7 @@ public class Main extends Activity {
             StringBuilder cmd = new StringBuilder();
             if (plan.mode.equals("engine")) {
                 long bytes = new java.io.File(plan.model).length();
-                String sha = RelayAttach.hex(fileSha256(plan.model));
+                String sha = RelayAttach.hex(fileSha256Cached(plan.model));
                 cmd.append("ENGINE model_bytes=").append(bytes).append(" model_sha256=").append(sha).append(" n=").append(plan.n).append(" threads=").append(plan.threads).append(" mtp=").append(plan.mtp).append(" boost=").append(plan.boost).append(plan.shenv.isEmpty() ? "" : " env=" + RelayAttach.hex(plan.shenv.getBytes("UTF-8")))
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append('\n');
                 startBurners(plan.burners);
@@ -370,6 +371,18 @@ public class Main extends Activity {
         finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 
+    /* The model's digest is only a cache TAG on the app side (the VM hashes what it holds); a 27 GB file takes
+     * minutes to hash in Java, so the tag is remembered in a sidecar keyed by size and mtime and recomputed
+     * only when the file changes. Never used for a security decision here. */
+    static byte[] fileSha256Cached(String path) {
+        java.io.File f = new java.io.File(path); java.io.File side = new java.io.File(path + ".sha256");
+        String key = f.length() + " " + f.lastModified() + " ";
+        try { if (side.exists()) { String line = new String(java.nio.file.Files.readAllBytes(side.toPath()), StandardCharsets.UTF_8).trim();
+              if (line.startsWith(key) && line.length() == key.length() + 64) { byte[] d = new byte[32]; for (int i = 0; i < 32; i++) d[i] = (byte) Integer.parseInt(line.substring(key.length() + 2 * i, key.length() + 2 * i + 2), 16); return d; } } } catch (Exception ignored) { }
+        byte[] d = fileSha256(path);
+        try { java.nio.file.Files.write(side.toPath(), (key + RelayAttach.hex(d) + "\n").getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
+        return d;
+    }
     static byte[] fileSha256(String path) {
         try (InputStream in = new java.io.FileInputStream(path)) {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
@@ -384,7 +397,7 @@ public class Main extends Activity {
     static String modelStage(Object vm, Plan plan, OutputStream out, BufferedReader r, long extra) throws java.io.IOException {
         long modelBytes = new java.io.File(plan.model).length() + extra;
         new Thread(() -> streamModel(vm, plan, extra), "vsock-model").start();
-        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
+        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
         String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
         return ml;
     }
