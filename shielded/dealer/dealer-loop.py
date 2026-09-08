@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The dealer's loop (shielded/dealer/PLAN.md P3): keep one pVM's bank of pad
-shipments ahead of its ledger mark, mint what is missing, prune what is spent.
+shipments ahead of its ledger mark, mint missing delivery ranges, prune only acknowledged files.
 
   dealer-loop.py --relay https://api.enclave.host --name pixel-1 --master <hex64> \
                  --model model.gguf --calib model.calib --out /bank [--ahead 256] [--chunk 64] [--once]
@@ -13,7 +13,7 @@ GGML_CPU_SO, LD_LIBRARY_PATH. The seed is derived exactly as relay/pads.mjs does
 (HKDF-SHA512, salt = keyFp bytes, info "enclave-pads-seed:<epoch>"); the master
 seed is the platform's secret and never leaves the dealer's process.
 """
-import argparse, hashlib, hmac, json, os, re, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import argparse, fcntl, hashlib, hmac, json, os, re, subprocess, sys, tempfile, time, urllib.error, urllib.request
 
 
 def hkdf_sha512(ikm: bytes, salt: bytes, info: bytes, length: int) -> bytes:
@@ -32,7 +32,12 @@ def derive_seed(master_hex: str, keyfp_hex: str, epoch: int = 1):
     return seed.hex(), seed_id
 
 
-NAME_RE = re.compile(r"^([0-9a-f]{32})-(\d+)-(\d+)\.pads$")
+PAD_INDEX_LIMIT = 1 << 24
+NAME_RE = re.compile(r"^([0-9a-f]{32})-(0|[1-9][0-9]*)-([1-9][0-9]*)\.pads$")
+
+def valid_range(index0, count):
+    return type(index0) is int and type(count) is int and 0 <= index0 < PAD_INDEX_LIMIT and 0 < count <= PAD_INDEX_LIMIT - index0
+
 
 
 def shipments(out_dir: str, seed_id: str):
@@ -40,22 +45,40 @@ def shipments(out_dir: str, seed_id: str):
     found = []
     for n in os.listdir(out_dir) if os.path.isdir(out_dir) else []:
         m = NAME_RE.match(n)
-        if m and m.group(1) == seed_id:
+        if m and m.group(1) == seed_id and valid_range(int(m.group(2)), int(m.group(3))):
             found.append((int(m.group(2)), int(m.group(3)), os.path.join(out_dir, n)))
     return sorted(found)
 
 
-def plan(existing, mark: int, ahead: int, chunk: int):
-    """Chunk-aligned ranges [i0, i0+chunk) needed to cover [mark, mark+ahead) that no
-    shipment covers entirely, and the shipments wholly below the mark (spent)."""
-    covered = [(i0, i0 + c) for i0, c, _ in existing]
-    want, start = [], mark - mark % chunk
-    while start < mark + ahead:
-        if not any(lo <= start and start + chunk <= hi for lo, hi in covered):
-            want.append((start, chunk))
-        start += chunk
-    spent = [p for i0, c, p in existing if i0 + c <= mark]
-    return want, spent
+def plan(existing, mark: int, ahead: int, chunk: int, ack_floor: int = 0, acked=(), max_pending: int = 1024):
+    """Cover missing delivery from ack_floor through mark+ahead, not from mark.
+    Emit exact gaps split at chunk boundaries, never re-mint acknowledged indices.
+    The pending cap bounds retention when old consumers cannot acknowledge."""
+    if any(type(x) is not int for x in (mark, ahead, chunk, ack_floor, max_pending)) or not (0 <= mark <= PAD_INDEX_LIMIT and 0 <= ack_floor <= PAD_INDEX_LIMIT and 0 < ahead <= PAD_INDEX_LIMIT and 0 < chunk <= PAD_INDEX_LIMIT and 0 < max_pending <= PAD_INDEX_LIMIT):
+        raise ValueError("invalid pad planning bounds")
+    previous = ack_floor
+    if not isinstance(acked, (tuple, list)) or len(acked) > 64:
+        raise ValueError("invalid acknowledgment ranges")
+    for pair in acked:
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2 or not valid_range(pair[0], pair[1] - pair[0]) or pair[0] <= previous:
+            raise ValueError("invalid acknowledgment range")
+        previous = pair[1]
+    covered = sorted([(i0, i0 + c) for i0, c, _ in existing if valid_range(i0, c)] + list(map(tuple, acked)))
+    horizon = min(PAD_INDEX_LIMIT, ((mark + ahead + chunk - 1) // chunk) * chunk, ack_floor + max_pending)
+    want, cursor = [], ack_floor
+    def gap(end):
+        nonlocal cursor
+        while cursor < end:
+            stop = min(end, ((cursor // chunk) + 1) * chunk)
+            want.append((cursor, stop - cursor)); cursor = stop
+    for lo, hi in covered:
+        if hi <= cursor: continue
+        if lo >= horizon: break
+        if cursor < lo: gap(min(lo, horizon))
+        cursor = max(cursor, hi)
+    if cursor < horizon: gap(horizon)
+    delivered = [p for i0, c, p in existing if valid_range(i0, c) and i0 + c <= ack_floor]
+    return want, delivered
 
 
 def relay_get(base: str, path: str):
@@ -88,50 +111,84 @@ def main():
     ap.add_argument("--all", action="store_true", help="serve every consumer the relay lists (GET /v1/pads/consumers) instead of one --name")
     ap.add_argument("--master"); ap.add_argument("--keyfp"); ap.add_argument("--epoch", type=int, default=1)
     ap.add_argument("--seed"); ap.add_argument("--seed-id"); ap.add_argument("--pk"); ap.add_argument("--mark", type=int)
+    ap.add_argument("--ack-floor", type=int, default=None, help="offline delivered floor; NEVER inferred from --mark")
+    ap.add_argument("--max-pending", type=int, default=1024, help="maximum unacknowledged index span retained before waiting for delivery progress")
     ap.add_argument("--model"); ap.add_argument("--calib"); ap.add_argument("--out")
     ap.add_argument("--ahead", type=int, default=256); ap.add_argument("--chunk", type=int, default=64)
     ap.add_argument("--mint-batch", type=int, default=0, help="shipments per dealer run (0 = all missing at once); small values push the first shipments sooner at the cost of extra model loads")
     ap.add_argument("--once", action="store_true"); ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument("--worker", default=os.environ.get("DEALER_WORKER", ""), help="host:port of the dealer's OWN worker (GPU minting; never an operator's)")
     ap.add_argument("--derive-only", action="store_true"); ap.add_argument("--plan-only", action="store_true")
-    ap.add_argument("--push", action="store_true", help="upload each new shipment to the relay's store and delete spent ones there (needs PADS_DEALER_TOKEN)")
+    ap.add_argument("--push", action="store_true", help="upload each new shipment to the relay's store and delete acknowledged ones there (needs PADS_DEALER_TOKEN)")
     a = ap.parse_args()
 
     if a.derive_only:
         seed, seed_id = derive_seed(a.master, a.keyfp, a.epoch)
         print(json.dumps({"seed": seed, "seed_id": seed_id})); return 0
 
+    if not a.out: sys.exit("need --out")
+    # One writer owns a bank, including across concurrent daemon invocations.
+    # A read-only plan does not take the writer lock.
+    if not a.plan_only:
+        os.makedirs(a.out, exist_ok=True)
+        bank_lock = open(os.path.join(a.out, ".dealer-loop.lock"), "a")
+        try: fcntl.flock(bank_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: sys.exit("another dealer already owns this bank")
+
     token = os.environ.get("PADS_DEALER_TOKEN", "")
     if a.push and not (a.relay and token): sys.exit("--push needs --relay and PADS_DEALER_TOKEN")
 
-    def prune_and_plan(seed_id, mark):
-        """One consumer: prune below the mark (bank and store), return the ranges to mint."""
+    warned_old, warned_cap = set(), set()
+    def prune_and_plan(seed_id, mark, ack_floor=None, acked=(), finalized=False):
+        """A failed store listing permits neither destructive cleanup nor speculative re-mint."""
+        if finalized:
+            print(f"seed {seed_id} finalized; no further mint", flush=True); return []
+        if ack_floor is None:
+            ack_floor = 0
+            if seed_id not in warned_old and not a.plan_only:
+                print(f"seed {seed_id}: no delivery floor; planning from 0, pruning nothing (retention capped at {a.max_pending} indices)", flush=True)
+                warned_old.add(seed_id)
         existing = shipments(a.out, seed_id)
-        want, spent = plan(existing, mark, a.ahead, a.chunk)
-        if a.plan_only:
-            print(json.dumps({"seed_id": seed_id, "mark": mark, "mint": want, "prune": spent})); return []
-        for p in spent:
-            os.unlink(p); print(f"pruned {os.path.basename(p)} (below mark {mark})", flush=True)
-            if a.push: print(f"  relay delete -> {relay_delete(a.relay, seed_id, os.path.basename(p), token)}", flush=True)
+        stored = []
         if a.push:
-            # the store must hold what the bank holds above the mark: a daemon
-            # restart, a wiped store or an upload that broke mid-way otherwise
-            # leaves a consumer starving next to a full local bank
             try:
-                have = {s["name"]: s.get("bytes") for s in relay_get(a.relay, f"/v1/pads/shipments?seed_id={seed_id}").get("shipments", [])}
-            except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
-                print(f"  store listing failed ({getattr(e, 'code', None) or getattr(e, 'reason', e)}); nothing re-pushed", flush=True); have = None
-            if have is not None:
-                for _, _, p in shipments(a.out, seed_id):   # (index0, count, path)
-                    name = os.path.basename(p)
-                    if have.get(name) == os.path.getsize(p): continue
-                    try:
-                        res = relay_put_file(a.relay, seed_id, p, token)
-                        print(f"  re-pushed {name}: {res.get('bytes')} bytes (the store lacked it)", flush=True)
-                    except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
-                        print(f"  push of {name} failed: {getattr(e, 'code', None) or getattr(e, 'reason', e)} (is PADS_DEALER_TOKEN the relay's?)", flush=True)
-        if not want:
-            print(f"bank for {seed_id} covers [{mark}, {mark + a.ahead}); nothing to mint", flush=True)
+                listing = relay_get(a.relay, f"/v1/pads/shipments?seed_id={seed_id}").get("shipments")
+                if not isinstance(listing, list): raise ValueError("invalid shipment listing")
+                for item in listing:
+                    if not isinstance(item, dict): raise ValueError("invalid shipment entry")
+                    name = item.get("name", ""); m = NAME_RE.fullmatch(name)
+                    if not m or m.group(1) != seed_id or not valid_range(int(m.group(2)), int(m.group(3))): raise ValueError("invalid shipment name")
+                    i0, count = int(m.group(2)), int(m.group(3))
+                    if item.get("index0") != i0 or item.get("count") != count or type(item.get("bytes")) is not int or item["bytes"] <= 0: raise ValueError("invalid shipment metadata")
+                    stored.append((i0, count, name))
+            except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError) as e:
+                print(f"store listing failed ({getattr(e, 'code', None) or getattr(e, 'reason', e)}); no mint, prune or upload until it recovers", flush=True)
+                return []
+        want, _ = plan(existing + stored, mark, a.ahead, a.chunk, ack_floor, acked, a.max_pending)
+        local_spent = [p for i0,c,p in existing if i0+c <= ack_floor]
+        if a.plan_only:
+            print(json.dumps({"seed_id": seed_id, "mark": mark, "ack_floor": ack_floor, "mint": want, "prune": local_spent})); return []
+        if mark + a.ahead > ack_floor + a.max_pending and seed_id not in warned_cap:
+            print(f"seed {seed_id}: pending delivery cap reached; will not extend beyond {ack_floor + a.max_pending} until acknowledgments advance", flush=True)
+            warned_cap.add(seed_id)
+        elif mark + a.ahead <= ack_floor + a.max_pending:
+            warned_cap.discard(seed_id)
+        for p in local_spent:
+            os.unlink(p); print(f"pruned {os.path.basename(p)} (delivered floor {ack_floor})", flush=True)
+        if a.push:
+            have = {name for _,_,name in stored}
+            for i0,c,name in stored:
+                if i0+c <= ack_floor:
+                    print(f"relay prune {name} -> {relay_delete(a.relay, seed_id, name, token)}", flush=True)
+            for _,_,p in shipments(a.out, seed_id):
+                name = os.path.basename(p)
+                if name in have: continue
+                try:
+                    res = relay_put_file(a.relay, seed_id, p, token)
+                    print(f"re-pushed {name}: {res.get('bytes')} bytes (store lacked it)", flush=True)
+                except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+                    print(f"push of {name} failed: {getattr(e, 'code', None) or getattr(e, 'reason', e)}; retained for retry", flush=True)
+        if not want: print(f"no missing delivery ranges for {seed_id} (mark {mark}, delivered floor {ack_floor})", flush=True)
         return want
 
     def mint(jobs):
@@ -205,8 +262,8 @@ def main():
                         # store sync on the next pass; the bank keeps the file
                         print(f"  push of {os.path.basename(fpath)} failed: {getattr(e, 'code', None) or getattr(e, 'reason', e)} (is PADS_DEALER_TOKEN the relay's?); next pass retries", flush=True)
 
-    def serve(seed, seed_id, pk, mark):
-        mint([(seed, seed_id, pk, prune_and_plan(seed_id, mark))])
+    def serve(seed, seed_id, pk, mark, ack_floor, acked=(), finalized=False):
+        mint([(seed, seed_id, pk, prune_and_plan(seed_id, mark, ack_floor, acked, finalized))])
 
     while True:
         if a.all:
@@ -228,13 +285,14 @@ def main():
                 if sid != c["seed_id"]:
                     print(f"consumer {c['name']}: seed id mismatch (relay {c['seed_id']}, derived {sid}); skipped", flush=True); continue
                 print(f"consumer {c['name']} ({sid}, mark {c.get('mark', 0)})", flush=True)
-                jobs.append((seed, sid, c.get("padKey") or "", prune_and_plan(sid, c.get("mark", 0)))); served += 1
+                jobs.append((seed, sid, c.get("padKey") or "", prune_and_plan(sid, c.get("mark", 0), c.get("ack_floor"), c.get("acked", []), c.get("finalized", False)))); served += 1
             mint(jobs)                           # every consumer's missing ranges, one model load
             if not served: print(f"no consumer with a seed among {len(cons)} attached; waiting", flush=True)
             if a.once or a.plan_only: return 0
             time.sleep(a.interval); continue
 
         seed, seed_id, pk, mark = a.seed, a.seed_id, a.pk, a.mark
+        ack_floor, acked, finalized = a.ack_floor, (), False
         if a.relay and a.name:
             try:
                 info = relay_get(a.relay, f"/v1/pads/pvm?name={a.name}")
@@ -246,12 +304,16 @@ def main():
                 if a.once: return 1
                 time.sleep(a.interval); continue
             seed_id, pk, mark = info["seed_id"], info.get("padKey") or pk, info.get("mark", 0)
+            ack_floor, acked, finalized = info.get("ack_floor"), info.get("acked", []), info.get("finalized", False)
+            if info.get("issued") is False:
+                if a.once: return 0
+                time.sleep(a.interval); continue
             if a.master:
                 seed, sid = derive_seed(a.master, info["keyFp"], info.get("epoch", a.epoch))
                 if sid != seed_id: sys.exit(f"seed id mismatch: relay {seed_id}, derived {sid} (wrong master or epoch?)")
         if not seed_id or mark is None:
             sys.exit("need --relay/--name or --seed-id/--mark")
-        serve(seed, seed_id, pk, mark)
+        serve(seed, seed_id, pk, mark, ack_floor, acked, finalized)
         if a.once or a.plan_only: return 0
         time.sleep(a.interval)
 

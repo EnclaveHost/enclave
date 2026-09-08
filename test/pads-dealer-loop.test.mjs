@@ -1,6 +1,6 @@
 // The dealer loop (shielded/dealer/dealer-loop.py) derives a pVM's seed exactly
 // as the relay does, and plans the bank correctly: chunk-aligned ranges that
-// cover [mark, mark+ahead) minus what is already there, spent shipments pruned.
+// cover [mark, mark+ahead) minus what is already there, only acknowledged shipments pruned.
 //
 //   run: node --test test/pads-dealer-loop.test.mjs
 import test from "node:test";
@@ -15,7 +15,7 @@ import { deriveSeed } from "../relay/pads.mjs";
 
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const loop = path.join(repo, "shielded", "dealer", "dealer-loop.py");
-const run = (...args) => JSON.parse(execFileSync("python3", [loop, ...args], { encoding: "utf8", timeout: 60_000 }).trim());
+const run = (...args) => JSON.parse(execFileSync("python3", [loop, ...args], { encoding: "utf8", stdio: "pipe", timeout: 60_000 }).trim());
 
 test("the dealer derives the seed the relay derives", () => {
   const master = randomBytes(32), keyFp = randomBytes(32).toString("hex");
@@ -25,14 +25,36 @@ test("the dealer derives the seed the relay derives", () => {
   assert.equal(py.seed_id, js.seed_id);
 });
 
-test("the plan covers the window ahead of the mark in aligned chunks and prunes the spent", () => {
+test("the plan covers delivery gaps and prunes only the explicitly acknowledged floor", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bank-"));
   const seed_id = randomBytes(16).toString("hex");
   for (const [i0, c] of [[0, 64], [64, 64], [128, 64]]) fs.writeFileSync(path.join(dir, `${seed_id}-${i0}-${c}.pads`), "x");
   fs.writeFileSync(path.join(dir, `${randomBytes(16).toString("hex")}-0-64.pads`), "x");   // another seed's: untouched
-  const p = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "150", "--ahead", "256", "--chunk", "64");
+  const p = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "150", "--ack-floor", "128", "--ahead", "256", "--chunk", "64");
   assert.deepEqual(p.mint, [[192, 64], [256, 64], [320, 64], [384, 64]], "128..192 is already there; 150+256=406 needs up to 448");
   assert.deepEqual(p.prune.map((x) => path.basename(x)), [`${seed_id}-0-64.pads`, `${seed_id}-64-64.pads`]);
   const q = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "0", "--ahead", "128", "--chunk", "64");
   assert.deepEqual(q.mint, []); assert.deepEqual(q.prune, []);
+});
+
+test("a dealer first seeing mark 64 still mints undelivered index 0; an old relay never authorizes pruning", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bank-")), seed_id = "ab".repeat(16);
+  try {
+    let p = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "64", "--ahead", "64", "--chunk", "64");
+    assert.deepEqual(p.mint, [[0, 64], [64, 64]]); assert.deepEqual(p.prune, []);
+    fs.writeFileSync(path.join(dir, `${seed_id}-0-64.pads`), "pending upload");
+    p = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "128", "--ahead", "64", "--chunk", "64");
+    assert.deepEqual(p.mint, [[64, 64], [128, 64]]); assert.deepEqual(p.prune, []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the dealer bounds old-client retention and clips exact partial ranges to the pad domain", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bank-")), seed_id = "ab".repeat(16), limit = 2 ** 24;
+  try {
+    const p = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "4000", "--ahead", "256", "--chunk", "64", "--max-pending", "128");
+    assert.deepEqual(p.mint, [[0, 64], [64, 64]]);
+    const q = run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", String(limit), "--ack-floor", String(limit-7), "--ahead", "64", "--chunk", "64");
+    assert.deepEqual(q.mint, [[limit-7, 7]]);
+    assert.throws(() => run("--plan-only", "--out", dir, "--seed-id", seed_id, "--mark", "1", "--chunk", "0"));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
