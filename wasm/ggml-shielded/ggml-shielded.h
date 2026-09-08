@@ -85,6 +85,12 @@ GGML_BACKEND_API ggml_backend_buffer_t ggml_backend_shielded_weight_source(
  * including block authentication over-read. Snapshot after prefill and decode
  * to distinguish initial upload from steady inference I/O. */
 GGML_BACKEND_API void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes);
+/* Cumulative streamed-source reader calls (including failed calls) and raw bytes
+ * delivered by successful full-tensor callbacks, including generic CPU/view
+ * copies. These are source callback bytes, not encoded-cache or filesystem I/O;
+ * verification happens afterward and may still reject them. Snapshot at quiescent
+ * prefill/decode boundaries; counters live for this backend module's lifetime. */
+GGML_BACKEND_API void ggml_backend_shielded_weight_source_stats(uint64_t *calls, uint64_t *bytes);
 
 /* Capability probe used by the manager before admitting a pooled tenant. */
 GGML_BACKEND_API int ggml_backend_shielded_pool_version(void);

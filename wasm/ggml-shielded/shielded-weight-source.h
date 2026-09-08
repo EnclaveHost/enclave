@@ -5,6 +5,12 @@
 #include <atomic>
 #include <sys/mman.h>
 
+static std::atomic<uint64_t> sh_source_read_calls{0}, sh_source_read_bytes{0};
+void ggml_backend_shielded_weight_source_stats(uint64_t *calls, uint64_t *bytes) {
+    if (calls) *calls = sh_source_read_calls.load(std::memory_order_relaxed);
+    if (bytes) *bytes = sh_source_read_bytes.load(std::memory_order_relaxed);
+}
+
 struct sh_weight_source {
     ggml_tensor descriptor;
     ggml_shielded_weight_reader reader;
@@ -25,14 +31,19 @@ static bool sh_source_descriptor_matches(const sh_weight_source &s, const ggml_t
            !memcmp(t->ne, s.descriptor.ne, sizeof t->ne) &&
            !memcmp(t->nb, s.descriptor.nb, sizeof t->nb) && t->data == s.guard;
 }
+static int sh_source_read(sh_weight_source &s, void *dst, size_t n) {
+    sh_source_read_calls.fetch_add(1, std::memory_order_relaxed);
+    const int rc = s.reader(s.reader_ctx, s.descriptor.name, (uint32_t)s.descriptor.type, s.descriptor.ne, dst, n);
+    if (rc == SH_OK) sh_source_read_bytes.fetch_add(n, std::memory_order_relaxed);
+    return rc;
+}
 // Direct registration already owns its private destination and verifies it
 // immediately afterward. Do not allocate/hash a second temporary copy there.
 static bool sh_source_read_for_registration(const ggml_tensor *t, void *dst, size_t n) {
     auto &s = *static_cast<sh_weight_source *>(t->buffer->context);
     if (s.failed.load() || !sh_source_descriptor_matches(s, t) || n != s.size) return false;
     try {
-        if (s.reader(s.reader_ctx, s.descriptor.name, (uint32_t)s.descriptor.type,
-                     s.descriptor.ne, dst, n) == SH_OK) return true;
+        if (sh_source_read(s, dst, n) == SH_OK) return true;
     } catch (...) { }
     s.failed.store(true);
     return false;
@@ -66,8 +77,7 @@ static void sh_source_get(ggml_backend_buffer_t b, const ggml_tensor *t, void *d
     if (ok) {
         try {
             bytes.resize(s.size);
-            ok = s.reader(s.reader_ctx, s.descriptor.name, (uint32_t)s.descriptor.type,
-                          s.descriptor.ne, bytes.data(), bytes.size()) == SH_OK &&
+            ok = sh_source_read(s, bytes.data(), bytes.size()) == SH_OK &&
                  s.verifier(s.verifier_ctx, s.descriptor.name, (uint32_t)s.descriptor.type,
                             s.descriptor.ne, bytes.data(), bytes.size()) == SH_OK;
         } catch (...) { ok = false; }

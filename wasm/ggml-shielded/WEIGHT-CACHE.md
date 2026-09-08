@@ -97,6 +97,15 @@ outlier columns and graph buffers are additional. Cache files also consume
 disk space alongside the original model and pad shipments, and one descriptor
 per cached tensor until the process exits.
 
+`ggml_backend_shielded_weight_source_stats` separately reports streamed-source
+callback calls and bytes returned by successful whole-tensor reads. This counts
+registration and generic CPU/view copies; a partial view can require a full
+source read. Failed calls count, but their partial byte count is unavailable.
+Verification follows the read and can reject its bytes. These counters are
+cumulative for the backend module and do not count encoded-cache reads or direct
+loader reads of resident tensors. Compare snapshots after prefill and decode:
+zero cache reads alone does not establish zero original-weight reads.
+
 For the locally available Qwen3.8 27B Q8 artifact, the 64 target layers contain
 about 22.66 GiB of default-eligible encoded matrices. Reducing those retained
 copies is a memory prerequisite; it is not evidence of 27B throughput or
