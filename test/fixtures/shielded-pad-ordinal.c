@@ -9,6 +9,32 @@ static int8_t weights[GROUPS][K * 8];
 static const int widths[GROUPS] = {3, 8, 5};
 static uint8_t seed[32], seed_id[16], digest[32], sk[32], pk[32];
 
+static int window_calls;
+static int first_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
+    (void)ctx; (void)want;
+    window_calls++; *lo = FIRST; *hi = FIRST + COUNT; return SH_OK;
+}
+
+static void retired(sh_link *l) {
+    uint64_t verify = 0, before_pads = 0, after_pads = 0, exchanges = 0;
+    sh_link_stats(l, &exchanges, NULL, &verify); assert(verify == 1 && exchanges == 0);
+    sh_link_pool_stats(l, &before_pads, NULL);
+    const int windows = window_calls;
+    int64_t x[K] = {0}, y[8], *out = y; int node = 0;
+    for (int i = 0; i < 8; i++) y[i] = 9191;
+    assert(sh_link_gemm(l, &node, 1, x, 1, &out) == SH_ERR_VERIFY);
+    assert(sh_link_gemm_local(l, &node, 1, x, 1, &out) == SH_ERR_VERIFY);
+    assert(sh_link_start(l) == SH_ERR_VERIFY);
+    assert(sh_link_add_weight(l, "later", weights[0], K, 3, 1, -1) == SH_ERR_VERIFY);
+    int32_t r[K] = {0}, u[8] = {0};
+    assert(sh_link_dealt_selftest(l, 1, r, u) == SH_ERR_VERIFY);
+    assert(start_pools(l) == SH_ERR_VERIFY); // stop/join does not clear retirement
+    assert(window_calls == windows);
+    sh_link_stats(l, &exchanges, NULL, &verify); assert(verify == 1 && exchanges == 0);
+    sh_link_pool_stats(l, &after_pads, NULL); assert(after_pads == before_pads);
+    for (int i = 0; i < 8; i++) assert(y[i] == 9191);
+}
+
 static void write_shipment(const char *path, const int *order, uint64_t first) {
     sh_pads_group table[GROUPS] = {0};
     for (int g = 0; g < GROUPS; g++) {
@@ -78,6 +104,7 @@ int main(int argc, char **argv) {
     assert(argc == 2);
     setenv("SHIELDED_NO_SIMD", "1", 1); setenv("SHIELDED_PAD_CHECK", "1", 1);
     setenv("SHIELDED_PREP_THREADS", "1", 1);
+    setenv("SHIELDED_PAD_WAIT_MS", "100", 1);
     for (int i = 0; i < 32; i++) { seed[i] = i+11; sk[i] = i+53; digest[i] = i+97; }
     for (int i = 0; i < 16; i++) seed_id[i] = i+5;
     crypto_scalarmult_base(pk, sk);
@@ -99,10 +126,29 @@ int main(int argc, char **argv) {
     assert(sh_pads_reader_cell_ordinal(l->pads, GROUPS, FIRST, u, &selected) == SH_ERR_RANGE && selected == UINT32_MAX);
     selected = 19;
     assert(sh_pads_reader_cell_ordinal(l->pads, 0, FIRST+2*COUNT, u, &selected) == SH_ERR_EXHAUST && selected == UINT32_MAX);
+    // An ordinary missing range does not create an integrity retirement.
+    assert(dealt_import(l, &l->groups[0], 0, FIRST+2*COUNT, 1, r, u) == SH_ERR_EXHAUST);
+    assert(!sh_integrity_failed(l));
     // The ordinal fix does not relax the private r.W check.
     s->pad_seed[0] ^= 1;
     assert(dealt_import(s, &s->groups[0], 0, FIRST, COUNT, r, u) == SH_ERR_VERIFY);
+    s->pad_seed[0] ^= 1; // repairing the source cannot revive the same challenges
+    retired(s);
     sh_link_close(s);
+
+    // Exercise the REAL background importer and condition-variable wakeup.
+    // The authenticated file is valid, but its u fails the private r.W check.
+    sh_link *async = consumer(argv[1], subset, 1);
+    async->pad_seed[0] ^= 1;
+    async->pool_depth = async->refill_batch = COUNT;
+    async->threads_env = 1; async->warm_ms = 1000;
+    sh_link_set_window_provider(async, first_window, NULL);
+    assert(start_pools(async) == SH_ERR_VERIFY);
+    assert(window_calls == 1);
+    stop_threads(async);
+    assert(!async->stop && !async->threads_running);
+    async->pad_seed[0] ^= 1;
+    retired(async); sh_link_close(async);
     // Tamper a cell after its header was admitted: no usable ordinal is returned.
     int fd = open(first, O_RDWR); assert(fd >= 0);
     off_t last = lseek(fd, -1, SEEK_END); assert(last > 0);
@@ -111,6 +157,7 @@ int main(int argc, char **argv) {
     selected = 19;
     assert(sh_pads_reader_cell_ordinal(l->pads, 0, FIRST+COUNT-1, u, &selected) == SH_ERR_VERIFY && selected == UINT32_MAX);
     assert(dealt_import(l, &l->groups[0], 0, FIRST+COUNT-1, 1, r, u) == SH_ERR_VERIFY);
+    retired(l);
     sh_link_close(l); unlink(first); unlink(second);
     puts("pad-ordinal: reordered/subset/shared groups, per-shipment mapping, wrong seed and tampering passed");
 }

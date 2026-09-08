@@ -14,6 +14,33 @@ static ssize_t fault_pread(int fd, void *buffer, size_t bytes, off_t offset) {
 
 struct source_record { void *mapping; std::vector<uint8_t> bytes; };
 struct verifier_state { std::map<std::string, source_record> expected; int calls = 0, reads = 0; bool tamper = false, read_fail = false; };
+static int test_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
+    (void)ctx; (void)want; *lo = 0; *hi = 8; return SH_OK;
+}
+
+static void reject_pad_before_start(sh_link *link, const char *dir) {
+    sh_pads_group groups[2] = {};
+    assert(sh_link_group_table(link, groups, 2) == 1);
+    assert(groups[0].K == 32 && groups[0].u_len == 16);
+    uint8_t zero[32] = {}, pk[32]; crypto_scalarmult_base(pk, zero);
+    const std::string path = std::string(dir) + "/start-integrity.pads";
+    int err = 0;
+    auto *w = sh_pads_writer_open(path.c_str(), zero, zero, groups, 1, 0, 1, pk, &err);
+    assert(w && err == SH_OK);
+    int32_t u[16] = {};
+    assert(sh_pads_writer_cell(w, 0, 0, u) == SH_OK && sh_pads_writer_close(w) == SH_OK);
+    // Alter ciphertext without touching the authenticated header: import must
+    // reject deterministically before the mathematical pad check.
+    int fd = open(path.c_str(), O_RDWR); assert(fd >= 0);
+    const off_t pos = lseek(fd, -1, SEEK_END); assert(pos > 0);
+    uint8_t byte; assert(pread(fd, &byte, 1, pos) == 1); byte ^= 1;
+    assert(pwrite(fd, &byte, 1, pos) == 1); close(fd);
+    sh_link_set_window_provider(link, test_window, nullptr);
+    int32_t r[32];
+    assert(sh_link_dealt_selftest(link, 1, r, u) == SH_ERR_VERIFY);
+    uint64_t failures = 0; sh_link_stats(link, nullptr, nullptr, &failures); assert(failures == 1);
+    assert(unlink(path.c_str()) == 0); // deleting the bad file does not undo retirement
+}
 static void source_stats_check(const verifier_state &state) {
     uint64_t calls = UINT64_MAX, bytes = UINT64_MAX;
     ggml_backend_shielded_weight_source_stats(&calls, &bytes);
@@ -117,7 +144,7 @@ int main(int argc, char **argv) {
     }
     sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest" && scenario != "source") {
+    if (scenario != "honest" && scenario != "source" && scenario != "start_integrity") {
         assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
@@ -165,7 +192,12 @@ int main(int argc, char **argv) {
         std::fill_n((float *)out->data, 8, -9876.0f);
         ggml_tensor *nodes[] = {out}; ggml_cgraph graph = {};
         graph.n_nodes = graph.size = 1; graph.nodes = nodes;
-        corrupt_cache_reads = true;
+        if (scenario == "start_integrity") {
+            reject_pad_before_start(s.link, argv[1]);
+            // Force the actual sh_link_start path. Its sticky SH_ERR_VERIFY
+            // must retire the backend rather than arm an ordinary retry.
+            s.dirty = true; s.link_failed = false;
+        } else corrupt_cache_reads = true;
         assert(ggml_backend_shielded_graph_compute(nullptr, &graph) == GGML_STATUS_FAILED);
         assert(s.verify_fail == 1);
         corrupt_cache_reads = false;

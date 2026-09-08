@@ -5,13 +5,23 @@ or cache insertion. It also retires the link: its secret Freivalds challenges
 must not be offered to the peer again after a failed check. Reconnecting a
 socket alone retains those challenges and is not recovery.
 
-The link's monotonic verification-failure counter is the retirement latch.
-Once nonzero, start, registration, remote compute and local fallback calls
+The caller's monotonic verification-failure counter and an atomic background
+pad-integrity flag are the retirement latches. Once either is set, start,
+registration, remote compute and local fallback calls
 return `SH_ERR_VERIFY` before networking, pad consumption or output writes.
 There is no reset operation. A direct C caller must close the failed link and
 register a new one with fresh verification state. A diagnostic
 `sh_link_verify` call remains a pure check; it does not send data or revive a
 retired link.
+
+Cell authentication failure and a failed private `u = r.W` check permanently
+retire the link even when discovered by a refill thread. Stopping/joining that
+thread clears its scheduling stop flag, but never its integrity flag. The
+reported verification-failure count includes one event for pad retirement.
+A startup integrity failure also retires the GGML backend; it is not classified
+as a retryable bank shortage. The caller checks again after waiting for pads,
+so a rejection during that wait reaches the backend as `SH_ERR_VERIFY`.
+An ordinary missing shipment remains exhaustion and does not set this latch.
 
 The GGML backend similarly stops every later graph, including other cards,
 before graph planning when any card has recorded an integrity failure.

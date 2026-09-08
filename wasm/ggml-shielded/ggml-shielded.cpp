@@ -1171,6 +1171,14 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     if (s.dirty && s.link && !s.link_failed) {
         const double t0 = sh_now_ms();
         const int rc = sh_link_start(s.link);
+        if (rc == SH_ERR_VERIFY) {
+            /* A pad importer or authenticated upload can reject while start
+             * is warming the link. Never downgrade this to a retryable bank
+             * shortage, and retire the process-wide backend as for a reply. */
+            s.verify_fail++;
+            fprintf(stderr, "[shielded] integrity failure during start: %s\n", sh_link_last_error(s.link));
+            return GGML_STATUS_FAILED;
+        }
         if (rc != SH_OK && sh_link_is_dealt(s.link)) {
             /* Dealt pads configured and no way to run them (no window, no
              * shipment, no worker): the same refusal as exhaustion. Computing
