@@ -25,6 +25,10 @@
 //   POST /v1/pads/seed     { name, nonce, sig }
 //                          -> { seed_id, epoch, epk, nonce, box }  the pVM's seed,
 //                             X25519(epk, padKey) -> HKDF-SHA512 -> ChaCha20-Poly1305
+//     With model_digest + calib_digest, sign the seed-v2 request and receive
+//     grant_version:1 + grant_sig over pad-grant.mjs's canonical transcript.
+//     Protected consumers require that grant under a measured ledger-key pin;
+//     encryption alone and the untrusted GET /key response provide no such pin.
 //   POST /v1/pads/reserve  { name, seed_id, want, nonce, sig }
 //   POST /v1/pads/receipt  { name, seed_id, pads, tokens, nonce, sig }
 //     the pVM's signed usage at the end of a run (pads = cells consumed,
@@ -44,6 +48,7 @@ import { createHash, createPrivateKey, createPublicKey, createCipheriv, diffieHe
          hkdfSync, randomBytes, sign as edSign, verify as edVerify } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage } from "./pad-grant.mjs";
 
 /* ---- the HTTP surface, shared by api-relay.js and the local hub ----------
  * Returns true when the request was one of ours (answered), false otherwise.
@@ -262,16 +267,32 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
     seedFor: (keyFp, epoch = PADS_EPOCH) => deriveSeed(master, keyFp, epoch),
 
     /* POST /v1/pads/seed */
-    seed({ name, nonce, sig }) {
-      const c = callerOf(name, "seed", [], nonce, sig);
+    seed({ name, nonce, sig, model_digest, calib_digest }) {
+      // V2 consumers sign both asset identities and require a platform grant.
+      // A partially supplied/malformed identity cannot downgrade to legacy.
+      const grant = model_digest !== undefined || calib_digest !== undefined;
+      if (grant && (!padGrantDigestsValid(model_digest, calib_digest) || !padGrantNonceValid(nonce)))
+        return { status: 400, body: { error: "bad_grant_request", message: "model/calibration digests and nonce must each be 32 bytes lowercase hex" } };
+      const c = callerOf(name, grant ? "seed-v2" : "seed", grant ? [model_digest, calib_digest] : [], nonce, sig);
       if (c.error) return { status: 403, body: c };
       const t = c.tunnel;
       if (!t.padKey) return { status: 409, body: { error: "no_pad_key", message: "the tunnel attached without a pad key" } };
+      const transport_key = Buffer.from(t.spki, "base64").toString("hex");
+      if (grant && (transport_key.length !== 88 || !transport_key.startsWith("302a300506032b6570032100")))
+        return { status: 409, body: { error: "grant_transport", message: "v2 seed grants require the pVM Ed25519 transport key" } };
+      if (grant && (!Number.isSafeInteger(PADS_EPOCH) || PADS_EPOCH < 1))
+        return { status: 503, body: { error: "grant_epoch", message: "pad epoch must be a positive safe integer" } };
       const { seed, seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
       const rec = state.seeds[seed_id] || (state.seeds[seed_id] = { name, keyFp: t.keyFp, epoch: PADS_EPOCH, mark: 0, updated: 0, nonces: [] });
       rec.name = name;
       save();
       const boxed = boxToPadKey(t.padKey, seed);
+      if (grant) {
+        const body = { grant_version: 1, name, transport_key, pad_key: t.padKey,
+          model_digest, calib_digest, request_nonce: nonce, seed_id, epoch: PADS_EPOCH, ...boxed };
+        body.grant_sig = edSign(null, Buffer.from(seedGrantMessage(body)), priv).toString("hex");
+        return { status: 200, body };
+      }
       return { status: 200, body: { seed_id, epoch: PADS_EPOCH, ...boxed } };
     },
 
