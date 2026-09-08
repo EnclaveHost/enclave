@@ -11,6 +11,7 @@
 #include "ggml-backend.h"
 #include "prefix-kv.h"
 #include "shielded-pads.h"
+#include "shielded-sha256.h"
 extern "C" {
 #include "tweetnacl.h"
 }
@@ -24,9 +25,9 @@ static bool read_file(const char *path, std::string &out) {
     FILE *f = fopen(path, "rb"); if (!f) return false;
     char buf[65536]; size_t n;
     while ((n = fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
-    fclose(f); return true;
+    const bool ok = !ferror(f); fclose(f); return ok;
 }
-static bool file_digest(const char *path, uint8_t out[32]) {   /* the dealer's model label: SHA-512 of the calib, first 32 bytes */
+static bool calibration_digest(const char *path, uint8_t out[32]) {
     std::string s; if (!read_file(path, s)) return false;
     uint8_t h[64]; crypto_hash(h, (const uint8_t *)s.data(), s.size()); memcpy(out, h, 32); return true;
 }
@@ -47,7 +48,11 @@ int main(int argc, char **argv) {
         return 2;
     }
     std::string prefix; if (!read_file(prefix_file, prefix)) { fprintf(stderr, "cannot read %s\n", prefix_file); return 2; }
-    uint8_t digest[32]; if (!file_digest(calib, digest)) { fprintf(stderr, "cannot read calib %s\n", calib); return 2; }
+    uint8_t digest[32], model_digest[32]; uint64_t model_bytes = 0;
+    if (!calibration_digest(calib, digest)) { fprintf(stderr, "cannot read calib %s\n", calib); return 2; }
+    /* The publisher runs on trusted storage with an immutable input model.
+     * Compute its full identity; a calibration label is not a model hash. */
+    if (sh_sha256_file(model_path, model_digest, &model_bytes) || !model_bytes) { fprintf(stderr, "cannot hash model %s\n", model_path); return 2; }
     uint8_t sk[64];
     {
         std::string k = key;
@@ -59,6 +64,7 @@ int main(int argc, char **argv) {
     if (const char *cpu_so = getenv("GGML_CPU_SO")) { if (!ggml_backend_load(cpu_so)) { fprintf(stderr, "cpu backend failed to load\n"); return 2; } }
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();
+    mp.n_gpu_layers = 0;
     llama_model *model = llama_model_load_from_file(model_path, mp);
     if (!model) { fprintf(stderr, "model load failed\n"); return 2; }
     const llama_vocab *vocab = llama_model_get_vocab(model);
@@ -77,10 +83,10 @@ int main(int argc, char **argv) {
     const size_t wrote = llama_state_seq_save_file(ctx, out, 0, toks.data(), (size_t)n);
     if (!wrote) { fprintf(stderr, "state save failed\n"); return 2; }
     char err[256];
-    if (sh_prefix_kv_sign(out, digest, prefix.data(), prefix.size(), (uint64_t)n, sk, err, sizeof err)) { fprintf(stderr, "sign failed: %s\n", err); return 2; }
+    if (sh_prefix_kv_sign_v2(out, model_digest, digest, prefix.data(), prefix.size(), (uint64_t)n, sk, err, sizeof err)) { fprintf(stderr, "sign failed: %s\n", err); return 2; }
     uint8_t pk[32]; memcpy(pk, sk + 32, 32); char pkh[65]; sh_pads_bin2hex(pk, 32, pkh);
-    char dh[65]; sh_pads_bin2hex(digest, 32, dh);
-    printf("prefix-kv: %s: %d tokens, %zu bytes, model %.16s..., signed; pin SHIELDED_PREFIX_KV_PK=%s\n", out, n, wrote, dh, pkh);
+    char dh[65]; sh_pads_bin2hex(model_digest, 32, dh);
+    printf("prefix-kv: %s: %d tokens, %zu bytes, model SHA256 %.16s..., signed v2; pin SHIELDED_PREFIX_KV_PK=%s\n", out, n, wrote, dh, pkh);
     llama_free(ctx); llama_model_free(model);
     return 0;
 }

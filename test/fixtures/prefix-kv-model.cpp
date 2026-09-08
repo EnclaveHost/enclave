@@ -2,6 +2,7 @@
 #include "ggml-backend.h"
 #include "prefix-kv.h"
 #include "prefix-kv-llama.h"
+#include "shielded-sha256.h"
 extern "C" {
 #include "tweetnacl.h"
 }
@@ -26,11 +27,12 @@ int main(int argc,char **argv) {
  assert(llama_decode(a,llama_batch_get_one(tokens.data(),n))==0);
  const std::string path=std::string(argv[3])+"/proof.kv";
  assert(llama_state_seq_save_file(a,path.c_str(),0,tokens.data(),tokens.size())>0);
- uint8_t pk[32],sk[64],digest[32]={}; crypto_sign_keypair(pk,sk); char err[256];
- assert(sh_prefix_kv_sign(path.c_str(),digest,prefix,strlen(prefix),n,sk,err,sizeof err)==0);
+ uint8_t pk[32],sk[64],digest[32]={},model_digest[32]; crypto_sign_keypair(pk,sk); char err[256];
+ assert(sh_sha256_file(argv[1],model_digest,nullptr)==0);
+ assert(sh_prefix_kv_sign_v2(path.c_str(),model_digest,digest,prefix,strlen(prefix),n,sk,err,sizeof err)==0);
  memset(sk,0,sizeof sk);
  int fd=open(path.c_str(),O_RDONLY); assert(fd>=0); sh_prefix_kv_snapshot snap{};
- assert(sh_prefix_kv_snapshot_read(path.c_str(),fd,pk,digest,prefix,strlen(prefix),size_t(128)<<20,64,&snap,err,sizeof err)==0); close(fd);
+ assert(sh_prefix_kv_snapshot_read_v2(path.c_str(),fd,pk,model_digest,digest,prefix,strlen(prefix),size_t(128)<<20,64,&snap,err,sizeof err)==0); close(fd);
  const uint8_t *state=nullptr; size_t size=0;
  assert(sh_prefix_kv_snapshot_state(&snap,LLAMA_STATE_SEQ_MAGIC,LLAMA_STATE_SEQ_VERSION,nv,&state,&size,err,sizeof err)==0);
  const size_t snapshot_size=snap.size;

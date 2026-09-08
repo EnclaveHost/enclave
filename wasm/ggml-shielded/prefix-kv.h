@@ -6,7 +6,20 @@
  * of prefilling: no pad rows for the prefix, no minutes of phone prefill, a
  * one-second re-park after a restart. The KV file itself is llama's
  * `llama_state_seq_save_file` of the prefix sequence; the trust is the
- * sidecar `<file>.sig`:
+ * sidecar `<file>.sig`. Version 2 binds the actual model AND calibration:
+ *
+ *   enclave-prefix-kv-v2\n
+ *   model-sha256 <whole GGUF SHA-256 hex, 64>\n
+ *   calib-sha512-256 <first 32 bytes of calibration SHA-512, hex 64>\n
+ *   prefix-sha512 <hex, 128>\n
+ *   tokens <n>\n
+ *   file-sha512 <hex, 128>\n
+ *   sig <hex, 128>\n
+ *
+ * The signature covers all six preceding lines including newlines. Production
+ * consumers require v2; v1 historically used the calibration digest as its
+ * "model" label and cannot distinguish models sharing a calibration. Its old
+ * diagnostic API and format remain available:
  *
  *   enclave-prefix-kv-v1\n
  *   model <model digest hex, 64>\n
@@ -30,6 +43,8 @@ extern "C" {
 /* Writes `<kv_path>.sig`. `sk` is the 64-byte TweetNaCl Ed25519 secret. */
 int sh_prefix_kv_sign(const char *kv_path, const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                       uint64_t n_tokens, const uint8_t sk[64], char *err, size_t err_cap);
+int sh_prefix_kv_sign_v2(const char *kv_path, const uint8_t model_sha256[32], const uint8_t calib_digest[32], const char *prefix, size_t prefix_len,
+                         uint64_t n_tokens, const uint8_t sk[64], char *err, size_t err_cap);
 /* Verifies `<kv_path>.sig` against the pinned key, this model and this exact
  * prefix text, and the file's own hash. 0 = usable (n_tokens filled in),
  * -1 = not usable (err says why). Never loads anything into llama. */
@@ -54,6 +69,10 @@ typedef struct {
 } sh_prefix_kv_snapshot;
 int sh_prefix_kv_snapshot_read(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                                size_t max_bytes, uint64_t max_tokens, sh_prefix_kv_snapshot *out, char *err, size_t err_cap);
+/* Strict version 2: no fallback to a calibration-only v1 identity. The model
+ * digest must come from the trusted stage/pin, never an untrusted cache tag. */
+int sh_prefix_kv_snapshot_read_v2(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_sha256[32], const uint8_t calib_digest[32], const char *prefix, size_t prefix_len,
+                                  size_t max_bytes, uint64_t max_tokens, sh_prefix_kv_snapshot *out, char *err, size_t err_cap);
 void sh_prefix_kv_snapshot_free(sh_prefix_kv_snapshot *snapshot);
 /* View the sequence-state body in a verified snapshot. This checks the pinned
  * llama file magic/version, signed versus embedded token counts, bounds and
