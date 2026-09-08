@@ -27,6 +27,9 @@ import { createHash, createVerify, timingSafeEqual, X509Certificate } from "node
 import fs from "node:fs";
 
 export const AVF_ATTESTATION_EXTENSION_OID = "1.3.6.1.4.1.11129.2.1.29.1";
+export const AVF_MAX_CERT_BYTES = 64 * 1024;
+export const AVF_MAX_CHAIN_CERTS = 8;
+export const AVF_MAX_COMPONENTS = 256;
 
 // Google publishes its attestation roots as a JSON array at
 // https://android.googleapis.com/attestation/root and as PEM on
@@ -46,59 +49,130 @@ export function isPinnedGoogleRoot(cert, pins = GOOGLE_ATTESTATION_ROOT_SHA256.v
 }
 
 // ---- a DER walker, just enough for X.509 extensions and the AVF structure ----
-function tlv(b, off) {
-  if (off + 2 > b.length) throw new Error("DER truncated");
+// Schema: https://android.googlesource.com/platform/packages/modules/Virtualization/+/main/docs/vm_remote_attestation.md
+// DER lengths/BOOLEAN/defaults follow ITU-T X.690 (2021), 10.1, 11.1, 11.5.
+// https://www.itu.int/rec/T-REC-X.690/en
+// Local resource policy: <=8 certificates, <=64 KiB each, <=256 components,
+// <=1024 name bytes and <=32 securityVersion bytes. These are admission caps,
+// not claims that ASN.1 itself limits those fields to these sizes. Signature,
+// root, challenge, measurement and transport-binding policy remain separate
+// from syntax validation. OpenSSL/Node still parse and verify the certificates.
+// Exact field counts follow the current documented AVF schema; a future schema
+// revision needs an explicit verifier update. Synthetic tests are not proof of
+// real-device provisioning or of a future Pixel's attestation compatibility.
+function tlv(b, off, limit = b.length) {
+  if (!Number.isSafeInteger(off) || !Number.isSafeInteger(limit) || off < 0 || limit > b.length || off > limit - 2)
+    throw new Error("DER truncated");
   const tag = b[off]; let len = b[off + 1]; let p = off + 2;
-  if (len & 0x80) { const n = len & 0x7f; if (n > 4) throw new Error("DER length too long"); len = 0; for (let i = 0; i < n; i++) len = (len << 8) | b[p++]; }
-  if (p + len > b.length) throw new Error("DER element overruns buffer");
+  if (!tag || (tag & 0x1f) === 0x1f) throw new Error("unsupported DER tag");
+  if (len & 0x80) {
+    const n = len & 0x7f;
+    if (!n || n > 4 || n > limit - p) throw new Error("invalid DER length");
+    if (!b[p]) throw new Error("nonminimal DER length");
+    len = 0;
+    for (let i = 0; i < n; i++) len = len * 256 + b[p++]; // no signed-32-bit wrap
+    if (len < 128) throw new Error("nonminimal DER length");
+  }
+  if (len > limit - p) throw new Error("DER element overruns parent");
   return { tag, start: p, end: p + len, next: p + len };
 }
-function children(b, node) { const out = []; let p = node.start; while (p < node.end) { const c = tlv(b, p); out.push(c); p = c.next; } return out; }
+function children(b, node, cap = 2048) {
+  if (!node || !(node.tag & 0x20)) throw new Error("DER parent is not constructed");
+  const out = []; let p = node.start;
+  while (p < node.end) {
+    if (out.length >= cap) throw new Error("too many DER children");
+    const c = tlv(b, p, node.end); out.push(c); p = c.next;
+  }
+  return out;
+}
 const body = (b, n) => b.subarray(n.start, n.end);
 function oidOf(b, n) {
-  const v = body(b, n); if (!v.length) return "";
-  const parts = [Math.floor(v[0] / 40), v[0] % 40]; let acc = 0;
-  for (let i = 1; i < v.length; i++) { acc = acc * 128 + (v[i] & 0x7f); if (!(v[i] & 0x80)) { parts.push(acc); acc = 0; } }
-  return parts.join(".");
+  const v = body(b, n);
+  if (!v.length || v.length > 64) throw new Error("invalid DER OID length");
+  const parts = []; let acc = 0n, first = true;
+  for (const octet of v) {
+    if (first && octet === 0x80) throw new Error("nonminimal DER OID");
+    acc = acc * 128n + BigInt(octet & 0x7f); first = false;
+    if (!(octet & 0x80)) {parts.push(acc); acc = 0n; first = true;}
+  }
+  if (!first) throw new Error("truncated DER OID");
+  const combined = parts.shift(), head = combined < 40n ? 0n : combined < 80n ? 1n : 2n;
+  return [head, combined - head * 40n, ...parts].join(".");
 }
-function intOf(b, n) { let v = 0n; for (const x of body(b, n)) v = (v << 8n) | BigInt(x); return v; }
+function intOf(b, n) {
+  const bytes = body(b, n);
+  if (!bytes.length || bytes.length > 32 || (bytes[0] & 0x80) ||
+      (bytes.length > 1 && bytes[0] === 0 && !(bytes[1] & 0x80)))
+    throw new Error("securityVersion is not a bounded nonnegative DER INTEGER");
+  let v = 0n; for (const x of bytes) v = (v << 8n) | BigInt(x); return v;
+}
+function boolOf(b, n) {
+  const bytes = body(b, n);
+  if (n.tag !== 0x01 || bytes.length !== 1 || (bytes[0] !== 0 && bytes[0] !== 0xff))
+    throw new Error("invalid DER BOOLEAN");
+  return bytes[0] === 0xff;
+}
 
 // Pull one extension's value (the OCTET STRING contents) out of a certificate.
 export function extensionValue(certDer, oid) {
   const b = Buffer.isBuffer(certDer) ? certDer : Buffer.from(certDer);
-  const cert = tlv(b, 0); if (cert.tag !== 0x30) throw new Error("not a certificate");
-  const [tbs] = children(b, cert);
+  if (b.length > AVF_MAX_CERT_BYTES) throw new Error("certificate exceeds size limit");
+  const cert = tlv(b, 0);
+  if (cert.tag !== 0x30 || cert.end !== b.length) throw new Error("not an exact DER certificate");
+  const certFields = children(b, cert, 3);
+  if (certFields.length !== 3 || certFields[0].tag !== 0x30 || certFields[1].tag !== 0x30 || certFields[2].tag !== 0x03)
+    throw new Error("certificate fields malformed");
+  const [tbs] = certFields;
   const fields = children(b, tbs);
-  const exts = fields.find((f) => f.tag === 0xa3);          // [3] EXPLICIT Extensions
-  if (!exts) return null;
-  const [seq] = children(b, exts);
+  const extensions = fields.filter((f) => f.tag === 0xa3); // [3] EXPLICIT Extensions
+  if (!extensions.length) return null;
+  if (extensions.length !== 1) throw new Error("duplicate extension containers");
+  const wrapped = children(b, extensions[0], 1), seq = wrapped[0];
+  if (!seq || seq.tag !== 0x30) throw new Error("extensions are not a SEQUENCE");
+  let found = null;
+  const seen = new Set();
   for (const ext of children(b, seq)) {
-    const parts = children(b, ext);
-    if (parts[0].tag !== 0x06) continue;
-    if (oidOf(b, parts[0]) !== oid) continue;
+    if (ext.tag !== 0x30) throw new Error("extension is not a SEQUENCE");
+    const parts = children(b, ext, 3);
+    if (parts.length < 2 || parts[0].tag !== 0x06) throw new Error("extension fields malformed");
+    if (parts.length === 3 && !boolOf(b, parts[1])) throw new Error("DER default critical=false must be omitted");
+    const id = oidOf(b, parts[0]);
+    if (seen.has(id)) throw new Error("duplicate certificate extension");
+    seen.add(id);
     const val = parts[parts.length - 1];
     if (val.tag !== 0x04) throw new Error("extension value is not an OCTET STRING");
-    return body(b, val);
+    if (id === oid) found = body(b, val);
   }
-  return null;
+  return found;
 }
 
 export function parseAvfExtension(certDer) {
   const v = extensionValue(certDer, AVF_ATTESTATION_EXTENSION_OID);
   if (!v) throw new Error("no AVF attestation extension");
-  const top = tlv(v, 0); if (top.tag !== 0x30) throw new Error("AttestationExtension is not a SEQUENCE");
-  const [chal, secure, comps] = children(v, top);
+  const top = tlv(v, 0);
+  if (top.tag !== 0x30 || top.end !== v.length) throw new Error("AttestationExtension is not an exact SEQUENCE");
+  const fields = children(v, top, 3);
+  if (fields.length !== 3) throw new Error("AttestationExtension must have three fields");
+  const [chal, secure, comps] = fields;
   if (!chal || chal.tag !== 0x04) throw new Error("attestationChallenge missing");
   if (!secure || secure.tag !== 0x01) throw new Error("isVmSecure missing");
   if (!comps || comps.tag !== 0x30) throw new Error("vmComponents missing");
-  const components = children(v, comps).map((c) => {
-    const [name, ver, code, auth] = children(v, c);
+  const isVmSecure = boolOf(v, secure);
+  const components = children(v, comps, AVF_MAX_COMPONENTS).map((c) => {
+    if (c.tag !== 0x30) throw new Error("VmComponent is not a SEQUENCE");
+    const fields = children(v, c, 4);
+    if (fields.length !== 4) throw new Error("VmComponent must have four fields");
+    const [name, ver, code, auth] = fields;
     if (!name || name.tag !== 0x0c || !ver || ver.tag !== 0x02 || !code || code.tag !== 0x04 || !auth || auth.tag !== 0x04)
       throw new Error("VmComponent malformed");
-    return { name: body(v, name).toString("utf8"), securityVersion: intOf(v, ver),
+    const nameBytes = body(v, name);
+    if (!nameBytes.length || nameBytes.length > 1024) throw new Error("invalid component name length");
+    const decodedName = new TextDecoder("utf-8", {fatal:true, ignoreBOM:true}).decode(nameBytes);
+    if (/[\u0000-\u001f\u007f]/.test(decodedName)) throw new Error("component name contains control characters");
+    return { name: decodedName, securityVersion: intOf(v, ver),
              codeHash: Buffer.from(body(v, code)).toString("hex"), authorityHash: Buffer.from(body(v, auth)).toString("hex") };
   });
-  return { challenge: Buffer.from(body(v, chal)), isVmSecure: body(v, secure)[0] !== 0, components };
+  return { challenge: Buffer.from(body(v, chal)), isVmSecure, components };
 }
 
 // Leaf first, root last, whatever order the phone handed them over in.
@@ -120,8 +194,15 @@ export function verifyAvfEvidence({ chain, challenge, signature = null, signedMe
   const fail = (m) => { reasons.push(m); return { ok: false, measurement: null, reasons, rootVerified: false, component: null }; };
   const pins = [...rootPins];
   if (!Array.isArray(chain) || chain.length < 2) return fail(`chain must hold at least a leaf and a root, got ${chain?.length ?? 0}`);
+  if (chain.length > AVF_MAX_CHAIN_CERTS) return fail("attestation chain exceeds certificate-count limit");
   let certs;
-  try { certs = chain.map((d) => new X509Certificate(Buffer.isBuffer(d) ? d : Buffer.from(d, "base64"))); }
+  try { certs = chain.map((d) => {
+    if (!(Buffer.isBuffer(d) || typeof d === "string") || d.length > (Buffer.isBuffer(d) ? AVF_MAX_CERT_BYTES : 4 * Math.ceil(AVF_MAX_CERT_BYTES / 3)))
+      throw new Error("certificate exceeds size/type limit");
+    const bytes = Buffer.isBuffer(d) ? d : Buffer.from(d, "base64");
+    if (bytes.length > AVF_MAX_CERT_BYTES) throw new Error("certificate exceeds size limit");
+    return new X509Certificate(bytes);
+  }); }
   catch (e) { return fail(`unparseable certificate: ${e.message}`); }
   let ordered; try { ordered = orderChain(certs); } catch (e) { return fail(e.message); }
 
