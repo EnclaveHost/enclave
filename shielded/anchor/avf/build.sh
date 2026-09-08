@@ -155,8 +155,11 @@ for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.
 # assets/ledger.pk, model.sha256, prefix.pk. A protected build refuses to package without all three.
 MODE="${ANCHOR_MODE:-dev}"; case "$MODE" in dev|protected) ;; *) echo "ANCHOR_MODE must be dev or protected" >&2; exit 2;; esac
 printf '%s\n' "$MODE" > "$STAGE/assets/anchor.mode"
+# An unset variable REMOVES the staged pin: the stage directory persists between builds, and a dev build
+# after a protected one must not inherit the other's pins (nor a protected build another model's).
 pin() { local var="$1" file="$2"; local src="${!var:-}"; if [ -n "$src" ]; then [ -f "$src" ] || { echo "$var: $src not found" >&2; exit 2; }
-        tr -d ' \n' < "$src" > "$STAGE/assets/$file"; [ "$(wc -c < "$STAGE/assets/$file")" = 64 ] || { echo "$var: $src is not 64 hex" >&2; exit 2; }; echo "pinned $file from $src"; fi; }
+        tr -d ' \n' < "$src" > "$STAGE/assets/$file"; [ "$(wc -c < "$STAGE/assets/$file")" = 64 ] || { echo "$var: $src is not 64 hex" >&2; exit 2; }; echo "pinned $file from $src"
+        else rm -f "$STAGE/assets/$file"; fi; }
 pin ANCHOR_LEDGER_PK ledger.pk; pin ANCHOR_MODEL_SHA256 model.sha256; pin ANCHOR_PREFIX_PK prefix.pk
 if [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
