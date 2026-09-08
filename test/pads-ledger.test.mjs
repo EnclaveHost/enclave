@@ -159,6 +159,6 @@ test("consumers: every attached tunnel with a pad key, with its seed id and mark
   const n1 = randomBytes(16).toString("hex");
   L.reserve({ name: "phone1", seed_id, want: 24, nonce: n1, sig: a.signReq("reserve", "phone1", [seed_id, 24], n1) });
   c = L.consumers();
-  assert.deepEqual(c.find((x) => x.name === "phone1"), { name: "phone1", keyFp: a.keyFp, padKey: a.padKey, seed_id, epoch: 1, mark: 24, issued: true });
+  assert.deepEqual(c.find((x) => x.name === "phone1"), { name: "phone1", keyFp: a.keyFp, padKey: a.padKey, seed_id, epoch: 1, mark: 24, issued: true, ack_floor: 0, acked: [], finalized: false });
   assert.equal(c.find((x) => x.name === "phone2").issued, false);
 });
