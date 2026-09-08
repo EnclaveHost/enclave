@@ -19,6 +19,7 @@
 #include "ggml-backend.h"
 #include "ggml.h"
 #include "prefix-kv.h"
+#include "prefix-kv-llama.h"
 #include "shielded-pads.h"
 extern "C" {
 #include "tweetnacl.h"
@@ -27,6 +28,9 @@ extern "C" {
 #include <cstring>
 #include <string>
 #include <vector>
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <dlfcn.h>
 #include <thread>
@@ -117,11 +121,19 @@ int main(int argc, char **argv) {
         { FILE *f = fopen(calib, "rb"); if (!f) { fprintf(stderr, "[run] cannot read %s\n", calib); return 2; } std::string c; char b[65536]; size_t k; while ((k = fread(b, 1, sizeof b, f)) > 0) c.append(b, k); fclose(f);
           uint8_t h[64]; crypto_hash(h, (const uint8_t *)c.data(), c.size()); memcpy(digest, h, 32); }
         if (strncmp(prompt, prefix.c_str(), prefix.size())) { fprintf(stderr, "[run] the prompt does not start with the prefix in %s\n", pf); return 2; }
-        char err[256]; uint64_t ntok = 0;
-        if (sh_prefix_kv_verify(kv, pk, digest, prefix.data(), prefix.size(), &ntok, err, sizeof err)) { fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2; }
-        std::vector<llama_token> loaded(ntok + 16); size_t got = 0;
-        if (!llama_state_seq_load_file(ctx, kv, 0, loaded.data(), loaded.size(), &got) || got != ntok) { fprintf(stderr, "[run] prefix KV load failed (%zu of %llu tokens)\n", got, (unsigned long long)ntok); return 2; }
-        n_loaded = (int)got;
+        char err[256]; sh_prefix_kv_snapshot snapshot{};
+        int fd; do { fd = open(kv, O_RDONLY | O_CLOEXEC); } while (fd < 0 && errno == EINTR);
+        if (fd < 0) { fprintf(stderr, "[run] cannot open prefix KV: %s\n", strerror(errno)); return 2; }
+        /* This diagnostic runner has a 512-token context. Bound its one-time
+         * private snapshot to 1 GiB before reading host-controlled storage. */
+        const int verified = sh_prefix_kv_snapshot_read(kv, fd, pk, digest, prefix.data(), prefix.size(),
+            size_t(1) << 30, llama_n_ctx(ctx), &snapshot, err, sizeof err);
+        close(fd);
+        if (verified) { fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2; }
+        const int loaded = sh_prefix_kv_load_snapshot(ctx, &snapshot, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
+        n_loaded = (int)snapshot.n_tokens;
+        sh_prefix_kv_snapshot_free(&snapshot);
+        if (loaded) { fprintf(stderr, "[run] prefix KV load failed: %s\n", err); return 2; }
         prompt_rest = prompt + prefix.size();
         fprintf(stderr, "[run] prefix KV: %d tokens loaded and verified from %s\n", n_loaded, kv);
     }
