@@ -864,7 +864,7 @@ static void *refill_main(void *arg) {
         if (l->dealt) {
             /* Reserve-before-use: no index is imported unless the ledger's
              * mark is already past it, so a restart can never replay one. */
-            if (g->cursor + (uint64_t)b > l->win_hi) {
+            while (g->cursor + (uint64_t)b > l->win_hi) {
                 uint64_t lo, hi;
                 if (dealt_reserve(l, &lo, &hi) != SH_OK || lo != l->win_hi) {
                     snprintf(l->err, sizeof l->err, "dealt pads: ledger window refused; stopping");
@@ -984,9 +984,16 @@ static int dealt_reserve_http(sh_link *l, uint64_t *lo, uint64_t *hi) {
 }
 
 static int dealt_reserve(sh_link *l, uint64_t *lo, uint64_t *hi) {
-    if (l->win_fn) return l->win_fn(l->win_ctx, l->pad_window, lo, hi);
-    if (l->win_url[0]) return dealt_reserve_http(l, lo, hi);
-    return sh_pads_window_reserve(l->pad_ledger, l->pad_window, lo, hi);
+    *lo = *hi = 0;
+    const int rc = l->win_fn ? l->win_fn(l->win_ctx, l->pad_window, lo, hi) :
+                   l->win_url[0] ? dealt_reserve_http(l, lo, hi) :
+                   sh_pads_window_reserve(l->pad_ledger, l->pad_window, lo, hi);
+    if (rc != SH_OK) return rc;
+    if (*hi > SH_PADS_INDEX_LIMIT) return SH_ERR_EXHAUST;
+    /* Retain this floor across reconnect/reprepare. A correctly signed old
+     * window must not reset the cursors to indices already reserved here. */
+    if (*lo < l->win_hi || *hi <= *lo) return SH_ERR_VERIFY;
+    return SH_OK;
 }
 
 /* After a new window (pool mutex held): the lowest cursor over the groups is
@@ -1038,6 +1045,9 @@ void sh_link_set_window_provider(sh_link *l, sh_window_fn fn, void *ctx) {
  * take the first ledger window. Every group starts at the window's low edge. */
 static int dealt_open(sh_link *l) {
     if (!l->dealt) return SH_OK;
+    if (l->n_groups >= SH_PADS_GROUP_LIMIT) return SH_ERR_RANGE;
+    for (size_t gi = 0; gi < l->n_groups; gi++)
+        if (l->groups[gi].K <= 0 || l->groups[gi].K > SH_PADS_K_LIMIT) return SH_ERR_RANGE;
     if (!l->win_fn && !l->win_url[0] && !l->pad_ledger[0]) { snprintf(l->err, sizeof l->err, "dealt pads: no ledger (SHIELDED_PAD_LEDGER), no window agent (SHIELDED_PAD_WINDOW_URL) and no window provider"); return SH_ERR_RANGE; }
     if (!l->pads) {
         int err = SH_OK;
@@ -1061,7 +1071,8 @@ static int dealt_open(sh_link *l) {
     free(table);
     if (rc < 0) { snprintf(l->err, sizeof l->err, "dealt pads: no shipment matches this model's groups"); return rc; }
     uint64_t lo, hi;
-    if (dealt_reserve(l, &lo, &hi) != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: no ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return SH_ERR_IO; }
+    rc = dealt_reserve(l, &lo, &hi);
+    if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
     l->win_lo = lo; l->win_hi = hi;
     for (size_t i = 0; i < l->n_groups; i++) l->groups[i].cursor = lo;
     if (l->padbank) { sh_bank_set_floor(l->padbank, lo); sh_bank_set_need(l->padbank, hi + l->pad_window); }

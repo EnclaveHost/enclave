@@ -111,6 +111,15 @@ nonce and require `sig_v2`; it must not fall back to the legacy `sig` field.
 An old window remains cryptographically signed but cannot satisfy a fresh
 request after a worker reconnect or link recreation.
 
+The existing pad PRF packs `group16 | index24 | block24` into its ChaCha
+counter, yielding eight field values per block. Each seed therefore permits
+indices `0 <= index < 2^24`; exhausting this space fails and requires a fresh
+seed, never a wrapped counter. The relay, shipment writer/reader, and consumer
+enforce this bound. A link retains its previously reserved high-water mark
+across reconnects and refuses any overlapping replacement window. Refill
+batches reserve enough consecutive windows to cover every imported index.
+These bounds preserve the existing pad file format and normal counter values.
+
 ## Required consumer integration
 
 The transcript helper alone does not complete the trust chain. Before admitting

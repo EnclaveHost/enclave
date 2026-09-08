@@ -177,6 +177,7 @@ export function createShipmentStore({ dir }) {
 
 export const PADS_EPOCH = Number(process.env.PADS_EPOCH || 1);   // bump (env) to re-key every pVM's seed; old shipments become foreign
 export const MAX_WINDOW = 4096;
+export const PAD_INDEX_LIMIT = 2 ** 24;          // sh_pad_r's index field; a fresh seed is required at exhaustion
 const RECEIPT_MEMORY = 64;     // per seed, the most recent receipts kept verbatim (totals are cumulative)
 const NONCE_MEMORY = 256;                        // recent request nonces kept per seed (replay guard)
 
@@ -306,6 +307,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (c.error) return { status: 403, body: c };
       const rec = seedRecord(seed_id);
       if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      if (!Number.isSafeInteger(rec.mark) || rec.mark < 0 || rec.mark > PAD_INDEX_LIMIT - want)
+        return { status: 409, body: { error: "seed_exhausted", message: "pad counter domain exhausted; obtain a fresh per-boot seed" } };
       if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
       rec.nonces.push(nonce); if (rec.nonces.length > NONCE_MEMORY) rec.nonces.splice(0, rec.nonces.length - NONCE_MEMORY);
       const lo = rec.mark, hi = rec.mark + want, iat = Math.floor(Date.now() / 1000);
