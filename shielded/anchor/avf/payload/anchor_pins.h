@@ -29,6 +29,8 @@ int anchor_pins_load(const char *dir, anchor_pins *pins);
 /* SHA-256 (FIPS 180-4) of a file, streamed; returns 0 on success. */
 int anchor_sha256_file(const char *path, uint8_t out[32], uint64_t *bytes);
 void anchor_sha256(const uint8_t *m, size_t n, uint8_t out[32]);
+/* Runtime-selected implementation, for confirming guest CPU capabilities in logs. */
+const char *anchor_sha256_backend(void);
 
 /* SHA-256 of an open descriptor from offset 0 (pread; the offset is left alone). 0 on success. */
 int anchor_sha256_fd(int fd, uint8_t out[32], uint64_t *bytes);

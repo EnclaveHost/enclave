@@ -26,7 +26,8 @@ int main(int argc,char **argv) {
         }
         free(data);return 0;
     }
-    sha256_ctx selected;sha_init(&selected);printf("implementation %s\n",impl(&selected));
+    sha256_ctx selected;sha_init(&selected);assert(!strcmp(anchor_sha256_backend(),impl(&selected)));
+    printf("implementation %s\n",anchor_sha256_backend());
     for(size_t test=0;test<180;test++) {
         const size_t n=test<130?test:((test*7919)%((1<<20)+1)),offset=test%32;
         uint8_t fast[32],scalar[32],fragmented[32];sha256_ctx c;
