@@ -1126,14 +1126,14 @@ void sh_link_set_window_provider(sh_link *l, sh_window_fn fn, void *ctx) {
     l->win_fn = fn; l->win_ctx = ctx;
 }
 
-/* Dealt mode: open the shipment reader against this link's group table and
- * take the first ledger window. Every group starts at the window's low edge. */
-static int dealt_open(sh_link *l) {
+/* Bind already delivered files before uploading weights. Empty banks remain
+ * admissible (delivery can run during upload); present but incompatible files
+ * fail explicitly, rather than becoming a misleading bank-behind timeout. */
+static int dealt_bind(sh_link *l) {
     if (!l->dealt) return SH_OK;
     if (l->n_groups >= SH_PADS_GROUP_LIMIT) return SH_ERR_RANGE;
     for (size_t gi = 0; gi < l->n_groups; gi++)
         if (l->groups[gi].K <= 0 || l->groups[gi].K > SH_PADS_K_LIMIT) return SH_ERR_RANGE;
-    if (!l->win_fn && !l->win_url[0] && !l->pad_ledger[0]) { snprintf(l->err, sizeof l->err, "dealt pads: no ledger (SHIELDED_PAD_LEDGER), no window agent (SHIELDED_PAD_WINDOW_URL) and no window provider"); return SH_ERR_RANGE; }
     if (!l->pads) {
         int err = SH_OK;
         if (l->bank_url[0] && !l->padbank) {
@@ -1154,7 +1154,21 @@ static int dealt_open(sh_link *l) {
     int rc = sh_link_group_table(l, table, (uint32_t)l->n_groups);
     if (rc >= 0) rc = sh_pads_reader_bind(l->pads, table, (uint32_t)l->n_groups);
     free(table);
-    if (rc < 0) { snprintf(l->err, sizeof l->err, "dealt pads: no shipment matches this model's groups"); return rc; }
+    if (rc < 0) {
+        snprintf(l->err, sizeof l->err, "dealt pads: available shipments do not bind this model's complete registered groups (rc %d)", rc);
+        if (rc == SH_ERR_VERIFY) __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
+        return rc;
+    }
+    return SH_OK;
+}
+
+/* Reserve only after worker setup. Binding is repeated because registration
+ * or delivered coverage may have changed since the pre-upload check. */
+static int dealt_open(sh_link *l) {
+    if (!l->dealt) return SH_OK;
+    if (!l->win_fn && !l->win_url[0] && !l->pad_ledger[0]) { snprintf(l->err, sizeof l->err, "dealt pads: no ledger (SHIELDED_PAD_LEDGER), no window agent (SHIELDED_PAD_WINDOW_URL) and no window provider"); return SH_ERR_RANGE; }
+    int rc = dealt_bind(l);
+    if (rc != SH_OK) return rc;
     uint64_t lo, hi;
     rc = dealt_reserve(l, &lo, &hi);
     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
@@ -1345,6 +1359,9 @@ static void *prefetch_main(void *arg) {
 }
 
 int sh_link_start(sh_link *l) {
+    /* Binding mutates the reader table; stop old importers before checking
+     * it, including on reconnect. Joining also observes their final latch. */
+    if (l->dealt) stop_threads(l);
     /* A reconnect retains the prepared secret challenges. Once the peer has
      * failed one, never give it another verification attempt with those same
      * challenges. Recovery requires a new link and fresh registration. */
@@ -1353,6 +1370,8 @@ int sh_link_start(sh_link *l) {
         return SH_ERR_VERIFY;
     }
     int err = SH_OK;
+    const int binding = dealt_bind(l);
+    if (binding != SH_OK) return binding;  /* no connect, upload or reservation */
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
     /* vsock first when the guest was told the worker listens on one, TCP as the
      * fallback: a guest without the vsock driver, or a host without the

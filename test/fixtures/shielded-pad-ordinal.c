@@ -2,6 +2,7 @@
 #include "../../wasm/ggml-shielded/tweetnacl.h"
 #include <assert.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 enum { K = 32, COUNT = 2, FIRST = 7, GROUPS = 3 };
 static const char *names[GROUPS] = {"a.weight", "b.weight", "c.weight"};
@@ -161,6 +162,34 @@ int main(int argc, char **argv) {
     snprintf(second, sizeof second, "%s/second.pads", argv[1]);
     int a[GROUPS] = {0, 1, 2}, b[GROUPS] = {2, 0, 1}, reverse[GROUPS] = {2, 1, 0};
     write_shipment(first, a, FIRST); write_shipment(second, b, FIRST+COUNT);
+    // Reproduce the 27B dealer/consumer mismatch: all target files exist and
+    // their headers open, but the consumer also registered an MTP head group.
+    // Fail before connecting/uploading/reserving, name the binding failure,
+    // preserve delivered files, and retire this registration rather than retry.
+    sh_link *missing_head = consumer(argv[1], a, GROUPS);
+    assert(sh_link_add_weight(missing_head, "blk.64.nextn.eh_proj.weight", weights[0], K, 3, COUNT, -1) >= 0);
+    sh_link_set_window_provider(missing_head, first_window, NULL);
+    assert(sh_link_start(missing_head) == SH_ERR_VERIFY);
+    assert(!missing_head->pipe && window_calls == 0);
+    assert(strstr(sh_link_last_error(missing_head), "complete registered groups"));
+    assert(access(first, F_OK) == 0 && access(second, F_OK) == 0);
+    retired(missing_head); sh_link_close(missing_head);
+
+    // An empty initial bank remains allowed. A file delivered later is judged
+    // on the next bind (e.g. after upload), including its missing head group.
+    char late_dir[512], late_path[600];
+    snprintf(late_dir, sizeof late_dir, "%s/late", argv[1]); assert(mkdir(late_dir, 0700) == 0);
+    int late_err = 0;
+    sh_pads_reader *late = sh_pads_reader_open(late_dir, seed_id, sk, &late_err);
+    assert(late && late_err == SH_OK);
+    sh_pads_group head_group = {0}; head_group.K = K; head_group.u_len = 3;
+    strcpy(head_group.name, "blk.64.nextn.eh_proj.weight");
+    assert(sh_pads_reader_bind(late, &head_group, 1) == SH_OK);
+    snprintf(late_path, sizeof late_path, "%s/late.pads", late_dir); write_shipment(late_path, a, FIRST);
+    assert(sh_pads_reader_bind(late, &head_group, 1) == SH_ERR_VERIFY);
+    assert(access(late_path, F_OK) == 0);
+    sh_pads_reader_close(late); assert(unlink(late_path) == 0 && rmdir(late_dir) == 0);
+
     sh_link *l = consumer(argv[1], reverse, GROUPS);
     verify_import(l, reverse, GROUPS, a, FIRST);
     verify_import(l, reverse, GROUPS, b, FIRST+COUNT);

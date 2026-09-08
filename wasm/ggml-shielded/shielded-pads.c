@@ -373,7 +373,7 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
     return file_judge(r, f);
 }
 
-static int file_bind(sh_pads_reader *r, sh_pads_file *f) {
+static int file_bind(sh_pads_reader *r, sh_pads_file *f, uint32_t *missing) {
     free(f->ordinal_of);
     f->ordinal_of = (int *)malloc((size_t)r->n_bound * sizeof(int));
     if (!f->ordinal_of) return SH_ERR_NOMEM;
@@ -383,12 +383,15 @@ static int file_bind(sh_pads_reader *r, sh_pads_file *f) {
             const sh_pads_group *sg = &f->groups[g], *bg = &r->bound[b];
             if (!strncmp(sg->name, bg->name, SH_PADS_NAME_MAX) && sg->K == bg->K && sg->u_len == bg->u_len) { f->ordinal_of[b] = (int)g; break; }
         }
-        if (f->ordinal_of[b] < 0) return SH_ERR_VERIFY;   /* a shipment that lacks a group is not usable */
+        if (f->ordinal_of[b] < 0) {
+            if (missing) *missing = b;
+            return SH_ERR_VERIFY;   /* a shipment that lacks a group is not usable */
+        }
     }
     return SH_OK;
 }
 
-static int reader_scan(sh_pads_reader *r) {
+static int reader_scan(sh_pads_reader *r, bool defer_binding) {
     DIR *d = opendir(r->dir);
     if (!d) return SH_ERR_IO;
     struct dirent *e;
@@ -407,7 +410,7 @@ static int reader_scan(sh_pads_reader *r) {
         }
         sh_pads_file *f = &r->files[r->n_files];
         if (file_open(r, path, f) != SH_OK) continue;          /* not ours, or damaged: skipped, never trusted */
-        if (r->n_bound && file_bind(r, f) != SH_OK) { file_close(f); continue; }
+        if (!defer_binding && r->n_bound && file_bind(r, f, NULL) != SH_OK) { file_close(f); continue; }
         r->n_files++; added++;
     }
     closedir(d);
@@ -451,7 +454,7 @@ sh_pads_reader *sh_pads_reader_open(const char *dir, const uint8_t seed_id[16], 
     memcpy(r->seed_id, seed_id, 16);
     memcpy(r->sk, consumer_sk, 32);
     pthread_mutex_init(&r->mu, NULL);
-    const int rc = reader_scan(r);
+    const int rc = reader_scan(r, false);
     if (rc < 0) { *err = rc; sh_pads_reader_close(r); return NULL; }
     return r;
 }
@@ -463,13 +466,29 @@ int sh_pads_reader_bind(sh_pads_reader *r, const sh_pads_group *groups, uint32_t
     if (!r->bound) return SH_ERR_NOMEM;
     memcpy(r->bound, groups, (size_t)n_groups * sizeof *groups);
     r->n_bound = n_groups;
+    /* Include deliveries since the previous bind, but judge their group set
+     * below so a mismatch is not silently discarded as an empty bank. */
+    const int scanned = reader_scan(r, true);
+    if (scanned < 0) return scanned;
     /* Re-bind what is already open; drop shipments that do not fit. */
     size_t kept = 0;
+    const size_t present = r->n_files;
+    uint32_t missing = UINT32_MAX;
+    int rejected = SH_OK;
     for (size_t i = 0; i < r->n_files; i++) {
-        if (file_bind(r, &r->files[i]) == SH_OK) { if (kept != i) r->files[kept] = r->files[i]; kept++; }
-        else file_close(&r->files[i]);
+        const int rc = file_bind(r, &r->files[i], &missing);
+        if (rc == SH_OK) { if (kept != i) r->files[kept] = r->files[i]; kept++; }
+        else { rejected = rc; file_close(&r->files[i]); }
     }
     r->n_files = kept;
+    if (present && !kept) {
+        if (missing < n_groups) {
+            const sh_pads_group *g = &r->bound[missing];
+            fprintf(stderr, "[shielded] dealt pads: no available shipment covers registered group %.64s K=%u u_len=%llu\n",
+                    g->name, g->K, (unsigned long long)g->u_len);
+        }
+        return rejected;  /* incompatible present files are not an empty bank */
+    }
     return SH_OK;
 }
 
@@ -489,7 +508,7 @@ int sh_pads_reader_cell_ordinal(sh_pads_reader *r, uint32_t group, uint64_t inde
      * it. Pruning can close/reuse the table's fd as soon as the lock is released. */
     pthread_mutex_lock(&r->mu);
     sh_pads_file *f = reader_find(r, index);
-    if (!f) { reader_scan(r); f = reader_find(r, index); }
+    if (!f) { reader_scan(r, false); f = reader_find(r, index); }
     int fd = -1, g = -1; uint64_t u_len = 0, off = 0; uint8_t key[32], seed_id[16];
     if (f) {
         g = f->ordinal_of[group];

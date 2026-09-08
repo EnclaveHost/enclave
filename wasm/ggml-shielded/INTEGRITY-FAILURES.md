@@ -23,6 +23,14 @@ as a retryable bank shortage. The caller checks again after waiting for pads,
 so a rejection during that wait reaches the backend as `SH_ERR_VERIFY`.
 An ordinary missing shipment remains exhaustion and does not set this latch.
 
+Before connecting or uploading, a dealt link also binds already delivered
+shipments against its complete registered group table. If valid shipment
+headers are present but none cover that table, startup reports the missing
+group and retires the link. This catches a target-only dealer feeding an MTP
+consumer before a long upload. An initially empty bank can still receive files
+during upload; binding is repeated before reserving the first pad window.
+Rejected files are closed, not deleted, and no window is reserved by preflight.
+
 The GGML backend similarly stops every later graph, including other cards,
 before graph planning when any card has recorded an integrity failure.
 Its shared pool lives for the process, so restart the trusted engine and rebuild
