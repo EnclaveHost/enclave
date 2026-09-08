@@ -17,7 +17,7 @@ function fixture() {
   return { dir, file: path.join(dir, "pads-ledger.json"), hub,
     open: (masterSeed) => createPadsLedger({ dir, hub, log: () => {}, masterSeed }),
     request(kind, fields, body = {}) {
-      const nonce = randomBytes(16).toString("hex");
+      const nonce = randomBytes(kind === "seed-v2" ? 32 : 16).toString("hex");
       const sig = sign(null, Buffer.from(signedMessage(kind, ["phone", ...fields, nonce])), transport.privateKey).toString("hex");
       return { name: "phone", nonce, sig, ...body };
     },
@@ -107,4 +107,50 @@ test("reserve refuses to return a signed window on persistence failure; retry/re
     assert.equal(L.reserve(req()).body.lo,24);
     assert.equal(fs.statSync(f.file).mode & 0o777,0o600);
   } finally { f.close(); }
+});
+
+test("failed receipt persistence leaves usage and finalization unchanged in memory and permits an exact retry", t => {
+  for (const v2 of [false,true]) for (const failAt of [1,2]) {
+    const f=fixture();
+    try {
+      const L=f.open();
+      const assets={model_digest:"ab".repeat(32),calib_digest:"cd".repeat(32)};
+      const seed=L.seed(v2 ? f.request("seed-v2",Object.values(assets),assets) : f.request("seed",[]));
+      assert.equal(seed.status,200);
+      const sid=seed.body.seed_id;
+      const req=f.request("receipt",[sid,123,17],{seed_id:sid,pads:123,tokens:17});
+      const realSync=fs.fsyncSync; let calls=0;
+      const fault=t.mock.method(fs,"fsyncSync",fd=>{
+        if(++calls===failAt) throw new Error("receipt persistence failure");
+        return realSync(fd);
+      });
+      try {assert.throws(()=>L.receipt(req),/receipt persistence failure/);}
+      finally {fault.mock.restore();}
+      assert.deepEqual([L.receipts(sid).pads,L.receipts(sid).tokens,L.receipts(sid).runs,L.receipts(sid).last.length],[0,0,0,0]);
+      // A directory-sync error can occur after rename. Retrying in the same
+      // process replaces that uncertain record with the same single receipt.
+      assert.equal(L.receipt(req).status,200);
+      const reopened=f.open();
+      assert.deepEqual([reopened.receipts(sid).pads,reopened.receipts(sid).tokens,reopened.receipts(sid).runs],[123,17,1]);
+      assert.equal(reopened.receipt(req).status,409);
+    } finally {f.close();}
+  }
+});
+
+test("cumulative receipt counters refuse overflow without consuming a nonce or changing persisted totals",()=>{
+  for(const counter of ["pads","tokens","runs"]) {
+    const f=fixture();
+    try {
+      let L=f.open();const sid=L.seed(f.request("seed",[])).body.seed_id;
+      const state=loadPadState(f.file);
+      state.seeds[sid].usage={pads:0,tokens:0,runs:0,last:[],[counter]:Number.MAX_SAFE_INTEGER};
+      savePadState(f.file,state);L=f.open();
+      const before=fs.readFileSync(f.file,"utf8");
+      const req=f.request("receipt",[sid,1,1],{seed_id:sid,pads:1,tokens:1});
+      assert.equal(L.receipt(req).body.error,"receipt_overflow");
+      assert.equal(L.receipts(sid)[counter],Number.MAX_SAFE_INTEGER);
+      assert.equal(fs.readFileSync(f.file,"utf8"),before);
+      assert.equal(loadPadState(f.file).seeds[sid].nonces.includes(req.nonce),false);
+    } finally {f.close();}
+  }
 });

@@ -358,12 +358,22 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (rec.finalReceiptOnly && rec.usage && rec.usage.runs > 0)
         return { status: 409, body: { error: "receipt_finalized", message: "this pVM seed already has its final usage receipt" } };
       if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
-      rec.nonces.push(nonce); if (rec.nonces.length > NONCE_MEMORY) rec.nonces.splice(0, rec.nonces.length - NONCE_MEMORY);
+      const previous = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+      const validCount = n => Number.isSafeInteger(n) && n >= 0;
+      if (![previous.pads, previous.tokens, previous.runs].every(validCount) || !Array.isArray(previous.last))
+        return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
+      const u = { pads: previous.pads + pads, tokens: previous.tokens + tokens, runs: previous.runs + 1, last: previous.last.slice() };
+      if (![u.pads, u.tokens, u.runs].every(validCount))
+        return { status: 409, body: { error: "receipt_overflow", message: "cumulative usage exceeds the exact counter range" } };
       const iat = Math.floor(Date.now() / 1000);
-      const u = rec.usage || (rec.usage = { pads: 0, tokens: 0, runs: 0, last: [] });
-      u.pads += pads; u.tokens += tokens; u.runs += 1;
       u.last.push({ pads, tokens, iat, nonce }); if (u.last.length > RECEIPT_MEMORY) u.last.splice(0, u.last.length - RECEIPT_MEMORY);
-      save();
+      // Keep the old record intact until persistence succeeds. A failed save
+      // must not expose unacknowledged usage or consume the retry's nonce in
+      // this process. After an uncertain rename/directory-sync failure, a
+      // restart may recover either version; its replay/finalization policy
+      // then applies to retries.
+      state.seeds[seed_id] = { ...rec, usage: u, nonces: [...rec.nonces, nonce].slice(-NONCE_MEMORY) };
+      try { save(); } catch (e) { state.seeds[seed_id] = rec; throw e; }
       return { status: 200, body: { seed_id, pads: u.pads, tokens: u.tokens, runs: u.runs, iat } };
     },
 
