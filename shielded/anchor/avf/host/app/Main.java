@@ -481,7 +481,6 @@ public class Main extends Activity {
                     try {
                         /* acquire every descriptor inside the cleanup scope: an exception here leaks nothing */
                         cancel = ParcelFileDescriptor.createSocketPair();
-                        try { Os.fcntlInt(cancel[1].getFileDescriptor(), OsConstants.F_SETFL, OsConstants.O_NONBLOCK); } catch (Exception ignored) { }   /* the control thread's cancel write never blocks */
                         spfd = ParcelFileDescriptor.fromSocket(s);
                         /* publish the cancel end and read the ended flag UNDER the lock, so a set-ended + cancel
                          * that runs before this point is honored instead of lost (the run would idle forever) */
@@ -532,17 +531,17 @@ public class Main extends Activity {
             t.setDaemon(true); t.start();
         }
     }
-    /* the native bridge's cancel end (--ez nativebridge true): ending the run writes one byte to it. The
-     * fd is published and cleared under sBridgeLock so a signal never wraps or writes a closing fd; the
-     * write is a single direct Os.write of the borrowed descriptor, no stream wrapper, non-fatal on EAGAIN
-     * (one queued byte is enough to wake poll()). */
+    /* Cancel by half-closing the dedicated cancel-writer socket: the native pump polls the reader end for
+     * POLLIN and treats EOF/POLLHUP as cancel, so no byte is written (no O_NONBLOCK, no EINTR retry, no
+     * swallowed setup failure) and a second call is idempotent. Under the lock so it never races the
+     * publish/clear/close of the fd. */
     static final Object sBridgeLock = new Object();
     static volatile ParcelFileDescriptor sBridgeCancel = null;
     static void cancelNativeBridge() {
         synchronized (sBridgeLock) {
             ParcelFileDescriptor c = sBridgeCancel; if (c == null) return;
-            try { Os.write(c.getFileDescriptor(), new byte[] { 1 }, 0, 1); }
-            catch (android.system.ErrnoException e) { if (e.errno != OsConstants.EAGAIN && e.errno != OsConstants.EPIPE) /* EWOULDBLOCK == EAGAIN on Linux */ Log.w(TAG, "cancel write", e); }
+            try { Os.shutdown(c.getFileDescriptor(), OsConstants.SHUT_RDWR); }
+            catch (android.system.ErrnoException e) { if (e.errno != OsConstants.ENOTCONN) Log.w(TAG, "cancel shutdown", e); }
             catch (Exception ignored) { }
         }
     }
