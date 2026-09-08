@@ -59,6 +59,8 @@ typedef struct {
     int     (*encode_checked)(const float *src, size_t n, float scale, float limit, int64_t *x);
 } sh_simd;
 
+/* SHIELDED_REFILL_VECTOR_CRT=1 selects the checked AVX-512 refill epilogue
+ * at first SIMD admission; all other values leave it disabled. */
 const sh_simd *sh_simd_get(void);
 const sh_simd *sh_simd_generic(void);
 
@@ -80,6 +82,8 @@ const sh_simd *sh_simd_generic(void);
     void    sh_simd_##sfx##_unmask24_fv(const uint8_t *, const int32_t *, const int32_t *, int, int64_t, int64_t *, int64_t *); \
     int     sh_simd_##sfx##_encode_checked(const float *, size_t, float, float, int64_t *);
 SH_SIMD_DECL(avx512)
+void sh_simd_avx512_refill_vector_crt(const uint8_t *, int, const int8_t *,
+    int64_t, int64_t, int32_t *, int64_t, int32_t *);
 SH_SIMD_DECL(generic)
 #if defined(__aarch64__)
 /* The third build, aarch64 only (-DSH_SIMD_NEON, suffix _neon): SDOT for the

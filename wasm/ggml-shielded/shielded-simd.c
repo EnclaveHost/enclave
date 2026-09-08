@@ -375,7 +375,7 @@ static inline void refill_rows4(const uint8_t *planes,int b,int b0,
  * the output layout are those of refill_rows4. */
 #define SH_BLK_K 2048
 static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
-        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
+        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc, int vector_crt) {
     const int G = (b + 3) / 4;
     const int64_t K64 = K & ~(int64_t)63;
     const __mmask64 tail = (K & 63) ? (((__mmask64)1 << (K & 63)) - 1) : 0;
@@ -437,13 +437,28 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
             const int row = g * 4 + r;
             if (row >= b) break;
             int32_t *o = u + (int64_t)row * u_stride;
-            for (int t = 0; t < 4; t++) for (int c = 0; c < 4; c++) {
-                const int64_t j = j0 + t * 4 + c;
-                if (j >= N) continue;
-                const int32_t a0 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 0) * 4 + t) * 16 + c * 4 + r]);
-                const int32_t a1 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 1) * 4 + t) * 16 + c * 4 + r]);
-                const int32_t a2 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 2) * 4 + t) * 16 + c * 4 + r]);
-                o[j] = crt_balanced(a0, a1, a2);
+            if (vector_crt) {
+                /* Finish horizontal reductions first, then
+                 * expose independent columns to the compiler's CRT vectorizer.
+                 * Complete all 16 slots (tail columns are valid duplicates), but
+                 * store only the actual output columns. Arithmetic is unchanged. */
+                int32_t reduced[3][16];
+                for (int p = 0; p < 3; p++)
+                    for (int t = 0; t < 4; t++) for (int c = 0; c < 4; c++)
+                        reduced[p][t * 4 + c] = _mm512_reduce_add_epi32(
+                            saved[(((size_t)g * 3 + p) * 4 + t) * 16 + c * 4 + r]);
+                const int count = N - j0 < 16 ? (int)(N - j0) : 16;
+                for (int c = 0; c < count; c++)
+                    o[j0 + c] = crt_balanced(reduced[0][c], reduced[1][c], reduced[2][c]);
+            } else {
+                for (int t = 0; t < 4; t++) for (int c = 0; c < 4; c++) {
+                    const int64_t j = j0 + t * 4 + c;
+                    if (j >= N) continue;
+                    const int32_t a0 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 0) * 4 + t) * 16 + c * 4 + r]);
+                    const int32_t a1 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 1) * 4 + t) * 16 + c * 4 + r]);
+                    const int32_t a2 = _mm512_reduce_add_epi32(saved[(((size_t)g * 3 + 2) * 4 + t) * 16 + c * 4 + r]);
+                    o[j] = crt_balanced(a0, a1, a2);
+                }
             }
         }
     }
@@ -504,7 +519,7 @@ void FN(refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_
                 int32_t *u, int64_t u_stride, int32_t *acc) {
 #ifdef SH_SIMD_AVX512
     /* a batch past four rows: one weight stream for the whole batch */
-    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride, acc); return; }
+    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride, acc, 0); return; }
 #endif
     for (int b0 = 0; b0 < b; b0 += 4) {
         const int rows = b - b0 < 4 ? b - b0 : 4;
@@ -522,6 +537,17 @@ void FN(refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_
         }
     }
 }
+
+#ifdef SH_SIMD_AVX512
+/* Opt-in entry point: the mode is constant for each caller. Small batches
+ * retain their specialized kernels, and allocation failure uses the same
+ * allocation-free four-row fallback as the default entry point. */
+void FN(refill_vector_crt)(const uint8_t *planes, int b, const int8_t *W,
+        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
+    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride, acc, 1); return; }
+    FN(refill)(planes, b, W, K, N, u, u_stride, acc);
+}
+#endif
 
 /* ---------------------------------------------------------------------------
  * The request-path Freivalds dots.

@@ -53,6 +53,19 @@ static void checked_encode(const sh_simd *s) {
     assert(!s->encode_checked(src, 64, 1.0f, 0x1.4p27f, got));
 }
 int main(void) {
+#if !defined(__aarch64__)
+    __builtin_cpu_init();
+    const int supported = __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw") &&
+        __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl") && __builtin_cpu_supports("avx512vnni");
+    const char *off = getenv("SHIELDED_NO_SIMD"), *crt = getenv("SHIELDED_REFILL_VECTOR_CRT");
+    const sh_simd *expected = !supported || (off && *off && strcmp(off, "0")) ? &simd_generic :
+        crt && !strcmp(crt, "1") ? &simd_avx512_crt : &simd_avx512;
+    assert(sh_simd_get() == expected);
+    /* Changing an environment knob after admission cannot replace a link's
+     * process-wide table while refill threads are running. */
+    assert(setenv("SHIELDED_REFILL_VECTOR_CRT", "changed-after-admission", 1) == 0);
+    assert(sh_simd_get() == expected);
+#endif
     // Scalar kernels suffice: the old probe read 185 check-vector elements
     // from a 74-element array in BOTH the scalar and SIMD implementations.
     assert(simd_agree(sh_simd_generic(), sh_simd_generic()));
@@ -71,8 +84,12 @@ int main(void) {
     execFileSync('cc', [...flags, join(dir, 'probe.c'), fast,
       source('shielded-simd.c'), source('shielded-field.c'), '-Wl,--gc-sections', '-lm', '-lpthread', '-o', bin],
     { timeout: 30_000, stdio: 'pipe' });
-    execFileSync(bin, { timeout: 10_000, env: { ...process.env,
-      SHIELDED_NO_SIMD: '0', ASAN_OPTIONS: 'detect_leaks=1:abort_on_error=1',
-      UBSAN_OPTIONS: 'halt_on_error=1:print_stacktrace=1' }, stdio: 'pipe' });
+    for (const [crt, noSimd] of [[undefined, '0'], ['', '0'], ['0', '0'], ['1', '0'], ['true', '0'], ['2', '0'], ['1', '1']]) {
+      const env = { ...process.env, SHIELDED_NO_SIMD: noSimd,
+        ASAN_OPTIONS: 'detect_leaks=1:abort_on_error=1', UBSAN_OPTIONS: 'halt_on_error=1:print_stacktrace=1' };
+      delete env.SHIELDED_REFILL_VECTOR_CRT;
+      if (crt !== undefined) env.SHIELDED_REFILL_VECTOR_CRT = crt;
+      execFileSync(bin, { timeout: 10_000, env, stdio: 'pipe' });
+    }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

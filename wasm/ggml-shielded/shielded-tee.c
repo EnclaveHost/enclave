@@ -35,13 +35,16 @@ static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
  * that disagrees with its scalar twin is a bug that would otherwise surface as
  * verification failures on every request.
  * ------------------------------------------------------------------------ */
-#define SIMD_TABLE(sfx, nm) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
+#define SIMD_TABLE_REFILL(sfx, nm, refill_fn) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
-    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add, \
+    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, refill_fn, sh_simd_##sfx##_outlier_add, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
     sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv, sh_simd_##sfx##_encode_checked }
+#define SIMD_TABLE(sfx, nm) SIMD_TABLE_REFILL(sfx, nm, sh_simd_##sfx##_refill)
 #if !defined(__aarch64__)
 static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
+static const sh_simd simd_avx512_crt = SIMD_TABLE_REFILL(avx512,
+    "avx512-vnni-vector-crt", sh_simd_avx512_refill_vector_crt);
 #endif
 static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
 #if defined(__aarch64__)
@@ -178,11 +181,13 @@ const sh_simd *sh_simd_get(void) {
                       __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl") &&
                       __builtin_cpu_supports("avx512vnni");
     }
-    if (want_avx512 && !simd_agree(&simd_avx512, &simd_generic)) {
+    const char *vector_crt = getenv("SHIELDED_REFILL_VECTOR_CRT");
+    const sh_simd *fast = vector_crt && !strcmp(vector_crt, "1") ? &simd_avx512_crt : &simd_avx512;
+    if (want_avx512 && !simd_agree(fast, &simd_generic)) {
         fprintf(stderr, "[shielded] the AVX-512 kernels disagree with the generic ones on this CPU; using generic\n");
         want_avx512 = false;
     }
-    chosen = want_avx512 ? &simd_avx512 : &simd_generic;
+    chosen = want_avx512 ? fast : &simd_generic;
     return chosen;
 #endif
 }
