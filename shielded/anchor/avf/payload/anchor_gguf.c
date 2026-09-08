@@ -1,5 +1,6 @@
 #include "anchor_gguf.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +50,8 @@ static int fill(rd *r) {
     ssize_t n; do { n = pread(r->fd, r->buf, want, (off_t)r->pos); } while (n < 0 && errno == EINTR);
     if (n <= 0) { snprintf(r->err, r->errcap, n < 0 ? "read error at %llu" : "file shrank at %llu", (unsigned long long)r->pos); return 0; }
     if (r->h) r->h->update(r->whole, r->buf, (size_t)n);
+    /* hashed ranges leave the page cache 64 MiB at a time: a guest that keeps 27 GB of cache gets its app killed */
+    if (r->h && ((r->pos + (uint64_t)n) >> 26) != (r->pos >> 26) && r->pos >= (64u << 20)) posix_fadvise(r->fd, (off_t)(((r->pos >> 26) << 26) - (64u << 20)), 64 << 20, POSIX_FADV_DONTNEED);
     r->have = (size_t)n; r->at = 0; return 1;
 }
 /* hand out n bytes (copied to out when non-NULL); header bytes are retained while keep_hdr */
