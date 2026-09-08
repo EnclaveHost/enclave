@@ -66,6 +66,26 @@ int main(void) {
     const int ng = sh_link_group_table(dealer, table, 4);
     assert(ng == 2 && table[0].u_len == (uint64_t)(NA + NB) && table[1].u_len == (uint64_t)NC);
 
+    /* --- one file judged alone (the pVM's delivery acknowledgment gate, PAD-ACK.md) --- */
+    {
+        uint64_t i0 = 1, cnt = 0;
+        assert(sh_pads_shipment_check(ship, seed_id, sk, digest, &i0, &cnt) == SH_OK && i0 == 0 && cnt == COUNT);
+        assert(sh_pads_shipment_check(ship, seed_id, sk, NULL, &i0, &cnt) == SH_OK);                 /* the digest is optional */
+        uint8_t seed_id2[16]; memcpy(seed_id2, seed_id, 16); seed_id2[0] ^= 1;
+        assert(sh_pads_shipment_check(ship, seed_id2, sk, digest, &i0, &cnt) == SH_ERR_VERIFY);      /* another seed */
+        uint8_t d2[32]; memcpy(d2, digest, 32); d2[5] ^= 1;
+        assert(sh_pads_shipment_check(ship, seed_id, sk, d2, &i0, &cnt) == SH_ERR_VERIFY);           /* another calibration */
+        uint8_t pk2[32], sk2[32]; crypto_box_keypair(pk2, sk2);
+        assert(sh_pads_shipment_check(ship, seed_id, sk2, digest, &i0, &cnt) == SH_ERR_VERIFY);      /* boxed to someone else */
+        char nope[600]; snprintf(nope, sizeof nope, "%s/absent.pads", dir);
+        assert(sh_pads_shipment_check(nope, seed_id, sk, digest, &i0, &cnt) == SH_ERR_IO);           /* unreadable */
+        FILE *f = fopen(ship, "r+b"); assert(f); fseek(f, 64, SEEK_SET); int c = fgetc(f);           /* index0's low byte */
+        fseek(f, 64, SEEK_SET); fputc(c ^ 1, f); fclose(f);
+        assert(sh_pads_shipment_check(ship, seed_id, sk, digest, &i0, &cnt) == SH_ERR_VERIFY);       /* header changed under its box */
+        f = fopen(ship, "r+b"); assert(f); fseek(f, 64, SEEK_SET); fputc(c, f); fclose(f);
+        assert(sh_pads_shipment_check(ship, seed_id, sk, digest, &i0, &cnt) == SH_OK);
+    }
+
     /* --- read back, oracle --- */
     int err = 0;
     sh_pads_reader *rd = sh_pads_reader_open(dir, seed_id, sk, &err);
