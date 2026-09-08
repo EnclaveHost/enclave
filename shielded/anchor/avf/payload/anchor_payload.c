@@ -490,7 +490,8 @@ static void storage_probe(void) {
         unlink(path);
     }
     int uffd = (int)syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK); const char *uf = uffd >= 0 ? "available" : strerror(errno); if (uffd >= 0) close(uffd);
-    OUT("STORAGE %s fstype=0x%lx total=%lld MiB avail=%lld MiB fs-verity=%s userfaultfd=%s ram=%ld MiB", es, fstype, total, avail, verity, uf, ram_mib);
+    { struct statfs df; unsigned long dft = statfs("/data", &df) == 0 ? (unsigned long)df.f_type : 0; long long dfa = df.f_bavail * (long long)df.f_frsize >> 20;
+      OUT("STORAGE %s fstype=0x%lx total=%lld MiB avail=%lld MiB fs-verity=%s userfaultfd=%s ram=%ld MiB vm-/data=0x%lx (%lld MiB free)", es, fstype, total, avail, verity, uf, ram_mib, dft, dfa); }
     /* is the refusal policy or filesystem support? MEASURE on a plain file answers ENODATA when the ioctl is
      * permitted (no verity on it) and EACCES when SELinux denies the ioctl itself; a second ENABLE attempt after
      * chmod 0644 on a fresh read-only descriptor rules out the DAC write check; the mount line and our SELinux
@@ -684,6 +685,9 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
     engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
     { void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_set_ctl_writer");
       if (setw) setw(anchor_ctl_write); else OUT("ENGINE has no engine_set_ctl_writer: its lines bypass the writers' lock"); }
+    { void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_set_model_table");
+      if (!sett || g_model_state != 1 || !g_model_table.t) { OUT("ENGINE refused: %s", sett ? "no staged model table" : "engine has no engine_set_model_table"); close(worker_fd); close(model_fd); return; }
+      sett(&g_model_table, &g_hash_ops); }
     if (!em) { OUT("ENGINE libengine.so has no engine_main"); return; }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine.err lives there */
     anchor_pads pads = { g_tsk, g_ledger_pk, g_pad_name, g_seed_id_hex, g_ledger_pinned };
