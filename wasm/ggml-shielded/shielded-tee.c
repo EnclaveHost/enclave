@@ -1081,13 +1081,19 @@ static int dealt_reserve(sh_link *l, uint64_t *lo, uint64_t *hi) {
     return SH_OK;
 }
 
-/* After a new window (pool mutex held): the lowest cursor over the groups is
- * the floor below which nothing is imported again - the bank stops fetching
- * there and, when the copy is ours, spent shipments are unlinked. The bank
- * is asked to stay one window ahead of the new edge. */
+/* After a new window (pool mutex held): cursor advances when an importer
+ * reserves work, BEFORE it reads the cells. Keep the whole unpublished ring
+ * suffix, including jobs that finished out of order: generating only shrinks
+ * when the contiguous ready prefix advances. Otherwise another thread can
+ * prune a file before its importer has even retained a descriptor. */
 static void dealt_advanced(sh_link *l) {
     uint64_t floor = UINT64_MAX;
-    for (size_t i = 0; i < l->n_groups; i++) if (l->groups[i].cursor < floor) floor = l->groups[i].cursor;
+    for (size_t i = 0; i < l->n_groups; i++) {
+        const sh_group *g = &l->groups[i];
+        const uint64_t pending = g->generating > 0 ? (uint64_t)g->generating : 0;
+        const uint64_t safe = pending <= g->cursor ? g->cursor - pending : 0;
+        if (safe < floor) floor = safe;
+    }
     if (floor == UINT64_MAX) floor = l->win_lo;
     if (l->padbank) { sh_bank_set_floor(l->padbank, floor); sh_bank_set_need(l->padbank, l->win_hi + l->pad_window); }
     if (l->pad_prune && l->pads) {
