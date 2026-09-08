@@ -269,6 +269,14 @@ public class Main extends Activity {
                 if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
                 else { relay.close(); relay = null; }
             }
+            // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
+            //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
+            if (plan.mode.equals("engine")) {
+                long modelBytes = new java.io.File(plan.model).length();
+                out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
+                String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
+                if (ml == null || !ml.startsWith("MODEL ok")) say("MODEL stage did not pass: " + ml + " (pads bootstrap will be refused)");
+            }
             // 4b. dealt pads: once the tunnel is bound, fetch the VM's seed through the platform's ledger
             boolean pads = false;
             if (relay != null && !padKey.isEmpty() && !plan.pads.isEmpty())
@@ -283,7 +291,7 @@ public class Main extends Activity {
             if (!plan.prefix.isEmpty() && plan.prefixPk.matches("[0-9a-f]{64}")) {
                 out.write(("PREFIXPK " + plan.prefixPk + "\n").getBytes()); out.flush();
                 String pl = PadsClient.until(r, "PREFIXPK ");
-                prefix = pl != null && pl.equals("PREFIXPK ok");
+                prefix = pl != null && pl.startsWith("PREFIXPK ok");   // the VM says "ok (pinned)" / "ok (unpinned)"
                 say("PREFIX key " + (prefix ? "pinned in the VM" : "NOT accepted: " + pl));
             }
             // 5. the run plan

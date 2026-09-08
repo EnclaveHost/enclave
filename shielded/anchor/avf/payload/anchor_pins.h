@@ -30,6 +30,15 @@ int anchor_pins_load(const char *dir, anchor_pins *pins);
 int anchor_sha256_file(const char *path, uint8_t out[32], uint64_t *bytes);
 void anchor_sha256(const uint8_t *m, size_t n, uint8_t out[32]);
 
+/* SHA-256 of an open descriptor from offset 0 (pread; the offset is left alone). 0 on success. */
+int anchor_sha256_fd(int fd, uint8_t out[32], uint64_t *bytes);
+
+/* The model that will actually be parsed, as an OPEN descriptor after the last write to it, against the
+ * build's pin and, when `frozen` is set, the digest a seed grant was issued for. 1 = usable and digest_out
+ * holds its SHA-256; 0 = refuse (err: unreadable or empty, differs from the pin, differs from the grant).
+ * Without a pin and without a frozen digest (a dev build before its grant) the bytes are only hashed. */
+int anchor_pins_model_fd_check(const anchor_pins *pins, int fd, const uint8_t *frozen, uint8_t digest_out[32], char *err, size_t errcap);
+
 /* The model file against the pin. 1 = the file's SHA-256 equals model_sha256; 0 = it differs, the file is
  * unreadable, or the build has no model pin (err says which). digest_out receives the actual digest. */
 int anchor_pins_model_matches(const anchor_pins *pins, const char *path, uint8_t digest_out[32], char *err, size_t errcap);

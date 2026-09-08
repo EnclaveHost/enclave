@@ -313,7 +313,12 @@ static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
  * app's PADLEDGER is taken and the legacy path stays open, loudly. */
 static int g_ledger_pinned = 0, g_req_pending = 0;
 static anchor_pins g_pins;                 /* the measured pins (anchor_pins.h); g_pins.mode == ANCHOR_MODE_INVALID = fail closed */
-static int g_model_verified = 0;           /* the store's model.gguf equals the pinned digest (checked from bytes, cached per boot) */
+/* The model stage (MODEL <bytes>): the model is received (or found cached), then the descriptor that
+ * will be parsed is hashed and judged - pin and, once a seed is granted, the grant's digest - BEFORE
+ * anything reads it. A later ENGINE line with other bytes re-receives and re-judges; a swap after the
+ * grant is refused. g_model_state: 0 nothing usable, 1 hashed and judged usable. */
+static int g_model_fd = -1, g_model_state = 0, g_ls_model = -1; static uint64_t g_model_fd_bytes = 0;
+static uint8_t g_model_digest[32], g_grant_model[32];
 static char g_req_name[65]; static uint8_t g_req_nonce[32], g_req_model[32], g_req_calib[32];
 static void calib_digest32(uint8_t out[32]) {   /* what shielded-dealer records: SHA-512/256 of the calib file */
     memset(out, 0, 32);
@@ -408,13 +413,29 @@ static void *pads_receiver(void *arg) {
 }
 
 typedef int (*engine_main_fn)(int, int, int, const char *, const char *, const char *, int, int, const anchor_pads *);
+static int model_stage(uint64_t bytes) {
+    if (g_pins.mode == ANCHOR_MODE_INVALID) { OUT("MODEL fail pins-invalid"); return -1; }
+    if (g_model_fd >= 0 && g_model_state == 1 && g_model_fd_bytes == bytes) return 0;      /* staged already, unchanged */
+    if (g_model_fd >= 0) { close(g_model_fd); g_model_fd = -1; }
+    g_model_state = 0;                                                                     /* any (re)reception invalidates */
+    int fd = -1;
+    if (receive_model(g_ls_model, bytes, &fd) != 0) { OUT("MODEL fail receive"); return -1; }
+    char why[160] = "";
+    if (!anchor_pins_model_fd_check(&g_pins, fd, g_have_seed ? g_grant_model : NULL, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail %s", why); return -1; }
+    g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1;
+    char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh);
+    OUT("MODEL ok %s (%s)", dh, g_pins.has_model ? "matches the pin" : g_have_seed ? "matches the grant" : "unpinned: hashed only");
+    return 0;
+}
+
 static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt, int n_predict, int threads, uint64_t model_bytes, int with_pads, int with_prefix) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512], calib[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk); snprintf(calib, sizeof calib, "%s/assets/model.calib", apk);
     int worker_fd = vs_accept(ls_wk, 60000);
     if (worker_fd < 0) { OUT("ENGINE no worker bridge from the owner"); return; }
-    int model_fd = -1;
-    if (receive_model(ls_model, model_bytes, &model_fd) != 0) { close(worker_fd); return; }
+    (void)ls_model;
+    if (model_stage(model_bytes) != 0) { close(worker_fd); return; }   /* hashed + judged after the last write, before any parse */
+    int model_fd = g_model_fd;
     static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libggml-cpu.so", "libllama.so", "libengine.so" };
     void *h = NULL;
     for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
@@ -444,6 +465,7 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         sh_pads_bin2hex(g_seed, 32, hs); sh_pads_bin2hex(g_seed_id, 16, hid); sh_pads_bin2hex(g_psk, 32, hsk);
         setenv("SHIELDED_PAD_SOURCE", g_pads_dir, 1); setenv("SHIELDED_PAD_SEED", hs, 1); setenv("SHIELDED_PAD_SEED_ID", hid, 1); setenv("SHIELDED_PAD_SK", hsk, 1);
         setenv("SHIELDED_PAD_PRUNE", "1", 1);      /* the encrypted store's copy is ours: spent shipments go */
+        setenv("SHIELDED_PAD_WAIT_MS", "90000", 1); /* the first shipment lands ~15-20 s after the app starts the dealer; the link's default 10 s bank wait quit before it (seen 2026-09-08) */
         setenv("SHIELDED_PAD_CHECK", "1", 0);        /* the pVM checks every imported pad against the weights: a wrong dealer is refused before use */
         /* Pin the model: only shipments the dealer minted for THIS calibration
          * (SHA-512/256 of the calib file, what shielded-dealer records) are used. */
@@ -545,6 +567,7 @@ static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, in
 int AVmPayload_main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT), ls_model = vs_bind(MODEL_PORT), ls_pads = vs_bind(PADS_PORT);
+    g_ls_model = ls_model;
     crypto_sign_keypair(g_tpk, g_tsk);
     crypto_box_keypair(g_ppk, g_psk);                 /* the pad key: the platform's seed is boxed to it */
     AVmPayload_notifyPayloadReady();
@@ -595,6 +618,11 @@ int AVmPayload_main(void) {
                                        OUT("PADLEDGER %s", same ? "ok (pinned)" : "REFUSED: not the key this build was measured with"); }
                 else { g_have_ledger = sh_pads_hex2bin(l + 10, g_ledger_pk, 32); OUT("PADLEDGER %s", g_have_ledger ? "ok (unpinned)" : "fail"); }
             }
+            else if (!strncmp(l, "MODEL ", 6)) {       /* MODEL <bytes> [sha256]: receive (or reuse the cache when the owner's tag matches) and judge the bytes that will be parsed */
+                unsigned long long mb = 0; char sha[80] = "";
+                if (sscanf(l + 6, "%llu %79s", &mb, sha) >= 1 && strlen(sha) == 64) { strncpy(g_model_sha, sha, 64); g_model_sha[64] = 0; }   /* a cache tag, nothing more: the hash below decides */
+                if (!mb) OUT("MODEL fail bytes"); else (void)model_stage(mb);
+            }
             else if (!strncmp(l, "PADREQ2 ", 8)) {     /* PADREQ2 <name> -> PADREQ2 <name> <model_digest> <calib_digest> <nonce> <sig> | PADREQ2 fail <why> */
                 char name[65] = ""; sscanf(l + 8, "%64s", name);
                 if (!name[0]) OUT("PADREQ2 fail name");
@@ -602,12 +630,11 @@ int AVmPayload_main(void) {
                 else if (g_have_seed) OUT("PADREQ2 fail active-seed");          /* a grant may not reset a live bank into pad reuse */
                 else if (!g_have_ledger) OUT("PADREQ2 fail no-ledger-key");
                 else {
-                    char mp[512]; const char *es = AVmPayload_getEncryptedStoragePath(); snprintf(mp, sizeof mp, "%s/model.gguf", es ? es : "/nonexistent");
-                    uint64_t mb = 0; char why[160] = "";
-                    /* the digest that goes into the request is the FILE's, and with a model pin the file must BE
-                     * the measured model - signing whatever the app streamed would authenticate the app's choice */
-                    if (g_pins.has_model) { g_model_verified = anchor_pins_model_matches(&g_pins, mp, g_req_model, why, sizeof why); if (!g_model_verified) OUT("PADREQ2 fail model: %s", why); }
-                    else if (sha256_file(mp, g_req_model, &mb) != 0 || mb == 0) { strncpy(why, "no-model", sizeof why - 1); OUT("PADREQ2 fail no-model"); }
+                    char why[160] = "";
+                    /* the digest in the request is the STAGED model's (MODEL <bytes>: received, hashed, judged against
+                     * the pin); a model that has not been staged cannot be requested for - first boot included */
+                    if (g_model_state != 1) { strncpy(why, "model-not-staged", sizeof why - 1); OUT("PADREQ2 fail model-not-staged (send MODEL <bytes> first)"); }
+                    else memcpy(g_req_model, g_model_digest, 32);
                     if (why[0]) { /* refused above */ }
                     else {
                         calib_digest32(g_req_calib);
@@ -639,6 +666,7 @@ int AVmPayload_main(void) {
                     else if (sh_pads_seed_open(g.epk, g.nonce, g.box, 48, g_psk, g_ppk, g_seed) != 0) OUT("PADGRANT fail box");
                     else {
                         g_req_pending = 0;                                     /* one grant per request, ever */
+                        memcpy(g_grant_model, g_req_model, 32);                 /* the model this seed is for: a later swap is refused */
                         memcpy(g_seed_id, g.seed_id, 16); strncpy(g_pad_name, g_req_name, sizeof g_pad_name - 1); strncpy(g_seed_id_hex, sid, 32); g_have_seed = 1;
                         if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
                         int dropped = pads_prune(sid, 0);
@@ -721,13 +749,7 @@ int AVmPayload_main(void) {
     if (engine) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
-        else if (g_pins.mode == ANCHOR_MODE_PROTECTED && !g_model_verified) {
-            char mp[512], why[160] = ""; const char *es = AVmPayload_getEncryptedStoragePath(); snprintf(mp, sizeof mp, "%s/model.gguf", es ? es : "/nonexistent");
-            uint8_t d[32]; g_model_verified = anchor_pins_model_matches(&g_pins, mp, d, why, sizeof why);
-            if (!g_model_verified) OUT("ENGINE refused: the model in the store is not the measured one (%s)", why);
-            else run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix);
-        }
-        else run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix);
+        else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
