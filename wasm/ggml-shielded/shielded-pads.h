@@ -93,7 +93,11 @@ sh_pads_reader *sh_pads_reader_open(const char *dir, const uint8_t seed_id[16], 
  * bind without a model): copies up to `cap` entries, returns the count. */
 uint32_t sh_pads_reader_groups(const sh_pads_reader *r, sh_pads_group *out, uint32_t cap);
 /* Binds the consumer's group table: every group must appear in every shipment
- * with the same K and u_len (matched by name); records the ordinal map. */
+ * with the same K and u_len (matched by name); records the ordinal map.
+ * Rescans delivered files. An empty bank is permitted; if files with valid
+ * headers are present but none bind, returns SH_ERR_VERIFY (or allocation
+ * error), instead of silently treating incompatible geometry as an empty bank.
+ * Serialize with cell reads, pruning, rebinding and close. */
 int  sh_pads_reader_bind(sh_pads_reader *r, const sh_pads_group *groups, uint32_t n_groups);
 /* Reads and opens one cell into `u_out` (u_len balanced values). Returns
  * SH_ERR_EXHAUST when no shipment on disk covers the index (after a rescan),
