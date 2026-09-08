@@ -375,15 +375,14 @@ static inline void refill_rows4(const uint8_t *planes,int b,int b0,
  * the output layout are those of refill_rows4. */
 #define SH_BLK_K 2048
 static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
-        int64_t K, int64_t N, int32_t *u, int64_t u_stride) {
+        int64_t K, int64_t N, int32_t *u, int64_t u_stride, int32_t *acc) {
     const int G = (b + 3) / 4;
     const int64_t K64 = K & ~(int64_t)63;
     const __mmask64 tail = (K & 63) ? (((__mmask64)1 << (K & 63)) - 1) : 0;
     __m512i *saved = (__m512i *)aligned_alloc(64, (size_t)G * 3 * 4 * 16 * sizeof(__m512i));
-    if (!saved) { /* out of memory: fall back to the four-row path */
+    if (!saved) { /* The caller's 12*N scratch makes fallback allocation-free.
+                   * A second failed allocation must not silently leave u stale. */
         for (int b0 = 0; b0 < b; b0 += 4) {
-            int32_t *acc = (int32_t *)malloc((size_t)12 * N * sizeof(int32_t));
-            if (!acc) return;
             refill_rows4(planes, b, b0, W, K, N, acc);
             const int rows = b - b0 < 4 ? b - b0 : 4;
             for (int r = 0; r < rows; r++) {
@@ -391,7 +390,6 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
                 int32_t *o = u + (int64_t)(b0 + r) * u_stride;
                 for (int64_t j = 0; j < N; j++) o[j] = crt_balanced(a0[j], a1[j], a2[j]);
             }
-            free(acc);
         }
         return;
     }
@@ -506,7 +504,7 @@ void FN(refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_
                 int32_t *u, int64_t u_stride, int32_t *acc) {
 #ifdef SH_SIMD_AVX512
     /* a batch past four rows: one weight stream for the whole batch */
-    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride); return; }
+    if (b > 4) { refill_rows_blocked(planes, b, W, K, N, u, u_stride, acc); return; }
 #endif
     for (int b0 = 0; b0 < b; b0 += 4) {
         const int rows = b - b0 < 4 ? b - b0 : 4;
