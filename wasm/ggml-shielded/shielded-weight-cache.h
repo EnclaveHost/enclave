@@ -10,6 +10,7 @@ extern "C" {
 }
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -68,6 +69,7 @@ public:
     int read(uint64_t offset, uint8_t *out, size_t n) const {
         if (!out || offset > bytes_ || n > bytes_ - (size_t)offset) return -1;
         if (!n) return 0;
+        read_calls_.fetch_add(1, std::memory_order_relaxed);
         std::unique_ptr<uint8_t[]> block(new (std::nothrow) uint8_t[block_bytes]);
         if (!block) return -1;
         while (n) {
@@ -78,6 +80,7 @@ public:
                 const ssize_t r = pread(fd_, block.get() + have, size - have, (off_t)(begin + have));
                 if (r < 0 && errno == EINTR) continue;
                 if (r <= 0) return -1;
+                read_bytes_.fetch_add((uint64_t)r, std::memory_order_relaxed);
                 have += (size_t)r;
             }
             std::array<uint8_t, 64> hash;
@@ -93,10 +96,13 @@ public:
         return static_cast<sh_weight_cache *>(ctx)->read(offset, out, bytes);
     }
     size_t hash_bytes() const { return hashes_.size() * 64; }
+    uint64_t read_calls() const { return read_calls_.load(std::memory_order_relaxed); }
+    uint64_t read_bytes() const { return read_bytes_.load(std::memory_order_relaxed); }
 private:
     sh_weight_cache() = default;
     int fd_ = -1;
     size_t bytes_ = 0;
     std::vector<std::array<uint8_t, 64>> hashes_;
+    mutable std::atomic<uint64_t> read_calls_{0}, read_bytes_{0};
 };
 #endif

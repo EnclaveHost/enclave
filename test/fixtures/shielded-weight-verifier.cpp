@@ -4,7 +4,16 @@
 #include <sys/mman.h>
 
 struct source_record { void *mapping; std::vector<uint8_t> bytes; };
-struct verifier_state { std::map<std::string, source_record> expected; int calls = 0; };
+struct verifier_state { std::map<std::string, source_record> expected; int calls = 0, reads = 0; bool tamper = false, read_fail = false; };
+static int read_source(void *opaque, const char *name, uint32_t type, const int64_t ne[4], void *bytes, size_t n) {
+    auto &state = *static_cast<verifier_state *>(opaque); state.reads++;
+    if (state.read_fail) return SH_ERR_IO;
+    auto it = state.expected.find(name);
+    if (it == state.expected.end() || type != GGML_TYPE_Q8_0 || ne[0] != 32 || ne[1] != 8 || n != it->second.bytes.size()) return SH_ERR_RANGE;
+    memcpy(bytes, it->second.bytes.data(), n);
+    if (state.tamper) ((uint8_t *)bytes)[20] ^= 1;
+    return SH_OK;
+}
 static int verify(void *opaque, const char *name, uint32_t type, const int64_t ne[4], const void *bytes, size_t n) {
     auto &state = *static_cast<verifier_state *>(opaque); state.calls++;
     auto it = state.expected.find(name);
@@ -15,7 +24,7 @@ static int verify(void *opaque, const char *name, uint32_t type, const int64_t n
     if (n != record.bytes.size() || memcmp(bytes, record.bytes.data(), n)) return SH_ERR_VERIFY;
     // Revoke the source during verification: subsequent encoding or CPU
     // fallback must not touch it. Only the verified private copy is usable.
-    assert(mprotect(record.mapping, 4096, PROT_NONE) == 0);
+    if (record.mapping) assert(mprotect(record.mapping, 4096, PROT_NONE) == 0);
     return SH_OK;
 }
 
@@ -37,6 +46,10 @@ int main(int argc, char **argv) {
     s.calib["blk.0.ffn_gate.weight"] = {8, {}};
     auto *ctx = ggml_init({1u << 20, nullptr, false}); assert(ctx);
     std::vector<ggml_tensor *> weights;
+    std::vector<ggml_backend_buffer_t> source_buffers;
+    const bool streamed = scenario.rfind("source", 0) == 0;
+    state.tamper = scenario == "source_tamper" || scenario == "source_cpu_tamper";
+    state.read_fail = scenario == "source_readfail";
     for (const char *name : {"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight"}) {
         auto *w = ggml_new_tensor_2d(ctx, GGML_TYPE_Q8_0, 32, 8); ggml_set_name(w, name);
         void *mapping = mmap(nullptr, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
@@ -48,16 +61,53 @@ int main(int argc, char **argv) {
         record.bytes.assign((uint8_t *)mapping, (uint8_t *)mapping + ggml_nbytes(w));
         if (scenario == "tamper") ((uint8_t *)mapping)[20] ^= 1;
         if (scenario == "shape") { w->ne[0] = 64; w->ne[1] = 4; w->nb[1] *= 2; }
-        p.pending[name] = *w; weights.push_back(w);
+        if (streamed) {
+            assert(munmap(mapping, 4096) == 0); record.mapping = nullptr; w->data = nullptr;
+            auto *buf = ggml_backend_shielded_weight_source(w, read_source, &state); assert(buf);
+            assert(!ggml_backend_buffer_is_host(buf) && !ggml_backend_supports_buft(cpu, buf->buft));
+            assert(sh_dev_supports_buft(nullptr, buf->buft)); source_buffers.push_back(buf);
+        }
+        if (scenario.rfind("source_cpu", 0) != 0) p.pending[name] = *w;
+        weights.push_back(w);
+    }
+    if (scenario.rfind("source_cpu", 0) == 0) {
+        // GET_ROWS is unsupported by Shielded. The scheduler must transfer the
+        // source via its authenticated get_tensor before the CPU sees it.
+        auto *meta = ggml_init({ggml_graph_overhead_custom(64, false) + 65536, nullptr, true}); assert(meta);
+        auto *index = ggml_new_tensor_1d(meta, GGML_TYPE_I32, 1); ggml_set_input(index);
+        auto *out = ggml_get_rows(meta, weights[0], index); ggml_set_output(out);
+        auto *graph = ggml_new_graph_custom(meta, 64, false); ggml_build_forward_expand(graph, out);
+        auto *shielded = ggml_backend_shielded_init(); assert(shielded);
+        ggml_backend_t backends[] = {shielded, cpu};
+        auto *sched = ggml_backend_sched_new(backends, nullptr, 2, 64, false, false); assert(sched);
+        assert(ggml_backend_sched_alloc_graph(sched, graph));
+        int32_t row = 3; ggml_backend_tensor_set(index, &row, 0, sizeof row);
+        assert(ggml_backend_sched_graph_compute(sched, graph) == GGML_STATUS_SUCCESS);
+        assert(state.reads > 0 && state.calls == state.reads && s.weights.empty());
+        float got[32], expected[32]; ggml_backend_tensor_get(out, got, 0, sizeof got);
+        const auto &raw = state.expected.at("blk.0.ffn_gate.weight").bytes;
+        ggml_get_type_traits(GGML_TYPE_Q8_0)->to_float(raw.data() + row*34, expected, 32);
+        assert(!memcmp(got, expected, sizeof got));
+        // Authenticated partial/view reads use the original tensor's digest.
+        auto *view = ggml_view_1d(meta, weights[0], 32, 3*34);
+        uint8_t part[17]; ggml_backend_tensor_get(view, part, 4, sizeof part);
+        assert(!memcmp(part, raw.data() + 3*34 + 4, sizeof part));
+        ggml_backend_sched_free(sched); ggml_free(meta); ggml_backend_free(shielded);
+        for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
+        ggml_free(ctx); ggml_backend_free(cpu);
+        puts("weight-verifier: private-copy encoding and authenticated CPU fallback passed"); return 0;
     }
     sh_plan(p);
     ggml_cgraph empty = {};
-    if (scenario != "honest") {
-        assert(s.source_verification_failed && s.weights.empty() && state.calls == 1);
+    if (scenario != "honest" && scenario != "source") {
+        assert(s.source_verification_failed && s.weights.empty() && state.calls == (state.read_fail ? 0 : 1));
         assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
     } else {
         assert(state.calls == 2 && s.weights.size() == 2 && !s.source_verification_failed);
         for (const auto &kv : s.weights) assert(kv.second.source_verified && kv.second.w.empty() && kv.second.w_cache);
+        uint64_t cache_calls = 99, cache_bytes = 99;
+        ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        assert(cache_calls == 0 && cache_bytes == 0); // creation does not count as reading
         assert(ggml_backend_shielded_set_weight_verifier(verify, &state) == SH_ERR_RANGE);
         s.link_failed = true; s.link_retry_at = DBL_MAX; s.dirty = false;
         // A CPU backend is present, but the source pages are inaccessible.
@@ -84,8 +134,11 @@ int main(int argc, char **argv) {
             }
         }
         assert(state.calls == 2); // no reread/reverification of the revoked source
+        ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        assert(cache_calls > 0 && cache_bytes == cache_calls * 256); // each small cached matrix is one full authenticated block
     }
-    for (auto &kv : state.expected) assert(munmap(kv.second.mapping, 4096) == 0);
+    for (auto &kv : state.expected) if (kv.second.mapping) assert(munmap(kv.second.mapping, 4096) == 0);
+    for (auto *buf : source_buffers) ggml_backend_buffer_free(buf);
     ggml_free(ctx); ggml_backend_free(cpu);
     puts("weight-verifier: private-copy encoding, metadata/tamper rejection, revoked-source and wide fallback passed");
 }

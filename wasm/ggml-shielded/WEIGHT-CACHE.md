@@ -56,6 +56,29 @@ before any repacking or use. Merely hashing a header in a different pass from th
 model pin does not establish that binding. Installing this callback alone is not
 an authenticated loader for the whole model.
 
+For a tensor whose original bytes cannot remain in RAM, the caller can attach
+`ggml_backend_shielded_weight_source(tensor, reader, ctx)` after installing the
+verifier. The reader fills a whole private tensor from its storage source. This
+buffer has an inaccessible placeholder address and reports `is_host=false`, so
+ggml cannot bypass authentication by copying its address directly. Shielded reads
+into its existing private encoding buffer. A different backend, including CPU
+execution of an unsupported operation, obtains bytes through `get_tensor`, which
+authenticates the full tensor before copying the requested range. This also
+covers views and partial reads. An authentication or I/O failure on the generic
+ggml read path aborts the process because that interface cannot return an error.
+The caller owns these buffers and their reader contexts for the model lifetime.
+
+Keep frequently used CPU weights private and resident: generic fallback can
+allocate a full raw tensor plus its destination and rehash on every read. This
+interface establishes a safe streaming boundary; it does not make arbitrary CPU
+paging fast. Do not label an untrusted source mapping as an ordinary CPU buffer.
+
+`ggml_backend_shielded_weight_cache_stats` reports cumulative read requests and
+bytes actually read from encoded cache files, including block over-read. Compare
+snapshots after prefill and after decoding to distinguish upload from steady
+inference reads. These counters exclude initial cache writes and original-model
+source reads.
+
 Memory retained for cached encodings is 64 bytes per 1 MiB block plus file and
 object metadata. Registration still needs one full encoded matrix at a time;
 local fallback needs a block of whole matrix rows (about 1 MiB, or one input row
@@ -82,3 +105,7 @@ phone recipe.
 pages inside verification and checks encoding plus link-down, contended and wide
 local fallback with a real CPU backend available. It rejects changed tensor bytes,
 changed dimensions with the same byte count, and verifier replacement.
+It also runs an unsupported `GET_ROWS` operation through the real ggml scheduler
+and CPU backend, proving that a non-host weight source is copied through its
+verifier. Tampered CPU copies abort before computation; registration I/O failure,
+partial/view reads and exact cached fallback are covered as well.

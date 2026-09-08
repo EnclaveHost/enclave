@@ -73,6 +73,7 @@ static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
 static ggml_shielded_weight_verifier g_weight_verifier;
 static void *g_weight_verifier_ctx;
+#include "shielded-weight-source.h"
 
 /* --------------------------------------------------------------------------
  * Placement policy.
@@ -319,6 +320,19 @@ void ggml_backend_shielded_configure(const char *host, int port, const char *cal
 int ggml_backend_shielded_pool_version(void) { return 1; }
 
 extern "C" double sh_prof[8];
+void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lock(p.mu);
+    uint64_t c = 0, b = 0;
+    for (auto *s : p.cards) {
+        std::lock_guard<std::mutex> state_lock(s->mu);
+        for (const auto &entry : s->weights) if (entry.second.w_cache) {
+            c += entry.second.w_cache->read_calls(); b += entry.second.w_cache->read_bytes();
+        }
+    }
+    if (calls) *calls = c;
+    if (bytes) *bytes = b;
+}
 void ggml_backend_shielded_pads_used(uint64_t *used, uint64_t *missed) {
     sh_pool &p = sh_pool_get();
     std::lock_guard<std::mutex> lock(p.mu);
@@ -666,9 +680,10 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
             catch (const std::bad_alloc &) { valid = false; }
             catch (const std::length_error &) { valid = false; }
             if (valid) {
-                memcpy(private_source.data(), source, bytes);
-                valid = g_weight_verifier(g_weight_verifier_ctx, name.c_str(), (uint32_t)w->type,
-                                          w->ne, private_source.data(), bytes) == SH_OK;
+                if (sh_is_weight_source(w)) valid = sh_source_read_for_registration(w, private_source.data(), bytes);
+                else memcpy(private_source.data(), source, bytes);
+                valid = valid && g_weight_verifier(g_weight_verifier_ctx, name.c_str(), (uint32_t)w->type,
+                                                   w->ne, private_source.data(), bytes) == SH_OK;
                 source = private_source.data();
             }
         }
@@ -1556,7 +1571,7 @@ static bool sh_dev_supports_op(ggml_backend_dev_t, const struct ggml_tensor *op)
     }
 }
 static bool sh_dev_supports_buft(ggml_backend_dev_t, ggml_backend_buffer_type_t buft) {
-    return ggml_backend_buft_is_host(buft);
+    return buft == sh_source_buft() || ggml_backend_buft_is_host(buft);
 }
 
 static const struct ggml_backend_device_i ggml_backend_shielded_device_i = {
