@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/socket.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -32,7 +33,7 @@ static inline int afl_xfer(int fd, uint8_t *p, size_t n, int writing, int64_t de
     while (off < n) {
         const int64_t now = afl_now_ms(); if (now < 0) return AFL_IO;
         if (now >= deadline) return AFL_TIMEOUT;
-        ssize_t r = writing ? write(fd, p + off, n - off) : read(fd, p + off, n - off);
+        ssize_t r = writing ? send(fd, p + off, n - off, MSG_NOSIGNAL) : read(fd, p + off, n - off);   /* MSG_NOSIGNAL: a closed peer is EPIPE, never a signal */
         if (r > 0) { off += (size_t)r; continue; }
         if (r == 0) return writing ? AFL_IO : AFL_IO;   /* peer closed mid-frame */
         if (errno == EINTR) continue;
@@ -70,7 +71,8 @@ static inline int afl_cmp_d(const void *a, const void *b) { double x = *(const d
  * fill is BEFORE and compare AFTER the timed section. */
 static inline int anchor_frame_bench(int fd, size_t sz, int warm, int iters, int per_rt_timeout_ms,
                                      uint8_t *sbuf, uint8_t *rbuf, anchor_frame_stats *st) {
-    if (fd < 0 || sz < 1 || sz > 0xFFFFFFFFull || !sbuf || !rbuf || iters < 1 || warm < 0 || per_rt_timeout_ms < 1) return AFL_RANGE;
+    if (fd < 0 || sz < 1 || sz > 0xFFFFFFFFull || !sbuf || !rbuf || !st || iters < 1 || warm < 0 || per_rt_timeout_ms < 1) return AFL_RANGE;
+    if ((long long)warm + (long long)iters > 1000000 || (size_t)iters > SIZE_MAX / sizeof(double)) return AFL_RANGE;
     int saved = -1, rc = afl_set_nonblock(fd, &saved); if (rc != AFL_OK) return rc;
     double *us = (double *)malloc((size_t)iters * sizeof *us); if (!us) { afl_restore(fd, saved); return AFL_SETUP; }
     for (int i = 0; i < warm + iters; i++) {

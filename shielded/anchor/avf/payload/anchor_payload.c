@@ -1051,12 +1051,12 @@ int AVmPayload_main(void) {
     if (bridgebench) {   /* the worker-bridge frame diagnostic: run on the bridged worker fd, then exit */
         int fd = vs_accept(ls_wk, 20000);
         OUT("BRIDGEBENCH %s sizes=%s", fd >= 0 ? "connected" : "no worker bridge", bench_sizes);
-        run_bridgebench(fd, bench_sizes);
+        int brc = run_bridgebench(fd, bench_sizes);
         if (fd >= 0) close(fd);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();
-        sleep(1); return 0;
+        sleep(1); return brc ? 4 : 0;   /* a failed bench run must not exit 0 */
     }
     if (n_shapes == 0) { SK[0]=256; SN[0]=256; Snode[0]=1; Siter[0]=30; Sx[0]=0; SK[1]=896; SN[1]=896; Snode[1]=1; Siter[1]=30; Sx[1]=0; SK[2]=896; SN[2]=4864; Snode[2]=2; Siter[2]=12; Sx[2]=0; n_shapes = 3; }
     OUT("ANCHOR worker=%s shapes=%d", bridge ? "bridge" : "local", n_shapes);

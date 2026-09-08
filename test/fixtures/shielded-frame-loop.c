@@ -16,7 +16,7 @@
 static int count_fds(void){DIR*d=opendir("/proc/self/fd");int n=0;struct dirent*e;while((e=readdir(d)))if(e->d_name[0]!='.')n++;closedir(d);return n-1;}
 static void small_bufs(int fd){int v=8192;setsockopt(fd,SOL_SOCKET,SO_SNDBUF,&v,sizeof v);setsockopt(fd,SOL_SOCKET,SO_RCVBUF,&v,sizeof v);}
 static int readn(int fd,uint8_t*p,size_t n){size_t o=0;while(o<n){ssize_t r=read(fd,p+o,n-o);if(r>0){o+=(size_t)r;continue;}if(r==0)return -1;if(errno==EINTR)continue;return -1;}return 0;}
-static int writen(int fd,const uint8_t*p,size_t n){size_t o=0;while(o<n){ssize_t w=write(fd,p+o,n-o);if(w>0){o+=(size_t)w;continue;}if(errno==EINTR)continue;return -1;}return 0;}
+static int writen(int fd,const uint8_t*p,size_t n){size_t o=0;while(o<n){ssize_t w=send(fd,p+o,n-o,MSG_NOSIGNAL);if(w>0){o+=(size_t)w;continue;}if(errno==EINTR)continue;return -1;}return 0;}
 /* echo modes: 0 faithful, 1 corrupt one middle byte, 2 dead reader (drain nothing), 3 dead writer (drain, never reply), 4 partial header */
 typedef struct{int fd,mode;}echo_arg;
 static void*echo(void*a){echo_arg*e=a;int fd=e->fd;uint8_t*buf=malloc(3u<<20);   /* run_case owns fd; the thread never closes it */
@@ -39,7 +39,7 @@ static int run_case(int mode,size_t sz,int timeout_ms,anchor_frame_stats*st){
   close(sp[1]);                                        /* run_case owns both ends: no descriptor leaks */
   free(sb);free(rb);return rc;}
 int main(void){
-  signal(SIGPIPE,SIG_IGN);setvbuf(stdout,NULL,_IONBF,0);
+  setvbuf(stdout,NULL,_IONBF,0);   /* NO global SIGPIPE ignore: the helper must be signal-safe on its own (MSG_NOSIGNAL) */
   const int fds0=count_fds();anchor_frame_stats st;
   assert(run_case(0,3u<<20,5000,&st)==AFL_OK);printf("case success 3MiB: p50=%.0f us n=%d\n",st.p50_us,st.iters);
   assert(run_case(0,1,2000,&st)==AFL_OK);printf("case success size 1: ok (deterministic full compare, no marker overlap)\n");
