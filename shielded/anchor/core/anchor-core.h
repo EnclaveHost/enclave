@@ -56,11 +56,14 @@ void    an_destroy(an_ctx *c);
 /* Register one weight of the single group. `w_fixed` is (N,K) int8 in THE
  * encoding (shielded-field.h), COPIED into the core (in the TA that copy is
  * what puts it behind the TEE boundary). All nodes share K -- one activation,
- * one pad. Returns node index or negative. */
+ * one pad. Rejects unsafe geometry, weight lanes, or a row L1 norm that can
+ * exceed the refill kernel's arithmetic bound. Returns node index or negative. */
 int an_add_weight(an_ctx *c, const int8_t *w_fixed, int64_t K, int64_t N);
 
 /* Draw the Freivalds secrets from the rng, compute s_tilde = W.s per node,
- * allocate the working buffers. Call once, after the last add_weight. */
+ * allocate the working buffers. Call after the last add_weight. On failure,
+ * partial secrets and buffers are cleared; the registered weights remain and
+ * preparation can be retried. A successful preparation cannot be repeated. */
 int an_prepare(an_ctx *c);
 
 /* Stage one pad: r from the ChaCha20 bank (one-time, monotonic, stalls when
@@ -106,7 +109,9 @@ void an_stats(const an_ctx *c, uint64_t *pads_issued, uint64_t *exchanges,
               uint64_t *verify_fail);
 
 /* Heap the core would need for this geometry, before creating it: the TA has
- * to declare TA_DATA_SIZE up front and the spike wants the number in the log. */
+ * to declare TA_DATA_SIZE up front and the spike wants the number in the log.
+ * Returns 0 for invalid or unsafe geometry and size overflow. This is retained
+ * memory; preparation also temporarily draws N*AN_FV_REPS random uint64 words. */
 size_t an_footprint(int n_nodes, const int64_t *K, const int64_t *N);
 
 #ifdef __cplusplus

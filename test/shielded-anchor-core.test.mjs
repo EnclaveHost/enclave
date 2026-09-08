@@ -15,7 +15,7 @@ test('anchor core consumes each response once and rejects unsafe arithmetic befo
       '-I', source('wasm/ggml-shielded'), source('test/fixtures/shielded-anchor-core.c'),
       source('shielded/anchor/core/anchor-core.c'), source('wasm/ggml-shielded/shielded-simd.c'),
       source('wasm/ggml-shielded/shielded-field.c'), '-Wl,--gc-sections',
-      '-Wl,--wrap=sh_simd_generic_unmask_fv', '-lm', '-o', bin],
+      '-Wl,--wrap=sh_simd_generic_unmask_fv', '-Wl,--wrap=malloc', '-Wl,--wrap=free', '-lm', '-o', bin],
     { timeout: 30_000, stdio: 'pipe' });
     execFileSync(bin, { timeout: 10_000, env: { ...process.env,
       ASAN_OPTIONS: 'detect_leaks=1:abort_on_error=1',
