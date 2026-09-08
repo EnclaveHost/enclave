@@ -229,6 +229,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                    int max_m = 8; if (const char *m = getenv("SHIELDED_MAX_M")) { max_m = atoi(m); if (max_m < 2) max_m = 2; if (max_m > 32) max_m = 32; }
                    if (mtp_k > max_m - 1) mtp_k = max_m - 1; if (mtp_k < 0) mtp_k = 0; }
     float mtp_pmin = 0.0f; { const char *e = getenv("ANCHOR_MTP_PMIN"); if (e) mtp_pmin = (float)atof(e); }
+    /* Draft-ahead: while the target verifies this round's rows (mostly link waits), the head keeps
+     * its own chain going on a second pool: a guess for the token the target will sample next, then
+     * the whole next draft. When the target accepts every row and samples the guessed token, the
+     * next round starts without its serial draft. Text is unchanged: the target verifies as before. */
+    const bool draft_ahead = mtp_k > 0 && getenv("ANCHOR_DRAFT_AHEAD") && atoi(getenv("ANCHOR_DRAFT_AHEAD")) > 0;
+    int head_threads = 4; { const char *e = getenv("ANCHOR_HEAD_THREADS"); if (e && atoi(e) > 0) head_threads = atoi(e); if (head_threads > 8) head_threads = 8; }
     /* Keep the calibrated (offloadable) weights as plain q8_0 rows. The ARM CPU backend
      * otherwise repacks q8_0 into q8_0_4x8 at load (its CPU_REPACK buffer) and the shielded
      * link refuses the bytes -- which is why the bundled libggml-cpu.so used to be built
@@ -306,7 +312,9 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); ggml_threadpool *tp = tp_new(&tpp);
                   ggml_threadpool_params tpb = ggml_threadpool_params_default(n_threads_batch); ggml_threadpool *tpb_pool = n_threads_batch != n_threads ? tp_new(&tpb) : tp;
                   llama_attach_threadpool(ctx, tp, tpb_pool);
-                  if (mtp) llama_attach_threadpool(anchor_mtp_ctx(mtp), tp, tp); }   /* one decode pool for target and head; the batch pool prefills */
+                  if (mtp && !draft_ahead) llama_attach_threadpool(anchor_mtp_ctx(mtp), tp, tp);   /* one decode pool for target and head; the batch pool prefills */
+                  else if (mtp) { ggml_threadpool_params tph = ggml_threadpool_params_default(head_threads); ggml_threadpool *tp_head = tp_new(&tph);
+                                  llama_attach_threadpool(anchor_mtp_ctx(mtp), tp_head, tp_head); } }   /* draft-ahead: the head runs on its own pool while the target waits on the link */
     outf("ENGINE prefill threads %d (decode %d)", n_threads_batch, n_threads);
     outf("ENGINE context ready, %d threads, persistent pool=%s", n_threads, tp_new ? "yes" : "no");
 
@@ -381,6 +389,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* steady state = after the first decode step: when the prompt prefilled on the CPU (wider than
      * the link's 8 rows) the first offloaded graph also ships the weights to the worker (~50 s) */
     long t_steady0 = 0; int n_gen_steady0 = 0;
+        int32_t pre[33]; int pre_n = 0; int32_t pre_first = -1; int mtp_pre_used = 0, mtp_pre_hit = 0;   /* draft-ahead hand-off between rounds */
     const long t_tg0 = ggml_time_us();
     cur = argmax(llama_get_logits_ith(ctx, -1));
     if (mtp && n > 0) { if (anchor_mtp_harvest(mtp, ctx, n) || anchor_mtp_observe(mtp, n_loaded, toks.data(), n)) { outf("ENGINE MTP: the head could not observe the prompt; decoding plainly"); anchor_mtp_free(mtp); mtp = nullptr; } }
@@ -393,17 +402,35 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         }
         int32_t d[32]; int k = mtp_k; if (k > n_predict - n_gen - 1) k = n_predict - n_gen - 1;
         const long t_r0 = ggml_time_us();
-        const int nd = k > 0 ? anchor_mtp_draft(mtp, cur, n_past, k, mtp_pmin, d) : 0;
+        int nd;
+        const bool from_pre = draft_ahead && pre_n > 0 && pre_first == cur;
+        if (from_pre) { nd = pre_n < k ? pre_n : k; memcpy(d, pre, (size_t)nd * sizeof(int32_t)); mtp_pre_used++; }
+        else nd = k > 0 ? anchor_mtp_draft(mtp, cur, n_past, k, mtp_pmin, d) : 0;
+        pre_n = 0;
         const long t_r1 = ggml_time_us();
-        llama_token rows[9]; rows[0] = cur; for (int i = 0; i < nd; i++) rows[i + 1] = d[i];
+        /* the head's next chain, off the main thread, for the duration of the verify */
+        int32_t ahead[33]; int ahead_n = 0; int32_t ahead_guess = -1; bool ahead_ok = false;
+        std::thread ahead_th;
+        if (draft_ahead && nd > 0 && k > 0) {
+            const int32_t n_past_c = n_past, cur_c = cur, nd_c = nd; const int k_c = k; const bool from_pre_c = from_pre;
+            ahead_th = std::thread([&, n_past_c, cur_c, nd_c, k_c, from_pre_c] {
+                if (from_pre_c) { if (anchor_mtp_refeed(mtp, cur_c, n_past_c, d, nd_c, &ahead_guess) != 0) return; }
+                else { int32_t g[1]; if (anchor_mtp_chain(mtp, 1, mtp_pmin, g) != 1) return; ahead_guess = g[0]; }
+                ahead_n = anchor_mtp_chain(mtp, k_c, mtp_pmin, ahead);
+                ahead_ok = ahead_n > 0;
+            });
+        }
+        llama_token rows[33]; rows[0] = cur; for (int i = 0; i < nd; i++) rows[i + 1] = d[i];   /* nd <= 31 */
         llama_batch vb = llama_batch_init(nd + 1, 0, 1);
         for (int i = 0; i <= nd; i++) { vb.token[i] = rows[i]; vb.pos[i] = n_past + i; vb.n_seq_id[i] = 1; vb.seq_id[i][0] = 0; vb.logits[i] = 1; }
         vb.n_tokens = nd + 1;
         const int rc = llama_decode(ctx, vb); llama_batch_free(vb);
         const long t_r2 = ggml_time_us();
+        if (ahead_th.joinable()) ahead_th.join();
         if (rc) { outf("ENGINE decode failed (verify of %d rows)", nd + 1); dump_err(); break; }
         int acc = 0; while (acc < nd && argmax(llama_get_logits_ith(ctx, acc)) == d[acc]) acc++;
         const llama_token bonus = argmax(llama_get_logits_ith(ctx, acc));
+        if (ahead_ok && acc == nd && bonus == ahead_guess) { pre_n = ahead_n; pre_first = bonus; memcpy(pre, ahead, (size_t)ahead_n * sizeof(int32_t)); mtp_pre_hit++; }
         if (acc < nd && !llama_memory_seq_rm(llama_get_memory(ctx), 0, n_past + acc + 1, -1)) { outf("ENGINE MTP: rollback of %d rows REFUSED (n_rs_seq %u)", nd - acc, llama_n_rs_seq(ctx)); break; }
         if (anchor_mtp_harvest(mtp, ctx, acc + 1) || anchor_mtp_observe(mtp, n_past, rows, acc + 1)) { outf("ENGINE MTP: observe failed; decoding plainly from here"); anchor_mtp_free(mtp); mtp = nullptr; }
         n_past += acc + 1; mtp_rounds++; mtp_drafted += nd; mtp_accepted += acc;
@@ -417,6 +444,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, rollback+observe %.0f ms (head decode %.1f)",
              mtp_rounds, mtp_drafted, mtp_accepted, (double)(mtp_accepted + mtp_rounds) / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
              t_draft / 1e3 / mtp_rounds, rm / 1e3 / mtp_rounds, dec / 1e3 / mtp_rounds, am / 1e3 / mtp_rounds, t_verify / 1e3 / mtp_rounds, t_observe / 1e3 / mtp_rounds, ob / 1e3 / mtp_rounds); }
+    if (draft_ahead && mtp_rounds) outf("ENGINE draft-ahead: %d of %d rounds started from a pre-draft (%d chains landed)", mtp_pre_used, mtp_rounds, mtp_pre_hit);
     if (mtp) anchor_mtp_free(mtp);
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     if (stats) stats(&off, &loc, &macs, &vf);
