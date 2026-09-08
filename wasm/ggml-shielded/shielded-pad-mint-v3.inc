@@ -10,6 +10,7 @@ typedef struct {
     uint8_t *scratch;
     int32_t *r, *u, *acc;
     uint8_t *planes, *plain, *box;
+    size_t scratch_bytes, r_bytes, u_bytes, acc_bytes, plane_bytes;
 } sh_sparse_mint_task;
 struct sh_sparse_mint_plan {
     sh_link *link;
@@ -21,7 +22,7 @@ struct sh_sparse_mint_plan {
     sh_mint_assignment assignment;
     uint32_t threads;
     int failed;
-    size_t scratch_bytes, r_bytes, u_bytes, acc_bytes, plane_bytes, cell_bytes;
+    size_t cell_bytes;
     sh_sparse_mint_task tasks[SH_MINT_BALANCE_THREADS];
 };
 
@@ -34,7 +35,7 @@ static void sh_sparse_mint_clear(sh_sparse_mint_plan *p) {
     if (p->writer) sh_pads_v3_writer_abort(p->writer);
     for (uint32_t i=0;i<p->threads;i++) if (p->tasks[i].scratch) {
         volatile uint8_t *v=p->tasks[i].scratch;
-        for (size_t n=0;n<p->scratch_bytes;n++) v[n]=0;
+        for (size_t n=0;n<p->tasks[i].scratch_bytes;n++) v[n]=0;
         free(p->tasks[i].scratch);
     }
     free(p);
@@ -116,7 +117,7 @@ int sh_link_mint_sparse_v3(sh_link *l, const sh_pads_v3_source *source,
             policy->max_file_bytes,offsets,ng,&extent);
     if (rc!=SH_OK) goto done;
     if (extent.cells>SH_PADS_WRITER_MAX_CELLS) { rc=SH_ERR_RANGE; goto done; }
-    uint64_t costs[SH_PADS_MANIFEST_MAX_GROUPS], max_k=0,max_u=0,max_n=0;
+    uint64_t costs[SH_PADS_MANIFEST_MAX_GROUPS], max_u=0;
     uint32_t active=0;
     for (uint32_t gi=0;gi<ng;gi++) {
         const sh_group *g=&l->groups[gi];
@@ -126,37 +127,51 @@ int sh_link_mint_sparse_v3(sh_link *l, const sh_pads_v3_source *source,
         if (k>UINT64_MAX/u || k*u>UINT64_MAX/count || u>(SIZE_MAX-SH_PADS_CELL_TAG)/3 ||
             SH_PADS_CELL_TAG+3*u>policy->max_cell_bytes) { rc=SH_ERR_RANGE; goto done; }
         p->active[active]=gi; costs[active++]=k*u*count;
-        if (k>max_k) max_k=k;
         if (u>max_u) max_u=u;
-        for (int n=0;n<g->n_nodes;n++) if ((uint64_t)l->nodes[g->nodes[n]].N>max_n) max_n=(uint64_t)l->nodes[g->nodes[n]].N;
     }
     if (!active) { rc=SH_ERR_RANGE; goto done; }
     p->threads=threads<active ? threads : active;
     rc=sh_mint_balance(costs,active,p->threads,&p->assignment);
     if (rc!=SH_MINT_BALANCE_OK) { rc=rc==SH_MINT_BALANCE_NOMEM ? SH_ERR_NOMEM : SH_ERR_RANGE; goto done; }
     p->cell_bytes=(size_t)(SH_PADS_CELL_TAG+3*max_u);
-    if (sh_sparse_mint_size(max_k,SH_SPARSE_MINT_BATCH*sizeof(int32_t),&p->r_bytes)!=SH_OK ||
-        sh_sparse_mint_size(max_u,SH_SPARSE_MINT_BATCH*sizeof(int32_t),&p->u_bytes)!=SH_OK ||
-        sh_sparse_mint_size(max_n,12*sizeof(int32_t),&p->acc_bytes)!=SH_OK ||
-        sh_sparse_mint_size(max_k,3*SH_SPARSE_MINT_BATCH,&p->plane_bytes)!=SH_OK) { rc=SH_ERR_RANGE; goto done; }
-    const size_t sizes[]={p->r_bytes,p->u_bytes,p->acc_bytes,p->plane_bytes,p->cell_bytes,p->cell_bytes};
-    for (unsigned i=0;i<sizeof sizes/sizeof sizes[0];i++) {
-        if (sizes[i]>SIZE_MAX-p->scratch_bytes) { rc=SH_ERR_RANGE; goto done; }
-        p->scratch_bytes+=sizes[i];
-    }
     /* Include the v3 writer's two shared scratch buffers, although parallel
      * callers use their own buffers. Its public metadata/bitmap are separate. */
-    const uint64_t writer_scratch=2*(uint64_t)p->cell_bytes;
-    if (writer_scratch>max_scratch_bytes || p->scratch_bytes>(max_scratch_bytes-writer_scratch)/p->threads) { rc=SH_ERR_RANGE; goto done; }
+    uint64_t total_scratch=2*(uint64_t)p->cell_bytes;
+    if (total_scratch>max_scratch_bytes) { rc=SH_ERR_RANGE; goto done; }
+    /* Each lane only visits its immutable assigned groups. Do not allocate
+     * the output head's maximum-sized u/acc buffers on every other lane. */
     for (uint32_t i=0;i<p->threads;i++) {
         sh_sparse_mint_task *t=&p->tasks[i]; t->plan=p; t->lane=i;
-        t->scratch=malloc(p->scratch_bytes);
+        uint64_t lane_k=0,lane_u=0,lane_n=0;
+        for (uint32_t at=p->assignment.offsets[i];at<p->assignment.offsets[i+1];at++) {
+            const sh_group *g=&l->groups[p->active[p->assignment.order[at]]];
+            if ((uint64_t)g->K>lane_k) lane_k=(uint64_t)g->K;
+            if ((uint64_t)g->u_len>lane_u) lane_u=(uint64_t)g->u_len;
+            for (int n=0;n<g->n_nodes;n++) if ((uint64_t)l->nodes[g->nodes[n]].N>lane_n) lane_n=(uint64_t)l->nodes[g->nodes[n]].N;
+        }
+        if (!lane_k || !lane_u || !lane_n ||
+            sh_sparse_mint_size(lane_k,SH_SPARSE_MINT_BATCH*sizeof(int32_t),&t->r_bytes)!=SH_OK ||
+            sh_sparse_mint_size(lane_u,SH_SPARSE_MINT_BATCH*sizeof(int32_t),&t->u_bytes)!=SH_OK ||
+            sh_sparse_mint_size(lane_n,12*sizeof(int32_t),&t->acc_bytes)!=SH_OK ||
+            sh_sparse_mint_size(lane_k,3*SH_SPARSE_MINT_BATCH,&t->plane_bytes)!=SH_OK) { rc=SH_ERR_RANGE; goto done; }
+        const size_t sizes[]={t->r_bytes,t->u_bytes,t->acc_bytes,t->plane_bytes,p->cell_bytes,p->cell_bytes};
+        for (unsigned j=0;j<sizeof sizes/sizeof sizes[0];j++) {
+            if (sizes[j]>SIZE_MAX-t->scratch_bytes) { rc=SH_ERR_RANGE; goto done; }
+            t->scratch_bytes+=sizes[j];
+        }
+        if (t->scratch_bytes>max_scratch_bytes-total_scratch) { rc=SH_ERR_RANGE; goto done; }
+        total_scratch+=t->scratch_bytes;
+    }
+    /* The entire aggregate is admitted before allocating even the first lane. */
+    for (uint32_t i=0;i<p->threads;i++) {
+        sh_sparse_mint_task *t=&p->tasks[i];
+        t->scratch=malloc(t->scratch_bytes);
         if (!t->scratch) { rc=SH_ERR_NOMEM; goto done; }
         uint8_t *at=t->scratch;
-        t->r=(int32_t *)at; at+=p->r_bytes;
-        t->u=(int32_t *)at; at+=p->u_bytes;
-        t->acc=(int32_t *)at; at+=p->acc_bytes;
-        t->planes=at; at+=p->plane_bytes;
+        t->r=(int32_t *)at; at+=t->r_bytes;
+        t->u=(int32_t *)at; at+=t->u_bytes;
+        t->acc=(int32_t *)at; at+=t->acc_bytes;
+        t->planes=at; at+=t->plane_bytes;
         t->plain=at; at+=p->cell_bytes; t->box=at;
     }
     p->writer=sh_pads_v3_writer_open(directory_fd,name,policy,spans,consumer_pk,&rc);
