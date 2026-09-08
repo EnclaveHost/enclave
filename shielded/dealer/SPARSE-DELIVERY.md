@@ -1,6 +1,6 @@
 # Sparse pad delivery: proposed next implementation
 
-Status: layout validation primitive implemented; remaining path is a design.
+Status: layout and canonical-manifest primitives implemented; remaining path is a design.
 No v3 codec, live relay change or phone support is deployed.
 The current 27B baseline continues with complete v2 shipments.
 
@@ -41,7 +41,7 @@ disjoint; sparse overlapping ranges make positional reassignment dangerous.
 
 For a v3 session, require a fresh seed and an immutable canonical group manifest
 admitted from the verified model/calibration and expected registration geometry.
-It binds the whole-model and calibration identities and the ordered complete
+It binds the whole-model, calibration and integer-encoding-profile identities and the ordered complete
 group table: canonical ordinal, name, K, ordered member names/output extents,
 and total u length. The protected consumer compares incoming metadata against
 this expected manifest; an authenticated shipment cannot choose new domains.
@@ -55,15 +55,33 @@ Binding is by name, K and ordered member/output geometry; the local registration
 array index is never a canonical domain identifier. Partial/mismatched members
 within an otherwise matching group must fail closed.
 
-Manifest origin is an integration decision still to settle before rollout.
-An expected complete manifest from verified assets plus an immutable claim policy
-permits registered subsets without renumbering. An actual registered manifest
-signed by the consumer is also possible, but the seed is currently issued before
-registration: this needs a one-time manifest-binding phase that refuses all
-mint/reservation requests before binding, or delayed seed issuance. The signed
-manifest cannot silently replace an already used seed's domains. Multiple links
+Use an expected complete manifest from verified assets and an explicit encoding
+profile, with registered subsets mapped into that fixed namespace. This does
+not require deterministic local placement: the current reader already returns
+the authenticated shipment ordinal separately from the local registration
+index. The producer/admission integration remains to implement: the manifest
+must come from a trusted source, describe the actual encoded public weights,
+and be pinned before any seed mint/reservation/use. A caller-supplied digest
+alone does not establish those facts. An actual registered manifest signed by
+the consumer is an alternative, but unnecessary just to handle local subsets;
+the seed is currently issued before registration, so that alternative would
+need delayed issuance or a bind-once state that refuses all earlier minting.
+No manifest can silently replace an already used seed's domains. Multiple links
 must share canonical domains with disjoint signed windows, or use independently
 bound fresh seeds; do not infer per-link seeds from the existing global env API.
+
+`shielded-pad-manifest.h` supplies structural validation, a canonical SHA-256
+transcript, and complete-group subset binding. It rejects duplicate member
+names, noncanonical name padding, altered ordered members or output extents,
+invalid ordinals, uncovered member entries and inconsistent summed lengths.
+The transcript includes a separate encoding-profile digest so an encoder or
+profile change cannot be silently treated as the same domain. Defining and
+authenticating that profile is an integration responsibility; no arbitrary
+placeholder digest may be used in a deployed grant. The primitive does not
+parse untrusted serialized manifests, verify signatures, derive asset identity,
+or enable v3 delivery. Inputs must be stable private snapshots. Current metadata
+admission caps are 1024 groups and 4096 members, separate from the larger PRF
+namespace limits. Both digest and ordinal outputs remain unchanged on failure.
 
 ## Proposed file representation
 
