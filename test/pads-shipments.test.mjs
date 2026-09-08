@@ -68,6 +68,12 @@ test("dealer --push streams new shipments with their sha256 and deletes acknowle
 
 test("dealer --all serves every consumer the relay lists that has asked for its seed", async () => {
   const bank = fs.mkdtempSync(path.join(os.tmpdir(), "bank-"));
+  const model = path.join(bank, "model.gguf"), calib = path.join(bank, "model.calib");
+  fs.writeFileSync(model, "test model"); fs.writeFileSync(calib, "test calibration");
+  const assets = {
+    model_digest: createHash("sha256").update(fs.readFileSync(model)).digest("hex"),
+    calib_digest: createHash("sha512").update(fs.readFileSync(calib)).digest().subarray(0, 32).toString("hex"),
+  };
   const fakeDealer = path.join(repo, "test", "fixtures", "fake-dealer.sh");
   const master = "33".repeat(32);
   const issued = deriveSeed(Buffer.from(master, "hex"), "aa".repeat(32)), idle = deriveSeed(Buffer.from(master, "hex"), "bb".repeat(32));   // the ledger holds the master as bytes
@@ -77,7 +83,7 @@ test("dealer --all serves every consumer the relay lists that has asked for its 
     if (req.method === "GET" && u.pathname === "/v1/pads/consumers") {
       res.setHeader("content-type", "application/json");
       return res.end(JSON.stringify({ consumers: [
-        { name: "box1", keyFp: "aa".repeat(32), padKey: "11".repeat(32), seed_id: issued.seed_id, epoch: 1, mark: 10, issued: true },
+        { name: "box1", keyFp: "aa".repeat(32), padKey: "11".repeat(32), seed_id: issued.seed_id, epoch: 1, mark: 10, issued: true, ...assets },
         { name: "box2", keyFp: "bb".repeat(32), padKey: "22".repeat(32), seed_id: idle.seed_id, epoch: 1, mark: 0, issued: false },
       ] }));
     }
@@ -88,7 +94,7 @@ test("dealer --all serves every consumer the relay lists that has asked for its 
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const { stdout: out } = await execFileP("python3", [loop, "--once", "--all", "--push", "--relay", base, "--master", master,
-    "--ahead", "64", "--chunk", "32", "--model", "m.gguf", "--calib", "c.calib", "--out", bank],
+    "--ahead", "64", "--chunk", "32", "--model", model, "--calib", calib, "--out", bank],
     { encoding: "utf8", env: { ...process.env, DEALER: fakeDealer, PADS_DEALER_TOKEN: "tok" }, timeout: 60_000 });
   srv.closeAllConnections(); srv.close(); srv.unref();
   assert.match(out, new RegExp(`consumer box1 \\(${issued.seed_id}, mark 10\\)`));

@@ -90,6 +90,38 @@ test("seed grants bind asset identities, current request, recipient, and complet
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("a seed keeps its asset identity across grants, legacy requests and restart, and exposes it to dealers", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pad-grant-assets-"));
+  try {
+    const f = fixture(dir), request = f.request();
+    const first = f.ledger.seed(request); assert.equal(first.status, 200);
+    assert.equal(f.ledger.seed(f.request()).status, 200, "same asset pair may renew its grant");
+    for (const changes of [{model_digest: "ee".repeat(32)}, {calib_digest: "ff".repeat(32)}])
+      assert.equal(f.ledger.seed(f.request(changes)).body.error, "seed_asset_mismatch");
+    assert.equal(f.ledger.seed(f.signedRequest("seed", [])).status, 200);
+    const restored = createPadsLedger({dir, hub: {
+      info: n => n === f.tunnel.name ? f.tunnel : null,
+      origins: () => [{name: f.tunnel.name}],
+    }, log: () => {}});
+    for (const view of [restored.pvm(f.tunnel.name), ...restored.consumers()]) {
+      assert.equal(view.model_digest, request.model_digest);
+      assert.equal(view.calib_digest, request.calib_digest);
+      assert.equal(view.seed_id, first.body.seed_id);
+    }
+    assert.equal(restored.seed(f.request({model_digest: "ef".repeat(32)})).status, 409);
+  } finally {rmSync(dir, {recursive: true, force: true});}
+});
+
+test("an old unbound seed cannot be relabelled as newly bound assets", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pad-grant-old-assets-"));
+  try {
+    const f = fixture(dir);
+    assert.equal(f.ledger.seed(f.signedRequest("seed", [])).status, 200);
+    assert.equal(f.ledger.seed(f.request()).body.error, "seed_asset_mismatch");
+    assert.equal(f.ledger.pvm(f.tunnel.name).model_digest, undefined);
+  } finally {rmSync(dir, {recursive: true, force: true});}
+});
+
 test("the relay exhausts each seed before its 24-bit pad index can repeat", () => {
   const dir = mkdtempSync(join(tmpdir(), "pad-window-limit-"));
   try {

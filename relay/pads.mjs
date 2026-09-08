@@ -249,6 +249,10 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
   function seedRecord(seed_id) {
     return state.seeds[seed_id] || null;
   }
+  function assetIdentities(rec) {
+    return rec && (rec.model_digest !== undefined || rec.calib_digest !== undefined)
+      ? { model_digest: rec.model_digest, calib_digest: rec.calib_digest } : {};
+  }
 
   return {
     key: () => rawEd25519Public(pub).toString("hex"),
@@ -272,11 +276,16 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (grant && (!Number.isSafeInteger(PADS_EPOCH) || PADS_EPOCH < 1))
         return { status: 503, body: { error: "grant_epoch", message: "pad epoch must be a positive safe integer" } };
       const { seed, seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
+      const existing = state.seeds[seed_id];
+      // A bank's immutable shipments belong to one asset pair. A later grant
+      // cannot relabel existing pads, including an old unbound seed record.
+      if (grant && existing && (existing.model_digest !== model_digest || existing.calib_digest !== calib_digest))
+        return { status: 409, body: { error: "seed_asset_mismatch", message: "this seed already belongs to other or unbound assets; obtain a fresh per-boot seed" } };
       const rec = state.seeds[seed_id] || (state.seeds[seed_id] = { name, keyFp: t.keyFp, epoch: PADS_EPOCH, mark: 0, updated: 0, nonces: [] });
       rec.name = name;
       // A v2 phone grant is one boot/engine run, followed by one final usage
       // receipt. Keep this policy sticky even if a legacy request is replayed.
-      if (grant) rec.finalReceiptOnly = true;
+      if (grant) { rec.finalReceiptOnly = true; rec.model_digest = model_digest; rec.calib_digest = calib_digest; }
       save();
       const boxed = boxToPadKey(t.padKey, seed);
       if (grant) {
@@ -374,7 +383,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (!t || !t.keyFp) return null;
       const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
       const rec = seedRecord(seed_id);
-      return { name, keyFp: t.keyFp, padKey: t.padKey || "", seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec, ...ackProgress(rec) };
+      return { name, keyFp: t.keyFp, padKey: t.padKey || "", seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec,
+        ...assetIdentities(rec), ...ackProgress(rec) };
     },
 
     /* GET /v1/pads/consumers: every attached tunnel with a pad key, for the
@@ -387,7 +397,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
         if (!t || !t.keyFp || !t.padKey) continue;
         const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
         const rec = seedRecord(seed_id);
-        out.push({ name, keyFp: t.keyFp, padKey: t.padKey, seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec, ...ackProgress(rec) });
+        out.push({ name, keyFp: t.keyFp, padKey: t.padKey, seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec,
+          ...assetIdentities(rec), ...ackProgress(rec) });
       }
       return out;
     },
