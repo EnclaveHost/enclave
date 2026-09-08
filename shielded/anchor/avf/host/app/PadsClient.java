@@ -172,10 +172,15 @@ final class PadsClient {
             org.json.JSONArray ships = list.optJSONArray("shipments");
             if (ships == null || list.optInt("_status") != 200) return;
             JSONObject led = http(session, "GET", base + "/v1/pads/ledger?seed_id=" + seed, null);
-            long mark = led.optInt("_status") == 200 ? led.optLong("mark", 0) : 0;
+            // Prune the app's prefetch copy by the ACK FLOOR (durably acknowledged coverage), NOT the
+            // reservation mark: reservation runs ahead of delivery and far ahead of consumption, so a
+            // mark-keyed drop can delete the app's only re-fetch source for an index the VM has not yet
+            // consumed. ack_floor is the design's safe point (a re-offer of an acknowledged range is a
+            // no-op); the relay store still holds anything above it if a re-fetch is needed.
+            long ackFloor = led.optInt("_status") == 200 ? led.optLong("ack_floor", 0) : 0;
             java.io.File[] have = dir.listFiles((d, n) -> n.endsWith(".pads"));
             if (have != null) for (java.io.File f : have) {
-                if (session.prune(f, mark)) Main.say("PADS dropped " + f.getName() + " (delivered, below mark " + mark + ")");
+                if (session.prune(f, ackFloor)) Main.say("PADS dropped " + f.getName() + " (below ack_floor " + ackFloor + ")");
                 else if (session.pruneForeign(f)) Main.say("PADS dropped " + f.getName() + " (another seed)");
             }
             // Index order prevents a later 117 MiB file from blocking index zero.
