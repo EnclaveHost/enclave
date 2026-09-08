@@ -108,6 +108,10 @@ void sh_link_configure(sh_link *l, int vsock_port, uint64_t reserve_bytes, int r
 void sh_link_configure_shm(sh_link *l, const char *path, uint64_t bytes);
 void     sh_link_close(sh_link *l);
 const char *sh_link_last_error(const sh_link *l);
+/* A remote product verification failure retires the link permanently. Further
+ * start/register/compute calls return SH_ERR_VERIFY without consuming pads or
+ * sending requests. Close it and register fresh trusted state to recover;
+ * transport failures alone do not retire it. */
 
 /* Register one weight as a FIELD_GEMM node, before connecting.
  * `w_fixed` is (N,K) int8 -- THE encoding, one row per output, borrowed for the

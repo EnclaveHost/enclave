@@ -662,6 +662,7 @@ static int pad_check_prepare(sh_node *nd) {
 
 int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with) {
+    if (l && l->verify_fail) return SH_ERR_VERIFY;
     if (!l || !name || !*name || strlen(name) >= sizeof(((sh_node *)0)->name) || !w_fixed ||
         K <= 0 || N <= 0 || max_m <= 0 || l->n_nodes >= INT_MAX || l->n_groups >= INT_MAX ||
         (uint64_t)K > SIZE_MAX / (SH_FV_REPS * sizeof(int64_t)) ||
@@ -1308,6 +1309,13 @@ static void *prefetch_main(void *arg) {
 }
 
 int sh_link_start(sh_link *l) {
+    /* A reconnect retains the prepared secret challenges. Once the peer has
+     * failed one, never give it another verification attempt with those same
+     * challenges. Recovery requires a new link and fresh registration. */
+    if (l && l->verify_fail) {
+        snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
+        return SH_ERR_VERIFY;
+    }
     int err = SH_OK;
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
     /* vsock first when the guest was told the worker listens on one, TCP as the
@@ -1564,6 +1572,7 @@ static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, cons
 
 int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                        const int64_t *x_field, int32_t m, int64_t **y_out) {
+    if (l && l->verify_fail) return SH_ERR_VERIFY;
     if (!n_nodes || !m) return SH_OK;
     if (!l || !nodes || !x_field || !y_out || m < 0 || n_nodes > SH_GROUP_MAX) return SH_ERR_PROTO;
     for (size_t i = 0; i < n_nodes; i++) {
@@ -1677,6 +1686,10 @@ static bool sh_reply32_balanced(const int32_t *values, size_t n) {
 
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
+    if (l && l->verify_fail) {
+        snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
+        return SH_ERR_VERIFY;
+    }
     if (!n_nodes) return SH_OK;
     if (!l || !nodes || !x_field || !y_out) return SH_ERR_PROTO;
     if (n_nodes > SH_GROUP_MAX) { snprintf(l->err, sizeof l->err, "too many nodes in one exchange"); return SH_ERR_PROTO; }
@@ -1850,7 +1863,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                 l->verify_fail++;
                 snprintf(l->err, sizeof l->err,
                          "%s: verification FAILED -- the worker lied or the field wrapped. "
-                         "Abort the request; do not sample, stream, or cache this.", nd->name);
+                         "Link retired; recreate trusted state. Do not sample, stream, or cache this.", nd->name);
                 rc = SH_ERR_VERIFY; goto fail;
             }
         }

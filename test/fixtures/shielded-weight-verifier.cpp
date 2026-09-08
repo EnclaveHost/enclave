@@ -1,4 +1,13 @@
+#include <unistd.h>
+static bool corrupt_cache_reads = false;
+static ssize_t fault_pread(int fd, void *buffer, size_t bytes, off_t offset) {
+    const ssize_t got = pread(fd, buffer, bytes, offset);
+    if (corrupt_cache_reads && got > 0) static_cast<unsigned char *>(buffer)[0] ^= 1;
+    return got;
+}
+#define pread fault_pread
 #include "../../wasm/ggml-shielded/ggml-shielded.cpp"
+#undef pread
 #include "ggml-cpu.h"
 #include <cassert>
 #include <sys/mman.h>
@@ -146,6 +155,34 @@ int main(int argc, char **argv) {
         assert(state.reads == (streamed ? 2 : 0));
         ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
         assert(cache_calls > 0 && cache_bytes == cache_calls * 256); // each small cached matrix is one full authenticated block
+
+        // A real authenticated-cache read failure must reach the backend's
+        // integrity counter and stop subsequent graphs even after the storage
+        // fault disappears. No direct writes to the failure latch in this test.
+        auto *a = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, 32, 1);
+        for (int i = 0; i < 32; i++) ((float *)a->data)[i] = (i%13-6)/256.0f;
+        auto *out = ggml_mul_mat(ctx, weights[0], a);
+        std::fill_n((float *)out->data, 8, -9876.0f);
+        ggml_tensor *nodes[] = {out}; ggml_cgraph graph = {};
+        graph.n_nodes = graph.size = 1; graph.nodes = nodes;
+        corrupt_cache_reads = true;
+        assert(ggml_backend_shielded_graph_compute(nullptr, &graph) == GGML_STATUS_FAILED);
+        assert(s.verify_fail == 1);
+        corrupt_cache_reads = false;
+        ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        const auto reads_after_failure = cache_calls;
+        // Put a healthy card first: the process-wide gate must still notice
+        // the failed card before planning or local execution on either card.
+        sh_state healthy;
+        p.cards.insert(p.cards.begin(), &healthy);
+        assert(ggml_backend_shielded_graph_compute(nullptr, &graph) == GGML_STATUS_FAILED);
+        assert(ggml_backend_shielded_graph_compute(nullptr, &empty) == GGML_STATUS_FAILED);
+        p.cards.erase(p.cards.begin());
+        assert(sh_card_compute(s, &graph) == GGML_STATUS_FAILED);
+        assert(s.verify_fail == 1);
+        ggml_backend_shielded_weight_cache_stats(&cache_calls, &cache_bytes);
+        assert(cache_calls == reads_after_failure);
+        for (int i = 0; i < 8; i++) assert(((float *)out->data)[i] == -9876.0f);
     }
     source_stats_check(state);
     for (auto &kv : state.expected) if (kv.second.mapping) assert(munmap(kv.second.mapping, 4096) == 0);
