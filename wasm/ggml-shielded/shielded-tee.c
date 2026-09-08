@@ -1254,6 +1254,15 @@ static double hello_num(const char *hello, const char *key) {
     return strtod(p, NULL);
 }
 
+/* One cached-weight chunk read on a helper thread (sh_link_start's upload): the node's authenticated
+ * reader fills buf[0..part) from offset off; rc carries the reader's verdict back to the loop. */
+typedef struct { sh_node *nd; size_t off, part; uint8_t *buf; int rc; } sh_prefetch;
+static void *prefetch_main(void *arg) {
+    sh_prefetch *p = (sh_prefetch *)arg;
+    p->rc = p->nd->w_read(p->nd->w_ctx, p->off, p->buf, p->part);
+    return NULL;
+}
+
 int sh_link_start(sh_link *l) {
     int err = SH_OK;
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
@@ -1354,32 +1363,58 @@ int sh_link_start(sh_link *l) {
         sh_reply_free(&rep);
     }
 
-    /* Weights are PUBLIC: they cross in the clear, by design. */
+    /* Weights are PUBLIC: they cross in the clear, by design. Cached (authenticated, on-disk) weights are
+     * read chunk by chunk and each chunk is one request/reply round trip. Default: 1 MiB chunks, read then
+     * sent, serially (the 27B's 24 GiB upload was the SUM of cache read + link time that way: 16 MB/s on a
+     * 31 MB/s link). SHIELDED_UPLOAD_PREFETCH=<MiB> (1..64) turns on the pipelined form: a helper thread
+     * reads + authenticates the NEXT chunk into a second buffer while the current one is in flight. Two
+     * buffers at most; the helper only ever calls the node's reader, never the socket; it is joined before
+     * any failure returns; a buffer is sent only after its reader returned success. Weights held in RAM
+     * (no reader) go in 32 MiB chunks as before. */
+    long pf_mib = 0; { const char *e = getenv("SHIELDED_UPLOAD_PREFETCH"); if (e && *e) pf_mib = strtol(e, NULL, 10); }
+    const bool prefetch = pf_mib >= 1 && pf_mib <= 64;
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
         const size_t bytes = (size_t)(nd->K * nd->N);
-        const size_t CHUNK = nd->w_read ? 1u << 20 : 32u << 20;
-        uint8_t *read_buf = nd->w_read ? (uint8_t *)malloc(CHUNK) : NULL;
-        if (nd->w_read && !read_buf) return SH_ERR_NOMEM;
+        const size_t CHUNK = nd->w_read ? (prefetch ? (size_t)pf_mib << 20 : 1u << 20) : 32u << 20;
+        uint8_t *bufs[2] = { NULL, NULL };
+        if (nd->w_read) {
+            bufs[0] = (uint8_t *)malloc(CHUNK);
+            if (prefetch) bufs[1] = (uint8_t *)malloc(CHUNK);
+            if (!bufs[0] || (prefetch && !bufs[1])) { free(bufs[0]); free(bufs[1]); return SH_ERR_NOMEM; }
+        }
+        sh_prefetch pf = { nd, 0, 0, NULL, 0 };
+        int cur = 0;
         for (size_t off = 0; off < bytes; off += CHUNK) {
-            size_t part = bytes - off < CHUNK ? bytes - off : CHUNK;
-            const uint8_t *data = read_buf;
-            if (nd->w_read) {
-                if (nd->w_read(nd->w_ctx, off, read_buf, part) != 0) {
-                    free(read_buf); snprintf(l->err, sizeof l->err, "authenticated weight read failed: %s", nd->name);
+            const size_t part = bytes - off < CHUNK ? bytes - off : CHUNK;
+            if (nd->w_read && (!prefetch || off == 0)) {   /* serial mode every chunk; pipelined mode the first only */
+                if (nd->w_read(nd->w_ctx, off, bufs[cur], part) != 0) {
+                    free(bufs[0]); free(bufs[1]); snprintf(l->err, sizeof l->err, "authenticated weight read failed: %s", nd->name);
                     return SH_ERR_VERIFY;
                 }
-            } else data = (const uint8_t *)nd->w + off;
+            }
+            const uint8_t *data = nd->w_read ? bufs[cur] : (const uint8_t *)nd->w + off;
+            pthread_t th; bool started = false; const size_t next = off + CHUNK;
+            const bool ahead = prefetch && nd->w_read && next < bytes;
+            if (ahead) {   /* the next chunk's read starts before this exchange leaves */
+                pf.off = next; pf.part = bytes - next < CHUNK ? bytes - next : CHUNK; pf.buf = bufs[cur ^ 1]; pf.rc = 0;
+                started = pthread_create(&th, NULL, prefetch_main, &pf) == 0;
+                if (!started) prefetch_main(&pf);   /* no thread: read it here, still correct */
+            }
             uint8_t hdr[24];
             sh_pack_set_tensor_header(hdr, 1, (uint64_t)(nd->w_off + (int64_t)off), part);
             sh_frame f = { SH_CMD_SET_TENSOR, hdr, 24, data, part };
             rc = sh_pipe_exchange(l->pipe, &f, 1, &rep);
-            if (rc != SH_OK) { free(read_buf); snprintf(l->err, sizeof l->err, "upload %s: %s", nd->name, sh_pipe_last_error(l->pipe)); return rc; }
+            if (started) pthread_join(th, NULL);   /* joined before ANY return below */
+            if (rc != SH_OK) { free(bufs[0]); free(bufs[1]); snprintf(l->err, sizeof l->err, "upload %s: %s", nd->name, sh_pipe_last_error(l->pipe)); return rc; }
             sh_reply_free(&rep);
+            if (ahead) {
+                if (pf.rc != 0) { free(bufs[0]); free(bufs[1]); snprintf(l->err, sizeof l->err, "authenticated weight read failed: %s", nd->name); return SH_ERR_VERIFY; }
+                cur ^= 1;   /* the authenticated next chunk becomes the current one */
+            }
         }
-        free(read_buf);
+        free(bufs[0]); free(bufs[1]);
     }
-
     char *js = NULL; size_t jl = 0, jc = 0;
     json_append(&js, &jl, &jc, "{\"nodes\":[");
     for (size_t i = 0; i < l->n_nodes; i++) {
