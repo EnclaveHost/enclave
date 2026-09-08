@@ -6,6 +6,7 @@
 #include "shielded-field.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -194,7 +195,8 @@ static bool os_random(void *buf, size_t n) {
     uint8_t *p = (uint8_t *)buf;
     while (n) {
         ssize_t r = getrandom(p, n, 0);
-        if (r < 0) return false;
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) return false;
         p += r; n -= (size_t)r;
     }
     return true;
@@ -545,14 +547,19 @@ static void free_pools(sh_link *l) {
     }
 }
 
+static void node_free_checks(sh_node *nd) {
+    free(nd->s); free(nd->s_tilde); free(nd->s32); free(nd->st32);
+    free(nd->sM); free(nd->stM);
+    nd->s = nd->s_tilde = NULL; nd->s32 = nd->st32 = nd->sM = nd->stM = NULL;
+}
+
 void sh_link_close(sh_link *l) {
     if (!l) return;
     stop_threads(l);
     if (l->dealt && l->win_url[0]) dealt_receipt(l);      /* the last window's usage, before the counters go */
     free_pools(l);
     for (size_t i = 0; i < l->n_nodes; i++) {
-        free(l->nodes[i].s); free(l->nodes[i].s_tilde); free(l->nodes[i].s32); free(l->nodes[i].st32);
-        free(l->nodes[i].sM); free(l->nodes[i].stM);
+        node_free_checks(&l->nodes[i]);
     }
     free(l->nodes); free(l->groups);
     free(l->rp); free(l->up); free(l->slots);
@@ -581,15 +588,16 @@ static void fv_prepare_parallel(sh_link *l, const int8_t *W, int64_t K, int64_t 
     if (nt == 1) { l->simd->fv_prepare(W, K, N, s, reps, st); return; }
     fv_job *jobs = (fv_job *)calloc((size_t)nt, sizeof *jobs);
     pthread_t *th = (pthread_t *)calloc((size_t)nt, sizeof *th);
-    int64_t *part = (int64_t *)malloc((size_t)nt * K * reps * sizeof(int64_t));
+    int64_t *part = (uint64_t)K > SIZE_MAX / ((size_t)nt * reps * sizeof(int64_t)) ? NULL :
+        (int64_t *)malloc((size_t)nt * K * reps * sizeof(int64_t));
     if (!jobs || !th || !part) { free(jobs); free(th); free(part); l->simd->fv_prepare(W, K, N, s, reps, st); return; }
-    int made = 0;
+    bool made[16] = {false};
     for (int t = 0; t < nt; t++) {
         const int64_t j0 = N * t / nt, j1 = N * (t + 1) / nt;
         jobs[t] = (fv_job){ l->simd, W + j0 * K, K, j1 - j0, s + j0 * reps, reps, part + (size_t)t * K * reps };
-        if (pthread_create(&th[t], NULL, fv_job_main, &jobs[t]) == 0) made++; else fv_job_main(&jobs[t]);
+        if (pthread_create(&th[t], NULL, fv_job_main, &jobs[t]) == 0) made[t] = true; else fv_job_main(&jobs[t]);
     }
-    for (int t = 0; t < made; t++) pthread_join(th[t], NULL);
+    for (int t = 0; t < nt; t++) if (made[t]) pthread_join(th[t], NULL);
     for (int64_t i = 0; i < K * reps; i++) {
         int64_t v = 0;
         for (int t = 0; t < nt; t++) v = (v + part[(size_t)t * K * reps + i]) % SH_FV_P2;
@@ -620,32 +628,58 @@ static int fv_prepare(sh_link *l, sh_node *nd) {
     return SH_OK;
 }
 
+/* Pad verification is requested explicitly by the trusted configuration. A
+ * failed allocation or entropy read must fail registration, never disable it. */
+static int pad_check_prepare(sh_node *nd) {
+    const int64_t K = nd->K, N = nd->N;
+    nd->sM = (int32_t *)malloc((size_t)N * sizeof(int32_t));
+    nd->stM = (int32_t *)calloc((size_t)K, sizeof(int32_t));
+    if (!nd->sM || !nd->stM) return SH_ERR_NOMEM;
+    uint64_t raw[256];
+    for (int64_t at = 0; at < N;) {
+        const size_t n = (size_t)(N - at < 256 ? N - at : 256);
+        if (!os_random(raw, n * sizeof *raw)) return SH_ERR_IO;
+        for (size_t i = 0; i < n; i++) nd->sM[at++] = 1 + (int32_t)(raw[i] % (SH_FV_S_RANGE - 1));
+    }
+    for (int64_t k = 0; k < K; k++) {
+        __int128 acc = 0;
+        for (int64_t j = 0; j < N; j++) acc += (__int128)nd->w[j * K + k] * nd->sM[j];
+        int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
+        nd->stM[k] = (int32_t)v;
+    }
+    return SH_OK;
+}
+
 int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with) {
+    if (!l || !name || !*name || strlen(name) >= sizeof(((sh_node *)0)->name) || !w_fixed ||
+        K <= 0 || N <= 0 || max_m <= 0 || l->n_nodes >= INT_MAX || l->n_groups >= INT_MAX ||
+        (uint64_t)K > SIZE_MAX / (SH_FV_REPS * sizeof(int64_t)) ||
+        (uint64_t)N > SIZE_MAX / (SH_FV_REPS * sizeof(int64_t)) ||
+        K > INT64_MAX / N || (uint64_t)K > SIZE_MAX / (uint64_t)N) return SH_ERR_RANGE;
     if (K % SH_QK != 0 || K % 16 != 0) {
         snprintf(l->err, sizeof l->err, "K=%lld not a multiple of %d", (long long)K, SH_QK); return SH_ERR_PROTO;
     }
-    /* A weight added after start (a split that first shows a weight on a
-     * later graph, a retry that registers more) changes the groups the refill
-     * threads are writing -- u_len is their row stride into u_store. Stop them
-     * and drop the rings first; the ready pads are discarded, never re-issued
-     * (the bank's counter is monotonic), and the caller restarts the link,
-     * which rebuilds the pools. ASan-confirmed heap overflow without this. */
-    if (l->threads_running) { stop_threads(l); free_pools(l); }
-    if (l->n_nodes == l->cap_nodes) {
-        size_t cap = l->cap_nodes ? l->cap_nodes * 2 : 16;
-        sh_node *nn = (sh_node *)realloc(l->nodes, cap * sizeof *nn);
-        if (!nn) return SH_ERR_NOMEM;
-        l->nodes = nn; l->cap_nodes = cap;
+    if (share_x_with >= 0) {
+        if ((size_t)share_x_with >= l->n_nodes) { snprintf(l->err, sizeof l->err, "share_x_with out of range"); return SH_ERR_PROTO; }
+        const sh_group *g = &l->groups[l->nodes[share_x_with].group];
+        if (g->K != K || g->n_nodes >= SH_GROUP_MAX || g->u_len > INT64_MAX - N) {
+            snprintf(l->err, sizeof l->err, "node %zu cannot share x with %d", l->n_nodes, share_x_with);
+            return SH_ERR_PROTO;
+        }
     }
-    sh_node *nd = &l->nodes[l->n_nodes];
-    memset(nd, 0, sizeof *nd);
+    /* Check aligned byte offsets before reading weights or publishing a node. */
+    if (l->wbytes < 0 || l->abytes < 0 || l->wbytes > INT64_MAX - SH_ALIGN || l->abytes > INT64_MAX - SH_ALIGN) return SH_ERR_RANGE;
+    sh_node staged = {0}; sh_node *nd = &staged;
+    nd->w_off = align_up(l->wbytes); nd->x_off = align_up(l->abytes);
+    const __int128 yoff = ((__int128)nd->x_off + 3 * (__int128)max_m * K + SH_ALIGN - 1) & ~((__int128)SH_ALIGN - 1);
+    const __int128 ab = yoff + (__int128)max_m * N * 4, wb = (__int128)nd->w_off + K * N;
+    if (ab > INT64_MAX || wb > INT64_MAX || ab > SIZE_MAX || wb > SIZE_MAX) return SH_ERR_RANGE;
+    nd->y_off = (int64_t)yoff;
     snprintf(nd->name, sizeof nd->name, "%s", name);
     nd->w = w_fixed; nd->K = K; nd->N = N; nd->max_m = max_m;
 
-    /* Rejecting here is what keeps the residue identity honest: a weight above
-     * the byte lane would wrap in every plane on the worker and unmask to noise. */
-    {   /* a min/max scan (vectorises) rather than an early-exit compare loop */
+    {   /* A min/max scan vectorises; values outside the byte lane wrap at the worker. */
         int lo = 0, hi = 0;
         for (int64_t i = 0; i < K * N; i++) { const int v = w_fixed[i]; lo = v < lo ? v : lo; hi = v > hi ? v : hi; }
         if (hi > SH_WEIGHT_BYTE_LIMIT || lo < -SH_WEIGHT_BYTE_LIMIT) {
@@ -654,66 +688,50 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
             return SH_ERR_RANGE;
         }
     }
+    /* A post-start registration changes refill strides. Stop and discard the
+     * old rings before reallocating; discarded pads are never reissued. */
+    if (l->threads_running) { stop_threads(l); free_pools(l); }
+    if (l->n_nodes == l->cap_nodes) {
+        size_t cap = l->cap_nodes ? l->cap_nodes * 2 : 16;
+        if (cap < l->cap_nodes || cap > SIZE_MAX / sizeof(sh_node)) return SH_ERR_RANGE;
+        sh_node *nn = (sh_node *)realloc(l->nodes, cap * sizeof *nn);
+        if (!nn) return SH_ERR_NOMEM;
+        l->nodes = nn; l->cap_nodes = cap;
+    }
+    if (share_x_with < 0 && l->n_groups == l->cap_groups) {
+        size_t cap = l->cap_groups ? l->cap_groups * 2 : 16;
+        if (cap < l->cap_groups || cap > SIZE_MAX / sizeof(sh_group)) return SH_ERR_RANGE;
+        sh_group *ng = (sh_group *)realloc(l->groups, cap * sizeof *ng);
+        if (!ng) return SH_ERR_NOMEM;
+        l->groups = ng; l->cap_groups = cap;
+    }
+    int rc = SH_OK;
+    if (l->verify) rc = fv_prepare(l, nd);
+    const char *pad_check = getenv("SHIELDED_PAD_CHECK");
+    if (rc == SH_OK && pad_check && *pad_check && strcmp(pad_check, "0")) rc = pad_check_prepare(nd);
+    if (rc != SH_OK) {
+        node_free_checks(nd);
+        snprintf(l->err, sizeof l->err, "%s: verification setup failed (%d)", name, rc);
+        return rc;
+    }
 
-    nd->w_off = align_up(l->wbytes);
-    l->wbytes = nd->w_off + K * N;
-    nd->x_off = align_up(l->abytes);
-    nd->y_off = align_up(nd->x_off + 3 * (int64_t)max_m * K);
-    l->abytes = nd->y_off + (int64_t)max_m * N * 4;
-
+    /* Commit only after both verification setups succeed. Failure leaves the
+     * existing group memberships, offsets and node counts unchanged. */
     if (share_x_with >= 0) {
-        if ((size_t)share_x_with >= l->n_nodes) { snprintf(l->err, sizeof l->err, "share_x_with out of range"); return SH_ERR_PROTO; }
         sh_group *g = &l->groups[l->nodes[share_x_with].group];
-        if (g->K != K || g->n_nodes >= SH_GROUP_MAX) {
-            snprintf(l->err, sizeof l->err, "node %zu cannot share x with %d", l->n_nodes, share_x_with);
-            return SH_ERR_PROTO;
-        }
-        nd->group = l->nodes[share_x_with].group;
-        nd->u_off = g->u_len;
-        g->nodes[g->n_nodes++] = (int)l->n_nodes;
-        g->u_len += N;
+        nd->group = l->nodes[share_x_with].group; nd->u_off = g->u_len;
+        g->nodes[g->n_nodes++] = (int)l->n_nodes; g->u_len += N;
         if (max_m < g->max_m) g->max_m = max_m;
     } else {
-        if (l->n_groups == l->cap_groups) {
-            size_t cap = l->cap_groups ? l->cap_groups * 2 : 16;
-            sh_group *ng = (sh_group *)realloc(l->groups, cap * sizeof *ng);
-            if (!ng) return SH_ERR_NOMEM;
-            l->groups = ng; l->cap_groups = cap;
-        }
-        sh_group *g = &l->groups[l->n_groups];
-        memset(g, 0, sizeof *g);
+        sh_group *g = &l->groups[l->n_groups]; memset(g, 0, sizeof *g);
         g->K = K; g->nodes[0] = (int)l->n_nodes; g->n_nodes = 1; g->u_len = N; g->max_m = max_m;
         nd->group = (int)l->n_groups++;
-        nd->u_off = 0;
     }
+    l->wbytes = (int64_t)wb; l->abytes = (int64_t)ab;
     if (K > l->Kmax) l->Kmax = K;
     if (N > l->Nmax) l->Nmax = N;
     if (l->groups[nd->group].u_len > l->ulen_max) l->ulen_max = l->groups[nd->group].u_len;
-
-    if (l->verify) {
-        int rc = fv_prepare(l, nd);
-        if (rc != SH_OK) return rc;
-    }
-    /* Dealt-pad check, opt-in: a shipment's u must satisfy u = r.W (mod M).
-     * Freivalds over M with one random s per node: (u . s) == (r . (W s))
-     * mod M, both dot products O(N)/O(K) per pad; W.s costs one pass over the
-     * weights here, once. Catches a wrong dealer at import, before any use,
-     * and tells it apart from a worker the product check would catch later. */
-    if (getenv("SHIELDED_PAD_CHECK") && *getenv("SHIELDED_PAD_CHECK") && strcmp(getenv("SHIELDED_PAD_CHECK"), "0")) {
-        nd->sM = (int32_t *)malloc((size_t)N * sizeof(int32_t));
-        nd->stM = (int32_t *)calloc((size_t)K, sizeof(int32_t));
-        if (nd->sM && nd->stM) {
-            uint32_t rs[8]; os_random(rs, sizeof rs);
-            uint64_t st = ((uint64_t)rs[0] << 32) | rs[1];
-            for (int64_t j = 0; j < N; j++) { st = st * 6364136223846793005ULL + 1442695040888963407ULL; nd->sM[j] = 1 + (int32_t)((st >> 33) % (SH_FV_S_RANGE - 1)); }
-            for (int64_t k = 0; k < K; k++) {
-                __int128 acc = 0;
-                for (int64_t j = 0; j < N; j++) acc += (__int128)w_fixed[j * K + k] * nd->sM[j];
-                int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
-                nd->stM[k] = (int32_t)v;
-            }
-        } else { free(nd->sM); free(nd->stM); nd->sM = nd->stM = NULL; }
-    }
+    l->nodes[l->n_nodes] = staged;
     return (int)l->n_nodes++;
 }
 
