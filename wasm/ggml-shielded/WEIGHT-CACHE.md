@@ -32,6 +32,30 @@ ordinary host-backed mapping once does not protect later page faults against
 host tampering. The phone's encrypted volume alone does not supply integrity or
 rollback protection. Original-model paging remains a separate dependency.
 
+`ggml_backend_shielded_set_weight_verifier(callback, context)` supplies a trusted
+source verifier before any graph reservation or weight registration. The callback
+must authenticate the tensor's name, GGML type, all four dimensions, byte length
+and contents against the model's trusted manifest. Registration first copies the
+raw Q8 tensor into private memory, then calls the verifier and encodes that exact
+copy. Changing or revoking the original mapping during the callback cannot change
+the encoding. Replacing the verifier after installation or registration is refused.
+Source authentication or incomplete registration failures stop the graph.
+
+With the verifier installed, contended or unavailable-worker fallback uses the
+encoded weights (authenticated cache blocks when enabled); it never invokes CPU
+Q8 computation against the original mapping. Wider batches use the exact local
+path in bounded row batches. That is a potentially expensive correctness fallback;
+the engine should divide prefill into batches suitable for offloading. This mode
+also refuses placement overflow rather than silently assigning unverified mapped
+weights to the CPU. Without the callback, existing placement behavior is unchanged.
+
+The callback is one part of authenticated loading. The caller still must bind its
+manifest to the measured model pin, load GGUF metadata/tokenizer/configuration
+from authenticated bytes, and authenticate every tensor kept on another backend
+before any repacking or use. Merely hashing a header in a different pass from the
+model pin does not establish that binding. Installing this callback alone is not
+an authenticated loader for the whole model.
+
 Memory retained for cached encodings is 64 bytes per 1 MiB block plus file and
 object metadata. Registration still needs one full encoded matrix at a time;
 local fallback needs a block of whole matrix rows (about 1 MiB, or one input row
@@ -53,3 +77,8 @@ cleanup, freed-source local products, Freivalds checks, socket upload and
 reconnect, and reader-failure rejection under ASan/UBSan. Device memory and
 performance measurements are still required before enabling this option in a
 phone recipe.
+
+`node --test test/shielded-weight-verifier.test.mjs` additionally revokes the source
+pages inside verification and checks encoding plus link-down, contended and wide
+local fallback with a real CPU backend available. It rejects changed tensor bytes,
+changed dimensions with the same byte count, and verifier replacement.

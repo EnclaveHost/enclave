@@ -71,6 +71,8 @@ static int sh_af_delta_env() {
 struct sh_state;
 static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
+static ggml_shielded_weight_verifier g_weight_verifier;
+static void *g_weight_verifier_ctx;
 
 /* --------------------------------------------------------------------------
  * Placement policy.
@@ -164,6 +166,7 @@ struct sh_state {
     // A failed opt-in cache build can leave half a shared-input group. Such
     // a table cannot consume the dealer's pads; abort before upload/binding.
     bool weight_cache_failed = false;
+    bool source_verification_failed = false;
     /* Reconnect policy after a transport failure: the link is retried at the
      * next graph once `link_retry_at` has passed, with the wait doubling from
      * 1 s to 60 s. Until then every claimed matmul is computed in the enclave,
@@ -198,6 +201,7 @@ struct sh_state {
         std::string group;
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
+        bool source_verified = false;
         std::vector<int8_t> out_cols;   /* nout x N: the outlier channels' weights, for the TEE-side term */
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
         float act_scale = 0, encode_limit = 0;
@@ -286,6 +290,18 @@ static int sh_owner(sh_pool &p, const ggml_tensor *w) {
     return it == p.owners.end() ? -1 : it->second;
 }
 static void sh_plan(sh_pool &p);
+
+int ggml_backend_shielded_set_weight_verifier(ggml_shielded_weight_verifier verifier, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    sh_pool_init(p);
+    if (!verifier || g_weight_verifier || p.invalid || !p.pending.empty()) return SH_ERR_RANGE;
+    for (const auto *s : p.cards)
+        if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
+            return SH_ERR_RANGE;
+    g_weight_verifier = verifier; g_weight_verifier_ctx = ctx;
+    return SH_OK;
+}
 
 /* The correction every site's calibrated exponent gets: the file format's own
  * (see calib_version) plus the process-wide SHIELDED_AF_DELTA. */
@@ -587,7 +603,7 @@ static int sh_prepare_rows_threaded(const void *blocks, int64_t K, int64_t N, in
 }
 
 static bool sh_register(sh_state &s, const ggml_tensor *w) {
-    if (s.weight_cache_failed) return false;
+    if (s.weight_cache_failed || s.source_verification_failed) return false;
     const std::string name = ggml_get_name(w);
     if (s.weights.count(name)) return true;
     if (s.refused.count(name)) return false;
@@ -595,6 +611,8 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const int64_t K = w->ne[0], N = w->ne[1];
     const sh_calib_site *site = sh_site_for(s, name.c_str());
     if (!site) return false;
+    if (K <= 0 || N <= 0 || (__int128)K*N + (__int128)sh_max_m()*(3*(__int128)K + 4*(__int128)N) > INT64_MAX)
+        return false;
     if (K % SH_QK != 0) return false;
 #if defined(__aarch64__)
     /* The ARM CPU backend repacks q8_0 rows into q8_0_4x8 at load time (its
@@ -634,13 +652,41 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const double t0 = sh_now_ms();
     sh_state::entry e;
     e.K = K; e.N = N; e.site = site; e.group = sh_group_key(name);
+    const void *source = w->data;
+    std::vector<uint8_t> private_source;
+    if (g_weight_verifier) {
+        // Hashing the mapping and encoding it afterwards would race hostile
+        // page replacements. Copy first; authenticate and encode this copy.
+        bool valid = w->type == GGML_TYPE_Q8_0 && K > 0 && N > 0 &&
+                     w->ne[2] == 1 && w->ne[3] == 1 && ggml_is_contiguous(w) && source &&
+                     (uint64_t)(K / SH_QK) <= SIZE_MAX / sizeof(sh_block_q8_0) / (uint64_t)N;
+        if (valid) {
+            const size_t bytes = (size_t)(K / SH_QK) * (size_t)N * sizeof(sh_block_q8_0);
+            try { private_source.resize(bytes); }
+            catch (const std::bad_alloc &) { valid = false; }
+            catch (const std::length_error &) { valid = false; }
+            if (valid) {
+                memcpy(private_source.data(), source, bytes);
+                valid = g_weight_verifier(g_weight_verifier_ctx, name.c_str(), (uint32_t)w->type,
+                                          w->ne, private_source.data(), bytes) == SH_OK;
+                source = private_source.data();
+            }
+        }
+        if (!valid) {
+            fprintf(stderr, "[shielded] %s: source weight authentication failed; aborting model load\n", name.c_str());
+            s.source_verification_failed = true;
+            s.refused.insert(name);
+            return false;
+        }
+        e.source_verified = true;
+    }
     e.w.resize((size_t)K * N);
     e.f_w.resize((size_t)N);
     /* Rows are independent: spread the encoding over threads. Registration
      * runs inside the engine's context creation (ggml_backend_sched reserve
      * asks supports_op with the data present), serially per weight, and was
      * 3.4 s of the 0.5B's and 32 s of the 4B's start-up before this. */
-    if (sh_prepare_rows_threaded(w->data, K, N, e.w.data(), e.f_w.data()) < 0) {
+    if (sh_prepare_rows_threaded(source, K, N, e.w.data(), e.f_w.data()) < 0) {
         SH_LOG("%s: no weight exponent fits the int8 lane; staying on CPU\n", name.c_str());
         s.refused.insert(name);
         return false;
@@ -798,13 +844,23 @@ static void sh_plan(sh_pool &p) {
             int card = old != p.owners.end() ? old->second :
                 preferred >= 0 && fit(preferred, bytes) ? preferred : choose(bytes);
             p.owners[g.first] = card;
-            if (card < 0) { SH_LOG("placement %s -> CPU (pool reservation full)\n", g.first.c_str()); continue; }
+            if (card < 0) {
+                if (g_weight_verifier) {
+                    p.cards[0]->source_verification_failed = true;
+                    fprintf(stderr, "[shielded] %s: authenticated placement has no capacity; aborting model load\n", g.first.c_str());
+                    p.pending.clear(); return;
+                }
+                SH_LOG("placement %s -> CPU (pool reservation full)\n", g.first.c_str()); continue;
+            }
             if (prev == p.layers.end()) p.layers[layer.first] = card;
             SH_LOG("placement %s -> card %d %s:%d (%lld bytes)\n", g.first.c_str(), card,
                    p.cards[card]->host.c_str(), p.cards[card]->port, (long long)bytes);
             for (auto *w : g.second) {
-                sh_register(*p.cards[card], w);
-                if (p.cards[card]->weight_cache_failed) { p.pending.clear(); return; }
+                if (!sh_register(*p.cards[card], w) && g_weight_verifier) {
+                    p.cards[card]->source_verification_failed = true;
+                    fprintf(stderr, "[shielded] %s: authenticated registration failed; aborting model load\n", ggml_get_name(w));
+                }
+                if (p.cards[card]->weight_cache_failed || p.cards[card]->source_verification_failed) { p.pending.clear(); return; }
             }
         }
     }
@@ -851,9 +907,9 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
         p.pending[nm] = *src0;
     else if (src0->data && owner >= 0 && !p.cards[owner]->weights.count(nm) && !p.cards[owner]->refused.count(nm))
         p.pending[nm] = *src0;
-    if (batch_ok && src1->ne[1] > sh_max_m()) return false;
-    if (p.owners.count(sh_group_key(nm)) && owner < 0) return false;
-    if (owner >= 0 && p.cards[owner]->contention.contended && sh_group_key(nm) != p.cards[owner]->probe_group) return false;
+    if (batch_ok && src1->ne[1] > sh_max_m() && !g_weight_verifier) return false;
+    if (!g_weight_verifier && p.owners.count(sh_group_key(nm)) && owner < 0) return false;
+    if (!g_weight_verifier && owner >= 0 && p.cards[owner]->contention.contended && sh_group_key(nm) != p.cards[owner]->probe_group) return false;
     return true;
 }
 
@@ -1034,9 +1090,31 @@ static void sh_link_down(sh_state &s) {
     s.link_backoff_ms = s.link_backoff_ms < 60000 ? s.link_backoff_ms * 2 : 60000;
 }
 
+/* Wide prefill cannot fall through to a discarded original mapping. Reuse
+ * the bounded exact encoded-weight path in legal row batches. This is a
+ * correctness fallback; the engine should batch prefill for offloading. */
+static int sh_local_products(sh_state &s, const std::vector<int> &nodes,
+                            const std::vector<sh_state::entry *> &entries,
+                            const int64_t *x, int32_t m, int64_t **y) {
+    if (!g_weight_verifier || m <= sh_max_m())
+        return sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x, m, y);
+    if (nodes.empty() || nodes.size() > SH_GROUP_MAX || entries.size() != nodes.size() || sh_max_m() <= 0)
+        return SH_ERR_PROTO;
+    int64_t *part[SH_GROUP_MAX];
+    for (int32_t at = 0; at < m;) {
+        const int32_t rows = std::min(sh_max_m(), m - at);
+        for (size_t i = 0; i < nodes.size(); i++) part[i] = y[i] + (size_t)at * entries[i]->N;
+        const int rc = sh_link_gemm_local(s.link, nodes.data(), nodes.size(),
+                                         x + (size_t)at * entries[0]->K, rows, part);
+        if (rc != SH_OK) return rc;
+        at += rows;
+    }
+    return SH_OK;
+}
+
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.weight_cache_failed) return GGML_STATUS_FAILED;
+    if (s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     const sh_simd *simd = sh_link_simd();
 
@@ -1097,6 +1175,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         const ggml_tensor *a = node->src[1];
         auto it = s.weights.find(ggml_get_name(node->src[0]));
         if (it == s.weights.end()) {
+            if (g_weight_verifier) {
+                fprintf(stderr, "[shielded] %s: no authenticated registered weight; refusing source fallback\n", ggml_get_name(node->src[0]));
+                return GGML_STATUS_FAILED;
+            }
             // We claimed it in supports_op and then failed to register it. Compute
             // it honestly rather than killing the graph, and say so once.
             static std::set<std::string> told;
@@ -1128,6 +1210,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
 
         const sh_state::entry &e0 = *ents[0];
         const int64_t K = e0.K;
+        if (a->ne[1] < 0 || a->ne[1] > INT32_MAX) return GGML_STATUS_FAILED;
         const int32_t m = (int32_t)a->ne[1];
         /* A zero-row matmul has a zero-element output and nothing to exchange.
          * The MTP head context issues one against the tied lm_head; sending it
@@ -1168,7 +1251,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         /* In the enclave, on the CPU backend: a contended card (all but the
          * probe group, which keeps measuring it) or a link that is down,
          * unless the exact int64 path was asked for. */
-        if ((s.contention.contended && e0.group != s.probe_group) || (!live && !sh_local_exact())) {
+        if (!g_weight_verifier && ((s.contention.contended && e0.group != s.probe_group) || (!live && !sh_local_exact()))) {
             bool ok = true;
             for (size_t t = 0; t < members.size() && ok; t++) ok = sh_cpu_compute(members[t]);
             if (ok) { s.local_nodes += members.size(); continue; }
@@ -1252,7 +1335,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                             ggml_get_name(node->src[0]), sh_link_last_error(s.link), s.link_backoff_ms / 1000);
                     sh_link_down(s);
                 }
-                rc = sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
+                rc = sh_local_products(s, nodes, xents, x_gpu.data(), m, yp.data());
                 s.local_nodes += members.size();
             } else {
                 s.offloaded_nodes += members.size(); s.exchanges++;
@@ -1276,7 +1359,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                 }
             }
         } else {
-            rc = sh_link_gemm_local(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
+            rc = sh_local_products(s, nodes, xents, x_gpu.data(), m, yp.data());
             s.local_nodes += members.size();
         }
         s.t_link += sh_now_ms() - tl0;
@@ -1285,6 +1368,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             return GGML_STATUS_FAILED;
         }
         if (rc != SH_OK) {
+            if (g_weight_verifier) {
+                fprintf(stderr, "[shielded] %s: authenticated execution failed (%d); refusing source fallback\n", ggml_get_name(node->src[0]), rc);
+                return GGML_STATUS_FAILED;
+            }
             // Not a verification failure (that returned above) -- a transport or
             // bookkeeping problem. The honest answer is still available locally.
             fprintf(stderr, "[shielded] %s: offload and local path both failed (%d); "
@@ -1340,7 +1427,7 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             p.pending[name] = *w;
     }
     sh_plan(p);
-    for (const auto *s : p.cards) if (s->weight_cache_failed) return GGML_STATUS_FAILED;
+    for (const auto *s : p.cards) if (s->weight_cache_failed || s->source_verification_failed) return GGML_STATUS_FAILED;
     // Preserve dependency order. Each contiguous run belongs to one link;
     // completion caches still combine q/k/v or gate/up across scheduler splits.
     for (int i = 0; i < graph->n_nodes;) {
@@ -1354,6 +1441,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             if (local_island) {
                 if (!sh_compute_local_island(*p.cards[0], node, local_pattern)) return GGML_STATUS_FAILED;
                 i++; continue;
+            }
+            if (g_weight_verifier) {
+                fprintf(stderr, "[shielded] no authenticated owner for %s; refusing source fallback\n", ggml_get_name(node->src[0]));
+                return GGML_STATUS_FAILED;
             }
             sh_plain_mul_mat(node->src[0], node->src[1], node);
             p.cards[0]->local_nodes++; i++; continue;
