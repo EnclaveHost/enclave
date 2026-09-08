@@ -29,6 +29,14 @@ int anchor_pins_load(const char *dir, anchor_pins *pins);
 /* SHA-256 (FIPS 180-4) of a file, streamed; returns 0 on success. */
 int anchor_sha256_file(const char *path, uint8_t out[32], uint64_t *bytes);
 void anchor_sha256(const uint8_t *m, size_t n, uint8_t out[32]);
+/* Incremental form for hashing the pin and tensor ranges from the same read.
+ * Context storage is opaque and need not be aligned; callers may use this
+ * typedef or at least sizeof(anchor_sha256_ctx) bytes. Initialize before use,
+ * update zero or more times, finalize once. Finalization clears the context. */
+typedef struct { uint8_t opaque[128]; } anchor_sha256_ctx;
+void anchor_sha256_init(void *ctx);
+void anchor_sha256_update(void *ctx, const uint8_t *m, size_t n);
+void anchor_sha256_final(void *ctx, uint8_t out[32]);
 /* Runtime-selected implementation, for confirming guest CPU capabilities in logs. */
 const char *anchor_sha256_backend(void);
 
