@@ -55,6 +55,10 @@ typedef struct {
  * granted == 0 is an answer, not a violation: the link keeps the socket. See
  * sh_pipe_shm_attach below and shielded/PROTOCOL.md "shm ring". */
 #define SH_CMD_SHM_ATTACH      14
+/* Protocol 1.4: optional process-local public weight RAM cache. Only send when
+ * HELLO advertises public_weight_cache_bytes > 0. No activation/disk cache.
+ * | action u8 (0 lookup, 1 admit) | bid/offset/nbytes u64 | SHA256[32] | -> u8 hit */
+#define SH_CMD_PUBLIC_WEIGHT_CACHE 15
 
 #define SH_OK             0
 #define SH_ERR_IO        -1

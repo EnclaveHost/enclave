@@ -62,10 +62,11 @@ import torch
 
 from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FREE_BUFFER,
                       CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
-                      CMD_HELLO, CMD_SET_TENSOR, PROTO_VERSION, ProtocolViolation,
+                      CMD_HELLO, CMD_SET_TENSOR, CMD_PUBLIC_WEIGHT_CACHE, PROTO_VERSION, ProtocolViolation,
                       ReservationLedger, ShieldedWorkerState)
 from field import M_MOD, Q0, Q1, Q2, crt_host
 import wire
+from public_weight_cache import PublicWeightCache
 from fused_field_gemm import QK, field_gemm
 
 GPU_LOCK = threading.Lock()
@@ -172,14 +173,18 @@ def crt_torch(r0, r1, r2):
 
 
 class Connection:
-    def __init__(self, sock, addr, vram_bytes, log, ledger=None):
+    def __init__(self, sock, addr, vram_bytes, log, ledger=None, public_cache=None):
         self.sock = sock
         self.addr = addr
         self.log = log
         # 1.3 reservations are accounted here (one ledger per process) but not
         # claimed from the driver: this fixture leaves the claim to the CUDA
         # worker, which is what runs on the fleet.
-        self.state = ShieldedWorkerState(vram_bytes=vram_bytes, ledger=ledger)
+        self.public_cache = public_cache if public_cache is not None else PublicWeightCache()
+        if self.public_cache.budget and DEVICE != "cpu":
+            raise ValueError("reference public weight cache requires DEVICE=cpu")
+        self.state = ShieldedWorkerState(vram_bytes=vram_bytes, ledger=ledger,
+                                        public_weight_cache_bytes=self.public_cache.budget)
         self.storage = {}      # bid -> uint8 cuda tensor
         self.nodes = []
         self.recomputes = 0
@@ -241,6 +246,7 @@ class Connection:
                 "vram_budget": self.state.vram_bytes,
                 "vram_reserved": self.state.ledger.reserved,
                 "vram_reserve": self.state.reserve,
+                "public_weight_cache_bytes": self.public_cache.budget,
                 "field_gmac_per_s": round(FIELD_GMACS, 1),
                 "worker": "shielded/worker.py",
                 **dev,
@@ -274,6 +280,22 @@ class Connection:
             src = torch.frombuffer(bytearray(data), dtype=torch.uint8)
             view.copy_(src, non_blocking=False)
             return b""
+
+        if cmd == CMD_PUBLIC_WEIGHT_CACHE:
+            view = self._bytes_view(res["bid"], res["offset"], res["nbytes"])
+            if res["action"] == 0:
+                def copy_into(entry):
+                    # NumPy reads the immutable cache entry; only the link's
+                    # already allocated destination can be written.
+                    src = np.frombuffer(entry, dtype=np.uint8)
+                    view.numpy()[:] = src
+                hit = self.public_cache.copy_to(res["digest"], res["nbytes"], copy_into)
+            else:
+                try:
+                    hit = self.public_cache.admit(res["digest"], view.numpy())
+                except ValueError as e:
+                    raise ProtocolViolation(str(e)) from e
+            return bytes([int(hit)])
 
         if cmd == CMD_GET_TENSOR:
             bid, offset, nbytes = struct.unpack_from("<QQQ", payload, 0)
@@ -432,7 +454,7 @@ class Connection:
                 pass
 
 
-def serve(host, port, vram_gb, quiet=False):
+def serve(host, port, vram_gb, quiet=False, public_weight_cache_mib=0):
     def log(msg):
         if not quiet:
             print(f"[shielded-worker] {msg}", flush=True)
@@ -460,10 +482,11 @@ def serve(host, port, vram_gb, quiet=False):
         + (f" (guest reaches it at 10.0.2.2:{port})" if host in ("127.0.0.1", "0.0.0.0") else ""))
 
     ledger = ReservationLedger(budget)
+    public_cache = PublicWeightCache(public_weight_cache_mib << 20)
     while True:
         sock, addr = srv.accept()
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        conn = Connection(sock, addr, budget, log, ledger)
+        conn = Connection(sock, addr, budget, log, ledger, public_cache)
         t = threading.Thread(target=conn.serve, daemon=True, name=f"conn-{addr[1]}")
         t.start()
 
@@ -476,10 +499,16 @@ def main():
     ap.add_argument("--device", default="cuda", choices=("cuda", "cpu"), help="cpu = exact float64 reference mode for tests; no GPU touched")
     ap.add_argument("--vram-gb", type=float, default=0.0, help="0 = 85%% of the card")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--public-weight-cache-mib", type=int, default=0,
+                    help="CPU reference only: bounded public weight RAM cache; 0 disables")
     a = ap.parse_args()
     global DEVICE
     DEVICE = a.device
-    serve(a.host, a.port, a.vram_gb, a.quiet)
+    if not 0 <= a.public_weight_cache_mib <= (1 << 20):
+        ap.error("public weight cache MiB must be between 0 and 1048576")
+    if a.public_weight_cache_mib and DEVICE != "cpu":
+        ap.error("public weight cache in this reference server requires --device cpu; use worker-cuda for production")
+    serve(a.host, a.port, a.vram_gb, a.quiet, a.public_weight_cache_mib)
 
 
 if __name__ == "__main__":
