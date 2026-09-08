@@ -366,6 +366,16 @@ public class Main extends Activity {
 
     /* one worker connection per shape: connect into the guest, dial the TCP worker, pipe both ways, repeat */
     static void bridge(Object vm, Plan plan) {
+        if (plan.worker.equals("echo")) {   // measure the vsock + this pump alone: bytes from the guest go straight back
+            ParcelFileDescriptor pfd = connect(vm, WORKER_PORT, 25);
+            if (pfd == null) return;
+            say("BRIDGE echo: guest bytes returned to the guest (no TCP)");
+            InputStream gi = new FileInputStream(pfd.getFileDescriptor()); OutputStream go = new FileOutputStream(pfd.getFileDescriptor());
+            long n = pipe(gi, go, "echo");
+            try { pfd.close(); } catch (Exception ignored) { }
+            say("BRIDGE echo closed, " + n + " bytes");
+            return;
+        }
         String host = plan.worker.substring(0, plan.worker.lastIndexOf(':')); int port = Integer.parseInt(plan.worker.substring(plan.worker.lastIndexOf(':') + 1));
         int conn = 0;
         while (!sEnded) {
