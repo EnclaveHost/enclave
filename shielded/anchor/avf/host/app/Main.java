@@ -146,8 +146,13 @@ public class Main extends Activity {
         int c = caps instanceof Integer ? (Integer) caps : -1;
         boolean protectedVm = c < 0 ? Boolean.TRUE.equals(tryCall(vmm, "isProtectedVmSupported")) : (c & 1) != 0;   // CAPABILITY_PROTECTED_VM
         Object ra = tryCall(vmm, "isRemoteAttestationSupported");
+        /* Updatable VMs (AOSP updatable_vm.md): with Secretkeeper the instance secret survives an APK/OS
+         * update and the encrypted store stays readable; without it the legacy instance.img rejects changed
+         * code. The query is read-only; "n/a" = the framework hides or lacks it (then the device's
+         * ISecretkeeper service is the next-best evidence, not proof). Never assumed per model. */
+        Object upd = tryCall(vmm, "isUpdatableVmSupported");
         say("GATE device=" + android.os.Build.MODEL + " sdk=" + android.os.Build.VERSION.SDK_INT + " vendor_api_level=" + vendor + " board_api_level=" + board);
-        say("GATE capabilities=" + c + " protected_vm=" + protectedVm + " remote_attestation=" + (ra == null ? "n/a" : ra));
+        say("GATE capabilities=" + c + " protected_vm=" + protectedVm + " remote_attestation=" + (ra == null ? "n/a" : ra) + " updatable_vm=" + (upd == null ? "n/a" : upd));
         boolean attestLevel = vendor >= VENDOR_LEVEL_ATTEST;
         boolean ok = protectedVm && attestLevel && !Boolean.FALSE.equals(ra);
         say("GATE " + (ok ? "SUPPORTED" : "UNSUPPORTED") + (protectedVm ? "" : " (no protected VMs)") + (attestLevel ? "" : " (launch generation " + vendor + " < " + VENDOR_LEVEL_ATTEST + ": /avf not provisioned)") + (Boolean.FALSE.equals(ra) ? " (service says no attestation)" : ""));
@@ -186,8 +191,9 @@ public class Main extends Activity {
             say("HOST config protected=" + call(cfg, "isProtectedVm") + " debug=" + call(cfg, "getDebugLevel"));
 
             /* Keep the VM instance across runs: its encrypted storage is where the model
-             * lives, and deleting the VM deletes it. Recreate only when the stored
-             * config no longer matches (getOrCreate refuses an incompatible one). */
+             * lives, and deleting the VM deletes it. getOrCreate returns an EXISTING instance
+             * unchanged and ignores the config passed with it (Android 35), so the requested
+             * numbers below are not the applied ones: the effective line after retrieval is. */
             Object vm0;
             /* One named instance per store: "anchor" is the default identity; a larger test store gets its own name
              * (--es vmname anchor64 --ei storage 65536) and never replaces it. An existing instance whose stored
@@ -200,6 +206,12 @@ public class Main extends Activity {
                 return;
             }
             final Object vm = vm0;
+            {   /* what the instance actually runs with, from its stored config, never from the request */
+                Object ecfg = tryCall(vm, "getConfig");
+                Object emem = ecfg == null ? null : tryCall(ecfg, "getMemoryBytes"), esto = ecfg == null ? null : tryCall(ecfg, "getEncryptedStorageBytes");
+                say("HOST VM instance '" + plan.vmName + "' EFFECTIVE mem=" + (emem instanceof Long ? ((Long) emem >> 20) + " MiB" : "n/a") + " storage=" + (esto instanceof Long ? ((Long) esto >> 20) + " MiB" : "n/a")
+                    + " (requested mem=" + plan.memMib + " storage=" + plan.storageMib + ")");
+            }
             Class<?> cCb = Class.forName(PKG + "VirtualMachineCallback");
             Executor ex = Executors.newSingleThreadExecutor();
             InvocationHandler h = (proxy, m, a) -> {
