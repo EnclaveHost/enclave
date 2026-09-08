@@ -35,6 +35,19 @@ placement and knobs before attributing a change.
 
 ## Socket exchange timings
 
+The backend's `mask`, `wire`, `refill`, `lhs` and `rhs` phase totals belong to
+the individual card's link. `sh_link_profile_snapshot` reads those cumulative
+totals and completed-call/pad counters; a fresh link starts at zero and replacing
+its socket preserves them. Serialize snapshots with operations on that link.
+Different links own independent counters. Earlier builds used one global set
+of phase totals and printed it for every card, so those historical multi-card
+lines cannot establish per-card time.
+
+These are host elapsed phases, not GPU kernel durations. `wire` subtracts RHS
+verification performed while waiting for a reply; `rhs` counts that work once.
+Failed exchanges can contribute elapsed phases and consume pads without adding
+a completed call. This change adds no clock reads and changes no computation.
+
 With `SHIELDED_PROFILE=1`, `wire phases` counts successful single-frame socket
 FIELD_GEMM calls. Unlike some older profile checks, this collector treats an
 unset, empty or `0` value as disabled. The counters are cumulative for the pipe;

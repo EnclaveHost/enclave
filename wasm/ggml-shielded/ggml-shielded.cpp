@@ -319,7 +319,6 @@ void ggml_backend_shielded_configure(const char *host, int port, const char *cal
 
 int ggml_backend_shielded_pool_version(void) { return 1; }
 
-extern "C" double sh_prof[8];
 void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes) {
     sh_pool &p = sh_pool_get();
     std::lock_guard<std::mutex> lock(p.mu);
@@ -367,6 +366,7 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
         uint64_t waited = 0; double wait_ms = 0;
         sh_link_pad_wait_stats(s.link, &waited, &wait_ms);
         sh_wire_timing wt = {}; sh_link_wire_timing(s.link, &wt);
+        sh_link_profile lp = {}; sh_link_profile_snapshot(s.link, &lp);
         fprintf(stderr, "[shielded] wire phases: calls=%llu request_bytes=%llu reply_bytes=%llu write=%.1fms overlap=%.1fms header=%.1fms body=%.1fms max=%.1fms over100ms=%llu over1s=%llu (socket FIELD_GEMM only; body includes allocation)\n",
                 (unsigned long long)wt.calls, (unsigned long long)wt.request_bytes, (unsigned long long)wt.reply_bytes,
                 wt.write_ms, wt.work_ms, wt.header_ms, wt.body_ms, wt.max_ms,
@@ -390,7 +390,7 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                         "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu waited=%llu wait=%.1fms | contended=%d events=%llu | simd=%s refill_threads=%d refill_priority=%s omp_spincount=%s\n",
                 (unsigned long long)s.exchanges, (unsigned long long)s.offloaded_nodes,
                 (unsigned long long)s.completed, (unsigned long long)s.served,
-                sh_prof[0], sh_prof[1], sh_prof[2], sh_prof[3], sh_prof[4], s.t_link,
+                lp.mask_ms, lp.wire_ms, lp.refill_ms, lp.unmask_lhs_ms, lp.rhs_ms, s.t_link,
                 s.t_encode, s.t_post, s.t_graph, (unsigned long long)used, (unsigned long long)missed,
                 (unsigned long long)waited, wait_ms,
                 (int)s.contention.contended, (unsigned long long)s.contention.events,

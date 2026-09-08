@@ -4,6 +4,7 @@
 #include "../../wasm/ggml-shielded/shielded-wire.c"
 #include "../../wasm/ggml-shielded/shielded-tee.c"
 #include <assert.h>
+#include <math.h>
 #include <signal.h>
 
 enum { K = 64, N0 = 17, N1 = 5, MAX_M = 16, DEPTH = 256 };
@@ -19,6 +20,12 @@ typedef struct {
 } peer;
 static peer *active;
 static const sh_simd *base_simd;
+
+static void assert_empty_profile(const sh_link_profile *p) {
+    assert(p->mask_ms == 0 && p->wire_ms == 0 && p->refill_ms == 0);
+    assert(p->unmask_lhs_ms == 0 && p->rhs_ms == 0);
+    assert(p->completed_calls == 0 && p->missed_pads == 0 && p->used_pads == 0);
+}
 
 static void send_bytes(int fd, const void *data, size_t size) {
     struct iovec iov = { (void *)data, size };
@@ -127,6 +134,8 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
     for (int i = 0; i < m * K; i++) x[i] = mode == WRAP ? 1000000 : (i * 13 + m) % 101 - 50;
     const int head = l->groups[0].head, before = l->groups[0].count;
     const uint64_t used_before = l->pads_used;
+    sh_link_profile profile_before, profile_after;
+    sh_link_profile_snapshot(l, &profile_before);
     int rc = sh_link_gemm(l, p.nodes, count, x, m, out);
     pthread_join(thread, NULL);
     assert(l->groups[0].held == 0 && l->groups[0].count == before - m);
@@ -136,6 +145,14 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
         (mode == CORRUPT || mode == WRAP) ? SH_ERR_VERIFY :
         (mode == TRUNCATE || mode == DISCONNECT) ? SH_ERR_IO : SH_ERR_VIOLATION;
     assert(rc == expected_rc);
+    sh_link_profile_snapshot(l, &profile_after);
+    assert(profile_after.used_pads == profile_before.used_pads + (uint64_t)m);
+    assert(profile_after.completed_calls == profile_before.completed_calls + (rc == SH_OK));
+    assert(profile_after.missed_pads == 0);
+    assert(isfinite(profile_after.mask_ms) && profile_after.mask_ms >= profile_before.mask_ms);
+    assert(isfinite(profile_after.wire_ms) && profile_after.wire_ms >= profile_before.wire_ms);
+    assert(isfinite(profile_after.unmask_lhs_ms) && profile_after.unmask_lhs_ms >= profile_before.unmask_lhs_ms);
+    assert(isfinite(profile_after.rhs_ms) && profile_after.rhs_ms >= profile_before.rhs_ms);
     if (rc == SH_ERR_VERIFY) {
         const uint64_t pads = l->pads_used, exchanges = l->exchanges;
         const int remaining = l->groups[0].count;
@@ -176,6 +193,10 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
     else setenv("SHIELDED_OVERLAP_VERIFY", enabled ? "1" : "0", 1);
     int err = 0;
     sh_link *l = sh_link_open("unused", 1, verify, &err); assert(l && err == SH_OK);
+    sh_link *other = sh_link_open("unused", 1, verify, &err); assert(other && err == SH_OK);
+    sh_link_profile snapshot;
+    sh_link_profile_snapshot(l, &snapshot);
+    assert_empty_profile(&snapshot);
     assert(l->overlap_verify == (enabled > 0));
     base_simd = l->simd;
     sh_simd monitored = *base_simd; monitored.fv_dots_x = checked_rhs; l->simd = &monitored;
@@ -233,11 +254,23 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
     assert(l->pads_missed == 0);
     assert((l->fv_rhs != NULL) == (enabled > 0 && verify && !ring_mode));
     assert(l->verify_fail == (verify ? 1 : 0));
+    sh_link_profile_snapshot(other, &snapshot);
+    assert_empty_profile(&snapshot);
     sh_link_close(l);
+    sh_link_profile_snapshot(other, &snapshot);
+    assert_empty_profile(&snapshot);
+    sh_link_close(other);
 }
 
 int main(void) {
     signal(SIGPIPE, SIG_IGN);
+    {
+        sh_link_profile snapshot;
+        memset(&snapshot, 0x5a, sizeof snapshot);
+        sh_link_profile_snapshot(NULL, &snapshot);
+        assert_empty_profile(&snapshot);
+        sh_link_profile_snapshot(NULL, NULL);
+    }
     { // Resolve only an in-range public node id; raw pipe metadata has no name.
         sh_pipe pipe = {0}; pipe.timing.peak.call = 7;
         pipe.timing.peak.metadata_valid = 1; pipe.timing.peak.first_node = 1;
