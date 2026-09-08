@@ -40,6 +40,7 @@ static int g_ctl = -1;
  * it (an older payload) lines go straight to the descriptor. */
 static int (*g_ctl_writer)(const char *, size_t) = nullptr;
 extern "C" void engine_set_ctl_writer(int (*fn)(const char *, size_t)) { g_ctl_writer = fn; }
+static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
     if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
@@ -664,8 +665,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         char piece[256]; int pn = llama_token_to_piece(vocab, t, piece, sizeof piece, 0, true);
         if (pn > 0) { out.append(piece, pn); outf("TOKEN %.*s", pn, piece); }
         return ++n_gen < n_predict; };
-    int n_past = n_loaded + n, mtp_rounds = 0, mtp_drafted = 0, mtp_accepted = 0;
-    double t_draft = 0, t_verify = 0, t_observe = 0;   /* where a round's wall time goes (us) */
+    int n_past = n_loaded + n, mtp_rounds = 0, mtp_drafted = 0, mtp_accepted = 0, mtp_emitted = 0;
+    double t_draft = 0, t_verify = 0, t_join = 0, t_observe = 0;   /* where a round's wall time goes (us) */
     const bool eprofile = [] { const char *pf = getenv("SHIELDED_PROFILE"); return pf && *pf && strcmp(pf, "0"); }();
     long r_steady = -1;                                /* the round index at which steady state began */
     /* steady state = after the first decode step: when the prompt prefilled on the CPU (wider than
@@ -711,6 +712,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const int rc = llama_decode(ctx, vb); llama_batch_free(vb);
         const long t_r2 = ggml_time_us();
         if (ahead_th.joinable()) ahead_th.join();
+        const long t_rj = ggml_time_us();
         if (rc) { outf("ENGINE decode failed (verify of %d rows)", nd + 1); dump_err(); status = "decode_failed"; break; }
         int acc = 0; while (acc < nd && argmax(llama_get_logits_ith(ctx, acc)) == d[acc]) acc++;
         const llama_token bonus = argmax(llama_get_logits_ith(ctx, acc));
@@ -719,18 +721,25 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (anchor_mtp_harvest(mtp, ctx, acc + 1) || anchor_mtp_observe(mtp, n_past, rows, acc + 1)) { mtp_fallback = "observe_failed"; outf("ENGINE MTP: observe failed; decoding plainly from here"); anchor_mtp_free(mtp); mtp = nullptr; }
         const long t_r3 = ggml_time_us();
         n_past += acc + 1; mtp_rounds++; mtp_drafted += nd; mtp_accepted += acc;
-        t_draft += t_r1 - t_r0; t_verify += t_r2 - t_r1; t_observe += t_r3 - t_r2;
-        if (eprofile) outf("ENGINE MTP profile: round %d k=%d drafted=%d accepted=%d emitted=%d draft=%.1f verify=%.1f join+observe=%.1f ms%s",
-                           mtp_rounds, k, nd, acc, acc + 1, (t_r1 - t_r0) / 1e3, (t_r2 - t_r1) / 1e3, (t_r3 - t_r2) / 1e3, from_pre ? " (from pre-draft)" : "");
+        t_draft += t_r1 - t_r0; t_verify += t_r2 - t_r1; t_join += t_rj - t_r2; t_observe += t_r3 - t_rj;
+        const int n_gen_before_round_emit = n_gen;
         go = true; for (int i = 0; i < acc && go; i++) go = emit(d[i]);
         if (go) go = emit(bonus);
+        const int emitted = n_gen - n_gen_before_round_emit;
+        mtp_emitted += emitted;
+        // An EOS or exhausted budget can stop emit before acc+1 tokens reach
+        // the output. Count the actual emissions after those checks.
+        if (eprofile) outf("ENGINE MTP profile: round %d k=%d drafted=%d accepted=%d emitted=%d draft=%.1f verify=%.1f join=%.1f accept+rollback+observe=%.1f ms%s",
+                           mtp_rounds, k, nd, acc, emitted, (t_r1 - t_r0) / 1e3, (t_r2 - t_r1) / 1e3,
+                           (t_rj - t_r2) / 1e3, (t_r3 - t_rj) / 1e3, from_pre ? " (from pre-draft)" : "");
         cur = bonus;
     }
     const long t_tg1 = ggml_time_us();
     if (mtp_rounds) { double rm = 0, dec = 0, am = 0, ob = 0; if (mtp) anchor_mtp_timers(mtp, &rm, &dec, &am, &ob);
-        outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, rollback+observe %.0f ms (head decode %.1f)",
-             mtp_rounds, mtp_drafted, mtp_accepted, (double)(mtp_accepted + mtp_rounds) / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
-             t_draft / 1e3 / mtp_rounds, rm / 1e3 / mtp_rounds, dec / 1e3 / mtp_rounds, am / 1e3 / mtp_rounds, t_verify / 1e3 / mtp_rounds, t_observe / 1e3 / mtp_rounds, ob / 1e3 / mtp_rounds); }
+        outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f emitted tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, join %.0f ms, accept+rollback+observe %.0f ms (head decode %.1f)",
+             mtp_rounds, mtp_drafted, mtp_accepted, (double)mtp_emitted / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
+             t_draft / 1e3 / mtp_rounds, rm / 1e3 / mtp_rounds, dec / 1e3 / mtp_rounds, am / 1e3 / mtp_rounds,
+             t_verify / 1e3 / mtp_rounds, t_join / 1e3 / mtp_rounds, t_observe / 1e3 / mtp_rounds, ob / 1e3 / mtp_rounds); }
     if (draft_ahead && mtp_rounds) outf("ENGINE draft-ahead: %d of %d rounds started from a pre-draft (%d chains landed)", mtp_pre_used, mtp_rounds, mtp_pre_hit);
     if (eprofile) outf("ENGINE MTP profile: steady starts at generated token %d (after round %ld); whole-decode denom = %d tokens over %.0f ms, steady denom = %d tokens over %.0f ms",
                        n_gen_steady0, r_steady, n_gen, (t_tg1 - t_tg0) / 1e3, (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0, (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 : 0.0);
@@ -739,17 +748,22 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (stats) stats(&off, &loc, &macs, &vf);
     cache_stats_line("after decode");
     const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused");
+    const double decode_ms = (t_tg1 - t_tg0) / 1e3;
+    const int steady_tokens = (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0;
+    const double steady_ms = steady_tokens ? (t_tg1 - t_steady0) / 1e3 : 0.0;
     /* identity + the requested budget + the MTP counters ride in the result so a harness can judge a leg
      * from this one line: full budget or an explicit EOS, verify_fail 0, no sticky fallback, real MTP
      * rounds when k > 0, and the model/calibration it actually ran (never the recipe's claim) */
     std::string model_hex; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); model_hex = hx; }
     outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"requested\":%d,\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
          "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d,"
-         "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"calib_digest_source\":\"start-of-run read of the verified APK mount\"}",
-         status, mtp_fallback, n_predict, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
-         (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 / (n_gen - n_gen_steady0) : 0.0,
+         "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"mtp_emitted\":%d,\"decode_ms\":%.3f,\"decode_ms_steady\":%.3f,\"decode_tokens_steady\":%d,"
+         "\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"calib_digest_source\":\"start-of-run read of the verified APK mount\"}",
+         status, mtp_fallback, n_predict, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? decode_ms / n_gen : 0.0,
+         steady_tokens ? steady_ms / steady_tokens : 0.0,
          (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads,
-         mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, model_hex.c_str(), calib_hex_at_start.c_str());
+         mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, mtp_emitted, decode_ms, steady_ms, steady_tokens,
+         model_hex.c_str(), calib_hex_at_start.c_str());
     if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + (uint64_t)n_gen); }
     /* the backend's profile lines (SHIELDED_PROFILE=1: exchange counts, mask/wire/unmask
      * time, pad waits) live in stderr; hand the owner the summary so a run explains itself */
