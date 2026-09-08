@@ -204,6 +204,16 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
             }
             std::sort(t.begin(), t.end()); double sum = 0; for (double x : t) sum += x;
             outf("ENGINE vsock echo %d x %d B: mean %.0f us p50 %.0f p90 %.0f min %.0f", 200, len, sum / 200, t[100], t[180], t[0]);
+            /* the same bytes with a reader thread draining while the writer stays up to 2 requests ahead */
+            {
+                std::vector<char> rb(262000);
+                const int64_t t0 = ggml_time_us();
+                std::thread rd([&] { for (int i = 0; i < 200; i++) { size_t off = 0; while (off < (size_t)len) { ssize_t r = read(worker_fd, rb.data() + off, len - off); if (r <= 0) return; off += (size_t)r; } } });
+                for (int i = 0; i < 200; i++) { size_t off = 0; while (off < (size_t)len) { ssize_t w = write(worker_fd, buf.data() + off, len - off); if (w <= 0) break; off += (size_t)w; } }
+                rd.join();
+                const double dt = (double)(ggml_time_us() - t0);
+                outf("ENGINE vsock echo pipelined %d x %d B: %.0f us per request, %.1f MB/s round-trip bytes", 200, len, dt / 200, 2.0 * 200 * len / dt);
+            }
         }
         return 0;
     }
