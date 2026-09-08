@@ -5610,6 +5610,13 @@ def _spawn_and_wait(rec, ctx):
         pd = _nn_cfg_int(enclave_config, "nnShieldedPoolDepth", 16, 4096)
         if pd is not None:
             env["SHIELDED_POOL_DEPTH"] = str(pd)
+        # SHIELDED_MAX_M: the LARGEST offloaded row batch (rows per link exchange); wider batches stay in the
+        # enclave (engine default 8; the verified-weight phone path splits wider batches instead). Raising it
+        # alone changes nothing: the submitted prefill chunk and the other batch limits must also permit the
+        # wider batch. Opt-in, bounded; no measured effect is claimed here.
+        mm = _nn_cfg_int(enclave_config, "nnShieldedMaxM", 1, 64)
+        if mm is not None:
+            env["SHIELDED_MAX_M"] = str(mm)
         # The refill thread TOTAL (the engine divides it over the card links;
         # absent = half the vCPUs). Speculative decode draws ~3 pad rows per
         # token, so even one chat is refill-bound on a 27B: these threads are

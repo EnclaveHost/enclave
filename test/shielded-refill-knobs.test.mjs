@@ -73,3 +73,10 @@ test("dealt-pad knobs reach the engine together, seed and sk as substituted secr
   // secrets are substituted before this block sees the config
   assert.ok(manager.indexOf("enclave_config = _subst_secrets(enclave_config, secrets)") < manager.indexOf('env["SHIELDED_PAD_SOURCE"]'), "secret refs substituted before the pad env is built");
 });
+
+test("nnShieldedMaxM reaches the engine as SHIELDED_MAX_M, opt-in, bounded 1..64 (engine default 8 when unset)", () => {
+  const m = manager.match(/_nn_cfg_int\(enclave_config, "nnShieldedMaxM", (\d+), (\d+)\)[\s\S]*?env\["SHIELDED_MAX_M"\] = str\(mm\)/);
+  assert.ok(m, "the manager must map nnShieldedMaxM to SHIELDED_MAX_M");
+  assert.equal(m[1], "1"); assert.equal(m[2], "64");
+  assert.match(backend, /sh_env_int\("SHIELDED_MAX_M", 8\)/, "the backend must read SHIELDED_MAX_M with default 8");
+});
