@@ -149,7 +149,7 @@ for args, needle in (((SEED, SID, PK, 0, 5000), "range"), ((SEED, SID, PK, True,
 assert not pd.dead
 pd.seq = dl._UINT64_MAX - 1; expect(lambda: pd.mint_range(SEED, SID, PK, 0, 64), RuntimeError, "exhausted"); reaped_and_closed(pd)
 for kw, needle in (({"startup_timeout": float("nan")}, "finite"), ({"mint_timeout": 0}, "finite"), ({"mint_timeout": float("inf")}, "finite"),
-                   ({"mtp": True}, "mtp")):
+                   ({"mtp": True}, "mtp"), ({"mtp": 1.0}, "mtp")):
     expect(lambda: newpd(bank(), **kw), ValueError, needle)
 expect(lambda: dl.PersistentDealer(_fake, "m", "c", bank(), 1, "nothex", MSHA), ValueError, "identities")
 print("9 validation: range/bool/canonical rejected without send; uint64 exhaustion; non-finite timeouts, bool mtp, bad identities refused OK"); n += 1

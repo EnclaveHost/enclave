@@ -284,7 +284,7 @@ class PersistentDealer:
         self._inflight = threading.Lock()
         if not (_is_hex(expect_calib_sha, 64) and _is_hex(model_sha, 64)):
             raise ValueError("persistent dealer: admitted identities must be 64 lowercase hex")
-        if isinstance(mtp, bool) or mtp not in (0, 1): raise ValueError("persistent dealer: mtp must be 0 or 1")
+        if not (_is_int(mtp) and mtp in (0, 1)): raise ValueError("persistent dealer: mtp must be the int 0 or 1")
         self.startup_timeout = _finite_secs("startup_timeout", startup_timeout)
         self.mint_timeout = _finite_secs("mint_timeout", mint_timeout)
         if not stat.S_ISDIR(os.lstat(out).st_mode): raise ValueError("persistent dealer: OUT must be a real directory")
