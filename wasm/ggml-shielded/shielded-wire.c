@@ -241,6 +241,11 @@ void sh_reply_free(sh_reply *r) {
 }
 
 int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out) {
+    return sh_pipe_exchange_work(p, frames, n, out, NULL, NULL);
+}
+
+int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out,
+                          sh_pipe_work_fn work, void *ctx) {
     if (!p || p->fd < 0) return SH_ERR_IO;
     memset(out, 0, n * sizeof *out);
 
@@ -275,6 +280,8 @@ int sh_pipe_exchange(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply *out
     int rc = write_all(p->fd, iov, iovcnt);
     if (n > SH_STACK_FRAMES) { free(iov); free(hdrs); }
     if (rc != SH_OK) { snprintf(p->err, sizeof p->err, "write failed: %s", strerror(errno)); return rc; }
+
+    if (work && n) work(ctx);
 
     /* Replies land back to back in the pipe's buffer. Growing it can move the
      * earlier ones, so pointers are assigned once the whole batch is in. */
