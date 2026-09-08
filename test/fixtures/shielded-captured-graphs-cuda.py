@@ -7,6 +7,7 @@ Usage: python3 shielded-captured-graphs-cuda.py WORKER GPU_UUID OUTPUT_DIRECTORY
 """
 from pathlib import Path
 import json
+import math
 import os
 import re
 import socket
@@ -143,6 +144,19 @@ def run(limit, packing):
                 raise RuntimeError('larger cache did not retain the complete pass')
             if 'VIOLATION' in text or 'CUDA error' in text:
                 raise RuntimeError(f'worker failure: see {log_path}')
+            if os.environ.get('SH_TEST_WORKER_PROFILE') == '1':
+                if 'exchange profile: host elapsed only; diagnostic build; invalid_intervals=0' not in text:
+                    raise RuntimeError('missing or invalid per-connection diagnostic profile')
+                phases = re.findall(r'exchange phase=([a-z_]+) samples=(\d+) total_us=([0-9.]+) max_us=([0-9.]+)', text)
+                expected_phases = {'lock_wait', 'staging', 'graph_lookup_capture', 'graph_launch_call',
+                                   'stream_sync', 'host_pack', 'tcp_reply_write'}
+                if len(phases) != len(expected_phases) or {p[0] for p in phases} != expected_phases:
+                    raise RuntimeError('incomplete or duplicate phase breakdown')
+                for phase, sample_count, total, maximum in phases:
+                    total, maximum = float(total), float(maximum)
+                    if (int(sample_count) != calls or not math.isfinite(total) or not math.isfinite(maximum)
+                            or not 0 <= maximum <= total+.001):
+                        raise RuntimeError(f'bad per-connection phase counters: {phase}')
             result = dict(limit=limit, packing=packing, calls=calls, checked_values=cells,
                           hits=hits, misses=misses, capacity_flushes=flushes, invalidations=invalidations,
                           gpu=gpu, status='PASS')

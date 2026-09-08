@@ -149,12 +149,12 @@ struct DestroyCapturedGraph {
     void operator()(cudaGraphExec_t graph) const noexcept { cudaGraphExecDestroy(graph); }
 };
 #ifdef SH_XPROF
-static double g_xp[16]; static uint64_t g_xpn; static std::chrono::steady_clock::time_point g_xpt;
-#define XP(i) do { auto _t = std::chrono::steady_clock::now(); if (i) g_xp[i] += std::chrono::duration<double, std::micro>(_t - g_xpt).count(); g_xpt = _t; } while (0)
-#define XPN() (g_xpn++)
+#include "exchange-profile.h"
+#define XP_BEGIN() do { profile.begin(); } while (0)
+#define XP_MARK(phase) do { profile.mark(WorkerExchangeProfile::phase); } while (0)
 #else
-#define XP(i) do {} while (0)
-#define XPN() do {} while (0)
+#define XP_BEGIN() do {} while (0)
+#define XP_MARK(phase) do {} while (0)
 #endif
 static void logf(const char *f, ...) {
     if (g_quiet) return;
@@ -1218,6 +1218,9 @@ struct Conn {
     CapturedGraphs<cudaGraphExec_t, DestroyCapturedGraph> graphs{g_graph_cache_entries};
     void drop_graphs() { graphs.invalidate(); }
     double graph_capture_ms = 0;
+#ifdef SH_XPROF
+    WorkerExchangeProfile profile;
+#endif
     uint64_t exchanges = 0, recomputes = 0;
     double gemm_ms = 0;
     int64_t kmax = 0;                        /* widest K installed: bounds a FIELD_GEMM frame */
@@ -1699,14 +1702,16 @@ struct Conn {
         const PackMode pm = pack_mode();
         const size_t E = packed ? ybytes / 3 : 0;
         const auto t0 = std::chrono::steady_clock::now();
+        XP_BEGIN();
         {
             std::lock_guard<std::mutex> lk(g_gpu);
+            XP_MARK(LOCK_WAIT);
             ensure_dx(xbytes);
             /* The reply staging is rounded up to a word so pack24_kernel's
              * last word fits, and holds the int32 form for the CPU pack. */
             ensure_host_out(packed ? std::max((ybytes + 3) & ~(size_t)3, E * 4) : ybytes);
             if (packed && pm == PACK_KERNEL) ensure_dy32(E * 4);
-            XP(0);
+            XP_MARK(STAGING);
             std::vector<uint32_t> key(nn + 2); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
             for (uint32_t i = 0; i < nn; i++) key[i + 2] = rd_u32(p + 8 + 4 * i);
             cudaGraphExec_t graph = graphs.get(key, [&]() {
@@ -1715,18 +1720,19 @@ struct Conn {
                 graph_capture_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
                 return captured;
             });
+            XP_MARK(GRAPH_LOOKUP);
             ck(cudaGraphLaunch(graph, stream), "graph launch");
-            XP(3);
+            XP_MARK(LAUNCH_CALL);
             ck(cudaStreamSynchronize(stream), "exchange sync");
-            XP(5);
+            XP_MARK(STREAM_SYNC);
             if (packed && pm == PACK_CPU) {
                 if (h_pack.size() < ybytes) h_pack.resize(ybytes);
                 pack24_host((const int32_t *)h_out, h_pack.data(), (long long)E);
             }
-            XP(6);
+            XP_MARK(HOST_PACK);
         }
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        exchanges++; XPN();
+        exchanges++;
         resp_ptr = (packed && pm == PACK_CPU) ? (const void *)h_pack.data() : (const void *)h_out;
         resp_len = ybytes;
     }
@@ -1897,16 +1903,24 @@ struct Conn {
             const void *rp = resp_ptr ? resp_ptr : resp.data();
             const size_t rl = resp_ptr ? resp_len : resp.size();
             uint8_t rh[SH_HDR]; rh[0] = violation ? STATUS_VIOLATION : STATUS_OK; wr_u64(rh + 1, rl);
-            if (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24) XP(0);
+            if (!violation && (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24)) XP_BEGIN();
             /* Header and body in one writev: one syscall, one segment on the wire. */
             if (!writev_all(fd, rh, SH_HDR, rp, rl)) break;
-            if (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24) XP(7);
+            if (!violation && (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24)) XP_MARK(TCP_REPLY);
             if (violation) break;
         }
         close(fd);
 #ifdef SH_XPROF
-        if (g_xpn) { fprintf(stderr, "[xprof] n=%llu memcpy %.1f h2d-call %.1f launches %.1f d2h-call %.1f sync %.1f pack %.1f send %.1f us/exchange\n",
-            (unsigned long long)g_xpn, g_xp[1]/g_xpn, g_xp[2]/g_xpn, g_xp[3]/g_xpn, g_xp[4]/g_xpn, g_xp[5]/g_xpn, g_xp[6]/g_xpn, g_xp[7]/g_xpn); memset(g_xp,0,sizeof g_xp); g_xpn=0; }
+        if (exchanges) {
+            logf("%s exchange profile: host elapsed only; diagnostic build; invalid_intervals=%llu",
+                 peer.c_str(), (unsigned long long)profile.invalid_intervals);
+            for (size_t i = 0; i < WorkerExchangeProfile::COUNT; ++i) {
+                const auto &s = profile.samples[i];
+                logf("%s exchange phase=%s samples=%llu total_us=%.3f max_us=%.3f",
+                     peer.c_str(), WorkerExchangeProfile::name(i),
+                     (unsigned long long)s.count, s.total_us, s.max_us);
+            }
+        }
 #endif
         if (exchanges || recomputes)
             logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync)",
