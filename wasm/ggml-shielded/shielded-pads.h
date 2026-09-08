@@ -139,7 +139,9 @@ int  sh_pads_seed_open(const uint8_t epk[32], const uint8_t nonce[12], const uin
 bool sh_pads_window_verify(const uint8_t ledger_pk[32], const char *seed_id_hex, uint64_t lo, uint64_t hi, uint64_t iat, const uint8_t sig[64]);
 /* Ed25519 detached signature by the pVM's transport key over the request
  * line set "enclave-pads-<kind>\n<field>\n...\n<nonce hex>" (fields already text). */
-void sh_pads_request_sign(const uint8_t transport_sk[64], const char *kind, const char *const *fields, size_t n_fields, const char *nonce_hex, uint8_t sig_out[64]);
+/* SH_OK with the signature, else SH_ERR_RANGE (a NULL or an absurdly long transcript, > 64 KiB) or
+ * SH_ERR_NOMEM, with sig_out zeroed: a truncated transcript is never signed. */
+int  sh_pads_request_sign(const uint8_t transport_sk[64], const char *kind, const char *const *fields, size_t n_fields, const char *nonce_hex, uint8_t sig_out[64]);
 
 /* Hex helpers for the env/CLI surface. */
 bool sh_pads_hex2bin(const char *hex, uint8_t *out, size_t n);

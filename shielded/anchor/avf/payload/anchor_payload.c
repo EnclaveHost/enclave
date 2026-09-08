@@ -80,17 +80,36 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define MAX_SHAPES  16
 
 /* ---- the mouth: every line to stdout (debug VMs), logcat, and the control vsock ---- */
-static int g_ctl = -1;
+static int g_ctl = -1; static volatile int g_ctl_dead = 0;   /* the control thread owns g_ctl (opens, closes); other threads only write, and stop after one failure */
 static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static pthread_mutex_t g_out_mu = PTHREAD_MUTEX_INITIALIZER;   /* the control channel is a stream: two threads' lines must not interleave */
+/* One whole line to the control channel under the writers' lock; the engine (a separate .so) is
+ * handed this through engine_set_ctl_writer so its lines and the receiver thread's never mix.
+ * Exported on purpose. 0 = written, -1 = the channel is gone (no further attempts). */
+__attribute__((visibility("default"))) int anchor_ctl_write(const char *p, size_t n) {
+    int rc = -1;
+    pthread_mutex_lock(&g_out_mu);
+    if (g_ctl >= 0 && !g_ctl_dead) {
+        rc = 0;
+        while (n) { ssize_t w = write(g_ctl, p, n); if (w <= 0) { if (w < 0 && errno == EINTR) continue; g_ctl_dead = 1; rc = -1; break; } p += w; n -= (size_t)w; }
+    }
+    pthread_mutex_unlock(&g_out_mu);
+    return rc;
+}
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
     if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
     line[n] = '\n'; line[n + 1] = 0;
-    pthread_mutex_lock(&g_out_mu);
     fputs(line, stdout); fflush(stdout);
     __android_log_print(ANDROID_LOG_INFO, TAG, "%.*s", n, line);
-    if (g_ctl >= 0) { const char *p = line; size_t left = (size_t)n + 1; while (left) { ssize_t w = write(g_ctl, p, left); if (w <= 0) { if (w < 0 && errno == EINTR) continue; close(g_ctl); g_ctl = -1; break; } p += w; left -= (size_t)w; } }
+    anchor_ctl_write(line, (size_t)n + 1);
+}
+/* Only the control thread closes the control channel, under the writers' lock, so no writer ever
+ * touches a closed (and possibly reused) descriptor. */
+static void ctl_close(void) {
+    pthread_mutex_lock(&g_out_mu);
+    if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); g_ctl = -1; }
+    g_ctl_dead = 1;
     pthread_mutex_unlock(&g_out_mu);
 }
 #define OUT(...) outf(__VA_ARGS__)
@@ -420,7 +439,8 @@ static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap) {
     sh_pads_bin2hex(sha, 32, shah); snprintf(i0s, sizeof i0s, "%llu", (unsigned long long)i0); snprintf(cnts, sizeof cnts, "%llu", (unsigned long long)cnt);
     randombytes(nonce, 16); sh_pads_bin2hex(nonce, 16, nh);
     const char *fields[5] = { id.name, id.seed_id_hex, i0s, cnts, shah };     /* enclave-pads-ack\n<name>\n<seed_id>\n<index0>\n<count>\n<sha256>\n<nonce> */
-    sh_pads_request_sign(g_tsk, "ack", fields, 5, nh, sig); sh_pads_bin2hex(sig, 64, sh);
+    if (sh_pads_request_sign(g_tsk, "ack", fields, 5, nh, sig) != SH_OK) { OUT("PADS %s kept, acknowledgment not signed (a re-offer will retry)", name); return 0; }
+    sh_pads_bin2hex(sig, 64, sh);
     snprintf(ack, ackcap, "PADACK %s %s %s %s %s %s", id.seed_id_hex, i0s, cnts, shah, nh, sh);
     return 1;
 }
@@ -532,6 +552,8 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         if (!h) { OUT("ENGINE dlopen %s: %s", libs[i], dlerror()); close(worker_fd); close(model_fd); return; }
     }
     engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
+    { void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_set_ctl_writer");
+      if (setw) setw(anchor_ctl_write); else OUT("ENGINE has no engine_set_ctl_writer: its lines bypass the writers' lock"); }
     if (!em) { OUT("ENGINE libengine.so has no engine_main"); return; }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine.err lives there */
     anchor_pads pads = { g_tsk, g_ledger_pk, g_pad_name, g_seed_id_hex, g_ledger_pinned };
@@ -730,9 +752,9 @@ int AVmPayload_main(void) {
                         strncpy(g_req_name, name, 64); g_req_name[64] = 0;
                         char mh[65], ch[65], nh[65]; sh_pads_bin2hex(g_req_model, 32, mh); sh_pads_bin2hex(g_req_calib, 32, ch); sh_pads_bin2hex(g_req_nonce, 32, nh);
                         const char *fields[3] = { g_req_name, mh, ch };
-                        uint8_t sig[64]; char hs[129]; sh_pads_request_sign(g_tsk, "seed-v2", fields, 3, nh, sig); sh_pads_bin2hex(sig, 64, hs);
-                        g_req_pending = 1;
-                        OUT("PADREQ2 %s %s %s %s %s", g_req_name, mh, ch, nh, hs);
+                        uint8_t sig[64]; char hs[129];
+                        if (sh_pads_request_sign(g_tsk, "seed-v2", fields, 3, nh, sig) != SH_OK) OUT("PADREQ2 fail sign");
+                        else { sh_pads_bin2hex(sig, 64, hs); g_req_pending = 1; OUT("PADREQ2 %s %s %s %s %s", g_req_name, mh, ch, nh, hs); }
                     }
                 }
             }
@@ -791,7 +813,7 @@ int AVmPayload_main(void) {
                  * kind "seed" with this tunnel's name as its single field. Anything else - other kinds,
                  * extra fields, fabricated receipts - is refused. */
                 const int legacy_seed = kind && nonce && !strcmp(kind, "seed") && nf == 1 && !g_ledger_pinned;
-                if (legacy_seed) { uint8_t sig[64]; char hs[129]; sh_pads_request_sign(g_tsk, kind, fields, nf, nonce, sig); sh_pads_bin2hex(sig, 64, hs); OUT("PADSIG %s", hs); }
+                if (legacy_seed) { uint8_t sig[64]; char hs[129]; if (sh_pads_request_sign(g_tsk, kind, fields, nf, nonce, sig) != SH_OK) OUT("PADSIG fail"); else { sh_pads_bin2hex(sig, 64, hs); OUT("PADSIG %s", hs); } }
                 else OUT("PADSIG refused: only the legacy seed request may be signed for the app, and only in an unpinned build");
             }
             else if (!strncmp(l, "WORKER ", 7)) bridge = !strcmp(l + 7, "bridge");
@@ -834,7 +856,7 @@ int AVmPayload_main(void) {
         if (c >= 0) { static uint8_t b[65536]; ssize_t r; while ((r = read(c, b, sizeof b)) > 0) { if (write(c, b, (size_t)r) != r) break; } close(c); }
         if (ls >= 0) close(ls);
         OUT("END");
-        if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
+        ctl_close();
         sleep(1); return 0;
     }
     if (engine) {
@@ -843,7 +865,7 @@ int AVmPayload_main(void) {
         else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
-        if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
+        ctl_close();
         sleep(1); return 0;
     }
     if (n_shapes == 0) { SK[0]=256; SN[0]=256; Snode[0]=1; Siter[0]=30; Sx[0]=0; SK[1]=896; SN[1]=896; Snode[1]=1; Siter[1]=30; Sx[1]=0; SK[2]=896; SN[2]=4864; Snode[2]=2; Siter[2]=12; Sx[2]=0; n_shapes = 3; }
@@ -859,7 +881,7 @@ int AVmPayload_main(void) {
     if (ls_model >= 0) close(ls_model);
     if (ls_wk >= 0) close(ls_wk);
     if (ls_ctl >= 0) close(ls_ctl);
-    if (g_ctl >= 0) { shutdown(g_ctl, SHUT_WR); close(g_ctl); }
+    ctl_close();
     sleep(1);
     return 0;
 }

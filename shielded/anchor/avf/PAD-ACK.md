@@ -1,8 +1,10 @@
 # Dealt pads: pVM-signed delivery acknowledgment (PADACK v1)
 
-Status: 2026-09-08. Decisions settled with Astra (relay/store/dealer/app relay:
-Astra; checker, payload, Main dispatch, this note: Claude). Payload side and
-the checker are implemented; the relay route and the dealer floor follow.
+Status: 2026-09-08, IMPLEMENTED and verified end to end on the dev hub:
+checker + payload + Main dispatch (Claude, 4e6e0e9f, 2ca8e8f9), relay route,
+store digests, DELETE guard, dealer floor and the app's per-session retry
+queue (Astra, 7b18a44a, 6fc5530a, 66f49d50, cb78f987). Leg ack2: six
+acknowledgments accepted by the platform, floor 64 -> 384, decode unchanged.
 
 ## The bug this closes
 

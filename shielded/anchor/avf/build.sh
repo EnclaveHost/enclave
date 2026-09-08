@@ -100,7 +100,7 @@ case "$NAME" in
            "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lm
            "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded.o"
            "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/ggml-test" "$GG/ggml-test.cpp" "$E/ggml-shielded.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lggml-cpu -lm
-           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
+           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" "${CORE[@]}" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
            cp "$GA"/lib/libllama.so "$GA"/lib/libggml.so "$GA"/lib/libggml-base.so "$GA"/lib/libggml-cpu.so "$GA"/lib/libc++_shared.so "$GG/test.calib" "$E/"
            echo "engine: $E (push the directory to the phone)"; ls "$E" | grep -vE '\.o$' | tr '\n' ' '; echo; exit 0 ;;
   engine-pvm)  # the engine FOR THE VM: the shielded module with the fd-adopting hook, and libengine.so

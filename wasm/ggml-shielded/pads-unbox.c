@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     if (argc >= 5 && !strcmp(argv[1], "sign")) {
         uint8_t sk[64], sig[64]; char h[129];
         if (!sh_pads_hex2bin(argv[2], sk, 64)) { puts("fail"); return 1; }
-        sh_pads_request_sign(sk, argv[3], (const char *const *)(argv + 5), (size_t)(argc - 5), argv[4], sig);
+        if (sh_pads_request_sign(sk, argv[3], (const char *const *)(argv + 5), (size_t)(argc - 5), argv[4], sig) != 0) { puts("fail"); return 1; }
         sh_pads_bin2hex(sig, 64, h); printf("sig %s\n", h); return 0;
     }
     fprintf(stderr, "usage: pads-unbox seed|window|keypair|sign ...\n"); return 2;
