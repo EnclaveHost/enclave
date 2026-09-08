@@ -62,12 +62,21 @@ static void sha_blocks_arm(uint32_t h[8], const uint8_t *data, size_t blocks) {
     vst1q_u32(h, abcd); vst1q_u32(h + 4, efgh);
 }
 #endif
+static sha_blocks_fn sha_select(void) {
+#ifdef ANCHOR_SHA2_ARM
+    if (getauxval(AT_HWCAP) & HWCAP_SHA2) return sha_blocks_arm;
+#endif
+    return sha_blocks_scalar;
+}
+const char *anchor_sha256_backend(void) {
+#ifdef ANCHOR_SHA2_ARM
+    if (sha_select() == sha_blocks_arm) return "arm_sha2";
+#endif
+    return "scalar";
+}
 static void sha_init(sha256_ctx *c) {
     static const uint32_t iv[8] = { 0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19 };
-    memcpy(c->h, iv, sizeof iv); c->used = 0; c->total = 0; c->blocks = sha_blocks_scalar;
-#ifdef ANCHOR_SHA2_ARM
-    if (getauxval(AT_HWCAP) & HWCAP_SHA2) c->blocks = sha_blocks_arm;
-#endif
+    memcpy(c->h, iv, sizeof iv); c->used = 0; c->total = 0; c->blocks = sha_select();
 }
 static void sha_update(sha256_ctx *c, const uint8_t *m, size_t n) {
     if (!n) return;
