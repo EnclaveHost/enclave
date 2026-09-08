@@ -176,6 +176,7 @@ int main(int argc, char **argv) {
     std::string out;
     llama_token cur = 0;
     int n_gen = 0;
+    const char *status = "budget";
     const int64_t t_tg0 = ggml_time_us();
     for (int i = 0; i < n_predict; i++) {
         const float *logits = llama_get_logits_ith(ctx, -1);
@@ -186,12 +187,12 @@ int main(int argc, char **argv) {
         int best = 0; float bv = logits[0];
         for (int t = 1; t < n_vocab; t++) if (logits[t] > bv) { bv = logits[t]; best = t; }
         cur = best;
-        if (llama_vocab_is_eog(vocab, cur)) break;
+        if (llama_vocab_is_eog(vocab, cur)) { status = "eos"; break; }
         char buf[256];
         int L = llama_token_to_piece(vocab, cur, buf, sizeof buf, 0, false);
-        if (L > 0) out.append(buf, L);
         llama_batch b1 = llama_batch_get_one(&cur, 1);
-        if (llama_decode(ctx, b1)) { fprintf(stderr, "decode failed at %d\n", i); break; }
+        if (llama_decode(ctx, b1)) { status = "decode_failed"; fprintf(stderr, "decode failed at %d\n", i); break; }
+        if (L > 0) out.append(buf, L);
         n_gen++;
         if (const char *delay = getenv("SHIELDED_RUN_STEP_MS")) {
             const int ms = atoi(delay);
@@ -202,7 +203,10 @@ int main(int argc, char **argv) {
 
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     if (shielded_stats) shielded_stats(&off, &loc, &macs, &vf);
+    const bool failed = vf != 0 || !strcmp(status, "decode_failed");
+    if (vf && strcmp(status, "decode_failed")) status = "verification_failed";
     printf("\n=== shielded ===\n");
+    printf("status      : %s\n", status);
     printf("prompt      : %s\n", prompt);
     printf("completion  : %s\n", out.c_str());
     printf("offloaded   : %llu nodes\n", (unsigned long long)off);
@@ -211,10 +215,10 @@ int main(int argc, char **argv) {
     printf("verify fail : %llu\n", (unsigned long long)vf);
     printf("prefill     : %d tokens in %.1f ms (%.1f tok/s)\n", n,
            (t_pp1 - t_pp0) / 1e3, n * 1e6 / (double)(t_pp1 - t_pp0));
-    if (n_gen)
+    if (n_gen && !failed)
         printf("decode      : %d tokens in %.1f ms = %.1f ms/tok (%.2f tok/s)\n", n_gen,
                (t_tg1 - t_tg0) / 1e3, (t_tg1 - t_tg0) / 1e3 / n_gen, n_gen * 1e6 / (double)(t_tg1 - t_tg0));
     if (logits_out) fclose(logits_out);
     llama_free(ctx); llama_model_free(model);
-    return vf == 0 ? 0 : 1;
+    return failed ? 1 : 0;
 }
