@@ -4,6 +4,7 @@
 #include "shielded-bank.h"
 #include "shielded-http.h"
 #include "shielded-field.h"
+#include "shielded-pad-check.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -642,6 +643,11 @@ static int pad_check_prepare(sh_node *nd) {
         const size_t n = (size_t)(N - at < 256 ? N - at : 256);
         if (!os_random(raw, n * sizeof *raw)) return SH_ERR_IO;
         for (size_t i = 0; i < n; i++) nd->sM[at++] = 1 + (int32_t)(raw[i] % (SH_FV_S_RANGE - 1));
+    }
+    const char *tiled = getenv("SHIELDED_PAD_PREPARE_TILED");
+    if (tiled && !strcmp(tiled, "1")) {
+        sh_pad_check_tiled(nd->w, K, N, nd->sM, nd->stM);
+        return SH_OK;
     }
     for (int64_t k = 0; k < K; k++) {
         __int128 acc = 0;
