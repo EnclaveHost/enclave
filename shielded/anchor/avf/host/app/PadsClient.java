@@ -64,7 +64,27 @@ final class PadsClient {
             if (key.optInt("_status") != 200) { Main.say("PADS no ledger key: " + key); return false; }
             out.write(("PADLEDGER " + key.getString("key") + "\n").getBytes()); out.flush();
             String l = until(r, "PADLEDGER ");
-            if (l == null || !l.endsWith("ok")) { Main.say("PADS the VM refused the ledger key"); return false; }
+            if (l == null || !l.startsWith("PADLEDGER ok")) { Main.say("PADS the VM refused the ledger key: " + l); return false; }
+            // Authenticated bootstrap (PAD-BOOTSTRAP.md): the VM generates the request nonce and the model /
+            // calibration digests itself, signs the seed-v2 request, and accepts only a grant the platform
+            // signed over that whole context under the ledger key the VM pins. This app only carries bytes.
+            out.write(("PADREQ2 " + name + "\n").getBytes()); out.flush();
+            l = until(r, "PADREQ2 ");
+            if (l != null && !l.startsWith("PADREQ2 fail")) {
+                String[] q = l.split(" ");
+                if (q.length != 6) { Main.say("PADS malformed request from the VM: " + l); return false; }
+                JSONObject res = http("POST", base + "/v1/pads/seed", new JSONObject().put("name", q[1]).put("model_digest", q[2]).put("calib_digest", q[3]).put("nonce", q[4]).put("sig", q[5]));
+                if (res.optInt("_status") != 200) { Main.say("PADS seed grant refused: " + res); return false; }
+                if (res.optInt("grant_version", 0) != 1 || !res.has("grant_sig")) { Main.say("PADS the platform returned no signed grant (legacy relay?): " + res); return false; }
+                seedId = res.getString("seed_id");
+                out.write(("PADGRANT 1 " + seedId + " " + res.getLong("epoch") + " " + res.getString("epk") + " " + res.getString("nonce") + " " + res.getString("box") + " " + res.getString("grant_sig") + "\n").getBytes());
+                out.flush();
+                l = until(r, "PADGRANT ");
+                boolean ok = l != null && l.startsWith("PADGRANT ok");
+                Main.say("PADS signed seed grant " + (ok ? "accepted by the VM: " + seedId + (l.contains("UNPINNED") ? " (UNPINNED ledger key: dev build)" : "") : "REJECTED by the VM: " + l));
+                return ok;
+            }
+            Main.say("PADS v2 request unavailable (" + l + "); trying the legacy unsigned seed (a pinned build refuses it)");
             String n = nonce();
             out.write(("PADSIGN seed " + n + " " + name + "\n").getBytes()); out.flush();
             l = until(r, "PADSIG ");
@@ -76,7 +96,7 @@ final class PadsClient {
             out.flush();
             l = until(r, "PADSEED ");
             boolean ok = l != null && l.startsWith("PADSEED ok");
-            Main.say("PADS seed " + (ok ? "installed in the VM: " + seedId : "NOT installed: " + l));
+            Main.say("PADS seed " + (ok ? "installed in the VM (legacy, unsigned): " + seedId : "NOT installed: " + l));
             return ok;
         } catch (Exception e) { Main.say("PADS bootstrap error " + e); return false; }
     }
@@ -89,10 +109,10 @@ final class PadsClient {
             JSONObject res = http("POST", base + "/v1/pads/reserve", new JSONObject().put("name", name).put("seed_id", seedId)
                 .put("want", Long.parseLong(f[1])).put("nonce", f[2]).put("sig", f[3]));
             if (res.optInt("_status") == 200)
-                out.write(("PADWIN " + res.getLong("lo") + " " + res.getLong("hi") + " " + res.getLong("iat") + " " + res.getString("sig") + "\n").getBytes());
+                out.write(("PADWIN " + res.getLong("lo") + " " + res.getLong("hi") + " " + res.getLong("iat") + " " + res.getString("sig") + (res.has("sig_v2") ? " " + res.getString("sig_v2") : "") + "\n").getBytes());   // sig_v2: over the VM's request nonce (PAD-BOOTSTRAP.md)
             else out.write(("PADWIN fail " + res.optString("error", "http " + res.optInt("_status")) + "\n").getBytes());
             out.flush();
-            Main.say("PADS window " + (res.optInt("_status") == 200 ? res.getLong("lo") + ".." + res.getLong("hi") : "refused " + res));
+            Main.say("PADS window " + (res.optInt("_status") == 200 ? res.getLong("lo") + ".." + res.getLong("hi") + (res.has("sig_v2") ? " sig_v2" : " LEGACY-ONLY (relay without window v2)") : "refused " + res));
         } catch (Exception e) { Main.say("PADS window error " + e); try { out.write("PADWIN fail error\n".getBytes()); out.flush(); } catch (Exception ignored) { } }
     }
 

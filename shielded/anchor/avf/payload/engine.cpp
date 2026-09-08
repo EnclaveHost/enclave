@@ -57,6 +57,9 @@ typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
  * and verifies the signed window the app relays back. The control socket is
  * ours to read for the whole run: the payload's loop is parked in engine_main. */
 #include "anchor_pads.h"
+extern "C" {
+#include "shielded-pad-grant.h"   /* static inline C over TweetNaCl: its declarations need C linkage here */
+}
 #include "shielded-pads.h"
 #include "prefix-kv.h"
 #include "anchor_mtp.h"
@@ -110,10 +113,19 @@ static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
         char line[512];
         if (ctl_read_line(line, sizeof line) < 0) return -1;
         if (strncmp(line, "PADWIN ", 7)) continue;
-        unsigned long long l = 0, h = 0, iat = 0; char sh[129] = "";
-        if (sscanf(line + 7, "%llu %llu %llu %128s", &l, &h, &iat, sh) != 4) { outf("ENGINE pads: window refused: %s", line + 7); return -1; }
+        unsigned long long l = 0, h = 0, iat = 0; char sh[129] = "", sh2[129] = "";
+        const int nf = sscanf(line + 7, "%llu %llu %llu %128s %128s", &l, &h, &iat, sh, sh2);
+        if (nf < 4) { outf("ENGINE pads: window refused: %s", line + 7); return -1; }
         uint8_t wsig[64];
         if (!sh_pads_hex2bin(sh, wsig, 64) || !sh_pads_window_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, wsig)) { outf("ENGINE pads: window signature REJECTED"); return -1; }
+        /* The legacy signature binds seed/lo/hi/iat only, so a window signed earlier could be replayed
+         * after a reconnect and rewind the cursor into pad reuse. sig_v2 also covers the nonce THIS
+         * request drew above; a pinned build takes nothing less. */
+        if (nf == 5) {
+            uint8_t wsig2[64];
+            if (!sh_pads_hex2bin(sh2, wsig2, 64) || !sh_pad_window_v2_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, nonce, wsig2)) { outf("ENGINE pads: window sig_v2 REJECTED (not over this request's nonce)"); return -1; }
+        } else if (p->require_window_v2) { outf("ENGINE pads: window has no sig_v2; this build requires fresh-nonce windows"); return -1; }
+        else outf("ENGINE pads: window %llu..%llu accepted on the legacy signature (dev build)", l, h);
         *lo = l; *hi = h;
         return 0;
     }
