@@ -197,5 +197,23 @@ r2 = subprocess.run([sys.executable, DL_PATH, "--out", d, "--seed-id", SID, "--m
 assert "minting needs --model" in r2.stderr, r2.stderr[-300:]   # without the journal the same run reaches the mint step
 print("12 flag-off CLI run with an unresolved journal refuses before mint/prune; same run proceeds once the journal is gone OK"); n += 1
 
-assert n == 12, n
-print(f"dealer-loop persistent adapter: {n}/12 PASS")
+# 13 startup failures clean up completely: no fd leak, child reaped, dir fd closed (boot UNKNOWN, thread start
+#    failure before the drain exists, early child exit, flood before READY)
+def nfds(): return len(os.listdir("/proc/self/fd"))
+base = nfds()
+saved = dl._boot_id; dl._boot_id = lambda: None
+try: expect(lambda: newpd(bank()), RuntimeError, "incarnation")
+finally: dl._boot_id = saved
+assert nfds() == base, "fd leak after boot-unknown startup"
+class BadThread(threading.Thread):
+    def start(self): raise RuntimeError("thread start refused")
+saved_t = dl.threading.Thread; dl.threading.Thread = BadThread
+try: expect(lambda: newpd(bank()), RuntimeError, "thread start refused")
+finally: dl.threading.Thread = saved_t
+assert nfds() == base, "fd leak after thread-start failure"
+for mode, needle in (("noready", "READY"), ("floodready", "oversized"), ("badcalib", "calib")):
+    expect(lambda: newpd(bank(), mode=mode), RuntimeError, needle); assert nfds() == base, f"fd leak after {mode}"
+print("13 startup failures (boot UNKNOWN / drain thread cannot start / early exit / flood / bad calib): cleaned up, no fd leak OK"); n += 1
+
+assert n == 13, n
+print(f"dealer-loop persistent adapter: {n}/13 PASS")

@@ -278,6 +278,10 @@ class PersistentDealer:
 
     def __init__(self, dealer, model, calib, out, mtp, expect_calib_sha, model_sha,
                  startup_timeout=180.0, mint_timeout=120.0):
+        # lifecycle fields first, so _die() is safe from every later failure path
+        self.proc = None; self.dir_fd = -1; self._err_t = None; self._stop = threading.Event()
+        self.seq = 0; self.dead = False; self.reaped = None; self._buf = bytearray(); self._err = bytearray()
+        self._inflight = threading.Lock()
         if not (_is_hex(expect_calib_sha, 64) and _is_hex(model_sha, 64)):
             raise ValueError("persistent dealer: admitted identities must be 64 lowercase hex")
         if isinstance(mtp, bool) or mtp not in (0, 1): raise ValueError("persistent dealer: mtp must be 0 or 1")
@@ -286,27 +290,21 @@ class PersistentDealer:
         if not stat.S_ISDIR(os.lstat(out).st_mode): raise ValueError("persistent dealer: OUT must be a real directory")
         self.out, self.mtp, self.model_sha, self.calib_sha = out, mtp, model_sha, expect_calib_sha
         self.journal = os.path.join(out, _JOURNAL_NAME)
-        self.seq = 0; self.dead = False; self.reaped = None; self._buf = bytearray(); self._err = bytearray()
-        self._inflight = threading.Lock()
-        self.dir_fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
         cmd = [dealer, model, "--jobs-stdin", out] + (["--mtp", "1"] if mtp else [])
         try:
+            self.dir_fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
             self.proc = subprocess.Popen(cmd, env={**os.environ, "SHIELDED_CALIB": calib}, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
-        except OSError:
-            os.close(self.dir_fd); raise
-        self._in = self.proc.stdin.fileno(); self._outfd = self.proc.stdout.fileno()
-        os.set_blocking(self._in, False); os.set_blocking(self._outfd, False)
-        boot, (pst, pstart) = _boot_id(), _proc_start(self.proc.pid)
-        if boot is None or pst != "ok":
-            self._die(); raise RuntimeError("persistent dealer: cannot establish the child's incarnation (boot id / start time); refusing to mint")
-        self.child = {"boot_id": boot, "child_pid": self.proc.pid, "child_start": pstart}
-        self._stop = threading.Event()
-        self._err_t = threading.Thread(target=self._drain_err, daemon=True); self._err_t.start()
-        try:
+            self._in = self.proc.stdin.fileno(); self._outfd = self.proc.stdout.fileno()
+            os.set_blocking(self._in, False); os.set_blocking(self._outfd, False)
+            t = threading.Thread(target=self._drain_err, daemon=True); t.start(); self._err_t = t
+            boot, (pst, pstart) = _boot_id(), _proc_start(self.proc.pid)
+            if boot is None or pst != "ok":
+                raise RuntimeError("cannot establish the child's incarnation (boot id / start time)")
+            self.child = {"boot_id": boot, "child_pid": self.proc.pid, "child_start": pstart}
             line = _read_line(self._outfd, self._buf, time.monotonic() + self.startup_timeout, self.LINE_MAX)
-        except (TimeoutError, ValueError, OSError) as e:
-            self._die(); raise RuntimeError(f"persistent dealer: no valid READY ({e}); stderr: {self._tail()}")
+        except (OSError, RuntimeError, TimeoutError, ValueError) as e:
+            self._die(); raise RuntimeError(f"persistent dealer: startup failed, no valid READY ({e}); stderr: {self._tail()}") from None
         m = self.READY_RE.match(line or "")
         if not m:
             self._die(); raise RuntimeError(f"persistent dealer: bad READY {line!r}; stderr: {self._tail()}")
@@ -334,25 +332,27 @@ class PersistentDealer:
         reported as UNREAPED rather than claimed as a kill."""
         if self.dead: return
         self.dead = True; p = self.proc
-        if p.poll() is None:
-            for sig, wait in ((p.terminate, 3), (p.kill, 3)):
-                try: sig()
+        if p is not None:
+            if p.poll() is None:
+                for sig, wait in ((p.terminate, 3), (p.kill, 3)):
+                    try: sig()
+                    except OSError: pass
+                    try: p.wait(timeout=wait); break
+                    except subprocess.TimeoutExpired: continue
+            self.reaped = p.poll() is not None
+            if not self.reaped: print(f"persistent dealer: child pid {p.pid} UNREAPED after terminate+kill; its state is unknown", flush=True)
+        self._stop.set()
+        if self._err_t is not None: self._err_t.join(timeout=3)
+        drain_alive = self._err_t is not None and self._err_t.is_alive()
+        if p is not None:
+            for f in (p.stdin, p.stdout) + (() if drain_alive else (p.stderr,)):
+                try: f.close()
                 except OSError: pass
-                try: p.wait(timeout=wait); break
-                except subprocess.TimeoutExpired: continue
-        self.reaped = p.poll() is not None
-        if not self.reaped: print(f"persistent dealer: child pid {p.pid} UNREAPED after terminate+kill; its state is unknown", flush=True)
-        self._stop.set(); self._err_t.join(timeout=3)
-        for f in (p.stdin, p.stdout):
-            try: f.close()
+        if drain_alive: print("persistent dealer: stderr drain did not stop; leaving its descriptor open rather than racing it", flush=True)
+        if self.dir_fd >= 0:
+            try: os.close(self.dir_fd)
             except OSError: pass
-        if self._err_t.is_alive():
-            print("persistent dealer: stderr drain did not stop; leaving its descriptor open rather than racing it", flush=True)
-        else:
-            try: p.stderr.close()
-            except OSError: pass
-        try: os.close(self.dir_fd)
-        except OSError: pass
+            self.dir_fd = -1
 
     def _journal_write(self, rec):
         data = (json.dumps(rec, separators=(",", ":"), sort_keys=True) + "\n").encode("ascii")
