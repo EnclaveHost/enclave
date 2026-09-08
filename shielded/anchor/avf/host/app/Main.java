@@ -31,6 +31,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.Log;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -471,14 +473,31 @@ public class Main extends Activity {
                 final int id = conn;
                 say("BRIDGE #" + id + " guest<->" + plan.worker);
                 if (plan.nativeBridge) {
-                    /* one native thread, bounded buffers, no per-chunk JNI or Java-heap copies; Java still owns
-                     * every descriptor and closes them after the run; sEnded cancels through the socketpair */
-                    ParcelFileDescriptor[] cancel = ParcelFileDescriptor.createSocketPair();
-                    ParcelFileDescriptor spfd = ParcelFileDescriptor.fromSocket(s);
-                    sBridgeCancel = cancel[1];
-                    long[] st = new long[6]; int rc;
-                    try { if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority); rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, st); }
-                    finally { sBridgeCancel = null; try { spfd.close(); } catch (Exception ignored) { } try { cancel[0].close(); } catch (Exception ignored) { } try { cancel[1].close(); } catch (Exception ignored) { } try { pfd.close(); } catch (Exception ignored) { } }
+                    /* one native thread, bounded buffers, no per-chunk JNI or Java-heap copies; Java owns every
+                     * descriptor and closes them after the run. The native pump has no rate limiter, so a
+                     * configured pace is a hard mismatch, not a silent no-op. */
+                    if (paceBytesPerSec > 0) throw new IllegalStateException("nativebridge cannot honor pace=" + paceBytesPerSec + " B/s; unset pace or use the Java pump");
+                    ParcelFileDescriptor[] cancel = null; ParcelFileDescriptor spfd = null; long[] st = new long[6]; int rc = 0;
+                    try {
+                        /* acquire every descriptor inside the cleanup scope: an exception here leaks nothing */
+                        cancel = ParcelFileDescriptor.createSocketPair();
+                        try { Os.fcntlInt(cancel[1].getFileDescriptor(), OsConstants.F_SETFL, OsConstants.O_NONBLOCK); } catch (Exception ignored) { }   /* the control thread's cancel write never blocks */
+                        spfd = ParcelFileDescriptor.fromSocket(s);
+                        /* publish the cancel end and read the ended flag UNDER the lock, so a set-ended + cancel
+                         * that runs before this point is honored instead of lost (the run would idle forever) */
+                        boolean alreadyEnded;
+                        synchronized (sBridgeLock) { sBridgeCancel = sEnded ? null : cancel[1]; alreadyEnded = sEnded; }
+                        if (alreadyEnded) { rc = -125 /* -ECANCELED */; }
+                        else {
+                            if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority);
+                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, st);
+                        }
+                    } finally {
+                        synchronized (sBridgeLock) { sBridgeCancel = null; }   /* clear before closing: no signal can touch a closing fd */
+                        if (spfd != null) try { spfd.close(); } catch (Exception ignored) { }
+                        if (cancel != null) { try { cancel[0].close(); } catch (Exception ignored) { } try { cancel[1].close(); } catch (Exception ignored) { } }
+                        try { pfd.close(); } catch (Exception ignored) { }
+                    }
                     say("BRIDGE #" + id + " native closed rc=" + rc + " up=" + st[0] + " down=" + st[1] + " bytes, reads=" + st[2] + " writes=" + st[3] + " polls=" + st[4] + " max_read=" + st[5]);
                 } else {
                 InputStream gi = new FileInputStream(pfd.getFileDescriptor()); OutputStream go = new FileOutputStream(pfd.getFileDescriptor());
@@ -513,9 +532,20 @@ public class Main extends Activity {
             t.setDaemon(true); t.start();
         }
     }
-    /* the native bridge's cancel end (--ez nativebridge true): ending the run writes one byte to it */
+    /* the native bridge's cancel end (--ez nativebridge true): ending the run writes one byte to it. The
+     * fd is published and cleared under sBridgeLock so a signal never wraps or writes a closing fd; the
+     * write is a single direct Os.write of the borrowed descriptor, no stream wrapper, non-fatal on EAGAIN
+     * (one queued byte is enough to wake poll()). */
+    static final Object sBridgeLock = new Object();
     static volatile ParcelFileDescriptor sBridgeCancel = null;
-    static void cancelNativeBridge() { ParcelFileDescriptor c = sBridgeCancel; if (c == null) return; try { new FileOutputStream(c.getFileDescriptor()).write(1); } catch (Exception ignored) { } }
+    static void cancelNativeBridge() {
+        synchronized (sBridgeLock) {
+            ParcelFileDescriptor c = sBridgeCancel; if (c == null) return;
+            try { Os.write(c.getFileDescriptor(), new byte[] { 1 }, 0, 1); }
+            catch (android.system.ErrnoException e) { if (e.errno != OsConstants.EAGAIN && e.errno != OsConstants.EPIPE) /* EWOULDBLOCK == EAGAIN on Linux */ Log.w(TAG, "cancel write", e); }
+            catch (Exception ignored) { }
+        }
+    }
     static volatile long paceBytesPerSec = 0;   // > 0: cap the guest->worker pump (the weight upload) to this rate; bursts up to 2 MB pass
     static volatile int pumpPriority = 0;   // ANCHOR_PUMP_PRIO via --ei pumpprio: android.os.Process priority for the pump threads (0 = leave)
     static long pipe(InputStream in, OutputStream out, String dir) {
