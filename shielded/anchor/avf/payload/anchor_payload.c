@@ -30,6 +30,7 @@
 #include "shielded-avf-binding.h"
 #include "shielded-pad-grant.h"
 #include "anchor_pins.h"
+#include "anchor_names.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
@@ -453,7 +454,11 @@ static void *pads_receiver(void *arg) {
         while (n + 1 < sizeof hdr) { char ch; if (read(c, &ch, 1) != 1) { n = 0; break; } if (ch == '\n') break; hdr[n++] = ch; }
         hdr[n] = 0;
         char name[128] = ""; unsigned long long bytes = 0;
-        if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2 || strchr(name, '/') || strstr(name, "..")) { close(c); continue; }
+        if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2) { close(c); continue; }
+        /* only two kinds of file may land here: a canonical shipment (judged against its header, acknowledged)
+         * or one of the exact shared-prefix assets (stored as offered, verified at use, never acknowledged) */
+        const anchor_name_class kind = anchor_name_classify(name, NULL, NULL, NULL);
+        if (kind == ANCHOR_NAME_REFUSED) { OUT("PADS %s refused: neither a shipment nor a prefix asset", name); (void)!write(c, "E", 1); close(c); continue; }
         char tmp[700], fin[700]; snprintf(tmp, sizeof tmp, "%s/.%s.tmp", g_pads_dir, name); snprintf(fin, sizeof fin, "%s/%s", g_pads_dir, name);
         struct stat st;
         {   /* have it already? judged and hashed on a retained descriptor (the owner may be retrying a lost
@@ -461,7 +466,7 @@ static void *pads_receiver(void *arg) {
             int hfd; do { hfd = open(fin, O_RDONLY | O_CLOEXEC); } while (hfd < 0 && errno == EINTR);
             if (hfd >= 0) {
                 if (fstat(hfd, &st) == 0 && (unsigned long long)st.st_size == bytes) {
-                    char ack[512]; const int j = pads_judge_fd(name, hfd, ack, sizeof ack); close(hfd);
+                    char ack[512] = ""; const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, hfd, ack, sizeof ack) : 0; close(hfd);
                     if (j < 0) { unlink(fin); (void)!write(c, "E", 1); }
                     else { (void)!write(c, "H", 1); if (ack[0]) OUT("%s", ack); }
                     close(c); continue;
@@ -494,7 +499,7 @@ static void *pads_receiver(void *arg) {
         if (fd >= 0 && got == bytes && synced) {
             /* judged and hashed while still HIDDEN, through the descriptor we hold; then published; then the
              * directory made durable; only then is anyone told and the prepared acknowledgment emitted */
-            const int j = pads_judge_fd(name, fd, ack, sizeof ack);
+            const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, fd, ack, sizeof ack) : 0;   /* a prefix asset is stored as offered */
             close(fd); fd = -1;
             if (j < 0) { unlink(tmp); (void)!write(c, "E", 1); }
             else if (rename(tmp, fin) != 0) { const int e = errno; unlink(tmp); (void)!write(c, "E", 1); OUT("PADS %s: publish failed: %s", name, strerror(e)); }
