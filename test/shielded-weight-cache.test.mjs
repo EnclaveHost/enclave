@@ -16,7 +16,8 @@ test('public weight cache authenticates private read buffers and survives partia
   const nacl=join(dir,'nacl.o'),bin=join(dir,'test');
   run('cc',[...flags,'-c',join(gg,'tweetnacl.c'),'-o',nacl]);
   run('c++',[...flags,'-std=c++17','-I',gg,join(root,'test/fixtures/shielded-weight-cache.cpp'),nacl,'-Wl,--gc-sections','-o',bin]);
-  assert.match(run(bin,[dir]),/weight-cache: authenticated reads/);
+  for(const mode of ['0','1']) assert.match(execFileSync(bin,[dir],{encoding:'utf8',timeout:60000,
+    env:{...env,SHIELDED_WEIGHT_CACHE_SHA256:mode}}),/weight-cache: authenticated reads/);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 test('dealt weight reader releases the original array, preserves exact local fallback and reuploads authenticated bytes on reconnect',()=>{
@@ -52,6 +53,7 @@ test('a full disk midway through a shared-input group aborts before upload or pa
   run('c++',[...flags,'-std=c++17','-I'+join(headers,'ggml/include'),'-I'+join(headers,'ggml/src'),
    join(root,'test/fixtures/shielded-cache-registration.cpp'),...objects,'-Wl,--gc-sections',
    '-L'+libs,'-lggml','-lggml-cpu','-lggml-base','-lpthread','-lm','-Wl,-rpath,'+libs,'-o',bin]);
-  assert.match(run(bin,[dir]),/cache-registration: partial shared group aborts/);
+  for(const mode of ['0','1']) assert.match(execFileSync(bin,[dir],{encoding:'utf8',timeout:60000,
+    env:{...env,SHIELDED_WEIGHT_CACHE_SHA256:mode}}),/cache-registration: partial shared group aborts/);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });

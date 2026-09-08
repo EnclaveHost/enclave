@@ -802,8 +802,8 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         if (sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get()) == SH_OK) {
             const size_t bytes = stored.w.size();
             std::vector<int8_t>().swap(stored.w);
-            SH_LOG("%s: cached %zu encoded bytes, %zu bytes of trusted block hashes retained\n",
-                   name.c_str(), bytes, stored.w_cache->hash_bytes());
+            SH_LOG("%s: cached %zu encoded bytes, %zu bytes of trusted block hashes retained (%s)\n",
+                   name.c_str(), bytes, stored.w_cache->hash_bytes(), stored.w_cache->hash_algorithm());
         } else {
             // A live link or missing pad check cannot discard its source.
             // Retain the original lifetime contract and report that explicitly.

@@ -43,7 +43,12 @@ int main(int argc,char **argv) {
     std::vector<int8_t> source(N); for(size_t i=0;i<N;i++) source[i]=(int8_t)((i*13+i/37)%251-125);
     const int fds=fd_count();
     short_io=1;write_interrupt=1;
+    const char *mode=getenv("SHIELDED_WEIGHT_CACHE_SHA256");
+    const bool sha256=mode && !strcmp(mode,"1");
     auto cache=sh_weight_cache::create(argv[1],source.data(),source.size());assert(cache);
+    assert(!strcmp(cache->hash_algorithm(),sha256?"sha256":"sha512"));
+    // Algorithm selection is pinned when this private cache is created.
+    setenv("SHIELDED_WEIGHT_CACHE_SHA256",sha256?"0":"1",1);
     int fd=last_fd; assert(cache->hash_bytes()==4*64);assert(fcntl(fd,F_GETFD)&FD_CLOEXEC);
     char link[64],target[4096];snprintf(link,sizeof link,"/proc/self/fd/%d",fd);
     ssize_t z=readlink(link,target,sizeof target-1);assert(z>0);target[z]=0;assert(strstr(target,"(deleted)"));
