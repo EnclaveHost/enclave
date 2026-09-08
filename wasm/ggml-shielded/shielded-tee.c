@@ -2221,3 +2221,6 @@ int sh_link_dealt_selftest(sh_link *l, int rows, int32_t *r_out, int32_t *u_out)
     }
     return done;
 }
+
+/* Standalone sparse mint; existing v2 dealer/consumer paths stay unchanged. */
+#include "shielded-pad-mint-v3.inc"

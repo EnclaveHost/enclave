@@ -1,7 +1,7 @@
 # Sparse pad delivery: proposed next implementation
 
 Status: layout, canonical-manifest, descriptor-table, missing-coverage and
-standalone v3 file API implemented and tested; no dealer loop, live relay,
+standalone v3 file/CPU-mint APIs implemented and tested; no dealer loop, live relay,
 receipt or phone consumer uses it. The remaining integration is a design.
 The current 27B baseline continues with complete v2 shipments.
 
@@ -353,3 +353,40 @@ tampering, validly tagged non-field values, retained-fd reads, parallel cells,
 nonce-claim races, incomplete files, and injected allocation and publication
 failures. It passes ASan/UBSan alongside the legacy v2 publication, replay and
 ordinal suites. The implementation and public C/C++ header compile for Android35.
+
+## Standalone CPU mint API (integration still disabled)
+
+`shielded-pad-mint-v3.h` exposes `sh_link_mint_sparse_v3`. It requires a
+serialized, unstarted link with the complete registered CPU weight geometry,
+an admitted policy/manifest and separate identities established from the
+actual verified model, calibration and encoding. Those source identities are
+caller obligations: the link does not retain enough provenance to verify the
+asset hashes itself. Agreement between two supplied digests is not proof of
+the files that were loaded.
+
+The API exports the actual registered members and binds every complete group
+to its canonical manifest ordinal. Local group order may differ. Member order,
+dimensions, names and output extents must match, and no group may be missing.
+Only nonempty requested spans enter the CPU work schedule. Every mask uses the
+canonical ordinal and absolute index, including when local registration was
+reordered. The existing SIMD refill kernels compute r.W in at most 16-row tiles;
+the last partial tile emits only the requested cells.
+
+Thread count is explicit, limited to 1..64 and clamped to active groups. The
+existing deterministic cost scheduler uses checked K × output extent × row
+count estimates. A mandatory aggregate scratch budget covers all task buffers
+and the file writer's shared buffers, separately from bounded public metadata
+and the nonce bitmap. Task scratch is allocated before file creation and wiped
+before release. Failed thread creation runs that lane exactly once on the
+caller; all started workers are joined. A mint failure aborts the temporary
+file, while finish retains the explicit post-publication error contract.
+
+`test/shielded-mint-sparse-v3.test.mjs` compares all requested cells against an
+independent scalar oracle and the opened v2 format with generic and detected
+SIMD. It exercises reordered registration, sparse and partial tiles, fused
+members, absent cells, normal/partial/total thread creation failures, every
+allocation failure, threaded write failures, exact scratch-budget boundaries,
+invalid source identities, missing groups, member drift and retired links.
+ASan/UBSan and the legacy balanced-mint suite pass; the tee object and public
+C/C++ header compile for Android35. This API has no CLI, relay, seed, receipt or
+runtime consumer hook, and establishes no phone throughput improvement yet.

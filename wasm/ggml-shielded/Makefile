@@ -37,6 +37,7 @@ CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC
 all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest
 
 shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
+shielded-tee.o shielded-tee.dealer.o: shielded-pad-mint-v3.h shielded-pad-mint-v3.inc shielded-pads-v3.h shielded-pad-manifest.h shielded-pad-layout.h
 shielded-pads.o shielded-pads.dealer.o: shielded-pads-v3.inc shielded-pads-v3.h shielded-pad-sparse-table.h shielded-pad-manifest.h shielded-pad-layout.h
 
 # Built only where an engine checkout exists; `make ggml` opts in.
