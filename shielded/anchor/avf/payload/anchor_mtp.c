@@ -197,3 +197,24 @@ int anchor_mtp_refeed(anchor_mtp *m, int32_t tok0, int32_t pos0, const int32_t *
     set_tail(m, best, pos, h);
     return 0;
 }
+
+size_t anchor_mtp_n_embd(const anchor_mtp *m) { return m ? (size_t)m->n_embd : 0; }
+int anchor_mtp_pending_export(const anchor_mtp *m, float *out, size_t n_floats) {
+    if (!m || !out || n_floats != (size_t)m->n_embd) return -1;
+    memcpy(out, m->pending_h, n_floats * sizeof(float)); return 0;
+}
+int anchor_mtp_pending_import(anchor_mtp *m, const float *in, size_t n_floats) {
+    if (!m || !in || n_floats != (size_t)m->n_embd) return -1;
+    for (size_t i = 0; i < n_floats; i++) if (!isfinite(in[i])) return -1;          /* a signed row is still checked for NaN/Inf */
+    memcpy(m->pending_h, in, n_floats * sizeof(float));
+    m->has_tail = 0; m->verify_rows = 0;                                              /* a fresh prefix restore: no tail, no harvested rows */
+    return 0;
+}
+size_t anchor_mtp_state_size(anchor_mtp *m) { return m ? llama_state_seq_get_size(m->head, 0) : 0; }
+size_t anchor_mtp_state_export(anchor_mtp *m, uint8_t *dst, size_t cap) { return m && dst ? llama_state_seq_get_data(m->head, dst, cap, 0) : 0; }
+size_t anchor_mtp_state_import(anchor_mtp *m, const uint8_t *src, size_t n) {
+    if (!m || !src) return 0;
+    const size_t got = llama_state_seq_set_data(m->head, src, n, 0);
+    m->has_tail = 0; return got;
+}
+
