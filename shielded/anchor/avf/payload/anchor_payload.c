@@ -32,6 +32,7 @@
 #include "anchor_pins.h"
 #include "anchor_names.h"
 #include "anchor_gguf.h"
+#include "anchor_copy.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
@@ -310,16 +311,18 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
     if (fd < 0) { OUT("ENGINE nowhere to put %" PRIu64 " bytes of model (encrypted storage, memfd and /data all refused)", bytes); close(c); return -1; }
     if (existing) { (void)!write(c, "K", 1); close(c); OUT("ENGINE model %" PRIu64 " MiB already in the VM's encrypted storage", bytes >> 20); *out_fd = fd; return 0; }
     (void)!write(c, "S", 1);
-    static uint8_t buf[1 << 20]; uint64_t got = 0, mark = 0; double t0 = now_us();
+    /* the stream lands in 200 MiB steps so the owner sees progress; every step is an exact copy (EINTR/short
+     * writes handled), and a failure closes BOTH descriptors and remembers nothing */
+    uint64_t got = 0; double t0 = now_us(); char why[160];
     while (got < bytes) {
-        size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
-        ssize_t r = read(c, buf, want); if (r <= 0) { OUT("ENGINE model stream ended at %" PRIu64, got); close(c); return -1; }
-        if (write(fd, buf, (size_t)r) != r) { OUT("ENGINE model write failed at %" PRIu64 ": %s", got, strerror(errno)); close(c); return -1; }
-        got += (uint64_t)r;
-        if (got - mark >= (200u << 20)) { mark = got; OUT("ENGINE model %" PRIu64 " MiB received", got >> 20); }
+        const uint64_t step = bytes - got < (200u << 20) ? bytes - got : (200u << 20); uint64_t part = 0;
+        if (anchor_copy_exact(c, fd, step, &part, why, sizeof why) != 0) { got += part; OUT("ENGINE model stream failed at %" PRIu64 ": %s", got, why); close(c); close(fd); return -1; }
+        got += part;
+        if (got < bytes) OUT("ENGINE model %" PRIu64 " MiB received", got >> 20);
     }
-    close(c); fsync(fd);
-    if (g_model_sha[0] && AVmPayload_getEncryptedStoragePath()) {    /* remember what this file is, for next time */
+    close(c);
+    if (anchor_fsync_retry(fd) != 0) { OUT("ENGINE model fsync failed: %s (reception not remembered)", strerror(errno)); close(fd); return -1; }
+    if (g_model_sha[0] && AVmPayload_getEncryptedStoragePath()) {    /* remember what this file is, ONLY now that it is durable */
         char side[512]; sidecar_path(side, sizeof side, AVmPayload_getEncryptedStoragePath());
         FILE *f = fopen(side, "w"); if (f) { fprintf(f, "%s\n", g_model_sha); fclose(f); }
     }
