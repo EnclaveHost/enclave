@@ -22,6 +22,10 @@ baseline = root / "baseline"
 bank.mkdir(); baseline.mkdir()
 env = {k: v for k, v in os.environ.items() if not k.startswith("SHIELDED_")}
 env.update(SHIELDED_SO=backend, GGML_CPU_SO=cpu, SHIELDED_CALIB=str(calib), SHIELDED_MINT_THREADS="2")
+stream_env = env.copy()
+if os.environ.get("DEALER_TEST_BALANCE") == "1":
+    env["SHIELDED_MINT_THREADS"] = stream_env["SHIELDED_MINT_THREADS"] = "16"
+    stream_env["SHIELDED_MINT_BALANCE"] = "1"
 ctypes.CDLL(str(Path(cpu).with_name("libggml.so")), mode=ctypes.RTLD_GLOBAL)
 library = ctypes.CDLL(backend)
 sk = secrets.token_bytes(32)
@@ -65,7 +69,7 @@ def table(path, expected_start, expected_count):
 
 with (root / "stream.stderr").open("wb") as log:
     child = subprocess.Popen([binary, model, "--jobs-stdin", str(bank), "--mtp", "1"],
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, env=env, bufsize=0)
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, env=stream_env, bufsize=0)
     try:
         assert line(child.stdout) == f"PADS-READY 1 mtp=1 calib={calib_digest}"
         for sequence, start in [(1, 0), (2, 1)]:
@@ -100,3 +104,5 @@ with (root / "stream.stderr").open("wb") as log:
         child.stdin.close(); child.stdout.close()
 assert seed.encode() not in (root / "stream.stderr").read_bytes()
 print(f"real persistent MTP lifecycle: PASS; {groups} groups, all {groups*2} opened cells equal one-shot")
+if os.environ.get("DEALER_TEST_BALANCE") == "1":
+    print("balanced16-thread stream cells equal unbalanced16-thread one-shot cells")
