@@ -51,6 +51,19 @@ GGML_BACKEND_API ggml_backend_reg_t ggml_backend_shielded_reg(void);
 GGML_BACKEND_API void ggml_backend_shielded_configure(const char *host, int port,
                                                       const char *calib_path);
 
+/* Optional source authentication, installed once BEFORE loading/reserving any
+ * model graph. The callback must match name/type/dimensions/length AND digest
+ * against a trusted model manifest; SH_OK alone admits the tensor. Bytes are a
+ * PRIVATE copy that the backend then encodes without rereading the source.
+ * The callback/context must outlive the backend and must not reenter it.
+ * Verified weights use their encoded representation for local fallback;
+ * unverified original mappings are never used as an escape hatch. This API
+ * does not authenticate llama's metadata or tensors placed on another backend. */
+typedef int (*ggml_shielded_weight_verifier)(void *ctx, const char *name,
+    uint32_t type, const int64_t ne[4], const void *bytes, size_t nbytes);
+GGML_BACKEND_API int ggml_backend_shielded_set_weight_verifier(
+    ggml_shielded_weight_verifier verifier, void *ctx);
+
 /* Capability probe used by the manager before admitting a pooled tenant. */
 GGML_BACKEND_API int ggml_backend_shielded_pool_version(void);
 /* Dealt pads: mint one .pads shipment from the registered weights (single
