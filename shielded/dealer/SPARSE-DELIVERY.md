@@ -1,6 +1,6 @@
 # Sparse pad delivery: proposed next implementation
 
-Status: layout, canonical-manifest and descriptor-table primitives implemented;
+Status: layout, canonical-manifest, descriptor-table and missing-coverage primitives implemented;
 remaining path is a design. No v3 shipment reader/writer, live relay change or
 phone support is deployed.
 The current 27B baseline continues with complete v2 shipments.
@@ -242,3 +242,31 @@ the descriptors into the legacy rectangular acknowledgment path.
 extra bytes, unaligned input, identity changes in every descriptor byte, empty
 spans, invalid ranges/caps, allocation refusal, unchanged outputs and the maximum
 admitted table. An independent Node encoder checks the exact serialized bytes.
+
+`wasm/ggml-shielded/shielded-pad-sparse-plan.h` calculates missing delivery as
+the exact difference between one requested span per canonical group and an
+arbitrarily ordered set of covered intervals. Overlapping, nested and duplicate
+coverage is idempotent; coverage outside current demand is harmless. The output
+is sorted, disjoint and maximally coalesced, with exact missing-cell and encrypted
+payload-byte totals (cell tags plus packed u, excluding file metadata). Fully
+covered or empty demand succeeds with zero missing intervals.
+
+Demand must fit the caller's already admitted reservation. Coverage must contain
+nonempty valid PRF-domain intervals, and its seed/manifest identity and evidence
+must already have been authenticated by the caller. A dealer may separately
+use published/minted coverage to avoid duplicate minting; that coverage is not
+proof of VM delivery. The planner neither merges those evidence levels nor
+updates a reservation, receipt, consumption cursor or pruning frontier.
+
+Limits are 1024 expected groups and 4096 coverage intervals. Scratch is bounded
+by those admitted counts, not output capacity: at most one gap per group plus
+one per coverage interval, with a separate sorted coverage copy. Missing cells,
+payload bytes and output capacity have explicit caller caps. Every refusal,
+including allocation failure, preserves all outputs. This primitive does not
+serialize signed demand, authenticate coverage, allocate a file or enable v3.
+
+`test/shielded-pad-sparse-plan.test.mjs` compares 2000 varied requests against an
+independent finite-set oracle and tests duplicate/overlapping/out-of-order
+coverage, empty/full coverage, nonce-domain boundaries, overflowing intervals,
+insufficient capacities, allocation failure and the maximum 5120-gap case.
+The fixture passes ASan/UBSan; the header compiles for Android35 C and C++17.
