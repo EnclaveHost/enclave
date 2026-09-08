@@ -39,6 +39,15 @@ int32_t     anchor_mtp_observe(anchor_mtp *m, int32_t pos0, const int32_t *token
 /* Propose up to k tokens after id_last at n_past (greedy on the head; p_min > 0
  * stops when the head's confidence drops). Returns how many. */
 int32_t     anchor_mtp_draft(anchor_mtp *m, int32_t id_last, int32_t n_past, int32_t k, float p_min, int32_t *tokens_out);
+/* Draft-ahead (runs on another thread while the target verifies; never concurrently with
+ * draft/observe). The head keeps a "tail": the last proposed token, its position, and the
+ * head's own hidden row after the last step. chain() feeds the tail and keeps proposing up
+ * to k more tokens from the head's own state; out[0] is the head's guess for the token the
+ * target will sample after the current draft. refeed() rebuilds the head's state through a
+ * pre-drafted round that is now being verified: token tok0 at pos0 from the seed, then toks[],
+ * and leaves the tail ready for chain(); *guess receives the head's prediction after toks[]. */
+int32_t     anchor_mtp_chain(anchor_mtp *m, int32_t k, float p_min, int32_t *out);
+int         anchor_mtp_refeed(anchor_mtp *m, int32_t tok0, int32_t pos0, const int32_t *toks, int32_t n, int32_t *guess);
 
 #ifdef __cplusplus
 }

@@ -28,7 +28,39 @@ struct anchor_mtp {
     struct llama_batch batch;   /* token + embd, token side malloc'd (llama_batch_init allocates one of them) */
     int32_t batch_cap;
     double t_rm, t_decode, t_argmax, t_observe;
+    float *tail_h; int32_t tail_tok, tail_pos, has_tail;   /* draft-ahead: where the head's own chain stands */
 };
+
+/* One head step: token `tok` at `pos` with hidden row h_in; greedy argmax (p_min gate) into *best,
+ * the head's own nextn row into *h_out (NULL when the step or the gate failed). */
+static int step(anchor_mtp *m, int32_t tok, int32_t pos, const float *h_in, float p_min, int32_t *best, const float **h_out) {
+    const size_t row = (size_t)m->n_embd;
+    m->batch.token[0] = tok; m->batch.pos[0] = pos; m->batch.n_seq_id[0] = 1; m->batch.seq_id[0][0] = 0; m->batch.logits[0] = 1;
+    memcpy(m->batch.embd, h_in, row * sizeof(float));
+    m->batch.n_tokens = 1;
+    double t0 = now_us();
+    const int rc = llama_decode(m->head, m->batch);
+    m->t_decode += now_us() - t0; t0 = now_us();
+    *h_out = NULL;
+    if (rc != 0) return -1;
+    const float *lg = llama_get_logits_ith(m->head, 0);
+    if (!lg) return -1;
+    int32_t b = 0; float lmax = lg[0];
+    for (int32_t v = 1; v < m->n_vocab; v++) if (lg[v] > lmax) { lmax = lg[v]; b = v; }
+    if (p_min > 0.0f) {
+        const float floor_l = lmax - 16.0f; double sum = 0.03;
+        for (int32_t v = 0; v < m->n_vocab; v++) if (lg[v] >= floor_l) sum += exp((double)(lg[v] - lmax));
+        if ((float)(1.0 / sum) < p_min) { m->t_argmax += now_us() - t0; return 1; }
+    }
+    *best = b;
+    *h_out = g_nextn_ith(m->head, 0);
+    m->t_argmax += now_us() - t0;
+    return 0;
+}
+static void set_tail(anchor_mtp *m, int32_t tok, int32_t pos, const float *h) {
+    if (!h) { m->has_tail = 0; return; }
+    memcpy(m->tail_h, h, (size_t)m->n_embd * sizeof(float)); m->tail_tok = tok; m->tail_pos = pos; m->has_tail = 1;
+}
 
 struct llama_context *anchor_mtp_ctx(anchor_mtp *m) { return m ? m->head : NULL; }
 void anchor_mtp_timers(anchor_mtp *m, double *rm_us, double *decode_us, double *argmax_us, double *observe_us) {
@@ -52,6 +84,7 @@ anchor_mtp *anchor_mtp_new(struct llama_model *model, struct llama_context *targ
     m->n_embd = llama_model_n_embd(model);
     m->n_vocab = llama_vocab_n_tokens(llama_model_get_vocab(model));
     m->pending_h = (float *)calloc((size_t)m->n_embd, sizeof(float));
+    m->tail_h = (float *)calloc((size_t)m->n_embd, sizeof(float));
     m->batch_cap = (int32_t)p.n_batch;
     m->batch = llama_batch_init(m->batch_cap, m->n_embd, 1);
     m->batch.token = (llama_token *)malloc(sizeof(llama_token) * (size_t)m->batch_cap);
@@ -66,7 +99,7 @@ void anchor_mtp_free(anchor_mtp *m) {
     free(m->batch.token); m->batch.token = NULL;
     llama_batch_free(m->batch);
     llama_free(m->head);
-    free(m->verify_h); free(m->pending_h); free(m);
+    free(m->verify_h); free(m->pending_h); free(m->tail_h); free(m);
 }
 
 int anchor_mtp_harvest(anchor_mtp *m, struct llama_context *target, int32_t n_rows) {
@@ -118,30 +151,49 @@ int32_t anchor_mtp_draft(anchor_mtp *m, int32_t id_last, int32_t n_past, int32_t
     double t0 = now_us();
     llama_memory_seq_rm(llama_get_memory(m->head), 0, n_past, -1);
     m->t_rm += now_us() - t0;
-    const size_t row = (size_t)m->n_embd;
+    m->has_tail = 0;
     int32_t tok = id_last, n = 0;
     const float *h = m->pending_h;
     for (int32_t i = 0; i < k; i++) {
-        m->batch.token[0] = tok; m->batch.pos[0] = n_past + i; m->batch.n_seq_id[0] = 1; m->batch.seq_id[0][0] = 0; m->batch.logits[0] = 1;
-        memcpy(m->batch.embd, h, row * sizeof(float));
-        m->batch.n_tokens = 1;
-        t0 = now_us();
-        const int rc = llama_decode(m->head, m->batch);
-        m->t_decode += now_us() - t0; t0 = now_us();
-        if (rc != 0) break;
-        const float *lg = llama_get_logits_ith(m->head, 0);
-        if (!lg) break;
-        int32_t best = 0; float lmax = lg[0];
-        for (int32_t v = 1; v < m->n_vocab; v++) if (lg[v] > lmax) { lmax = lg[v]; best = v; }
-        if (p_min > 0.0f) {
-            const float floor_l = lmax - 16.0f; double sum = 0.03;
-            for (int32_t v = 0; v < m->n_vocab; v++) if (lg[v] >= floor_l) sum += exp((double)(lg[v] - lmax));
-            if ((float)(1.0 / sum) < p_min) break;
-        }
-        tokens_out[n++] = best; tok = best;
-        h = g_nextn_ith(m->head, 0);
-        m->t_argmax += now_us() - t0;
+        int32_t best; const float *hn;
+        if (step(m, tok, n_past + i, h, p_min, &best, &hn) != 0) break;
+        tokens_out[n++] = best; tok = best; h = hn;
         if (!h) break;
+        set_tail(m, tok, n_past + i + 1, h);   /* the next feed: this token at the next position */
     }
     return n;
+}
+
+int32_t anchor_mtp_chain(anchor_mtp *m, int32_t k, float p_min, int32_t *out) {
+    if (!m || k <= 0 || !m->has_tail) return 0;
+    int32_t n = 0, tok = m->tail_tok, pos = m->tail_pos;
+    const float *h = m->tail_h;
+    for (int32_t i = 0; i < k; i++) {
+        int32_t best; const float *hn;
+        if (step(m, tok, pos, h, p_min, &best, &hn) != 0) break;
+        out[n++] = best; tok = best; pos++; h = hn;
+        if (!h) break;
+        set_tail(m, tok, pos, h);
+    }
+    return n;
+}
+
+int anchor_mtp_refeed(anchor_mtp *m, int32_t tok0, int32_t pos0, const int32_t *toks, int32_t n, int32_t *guess) {
+    if (!m || pos0 < 0 || n < 0) return -1;
+    double t0 = now_us();
+    llama_memory_seq_rm(llama_get_memory(m->head), 0, pos0, -1);
+    m->t_rm += now_us() - t0;
+    m->has_tail = 0;
+    int32_t tok = tok0, pos = pos0, best = -1;
+    const float *h = m->pending_h;
+    for (int32_t i = 0; i <= n; i++) {
+        const float *hn;
+        if (step(m, tok, pos, h, 0.0f, &best, &hn) != 0 || !hn) return -1;
+        h = hn; pos++;
+        if (i < n) tok = toks[i];
+    }
+    /* h is the head's row after the last pre-drafted token; `best` its guess for what follows */
+    *guess = best;
+    set_tail(m, best, pos, h);
+    return 0;
 }
