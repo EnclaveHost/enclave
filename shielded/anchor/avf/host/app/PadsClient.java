@@ -48,6 +48,32 @@ final class PadsClient {
 
     static String nonce() { byte[] n = new byte[16]; new SecureRandom().nextBytes(n); return RelayAttach.hex(n); }
 
+    /** Keep retrying a signed acknowledgment during this control run, including
+     * a temporarily old relay. Never permanently mute future sessions on a 404. */
+    static void onAck(PadDelivery.Session session, String line, String name) {
+        try {
+            PadAckQueue.Ack ack = PadAckQueue.Ack.parse(line, session.seed());
+            final java.util.concurrent.atomic.AtomicBoolean warned = new java.util.concurrent.atomic.AtomicBoolean();
+            PadAckQueue queue = session.acknowledgments(a -> {
+                JSONObject body = new JSONObject().put("name", name).put("seed_id", a.seed).put("index0", a.index0).put("count", a.count)
+                    .put("sha256", a.sha256).put("nonce", a.nonce).put("sig", a.sig);
+                JSONObject res = http(session, "POST", session.base() + "/v1/pads/ack", body);
+                int status = res.optInt("_status");
+                if (status == 200) {
+                    Main.say("PADS ack " + a.index0 + "+" + a.count + " recorded, floor " + res.optLong("ack_floor"));
+                    return true;
+                }
+                String error = res.optString("error");
+                if (status == 400 || (status == 403 && !error.equals("unknown_tunnel")) || error.equals("digest_mismatch")) {
+                    Main.say("PADS ack " + a.index0 + "+" + a.count + " refused " + error); return true;
+                }
+                if (warned.compareAndSet(false,true)) Main.say("PADS acknowledgments pending retry: HTTP " + status + " " + error);
+                return false; // unavailable route/store, range pressure, server failure: retry
+            });
+            if (queue != null && !queue.offer(ack)) Main.say("PADS acknowledgment queue full: delivery progress cannot advance");
+        } catch (IllegalArgumentException e) { Main.say("PADS acknowledgment refused locally: " + e.getMessage()); }
+    }
+
     /** Read control lines until one starts with `prefix`; everything else is logged as usual. */
     static String until(BufferedReader r, String prefix) throws Exception {
         String line;

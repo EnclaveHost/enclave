@@ -25,6 +25,7 @@ final class PadDelivery {
     static final class Session implements Closeable {
         private boolean active = true;
         private String base = "", seed = "";
+        private PadAckQueue acknowledgments;
         private final Set<String> accepted = new HashSet<>();
         private final Set<Closeable> resources = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -32,6 +33,14 @@ final class PadDelivery {
         synchronized boolean ready() { return active && !seed.isEmpty(); }
         synchronized String base() { return base; }
         synchronized String seed() { return seed; }
+        synchronized PadAckQueue acknowledgments(PadAckQueue.Sender sender) {
+            if (!active || seed.isEmpty()) return null;
+            if (acknowledgments == null) {
+                acknowledgments = new PadAckQueue(sender);
+                resources.add(acknowledgments);
+            }
+            return acknowledgments;
+        }
         synchronized void bind(String httpBase, String seedId) throws IOException {
             if (!active || !seed.isEmpty() || !seedId.matches("[0-9a-f]{32}")) throw new IOException("invalid pad session binding");
             base = httpBase; seed = seedId;
