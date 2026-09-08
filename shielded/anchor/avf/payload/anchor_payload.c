@@ -342,12 +342,22 @@ static anchor_pins g_pins;                 /* the measured pins (anchor_pins.h);
 static int g_model_fd = -1, g_model_state = 0, g_ls_model = -1; static uint64_t g_model_fd_bytes = 0;
 static uint8_t g_model_digest[32], g_grant_model[32];
 static char g_req_name[65]; static uint8_t g_req_nonce[32], g_req_model[32], g_req_calib[32];
-static void calib_digest32(uint8_t out[32]) {   /* what shielded-dealer records: SHA-512/256 of the calib file */
+/* The calibration's identity as shielded-dealer records it: SHA-512/256 of the WHOLE file. 1 when the
+ * file was read completely (size checked against fstat, read errors refused); 0 otherwise, out zeroed - a
+ * digest of a truncated calibration must never be requested, granted or pinned. */
+static int calib_digest_file(const char *path, uint8_t out[32]) {
     memset(out, 0, 32);
-    FILE *cf = fopen("/mnt/apk/assets/model.calib", "rb"); if (!cf) return;
-    static uint8_t cb[1 << 20]; size_t n = fread(cb, 1, sizeof cb, cf); fclose(cf);
-    uint8_t dg[64]; crypto_hash(dg, cb, n); memcpy(out, dg, 32);
+    FILE *cf = fopen(path, "rb"); if (!cf) return 0;
+    struct stat st; if (fstat(fileno(cf), &st) != 0 || st.st_size <= 0 || st.st_size > (64 << 20)) { fclose(cf); return 0; }
+    const size_t want = (size_t)st.st_size; uint8_t *cb = (uint8_t *)malloc(want);
+    if (!cb) { fclose(cf); return 0; }
+    const size_t n = fread(cb, 1, want, cf); const int bad = ferror(cf); fclose(cf);
+    int ok = 0;
+    if (!bad && n == want) { uint8_t dg[64]; crypto_hash(dg, cb, n); memcpy(out, dg, 32); ok = 1; }
+    free(cb);
+    return ok;
 }
+static int calib_digest32(uint8_t out[32]) { return calib_digest_file("/mnt/apk/assets/model.calib", out); }
 static char g_seed_id_hex[33] = "", g_pad_name[65] = "", g_pads_dir[512] = "";   /* a 64-char name plus its NUL */
 static int g_have_ledger = 0, g_have_seed = 0;
 /* What a delivery acknowledgment (PAD-ACK.md) is signed for: the seed, the tunnel name and the
@@ -584,8 +594,9 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         setenv("SHIELDED_PAD_CHECK", "1", 0);        /* the pVM checks every imported pad against the weights: a wrong dealer is refused before use */
         /* Pin the model: only shipments the dealer minted for THIS calibration
          * (SHA-512/256 of the calib file, what shielded-dealer records) are used. */
-        { FILE *cf = fopen(calib, "rb"); if (cf) { static uint8_t cb[1 << 20]; size_t n = fread(cb, 1, sizeof cb, cf); fclose(cf);
-            uint8_t dg[64]; crypto_hash(dg, cb, n); char dh[65]; sh_pads_bin2hex(dg, 32, dh); setenv("SHIELDED_PAD_MODEL_DIGEST", dh, 1); } }
+        { uint8_t dg[32]; char dh[65];
+          if (!calib_digest_file(calib, dg)) OUT("ENGINE model.calib could not be hashed whole: pad model pin set to all zeros, every shipment will be refused");
+          sh_pads_bin2hex(dg, 32, dh); setenv("SHIELDED_PAD_MODEL_DIGEST", dh, 1); }   /* fail closed: an unreadable calibration pins nothing that a dealer could match */
         memset(hs, 0, sizeof hs); memset(hsk, 0, sizeof hsk);
         pp = &pads;
         OUT("ENGINE dealt pads on: bank %s, seed %s", g_pads_dir, g_seed_id_hex);
@@ -751,8 +762,8 @@ int AVmPayload_main(void) {
                     if (g_model_state != 1) { strncpy(why, "model-not-staged", sizeof why - 1); OUT("PADREQ2 fail model-not-staged (send MODEL <bytes> first)"); }
                     else memcpy(g_req_model, g_model_digest, 32);
                     if (why[0]) { /* refused above */ }
+                    else if (!calib_digest32(g_req_calib)) OUT("PADREQ2 fail calib-unreadable (the APK's model.calib could not be hashed whole)");
                     else {
-                        calib_digest32(g_req_calib);
                         randombytes(g_req_nonce, 32);
                         strncpy(g_req_name, name, 64); g_req_name[64] = 0;
                         char mh[65], ch[65], nh[65]; sh_pads_bin2hex(g_req_model, 32, mh); sh_pads_bin2hex(g_req_calib, 32, ch); sh_pads_bin2hex(g_req_nonce, 32, nh);
@@ -801,7 +812,7 @@ int AVmPayload_main(void) {
                     sh_pads_hex2bin(sid, g_seed_id, 16) && sh_pads_hex2bin(epk_h, epk, 32) && sh_pads_hex2bin(nonce_h, nonce, 12) && sh_pads_hex2bin(box_h, box, 48) &&
                     sh_pads_seed_open(epk, nonce, box, 48, g_psk, g_ppk, g_seed) == 0) {
                     strncpy(g_pad_name, name, sizeof g_pad_name - 1); strncpy(g_seed_id_hex, sid, 32); g_have_seed = 1;
-                    { uint8_t cd[32]; calib_digest32(cd); ack_identity_set(g_seed_id, sid, name, cd); }
+                    { uint8_t cd[32]; if (calib_digest32(cd)) ack_identity_set(g_seed_id, sid, name, cd); else OUT("PADS acknowledgments withheld: model.calib could not be hashed whole"); }
                     if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
                     int dropped = pads_prune(sid, 0);
                     OUT("PADSEED ok %s", sid);
