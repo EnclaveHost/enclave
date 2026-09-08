@@ -169,28 +169,72 @@ static int secretbox_open(uint8_t *msg, const uint8_t *box /* 16 + n */, size_t 
 
 /* ---- writer ------------------------------------------------------------- */
 struct sh_pads_writer {
-    int fd;
+    int fd, dirfd;
+    char *path, *tmp_path;
     sh_pads_hdr hdr;
     sh_pads_group *groups;
     uint64_t *group_off;               /* within a row */
     uint8_t key[32];
     uint8_t *cell, *plain;             /* scratch: largest cell */
     size_t cell_cap;
+    uint8_t *claimed;                 /* atomically claim each AEAD nonce once */
+    uint64_t total_cells, completed;
+    int failed;
 };
+
+static int writer_fail(sh_pads_writer *w, int rc) {
+    int expected = SH_OK;
+    __atomic_compare_exchange_n(&w->failed, &expected, rc, false, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+    return rc;
+}
+
+/* Retry only bytes from this one sealed buffer, never re-encrypt after a short
+ * write. The layout has already bounded every offset/length to off_t. */
+static int writer_pwrite_all(int fd, const void *buffer, size_t length, uint64_t offset) {
+    const uint8_t *p = (const uint8_t *)buffer;
+    while (length) {
+        const ssize_t n = pwrite(fd, p, length, (off_t)offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return SH_ERR_IO;
+        p += (size_t)n; length -= (size_t)n; offset += (uint64_t)n;
+    }
+    return SH_OK;
+}
 
 sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest[32],
                                     const uint8_t seed_id[16], const sh_pads_group *groups, uint32_t n_groups,
                                     uint64_t index0, uint64_t index_count, const uint8_t consumer_pk[32], int *err) {
     if (!err) return NULL;
     *err = SH_OK;
-    if (!path || !model_digest || !seed_id || !consumer_pk || !groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
-        index0 >= SH_PADS_INDEX_LIMIT || index_count > SH_PADS_INDEX_LIMIT - index0) { *err = SH_ERR_RANGE; return NULL; }
+    if (!path || !*path || !model_digest || !seed_id || !consumer_pk || !groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
+        index0 >= SH_PADS_INDEX_LIMIT || index_count > SH_PADS_INDEX_LIMIT - index0 ||
+        index_count > SH_PADS_WRITER_MAX_CELLS / n_groups) { *err = SH_ERR_RANGE; return NULL; }
     uint64_t layout_off, layout_row, layout_bytes;
     if (!shipment_layout(groups, n_groups, index_count, &layout_off, &layout_row, &layout_bytes)) { *err = SH_ERR_RANGE; return NULL; }
     sh_pads_writer *w = (sh_pads_writer *)calloc(1, sizeof *w);
     if (!w) { *err = SH_ERR_NOMEM; return NULL; }
     uint8_t esk[32] = {0}, shared[32] = {0};
-    w->fd = -1;
+    w->fd = w->dirfd = -1;
+    w->total_cells = index_count * n_groups;
+    w->claimed = (uint8_t *)calloc((size_t)((w->total_cells + 7) / 8), 1);
+    w->path = strdup(path);
+    const size_t path_len = strlen(path);
+    static const char suffix[] = ".tmp.XXXXXX";
+    if (path_len > SIZE_MAX - sizeof suffix) { *err = SH_ERR_RANGE; goto fail; }
+    w->tmp_path = (char *)malloc(path_len + sizeof suffix);
+    if (!w->claimed || !w->path || !w->tmp_path) { *err = SH_ERR_NOMEM; goto fail; }
+    memcpy(w->tmp_path, path, path_len); memcpy(w->tmp_path + path_len, suffix, sizeof suffix);
+    struct stat existing;
+    if (lstat(path, &existing) == 0 || errno != ENOENT) { *err = SH_ERR_IO; goto fail; }
+    char *parent = strdup(path);
+    if (!parent) { *err = SH_ERR_NOMEM; goto fail; }
+    char *slash = strrchr(parent, '/');
+    if (!slash) strcpy(parent, ".");
+    else if (slash == parent) slash[1] = 0;
+    else *slash = 0;
+    w->dirfd = open(parent, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    free(parent);
+    if (w->dirfd < 0) { *err = SH_ERR_IO; goto fail; }
     w->groups = (sh_pads_group *)calloc(n_groups, sizeof *w->groups);
     w->group_off = (uint64_t *)calloc(n_groups, sizeof *w->group_off);
     if (!w->groups || !w->group_off) { *err = SH_ERR_NOMEM; goto fail; }
@@ -233,16 +277,17 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
     hdr_nonce(hn);
     if (aead_seal(w->key, hn, digest, 64, h->hdr_box) != SH_OK) { *err = SH_ERR_NOMEM; goto fail; }
 
-    w->fd = open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    w->fd = mkostemp(w->tmp_path, O_CLOEXEC);
     if (w->fd < 0) { *err = SH_ERR_IO; goto fail; }
-    if (pwrite(w->fd, h, sizeof *h, 0) != (ssize_t)sizeof *h ||
-        pwrite(w->fd, w->groups, (size_t)n_groups * sizeof *w->groups, sizeof *h) != (ssize_t)((size_t)n_groups * sizeof *w->groups)) {
+    if (writer_pwrite_all(w->fd, h, sizeof *h, 0) != SH_OK ||
+        writer_pwrite_all(w->fd, w->groups, (size_t)n_groups * sizeof *w->groups, sizeof *h) != SH_OK) {
         *err = SH_ERR_IO; goto fail;
     }
     if (ftruncate(w->fd, (off_t)layout_bytes) != 0) { *err = SH_ERR_IO; goto fail; }
     return w;
 fail:
     pads_wipe(esk, sizeof esk); pads_wipe(shared, sizeof shared);
+    writer_fail(w, *err);
     sh_pads_writer_close(w);
     return NULL;
 }
@@ -251,26 +296,33 @@ int sh_pads_writer_cell(sh_pads_writer *w, uint64_t index, uint32_t group, const
     return w ? sh_pads_writer_cell_with(w, index, group, u, w->plain, w->cell) : SH_ERR_RANGE;
 }
 
-/* The same with caller-owned scratch (each of >= cell_cap bytes): several threads may seal
- * and write cells of one shipment concurrently - the file offsets are disjoint and pwrite
- * on a shared fd is atomic per call; nothing else in the writer is touched. */
+/* With caller-owned disjoint scratch (each >= cell_cap bytes), distinct cells
+ * may seal/write concurrently. Atomic nonce claims reject colliding callers;
+ * completion advances only after every ciphertext byte was written. */
 int sh_pads_writer_cell_with(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u, uint8_t *plain, uint8_t *cell) {
-    if (!w || group >= w->hdr.group_count) return SH_ERR_RANGE;
+    if (!w || !u || !plain || !cell || group >= w->hdr.group_count) return SH_ERR_RANGE;
     if (index < w->hdr.index0 || index >= w->hdr.index0 + w->hdr.index_count) return SH_ERR_RANGE;
+    const int failed = __atomic_load_n(&w->failed, __ATOMIC_ACQUIRE);
+    if (failed != SH_OK) return failed;
+    const uint64_t ordinal = (index - w->hdr.index0) * w->hdr.group_count + group;
+    const uint8_t bit = (uint8_t)(1u << (ordinal % 8));
+    if (__atomic_fetch_or(&w->claimed[ordinal / 8], bit, __ATOMIC_ACQ_REL) & bit)
+        return writer_fail(w, SH_ERR_RANGE);
     const uint64_t u_len = w->groups[group].u_len;
     uint8_t *p = plain;
     for (uint64_t j = 0; j < u_len; j++) {
         const int64_t v = (int64_t)u[j] + SH_HALF_M;
-        if (v < 0 || v >= SH_M_MOD) return SH_ERR_RANGE;
+        if (v < 0 || v >= SH_M_MOD) return writer_fail(w, SH_ERR_RANGE);
         p[3 * j] = (uint8_t)v; p[3 * j + 1] = (uint8_t)(v >> 8); p[3 * j + 2] = (uint8_t)(v >> 16);
     }
     uint8_t nonce[12];
     cell_nonce(nonce, index, group);
     int rc = aead_seal(w->key, nonce, p, (size_t)(3 * u_len), cell);
-    if (rc != SH_OK) return rc;
+    if (rc != SH_OK) return writer_fail(w, rc);
     const uint64_t off = w->hdr.data_off + (index - w->hdr.index0) * w->hdr.row_bytes + w->group_off[group];
     const size_t n = (size_t)cell_bytes(u_len);
-    if (pwrite(w->fd, cell, n, (off_t)off) != (ssize_t)n) return SH_ERR_IO;
+    if (writer_pwrite_all(w->fd, cell, n, off) != SH_OK) return writer_fail(w, SH_ERR_IO);
+    __atomic_add_fetch(&w->completed, 1, __ATOMIC_RELEASE);
     return SH_OK;
 }
 
@@ -278,9 +330,20 @@ size_t sh_pads_writer_scratch_bytes(const sh_pads_writer *w) { return w ? w->cel
 
 int sh_pads_writer_close(sh_pads_writer *w) {
     if (!w) return SH_OK;
-    int rc = SH_OK;
-    if (w->fd >= 0) { if (fsync(w->fd) != 0) rc = SH_ERR_IO; close(w->fd); }
+    int rc = __atomic_load_n(&w->failed, __ATOMIC_ACQUIRE);
+    if (rc == SH_OK && __atomic_load_n(&w->completed, __ATOMIC_ACQUIRE) != w->total_cells)
+        rc = SH_ERR_RANGE;
+    if (w->fd >= 0) {
+        if (rc == SH_OK && fsync(w->fd) != 0) rc = SH_ERR_IO;
+        if (close(w->fd) != 0 && rc == SH_OK) rc = SH_ERR_IO;
+        if (rc == SH_OK && link(w->tmp_path, w->path) != 0) rc = SH_ERR_IO;
+        if (w->tmp_path && unlink(w->tmp_path) != 0 && rc == SH_OK) rc = SH_ERR_IO;
+        if (rc == SH_OK && fsync(w->dirfd) != 0) rc = SH_ERR_IO;
+    }
+    if (w->dirfd >= 0) close(w->dirfd);
     pads_wipe(w->key, sizeof w->key);
+    if (w->plain) pads_wipe(w->plain, w->cell_cap);
+    free(w->path); free(w->tmp_path); free(w->claimed);
     free(w->groups); free(w->group_off); free(w->cell); free(w->plain); free(w);
     return rc;
 }
