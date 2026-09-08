@@ -6,10 +6,10 @@
 #include <signal.h>
 enum { K=64,N=17003,M=3 };
 static int8_t expected[K*N];
-typedef struct { int calls,fail; } reader_state;
+typedef struct { int calls,fail,fail_at; } reader_state;   /* fail: every read; fail_at: the N-th read of this run */
 static int reader(void *ctx,uint64_t off,uint8_t *out,size_t n) {
     reader_state *s=ctx;s->calls++;assert(off<=sizeof expected && n<=sizeof expected-off);
-    if(s->fail)return -1;
+    if(s->fail || (s->fail_at && s->calls==s->fail_at))return -1;
     memcpy(out,expected+off,n);return 0;
 }
 static void exact_read(int fd,void *p,size_t n) {
@@ -19,10 +19,10 @@ static void reply(int fd,uint8_t status,const char *body) {
     uint8_t h[9];h[0]=status;put_u64(h+1,strlen(body));assert(write(fd,h,9)==9);
     if(*body)assert(write(fd,body,strlen(body))==(ssize_t)strlen(body));
 }
-typedef struct { int listener,uploads; size_t bytes; } worker_state;
+typedef struct { int listener,uploads,drop_turn; size_t bytes; } worker_state;   /* drop_turn: close after the first SET_TENSOR of that turn */
 static void *worker(void *opaque) {
     worker_state *s=opaque;
-    for(int turn=0;turn<3;turn++) {
+    for(int turn=0;turn<6;turn++) {
         int fd=accept(s->listener,NULL,NULL);assert(fd>=0);
         for(;;) {
             uint8_t h[9];ssize_t r=read(fd,h,1);if(!r)break;assert(r==1);exact_read(fd,h+1,8);
@@ -32,6 +32,7 @@ static void *worker(void *opaque) {
             else if(h[0]==SH_CMD_SET_TENSOR) {
                 uint64_t off=get_u64(p+8),nb=get_u64(p+16);assert(get_u64(p)==1 && nb==n-24 && off+nb<=sizeof expected);
                 assert(!memcmp(p+24,expected+off,nb));s->uploads++;s->bytes+=(size_t)nb;reply(fd,0,"");
+                if(turn==s->drop_turn){free(p);break;}   /* worker gone mid-upload: the link must join its reader and fail cleanly */
             } else {assert(h[0]==SH_CMD_GRAPH_INSTALL);reply(fd,1,"end of upload fixture");free(p);break;}
             free(p);
         }
@@ -60,9 +61,19 @@ int main(void) {
     int listener=socket(AF_INET,SOCK_STREAM,0);assert(listener>=0);struct sockaddr_in a={.sin_family=AF_INET,.sin_addr.s_addr=htonl(INADDR_LOOPBACK)};
     assert(bind(listener,(void*)&a,sizeof a)==0 && listen(listener,3)==0);socklen_t al=sizeof a;assert(getsockname(listener,(void*)&a,&al)==0);
     l->port=ntohs(a.sin_port);l->vsock_port=0;
-    worker_state ws={listener,0,0};pthread_t th;assert(pthread_create(&th,NULL,worker,&ws)==0);
+    worker_state ws={listener,0,5,0};pthread_t th;assert(pthread_create(&th,NULL,worker,&ws)==0);
     assert(sh_link_start(l)==SH_ERR_VIOLATION);assert(sh_link_start(l)==SH_ERR_VIOLATION); // same bytes on reconnect
-    rs.fail=1;assert(sh_link_start(l)==SH_ERR_VERIFY);sh_link_close(l);
-    assert(pthread_join(th,NULL)==0);close(listener);assert(ws.uploads==4 && ws.bytes==2*sizeof expected);
-    free(out);puts("weight-reader: released source, exact fallback, Freivalds, upload/reconnect, failures passed");
+    rs.fail=1;assert(sh_link_start(l)==SH_ERR_VERIFY);rs.fail=0;
+    assert(ws.uploads==4 && ws.bytes==2*sizeof expected);   /* default: 1 MiB chunks, serial: 2 per start */
+    /* pipelined upload (SHIELDED_UPLOAD_PREFETCH=<MiB>): the next chunk is read + authenticated on a helper
+     * thread while the current one is in flight. 1 MiB chunks here so the 1.04 MiB weight takes two. */
+    setenv("SHIELDED_UPLOAD_PREFETCH","1",1);
+    rs.calls=0;assert(sh_link_start(l)==SH_ERR_VIOLATION);assert(rs.calls==2 && ws.uploads==6 && ws.bytes==3*sizeof expected);   // same bytes, both chunks
+    rs.calls=0;rs.fail_at=2;assert(sh_link_start(l)==SH_ERR_VERIFY);rs.fail_at=0;   // the prefetched second chunk fails its read: joined, refused, never sent
+    assert(rs.calls==2 && ws.uploads==7 && ws.bytes==3*sizeof expected+(1u<<20));
+    rs.calls=0;int rc=sh_link_start(l);   // turn 5: the worker closes after the first chunk; the in-flight prefetch is joined, the error is the pipe's
+    assert(rc!=SH_OK && rc!=SH_ERR_VERIFY && rs.calls==2 && ws.uploads==8);
+    unsetenv("SHIELDED_UPLOAD_PREFETCH");sh_link_close(l);
+    assert(pthread_join(th,NULL)==0);close(listener);
+    free(out);puts("weight-reader: released source, exact fallback, Freivalds, upload/reconnect, failures, pipelined upload (+read failure, worker gone) passed");
 }
