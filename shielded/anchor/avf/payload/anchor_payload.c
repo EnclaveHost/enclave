@@ -759,6 +759,9 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
 static int run_bridgebench(int fd, const char *sizes) {
     if (fd < 0) { OUT("BENCH no worker bridge"); return -1; }
     static uint8_t sbuf[3u << 20], rbuf[3u << 20]; const size_t cap = sizeof sbuf;
+    /* START handshake: the server primes the idle established socket (~2 s) for the watchdog's start
+     * bracket, then acks. Generous timeout covers the priming hold. Fail closed. */
+    if (anchor_frame_control(fd, 20000) != AFL_OK) { OUT("BENCH START handshake failed"); OUT("BENCH RUN FAILED"); return -1; }
     char csv[128]; snprintf(csv, sizeof csv, "%s", sizes); if (!csv[0]) snprintf(csv, sizeof csv, "65536,262144,1048576,3145728");
     for (char *tok = strtok(csv, ","); tok; tok = strtok(NULL, ",")) {
         while (*tok == ' ') tok++;
@@ -769,6 +772,9 @@ static int run_bridgebench(int fd, const char *sizes) {
         if (rc != AFL_OK) { OUT("BENCH %llu B: FAILED (%s)", v, afl_strerror(rc)); OUT("BENCH RUN FAILED"); return -1; }
         OUT("BENCH %llu B: p50=%.0f us p90=%.0f us min=%.0f us (n=%d, framed)", v, st.p50_us, st.p90_us, st.min_us, st.iters);
     }
+    /* END handshake: the guest is done measuring; the server records t_end and holds the established
+     * socket (~1 s) for the watchdog's end bracket, then acks. Fail closed. */
+    if (anchor_frame_control(fd, 20000) != AFL_OK) { OUT("BENCH END handshake failed"); OUT("BENCH RUN FAILED"); return -1; }
     OUT("BENCH done");
     return 0;
 }

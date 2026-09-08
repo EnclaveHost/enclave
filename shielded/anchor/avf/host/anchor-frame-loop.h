@@ -69,6 +69,20 @@ static inline int afl_cmp_d(const void *a, const void *b) { double x = *(const d
 /* one size: warm-up then iters timed framed round trips; sbuf/rbuf each hold sz bytes; per_rt_timeout_ms
  * bounds each round trip. Returns AFL_OK with stats, or the first failure's negative code (stats unset).
  * fill is BEFORE and compare AFTER the timed section. */
+/* Diagnostic START/END handshake, OUTSIDE the timed frames: send a zero-length frame and await the
+ * peer's zero-length ack, nonblocking under a deadline. The echo server holds the established socket
+ * across this so the link watchdog can bracket the measured window on a LIVE socket. */
+static inline int anchor_frame_control(int fd, int timeout_ms) {
+    int saved = -1, rc = afl_set_nonblock(fd, &saved); if (rc != AFL_OK) return rc;
+    const int64_t deadline = afl_now_ms() + timeout_ms;
+    uint8_t z[4] = {0, 0, 0, 0};
+    rc = afl_xfer(fd, z, 4, 1, deadline);
+    if (rc == AFL_OK) rc = afl_xfer(fd, z, 4, 0, deadline);
+    if (rc == AFL_OK && afl_get_be32(z) != 0) rc = AFL_LENGTH;   /* the ack must be a zero-length frame */
+    afl_restore(fd, saved);
+    return rc;
+}
+
 static inline int anchor_frame_bench(int fd, size_t sz, int warm, int iters, int per_rt_timeout_ms,
                                      uint8_t *sbuf, uint8_t *rbuf, anchor_frame_stats *st) {
     if (fd < 0 || sz < 1 || sz > 0xFFFFFFFFull || !sbuf || !rbuf || !st || iters < 1 || warm < 0 || per_rt_timeout_ms < 1) return AFL_RANGE;
