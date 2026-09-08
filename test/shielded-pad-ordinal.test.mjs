@@ -22,5 +22,8 @@ test('dealt masks use the authenticated shipment ordinal after name-based reorde
     run('cc', [...flags, '-std=c11', join(root, 'test/fixtures/shielded-pad-ordinal.c'),
       ...sources.map(s => join(gg, s)), simd, fast, '-Wl,--gc-sections', '-pthread', '-lm', '-o', bin]);
     assert.match(run(bin, [dir]), /pad-ordinal: reordered\/subset\/shared groups/);
+    for (const mode of ['0','1','2']) assert.match(execFileSync(bin, [dir], {
+      encoding: 'utf8', timeout: 60_000, env: {...env, SHIELDED_PAD_CHECK_TILED: mode}
+    }), /pad-ordinal: reordered\/subset\/shared groups/);
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });

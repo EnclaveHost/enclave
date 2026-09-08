@@ -851,6 +851,8 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
  * not prefetched the index yet; past that the bank is behind and the link
  * stops (a dealt engine never mints for itself). */
 static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t index0, int b, int32_t *r_out, int32_t *u_out) {
+    const char *tiled_env = getenv("SHIELDED_PAD_CHECK_TILED");
+    const bool tiled_check = tiled_env && !strcmp(tiled_env, "1");
     for (int i = 0; i < b; i++) {
         const uint64_t index = index0 + (uint64_t)i;
         const double t0 = now_ms();
@@ -876,11 +878,18 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
             const sh_node *nd = &l->nodes[g->nodes[n]];
             if (!nd->sM) continue;
             const int32_t *rr = r_out + (size_t)i * g->K, *uu = u_out + (size_t)i * g->u_len + nd->u_off;
-            __int128 lhs = 0, rhs = 0;
-            for (int64_t j = 0; j < nd->N; j++) lhs += (__int128)uu[j] * nd->sM[j];
-            for (int64_t k = 0; k < nd->K; k++) rhs += (__int128)rr[k] * nd->stM[k];
-            int64_t a = (int64_t)(lhs % SH_M_MOD), b = (int64_t)(rhs % SH_M_MOD);
-            if (a < 0) a += SH_M_MOD; if (b < 0) b += SH_M_MOD;
+            int64_t a, b;
+            if (tiled_check) {
+                a = sh_pad_check_dot_field(uu, nd->sM, nd->N);
+                b = sh_pad_check_dot_field(rr, nd->stM, nd->K);
+            } else {
+                __int128 lhs = 0, rhs = 0;
+                for (int64_t j = 0; j < nd->N; j++) lhs += (__int128)uu[j] * nd->sM[j];
+                for (int64_t k = 0; k < nd->K; k++) rhs += (__int128)rr[k] * nd->stM[k];
+                a = (int64_t)(lhs % SH_M_MOD); b = (int64_t)(rhs % SH_M_MOD);
+                if (a < 0) a += SH_M_MOD;
+                if (b < 0) b += SH_M_MOD;
+            }
             if (a != b) {
                 snprintf(l->err, sizeof l->err, "dealt pads: group %u index %llu: pad FAILED the check on %s (the dealer minted u != r.W for this seed)", gi, (unsigned long long)index, nd->name);
                 return SH_ERR_VERIFY;
