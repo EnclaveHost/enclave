@@ -38,9 +38,25 @@ is not authentication and changes no trust assumption. The cache reveals public
 weight identity/membership, persists no activation data, and has no disk paths.
 Graph shape, layout and lane checks still apply after a hit.
 
-This initial change supplies both worker implementations and the protocol;
-the protected client hookup is separate. It targets repeated startup upload
-cost, not steady decode speed. No 27B phone throughput gain has been measured.
+The protected client enables reuse only with `SHIELDED_PUBLIC_WEIGHT_CACHE=1`
+and verification enabled. Set this before registering weights: registration
+captures SHA-256 from the same private encoded bytes used for its fresh
+verification vectors. The private digest survives replacement of the resident
+array with an authenticated reader. Enabling the knob after registration cannot
+retroactively admit an unhashed node. Disabled, older, unsupported, malformed
+or too-small capabilities use ordinary upload; malformed cache replies or
+protocol failures abort startup. A valid miss uploads normally and may be
+admitted; an entry that was not retained is harmless. A hit skips the reader
+and upload but changes neither graph installation nor product/pad verification.
+The startup log labels hit counts and skipped bytes as worker claims.
+
+This targets repeated startup upload cost, not steady decode speed. It does
+not skip source authentication, encoding or fresh verification setup. No 27B
+phone throughput gain has been measured.
 Host validation covers exact CPU field results across cold/warm connections,
 reservation charges, malformed requests, corruption attempts, immutable copies,
-bounded concurrent eviction and a CUDA compile without GPU execution.
+bounded concurrent eviction and a CUDA compile without GPU execution. The real
+C client was also checked over a socket against the CPU worker: the cold leg
+uploaded two chunks, the warm leg read/uploaded none, and the resolved graph
+held exactly the expected bytes. Legacy/default paths, malformed capabilities,
+wrong-sized/nonboolean replies, reader failures and Android35 compilation pass.

@@ -5,6 +5,7 @@
 #include "shielded-http.h"
 #include "shielded-field.h"
 #include "shielded-pad-check.h"
+#include "shielded-sha256.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -269,6 +270,7 @@ typedef struct {
     char     name[64];
     const int8_t *w;            /* (N,K) borrowed */
     sh_weight_read_fn w_read; void *w_ctx; /* optional authenticated public-weight storage */
+    uint8_t public_digest[32]; bool public_digest_ready; /* private registered byte identity */
     int64_t   K, N;
     int32_t   max_m;
     int       group;
@@ -721,6 +723,12 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
         node_free_checks(nd);
         snprintf(l->err, sizeof l->err, "%s: verification setup failed (%d)", name, rc);
         return rc;
+    }
+    const char *public_cache = getenv("SHIELDED_PUBLIC_WEIGHT_CACHE");
+    if (l->verify && public_cache && !strcmp(public_cache, "1")) {
+        sha256_ctx sha; sha_init(&sha);
+        sha_update(&sha, (const uint8_t *)nd->w, (size_t)(K*N));
+        sha_final(&sha, nd->public_digest); nd->public_digest_ready = true;
     }
 
     /* Commit only after both verification setups succeed. Failure leaves the
@@ -1254,6 +1262,42 @@ static double hello_num(const char *hello, const char *key) {
     return strtod(p, NULL);
 }
 
+/* Optional capability, never an allocation size or a security assertion.
+ * Accept only a bounded unsigned JSON integer. Missing/malformed means off. */
+static uint64_t hello_public_cache_bytes(const char *hello) {
+    const char *key = "\"public_weight_cache_bytes\"";
+    const char *p = strstr(hello, key); if (!p) return 0;
+    p += strlen(key); while (*p == ' ' || *p == '\t') p++;
+    if (*p++ != ':') return 0;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p < '0' || *p > '9') return 0;
+    uint64_t value = 0;
+    do {
+        const unsigned d = (unsigned)(*p++ - '0');
+        if (value > (UINT64_MAX-d)/10) return 0;
+        value = value*10+d;
+    } while (*p >= '0' && *p <= '9');
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    return (*p == ',' || *p == '}') ? value : 0;
+}
+
+static int public_cache_call(sh_link *l, const sh_node *nd, uint8_t action, bool *hit) {
+    uint8_t payload[57]; payload[0] = action;
+    /* SET_TENSOR's header is the same three u64s; no format duplication. */
+    sh_pack_set_tensor_header(payload+1, 1, (uint64_t)nd->w_off, (uint64_t)(nd->K*nd->N));
+    memcpy(payload+25, nd->public_digest, 32);
+    sh_reply reply = {0};
+    int rc = sh_pipe_call(l->pipe, SH_CMD_PUBLIC_WEIGHT_CACHE, payload, sizeof payload, &reply);
+    if (rc == SH_OK) {
+        if (reply.len != 1 || !reply.data || ((const uint8_t *)reply.data)[0] > 1) rc = SH_ERR_PROTO;
+        else *hit = ((const uint8_t *)reply.data)[0] != 0;
+    }
+    sh_reply_free(&reply);
+    if (rc != SH_OK) snprintf(l->err, sizeof l->err, "public weight cache %s %s: %s",
+        action ? "admit" : "lookup", nd->name, rc == SH_ERR_PROTO ? "invalid reply" : sh_pipe_last_error(l->pipe));
+    return rc;
+}
+
 /* One cached-weight chunk read on a helper thread (sh_link_start's upload): the node's authenticated
  * reader fills buf[0..part) from offset off; rc carries the reader's verdict back to the loop. */
 typedef struct { sh_node *nd; size_t off, part; uint8_t *buf; int rc; } sh_prefetch;
@@ -1304,11 +1348,12 @@ int sh_link_start(sh_link *l) {
     /* The one-frame exchange is protocol 1.1; an older worker would refuse it
      * as an unknown command, so say what is wrong here rather than there. */
     int hello_minor = -1;
+    uint64_t public_cache_bytes = 0;
     {
-        /* HELLO is JSON from either worker; only the version array matters here,
-         * and the two serialisers space it differently. */
+        /* HELLO is JSON from either worker. Version and optional public-cache
+         * capability control the wire path; neither authenticates a product. */
         int major = -1, minor = -1;
-        char hello[1024] = { 0 };   /* the 1.3 reply carries a few more integers; only the version is acted on */
+        char hello[1024] = { 0 };   /* bounded capability parsing; no peer-sized allocation */
         if (rep.data) snprintf(hello, sizeof hello, "%.*s", (int)(rep.len < sizeof hello - 1 ? rep.len : sizeof hello - 1), (const char *)rep.data);
         const char *p = strstr(hello, "\"version\"");
         if (p) {
@@ -1338,6 +1383,9 @@ int sh_link_start(sh_link *l) {
             snprintf(l->transport + tl, sizeof l->transport - tl, " proto 1.%d reply int%d", minor, l->ywidth * 8);
         }
         hello_minor = minor;
+        const char *pc = getenv("SHIELDED_PUBLIC_WEIGHT_CACHE");
+        if (l->verify && pc && !strcmp(pc, "1") && minor >= 4)
+            public_cache_bytes = hello_public_cache_bytes(hello);
         /* What the worker says it holds: this connection's reservation and the
          * sum over every live tenant, under SHIELDED_VERBOSE. Logged, never
          * acted on (see the reserve comment above). A 1.2 worker sends neither. */
@@ -1373,9 +1421,17 @@ int sh_link_start(sh_link *l) {
      * (no reader) go in 32 MiB chunks as before. */
     long pf_mib = 0; { const char *e = getenv("SHIELDED_UPLOAD_PREFETCH"); if (e && *e) pf_mib = strtol(e, NULL, 10); }
     const bool prefetch = pf_mib >= 1 && pf_mib <= 64;
+    uint64_t cache_hit_bytes = 0; size_t cache_hits = 0, cache_misses = 0;
     for (size_t i = 0; i < l->n_nodes; i++) {
         sh_node *nd = &l->nodes[i];
         const size_t bytes = (size_t)(nd->K * nd->N);
+        const bool reuse = nd->public_digest_ready && bytes <= public_cache_bytes;
+        if (reuse) {
+            bool hit = false; rc = public_cache_call(l, nd, 0, &hit);
+            if (rc != SH_OK) return rc;
+            if (hit) { cache_hits++; cache_hit_bytes += bytes; continue; }
+            cache_misses++;
+        }
         const size_t CHUNK = nd->w_read ? (prefetch ? (size_t)pf_mib << 20 : 1u << 20) : 32u << 20;
         uint8_t *bufs[2] = { NULL, NULL };
         if (nd->w_read) {
@@ -1414,7 +1470,13 @@ int sh_link_start(sh_link *l) {
             }
         }
         free(bufs[0]); free(bufs[1]);
+        if (reuse) {
+            bool admitted = false; rc = public_cache_call(l, nd, 1, &admitted);
+            if (rc != SH_OK) return rc;
+        }
     }
+    if (public_cache_bytes) fprintf(stderr, "[shielded] public worker cache: hits=%zu misses=%zu skipped_upload_bytes=%llu (worker claims; products still verified)\n",
+        cache_hits, cache_misses, (unsigned long long)cache_hit_bytes);
     char *js = NULL; size_t jl = 0, jc = 0;
     json_append(&js, &jl, &jc, "{\"nodes\":[");
     for (size_t i = 0; i < l->n_nodes; i++) {
