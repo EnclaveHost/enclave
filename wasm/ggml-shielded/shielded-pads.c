@@ -81,23 +81,48 @@ static void cell_nonce(uint8_t n[12], uint64_t index, uint32_t group) { put_u64(
 static void hdr_nonce(uint8_t n[12]) { memset(n, 0xEE, 12); }
 static void key_nonce(uint8_t n[24], const uint8_t seed_id[16]) { memcpy(n, seed_id, 16); memset(n + 16, 0xFF, 8); }
 
+/* RFC 8439 reserves block zero for the tag key. Never wrap the 32-bit
+ * stream counter, size_t allocations, signed pread sizes, or file offsets. */
+static bool cell_size_valid(uint64_t u_len) {
+    return u_len && u_len <= (UINT64_C(64) * UINT32_MAX) / 3 &&
+        u_len <= (SIZE_MAX - SH_PADS_CELL_TAG) / 3 &&
+        u_len <= (INT64_MAX - SH_PADS_CELL_TAG) / 3;
+}
 static uint64_t cell_bytes(uint64_t u_len) { return SH_PADS_CELL_TAG + 3 * u_len; }
+static bool shipment_layout(const sh_pads_group *groups, uint32_t n_groups, uint64_t count,
+                            uint64_t *data_off, uint64_t *row_bytes, uint64_t *file_bytes) {
+    if (!groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !count || count > SH_PADS_INDEX_LIMIT) return false;
+    uint64_t row = 0;
+    for (uint32_t g = 0; g < n_groups; g++) {
+        if (!groups[g].K || groups[g].K > SH_PADS_K_LIMIT || groups[g].group >= SH_PADS_GROUP_LIMIT ||
+            !cell_size_valid(groups[g].u_len)) return false;
+        uint64_t cb = cell_bytes(groups[g].u_len);
+        if (row > INT64_MAX - cb) return false;
+        row += cb;
+    }
+    uint64_t off = sizeof(sh_pads_hdr) + (uint64_t)n_groups * sizeof(sh_pads_group);
+    off = (off + 4095) & ~UINT64_C(4095);
+    if (count > (INT64_MAX - off) / row) return false;
+    *data_off = off; *row_bytes = row; *file_bytes = off + count * row;
+    return true;
+}
 static void chacha_ietf_block(const uint8_t key[32], uint32_t counter, const uint8_t nonce[12], uint8_t out[64]);
 static int  aead_seal(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *msg, size_t n, uint8_t *out /* n + 16 */);
 static int  aead_open(const uint8_t key[32], const uint8_t nonce[12], const uint8_t *box /* n + 16 */, size_t n, uint8_t *out);
 
 /* Serialise the fixed header + table, with key_box/hdr_box zeroed, and hash it. */
-static void header_hash(const sh_pads_hdr *h, const sh_pads_group *groups, uint32_t n, uint8_t out[64]) {
+static int header_hash(const sh_pads_hdr *h, const sh_pads_group *groups, uint32_t n, uint8_t out[64]) {
     sh_pads_hdr c = *h;
     memset(c.key_box, 0, sizeof c.key_box);
     memset(c.hdr_box, 0, sizeof c.hdr_box);
     const size_t len = sizeof c + (size_t)n * sizeof(sh_pads_group);
     uint8_t *buf = (uint8_t *)malloc(len);
-    if (!buf) { memset(out, 0, 64); return; }
+    if (!buf) return SH_ERR_NOMEM;
     memcpy(buf, &c, sizeof c);
     memcpy(buf + sizeof c, groups, (size_t)n * sizeof(sh_pads_group));
     crypto_hash(out, buf, len);
     free(buf);
+    return SH_OK;
 }
 
 static int secretbox_seal(uint8_t *out /* 16 + n */, const uint8_t *msg, size_t n, const uint8_t nonce[24], const uint8_t key[32]) {
@@ -136,8 +161,8 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
     *err = SH_OK;
     if (!groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
         index0 >= SH_PADS_INDEX_LIMIT || index_count > SH_PADS_INDEX_LIMIT - index0) { *err = SH_ERR_RANGE; return NULL; }
-    for (uint32_t g = 0; g < n_groups; g++)
-        if (!groups[g].K || groups[g].K > SH_PADS_K_LIMIT || groups[g].group >= SH_PADS_GROUP_LIMIT) { *err = SH_ERR_RANGE; return NULL; }
+    uint64_t layout_off, layout_row, layout_bytes;
+    if (!shipment_layout(groups, n_groups, index_count, &layout_off, &layout_row, &layout_bytes)) { *err = SH_ERR_RANGE; return NULL; }
     sh_pads_writer *w = (sh_pads_writer *)calloc(1, sizeof *w);
     if (!w) { *err = SH_ERR_NOMEM; return NULL; }
     w->fd = -1;
@@ -165,9 +190,8 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
     memcpy(h->model_digest, model_digest, 32);
     memcpy(h->seed_id, seed_id, 16);
     h->index0 = index0; h->index_count = index_count;
-    h->data_off = sizeof *h + (uint64_t)n_groups * sizeof(sh_pads_group);
-    h->data_off = (h->data_off + 4095) & ~(uint64_t)4095;
-    h->row_bytes = row;
+    h->data_off = layout_off;
+    h->row_bytes = layout_row;
 
     /* Shipment key, boxed to the consumer from an ephemeral pair. */
     randombytes(w->key, 32);
@@ -180,7 +204,7 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
     memset(esk, 0, sizeof esk); memset(shared, 0, sizeof shared);
 
     uint8_t digest[64], hn[12];
-    header_hash(h, w->groups, n_groups, digest);
+    if (header_hash(h, w->groups, n_groups, digest) != SH_OK) { *err = SH_ERR_NOMEM; goto fail; }
     hdr_nonce(hn);
     if (aead_seal(w->key, hn, digest, 64, h->hdr_box) != SH_OK) { *err = SH_ERR_NOMEM; goto fail; }
 
@@ -190,7 +214,7 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
         pwrite(w->fd, w->groups, (size_t)n_groups * sizeof *w->groups, sizeof *h) != (ssize_t)((size_t)n_groups * sizeof *w->groups)) {
         *err = SH_ERR_IO; goto fail;
     }
-    if (ftruncate(w->fd, (off_t)(h->data_off + h->row_bytes * index_count)) != 0) { *err = SH_ERR_IO; goto fail; }
+    if (ftruncate(w->fd, (off_t)layout_bytes) != 0) { *err = SH_ERR_IO; goto fail; }
     return w;
 fail:
     sh_pads_writer_close(w);
@@ -288,6 +312,13 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
     const size_t tb = (size_t)h->group_count * sizeof(sh_pads_group);
     if (pread(f->fd, f->groups, tb, sizeof *h) != (ssize_t)tb) { file_close(f); return SH_ERR_IO; }
 
+    uint64_t layout_off, layout_row, layout_bytes;
+    struct stat st;
+    if (!shipment_layout(f->groups, h->group_count, h->index_count, &layout_off, &layout_row, &layout_bytes) ||
+        h->data_off != layout_off || h->row_bytes != layout_row) { file_close(f); return SH_ERR_VERIFY; }
+    if (fstat(f->fd, &st) != 0) { file_close(f); return SH_ERR_IO; }
+    if (!S_ISREG(st.st_mode) || st.st_size < 0 || (uint64_t)st.st_size != layout_bytes) { file_close(f); return SH_ERR_VERIFY; }
+
     uint8_t shared[32], nonce[24];
     crypto_box_beforenm(shared, h->dealer_pk, r->sk);
     key_nonce(nonce, h->seed_id);
@@ -296,13 +327,13 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
     if (rc != SH_OK) { file_close(f); return SH_ERR_VERIFY; }
 
     uint8_t want[64], got[64], hn[12];
-    header_hash(h, f->groups, h->group_count, want);
+    rc = header_hash(h, f->groups, h->group_count, want);
+    if (rc != SH_OK) { file_close(f); return rc; }
     hdr_nonce(hn);
     if (aead_open(f->key, hn, h->hdr_box, 64, got) != SH_OK || memcmp(want, got, 64)) { file_close(f); return SH_ERR_VERIFY; }
 
     uint64_t row = 0;
     for (uint32_t g = 0; g < h->group_count; g++) {
-        if (!f->groups[g].K || f->groups[g].K > SH_PADS_K_LIMIT || f->groups[g].group >= SH_PADS_GROUP_LIMIT) { file_close(f); return SH_ERR_VERIFY; }
         f->group_off[g] = row;
         row += cell_bytes(f->groups[g].u_len);
     }
