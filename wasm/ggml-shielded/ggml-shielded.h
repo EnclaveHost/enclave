@@ -10,10 +10,14 @@
  * the tier without knowing it exists.
  *
  * HOW THE SPLIT HAPPENS. ggml_backend_sched already partitions a graph across a
- * priority-ordered backend list and inserts the copies. This backend claims ONLY
- * matmuls against q8_0 weights it has calibration for; everything else -- softmax,
- * norms, SiLU, rope, attention, sampling -- fails supports_op and lands on the CPU
- * backend, inside the enclave. The classifier is a pure function of the tensor, so
+ * priority-ordered backend list and inserts the copies. By default this backend
+ * claims matmuls against q8_0 weights it has calibration for; everything else --
+ * softmax, norms, SiLU, rope, attention, sampling -- lands on the CPU backend,
+ * inside the enclave. SHIELDED_FUSE_LOCAL=1 additionally keeps recognized
+ * residual-add/RMSNorm/gamma islands on this backend, executing those operations
+ * LOCALLY in the enclave on the caller thread. It changes no exchange or weight
+ * encoding and is only a scheduling prerequisite for future product fusion.
+ * The classifier uses public tensor metadata and launch configuration, so
  * it is deterministic across decode steps, which is what stops sched reallocating
  * and forcing a full graph resend every token.
  *

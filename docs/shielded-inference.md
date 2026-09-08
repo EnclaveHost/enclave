@@ -817,6 +817,32 @@ masking, unmasking and verification against an independent scalar peer, includin
 both reply widths, grouped/reordered nodes, changing batch widths, ring success
 and fallback, reply failures, corruption, field wrap, and pad-slot reuse checks.
 
+## Local scheduling prerequisite for projection fusion
+
+`SHIELDED_FUSE_LOCAL=1` keeps a recognized Qwen residual add, RMSNorm and public
+gamma multiplication in the shielded backend's scheduler segment. It is off by
+default. Only contiguous F32 islands following a calibrated Q8_0
+`attn_output.weight` or `ssm_out.weight` site qualify, with a calibrated next
+`ffn_gate.weight` site and the existing batch-width and forced-local policies.
+The local operations execute on the trusted caller thread at their original
+graph positions, respecting tensor lifetimes. Invalid normalization scales fail
+the graph. Unsupported patterns retain their ordinary scheduler placement.
+
+This switch adds no product weights, approximation, exchange fusion or protocol
+change. Every projection still uses its original calibration, pad group and
+verification. It makes the local scheduler boundary independently measurable
+before product-weight fusion is introduced. Compare total steady decode time on
+the same APK and settings; the profile reports local island operation count and
+time. Product-weight fusion still requires authenticated products and calibration
+and separate numerical validation.
+
+`test/shielded-fusion-pattern.test.mjs` checks structural rejection, dependency
+order, arithmetic against ggml CPU kernels, in-place buffer reuse, and actual
+scheduler assignment with default/off/on settings. It uses a closed loopback
+endpoint and the exact local field fallback, never a GPU worker. Scheduler
+tests also exercise missing calibration, forced-local sites, invalid worker
+configuration, wide batches and repeated execution with changed inputs.
+
 ## Open risks, ranked
 
 0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC
