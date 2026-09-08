@@ -58,8 +58,9 @@ void sh_prefix_kv_snapshot_free(sh_prefix_kv_snapshot *snapshot);
 /* View the sequence-state body in a verified snapshot. This checks the pinned
  * llama file magic/version, signed versus embedded token counts, bounds and
  * token IDs. The format uses little-endian uint32 headers/tokens on our targets.
- * Pass the returned private body directly to llama_state_seq_set_data, require
- * that it consumes the entire body, then free the snapshot. */
+ * This is the FILE body. The pinned fork's memory API needs an extra envelope;
+ * use prefix-kv-llama.h to adapt it, rather than passing this body directly to
+ * llama_state_seq_set_data. */
 int sh_prefix_kv_snapshot_state(const sh_prefix_kv_snapshot *snapshot, uint32_t magic, uint32_t version, int32_t vocab_size,
                                 const uint8_t **state_out, size_t *size_out, char *err, size_t err_cap);
 
