@@ -104,6 +104,34 @@ static void verify_import(sh_link *l, const int *local_order, int n, const int *
     }
 }
 
+static void verify_prune_inflight(const char *root, const int *order) {
+    char dir[512], first[600], second[600];
+    snprintf(dir, sizeof dir, "%s/prune", root); assert(mkdir(dir, 0700) == 0);
+    snprintf(first, sizeof first, "%s/first.pads", dir);
+    snprintf(second, sizeof second, "%s/second.pads", dir);
+    write_shipment(first, order, FIRST); write_shipment(second, order, FIRST + COUNT);
+    sh_link *l = consumer(dir, order, GROUPS); l->pad_prune = true;
+    for (int i = 0; i < GROUPS; i++) l->groups[i].cursor = FIRST + 2*COUNT;
+    // Two jobs reserved [FIRST,FIRST+COUNT) and [FIRST+COUNT,FIRST+2*COUNT).
+    // Even if the later job is done, generating includes both until the
+    // earlier one publishes. Advancing the window must not delete either file.
+    l->groups[0].generating = 2*COUNT;
+    pthread_mutex_lock(&l->pool_mu); dealt_advanced(l); pthread_mutex_unlock(&l->pool_mu);
+    assert(access(first, F_OK) == 0 && access(second, F_OK) == 0);
+    int32_t r[COUNT*K], u[COUNT*8];
+    assert(dealt_import(l, &l->groups[0], 0, FIRST, COUNT, r, u) == SH_OK);
+    // The older prefix has now committed, but the next batch is still reading.
+    l->groups[0].generating = COUNT;
+    pthread_mutex_lock(&l->pool_mu); dealt_advanced(l); pthread_mutex_unlock(&l->pool_mu);
+    assert(access(first, F_OK) != 0 && access(second, F_OK) == 0);
+    assert(dealt_import(l, &l->groups[0], 0, FIRST + COUNT, COUNT, r, u) == SH_OK);
+    l->groups[0].generating = 0;
+    pthread_mutex_lock(&l->pool_mu); dealt_advanced(l); pthread_mutex_unlock(&l->pool_mu);
+    assert(access(second, F_OK) != 0);
+    assert(l->groups[0].cursor == FIRST + 2*COUNT && !sh_integrity_failed(l));
+    sh_link_close(l); assert(rmdir(dir) == 0);
+}
+
 static void verify_manifest_export(sh_link *full, sh_link *subset) {
     sh_pads_manifest_group groups[3], subgroups[3], saved_groups[3];
     sh_pads_member members[4], submembers[4], saved_members[4];
@@ -161,6 +189,7 @@ int main(int argc, char **argv) {
     snprintf(first, sizeof first, "%s/first.pads", argv[1]);
     snprintf(second, sizeof second, "%s/second.pads", argv[1]);
     int a[GROUPS] = {0, 1, 2}, b[GROUPS] = {2, 0, 1}, reverse[GROUPS] = {2, 1, 0};
+    verify_prune_inflight(argv[1], a);
     write_shipment(first, a, FIRST); write_shipment(second, b, FIRST+COUNT);
     // Reproduce the 27B dealer/consumer mismatch: all target files exist and
     // their headers open, but the consumer also registered an MTP head group.

@@ -31,6 +31,13 @@ consumer before a long upload. An initially empty bank can still receive files
 during upload; binding is repeated before reserving the first pad window.
 Rejected files are closed, not deleted, and no window is reserved by preflight.
 
+Normal reclamation retains every in-flight import. The cursor advances at
+reservation, so the safe file floor subtracts the unpublished ring suffix
+(`generating`), including completed jobs behind an unfinished older job.
+A reader that has not retained its file descriptor yet is protected too.
+This changes only fetching/reclamation; signed windows and one-use consumption
+remain unchanged.
+
 The GGML backend similarly stops every later graph, including other cards,
 before graph planning when any card has recorded an integrity failure.
 The entry check also observes each C link's failure count under the card mutex
