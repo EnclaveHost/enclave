@@ -7,23 +7,27 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <time.h>
+#ifndef BRIDGE_CAP
+#define BRIDGE_CAP (1u << 20)
+#endif
 static size_t N = 24u << 20; static int USE_STORM = 1, USE_SMALL = 1;
 static void on_usr1(int sig) { (void)sig; }
 static int count_fds(void) { DIR *d = opendir("/proc/self/fd"); int n = 0; struct dirent *e; while ((e = readdir(d))) if (e->d_name[0] != '.') n++; closedir(d); return n - 1; }
 static uint64_t fnv(const uint8_t *p, size_t n, uint64_t h) { for (size_t i = 0; i < n; i++) { h ^= p[i]; h *= 1099511628211ull; } return h; }
 static void full_write(int fd, const uint8_t *p, size_t n) { while (n) { ssize_t r = write(fd, p, n); if (r < 0) { if (errno == EINTR) continue; perror("write"); abort(); } p += r; n -= (size_t)r; } }
-typedef struct { int fd; size_t n; uint64_t hash; int slow; } io_job;
+typedef struct { int fd; size_t n; uint64_t hash; int slow, source_fd; } io_job;
 static void *writer(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16); uint64_t x = 0x9e3779b97f4a7c15ull ^ (uint64_t)j->fd; size_t left = j->n; j->hash = 1469598103934665603ull;
     while (left) { size_t k = left < (1 << 16) ? left : (1 << 16); for (size_t i = 0; i < k; i++) { x ^= x << 13; x ^= x >> 7; x ^= x << 17; buf[i] = (uint8_t)x; } j->hash = fnv(buf, k, j->hash); full_write(j->fd, buf, k); left -= k; }
     free(buf); shutdown(j->fd, SHUT_WR); return NULL; }
-static void *reader(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16); j->hash = 1469598103934665603ull; size_t got = 0;
-    for (;;) { ssize_t r = read(j->fd, buf, 1 << 16); if (r < 0) { if (errno == EINTR) continue; perror("read"); abort(); } if (r == 0) break; j->hash = fnv(buf, (size_t)r, j->hash); got += (size_t)r; if (j->slow && (got & 0xfffff) < (size_t)r) usleep(300); }
+static void *reader(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16); j->hash = 1469598103934665603ull; size_t got = 0; uint64_t exact = 0x9e3779b97f4a7c15ull ^ (uint64_t)j->source_fd;
+    for (;;) { ssize_t r = read(j->fd, buf, 1 << 16); if (r < 0) { if (errno == EINTR) continue; perror("read"); abort(); } if (r == 0) break; for (ssize_t i=0;i<r;++i) { exact ^= exact << 13; exact ^= exact >> 7; exact ^= exact << 17; assert(buf[i] == (uint8_t)exact); } j->hash = fnv(buf, (size_t)r, j->hash); got += (size_t)r; if (j->slow && (got & 0xfffff) < (size_t)r) usleep(300); }
     j->n = got; free(buf); return NULL; }
 typedef struct { int a, b, cancel, idle; anchor_bridge_stats st; int rc; } run_job;
-static void *runner(void *arg) { run_job *r = arg; r->rc = anchor_bridge_run(r->a, r->b, r->cancel, r->idle, 1u << 20, &r->st); return NULL; }
-static volatile int storm = 1;
+static void *runner(void *arg) { run_job *r = arg; r->rc = anchor_bridge_run(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st); return NULL; }
+static atomic_int storm = 1;
 static void *storm_main(void *arg) { pthread_t *t = arg; while (storm) { pthread_kill(*t, SIGUSR1); usleep(100); } return NULL; }
 static void small_bufs(int fd) { int v = 8192; setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &v, sizeof v); setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &v, sizeof v); }
 
@@ -40,12 +44,12 @@ int main(void) {
       const int fla = fcntl(A[1], F_GETFL), flb = fcntl(B[0], F_GETFL);
       run_job r = { A[1], B[0], -1, 0, {0}, 0 }; pthread_t rt; pthread_create(&rt, NULL, runner, &r);
       pthread_t st; if (USE_STORM) pthread_create(&st, NULL, storm_main, &rt);
-      io_job wa = { A[0], N, 0, 0 }, rb = { B[1], 0, 0, 1 }, wb = { B[1], N / 2, 0, 0 }, ra = { A[0], 0, 0, 0 };
+      io_job wa = { A[0], N, 0, 0 }, rb = { B[1], 0, 0, 1, A[0] }, wb = { B[1], N / 2, 0, 0 }, ra = { A[0], 0, 0, 0, B[1] };
       pthread_t t1, t2, t3, t4; pthread_create(&t1, NULL, writer, &wa); pthread_create(&t2, NULL, reader, &rb); pthread_create(&t3, NULL, writer, &wb); pthread_create(&t4, NULL, reader, &ra);
       pthread_join(t1, NULL); pthread_join(t2, NULL); pthread_join(t3, NULL); pthread_join(t4, NULL);
       storm = 0; if (USE_STORM) pthread_join(st, NULL); pthread_join(rt, NULL);
       assert(r.rc == 0); assert(rb.n == N && rb.hash == wa.hash); assert(ra.n == N / 2 && ra.hash == wb.hash);
-      assert(r.st.a_to_b == N && r.st.b_to_a == N / 2 && r.st.max_chunk <= (1u << 20));
+      assert(r.st.a_to_b == N && r.st.b_to_a == N / 2 && r.st.max_chunk <= BRIDGE_CAP);
       assert(fcntl(A[1], F_GETFL) == fla && fcntl(B[0], F_GETFL) == flb);   /* flags restored */
       printf("case 1: %zu + %zu bytes exact both ways, reads %llu writes %llu polls %llu max_chunk %llu, EINTR storm, flags restored\n", N, N / 2, (unsigned long long)r.st.reads, (unsigned long long)r.st.writes, (unsigned long long)r.st.polls, (unsigned long long)r.st.max_chunk);
       close(A[0]); close(A[1]); close(B[0]); close(B[1]); }
