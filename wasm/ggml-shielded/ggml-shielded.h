@@ -64,6 +64,28 @@ typedef int (*ggml_shielded_weight_verifier)(void *ctx, const char *name,
 GGML_BACKEND_API int ggml_backend_shielded_set_weight_verifier(
     ggml_shielded_weight_verifier verifier, void *ctx);
 
+/* Optional streamed PUBLIC weights. The reader fills exactly nbytes of private
+ * storage; it may read an untrusted file. The installed verifier authenticates
+ * those same bytes before encoding or copying them to another backend.
+ * This non-host buffer exposes no readable weight mapping. CPU fallback goes
+ * through authenticated copies; a failed generic ggml read aborts the process
+ * because that API has no error return. A fallback copy may require one whole
+ * tensor in RAM. Partial reads still authenticate the entire source tensor.
+ *
+ * Install the verifier first. tensor must have no data and either no buffer or
+ * a zero-size no_alloc placeholder. Success attaches the returned buffer to
+ * tensor; failure returns NULL without changing it. Caller owns the buffer and
+ * must keep it, the reader/context and verifier/context alive until every model
+ * and graph using the tensor is destroyed. This does not authenticate metadata. */
+typedef int (*ggml_shielded_weight_reader)(void *ctx, const char *name,
+    uint32_t type, const int64_t ne[4], void *bytes, size_t nbytes);
+GGML_BACKEND_API ggml_backend_buffer_t ggml_backend_shielded_weight_source(
+    struct ggml_tensor *tensor, ggml_shielded_weight_reader reader, void *ctx);
+/* Cumulative encoded-cache read requests and bytes actually read from storage,
+ * including block authentication over-read. Snapshot after prefill and decode
+ * to distinguish initial upload from steady inference I/O. */
+GGML_BACKEND_API void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes);
+
 /* Capability probe used by the manager before admitting a pooled tenant. */
 GGML_BACKEND_API int ggml_backend_shielded_pool_version(void);
 /* Dealt pads: mint one .pads shipment from the registered weights (single

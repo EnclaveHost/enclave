@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import {mkdtempSync, rmSync, existsSync} from 'node:fs';
 import {tmpdir, homedir} from 'node:os';
 import {join, dirname} from 'node:path';
@@ -31,7 +31,10 @@ test('weight authentication binds the private encoded source and prevents fallba
     run('c++', [...flags, '-std=c++17', '-I' + join(headers, 'ggml/include'), '-I' + join(headers, 'ggml/src'),
       join(root, 'test/fixtures/shielded-weight-verifier.cpp'), ...objects, '-Wl,--gc-sections',
       '-L' + libs, '-lggml', '-lggml-cpu', '-lggml-base', '-lpthread', '-lm', '-Wl,-rpath,' + libs, '-o', bin]);
-    for (const scenario of ['honest', 'tamper', 'shape'])
+    for (const scenario of ['honest', 'tamper', 'shape', 'source', 'source_tamper', 'source_readfail', 'source_cpu'])
       assert.match(run(bin, [dir, scenario]), /weight-verifier: private-copy encoding/);
+    const refused = spawnSync(bin, [dir, 'source_cpu_tamper'], {env, encoding: 'utf8', timeout: 60_000});
+    assert.equal(refused.signal, 'SIGABRT');
+    assert.match(refused.stderr, /authenticated weight source read failed/);
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });
