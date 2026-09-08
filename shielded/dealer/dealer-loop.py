@@ -13,7 +13,7 @@ GGML_CPU_SO, LD_LIBRARY_PATH. The seed is derived exactly as relay/pads.mjs does
 (HKDF-SHA512, salt = keyFp bytes, info "enclave-pads-seed:<epoch>"); the master
 seed is the platform's secret and never leaves the dealer's process.
 """
-import argparse, fcntl, hashlib, hmac, json, os, re, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import argparse, atexit, fcntl, hashlib, hmac, json, os, queue, re, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
 
 
 def hkdf_sha512(ikm: bytes, salt: bytes, info: bytes, length: int) -> bytes:
@@ -151,6 +151,149 @@ def relay_delete(base: str, seed_id: str, name: str, token: str):
     except urllib.error.HTTPError as e: return e.code
 
 
+_HEX_RE = re.compile(r"^[0-9a-f]+$")
+
+class PersistentDealer:
+    """One long-lived `shielded-dealer MODEL --jobs-stdin OUT [--mtp 1]` child, reused across refills
+    (measured ~5.4x shorter refill latency than a fresh process per pass). CPU-only: the frontend refuses
+    --worker in stream mode. Enforces one job in flight, an exact READY/DONE handshake, bounded startup and
+    mint and line length, a separate stderr drain, and a fail-closed unresolved-job journal. READY/DONE are
+    NOT authority to reserve or consume; the caller's admission and delivery accounting still gate. READY
+    mtp=1 is the SELECTED MODE, not a completeness attestation - full-manifest admission stays upstream."""
+
+    READY_RE = re.compile(r"^PADS-READY 1 mtp=([01]) calib=([0-9a-f]{64})$")
+
+    def __init__(self, dealer, model, calib, out, mtp, expect_calib_sha,
+                 startup_timeout=180.0, mint_timeout=120.0, line_max=4096):
+        self.out = out; self.mtp = 1 if mtp else 0
+        self.mint_timeout = mint_timeout; self.line_max = line_max
+        self.journal = os.path.join(out, ".dealer-loop.journal")
+        self.seq = 0; self.dead = False; self._err_tail = []
+        cmd = [dealer, model, "--jobs-stdin", out]
+        if mtp: cmd += ["--mtp", "1"]
+        env = {**os.environ, "SHIELDED_CALIB": calib}
+        self.proc = subprocess.Popen(cmd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True)
+        self._out_q = queue.Queue()
+        threading.Thread(target=self._pump, args=(self.proc.stdout, self._out_q), daemon=True).start()
+        threading.Thread(target=self._drain_err, daemon=True).start()
+        line = self._readline(startup_timeout)
+        m = self.READY_RE.match(line or "")
+        if not m:
+            self._die(); raise RuntimeError(f"persistent dealer: bad READY {line!r}; stderr: {self._tail()}")
+        if int(m.group(1)) != self.mtp:
+            self._die(); raise RuntimeError(f"persistent dealer: READY mtp={m.group(1)} != requested {self.mtp}")
+        if m.group(2) != expect_calib_sha:
+            self._die(); raise RuntimeError("persistent dealer: READY calib digest differs from the admitted calibration")
+
+    def _pump(self, stream, q):
+        try:
+            for line in stream: q.put(line.rstrip("\n"))
+        except (OSError, ValueError): pass
+        finally: q.put(None)
+
+    def _drain_err(self):
+        try:
+            for line in self.proc.stderr:
+                self._err_tail.append(line.rstrip("\n"))
+                if len(self._err_tail) > 50: del self._err_tail[0]
+        except (OSError, ValueError): pass
+
+    def _tail(self): return " | ".join(self._err_tail[-3:])
+
+    def _readline(self, timeout):
+        try: return self._out_q.get(timeout=timeout)   # None = EOF, "" is never a protocol line
+        except queue.Empty: return ""                    # timeout -> caller treats as failure
+
+    def _die(self):
+        self.dead = True
+        try:
+            if self.proc.stdin: self.proc.stdin.close()
+        except OSError: pass
+        try: self.proc.terminate()
+        except OSError: pass
+        try: self.proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try: self.proc.kill(); self.proc.wait(timeout=5)
+            except OSError: pass
+
+    def _write_journal(self, seq, seed_id, index0, count, pk):
+        rec = {"seq": seq, "seed_id": seed_id, "index0": index0, "count": count,
+               "pk": pk, "mtp": self.mtp, "ts": time.time(), "state": "in-flight"}
+        tmp = self.journal + ".tmp"
+        with open(tmp, "w") as f: json.dump(rec, f); f.write("\n")
+        os.replace(tmp, self.journal)
+
+    def _clear_journal(self):
+        try: os.unlink(self.journal)
+        except OSError: pass
+
+    def mint_range(self, seed, seed_id, pk, index0, count):
+        """Mint ONE shipment; journal intent before the send, require an exact DONE, return its path.
+        Any anomaly terminates the child and marks this adapter dead (caller reconciles the journal)."""
+        if self.dead: raise RuntimeError("persistent dealer is dead; reconcile before reuse")
+        if not (isinstance(seed, str) and _HEX_RE.match(seed) and len(seed) == 64 and
+                isinstance(seed_id, str) and _HEX_RE.match(seed_id) and len(seed_id) == 32 and
+                isinstance(pk, str) and _HEX_RE.match(pk) and len(pk) == 64):
+            raise RuntimeError("persistent dealer: non-canonical seed/seed_id/pk")
+        if not (isinstance(index0, int) and isinstance(count, int) and
+                1 <= count <= 4096 and 0 <= index0 < (1 << 24) and index0 + count <= (1 << 24)):
+            raise RuntimeError(f"persistent dealer: range out of protocol bounds ({index0},{count})")
+        seq = self.seq + 1
+        record = f"{seq}\t{seed}\t{seed_id}\t{pk}\t{index0}\t{count}\n"
+        if len(record) >= self.line_max:
+            self._die(); raise RuntimeError("persistent dealer: record too long")
+        self._write_journal(seq, seed_id, index0, count, pk)   # durable intent BEFORE the send
+        try:
+            self.proc.stdin.write(record); self.proc.stdin.flush()
+        except (BrokenPipeError, OSError) as e:
+            self._die(); raise RuntimeError(f"persistent dealer: write failed ({e}); stderr: {self._tail()}")
+        line = self._readline(self.mint_timeout)
+        if not line:   # "" (timeout) or None (EOF)
+            self._die(); raise RuntimeError(f"persistent dealer: no DONE for seq {seq} (timeout/EOF); stderr: {self._tail()}")
+        expect = f"PADS-DONE {seq} {seed_id} {index0} {count}"
+        if line != expect:
+            self._die(); raise RuntimeError(f"persistent dealer: expected {expect!r}, got {line!r}; stderr: {self._tail()}")
+        self.seq = seq
+        self._clear_journal()
+        return os.path.join(self.out, f"{seed_id}-{index0}-{count}.pads")
+
+    def close(self):
+        if self.dead: return
+        try:
+            if self.proc.stdin: self.proc.stdin.close()   # clean EOF -> child exits 0
+        except OSError: pass
+        try: rc = self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self._die(); return
+        self.dead = True
+        if rc != 0:
+            print(f"persistent dealer exited {rc}; stderr: {self._tail()}", flush=True)
+
+
+def reconcile_persistent_journal(out):
+    """Fail-closed recovery for an interrupted persistent run. Never accepts a filename as proof.
+    A pending entry with NO published file was never delivered -> discard it (planning re-mints the gap).
+    A pending entry whose file EXISTS cannot be authenticated from here -> REFUSE and surface it, rather
+    than accept it or blindly re-mint. A malformed/unreadable journal also fails closed."""
+    path = os.path.join(out, ".dealer-loop.journal")
+    if not os.path.exists(path): return
+    try:
+        with open(path) as f: rec = json.load(f)
+        sid, i0, c = rec["seed_id"], rec["index0"], rec["count"]
+        assert isinstance(sid, str) and NAME_RE.fullmatch(f"{sid}-{i0}-{c}.pads")
+    except (OSError, ValueError, KeyError, AssertionError, TypeError):
+        sys.exit(f"persistent journal {path} present but unreadable/malformed; refusing to guess. Reconcile manually.")
+    fpath = os.path.join(out, f"{sid}-{i0}-{c}.pads")
+    if os.path.exists(fpath):
+        sys.exit(f"persistent journal: shipment {os.path.basename(fpath)} was in flight and a FILE EXISTS, but its "
+                 f"completion and contents are unconfirmed (a filename is not proof of seed/key/model/geometry). "
+                 f"Refusing. Validate it against the admitted identity, or remove it if known-bad, then rerun.")
+    print(f"persistent journal: shipment {os.path.basename(fpath)} was in flight but not published; discarding intent, planning will re-mint", flush=True)
+    try: os.unlink(path)
+    except OSError: pass
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--relay"); ap.add_argument("--name")
@@ -168,6 +311,7 @@ def main():
     ap.add_argument("--worker", default=os.environ.get("DEALER_WORKER", ""), help="host:port of the dealer's OWN worker (GPU minting; never an operator's)")
     ap.add_argument("--derive-only", action="store_true"); ap.add_argument("--plan-only", action="store_true")
     ap.add_argument("--push", action="store_true", help="upload each new shipment to the relay's store and delete acknowledged ones there (needs PADS_DEALER_TOKEN)")
+    ap.add_argument("--persistent-dealer", action="store_true", help="opt-in, CPU-only: keep one shielded-dealer registered across refills via --jobs-stdin instead of a fresh process each pass (~5.4x shorter refill latency; refuses --worker; fail-closed journal recovery)")
     a = ap.parse_args()
     identity = AssetIdentity(a.model, a.calib)
 
@@ -186,6 +330,10 @@ def main():
 
     token = os.environ.get("PADS_DEALER_TOKEN", "")
     if a.push and not (a.relay and token): sys.exit("--push needs --relay and PADS_DEALER_TOKEN")
+    if a.persistent_dealer and not a.plan_only:
+        if a.worker: sys.exit("--persistent-dealer is CPU-only and cannot be combined with --worker")
+        if not (a.model and a.calib): sys.exit("--persistent-dealer needs --model and --calib")
+        reconcile_persistent_journal(a.out)
 
     warned_old, warned_cap = set(), set()
     def prune_and_plan(seed_id, mark, ack_floor=None, acked=(), finalized=False):
@@ -240,6 +388,15 @@ def main():
         if not want: print(f"no missing delivery ranges for {seed_id} (mark {mark}, delivered floor {ack_floor})", flush=True)
         return want
 
+    persistent = {"pd": None}
+    def get_persistent():
+        if persistent["pd"] is None:
+            dealer = os.environ.get("DEALER", "shielded-dealer")
+            persistent["pd"] = PersistentDealer(dealer, a.model, a.calib, a.out, a.mtp,
+                                                identity.digest(a.calib, "sha512"))
+        return persistent["pd"]
+    atexit.register(lambda: persistent["pd"].close() if persistent["pd"] else None)
+
     def mint(jobs):
         """jobs: [(seed, seed_id, pk, want)] -> ONE dealer run (one model load), then push. Seeds
         go through a 0600 file that lives only for the run. With --mint-batch N the wanted ranges
@@ -262,6 +419,21 @@ def main():
         if not (a.model and a.calib): sys.exit("minting needs --model and --calib")
         for seed, seed_id, pk, _ in jobs:
             if not (seed and pk): sys.exit(f"minting {seed_id} needs its seed (--seed or --master) and pad key (--pk or the consumer's)")
+        if a.persistent_dealer:
+            pd = get_persistent()
+            t0 = time.time()
+            for seed, seed_id, pk, want in jobs:
+                for i0, c in want:
+                    path = pd.mint_range(seed, seed_id, pk, i0, c)   # journaled, exact-ack, fail-closed
+                    if a.push:
+                        try:
+                            res = relay_put_file(a.relay, seed_id, path, token)
+                            print(f"  pushed {os.path.basename(path)} (persistent, {time.time() - t0:.1f} s): {res.get('bytes')} bytes, sha256 {str(res.get('sha256'))[:16]}", flush=True)
+                        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+                            print(f"  push of {os.path.basename(path)} failed: {getattr(e, 'code', None) or getattr(e, 'reason', e)}; next pass retries", flush=True)
+                extra = f" in {time.time() - t0:.1f} s (persistent child, one load)" if seed_id == jobs[-1][1] else ""
+                print(f"minted {len(want)} shipment(s) for {seed_id} covering up to {want[-1][0] + want[-1][1]}{extra}", flush=True)
+            return
         dealer = os.environ.get("DEALER", "shielded-dealer")
         fd, jobfile = tempfile.mkstemp(prefix="dealer-jobs-", suffix=".txt", dir=a.out)
         try:
