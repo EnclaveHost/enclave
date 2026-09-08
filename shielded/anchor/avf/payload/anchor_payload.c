@@ -748,6 +748,34 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
 }
 
 /* split-harness.c's main, as a function: same fixture, same order of draws, same digest */
+/* Worker-bridge frame diagnostic (BRIDGEBENCH): the guest is the client on the worker fd, so the path is
+ * guest vsock -> app pump -> TCP echo and back, the same pump a real leg uses. For each frame size:
+ * warm up 10, then 200 timed write-then-read-back round trips; print p50/p90/min microseconds. Toggling
+ * the app's --ez nativebridge between two runs compares the Java pump and the native pump on this path. */
+static int bench_cmp(const void *a, const void *b) { double x = *(const double *)a, y = *(const double *)b; return x < y ? -1 : x > y ? 1 : 0; }
+static int bench_write_all(int fd, const uint8_t *p, size_t n) {
+    size_t off = 0; while (off < n) { ssize_t w = write(fd, p + off, n - off); if (w > 0) { off += (size_t)w; continue; } if (w < 0 && errno == EINTR) continue; return -1; } return 0;
+}
+static void run_bridgebench(int fd, const char *sizes) {
+    if (fd < 0) { OUT("BENCH no worker bridge"); return; }
+    static uint8_t buf[3u << 20];
+    char csv[128]; snprintf(csv, sizeof csv, "%s", sizes); if (!csv[0]) snprintf(csv, sizeof csv, "65536,262144,1048576,3145728");
+    for (char *tok = strtok(csv, ","); tok; tok = strtok(NULL, ",")) {
+        size_t sz = (size_t)strtoull(tok, NULL, 10);
+        if (sz < 1 || sz > sizeof buf) { OUT("BENCH size %zu out of range", sz); continue; }
+        static double us[210]; const int warm = 10, iters = 200;
+        for (int i = 0; i < warm + iters; i++) {
+            const double t0 = now_us();
+            if (bench_write_all(fd, buf, sz) != 0) { OUT("BENCH %zu B: write failed", sz); return; }
+            size_t got = 0; while (got < sz) { ssize_t r = read(fd, buf, sz - got > sizeof buf ? sizeof buf : sz - got); if (r > 0) { got += (size_t)r; continue; } if (r < 0 && errno == EINTR) continue; OUT("BENCH %zu B: read failed", sz); return; }
+            if (i >= warm) us[i - warm] = now_us() - t0;
+        }
+        qsort(us, iters, sizeof us[0], bench_cmp);
+        OUT("BENCH %zu B: p50=%.0f us p90=%.0f us min=%.0f us (n=%d)", sz, us[iters / 2], us[(iters * 9) / 10], us[0], iters);
+    }
+    OUT("BENCH done");
+}
+
 static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, int bridge_fd) {
     if (xmax <= 0) { double s_ = 900.0 * sqrt(896.0 / (double)K); xmax = (int)(s_ < 1 ? 1 : s_); }
     fx_rng g = { FX_SEED };
@@ -862,6 +890,7 @@ int AVmPayload_main(void) {
     int bridge = 0, n_shapes = 0; int64_t SK[MAX_SHAPES], SN[MAX_SHAPES]; int Snode[MAX_SHAPES], Siter[MAX_SHAPES], Sx[MAX_SHAPES];
     int engine = 0, eng_n = 8, eng_threads = 4; uint64_t eng_model = 0; static char eng_prompt[2048] = "The capital of France is";
     int echo = 0, with_pads = 0, with_prefix = 0;
+    int bridgebench = 0; static char bench_sizes[128] = "";
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
@@ -1000,6 +1029,7 @@ int AVmPayload_main(void) {
                 if (sscanf(l + 6, "%lld %lld %d %d %d", &k, &n, &nd, &it, &xm) == 5) { SK[n_shapes] = k; SN[n_shapes] = n; Snode[n_shapes] = nd; Siter[n_shapes] = it; Sx[n_shapes] = xm; n_shapes++; }
             }
             else if (!strcmp(l, "ECHO")) echo = 1;
+            else if (!strncmp(l, "BRIDGEBENCH ", 12)) { bridgebench = 1; snprintf(bench_sizes, sizeof bench_sizes, "%s", l + 12); }
             else if (!strcmp(l, "RUN")) break;
         }
     }
@@ -1016,6 +1046,16 @@ int AVmPayload_main(void) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
         else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
+        ctl_close();
+        sleep(1); return 0;
+    }
+    if (bridgebench) {   /* the worker-bridge frame diagnostic: run on the bridged worker fd, then exit */
+        int fd = vs_accept(ls_wk, 20000);
+        OUT("BRIDGEBENCH %s sizes=%s", fd >= 0 ? "connected" : "no worker bridge", bench_sizes);
+        run_bridgebench(fd, bench_sizes);
+        if (fd >= 0) close(fd);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();

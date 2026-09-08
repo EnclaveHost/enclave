@@ -77,6 +77,7 @@ public class Main extends Activity {
         String vmName = "anchor";            // --es vmname: which VM instance (its own encrypted store) this run uses; [a-z0-9_-], 1-32 chars
         boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
         boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
+        String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
@@ -85,6 +86,7 @@ public class Main extends Activity {
             Plan p = new Plan(); if (i == null) return p;
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
             p.nativeBridge = i.getBooleanExtra("nativebridge", false);
+            if (i.getStringExtra("benchsizes") != null) p.benchSizes = i.getStringExtra("benchsizes");
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
             p.debug = i.getIntExtra("debug", p.debug); p.memMib = i.getIntExtra("mem", (int) p.memMib);
             if (i.getStringExtra("worker") != null) p.worker = i.getStringExtra("worker");
@@ -257,7 +259,7 @@ public class Main extends Activity {
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); return; }
         say("CONTROL connected");
-        if (plan.mode.equals("bridge") || plan.mode.equals("engine")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
+        if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
@@ -345,7 +347,8 @@ public class Main extends Activity {
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
             }
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
-            cmd.append("WORKER ").append(plan.mode.equals("engine") ? "bridge" : plan.mode).append('\n');
+            if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
+            cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');
             for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
