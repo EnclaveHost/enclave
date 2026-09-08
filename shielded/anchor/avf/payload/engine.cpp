@@ -17,6 +17,7 @@
 #include "ggml-cpu.h"
 #include "ggml-backend-impl.h"   /* the plain buffer type below wraps the CPU one */
 
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstdarg>
@@ -188,6 +189,24 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     pads_used_fn pads_used = sh_h ? (pads_used_fn)dlsym(sh_h, "ggml_backend_shielded_pads_used") : nullptr;
     adopt_fn adopt = sh_h ? (adopt_fn)dlsym(sh_h, "sh_pipe_adopt_fd") : nullptr;
     if (!adopt) { outf("ENGINE the shielded module has no sh_pipe_adopt_fd (built without the hook?)"); return 2; }
+    if (const char *le = getenv("ANCHOR_LINK_ECHO"); le && atoi(le) > 0) {
+        /* The bridge alone: the app returns our bytes over the same vsock (worker "echo"), so this
+         * round trip is vsock out + the app's pump + vsock in, with no USB, host or worker in it. */
+        const int sizes[] = { 64, 24000, 84000, 262000 };
+        std::vector<char> buf(262000, 'x');
+        for (int si = 0; si < 4; si++) {
+            const int len = sizes[si]; std::vector<double> t(200);
+            for (int i = 0; i < 200; i++) {
+                const int64_t t0 = ggml_time_us();
+                size_t off = 0; while (off < (size_t)len) { ssize_t w = write(worker_fd, buf.data() + off, len - off); if (w <= 0) { outf("ENGINE echo: write failed"); return 2; } off += (size_t)w; }
+                off = 0; while (off < (size_t)len) { ssize_t r = read(worker_fd, buf.data() + off, len - off); if (r <= 0) { outf("ENGINE echo: read failed"); return 2; } off += (size_t)r; }
+                t[i] = (double)(ggml_time_us() - t0);
+            }
+            std::sort(t.begin(), t.end()); double sum = 0; for (double x : t) sum += x;
+            outf("ENGINE vsock echo %d x %d B: mean %.0f us p50 %.0f p90 %.0f min %.0f", 200, len, sum / 200, t[100], t[180], t[0]);
+        }
+        return 0;
+    }
     adopt(worker_fd);                                 /* the first sh_pipe_open (inside the first graph) gets this */
     if (pads) {
         set_win_fn set_win = sh_h ? (set_win_fn)dlsym(sh_h, "ggml_backend_shielded_set_window_provider") : nullptr;
