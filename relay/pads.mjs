@@ -291,6 +291,9 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       const { seed, seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
       const rec = state.seeds[seed_id] || (state.seeds[seed_id] = { name, keyFp: t.keyFp, epoch: PADS_EPOCH, mark: 0, updated: 0, nonces: [] });
       rec.name = name;
+      // A v2 phone grant is one boot/engine run, followed by one final usage
+      // receipt. Keep this policy sticky even if a legacy request is replayed.
+      if (grant) rec.finalReceiptOnly = true;
       save();
       const boxed = boxToPadKey(t.padKey, seed);
       if (grant) {
@@ -335,6 +338,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (c.error) return { status: 403, body: c };
       const rec = seedRecord(seed_id);
       if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      if (rec.finalReceiptOnly && rec.usage && rec.usage.runs > 0)
+        return { status: 409, body: { error: "receipt_finalized", message: "this pVM seed already has its final usage receipt" } };
       if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
       rec.nonces.push(nonce); if (rec.nonces.length > NONCE_MEMORY) rec.nonces.splice(0, rec.nonces.length - NONCE_MEMORY);
       const iat = Math.floor(Date.now() / 1000);

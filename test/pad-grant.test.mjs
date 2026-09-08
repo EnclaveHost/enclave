@@ -24,8 +24,36 @@ function fixture(dir) {
   const ledgerPk = createPublicKey({ format: "der", type: "spki", key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(ledger.key(), "hex")]) });
   const reserve = (seed_id, nonce, want = 8) => ({ name, seed_id, want, nonce,
     sig: sign(null, Buffer.from(signedMessage("reserve", [name, seed_id, want, nonce])), ed.privateKey).toString("hex") });
-  return { ledger, request, reserve, ledgerPk, tunnel };
+  const signedRequest = (kind, fields, body = {}) => {
+    const nonce = randomBytes(16).toString("hex");
+    return { name, nonce, ...body, sig: sign(null, Buffer.from(signedMessage(kind, [name, ...fields, nonce])), ed.privateKey).toString("hex") };
+  };
+  return { ledger, request, reserve, ledgerPk, tunnel, signedRequest };
 }
+
+test("a v2 pVM boot's final receipt cannot replay after nonce eviction, restart, or a legacy seed request", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pad-final-receipt-"));
+  try {
+    const f = fixture(dir); let L = f.ledger;
+    const seed_id = L.seed(f.request()).body.seed_id;
+    const receipt = f.signedRequest("receipt", [seed_id,123,17], {seed_id,pads:123,tokens:17});
+    assert.equal(L.receipt(receipt).status,200);
+    // Reproduce the old attack: valid intervening reserve requests evict the
+    // receipt nonce from the shared 256-entry LRU, then replay its signature.
+    for (let i=0;i<270;i++) assert.equal(L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),1)).status,200);
+    const state=JSON.parse(readFileSync(join(dir,"pads-ledger.json"),"utf8"));
+    assert.equal(state.seeds[seed_id].nonces.includes(receipt.nonce),false);
+    assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
+    L=createPadsLedger({dir,hub:{info:(n)=>n===f.tunnel.name?f.tunnel:null},log:()=>{}});
+    assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
+    // Downgrading the request does not downgrade this seed's durable policy.
+    assert.equal(L.seed(f.signedRequest("seed",[])).status,200);
+    assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
+    const second=f.signedRequest("receipt",[seed_id,1,1],{seed_id,pads:1,tokens:1});
+    assert.equal(L.receipt(second).body.error,"receipt_finalized");
+    assert.deepEqual([L.receipts(seed_id).pads,L.receipts(seed_id).tokens,L.receipts(seed_id).runs],[123,17,1]);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
 
 test("seed grants bind asset identities, current request, recipient, and complete encrypted seed", () => {
   const dir = mkdtempSync(join(tmpdir(), "pad-grant-"));

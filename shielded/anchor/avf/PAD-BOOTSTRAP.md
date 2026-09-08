@@ -136,6 +136,14 @@ a new build in `padCodeHashes`, verify all of these in its measured payload:
 - Grants are accepted only for the current pending request and cannot reset
   an already active seed/window into pad reuse.
 
+The current v2 phone lifecycle runs the engine once per boot/seed and emits
+one final usage receipt. The relay persists that final receipt's accounting
+state and refuses any second receipt for that seed, independent of its bounded
+request-nonce cache. Replaying an old legacy seed request does not downgrade
+this policy. A future consumer needing intermediate receipts or multiple runs
+under one seed requires a cumulative, sequenced receipt protocol; the legacy
+multi-run receipt endpoint does not gain replay protection from this rule.
+
 The relay and C transcript regression tests use synthetic keys and certificates
 to exercise substitution, replay, version changes, malformed inputs and build
 admission. They do not replace a protected Pixel pVM integration test of the
