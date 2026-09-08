@@ -29,6 +29,14 @@
 #include <string.h>
 
 #define AN_FV_S_RANGE (1 << 20)   /* mirrors SH_FV_S_RANGE */
+/* Each bank index owns 2^24 ChaCha blocks, eight field draws per block.
+ * Refuse geometries that would overlap the next index's counter domain. */
+#define AN_BANK_MAX_K (UINT64_C(8) << 24)
+/* fv_prepare accumulates exact integers in double before reducing. */
+#define AN_FV_MAX_N (((UINT64_C(1) << 53) - 1) / ((AN_FV_S_RANGE - 1) * SH_WEIGHT_BYTE_LIMIT))
+/* Refill's float-estimate modq requires |dot| < 2^28. A row's L1 bound
+ * covers every pad, all three unsigned residue planes, and the local oracle. */
+#define AN_REFILL_L1_LIMIT (((UINT64_C(1) << 28) - 1) / (SH_Q0 - 1))
 
 /* --- ChaCha20 block, verbatim from shielded-tee.c ------------------------- */
 #define ROTL32(v, c) (((v) << (c)) | ((v) >> (32 - (c))))
@@ -99,28 +107,54 @@ struct an_ctx {
     uint64_t pads_issued, exchanges, verify_fail;
 };
 
+static void an_wipe(void *p, size_t n) {
+    volatile unsigned char *v = (volatile unsigned char *)p;
+    if (v) while (n--) *v++ = 0;
+}
+
+static void *an_free_secret(void *p, size_t n) {
+    an_wipe(p, n);
+    free(p);
+    return NULL;
+}
+
+/* Also used to unwind a failed prepare, preserving registered public weights
+ * so a caller can retry without leaking buffers or reusing partial secrets. */
+static void an_clear_work(an_ctx *c) {
+    int64_t Nmax = 0;
+    for (int i = 0; i < c->n_nodes; i++) {
+        an_node *n = &c->nodes[i];
+        if (n->N > Nmax) Nmax = n->N;
+        n->s = an_free_secret(n->s, (size_t)n->N * AN_FV_REPS * sizeof(int64_t));
+        n->st = an_free_secret(n->st, (size_t)n->K * AN_FV_REPS * sizeof(int64_t));
+        n->s32 = an_free_secret(n->s32, (size_t)n->N * AN_FV_REPS * sizeof(int32_t));
+        n->st32 = an_free_secret(n->st32, (size_t)n->K * AN_FV_REPS * sizeof(int32_t));
+        n->y = an_free_secret(n->y, (size_t)n->N * sizeof(int64_t));
+        n->y_local = an_free_secret(n->y_local, (size_t)n->N * sizeof(int64_t));
+    }
+    c->r = an_free_secret(c->r, (size_t)c->K * sizeof(int32_t));
+    c->u = an_free_secret(c->u, (size_t)c->u_len * sizeof(int32_t));
+    c->rplanes = an_free_secret(c->rplanes, (size_t)3 * c->K);
+    c->acc = an_free_secret(c->acc, (size_t)12 * Nmax * sizeof(int32_t));
+    c->x = an_free_secret(c->x, (size_t)c->K * sizeof(int64_t));
+    c->pad_ready = c->reply_pending = c->result_valid = c->prepared = 0;
+}
+
 an_ctx *an_create(an_rng_fn rng) {
     if (!rng) return NULL;
     an_ctx *c = (an_ctx *)calloc(1, sizeof *c);
     if (!c) return NULL;
     c->rng = rng;
     c->bank_capacity = (uint64_t)1 << 40;
-    if (rng(c->bank_key, sizeof c->bank_key) != 0) { free(c); return NULL; }
+    if (rng(c->bank_key, sizeof c->bank_key) != 0) { an_destroy(c); return NULL; }
     return c;
 }
 
 void an_destroy(an_ctx *c) {
     if (!c) return;
-    for (int i = 0; i < c->n_nodes; i++) {
-        an_node *n = &c->nodes[i];
-        free(n->w); free(n->s); free(n->st); free(n->s32); free(n->st32);
-        free(n->y); free(n->y_local);
-    }
-    /* the pad and key are secrets: scrub before free */
-    if (c->r) memset(c->r, 0, (size_t)c->K * sizeof(int32_t));
-    if (c->u) memset(c->u, 0, (size_t)c->u_len * sizeof(int32_t));
-    memset(c->bank_key, 0, sizeof c->bank_key);
-    free(c->r); free(c->u); free(c->rplanes); free(c->acc); free(c->x);
+    an_clear_work(c);
+    for (int i = 0; i < c->n_nodes; i++) free(c->nodes[i].w);
+    an_wipe(c, sizeof *c);
     free(c);
 }
 
@@ -128,20 +162,36 @@ int an_add_weight(an_ctx *c, const int8_t *w_fixed, int64_t K, int64_t N) {
     if (!c || !w_fixed || K <= 0 || N <= 0 || c->prepared) return AN_ERR_PARAM;
     if (c->n_nodes == AN_MAX_NODES) return AN_ERR_PARAM;
     if (c->n_nodes && K != c->K) return AN_ERR_PARAM;   /* one group, one K */
-    for (int64_t i = 0; i < K * N; i++)
-        if (w_fixed[i] > SH_WEIGHT_BYTE_LIMIT || w_fixed[i] < -SH_WEIGHT_BYTE_LIMIT)
-            return AN_ERR_PARAM;                        /* residue identity would break */
+    int64_t Ks[AN_MAX_NODES], Ns[AN_MAX_NODES];
+    for (int i = 0; i < c->n_nodes; i++) { Ks[i] = c->nodes[i].K; Ns[i] = c->nodes[i].N; }
+    Ks[c->n_nodes] = K; Ns[c->n_nodes] = N;
+    if (!an_footprint(c->n_nodes + 1, Ks, Ns)) return AN_ERR_PARAM;
+    int8_t *owned = (int8_t *)malloc((size_t)K * N);
+    if (!owned) return AN_ERR_NOMEM;
+    memcpy(owned, w_fixed, (size_t)K * N);
+    for (int64_t j = 0; j < N; j++) {
+        uint64_t l1 = 0;
+        for (int64_t k = 0; k < K; k++) {
+            const int v = owned[j * K + k];
+            if (v > SH_WEIGHT_BYTE_LIMIT || v < -SH_WEIGHT_BYTE_LIMIT)
+                goto bad_weight;                       /* residue identity would break */
+            l1 += v < 0 ? -v : v;
+        }
+        if (l1 > AN_REFILL_L1_LIMIT) goto bad_weight;
+    }
     an_node *n = &c->nodes[c->n_nodes];
-    n->w = (int8_t *)malloc((size_t)K * N);
-    if (!n->w) return AN_ERR_NOMEM;
-    memcpy(n->w, w_fixed, (size_t)K * N);
+    n->w = owned;
     n->K = K; n->N = N; n->u_off = c->u_len;
     c->K = K; c->u_len += N;
     return c->n_nodes++;
+bad_weight:
+    free(owned);
+    return AN_ERR_PARAM;
 }
 
 int an_prepare(an_ctx *c) {
     if (!c || !c->n_nodes || c->prepared) return AN_ERR_PARAM;
+    int err = AN_ERR_NOMEM;
     int64_t Nmax = 0;
     for (int i = 0; i < c->n_nodes; i++) if (c->nodes[i].N > Nmax) Nmax = c->nodes[i].N;
     c->r       = (int32_t *)malloc((size_t)c->K * sizeof(int32_t));
@@ -149,7 +199,7 @@ int an_prepare(an_ctx *c) {
     c->rplanes = (uint8_t *)malloc((size_t)3 * c->K);
     c->acc     = (int32_t *)malloc((size_t)12 * Nmax * sizeof(int32_t));
     c->x       = (int64_t *)malloc((size_t)c->K * sizeof(int64_t));
-    if (!c->r || !c->u || !c->rplanes || !c->acc || !c->x) return AN_ERR_NOMEM;
+    if (!c->r || !c->u || !c->rplanes || !c->acc || !c->x) goto fail;
 
     for (int i = 0; i < c->n_nodes; i++) {
         an_node *n = &c->nodes[i];
@@ -160,13 +210,17 @@ int an_prepare(an_ctx *c) {
         n->st32 = (int32_t *)malloc((size_t)K * AN_FV_REPS * sizeof(int32_t));
         n->y       = (int64_t *)malloc((size_t)N * sizeof(int64_t));
         n->y_local = (int64_t *)malloc((size_t)N * sizeof(int64_t));
-        if (!n->s || !n->st || !n->s32 || !n->st32 || !n->y || !n->y_local) return AN_ERR_NOMEM;
+        if (!n->s || !n->st || !n->s32 || !n->st32 || !n->y || !n->y_local) goto fail;
         /* s from the CALLER'S CSPRNG -- rule 4: predictable s = forgeable y. */
         uint64_t *raw = (uint64_t *)malloc((size_t)N * AN_FV_REPS * sizeof(uint64_t));
-        if (!raw) return AN_ERR_NOMEM;
-        if (c->rng(raw, (size_t)N * AN_FV_REPS * sizeof(uint64_t)) != 0) { free(raw); return AN_ERR_RNG; }
+        if (!raw) goto fail;
+        if (c->rng(raw, (size_t)N * AN_FV_REPS * sizeof(uint64_t)) != 0) {
+            an_wipe(raw, (size_t)N * AN_FV_REPS * sizeof(uint64_t));
+            free(raw); err = AN_ERR_RNG; goto fail;
+        }
         for (int64_t j = 0; j < N * AN_FV_REPS; j++)
             n->s[j] = 1 + (int64_t)(raw[j] % (uint64_t)(AN_FV_S_RANGE - 1));
+        an_wipe(raw, (size_t)N * AN_FV_REPS * sizeof(uint64_t));
         free(raw);
         sh_simd_generic_fv_prepare(n->w, K, N, n->s, AN_FV_REPS, n->st);
         for (int64_t j = 0; j < N; j++)
@@ -178,6 +232,9 @@ int an_prepare(an_ctx *c) {
     }
     c->prepared = 1;
     return AN_OK;
+fail:
+    an_clear_work(c);
+    return err;
 }
 
 int an_pad_gen(an_ctx *c) {
@@ -307,18 +364,27 @@ void an_stats(const an_ctx *c, uint64_t *pads_issued, uint64_t *exchanges, uint6
     if (verify_fail) *verify_fail = c->verify_fail;
 }
 
+static int an_size_add(size_t *total, uint64_t count, size_t bytes) {
+    if (count > (SIZE_MAX - *total) / bytes) return 0;
+    *total += (size_t)count * bytes;
+    return 1;
+}
+
 size_t an_footprint(int n_nodes, const int64_t *K, const int64_t *N) {
     size_t total = sizeof(an_ctx);
-    int64_t u_len = 0, Nmax = 0, k0 = n_nodes ? K[0] : 0;
+    if (n_nodes < 0 || n_nodes > AN_MAX_NODES || (n_nodes && (!K || !N))) return 0;
+    uint64_t u_len = 0, Nmax = 0, k0 = n_nodes ? (uint64_t)K[0] : 0;
     for (int i = 0; i < n_nodes; i++) {
-        total += (size_t)K[i] * N[i];                                   /* w */
-        total += (size_t)N[i] * AN_FV_REPS * (8 + 4);                   /* s, s32 */
-        total += (size_t)K[i] * AN_FV_REPS * (8 + 4);                   /* st, st32 */
-        total += (size_t)N[i] * 16;                                     /* y, y_local */
-        u_len += N[i];
-        if (N[i] > Nmax) Nmax = N[i];
+        if (K[i] <= 0 || N[i] <= 0 || (uint64_t)K[i] != k0 || k0 > AN_BANK_MAX_K ||
+            (uint64_t)N[i] > AN_FV_MAX_N) return 0;
+        const uint64_t n = (uint64_t)N[i];
+        if (!an_size_add(&total, k0 * n, 1) ||                         /* w */
+            !an_size_add(&total, n, AN_FV_REPS * (8 + 4) + 16) ||    /* s, s32, y, y_local */
+            !an_size_add(&total, k0, AN_FV_REPS * (8 + 4))) return 0; /* st, st32 */
+        u_len += n;
+        if (n > Nmax) Nmax = n;
     }
-    total += (size_t)k0 * (4 + 3 + 8);                                  /* r, planes, x */
-    total += (size_t)u_len * 4 + (size_t)12 * Nmax * 4;                 /* u, acc */
+    if (!an_size_add(&total, k0, 4 + 3 + 8) ||                         /* r, planes, x */
+        !an_size_add(&total, u_len, 4) || !an_size_add(&total, Nmax, 12 * 4)) return 0; /* u, acc */
     return total;
 }
