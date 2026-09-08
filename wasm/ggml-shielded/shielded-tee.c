@@ -6,6 +6,7 @@
 #include "shielded-field.h"
 #include "shielded-pad-check.h"
 #include "shielded-sha256.h"
+#include "shielded-pad-manifest.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -1926,6 +1927,64 @@ int sh_link_group_table(const sh_link *l, sh_pads_group *out, uint32_t cap) {
         snprintf(out[i].name, SH_PADS_NAME_MAX, "%s", l->nodes[g->nodes[0]].name);
     }
     return (int)l->n_groups;
+}
+
+int sh_link_manifest_geometry(const sh_link *l,
+        sh_pads_manifest_group *groups, size_t group_capacity,
+        sh_pads_member *members, size_t member_capacity,
+        uint32_t *group_count, uint32_t *member_count) {
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
+    if (!l || !group_count || !member_count || l->pipe || l->threads_running ||
+        !l->n_groups || l->n_groups > SH_PADS_MANIFEST_MAX_GROUPS ||
+        !l->n_nodes || l->n_nodes > SH_PADS_MANIFEST_MAX_MEMBERS) return SH_ERR_RANGE;
+    const bool query = !groups && !members && !group_capacity && !member_capacity;
+    if (!query && (!groups || !members || group_capacity < l->n_groups || member_capacity < l->n_nodes))
+        return SH_ERR_RANGE;
+    sh_pads_manifest_group *gs = (sh_pads_manifest_group *)calloc(l->n_groups, sizeof *gs);
+    sh_pads_member *ms = (sh_pads_member *)calloc(l->n_nodes, sizeof *ms);
+    if (!gs || !ms) { free(gs); free(ms); return SH_ERR_NOMEM; }
+    int rc = SH_ERR_RANGE;
+    uint32_t next = 0;
+    for (size_t i = 0; i < l->n_groups; i++) {
+        const sh_group *g = &l->groups[i];
+        if (g->K <= 0 || g->K > SH_PADS_K_LIMIT || g->u_len <= 0 ||
+            g->n_nodes <= 0 || g->n_nodes > SH_GROUP_MAX ||
+            (size_t)g->n_nodes > l->n_nodes - next) goto done;
+        gs[i].identity.group = (uint32_t)i;
+        gs[i].identity.K = (uint32_t)g->K;
+        gs[i].identity.u_len = (uint64_t)g->u_len;
+        gs[i].member0 = next; gs[i].member_count = (uint32_t)g->n_nodes;
+        int64_t offset = 0;
+        for (int j = 0; j < g->n_nodes; j++) {
+            if (g->nodes[j] < 0 || (size_t)g->nodes[j] >= l->n_nodes) goto done;
+            const sh_node *n = &l->nodes[g->nodes[j]];
+            const char *end = (const char *)memchr(n->name, 0, sizeof n->name);
+            if (!end || end == n->name || end - n->name >= SH_PADS_NAME_MAX ||
+                n->group != (int)i || n->K != g->K || n->N <= 0 ||
+                n->u_off != offset || n->N > g->u_len - offset) goto done;
+            memcpy(ms[next].name, n->name, (size_t)(end - n->name));
+            ms[next].N = (uint64_t)n->N;
+            if (!j) memcpy(gs[i].identity.name, ms[next].name, SH_PADS_NAME_MAX);
+            next++; offset += n->N;
+        }
+        if (offset != g->u_len) goto done;
+    }
+    if (next != l->n_nodes) goto done;
+    {
+        sh_pads_manifest view = {0};
+        view.groups = gs; view.members = ms;
+        view.group_count = (uint32_t)l->n_groups; view.member_count = next;
+        rc = sh_pads_manifest_validate(&view); // also reject duplicate member identities
+        if (rc != SH_OK) goto done;
+    }
+    if (sh_integrity_failed(l)) { rc = SH_ERR_VERIFY; goto done; }
+    if (!query) {
+        memcpy(groups, gs, l->n_groups * sizeof *gs);
+        memcpy(members, ms, l->n_nodes * sizeof *ms);
+    }
+    *group_count = (uint32_t)l->n_groups; *member_count = next;
+done:
+    free(gs); free(ms); return rc;
 }
 
 /* One mint worker: its share of the groups (gi0, gi0 + step, ...), 16 indices per weight

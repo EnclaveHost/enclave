@@ -29,6 +29,9 @@ static void retired(sh_link *l) {
     int32_t r[K] = {0}, u[8] = {0};
     assert(sh_link_dealt_selftest(l, 1, r, u) == SH_ERR_VERIFY);
     assert(start_pools(l) == SH_ERR_VERIFY); // stop/join does not clear retirement
+    uint32_t ng = 99, nm = 98;
+    assert(sh_link_manifest_geometry(l, NULL, 0, NULL, 0, &ng, &nm) == SH_ERR_VERIFY);
+    assert(ng == 99 && nm == 98);
     assert(window_calls == windows);
     sh_link_stats(l, &exchanges, NULL, &verify); assert(verify == 1 && exchanges == 0);
     sh_link_pool_stats(l, &after_pads, NULL); assert(after_pads == before_pads);
@@ -100,6 +103,49 @@ static void verify_import(sh_link *l, const int *local_order, int n, const int *
     }
 }
 
+static void verify_manifest_export(sh_link *full, sh_link *subset) {
+    sh_pads_manifest_group groups[3], subgroups[3], saved_groups[3];
+    sh_pads_member members[4], submembers[4], saved_members[4];
+    uint32_t ng = 99, nm = 98;
+    assert(sh_link_manifest_geometry(full, NULL, 0, NULL, 0, &ng, &nm) == SH_OK);
+    assert(ng == 3 && nm == 4);
+    memset(groups, 0xa5, sizeof groups); memset(members, 0xa5, sizeof members);
+    memcpy(saved_groups, groups, sizeof groups); memcpy(saved_members, members, sizeof members);
+    ng = 99; nm = 98;
+    assert(sh_link_manifest_geometry(full, groups, 2, members, 4, &ng, &nm) == SH_ERR_RANGE);
+    assert(ng == 99 && nm == 98);
+    assert(!memcmp(groups, saved_groups, sizeof groups) && !memcmp(members, saved_members, sizeof members));
+    assert(sh_link_manifest_geometry(full, groups, 3, members, 4, &ng, &nm) == SH_OK);
+    assert(ng == 3 && nm == 4);
+    // full was registered in order c, b, a; b has two output segments.
+    assert(!strcmp(groups[0].identity.name, "c.weight"));
+    assert(groups[1].member0 == 1 && groups[1].member_count == 2);
+    assert(!strcmp(members[1].name, "b.weight") && members[1].N == 3);
+    assert(!strcmp(members[2].name, "b.up.weight") && members[2].N == 5);
+    sh_pads_manifest canonical = {0}, local = {0};
+    canonical.groups = groups; canonical.members = members; canonical.group_count = ng; canonical.member_count = nm;
+    assert(sh_link_manifest_geometry(subset, subgroups, 3, submembers, 4, &ng, &nm) == SH_OK);
+    local.groups = subgroups; local.members = submembers; local.group_count = ng; local.member_count = nm;
+    uint32_t ordinal = 99;
+    assert(sh_pads_manifest_bind(&canonical, &local, &ordinal, 1) == SH_OK && ordinal == 1);
+
+    // Faults in actual registration must refuse, never truncate names or
+    // serialize a member layout inconsistent with the u offsets used at run time.
+    memcpy(saved_groups, groups, sizeof groups); memcpy(saved_members, members, sizeof members);
+    ng = 99; nm = 98;
+    full->nodes[2].u_off++;
+    assert(sh_link_manifest_geometry(full, groups, 3, members, 4, &ng, &nm) == SH_ERR_RANGE);
+    full->nodes[2].u_off--;
+    char saved_name[sizeof full->nodes[2].name]; memcpy(saved_name, full->nodes[2].name, sizeof saved_name);
+    memset(full->nodes[2].name, 'x', sizeof full->nodes[2].name);
+    assert(sh_link_manifest_geometry(full, groups, 3, members, 4, &ng, &nm) == SH_ERR_RANGE);
+    strcpy(full->nodes[2].name, full->nodes[0].name);
+    assert(sh_link_manifest_geometry(full, groups, 3, members, 4, &ng, &nm) == SH_ERR_VERIFY);
+    memcpy(full->nodes[2].name, saved_name, sizeof saved_name);
+    assert(ng == 99 && nm == 98);
+    assert(!memcmp(groups, saved_groups, sizeof groups) && !memcmp(members, saved_members, sizeof members));
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     setenv("SHIELDED_NO_SIMD", "1", 1); setenv("SHIELDED_PAD_CHECK", "1", 1);
@@ -120,6 +166,7 @@ int main(int argc, char **argv) {
     verify_import(l, reverse, GROUPS, b, FIRST+COUNT);
     // A different registration order and subset must work with the SAME files.
     int subset[1] = {1}; sh_link *s = consumer(argv[1], subset, 1);
+    verify_manifest_export(l, s);
     verify_import(s, subset, 1, a, FIRST);
     verify_import(s, subset, 1, b, FIRST+COUNT);
     int32_t r[COUNT*K], u[COUNT*8]; uint32_t selected = 19;
