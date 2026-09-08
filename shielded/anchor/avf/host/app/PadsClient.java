@@ -172,11 +172,13 @@ final class PadsClient {
             org.json.JSONArray ships = list.optJSONArray("shipments");
             if (ships == null || list.optInt("_status") != 200) return;
             JSONObject led = http(session, "GET", base + "/v1/pads/ledger?seed_id=" + seed, null);
-            // Prune the app's prefetch copy by the ACK FLOOR (durably acknowledged coverage), NOT the
-            // reservation mark: reservation runs ahead of delivery and far ahead of consumption, so a
-            // mark-keyed drop can delete the app's only re-fetch source for an index the VM has not yet
-            // consumed. ack_floor is the design's safe point (a re-offer of an acknowledged range is a
-            // no-op); the relay store still holds anything above it if a re-fetch is needed.
+            // Prune the app's prefetch copy by the ACK FLOOR (durably acknowledged coverage) rather than
+            // the reservation mark. This is an ALIGNMENT with durable delivery progress, not a fix for a
+            // proven pad loss: the drop already required this run's H/K (the accepted predicate below), so
+            // reservation alone never authorized deleting an unacknowledged copy, and ack_floor is not a
+            // proof of consumption either. It keys the prefetch-cache drop on delivery the platform has
+            // durably acknowledged (a re-offer of an acknowledged range is a no-op; the relay store still
+            // holds anything above the floor for a re-fetch).
             long ackFloor = led.optInt("_status") == 200 ? led.optLong("ack_floor", 0) : 0;
             java.io.File[] have = dir.listFiles((d, n) -> n.endsWith(".pads"));
             if (have != null) for (java.io.File f : have) {
