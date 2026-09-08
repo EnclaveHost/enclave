@@ -72,6 +72,7 @@ extern "C" {
 #include "shielded-pads.h"
 #include "prefix-kv.h"
 #include "anchor_gguf.h"
+#include "anchor_header_file.h"
 #include "llama-model.h"
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -199,6 +200,22 @@ static void cache_stats_line(const char *when) {
     uint64_t calls = 0, bytes = 0; g_cache_stats(&calls, &bytes);
     outf("CACHE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes);
 }
+/* Streamed weights (ANCHOR_STREAM_WEIGHTS=1): tensors llama placed on the plain-rows type (the calibrated
+ * members the backend encodes and offloads) get a source buffer instead of a resident copy; the backend's
+ * reader fills private storage from the staged file on demand and the installed verifier authenticates
+ * those bytes against the table before anything encodes or copies them. The staged descriptor stays open
+ * for the run. This is what keeps the 27B's offloaded 22 GiB out of the VM. */
+static int g_stream_fd = -1;
+static int weight_read(void *, const char *name, uint32_t type, const int64_t ne[4], void *bytes, size_t nbytes) {
+    const anchor_gguf_tensor *e = table_find(name);
+    if (!e || type != e->type || nbytes != e->size) return -1;
+    for (int i = 0; i < 4; i++) if ((uint64_t)ne[i] != e->ne[i]) return -1;
+    uint64_t got = 0; uint8_t *dst = (uint8_t *)bytes;
+    while (got < e->size) { ssize_t n = pread(g_stream_fd, dst + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) return -1; got += (uint64_t)n; }
+    return 0;
+}
+typedef ggml_backend_buffer_t (*weight_source_fn)(struct ggml_tensor *, ggml_shielded_weight_reader, void *);
+static weight_source_fn g_weight_source = nullptr;
 static std::vector<ggml_tensor *> g_plain_tensors;
 static enum ggml_status sh_plain_init_tensor(ggml_backend_buffer_t b, ggml_tensor *t) {
     g_plain_tensors.push_back(t);
@@ -387,6 +404,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       typedef int (*set_ver_fn)(ggml_shielded_weight_verifier, void *);
       set_ver_fn set_ver = sh_h ? (set_ver_fn)dlsym(sh_h, "ggml_backend_shielded_set_weight_verifier") : nullptr;
       g_cache_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_cache_stats") : nullptr;
+      g_weight_source = sh_h ? (weight_source_fn)dlsym(sh_h, "ggml_backend_shielded_weight_source") : nullptr;
       if (!set_ver) { outf("ENGINE refused: the shielded module has no weight verifier hook"); return 2; }
       if (set_ver(weight_verify, nullptr) != 0) { outf("ENGINE refused: the backend did not take the weight verifier"); return 2; } }
     g_plain_tensors.clear();
@@ -399,58 +417,34 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * before any context exists and is never mapped. */
     /* memfd is denied to this payload domain on the phone (measured EACCES); the VM's own /data (not the
      * host-backed store) is the fallback: an anonymous O_TMPFILE there, or a named file unlinked once open */
-    const char *hdr_home = "memfd"; int hfd = -1; char hwhy[160] = "";
-    {   /* each home must both open AND take the sparse size; the phone's policy lets memfd open but not grow */
-        hfd = memfd_create("verified-model-header", MFD_CLOEXEC | MFD_ALLOW_SEALING);
-        if (hfd >= 0 && ftruncate(hfd, (off_t)g_table->file_size) != 0) {
-            /* the phone's policy refuses the resize (setattr) but may allow a write: one zero byte at the last
-             * offset makes the memfd sparse to the full size through the write path */
-            const uint8_t z = 0; ssize_t w = pwrite(hfd, &z, 1, (off_t)(g_table->file_size - 1));
-            struct stat ms; if (w != 1 || fstat(hfd, &ms) != 0 || (uint64_t)ms.st_size != g_table->file_size) { snprintf(hwhy, sizeof hwhy, "memfd: resize %s, write-grow %s", strerror(errno), w == 1 ? "size mismatch" : strerror(errno)); close(hfd); hfd = -1; }
-            else hdr_home = "memfd (grown by write)";
-        }
-        else if (hfd < 0) snprintf(hwhy, sizeof hwhy, "memfd: %s", strerror(errno));
-        struct statfs dfs; const bool data_is_ram = statfs("/data", &dfs) == 0 && (dfs.f_type == 0x01021994 /* tmpfs */ || dfs.f_type == 0x858458f6 /* ramfs */);
-        if (hfd < 0 && !data_is_ram) snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; /data is not memory-backed (0x%lx), not a home", (unsigned long)dfs.f_type);
-        if (hfd < 0 && data_is_ram) {
-            hdr_home = "/data (O_TMPFILE)";
-            hfd = open("/data", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);
-            if (hfd < 0) snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; tmpfile: %s", strerror(errno));
-            if (hfd >= 0 && ftruncate(hfd, (off_t)g_table->file_size) != 0) { snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; tmpfile: %s", strerror(errno)); close(hfd); hfd = -1; }
-        }
-        if (hfd < 0 && data_is_ram) {
-            hdr_home = "/data (named, unlinked)";
-            hfd = open("/data/.verified-header", O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
-            if (hfd >= 0) { unlink("/data/.verified-header"); if (ftruncate(hfd, (off_t)g_table->file_size) != 0) { snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; named: %s", strerror(errno)); close(hfd); hfd = -1; } }
-            else snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; named: %s", strerror(errno));
-        }
-        /* NO host-backed home: a file the host can replay or corrupt cannot vouch for what llama parsed, and
-         * re-reading it afterwards does not close that window. Until the in-memory FILE route lands
-         * (funopen over the retained header + llama_model_load_from_file_ptr), a device without a growable
-         * memfd or a memory-backed /data refuses. */
+    /* The header llama parses is the stage's retained bytes served from PRIVATE MEMORY through a FILE with a
+     * virtual size (anchor_header_file.h, Astra): no memfd, no filesystem, nothing the host can replay. */
+    FILE *hf = anchor_header_file_open(g_table->header, g_table->header_len, g_table->file_size);
+    if (!hf) { outf("ENGINE refused: cannot serve the verified header from memory: %s", strerror(errno)); return 2; }
+    {   /* stdio self-check before llama sees it: virtual size by seek/tell, magic by read, back to the start */
+        char magic[4] = {0}; int ok_end = fseeko(hf, 0, SEEK_END) == 0; off_t at_end = ftello(hf);
+        int ok_set = fseeko(hf, 0, SEEK_SET) == 0; size_t got = fread(magic, 1, 4, hf); off_t at4 = ftello(hf);
+        int ok_mid = fseeko(hf, (off_t)g_table->header_len - 1, SEEK_SET) == 0; char last = 0; size_t got1 = fread(&last, 1, 1, hf);
+        int ok_back = fseeko(hf, 0, SEEK_SET) == 0; const int fno = fileno(hf);
+        outf("ENGINE header FILE self-check: seek-end %d tell %lld (want %llu), seek-set %d read %zu magic %.4s tell %lld, seek %zu read %zu, rewind %d, fileno %d",
+             ok_end, (long long)at_end, (unsigned long long)g_table->file_size, ok_set, got, magic, (long long)at4, (size_t)g_table->header_len - 1, got1, ok_back, fno);
+        if (!ok_end || (uint64_t)at_end != g_table->file_size || !ok_set || got != 4 || memcmp(magic, "GGUF", 4) || !ok_mid || got1 != 1 || !ok_back) { outf("ENGINE refused: the in-memory header FILE misbehaves under this libc"); fclose(hf); return 2; }
     }
-    if (hfd < 0) { outf("ENGINE refused: no home for the verified header (%s)", hwhy); return 2; }
-    for (size_t done = 0; done < g_table->header_len;) {
-        ssize_t n = pwrite(hfd, g_table->header + done, g_table->header_len - done, (off_t)done);
-        if (n < 0 && errno == EINTR) continue;
-        if (n <= 0) { outf("ENGINE refused: header memfd write: %s", strerror(errno)); close(hfd); return 2; }
-        done += (size_t)n;
-    }
-    if (!strncmp(hdr_home, "memfd", 5) && fcntl(hfd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) != 0) { outf("ENGINE refused: header memfd seals: %s", strerror(errno)); close(hfd); return 2; }
-    outf("ENGINE verified header staged in %s (%zu bytes, sparse to %llu)", hdr_home, g_table->header_len, (unsigned long long)g_table->file_size);
-    char hpath[64]; snprintf(hpath, sizeof hpath, "/proc/self/fd/%d", hfd);
+    outf("ENGINE verified header served from private memory (%zu bytes, virtual size %llu)", g_table->header_len, (unsigned long long)g_table->file_size);
     /* llama still CHOOSES each tensor's buffer type during this no-allocation load (extra types such as the
      * CPU repack for matmul weights, our CPU_plain override for the calibrated members, plain CPU for tables
      * consumed by row gathers); the dummy zero-size buffers carry that choice, and the private copy below is
-     * allocated as exactly that type. No placement heuristic of our own. */
+     * allocated as exactly that type. Nothing is read or allocated by the loader itself. */
     if (!sh_pin_pattern.empty()) { sh_plain_buft.device = ggml_backend_buft_get_device(ggml_backend_cpu_buffer_type()); sh_pin[0].pattern = sh_pin_pattern.c_str(); sh_pin[0].buft = &sh_plain_buft; sh_pin[1].pattern = nullptr; sh_pin[1].buft = nullptr; mp.tensor_buft_overrides = sh_pin; }
     mp.no_alloc = true; mp.load_mode = LLAMA_LOAD_MODE_NONE; mp.use_extra_bufts = true;
-    llama_model *model = llama_model_load_from_file(hpath, mp);
-    close(hfd);
-    if (!model) { outf("ENGINE model metadata load failed from the verified header"); return 2; }
+    llama_model *model = llama_model_load_from_file_ptr(hf, mp);
+    fclose(hf);
+    if (!model) { outf("ENGINE model metadata load failed from the verified header"); dump_err(); return 2; }
     int src; do { src = fcntl(model_fd, F_DUPFD_CLOEXEC, 0); } while (src < 0 && errno == EINTR);
     if (src < 0) { outf("ENGINE refused: cannot hold the staged model: %s", strerror(errno)); llama_model_free(model); return 2; }
-    { std::vector<uint8_t> tmp; size_t n_plain = 0, n_repack = 0, n_cpu = 0; uint64_t vbytes = 0; bool ok = true;
+    const bool stream_weights = getenv("ANCHOR_STREAM_WEIGHTS") && !strcmp(getenv("ANCHOR_STREAM_WEIGHTS"), "1");
+    if (stream_weights && !g_weight_source) { outf("ENGINE refused: streamed weights requested but the shielded module has no weight source"); close(src); llama_model_free(model); return 2; }
+    { std::vector<uint8_t> tmp; size_t n_plain = 0, n_repack = 0, n_cpu = 0, n_stream = 0; uint64_t vbytes = 0, sbytes = 0; bool ok = true;
       for (const auto &kv : llama_internal_get_tensor_map(model)) {
         ggml_tensor *t = kv.second; const std::string &name = kv.first;
         if (t->data) continue;                                             /* a tied weight appears twice in the map */
@@ -461,6 +455,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!same) { outf("ENGINE refused: %s: type/dims/size differ between the verified header and the table", name.c_str()); ok = false; break; }
         ggml_backend_buffer_type_t buft = t->buffer ? ggml_backend_buffer_get_type(t->buffer) : ggml_backend_cpu_buffer_type();   /* llama's choice */
         const char *bname = ggml_backend_buft_name(buft);
+        if (stream_weights && buft == &sh_plain_buft) {                     /* offloadable: never resident, read + verified on demand */
+            ggml_backend_buffer_t sb = g_weight_source(t, weight_read, nullptr);
+            if (!sb) { outf("ENGINE refused: %s: the backend did not take the streamed source", name.c_str()); ok = false; break; }
+            g_owned.push_back(sb); n_stream++; sbytes += e->size;
+            continue;
+        }
         tmp.resize((size_t)e->size);
         uint64_t got = 0;
         while (got < e->size) { ssize_t n = pread(src, tmp.data() + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) break; got += (uint64_t)n; }
@@ -475,11 +475,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (buft == &sh_plain_buft) n_plain++; else if (strstr(bname, "REPACK") || strstr(bname, "AARCH64")) n_repack++; else n_cpu++;
         vbytes += e->size;
       }
-      close(src);
-      if (!ok) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); return 2; }
+      if (n_stream) g_stream_fd = src; else close(src);                 /* streamed sources read the staged file for the whole run */
+      if (!ok) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; } return 2; }
       model->hparams.no_alloc = false;   /* the pinned fork's flag: every tensor is real now, contexts may allocate (proof: metadata-noalloc.cpp) */
-      outf("ENGINE verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu plain rows (offloadable), %zu repacked from verified bytes, %zu other CPU (llama's own buffer choices); metadata from the verified header; staged file closed",
-           n_plain + n_repack + n_cpu, vbytes / 1048576.0, n_plain, n_repack, n_cpu);
+      outf("ENGINE verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu plain rows (offloadable), %zu repacked from verified bytes, %zu other CPU (llama's own buffer choices); %zu streamed sources (%.1f MiB never resident, verified by the backend on read); metadata from the verified header; staged file %s",
+           n_plain + n_repack + n_cpu, vbytes / 1048576.0, n_plain, n_repack, n_cpu, n_stream, sbytes / 1048576.0, n_stream ? "held for streaming" : "closed");
     }
     { uint64_t vb = 0; if (verify_plain_tensors(&vb) != 0) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); return 2; } }
     outf("ENGINE model loaded in %.1f s", (ggml_time_us() - t_load0) / 1e6);
@@ -539,18 +539,21 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!slurp(pf, prefix) || !slurp(calib_path, cal)) { outf("ENGINE prefix KV: files never arrived (%s)", pf); return 2; }
         { uint8_t h[64]; crypto_hash(h, (const uint8_t *)cal.data(), cal.size()); memcpy(digest, h, 32); }
         char err[256]; uint64_t ntok = 0;
-        /* verify and load the SAME inode: the descriptor is held across both, and the load reads it
-         * through /proc/self/fd so a file re-offered under the name in between is never the one used */
+        /* the EXACT private bytes the signature vouched for are what llama loads: a verified snapshot read
+         * once through a held descriptor, its LLAMA_STATE_SEQ body handed to llama_state_seq_set_data; the
+         * file is never re-read (prefix-kv.h, Astra 100c764c) */
         int kfd; do { kfd = open(kv, O_RDONLY | O_CLOEXEC); } while (kfd < 0 && errno == EINTR);
         if (kfd < 0) { outf("ENGINE prefix KV: cannot open %s", kv); return 2; }
-        if (sh_prefix_kv_verify_fd(kv, kfd, pk, digest, prefix.data(), prefix.size(), &ntok, err, sizeof err)) { close(kfd); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        if (ntok == 0 || ntok > (uint64_t)llama_n_ctx(ctx)) { close(kfd); outf("ENGINE prefix KV REFUSED: %llu tokens outside (0, %u]", (unsigned long long)ntok, llama_n_ctx(ctx)); return 2; }
-        char fdpath[64]; snprintf(fdpath, sizeof fdpath, "/proc/self/fd/%d", kfd);
-        std::vector<llama_token> loaded((size_t)ntok + 16); size_t got = 0;
-        const bool loaded_ok = llama_state_seq_load_file(ctx, fdpath, 0, loaded.data(), loaded.size(), &got);
+        sh_prefix_kv_snapshot snap; memset(&snap, 0, sizeof snap);
+        const int rrc = sh_prefix_kv_snapshot_read(kv, kfd, pk, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
         close(kfd);
-        if (!loaded_ok || got != ntok) { outf("ENGINE prefix KV load failed (%zu of %llu tokens)", got, (unsigned long long)ntok); return 2; }
-        n_loaded = (int)got;
+        if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        const uint8_t *state = nullptr; size_t slen = 0;
+        if (sh_prefix_kv_snapshot_state(&snap, LLAMA_STATE_SEQ_MAGIC, LLAMA_STATE_SEQ_VERSION, llama_vocab_n_tokens(vocab), &state, &slen, err, sizeof err)) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        const size_t consumed = llama_state_seq_set_data(ctx, state, slen, 0);
+        ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
+        if (consumed != slen) { outf("ENGINE prefix KV load failed (%zu of %zu state bytes consumed)", consumed, slen); return 2; }
+        n_loaded = (int)ntok;
         full_prompt = prefix + prompt;
         outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);
     }
@@ -684,5 +687,6 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     llama_free(ctx); llama_model_free(model);
     for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b);   /* the private weight buffers outlive the model, not the run */
     g_owned.clear(); g_plain_tensors.clear();
+    if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; }
     return 0;
 }
