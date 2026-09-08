@@ -20,6 +20,7 @@
 #include "ggml.h"
 #include "prefix-kv.h"
 #include "prefix-kv-llama.h"
+#include "shielded-sha256.h"
 #include "shielded-pads.h"
 extern "C" {
 #include "tweetnacl.h"
@@ -122,11 +123,13 @@ int main(int argc, char **argv) {
           uint8_t h[64]; crypto_hash(h, (const uint8_t *)c.data(), c.size()); memcpy(digest, h, 32); }
         if (strncmp(prompt, prefix.c_str(), prefix.size())) { fprintf(stderr, "[run] the prompt does not start with the prefix in %s\n", pf); return 2; }
         char err[256]; sh_prefix_kv_snapshot snapshot{};
+        uint8_t model_digest[32]; uint64_t model_bytes = 0;
+        if (sh_sha256_file(model_path, model_digest, &model_bytes) || !model_bytes) { fprintf(stderr, "[run] cannot hash model for prefix identity\n"); return 2; }
         int fd; do { fd = open(kv, O_RDONLY | O_CLOEXEC); } while (fd < 0 && errno == EINTR);
         if (fd < 0) { fprintf(stderr, "[run] cannot open prefix KV: %s\n", strerror(errno)); return 2; }
         /* This diagnostic runner has a 512-token context. Bound its one-time
          * private snapshot to 1 GiB before reading host-controlled storage. */
-        const int verified = sh_prefix_kv_snapshot_read(kv, fd, pk, digest, prefix.data(), prefix.size(),
+        const int verified = sh_prefix_kv_snapshot_read_v2(kv, fd, pk, model_digest, digest, prefix.data(), prefix.size(),
             size_t(1) << 30, llama_n_ctx(ctx), &snapshot, err, sizeof err);
         close(fd);
         if (verified) { fprintf(stderr, "[run] prefix KV REFUSED: %s\n", err); return 2; }

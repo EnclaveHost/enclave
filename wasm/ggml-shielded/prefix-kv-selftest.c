@@ -125,6 +125,69 @@ int main(void) {
         assert(sh_prefix_kv_verify(kv, pk, model, prefix, strlen(prefix), &n, err, sizeof err) == 0);
     }
 
+    /* v2 distinguishes models even when calibration bytes are identical, and
+     * does not accept a legitimately signed v1 downgrade. */
+    {
+        int fd = open(kv, O_RDONLY); assert(fd >= 0);
+        uint8_t actual_model[32], other_model[32], other_calib[32];
+        memset(actual_model, 0x71, sizeof actual_model);
+        memcpy(other_model, actual_model, 32); other_model[0] ^= 1;
+        memcpy(other_calib, model, 32); other_calib[0] ^= 1;
+        sh_prefix_kv_snapshot snap = {0};
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "requires v2") && !snap.bytes);
+        assert(sh_prefix_kv_sign_v2(kv, actual_model, model, prefix, strlen(prefix), 25, sk, err, sizeof err) == 0);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) == 0);
+        assert(snap.n_tokens == 25 && snap.size == 100000); sh_prefix_kv_snapshot_free(&snap);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, other_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "another model") && !snap.bytes);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, other_calib, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "another calibration") && !snap.bytes);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk2, actual_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "REJECTED") && !snap.bytes);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, "different", 9, 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "another prefix") && !snap.bytes);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 99999, 25, &snap, err, sizeof err) != 0);
+        assert(!snap.bytes);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, 24, &snap, err, sizeof err) != 0);
+        assert(!snap.bytes);
+        assert(sh_prefix_kv_snapshot_read(kv, fd, pk, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "requires v1") && !snap.bytes);
+        /* Even a valid signing key cannot make a noncanonical token count or
+         * an extra body field part of the accepted v2 format. */
+        char sidepath[700], original[1024]; snprintf(sidepath, sizeof sidepath, "%s.sig", kv);
+        FILE *side = fopen(sidepath, "rb"); assert(side);
+        size_t side_size = fread(original, 1, sizeof original - 1, side); fclose(side); original[side_size] = 0;
+        char *token_line = strstr(original, "tokens 25\n"), *signature = strstr(original, "\nsig ");
+        assert(token_line && signature);
+        const char *counts[] = {"025", "+25", "-1", "18446744073709551616", "25\nextra unrecognized"};
+        for (size_t i = 0; i < sizeof counts / sizeof counts[0]; i++) {
+            char body[700], hex[129]; uint8_t signed_body[764]; unsigned long long signed_len = 0;
+            int body_size = snprintf(body, sizeof body, "%.*stokens %s\n%.*s",
+                (int)(token_line - original), original, counts[i], (int)(signature + 1 - (token_line + 10)), token_line + 10);
+            assert(body_size > 0 && (size_t)body_size < sizeof body);
+            assert(crypto_sign(signed_body, &signed_len, (const uint8_t *)body, body_size, sk) == 0);
+            sh_pads_bin2hex(signed_body, 64, hex);
+            side = fopen(sidepath, "wb"); assert(side);
+            assert(fprintf(side, "%ssig %s\n", body, hex) > 0 && fclose(side) == 0);
+            assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, UINT64_MAX, &snap, err, sizeof err) != 0);
+            assert((strstr(err, "noncanonical") || (i == 4 && strstr(err, "malformed sidecar"))) && !snap.bytes);
+        }
+        for (int nul = 0; nul < 2; nul++) {
+            side = fopen(sidepath, "wb"); assert(side);
+            assert(fwrite(original, 1, side_size, side) == side_size);
+            assert(fputc(nul ? 0 : '\n', side) != EOF && fclose(side) == 0);
+            assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+            assert(strstr(err, "noncanonical") && !snap.bytes);
+        }
+        /* A signed count at uint64's boundary must fit the canonical body. */
+        assert(sh_prefix_kv_sign_v2(kv, actual_model, model, prefix, strlen(prefix), UINT64_MAX, sk, err, sizeof err) == 0);
+        assert(sh_prefix_kv_snapshot_read_v2(kv, fd, pk, actual_model, model, prefix, strlen(prefix), 100000, 25, &snap, err, sizeof err) != 0);
+        assert(strstr(err, "count exceeds") && !snap.bytes);
+        close(fd);
+        assert(sh_prefix_kv_sign(kv, model, prefix, strlen(prefix), 25, sk, err, sizeof err) == 0);
+    }
+
     /* wrong key */
     assert(sh_prefix_kv_verify(kv, pk2, model, prefix, strlen(prefix), &n, err, sizeof err) != 0 && strstr(err, "REJECTED"));
     /* another model */
