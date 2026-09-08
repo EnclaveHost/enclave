@@ -1139,7 +1139,7 @@ static int sh_local_products(sh_state &s, const std::vector<int> &nodes,
 
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
+    if (s.verify_fail || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     const sh_simd *simd = sh_link_simd();
 
@@ -1389,6 +1389,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
         s.t_link += sh_now_ms() - tl0;
         if (rc == SH_ERR_VERIFY) {
+            s.verify_fail++;
             fprintf(stderr, "[shielded] %s\n", sh_link_last_error(s.link));
             return GGML_STATUS_FAILED;
         }
@@ -1439,6 +1440,11 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
     sh_pool &p = sh_pool_get();
     std::unique_lock<std::mutex> lk(p.mu);
     sh_pool_init(p);
+    /* Retire the whole multi-card backend before planning or touching another
+     * graph. This pool lives for the process: an integrity failure requires
+     * restarting the trusted engine, not a transport reconnect or a retry of
+     * llama_decode with the old contexts and secret verification vectors. */
+    for (const auto *s : p.cards) if (s->verify_fail) return GGML_STATUS_FAILED;
     // Direct backend callers do not necessarily run supports_op first.
     for (int i = 0; i < graph->n_nodes; i++) {
         const auto *node = graph->nodes[i];

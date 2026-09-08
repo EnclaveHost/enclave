@@ -136,6 +136,21 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
         (mode == CORRUPT || mode == WRAP) ? SH_ERR_VERIFY :
         (mode == TRUNCATE || mode == DISCONNECT) ? SH_ERR_IO : SH_ERR_VIOLATION;
     assert(rc == expected_rc);
+    if (rc == SH_ERR_VERIFY) {
+        const uint64_t pads = l->pads_used, exchanges = l->exchanges;
+        const int remaining = l->groups[0].count;
+        for (size_t i = 0; i < sizeof y0 / sizeof y0[0]; i++) y0[i] = untouched;
+        for (size_t i = 0; i < sizeof y1 / sizeof y1[0]; i++) y1[i] = untouched;
+        assert(sh_link_gemm(l, p.nodes, count, x, m, out) == SH_ERR_VERIFY);
+        assert(sh_link_gemm_local(l, p.nodes, count, x, m, out) == SH_ERR_VERIFY);
+        // start() must refuse BEFORE closing/replacing this pipe or networking.
+        sh_pipe *old_pipe = l->pipe;
+        assert(sh_link_start(l) == SH_ERR_VERIFY && l->pipe == old_pipe);
+        assert(sh_link_add_weight(l, "new", w0, K, N0, MAX_M, -1) == SH_ERR_VERIFY);
+        assert(l->pads_used == pads && l->exchanges == exchanges && l->groups[0].count == remaining);
+        for (size_t i = 0; i < sizeof y0 / sizeof y0[0]; i++) assert(y0[i] == untouched);
+        for (size_t i = 0; i < sizeof y1 / sizeof y1[0]; i++) assert(y1[i] == untouched);
+    }
     if (mode >= EXTREME_POS) {
         /* Reject invalid wire values before a kernel writes any output, even
          * if verification is disabled or the peer used the shared ring. */
@@ -156,7 +171,7 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
     pthread_mutex_destroy(&p.mu); pthread_cond_destroy(&p.cv); active = NULL;
 }
 
-static void run_case(int enabled, bool verify, int width, int ring_mode) {
+static void run_case(int enabled, bool verify, int width, int ring_mode, int final_failure) {
     if (enabled < 0) unsetenv("SHIELDED_OVERLAP_VERIFY");
     else setenv("SHIELDED_OVERLAP_VERIFY", enabled ? "1" : "0", 1);
     int err = 0;
@@ -208,13 +223,16 @@ static void run_case(int enabled, bool verify, int width, int ring_mode) {
     const int widths[] = {1, 3, 8, 16, 3};
     for (size_t i = 0; i < sizeof widths / sizeof widths[0]; i++)
         exchange(l, w0, w1, width, widths[i], HONEST, i == 4 ? 1 : 2, i % 2 != 0, ring_mode);
-    if (verify) for (int mode = CORRUPT; mode <= (ring_mode == 1 ? WRAP : DISCONNECT); mode++)
+    // Transport failures leave the link retryable. Integrity failures are
+    // terminal, so each such case below starts with a fresh link/challenges.
+    if (verify && ring_mode != 1) for (int mode = SHORT_LENGTH; mode <= DISCONNECT; mode++)
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
     if (width == 4 || ring_mode) for (int mode = EXTREME_POS; mode <= BELOW_FIELD; mode++)
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
+    if (verify) exchange(l, w0, w1, width, 3, final_failure, 2, false, ring_mode);
     assert(l->pads_missed == 0);
     assert((l->fv_rhs != NULL) == (enabled > 0 && verify && !ring_mode));
-    assert(l->verify_fail == (verify ? 2 : 0));
+    assert(l->verify_fail == (verify ? 1 : 0));
     sh_link_close(l);
 }
 
@@ -227,10 +245,12 @@ int main(void) {
         bounds[2] = invalid[i];
         assert(!sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
     }
-    for (int width = 3; width <= 4; width++) {
-        for (int enabled = -1; enabled <= 1; enabled++) run_case(enabled, true, width, 0);
-        run_case(1, false, width, 0);
+    for (int failure = CORRUPT; failure <= WRAP; failure++) {
+      for (int width = 3; width <= 4; width++) {
+        for (int enabled = -1; enabled <= 1; enabled++) run_case(enabled, true, width, 0, failure);
+        run_case(1, false, width, 0, failure);
+      }
+      run_case(1, true, 3, 1, failure);
+      run_case(1, true, 3, 2, failure);
     }
-    run_case(1, true, 3, 1);
-    run_case(1, true, 3, 2);
 }
