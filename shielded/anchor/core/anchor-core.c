@@ -94,7 +94,7 @@ struct an_ctx {
     uint8_t *rplanes;          /* pad residue planes for refill, 3*K */
     int32_t *acc;              /* refill scratch, 12*Nmax */
     int64_t *x;                /* kept plaintext for the verify, K */
-    int      pad_ready, have_x, prepared;
+    int      pad_ready, reply_pending, result_valid, prepared;
 
     uint64_t pads_issued, exchanges, verify_fail;
 };
@@ -181,7 +181,7 @@ int an_prepare(an_ctx *c) {
 }
 
 int an_pad_gen(an_ctx *c) {
-    if (!c || !c->prepared) return AN_ERR_PARAM;
+    if (!c || !c->prepared || c->reply_pending) return AN_ERR_PARAM;
     if (c->bank_counter >= c->bank_capacity) return AN_ERR_EXHAUST;   /* stall, never wrap */
     const uint64_t index = c->bank_counter++;
     bank_fill(c->bank_key, index, c->r, (size_t)c->K);
@@ -198,24 +198,34 @@ int an_pad_gen(an_ctx *c) {
 int an_pad_ready(const an_ctx *c) { return c && c->pad_ready; }
 
 int an_mask(an_ctx *c, const int64_t *x, int8_t *planes_out) {
-    if (!c || !x || !planes_out || !c->prepared) return AN_ERR_PARAM;
+    if (!c || !x || !planes_out || !c->prepared || c->reply_pending) return AN_ERR_PARAM;
     if (!c->pad_ready) return AN_ERR_NOPAD;
+    /* Same raw-kernel precondition as sh_link_gemm: reject before consuming
+     * the pad or writing ciphertext. Unsigned arithmetic handles INT64_MIN. */
+    uint64_t bad = 0;
+    for (int64_t k = 0; k < c->K; k++)
+        bad |= (uint64_t)x[k] + SH_FV_X_LIMIT - 1 >= 2 * SH_FV_X_LIMIT - 1;
+    if (bad) return AN_ERR_VERIFY;
     c->pad_ready = 0;                 /* CONSUMED here, whatever happens next */
     memcpy(c->x, x, (size_t)c->K * sizeof(int64_t));
-    c->have_x = 1;
+    c->reply_pending = 1;
+    c->result_valid = 0;
     sh_simd_generic_mask_planes(c->x, c->r, (size_t)c->K,
                                 planes_out, planes_out + c->K, planes_out + 2 * c->K);
     return AN_OK;
 }
 
 int an_finish(an_ctx *c, const uint8_t *reply, size_t reply_len, int ywidth) {
-    if (!c || !reply || !c->prepared || !c->have_x) return AN_ERR_PARAM;
-    if (ywidth != 3 && ywidth != 4) return AN_ERR_PARAM;
+    if (!c || !c->prepared || !c->reply_pending) return AN_ERR_PARAM;
+    /* One attempt per consumed pad, including malformed responses. Keeping
+     * x for the local oracle must never authorize another worker response. */
+    c->reply_pending = 0;
+    c->result_valid = 0;
+    if (!reply || (ywidth != 3 && ywidth != 4)) return AN_ERR_PARAM;
     size_t want = 0;
     for (int i = 0; i < c->n_nodes; i++) want += (size_t)c->nodes[i].N * (size_t)ywidth;
     if (reply_len != want) return AN_ERR_PARAM;
 
-    c->have_x = 0;
     size_t off = 0;
     int ok = 1;
     for (int i = 0; i < c->n_nodes; i++) {
@@ -224,14 +234,23 @@ int an_finish(an_ctx *c, const uint8_t *reply, size_t reply_len, int ywidth) {
         /* unmask fused with the Freivalds lhs, exactly the online path */
         if (ywidth == 3)
             sh_simd_generic_unmask24_fv(reply + off, c->u + n->u_off, n->s32, AN_FV_REPS, n->N, n->y, lhs);
-        else
-            sh_simd_generic_unmask_fv((const int32_t *)(const void *)(reply + off), c->u + n->u_off,
+        else {
+            /* Snapshot before checking: TA shared memory can change between
+             * validation and use. Refill scratch is idle and holds 12*Nmax
+             * words, so this also handles unaligned replies without allocating.
+             * Packed int24 is intrinsically safe for the raw subtraction. */
+            memcpy(c->acc, reply + off, (size_t)n->N * sizeof(int32_t));
+            uint32_t bad = 0;
+            for (int64_t j = 0; j < n->N; j++)
+                bad |= (uint32_t)c->acc[j] + (uint32_t)SH_HALF_M >= (uint32_t)SH_M_MOD;
+            if (bad) { ok = 0; break; }
+            sh_simd_generic_unmask_fv(c->acc, c->u + n->u_off,
                                       n->s32, AN_FV_REPS, n->N, n->y, lhs);
+        }
         sh_simd_generic_fv_dots_x(c->x, n->st32, AN_FV_REPS, n->K, rhs);
         for (int rep = 0; rep < AN_FV_REPS; rep++) ok = ok && lhs[rep] == rhs[rep];
         off += (size_t)n->N * (size_t)ywidth;
     }
-    /* keep x for an_check_local: copy back the consumed flag only on success */
     if (!ok) {
         c->verify_fail++;
         for (int i = 0; i < c->n_nodes; i++)
@@ -239,12 +258,12 @@ int an_finish(an_ctx *c, const uint8_t *reply, size_t reply_len, int ywidth) {
         return AN_ERR_VERIFY;
     }
     c->exchanges++;
-    c->have_x = 1;                    /* x stays valid for an_check_local */
+    c->result_valid = 1;              /* verified y and x stay valid for the local oracle */
     return AN_OK;
 }
 
 int an_check_local(an_ctx *c) {
-    if (!c || !c->have_x) return AN_ERR_PARAM;
+    if (!c || !c->result_valid) return AN_ERR_PARAM;
     for (int i = 0; i < c->n_nodes; i++) {
         an_node *n = &c->nodes[i];
         for (int64_t j = 0; j < n->N; j++) {
@@ -260,7 +279,7 @@ int an_check_local(an_ctx *c) {
 }
 
 int64_t an_peak_abs_y(const an_ctx *c) {
-    if (!c) return 0;
+    if (!c || !c->result_valid) return 0;
     int64_t peak = 0;
     for (int i = 0; i < c->n_nodes; i++) {
         const an_node *n = &c->nodes[i];
@@ -273,7 +292,7 @@ int64_t an_peak_abs_y(const an_ctx *c) {
 }
 
 uint64_t an_y_digest(const an_ctx *c, int node) {
-    if (!c || node < 0 || node >= c->n_nodes) return 0;
+    if (!c || !c->result_valid || node < 0 || node >= c->n_nodes) return 0;
     const an_node *n = &c->nodes[node];
     uint64_t h = 0xcbf29ce484222325ull;
     const uint8_t *p = (const uint8_t *)n->y;

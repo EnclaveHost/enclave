@@ -66,19 +66,23 @@ int an_prepare(an_ctx *c);
 /* Stage one pad: r from the ChaCha20 bank (one-time, monotonic, stalls when
  * dry), u = r.W for every node. This is the refill term -- the cost the phone
  * pays per exchange (from its precomputed bank in production; inline here so
- * the spike can measure it). */
+ * the spike can measure it). Refuses while a worker reply is pending. */
 int an_pad_gen(an_ctx *c);
 int an_pad_ready(const an_ctx *c);
 
-/* Mask the plaintext activation x (len K, balanced field elements) under the
+/* Mask the plaintext activation x (len K, each |x| < 2^26) under the
  * staged pad, CONSUMING it. Writes the three residue planes -- ciphertext --
- * to planes_out (3*K bytes) and keeps x for the verify. */
+ * to planes_out (3*K bytes) and keeps x for the verify. Unsafe inputs return
+ * AN_ERR_VERIFY before consuming the pad or writing ciphertext. */
 int an_mask(an_ctx *c, const int64_t *x, int8_t *planes_out);
 
 /* Consume the worker's reply for every node in order: ywidth 4 (FIELD_GEMM,
  * int32) or 3 (FIELD_GEMM24, packed int24). Unmasks INTO THE CORE, runs the
  * integer Freivalds check per node, and refuses the lot on any mismatch.
- * reply_len must equal sum(N_i) * ywidth. */
+ * reply_len must equal sum(N_i) * ywidth; reply may be unaligned. Full-width
+ * words are copied into core-owned scratch before range checks. Every call
+ * with a pending exchange consumes its one response attempt, even on error.
+ * A failed response requires a fresh pad and mask before another attempt. */
 int an_finish(an_ctx *c, const uint8_t *reply, size_t reply_len, int ywidth);
 
 /* After a successful finish: compare the unmasked y of every node against a
@@ -88,11 +92,13 @@ int an_check_local(an_ctx *c);
 
 /* Largest |y| over every node of the last finished exchange -- the field
  * headroom witness. A value approaching M/2 means the site is about to wrap,
- * which the integer Freivalds would catch as a verification failure. */
+ * which the integer Freivalds would catch as a verification failure.
+ * Returns 0 until the current exchange has a verified result. */
 int64_t an_peak_abs_y(const an_ctx *c);
 
 /* FNV-1a over the unmasked y of `node`, so an outer harness can compare two
- * runs without the plaintext leaving the core. */
+ * runs without the plaintext leaving the core. Returns 0 without a verified
+ * result or for an invalid node. */
 uint64_t an_y_digest(const an_ctx *c, int node);
 
 /* Counters. pads_issued only ever grows; verify_fail should stay 0. */
