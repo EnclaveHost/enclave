@@ -18,6 +18,7 @@ import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
+import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
 import { boxOrigin } from "./boxhost.js";
 
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
@@ -57,7 +58,7 @@ function selfRoutedUrl(url, name) {
 
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
 // attest: { allowedMeasurements: [hex], requireVcek,   — permissionless sellers:
-//           avf: { codeHashes: [hex], authorityHashes: [hex] } }
+//           avf: { codeHashes: [hex], padCodeHashes: [hex], authorityHashes: [hex] } }
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
 //   on the allowlist). No token, no per-seller identity. See metal/PROTOCOL.md.
@@ -316,7 +317,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           verifying = true;
           try {
             const spki = f.rad.transportKey ? Buffer.from(f.rad.transportKey, "base64") : null;
-            const isAvf = /android-avf-pvm/.test(f.rad.format || "");
+            const isAvf = f.rad.format === "android-avf-pvm/v1" || f.rad.format === AVF_PAD_FORMAT;
+            const avfV2 = f.rad.format === AVF_PAD_FORMAT;
+            // Validate the versioned transcript even in explicitly enabled
+            // development mode. Production checks its certificate/signature.
+            const avfBound = avfV2 ? avfPadBinding(spki, f.rad.padKey, nonce) : null;
             let res;
             // DEVELOPMENT ONLY, double-gated (the hub's option AND the process
             // env): a phone whose VM cannot attest yet (vendor level below the
@@ -327,20 +332,22 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               console.log(`[tunnel] ${name}: DEV attach without attestation (ENCLAVE_DEV_UNATTESTED)`);
               res = { ok: true, reasons: [], measurement: "dev-unattested", vcekVerified: false };
             } else if (isAvf) {
-              // A phone-anchored host. Same binding as SNP's report_data, in the
-              // shape AVF offers: the pVM requested its certificate with
-              // challenge = sha256(transportKey || nonce), and its attested key
-              // signs (transportKey || nonce), so the certificate is tied to THIS
-              // transport key and THIS attach. Body is JSON { chain: [b64 DER…],
-              // signature: b64 DER-ECDSA }.
-              if (!attest.avf || !attest.avf.codeHashes || !attest.avf.codeHashes.length) return deny("AVF attach is not enabled on this relay");
+              // The certificate challenge and attested-key signature cover
+              // the same versioned transcript. V2 includes the pad recipient.
+              // V1 can route but cannot provision dealt pads (see below).
+              // Earlier measured payloads signed arbitrary app-supplied
+              // transcripts. A v2 label alone cannot fix that oracle: only
+              // explicitly admitted builds with own-key checks may get pads.
+              const codeHashes = avfV2 ? attest.avf?.padCodeHashes : attest.avf?.codeHashes;
+              if (!Array.isArray(codeHashes) || !codeHashes.length)
+                return deny(avfV2 ? "AVF v2 pad attach is not enabled on this relay" : "AVF attach is not enabled on this relay");
               if (!spki) return deny("AVF attach must carry transportKey");
               let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("AVF body is not JSON"); }
-              if (!ev || !Array.isArray(ev.chain) || !ev.signature) return deny("AVF body needs chain[] and the attested key's signature over (transportKey || nonce)");
-              const bound = Buffer.concat([spki, nonce]);
+              if (!ev || !Array.isArray(ev.chain) || !ev.signature) return deny("AVF body needs chain[] and the attested key's signature over the binding transcript");
+              const bound = avfBound || Buffer.concat([spki, nonce]);
               res = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: createHash("sha256").update(bound).digest(),
                                         signature: Buffer.from(ev.signature, "base64"), signedMessage: bound },
-                                      { allowedCodeHashes: attest.avf.codeHashes, allowedAuthorityHashes: attest.avf.authorityHashes || [],
+                                      { allowedCodeHashes: codeHashes, allowedAuthorityHashes: attest.avf.authorityHashes || [],
                                         ...(attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
             } else {
               if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP or AVF`);
@@ -377,7 +384,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               return deny("that name is held by another enclave");
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement })); } catch {}
-            const padKey = /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
+            // A v1 padKey was outside the attested message. Never retain it
+            // for seed issuance or for the dealer's consumer enumeration.
+            const padKey = (!isAvf || avfV2) && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isAvf ? "avf" : "snp", keyFp,
                              spki: spki ? spki.toString("base64") : "", padKey });
