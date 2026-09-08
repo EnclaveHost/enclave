@@ -99,6 +99,12 @@ int  sh_pads_reader_bind(sh_pads_reader *r, const sh_pads_group *groups, uint32_
  * SH_ERR_EXHAUST when no shipment on disk covers the index (after a rescan),
  * SH_ERR_VERIFY when the box does not open (tampered or wrong key). */
 int  sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32_t *u_out);
+/* Also returns the matched SHIPMENT ordinal on success. sh_pad_r must use
+ * this ordinal, not the consumer's local group index: binding permits a
+ * reordered/subset group table. The ordinal and cell come from the same
+ * authenticated shipment and retained descriptor. On failure it is UINT32_MAX. */
+int  sh_pads_reader_cell_ordinal(sh_pads_reader *r, uint32_t group, uint64_t index,
+                                  int32_t *u_out, uint32_t *shipment_group);
 /* One shipment file judged on its own by the reader's rules (magic, version,
  * extents, this seed, this calibration digest when given, key box under the
  * consumer key, header box, group table): SH_OK with its index range filled,

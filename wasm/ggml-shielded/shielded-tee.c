@@ -823,11 +823,12 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
 static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t index0, int b, int32_t *r_out, int32_t *u_out) {
     for (int i = 0; i < b; i++) {
         const uint64_t index = index0 + (uint64_t)i;
-        sh_pad_r(l->pad_seed, gi, index, g->K, r_out + (size_t)i * g->K);
         const double t0 = now_ms();
         int rc;
+        uint32_t shipment_group = UINT32_MAX;
         for (;;) {
-            rc = sh_pads_reader_cell(l->pads, gi, index, u_out + (size_t)i * g->u_len);
+            rc = sh_pads_reader_cell_ordinal(l->pads, gi, index,
+                                           u_out + (size_t)i * g->u_len, &shipment_group);
             if (rc != SH_ERR_EXHAUST || l->stop || now_ms() - t0 >= (double)l->pad_bank_wait_ms) break;
             usleep(50000);
         }
@@ -836,6 +837,10 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
                      rc == SH_ERR_EXHAUST ? "not in any shipment (bank behind)" : rc == SH_ERR_VERIFY ? "failed to open (tampered or wrong key)" : "unreadable");
             return rc;
         }
+        /* The reader matches by name, not by position. Use the ordinal of
+         * the authenticated cell we just opened, even when the consumer's
+         * registration order differs or it uses only a subset of groups. */
+        sh_pad_r(l->pad_seed, shipment_group, index, g->K, r_out + (size_t)i * g->K);
         /* The pad check: every node of the group, (u . s) == (r . (W s)) mod M. */
         for (int n = 0; n < g->n_nodes; n++) {
             const sh_node *nd = &l->nodes[g->nodes[n]];

@@ -481,8 +481,10 @@ static sh_pads_file *reader_find(sh_pads_reader *r, uint64_t index) {
     return NULL;
 }
 
-int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32_t *u_out) {
-    if (!r || !r->n_bound || group >= r->n_bound) return SH_ERR_RANGE;
+int sh_pads_reader_cell_ordinal(sh_pads_reader *r, uint32_t group, uint64_t index,
+                                 int32_t *u_out, uint32_t *shipment_group) {
+    if (shipment_group) *shipment_group = UINT32_MAX;
+    if (!r || !r->n_bound || group >= r->n_bound || !u_out) return SH_ERR_RANGE;
     /* Resolve under the lock, then retain a descriptor while decrypting outside
      * it. Pruning can close/reuse the table's fd as soon as the lock is released. */
     pthread_mutex_lock(&r->mu);
@@ -518,7 +520,12 @@ int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32
     }
     pads_wipe(key, sizeof key);
     free(cell); free(plain); close(fd);
+    if (rc == SH_OK && shipment_group) *shipment_group = (uint32_t)g;
     return rc;
+}
+
+int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32_t *u_out) {
+    return sh_pads_reader_cell_ordinal(r, group, index, u_out, NULL);
 }
 
 uint32_t sh_pads_reader_groups(const sh_pads_reader *r, sh_pads_group *out, uint32_t cap) {
