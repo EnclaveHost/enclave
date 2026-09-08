@@ -317,6 +317,9 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
     while (got < bytes) {
         const uint64_t step = bytes - got < (200u << 20) ? bytes - got : (200u << 20); uint64_t part = 0;
         if (anchor_copy_exact(c, fd, step, &part, why, sizeof why) != 0) { got += part; OUT("ENGINE model stream failed at %" PRIu64 ": %s", got, why); close(c); close(fd); return -1; }
+        /* the VM's page cache must not swell with the model: written bytes are synced and dropped step by step
+         * (an 8 GiB guest filling its cache with 27 GB got the app killed by the phone's low-memory killer) */
+        if (anchor_fsync_retry(fd) == 0) posix_fadvise(fd, (off_t)got, (off_t)part, POSIX_FADV_DONTNEED);
         got += part;
         if (got < bytes) OUT("ENGINE model %" PRIu64 " MiB received", got >> 20);
     }
