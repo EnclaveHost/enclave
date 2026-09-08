@@ -1,5 +1,6 @@
 #include "ggml-shielded.h"
 #include "shielded-latency.h"
+#include "shielded-fusion.h"
 #include "ggml-backend-impl.h"
 #include "ggml-impl.h"
 
@@ -232,6 +233,9 @@ struct sh_state {
      * left on the CPU, or as narrow graphs (someone upstream sliced it)? */
     uint64_t m_hist[10] = {0}, graph_w[4] = {0};
     double t_encode = 0, t_link = 0, t_post = 0, t_graph = 0;
+    uint64_t local_island_ops = 0;
+    double t_local_island = 0;
+    std::vector<float> local_inv_rms;
 
     /* graph_compute scratch, kept across calls: resize() never shrinks a
      * vector's capacity, so after the first token these are plain pointer
@@ -345,6 +349,9 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                 (int)s.contention.contended, (unsigned long long)s.contention.events,
                 sh_link_simd()->name, s.link ? sh_link_refill_threads(s.link) : 0,
                 sh_link_refill_priority(s.link), getenv("GOMP_SPINCOUNT") ? getenv("GOMP_SPINCOUNT") : "default");
+        if (s.local_island_ops)
+            fprintf(stderr, "[shielded] local residual/norm islands: ops=%llu time=%.1fms (no product-weight fusion)\n",
+                    (unsigned long long)s.local_island_ops, s.t_local_island);
         // Identify the groups delaying GPU submission. Aggregate misses alone
         // cannot distinguish a large output head from an undersized whole pool.
         struct stalled_group { std::string name; uint64_t used, missed; double ms; };
@@ -787,6 +794,65 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
     return true;
 }
 
+static bool sh_local_islands_enabled() {
+    static const bool enabled = sh_env_int("SHIELDED_FUSE_LOCAL", 0) != 0;
+    return enabled;
+}
+
+/* A scheduling-only precursor to product-weight fusion. Restrict it to the
+ * Qwen residual -> post-attention RMSNorm -> public gamma island, with both
+ * adjacent sites calibrated. The ordinary matmuls and pad groups are unchanged.
+ * This pure matcher can also run while the pool lock is already held. */
+static bool sh_local_island_pattern(const ggml_tensor *op, sh_fusion_pattern &out) {
+    if (!sh_local_islands_enabled() || !op) return false;
+    const ggml_tensor *add = op;
+    if (op->op == GGML_OP_RMS_NORM) add = op->src[0];
+    else if (op->op == GGML_OP_MUL) {
+        const ggml_tensor *norm = op->src[0] && op->src[0]->op == GGML_OP_RMS_NORM ? op->src[0] : op->src[1];
+        if (!norm || norm->op != GGML_OP_RMS_NORM) return false;
+        add = norm->src[0];
+    } else if (op->op != GGML_OP_ADD) return false;
+    if (!add || add->op != GGML_OP_ADD) return false;
+    for (int side = 0; side < 2; side++) {
+        const auto *first = sh_fusion_unwrap(add->src[side]);
+        if (!first || first->op != GGML_OP_MUL_MAT || !first->src[0]) continue;
+        const auto *weight = first->src[0];
+        const std::string name = ggml_get_name(weight), layer = sh_layer_key(name);
+        if (layer.compare(0, 4, "blk.") ||
+            (name != layer + ".attn_output.weight" && name != layer + ".ssm_out.weight")) continue;
+        sh_fusion_spec spec;
+        spec.first_weight = name; spec.norm_weight = layer + ".post_attention_norm.weight";
+        spec.inputs = weight->ne[0]; spec.hidden = weight->ne[1];
+        if (sh_fusion_match(op, spec, out)) return true;
+    }
+    return false;
+}
+
+static bool sh_local_island_claimable(const ggml_tensor *op) {
+    sh_fusion_pattern pattern;
+    if (!sh_local_island_pattern(op, pattern) || !sh_claimable(pattern.first, true)) return false;
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    const std::string next = sh_layer_key(ggml_get_name(pattern.first->src[0])) + ".ffn_gate.weight";
+    return !p.invalid && sh_site_for(*p.cards[0], next.c_str());
+}
+
+static bool sh_compute_local_island(sh_state &s, const ggml_tensor *op, const sh_fusion_pattern &pattern) {
+    const double t0 = sh_now_ms();
+    const size_t m = (size_t)pattern.add->ne[1];
+    if (s.local_inv_rms.size() < m) s.local_inv_rms.resize(m);
+    if (!sh_fusion_compute_local(op, pattern, s.local_inv_rms.data(), s.local_inv_rms.size())) return false;
+    s.local_island_ops++;
+    s.t_local_island += sh_now_ms() - t0;
+    return true;
+}
+
+static int sh_graph_node_owner(sh_pool &p, const ggml_tensor *node) {
+    if (node->op == GGML_OP_MUL_MAT) return sh_owner(p, node->src[0]);
+    sh_fusion_pattern pattern;
+    return sh_local_island_pattern(node, pattern) ? sh_owner(p, pattern.first->src[0]) : -1;
+}
+
 /* --------------------------------------------------------------------------
  * The enclave's own CPU, reached through ggml's CPU backend.
  *
@@ -955,8 +1021,12 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         ggml_tensor *node = ggml_graph_node(cgraph, i);
         if (sh_is_meta(node)) continue;
         if (node->op != GGML_OP_MUL_MAT) {
-            // supports_op claims only matmuls and metadata ops, so this is
-            // unreachable unless sched changes its mind about what we take.
+            sh_fusion_pattern pattern;
+            if (sh_local_island_pattern(node, pattern)) {
+                if (!sh_compute_local_island(s, node, pattern)) return GGML_STATUS_FAILED;
+                done[i] = 1;
+                continue;
+            }
             fprintf(stderr, "[shielded] refusing an op we never claimed (%s); failing the graph\n", ggml_op_name(node->op));
             return GGML_STATUS_FAILED;
         }
@@ -1205,16 +1275,22 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
     for (int i = 0; i < graph->n_nodes;) {
         auto *node = graph->nodes[i];
         if (sh_is_meta(node)) { i++; continue; }
-        if (node->op != GGML_OP_MUL_MAT) return GGML_STATUS_FAILED;
-        const int owner = sh_owner(p, node->src[0]);
+        sh_fusion_pattern local_pattern;
+        const bool local_island = node->op != GGML_OP_MUL_MAT && sh_local_island_pattern(node, local_pattern);
+        if (node->op != GGML_OP_MUL_MAT && !local_island) return GGML_STATUS_FAILED;
+        const int owner = sh_graph_node_owner(p, node);
         if (p.invalid || owner < 0) {
+            if (local_island) {
+                if (!sh_compute_local_island(*p.cards[0], node, local_pattern)) return GGML_STATUS_FAILED;
+                i++; continue;
+            }
             sh_plain_mul_mat(node->src[0], node->src[1], node);
             p.cards[0]->local_nodes++; i++; continue;
         }
         int end = i + 1;
         while (end < graph->n_nodes) {
             const auto *next = graph->nodes[end];
-            if (!sh_is_meta(next) && (next->op != GGML_OP_MUL_MAT || sh_owner(p, next->src[0]) != owner)) break;
+            if (!sh_is_meta(next) && sh_graph_node_owner(p, next) != owner) break;
             end++;
         }
         ggml_cgraph view = {};
@@ -1311,6 +1387,8 @@ static bool sh_dev_supports_op(ggml_backend_dev_t, const struct ggml_tensor *op)
             return true;
         case GGML_OP_MUL_MAT:
             return sh_claimable(op, true);
+        case GGML_OP_ADD: case GGML_OP_RMS_NORM: case GGML_OP_MUL:
+            return sh_local_island_claimable(op);
         default:
             return false;   /* everything nonlinear or position-aware stays in the TEE */
     }
