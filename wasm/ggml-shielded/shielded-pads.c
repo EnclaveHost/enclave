@@ -391,8 +391,8 @@ static sh_pads_file *reader_find(sh_pads_reader *r, uint64_t index) {
 
 int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32_t *u_out) {
     if (!r || !r->n_bound || group >= r->n_bound) return SH_ERR_RANGE;
-    /* Resolve the cell under the lock (scans mutate the list), then read and
-     * open it outside: the file entry only ever grows the list, never moves. */
+    /* Resolve under the lock, then retain a descriptor while decrypting outside
+     * it. Pruning can close/reuse the table's fd as soon as the lock is released. */
     pthread_mutex_lock(&r->mu);
     sh_pads_file *f = reader_find(r, index);
     if (!f) { reader_scan(r); f = reader_find(r, index); }
@@ -401,11 +401,13 @@ int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32
         g = f->ordinal_of[group];
         u_len = f->groups[g].u_len;
         off = f->hdr.data_off + (index - f->hdr.index0) * f->hdr.row_bytes + f->group_off[g];
-        fd = f->fd;
+        do { fd = fcntl(f->fd, F_DUPFD_CLOEXEC, 0); } while (fd < 0 && errno == EINTR);
         memcpy(key, f->key, 32); memcpy(seed_id, f->hdr.seed_id, 16);
     }
+    const bool found = f != NULL;
     pthread_mutex_unlock(&r->mu);
-    if (!f) return SH_ERR_EXHAUST;
+    if (!found) return SH_ERR_EXHAUST;
+    if (fd < 0) { memset(key, 0, sizeof key); return SH_ERR_IO; }
     const size_t n = (size_t)cell_bytes(u_len);
     uint8_t *cell = (uint8_t *)malloc(n), *plain = (uint8_t *)malloc((size_t)(3 * u_len));
     int rc = SH_OK;
@@ -423,13 +425,14 @@ int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32
         }
     }
     memset(key, 0, sizeof key);
-    free(cell); free(plain);
+    free(cell); free(plain); close(fd);
     return rc;
 }
 
 uint32_t sh_pads_reader_groups(const sh_pads_reader *r, sh_pads_group *out, uint32_t cap) {
-    if (!r || !r->n_files) return 0;
+    if (!r) return 0;
     pthread_mutex_lock((pthread_mutex_t *)&r->mu);
+    if (!r->n_files) { pthread_mutex_unlock((pthread_mutex_t *)&r->mu); return 0; }
     const sh_pads_file *f = &r->files[0];
     uint32_t n = f->hdr.group_count < cap ? f->hdr.group_count : cap;
     if (out) memcpy(out, f->groups, (size_t)n * sizeof *out);
