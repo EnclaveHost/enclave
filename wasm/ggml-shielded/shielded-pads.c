@@ -69,6 +69,27 @@ void sh_pad_r(const uint8_t seed[32], uint32_t group, uint64_t index, int64_t K,
 }
 
 /* ---- helpers ------------------------------------------------------------ */
+static void pads_wipe(void *p, size_t n) {
+    volatile uint8_t *v = (volatile uint8_t *)p;
+    while (n--) *v++ = 0;
+}
+
+/* NaCl-compatible precomputation with contributory X25519 validation.
+ * TweetNaCl's beforenm accepts an all-zero DH result, yielding a public key
+ * for the secretbox. Check the raw result before HSalsa20 hides that zero. */
+static int box_shared_checked(uint8_t key[32], const uint8_t pk[32], const uint8_t sk[32]) {
+    static const uint8_t zero[16] = {0}, sigma[16] = "expand 32-byte k";
+    uint8_t raw[32];
+    int rc = crypto_scalarmult(raw, sk, pk);
+    uint8_t nonzero = 0;
+    for (size_t i = 0; i < sizeof raw; i++) nonzero |= raw[i];
+    if (rc == 0 && nonzero) rc = crypto_core_hsalsa20(key, zero, raw, sigma);
+    else rc = -1;
+    pads_wipe(raw, sizeof raw);
+    if (rc != 0) { pads_wipe(key, 32); return SH_ERR_VERIFY; }
+    return SH_OK;
+}
+
 static void put_u64(uint8_t *p, uint64_t v) { for (int i = 0; i < 8; i++) p[i] = (uint8_t)(v >> (8 * i)); }
 static void put_u32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (8 * i)); }
 
@@ -131,6 +152,7 @@ static int secretbox_seal(uint8_t *out /* 16 + n */, const uint8_t *msg, size_t 
     memcpy(m + 32, msg, n);
     crypto_secretbox(c, m, n + 32, nonce, key);
     memcpy(out, c + 16, n + 16);
+    pads_wipe(m, n + 32);
     free(m); free(c);
     return SH_OK;
 }
@@ -140,6 +162,7 @@ static int secretbox_open(uint8_t *msg, const uint8_t *box /* 16 + n */, size_t 
     memcpy(c + 16, box, n + 16);
     const int rc = crypto_secretbox_open(m, c, n + 32, nonce, key);
     if (rc == 0) memcpy(msg, m + 32, n);
+    pads_wipe(m, n + 32);
     free(c); free(m);
     return rc == 0 ? SH_OK : SH_ERR_VERIFY;
 }
@@ -158,13 +181,15 @@ struct sh_pads_writer {
 sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest[32],
                                     const uint8_t seed_id[16], const sh_pads_group *groups, uint32_t n_groups,
                                     uint64_t index0, uint64_t index_count, const uint8_t consumer_pk[32], int *err) {
+    if (!err) return NULL;
     *err = SH_OK;
-    if (!groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
+    if (!path || !model_digest || !seed_id || !consumer_pk || !groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
         index0 >= SH_PADS_INDEX_LIMIT || index_count > SH_PADS_INDEX_LIMIT - index0) { *err = SH_ERR_RANGE; return NULL; }
     uint64_t layout_off, layout_row, layout_bytes;
     if (!shipment_layout(groups, n_groups, index_count, &layout_off, &layout_row, &layout_bytes)) { *err = SH_ERR_RANGE; return NULL; }
     sh_pads_writer *w = (sh_pads_writer *)calloc(1, sizeof *w);
     if (!w) { *err = SH_ERR_NOMEM; return NULL; }
+    uint8_t esk[32] = {0}, shared[32] = {0};
     w->fd = -1;
     w->groups = (sh_pads_group *)calloc(n_groups, sizeof *w->groups);
     w->group_off = (uint64_t *)calloc(n_groups, sizeof *w->group_off);
@@ -195,13 +220,13 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
 
     /* Shipment key, boxed to the consumer from an ephemeral pair. */
     randombytes(w->key, 32);
-    uint8_t epk[32], esk[32], shared[32], nonce[24];
+    uint8_t epk[32], nonce[24];
     crypto_box_keypair(epk, esk);
-    crypto_box_beforenm(shared, consumer_pk, esk);
+    if (box_shared_checked(shared, consumer_pk, esk) != SH_OK) { *err = SH_ERR_VERIFY; goto fail; }
     memcpy(h->dealer_pk, epk, 32);
     key_nonce(nonce, seed_id);
     if (secretbox_seal(h->key_box, w->key, 32, nonce, shared) != SH_OK) { *err = SH_ERR_NOMEM; goto fail; }
-    memset(esk, 0, sizeof esk); memset(shared, 0, sizeof shared);
+    pads_wipe(esk, sizeof esk); pads_wipe(shared, sizeof shared);
 
     uint8_t digest[64], hn[12];
     if (header_hash(h, w->groups, n_groups, digest) != SH_OK) { *err = SH_ERR_NOMEM; goto fail; }
@@ -217,6 +242,7 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
     if (ftruncate(w->fd, (off_t)layout_bytes) != 0) { *err = SH_ERR_IO; goto fail; }
     return w;
 fail:
+    pads_wipe(esk, sizeof esk); pads_wipe(shared, sizeof shared);
     sh_pads_writer_close(w);
     return NULL;
 }
@@ -254,7 +280,7 @@ int sh_pads_writer_close(sh_pads_writer *w) {
     if (!w) return SH_OK;
     int rc = SH_OK;
     if (w->fd >= 0) { if (fsync(w->fd) != 0) rc = SH_ERR_IO; close(w->fd); }
-    memset(w->key, 0, sizeof w->key);
+    pads_wipe(w->key, sizeof w->key);
     free(w->groups); free(w->group_off); free(w->cell); free(w->plain); free(w);
     return rc;
 }
@@ -286,7 +312,7 @@ struct sh_pads_reader {
 static void file_close(sh_pads_file *f) {
     if (f->fd >= 0) close(f->fd);
     free(f->groups); free(f->group_off); free(f->ordinal_of);
-    memset(f->key, 0, sizeof f->key);
+    pads_wipe(f->key, sizeof f->key);
     memset(f, 0, sizeof *f); f->fd = -1;
 }
 
@@ -318,10 +344,10 @@ static int file_judge(sh_pads_reader *r, sh_pads_file *f) {
     if (!S_ISREG(st.st_mode) || st.st_size < 0 || (uint64_t)st.st_size != layout_bytes) { file_close(f); return SH_ERR_VERIFY; }
 
     uint8_t shared[32], nonce[24];
-    crypto_box_beforenm(shared, h->dealer_pk, r->sk);
+    if (box_shared_checked(shared, h->dealer_pk, r->sk) != SH_OK) { file_close(f); return SH_ERR_VERIFY; }
     key_nonce(nonce, h->seed_id);
     int rc = secretbox_open(f->key, h->key_box, 32, nonce, shared);
-    memset(shared, 0, sizeof shared);
+    pads_wipe(shared, sizeof shared);
     if (rc != SH_OK) { file_close(f); return SH_ERR_VERIFY; }
 
     uint8_t want[64], got[64], hn[12];
@@ -395,7 +421,7 @@ static int shipment_check(sh_pads_file *f, const uint8_t seed_id[16], const uint
     if (model_digest) { r.have_digest = true; memcpy(r.model_digest, model_digest, 32); }
     const int rc = file_judge(&r, f);
     if (rc == SH_OK) { if (index0) *index0 = f->hdr.index0; if (index_count) *index_count = f->hdr.index_count; file_close(f); }
-    memset(r.sk, 0, sizeof r.sk);
+    pads_wipe(r.sk, sizeof r.sk);
     return rc;
 }
 int sh_pads_shipment_check(const char *path, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
@@ -473,7 +499,7 @@ int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32
     const bool found = f != NULL;
     pthread_mutex_unlock(&r->mu);
     if (!found) return SH_ERR_EXHAUST;
-    if (fd < 0) { memset(key, 0, sizeof key); return SH_ERR_IO; }
+    if (fd < 0) { pads_wipe(key, sizeof key); return SH_ERR_IO; }
     const size_t n = (size_t)cell_bytes(u_len);
     uint8_t *cell = (uint8_t *)malloc(n), *plain = (uint8_t *)malloc((size_t)(3 * u_len));
     int rc = SH_OK;
@@ -490,7 +516,7 @@ int sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32
             u_out[j] = (int32_t)(v - SH_HALF_M);
         }
     }
-    memset(key, 0, sizeof key);
+    pads_wipe(key, sizeof key);
     free(cell); free(plain); close(fd);
     return rc;
 }
@@ -541,7 +567,7 @@ void sh_pads_reader_close(sh_pads_reader *r) {
     for (size_t i = 0; i < r->n_files; i++) file_close(&r->files[i]);
     free(r->files); free(r->bound);
     pthread_mutex_destroy(&r->mu);
-    memset(r->sk, 0, sizeof r->sk);
+    pads_wipe(r->sk, sizeof r->sk);
     free(r);
 }
 
@@ -591,10 +617,6 @@ int sh_pads_window_reserve(const char *ledger_path, uint64_t want, uint64_t *lo,
 
 
 /* ---- HMAC/HKDF-SHA512 over TweetNaCl's crypto_hash --------------------- */
-static void pads_wipe(void *p, size_t n) {
-    volatile uint8_t *v = (volatile uint8_t *)p;
-    while (n--) *v++ = 0;
-}
 /* Bootstrap messages are small and bounded. Never derive a known zero key or
  * dereference NULL because an allocation failed during key derivation. */
 static int hmac_sha512(const uint8_t *key, size_t klen, const uint8_t *m1, size_t n1, const uint8_t *m2, size_t n2, uint8_t out[64]) {
