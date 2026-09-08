@@ -530,6 +530,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * owner sent is the user's part; the prefix goes in front of it here. */
     int n_loaded = 0;
     std::string full_prompt = prompt;
+    std::vector<llama_token> prefix_suffix;   /* with a prefix: the exact suffix tokens from the single whole-prompt tokenization */
     if (const char *kv = getenv("SHIELDED_PREFIX_KV"); kv && *kv) {
         const char *pkh = getenv("SHIELDED_PREFIX_KV_PK"), *pf = getenv("SHIELDED_PREFIX_FILE");
         uint8_t pk[32], digest[32];
@@ -547,23 +548,41 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         int kfd; do { kfd = open(kv, O_RDONLY | O_CLOEXEC); } while (kfd < 0 && errno == EINTR);
         if (kfd < 0) { outf("ENGINE prefix KV: cannot open %s", kv); return 2; }
         sh_prefix_kv_snapshot snap; memset(&snap, 0, sizeof snap);
-        const int rrc = sh_prefix_kv_snapshot_read(kv, kfd, pk, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
+        /* v2 sidecar only (e220ae74): signed for THIS model's whole-file digest AND this calibration; a v1
+         * sidecar binds only the calibration, which two different models can share, so it is not accepted */
+        if (!g_table || !g_table->has_whole) { close(kfd); outf("ENGINE prefix KV REFUSED: no whole-model digest from the stage"); return 2; }
+        const int rrc = sh_prefix_kv_snapshot_read_v2(kv, kfd, pk, g_table->whole_digest, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
         close(kfd);
         if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        /* the adapter (prefix-kv-llama.h, Astra 299393ab) validates the snapshot's state body and restores it
-         * through llama's own memory-state envelope, from the private bytes only; proved on the real model */
+        /* token boundary (9479d7d6): the whole prefix+prompt is tokenized ONCE with the mint's flags and the
+         * snapshot's signed token ids must be its exact head; the exact remainder is the suffix (a separate
+         * tokenization of the suffix can merge differently at the seam); at least one suffix token, because
+         * the sequence state carries no output logits */
+        full_prompt = prefix + prompt;
+        std::vector<llama_token> full(full_prompt.size() + 16);
+        int nfull = llama_tokenize(vocab, full_prompt.c_str(), (int)full_prompt.size(), full.data(), (int)full.size(), true, false);
+        if (nfull < 0) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: tokenize failed"); return 2; }
+        full.resize(nfull);
+        if (sh_prefix_kv_match_tokens(&snap, full.data(), full.size(), llama_vocab_n_tokens(vocab), err, sizeof err) != 0) { sh_prefix_kv_snapshot_free(&snap); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        /* the adapter (299393ab) validates the snapshot's state body and restores it through llama's own
+         * memory-state envelope, from the private bytes only; proved on the real model */
         const int lrc = sh_prefix_kv_load_snapshot(ctx, &snap, 0, llama_vocab_n_tokens(vocab), err, sizeof err);
         ntok = snap.n_tokens; sh_prefix_kv_snapshot_free(&snap);
         if (lrc != 0) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        if (ntok >= (uint64_t)nfull) { outf("ENGINE prefix KV REFUSED: no suffix token after the %llu-token prefix", (unsigned long long)ntok); return 2; }
         n_loaded = (int)ntok;
+        prefix_suffix.assign(full.begin() + (ptrdiff_t)ntok, full.end());
         full_prompt = prefix + prompt;
         outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);
     }
-    const char *rest = full_prompt.c_str() + (n_loaded ? full_prompt.size() - strlen(prompt) : 0);
-    std::vector<llama_token> toks(strlen(rest) + 16);
-    int n = llama_tokenize(vocab, rest, (int)strlen(rest), toks.data(), (int)toks.size(), n_loaded == 0, n_loaded != 0);
-    if (n < 0) { outf("ENGINE tokenize failed"); return 2; }
-    toks.resize(n);
+    std::vector<llama_token> toks; int n;
+    if (n_loaded) { toks = prefix_suffix; n = (int)toks.size(); }
+    else {
+        toks.resize(strlen(prompt) + 16);
+        n = llama_tokenize(vocab, prompt, (int)strlen(prompt), toks.data(), (int)toks.size(), true, false);
+        if (n < 0) { outf("ENGINE tokenize failed"); return 2; }
+        toks.resize(n);
+    }
     const long t_pp0 = ggml_time_us();
     if (n > 0) {
         int rc;
