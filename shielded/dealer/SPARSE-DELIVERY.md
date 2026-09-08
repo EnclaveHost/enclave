@@ -1,7 +1,8 @@
 # Sparse pad delivery: proposed next implementation
 
-Status: layout and canonical-manifest primitives implemented; remaining path is a design.
-No v3 codec, live relay change or phone support is deployed.
+Status: layout, canonical-manifest and descriptor-table primitives implemented;
+remaining path is a design. No v3 shipment reader/writer, live relay change or
+phone support is deployed.
 The current 27B baseline continues with complete v2 shipments.
 
 ## Problem and expected benefit
@@ -202,8 +203,8 @@ spans, trusted reservation bounds, a mandatory file-size policy cap and output
 capacity. It commits absolute group payload offsets and extent totals only
 after every descriptor and span passes. Canonical empty spans, nonce/index
 limits, exact table equality, and overflow/file caps are checked. Metadata uses
-256 fixed bytes plus 96 per group, aligned to 4096 bytes; no codec currently
-writes or accepts that proposed representation.
+256 fixed bytes plus 96 per group, aligned to 4096 bytes. The descriptor-only
+codec below implements the table; the enclosing file codec remains pending.
 
 Inputs must already be stable private snapshots. The expected manifest's
 provenance, unique names and ordered-member binding, the reservation signature,
@@ -218,3 +219,26 @@ overflow, atomic refusal outputs and a complete 262-group metadata layout.
 Deterministic varied ranges are compared with independent int128 size arithmetic.
 The fixture passes ASan/UBSan and Android35 C/C++17 compilation. It performs no
 network, GPU, model loading, encryption or pad consumption.
+
+`wasm/ggml-shielded/shielded-pad-sparse-table.h` encodes and decodes the complete
+96-byte descriptor table using explicit little-endian fields. It checks the
+exact table length against the admitted full manifest before reading any input
+descriptor and obtains bounded heap scratch from that manifest's count, never
+from a serialized count. Unaligned byte input is supported. It compares every
+identity byte (including empty groups and canonical name padding), then applies
+the existing reservation/range/file-cap layout checks. Table, decoded spans,
+offsets and extent outputs remain unchanged on any refusal, including allocation
+failure. A 1024-group admission cap bounds its memory use; no large table is
+placed on a protected VM thread's stack.
+
+The table has no independent authority: the future file reader must authenticate
+the enclosing header, pin this seed's expected manifest digest, check canonical
+padding and exact file length, and authenticate each encrypted cell. The current
+helpers do not establish model/encoding provenance, grant reservations, verify
+signatures, publish files or advance any receipt/consumption state. Do not feed
+the descriptors into the legacy rectangular acknowledgment path.
+
+`test/shielded-pad-sparse-table.test.mjs` covers every shorter table length,
+extra bytes, unaligned input, identity changes in every descriptor byte, empty
+spans, invalid ranges/caps, allocation refusal, unchanged outputs and the maximum
+admitted table. An independent Node encoder checks the exact serialized bytes.
