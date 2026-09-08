@@ -82,13 +82,16 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 /* ---- the mouth: every line to stdout (debug VMs), logcat, and the control vsock ---- */
 static int g_ctl = -1;
 static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static pthread_mutex_t g_out_mu = PTHREAD_MUTEX_INITIALIZER;   /* the control channel is a stream: two threads' lines must not interleave */
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
     if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
     line[n] = '\n'; line[n + 1] = 0;
+    pthread_mutex_lock(&g_out_mu);
     fputs(line, stdout); fflush(stdout);
     __android_log_print(ANDROID_LOG_INFO, TAG, "%.*s", n, line);
-    if (g_ctl >= 0) { const char *p = line; size_t left = (size_t)n + 1; while (left) { ssize_t w = write(g_ctl, p, left); if (w <= 0) { close(g_ctl); g_ctl = -1; break; } p += w; left -= (size_t)w; } }
+    if (g_ctl >= 0) { const char *p = line; size_t left = (size_t)n + 1; while (left) { ssize_t w = write(g_ctl, p, left); if (w <= 0) { if (w < 0 && errno == EINTR) continue; close(g_ctl); g_ctl = -1; break; } p += w; left -= (size_t)w; } }
+    pthread_mutex_unlock(&g_out_mu);
 }
 #define OUT(...) outf(__VA_ARGS__)
 
@@ -327,6 +330,18 @@ static void calib_digest32(uint8_t out[32]) {   /* what shielded-dealer records:
 }
 static char g_seed_id_hex[33] = "", g_pad_name[65] = "", g_pads_dir[512] = "";   /* a 64-char name plus its NUL */
 static int g_have_ledger = 0, g_have_seed = 0;
+/* What a delivery acknowledgment (PAD-ACK.md) is signed for: the seed, the tunnel name and the
+ * CALIBRATION digest of the grant in force (the shipment header carries first32(SHA-512(calib)),
+ * never the GGUF's SHA-256), taken as one snapshot under a lock so a new grant on the control
+ * thread cannot split a receiver thread's validation from its signature. */
+typedef struct { int valid; uint8_t seed_id[16]; char seed_id_hex[33]; char name[65]; uint8_t calib[32]; } ack_identity;
+static pthread_mutex_t g_ack_mu = PTHREAD_MUTEX_INITIALIZER;
+static ack_identity g_ack;
+static void ack_identity_set(const uint8_t seed_id[16], const char *sid_hex, const char *name, const uint8_t calib[32]) {
+    ack_identity id; memset(&id, 0, sizeof id);
+    memcpy(id.seed_id, seed_id, 16); strncpy(id.seed_id_hex, sid_hex, 32); strncpy(id.name, name, 64); memcpy(id.calib, calib, 32); id.valid = 1;
+    pthread_mutex_lock(&g_ack_mu); g_ack = id; pthread_mutex_unlock(&g_ack_mu);
+}
 static char g_prefix_pk_hex[65] = "";        /* PREFIXPK: the platform's shared-prefix key the engine pins (prefix-kv.h) */
 static void pads_dir(char *out, size_t cap) {
     const char *es = AVmPayload_getEncryptedStoragePath();
@@ -369,6 +384,35 @@ static int pads_prune(const char *keep_seed, unsigned long long below) {
  * byte, 'H' (have it already, same size: nothing more is sent) or 'G' (go),
  * then the bytes follow, written tmp-then-rename so the engine's reader
  * never sees a partial file. */
+static int write_all(int fd, const char *p, size_t n) {
+    while (n) { ssize_t w = write(fd, p, n); if (w < 0) { if (errno == EINTR) continue; return -1; } if (w == 0) { errno = EIO; return -1; } p += w; n -= (size_t)w; }
+    return 0;
+}
+static void dir_sync(const char *dir) { int d = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC); if (d >= 0) { fsync(d); close(d); } }
+/* A shipment that is durably in the store, judged with the grant's identity (seed, consumer key,
+ * calibration digest, and its name against its own header): ours and intact -> the signed delivery
+ * acknowledgment the platform's dealer prunes by (PAD-ACK.md); anything else -> removed, no
+ * acknowledgment, the owner hears why. 1 = acknowledged, 0 = kept unjudged (no seed yet), -1 = removed. */
+static int pads_judge(const char *name, const char *fin) {
+    ack_identity id; pthread_mutex_lock(&g_ack_mu); id = g_ack; pthread_mutex_unlock(&g_ack_mu);
+    if (!id.valid) { OUT("PADS %s kept unjudged: no seed granted yet", name); return 0; }
+    uint64_t i0 = 0, cnt = 0;
+    const int rc = sh_pads_shipment_check(fin, id.seed_id, g_psk, id.calib, &i0, &cnt);
+    char sid[33] = ""; unsigned long long ni0 = 0, ncnt = 0;
+    if (rc != SH_OK) { unlink(fin); OUT("PADS %s REJECTED (%s): removed", name, rc == SH_ERR_IO ? "unreadable" : "not this seed, calibration or consumer, or damaged"); return -1; }
+    if (sscanf(name, "%32[0-9a-f]-%llu-%llu.pads", sid, &ni0, &ncnt) != 3 || strcmp(sid, id.seed_id_hex) || ni0 != i0 || ncnt != cnt) {
+        unlink(fin); OUT("PADS %s REJECTED (name does not match its header %llu+%llu): removed", name, (unsigned long long)i0, (unsigned long long)cnt); return -1;
+    }
+    uint8_t sha[32]; uint64_t bytes = 0;
+    if (anchor_sha256_file(fin, sha, &bytes) != 0 || !bytes) { OUT("PADS %s: cannot hash it for the acknowledgment", name); return 0; }
+    char shah[65], i0s[24], cnts[24], nh[33], sh[129]; uint8_t nonce[16], sig[64];
+    sh_pads_bin2hex(sha, 32, shah); snprintf(i0s, sizeof i0s, "%llu", (unsigned long long)i0); snprintf(cnts, sizeof cnts, "%llu", (unsigned long long)cnt);
+    randombytes(nonce, 16); sh_pads_bin2hex(nonce, 16, nh);
+    const char *fields[5] = { id.name, id.seed_id_hex, i0s, cnts, shah };     /* enclave-pads-ack\n<name>\n<seed_id>\n<index0>\n<count>\n<sha256>\n<nonce> */
+    sh_pads_request_sign(g_tsk, "ack", fields, 5, nh, sig); sh_pads_bin2hex(sig, 64, sh);
+    OUT("PADACK %s %s %s %s %s %s", id.seed_id_hex, i0s, cnts, shah, nh, sh);
+    return 1;
+}
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
@@ -381,7 +425,10 @@ static void *pads_receiver(void *arg) {
         if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2 || strchr(name, '/') || strstr(name, "..")) { close(c); continue; }
         char tmp[700], fin[700]; snprintf(tmp, sizeof tmp, "%s/.%s.tmp", g_pads_dir, name); snprintf(fin, sizeof fin, "%s/%s", g_pads_dir, name);
         struct stat st;
-        if (stat(fin, &st) == 0 && (unsigned long long)st.st_size == bytes) { (void)!write(c, "H", 1); close(c); continue; }
+        if (stat(fin, &st) == 0 && (unsigned long long)st.st_size == bytes) {   /* have it: the owner may be retrying a lost acknowledgment */
+            if (pads_judge(name, fin) < 0) { (void)!write(c, "E", 1); close(c); continue; }
+            (void)!write(c, "H", 1); close(c); continue;
+        }
         (void)!write(c, "G", 1);
         /* the encrypted store is shared with the model load and the engine's own writes; a transient
          * open failure (busy device, momentary ENOSPC while a spent shipment is being unlinked) must not
@@ -398,11 +445,16 @@ static void *pads_receiver(void *arg) {
             size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
             ssize_t r = read(c, buf, want); if (r < 0 && (errno == EINTR || errno == EAGAIN)) continue;
             if (r <= 0) { last_r = r; read_errno = errno; break; }
-            if (write(fd, buf, (size_t)r) != r) { write_errno = errno; break; }
+            if (write_all(fd, buf, (size_t)r) != 0) { write_errno = errno; break; }
             got += (unsigned long long)r;
         }
-        if (fd >= 0) { fsync(fd); close(fd); }
-        if (got == bytes && rename(tmp, fin) == 0) { (void)!write(c, "K", 1); OUT("PADS %s %llu bytes", name, got); }
+        int synced = 0;
+        if (fd >= 0) { synced = fsync(fd) == 0; if (!synced && !write_errno) write_errno = errno; close(fd); }
+        if (got == bytes && synced && rename(tmp, fin) == 0) {
+            dir_sync(g_pads_dir);                                     /* the name is durable before anyone is told */
+            if (pads_judge(name, fin) < 0) { (void)!write(c, "E", 1); }
+            else { (void)!write(c, "K", 1); OUT("PADS %s %llu bytes", name, got); }
+        }
         else { unlink(tmp); (void)!write(c, "E", 1);
                OUT("PADS %s FAILED at %llu of %llu (sock fd %d, file fd %d, read %zd/%s, write %s)", name, got, bytes, c, fd,
                    last_r, last_r < 0 ? strerror(read_errno) : "eof", write_errno ? strerror(write_errno) : "ok"); }
@@ -679,6 +731,7 @@ int AVmPayload_main(void) {
                         g_req_pending = 0;                                     /* one grant per request, ever */
                         memcpy(g_grant_model, g_req_model, 32);                 /* the model this seed is for: a later swap is refused */
                         memcpy(g_seed_id, g.seed_id, 16); strncpy(g_pad_name, g_req_name, sizeof g_pad_name - 1); strncpy(g_seed_id_hex, sid, 32); g_have_seed = 1;
+                        ack_identity_set(g_seed_id, sid, g_req_name, g_req_calib);   /* acknowledgments are signed for THIS grant's calibration */
                         if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
                         int dropped = pads_prune(sid, 0);
                         OUT("PADGRANT ok %s (%s ledger key)", sid, g_ledger_pinned ? "pinned" : "UNPINNED");
@@ -695,6 +748,7 @@ int AVmPayload_main(void) {
                     sh_pads_hex2bin(sid, g_seed_id, 16) && sh_pads_hex2bin(epk_h, epk, 32) && sh_pads_hex2bin(nonce_h, nonce, 12) && sh_pads_hex2bin(box_h, box, 48) &&
                     sh_pads_seed_open(epk, nonce, box, 48, g_psk, g_ppk, g_seed) == 0) {
                     strncpy(g_pad_name, name, sizeof g_pad_name - 1); strncpy(g_seed_id_hex, sid, 32); g_have_seed = 1;
+                    { uint8_t cd[32]; calib_digest32(cd); ack_identity_set(g_seed_id, sid, name, cd); }
                     if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
                     int dropped = pads_prune(sid, 0);
                     OUT("PADSEED ok %s", sid);

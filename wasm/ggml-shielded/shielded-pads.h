@@ -99,6 +99,14 @@ int  sh_pads_reader_bind(sh_pads_reader *r, const sh_pads_group *groups, uint32_
  * SH_ERR_EXHAUST when no shipment on disk covers the index (after a rescan),
  * SH_ERR_VERIFY when the box does not open (tampered or wrong key). */
 int  sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int32_t *u_out);
+/* One shipment file judged on its own by the reader's rules (magic, version,
+ * extents, this seed, this calibration digest when given, key box under the
+ * consumer key, header box, group table): SH_OK with its index range filled,
+ * SH_ERR_VERIFY when it is not ours or damaged, SH_ERR_IO when unreadable.
+ * Nothing stays open, nothing is trusted on failure. The pVM signs a delivery
+ * acknowledgment (shielded/anchor/avf/PAD-ACK.md) only after SH_OK. */
+int sh_pads_shipment_check(const char *path, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
+                           const uint8_t *model_digest /* 32 bytes or NULL */, uint64_t *index0, uint64_t *index_count);
 /* Pin the model: shipments whose header digest differs are ignored (the
  * dealer prints the digest it recorded; SHIELDED_PAD_MODEL_DIGEST carries it). */
 void sh_pads_reader_require_digest(sh_pads_reader *r, const uint8_t model_digest[32]);

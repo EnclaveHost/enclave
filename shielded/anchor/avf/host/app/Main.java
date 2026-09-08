@@ -327,6 +327,7 @@ public class Main extends Activity {
                 say("VSOCK " + line); n++;
                 if (line.startsWith("PADWIN ")) PadsClient.onWindow(padSession, line, plan.name, out);   // the engine asks for a ledger window
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
+                if (line.startsWith("PADACK ")) relayAck(padSession, line, plan.name, plan.relay);       // the VM's signed delivery acknowledgment
                 if (line.equals("END")) break;
             }
             say("CONTROL closed after " + n + " lines");
@@ -365,6 +366,27 @@ public class Main extends Activity {
             byte[] buf = new byte[1 << 20]; int r; while ((r = in.read(buf)) > 0) md.update(buf, 0, r);
             return md.digest();
         } catch (Exception e) { say("MODEL sha256 failed: " + e); return new byte[32]; }
+    }
+
+    /* The VM's signed delivery acknowledgment of one shipment (PAD-ACK.md), relayed verbatim to the
+     * platform off the control thread and in order. Nothing here can forge, alter or reorder one; a
+     * relay without the route is said once and acknowledgments are then simply not recorded. */
+    static final java.util.concurrent.ExecutorService sAcks = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "pad-acks"); t.setDaemon(true); return t; });
+    static volatile boolean sAckRouteMissing;
+    static void relayAck(PadDelivery.Session session, String line, String name, String relay) {
+        final String[] f = line.trim().split(" ");
+        if (f.length != 7) { say("PADACK malformed from the VM: " + line); return; }
+        sAcks.execute(() -> {
+            if (sAckRouteMissing) return;
+            try {
+                JSONObject body = new JSONObject().put("name", name).put("seed_id", f[1]).put("index0", Long.parseLong(f[2])).put("count", Long.parseLong(f[3]))
+                                                  .put("sha256", f[4]).put("nonce", f[5]).put("sig", f[6]);
+                JSONObject res = PadsClient.http(session, "POST", PadsClient.httpBase(relay) + "/v1/pads/ack", body);
+                int st = res.optInt("_status");
+                if (st == 404) { sAckRouteMissing = true; say("PADS relay has no /v1/pads/ack: delivery acknowledgments are not recorded (the dealer prunes nothing)"); }
+                else say("PADS ack " + f[2] + "+" + f[3] + (st == 200 ? " recorded, floor " + res.opt("ack_floor") : " refused " + res));
+            } catch (Exception e) { say("PADS ack " + f[2] + "+" + f[3] + " not relayed: " + e); }
+        });
     }
 
     /* One model stage: a streamer for this line, "MODEL <bytes> <cache tag>" on the control channel, then the

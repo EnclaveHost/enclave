@@ -382,6 +382,19 @@ static int reader_scan(sh_pads_reader *r) {
     return added;
 }
 
+int sh_pads_shipment_check(const char *path, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
+                           const uint8_t *model_digest, uint64_t *index0, uint64_t *index_count) {
+    if (!path || !seed_id || !consumer_sk) return SH_ERR_RANGE;
+    sh_pads_reader r; memset(&r, 0, sizeof r);           /* a throwaway reader: file_open judges by its seed, key and digest only */
+    memcpy(r.seed_id, seed_id, 16); memcpy(r.sk, consumer_sk, 32);
+    if (model_digest) { r.have_digest = true; memcpy(r.model_digest, model_digest, 32); }
+    sh_pads_file f; memset(&f, 0, sizeof f); f.fd = -1;
+    const int rc = file_open(&r, path, &f);
+    if (rc == SH_OK) { if (index0) *index0 = f.hdr.index0; if (index_count) *index_count = f.hdr.index_count; file_close(&f); }
+    memset(r.sk, 0, sizeof r.sk);
+    return rc;
+}
+
 sh_pads_reader *sh_pads_reader_open(const char *dir, const uint8_t seed_id[16], const uint8_t consumer_sk[32], int *err) {
     *err = SH_OK;
     sh_pads_reader *r = (sh_pads_reader *)calloc(1, sizeof *r);
