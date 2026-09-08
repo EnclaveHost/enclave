@@ -27,7 +27,7 @@ gpus: 1            # whole H200 attached to the enclave (CC allows 1 or 8)
 containers:
   # --- MPS daemon: makes per-tenant SM%/VRAM caps enforceable in prod -----------
   - name: "mps-control"
-    image: "ghcr.io/enclavehost/enclave-mps@sha256:11911a3f6aa58c27425e9e7a9962c78d751aa43089f3f61126972ac5ef4172cf"
+    image: "ghcr.io/enclavehost/enclave-mps@sha256:dac6cc1ba665423e342aa97587ed943d084793040acd1d7f975d1b149c2e5182"
     runtime: nvidia
     gpus: all
     ipc: host
@@ -329,7 +329,7 @@ containers:
   # are hardware-enforced per process. Tenants without a GPU share never get
   # the wasi-nn import at all.
   - name: "wasm-manager"
-    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:acfae425eb1f8d9435d3dcd256760c3cc4090044281ed1d31d091f12912fd8a9"
+    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:1d7d1537c957a8bba3003382522acd779419b848e84c4ceffa515906901b6078"
     runtime: nvidia
     gpus: all
     ipc: host
