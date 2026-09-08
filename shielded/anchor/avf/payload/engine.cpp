@@ -424,14 +424,10 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
             if (hfd >= 0) { unlink("/data/.verified-header"); if (ftruncate(hfd, (off_t)g_table->file_size) != 0) { snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; named: %s", strerror(errno)); close(hfd); hfd = -1; } }
             else snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; named: %s", strerror(errno));
         }
-        if (hfd < 0) {   /* the encrypted store: dm-crypt under a key only this VM holds (the host can corrupt or replay
-                          * blocks, not craft them); the header is re-read after the load and must equal the retained bytes */
-            const char *es = getenv("ANCHOR_ENCRYPTED_STORE"); char hp[512]; snprintf(hp, sizeof hp, "%s/.verified-header", es && *es ? es : "/mnt/encryptedstore");
-            hdr_home = "encrypted store (named, unlinked, re-read after load)";
-            hfd = open(hp, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
-            if (hfd >= 0) { unlink(hp); if (ftruncate(hfd, (off_t)g_table->file_size) != 0) { snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; store: %s", strerror(errno)); close(hfd); hfd = -1; } }
-            else snprintf(hwhy + strlen(hwhy), sizeof hwhy - strlen(hwhy), "; store: %s", strerror(errno));
-        }
+        /* NO host-backed home: a file the host can replay or corrupt cannot vouch for what llama parsed, and
+         * re-reading it afterwards does not close that window. Until the in-memory FILE route lands
+         * (funopen over the retained header + llama_model_load_from_file_ptr), a device without a growable
+         * memfd or a memory-backed /data refuses. */
     }
     if (hfd < 0) { outf("ENGINE refused: no home for the verified header (%s)", hwhy); return 2; }
     for (size_t done = 0; done < g_table->header_len;) {
@@ -450,12 +446,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (!sh_pin_pattern.empty()) { sh_plain_buft.device = ggml_backend_buft_get_device(ggml_backend_cpu_buffer_type()); sh_pin[0].pattern = sh_pin_pattern.c_str(); sh_pin[0].buft = &sh_plain_buft; sh_pin[1].pattern = nullptr; sh_pin[1].buft = nullptr; mp.tensor_buft_overrides = sh_pin; }
     mp.no_alloc = true; mp.load_mode = LLAMA_LOAD_MODE_NONE; mp.use_extra_bufts = true;
     llama_model *model = llama_model_load_from_file(hpath, mp);
-    {   /* what llama just parsed must still be the retained bytes (a replayed or corrupted block would differ) */
-        std::vector<uint8_t> again(g_table->header_len); size_t got = 0;
-        while (got < again.size()) { ssize_t n = pread(hfd, again.data() + got, again.size() - got, (off_t)got); if (n < 0 && errno == EINTR) continue; if (n <= 0) break; got += (size_t)n; }
-        close(hfd);
-        if (got != again.size() || memcmp(again.data(), g_table->header, again.size()) != 0) { outf("ENGINE refused: the header file changed under the metadata load"); if (model) llama_model_free(model); return 2; }
-    }
+    close(hfd);
     if (!model) { outf("ENGINE model metadata load failed from the verified header"); return 2; }
     int src; do { src = fcntl(model_fd, F_DUPFD_CLOEXEC, 0); } while (src < 0 && errno == EINTR);
     if (src < 0) { outf("ENGINE refused: cannot hold the staged model: %s", strerror(errno)); llama_model_free(model); return 2; }
