@@ -1453,6 +1453,18 @@ static void sh_verify_rhs(void *ctx) {
     sh_prof[4] += w->elapsed_ms;
 }
 
+/* The int32 wire format can represent much more than a field element. Check
+ * the untrusted values before kernels subtract a pad in int32 or accumulate
+ * under the |y| < 2^24 bound. Unsigned addition avoids overflow even for
+ * INT32_MIN/MAX; the reduction permits vectorization of this extra int32-only
+ * pass. Packed int24 inputs already keep subtraction/accumulation in range. */
+static bool sh_reply32_balanced(const int32_t *values, size_t n) {
+    uint32_t bad = 0;
+    for (size_t i = 0; i < n; i++)
+        bad |= (uint32_t)values[i] + (uint32_t)SH_HALF_M >= (uint32_t)SH_M_MOD;
+    return bad == 0;
+}
+
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
     if (!n_nodes) return SH_OK;
@@ -1571,6 +1583,10 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         if (rep.len != want) {
             snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
             rc = SH_ERR_VIOLATION; goto fail;           /* the worker's fault: reconnect, see above */
+        }
+        if (yw == 4 && !sh_reply32_balanced((const int32_t *)rep.data, want / 4)) {
+            snprintf(l->err, sizeof l->err, "worker returned an int32 value outside the balanced field range");
+            rc = SH_ERR_VIOLATION; goto fail;
         }
 
         /* Unmask, then verify, then hand back -- never the other way round.
