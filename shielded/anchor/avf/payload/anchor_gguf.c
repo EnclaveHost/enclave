@@ -176,6 +176,7 @@ int anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, ui
     }
     if (r.pos != r.size) { snprintf(err, errcap, "size changed under the read"); goto bad; }
     h->final(whole, pin);
+    memcpy(t->whole_digest, pin, 32); t->has_whole = 1;
     free(r.buf);
     return 1;
 bad:
