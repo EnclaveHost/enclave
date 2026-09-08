@@ -35,6 +35,57 @@ Its separately supplied pad key is discarded, so it cannot obtain pad seeds
 or appear as a pad recipient in the dealer's consumer list. SNP behavior is
 unchanged by this AVF protocol change.
 
+## Platform seed grant
+
+POST `/v1/pads/seed` with `name`, `nonce`, `sig`, `model_digest`, and
+`calib_digest`. The nonce is 32 random bytes generated and remembered inside
+the pVM, encoded as 64 lowercase hex characters. `model_digest` is the SHA-256
+of the original GGUF and `calib_digest` is the first 32 bytes of SHA-512 of the
+calibration asset, both lowercase hex. The pVM checks these identities against
+measured expected assets. The request signature covers the UTF-8 bytes of:
+
+```
+enclave-pads-seed-v2
+<name>
+<model_digest>
+<calib_digest>
+<request nonce>
+```
+
+There is no trailing newline. The response contains `grant_version: 1` and
+these fields; `grant_sig` is the ledger's Ed25519 signature over the following
+exact UTF-8 message, again with no trailing newline:
+
+```
+enclave-pads-seed-grant-v1
+<name>
+<transport_key: 44-byte Ed25519 DER SPKI, lowercase hex>
+<pad_key: 32 raw bytes, lowercase hex>
+<model_digest>
+<calib_digest>
+<request_nonce>
+<seed_id: 16 bytes, lowercase hex>
+<epoch: positive base-10 integer, at most 9007199254740991>
+<epk: 32 bytes, lowercase hex>
+<nonce: 12-byte encryption nonce, lowercase hex>
+<box: 48-byte ciphertext followed by tag, lowercase hex>
+```
+
+`wasm/ggml-shielded/shielded-pad-grant.h` provides `sh_pad_grant_verify`.
+Its `sh_pad_grant_context` must come from trusted local state: the deployment
+name, this boot's public keys, authenticated asset digests, and the current
+pending request nonce. The helper reconstructs all those fields itself and
+authenticates the supplied `sh_pad_seed_grant` under the measured ledger key.
+Response copies of the expected fields are informational; they cannot replace
+trusted state. Decode fixed-size hex fields strictly, require version 1, verify
+the grant, and only then call `sh_pads_seed_open`. Neither verification helper
+installs a seed or advances lifecycle state.
+
+On acceptance, consume the pending request once. A late response, request from
+a previous boot, or duplicate grant cannot reinitialize an active pad bank.
+Legacy requests without both digests retain their old unsigned response for
+existing consumers. A protected v2 payload must not fall back to that response.
+
 ## Required consumer integration
 
 The transcript helper alone does not complete the trust chain. Before admitting
