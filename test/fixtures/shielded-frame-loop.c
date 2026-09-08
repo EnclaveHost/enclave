@@ -38,6 +38,21 @@ static int run_case(int mode,size_t sz,int timeout_ms,anchor_frame_stats*st){
   pthread_join(th,NULL);
   close(sp[1]);                                        /* run_case owns both ends: no descriptor leaks */
   free(sb);free(rb);return rc;}
+
+/* control-frame peer for anchor_frame_control: reads the 4-byte 0-length request, then per mode:
+   'a' echoes a 0-length ack; 'b' reads and never replies (deadline); 'c' replies a nonzero-length ack. */
+typedef struct { int fd; char mode; } ctl_arg;
+static void *ctl_peer(void *a){ ctl_arg*e=a; uint8_t h[4]; if(readn(e->fd,h,4)==0){
+    if(e->mode=='a'){ uint8_t z[4]={0,0,0,0}; writen(e->fd,z,4); }
+    else if(e->mode=='c'){ uint8_t nz[5]={0,0,0,1,7}; writen(e->fd,nz,5); }
+    /* 'b': read the request, send nothing */
+  } return NULL; }
+static int ctl_case(char mode,int timeout_ms){
+  int sp[2]; assert(!socketpair(AF_UNIX,SOCK_STREAM,0,sp));
+  ctl_arg ea={sp[1],mode}; pthread_t th; assert(!pthread_create(&th,NULL,ctl_peer,&ea));
+  int rc=anchor_frame_control(sp[0],timeout_ms);
+  close(sp[0]); pthread_join(th,NULL); close(sp[1]); return rc; }
+
 int main(void){
   setvbuf(stdout,NULL,_IONBF,0);   /* NO global SIGPIPE ignore: the helper must be signal-safe on its own (MSG_NOSIGNAL) */
   const int fds0=count_fds();anchor_frame_stats st;
@@ -48,6 +63,9 @@ int main(void){
   rc=run_case(1,65536,3000,&st);assert(rc==AFL_CONTENT);printf("case middle-byte corruption: %s\n",afl_strerror(rc));
   rc=run_case(4,65536,600,&st);assert(rc==AFL_TIMEOUT);printf("case partial header: %s\n",afl_strerror(rc));
   assert(run_case(0,262144,4000,&st)==AFL_OK);
+  { int rc=ctl_case('a',2000); assert(rc==AFL_OK); printf("case control handshake ok\n"); }
+  { int rc=ctl_case('b',300); assert(rc==AFL_TIMEOUT); printf("case control no-ack -> timeout\n"); }
+  { int rc=ctl_case('c',2000); assert(rc==AFL_LENGTH); printf("case control nonzero-ack -> length error\n"); }
   assert(count_fds()==fds0);
   puts("frame-loop: 3MiB success, size 1, dead reader/writer timeout, corruption, partial header, fd audit passed");
   return 0;}
