@@ -27,6 +27,7 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
+#include "shielded-avf-binding.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
@@ -65,6 +66,7 @@
  * half never leaves the VM. TweetNaCl (public domain) does the arithmetic;
  * randombytes() below is the guest's getrandom. */
 static unsigned char g_tpk[32], g_tsk[64];
+static uint8_t g_ppk[32];   /* the pad key, defined with its secret half below; attest() checks the app's BOUND against it */
 void randombytes(unsigned char *p, unsigned long long n) {
     while (n) { ssize_t r = getrandom(p, (size_t)n, 0); if (r <= 0) abort(); p += r; n -= (unsigned long long)r; }
 }
@@ -127,10 +129,65 @@ static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
 /* Request the certificate over `hex` (32 bytes) and sign `bound_hex` with the
  * attested key: the relay's binding is challenge = sha256(SPKI || nonce) and
  * signature over (SPKI || nonce). Ends with "ATTEST end" whatever happened. */
+
+/* SHA-256 (FIPS 180-4), for the attestation challenge over the pad-binding transcript. */
+static const uint32_t sha256_k[64] = {
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2 };
+static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) {
+    uint32_t h[8] = { 0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19 };
+    uint8_t blk[64]; size_t i = 0; uint64_t bits = (uint64_t)n * 8;
+    for (;;) {
+        size_t take = n - i < 64 ? n - i : 64;
+        memcpy(blk, m + i, take);
+        int last = 0;
+        if (take < 64) { blk[take] = 0x80; memset(blk + take + 1, 0, 64 - take - 1); if (take < 56) { for (int b = 0; b < 8; b++) blk[63 - b] = (uint8_t)(bits >> (8 * b)); last = 1; } }
+        uint32_t w[64];
+        for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
+        for (int t = 16; t < 64; t++) { uint32_t a = w[t-15], b = w[t-2]; uint32_t s0 = ((a>>7)|(a<<25)) ^ ((a>>18)|(a<<14)) ^ (a>>3), s1 = ((b>>17)|(b<<15)) ^ ((b>>19)|(b<<13)) ^ (b>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
+        uint32_t a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+        for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
+            uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
+        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
+        if (take == 64) { i += 64; if (i == n) { /* exact multiple: one more block with the padding */ memset(blk, 0, 64); blk[0] = 0x80; for (int bb = 0; bb < 8; bb++) blk[63 - bb] = (uint8_t)(bits >> (8 * bb));
+                for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
+                for (int t = 16; t < 64; t++) { uint32_t aa = w[t-15], bb2 = w[t-2]; uint32_t s0 = ((aa>>7)|(aa<<25)) ^ ((aa>>18)|(aa<<14)) ^ (aa>>3), s1 = ((bb2>>17)|(bb2<<15)) ^ ((bb2>>19)|(bb2<<13)) ^ (bb2>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
+                a=h[0]; b=h[1]; c=h[2]; d=h[3]; e=h[4]; f=h[5]; g=h[6]; hh=h[7];
+                for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
+                    uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
+                h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh; break; }
+            continue; }
+        if (last) break;
+        /* 56 <= take < 64: the length did not fit; one more zero block carries it */
+        memset(blk, 0, 64); for (int bb = 0; bb < 8; bb++) blk[63 - bb] = (uint8_t)(bits >> (8 * bb));
+        for (int t = 0; t < 16; t++) w[t] = ((uint32_t)blk[4*t] << 24) | ((uint32_t)blk[4*t+1] << 16) | ((uint32_t)blk[4*t+2] << 8) | blk[4*t+3];
+        for (int t = 16; t < 64; t++) { uint32_t aa = w[t-15], bb2 = w[t-2]; uint32_t s0 = ((aa>>7)|(aa<<25)) ^ ((aa>>18)|(aa<<14)) ^ (aa>>3), s1 = ((bb2>>17)|(bb2<<15)) ^ ((bb2>>19)|(bb2<<13)) ^ (bb2>>10); w[t] = w[t-16] + s0 + w[t-7] + s1; }
+        a=h[0]; b=h[1]; c=h[2]; d=h[3]; e=h[4]; f=h[5]; g=h[6]; hh=h[7];
+        for (int t = 0; t < 64; t++) { uint32_t S1 = ((e>>6)|(e<<26)) ^ ((e>>11)|(e<<21)) ^ ((e>>25)|(e<<7)), ch = (e&f) ^ (~e&g), t1 = hh + S1 + ch + sha256_k[t] + w[t];
+            uint32_t S0 = ((a>>2)|(a<<30)) ^ ((a>>13)|(a<<19)) ^ ((a>>22)|(a<<10)), mj = (a&b) ^ (a&c) ^ (b&c), t2 = S0 + mj; hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2; }
+        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
+        break;
+    }
+    for (int j = 0; j < 8; j++) { out[4*j] = (uint8_t)(h[j] >> 24); out[4*j+1] = (uint8_t)(h[j] >> 16); out[4*j+2] = (uint8_t)(h[j] >> 8); out[4*j+3] = (uint8_t)h[j]; }
+}
+
+/* The attested key signs exactly one thing: this pVM's own pad-binding transcript (PAD-BOOTSTRAP.md,
+ * android-avf-pvm/v2): domain || OUR transport SPKI || OUR pad key || the relay's nonce, and the
+ * certificate challenge is sha256 of it. Whatever the app forwards as BOUND is checked against the
+ * keys generated in here; anything else gets a certificate over the app's challenge (routing only)
+ * but NO signature - a measured payload must not be a signing oracle for keys it does not hold. */
 static void attest(const char *hex, const char *bound_hex) {
     uint8_t ch[32] = {0}; unhex(hex, ch, 32);
     uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
-    if (!blen) { memcpy(bound, ch, 32); blen = 32; }
+    int own = 0;
+    if (blen) {
+        uint8_t want[32]; sha256(bound, blen, want);
+        own = sh_avf_pad_binding_valid(bound, blen, g_tpk, g_ppk) && memcmp(want, ch, 32) == 0;
+        if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
+        else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
+    } else OUT("ATTEST no BOUND: certificate only, nothing signed");
     AVmAttestationResult *res = NULL;
     AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
     OUT("ATTEST status=%s code=%d", AVmAttestationStatus_toString(st), (int)st);
@@ -143,9 +200,11 @@ static void attest(const char *hex, const char *bound_hex) {
             AVmAttestationResult_getCertificateAt(res, i, c, sz);
             char label[24]; snprintf(label, sizeof label, "CERT%zu", i); hexline(label, c, sz); free(c);
         }
-        size_t ssz = AVmAttestationResult_sign(res, bound, blen, NULL, 0);
-        uint8_t *sig = malloc(ssz);
-        if (sig) { AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
+        if (own) {
+            size_t ssz = AVmAttestationResult_sign(res, bound, blen, NULL, 0);
+            uint8_t *sig = malloc(ssz);
+            if (sig) { AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
+        }
         AVmAttestationResult_free(res);
     }
     OUT("ATTEST end");
