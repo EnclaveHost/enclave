@@ -71,6 +71,9 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
 /* Cells may be written in any order; each is boxed independently. `u` is the
  * balanced row (u_len values in (-M/2, M/2]). */
 int  sh_pads_writer_cell(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u);
+/* thread-safe form: caller-owned scratch of sh_pads_writer_scratch_bytes(w) bytes each */
+int  sh_pads_writer_cell_with(sh_pads_writer *w, uint64_t index, uint32_t group, const int32_t *u, uint8_t *plain, uint8_t *cell);
+size_t sh_pads_writer_scratch_bytes(const sh_pads_writer *w);
 int  sh_pads_writer_close(sh_pads_writer *w);
 
 /* --- reader (the consumer: the pVM, or the CVM engine) -------------------- */

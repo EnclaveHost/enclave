@@ -94,6 +94,35 @@ int main(void) {
     { int32_t *r2 = malloc(KA * sizeof *r2); sh_pad_r(seed, 0, 7, KA, r); sh_pad_r(seed, 0, 7, KA, r2); assert(!memcmp(r, r2, KA * sizeof *r)); sh_pad_r(seed, 1, 7, KA, r2); assert(memcmp(r, r2, KA * sizeof *r)); free(r2); }
     assert(sh_pads_reader_cell(rd, 0, COUNT, u) == SH_ERR_EXHAUST);
 
+    /* --- SHIELDED_MINT_THREADS: the parallel mint yields the serial mint cell for cell ---
+     * two uneven groups, a range that is not a multiple of the 16-index pass (37 = 2 x 16 + 5),
+     * a non-zero index0; three threads over two groups also covers "more threads than groups". */
+    {
+        char da[] = "/tmp/dealt-mint-a-XXXXXX", db[] = "/tmp/dealt-mint-b-XXXXXX";
+        assert(mkdtemp(da) && mkdtemp(db));
+        char sa[700], sb[700]; snprintf(sa, sizeof sa, "%s/x.pads", da); snprintf(sb, sizeof sb, "%s/x.pads", db);
+        setenv("SHIELDED_MINT_THREADS", "1", 1); assert(sh_link_mint_shipment(dealer, seed, seed_id, digest, 5, 37, pk, sa) == SH_OK);
+        setenv("SHIELDED_MINT_THREADS", "3", 1); assert(sh_link_mint_shipment(dealer, seed, seed_id, digest, 5, 37, pk, sb) == SH_OK);
+        unsetenv("SHIELDED_MINT_THREADS");
+        int ea = 0, eb = 0;
+        sh_pads_reader *ra = sh_pads_reader_open(da, seed_id, sk, &ea), *rb = sh_pads_reader_open(db, seed_id, sk, &eb);
+        assert(ra && rb && sh_pads_reader_bind(ra, table, (uint32_t)ng) == SH_OK && sh_pads_reader_bind(rb, table, (uint32_t)ng) == SH_OK);
+        assert(sh_pads_reader_extent(ra) == 42 && sh_pads_reader_extent(rb) == 42);
+        uint64_t umax = 0; for (int g = 0; g < ng; g++) if (table[g].u_len > umax) umax = table[g].u_len;
+        int32_t *ua = malloc((size_t)umax * sizeof *ua), *ub = malloc((size_t)umax * sizeof *ub);
+        long cells = 0;
+        for (int g = 0; g < ng; g++)
+            for (uint64_t idx = 5; idx < 42; idx++) {
+                assert(sh_pads_reader_cell(ra, (uint32_t)g, idx, ua) == SH_OK);
+                assert(sh_pads_reader_cell(rb, (uint32_t)g, idx, ub) == SH_OK);
+                assert(!memcmp(ua, ub, table[g].u_len * sizeof *ua));
+                cells++;
+            }
+        assert(cells == 2 * 37);
+        assert(sh_pads_reader_cell(rb, 0, 4, ub) == SH_ERR_EXHAUST && sh_pads_reader_cell(rb, 0, 42, ub) == SH_ERR_EXHAUST);
+        free(ua); free(ub); sh_pads_reader_close(ra); sh_pads_reader_close(rb);
+        char c2[1500]; snprintf(c2, sizeof c2, "rm -rf %s %s", da, db); (void)!system(c2);
+    }
     /* --- tamper: one byte inside a cell, then restored --- */
     {
         int fd = open(ship, O_RDWR); assert(fd >= 0);
