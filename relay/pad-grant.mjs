@@ -5,6 +5,15 @@ const hex = (s, n) => typeof s === "string" && s.length === n && HEX.test(s);
 export function padGrantDigestsValid(model, calib) { return hex(model, 64) && hex(calib, 64); }
 export function padGrantNonceValid(nonce) { return hex(nonce, 64); }
 
+export function windowMessageV2(seed_id, lo, hi, iat, request_nonce) {
+  if (!hex(seed_id, 32) || !Number.isSafeInteger(lo) || lo < 0 ||
+      !Number.isSafeInteger(hi) || hi <= lo || !Number.isSafeInteger(iat) || iat < 0 ||
+      typeof request_nonce !== "string" || request_nonce.length < 32 || request_nonce.length > 128 ||
+      request_nonce.length % 2 || !HEX.test(request_nonce))
+    throw new Error("invalid pad window");
+  return ["enclave-pads-window-v2", seed_id, lo, hi, iat, request_nonce].join("\n");
+}
+
 export function seedGrantMessage(g) {
   if (!g || g.grant_version !== 1 || typeof g.name !== "string" ||
       g.name.length < 1 || g.name.length > 64 || /[^A-Za-z0-9_-]/.test(g.name) ||

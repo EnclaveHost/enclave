@@ -56,13 +56,10 @@ static inline size_t sh_pad_grant_message(char *out, size_t cap,
     return n > 0 && (size_t)n < cap ? (size_t)n : 0;
 }
 
-static inline int sh_pad_grant_verify(const uint8_t ledger_pk[32],
-                                      const sh_pad_grant_context *context,
-                                      const sh_pad_seed_grant *grant) {
-    char msg[SH_PAD_GRANT_MESSAGE_CAP];
-    if (!ledger_pk || !grant) return 0;
-    const size_t n = sh_pad_grant_message(msg, sizeof msg, context, grant);
-    if (!n) return 0;
+static inline int sh_pad_ledger_signature_verify(const uint8_t ledger_pk[32],
+                                                 const char *msg, size_t n,
+                                                 const uint8_t sig[64]) {
+    if (!ledger_pk || !msg || !sig || !n || n >= SH_PAD_GRANT_MESSAGE_CAP) return 0;
     /* TweetNaCl's older verifier does not reject S >= the subgroup order.
      * Require canonical Ed25519 signatures at this protocol boundary. */
     static const uint8_t order[32] = {
@@ -71,14 +68,47 @@ static inline int sh_pad_grant_verify(const uint8_t ledger_pk[32],
     };
     int less = 0;
     for (int i = 31; i >= 0; i--) {
-        if (grant->sig[32+i] == order[i]) continue;
-        less = grant->sig[32+i] < order[i]; break;
+        if (sig[32+i] == order[i]) continue;
+        less = sig[32+i] < order[i]; break;
     }
     if (!less) return 0;
     uint8_t signed_msg[64 + SH_PAD_GRANT_MESSAGE_CAP], opened[64 + SH_PAD_GRANT_MESSAGE_CAP];
     unsigned long long opened_len = 0;
-    memcpy(signed_msg, grant->sig, 64); memcpy(signed_msg + 64, msg, n);
+    memcpy(signed_msg, sig, 64); memcpy(signed_msg + 64, msg, n);
     return crypto_sign_open(opened, &opened_len, signed_msg, 64 + (unsigned long long)n, ledger_pk) == 0 &&
            opened_len == (unsigned long long)n;
+}
+
+static inline int sh_pad_grant_verify(const uint8_t ledger_pk[32],
+                                      const sh_pad_grant_context *context,
+                                      const sh_pad_seed_grant *grant) {
+    char msg[SH_PAD_GRANT_MESSAGE_CAP];
+    if (!grant) return 0;
+    const size_t n = sh_pad_grant_message(msg, sizeof msg, context, grant);
+    return sh_pad_ledger_signature_verify(ledger_pk, msg, n, grant->sig);
+}
+
+static inline int sh_pad_public_hex_valid(const char *s, size_t min, size_t max) {
+    if (!s) return 0;
+    size_t n = 0;
+    while (n <= max && s[n]) {
+        if (!((s[n] >= '0' && s[n] <= '9') || (s[n] >= 'a' && s[n] <= 'f'))) return 0;
+        n++;
+    }
+    return n >= min && n <= max && n % 2 == 0;
+}
+
+/* The request nonce comes from the current pVM request, not from response
+ * metadata. A signed old window for this seed cannot satisfy a new nonce,
+ * even after destroying/recreating a link or changing the model graph. */
+static inline int sh_pad_window_v2_verify(const uint8_t ledger_pk[32], const char *seed_id,
+                                          uint64_t lo, uint64_t hi, uint64_t iat,
+                                          const char *request_nonce, const uint8_t sig[64]) {
+    if (!sh_pad_public_hex_valid(seed_id, 32, 32) || !sh_pad_public_hex_valid(request_nonce, 32, 128) ||
+        hi <= lo || hi > UINT64_C(9007199254740991) || iat > UINT64_C(9007199254740991)) return 0;
+    char msg[SH_PAD_GRANT_MESSAGE_CAP];
+    const int n = snprintf(msg, sizeof msg, "enclave-pads-window-v2\n%s\n%llu\n%llu\n%llu\n%s",
+        seed_id, (unsigned long long)lo, (unsigned long long)hi, (unsigned long long)iat, request_nonce);
+    return n > 0 && n < (int)sizeof msg && sh_pad_ledger_signature_verify(ledger_pk, msg, (size_t)n, sig);
 }
 #endif

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import { createPadsLedger, signedMessage, boxToPadKey } from "../relay/pads.mjs";
-import { seedGrantMessage } from "../relay/pad-grant.mjs";
+import { seedGrantMessage, windowMessageV2 } from "../relay/pad-grant.mjs";
 
 function fixture(dir) {
   const ed = generateKeyPairSync("ed25519"), x = generateKeyPairSync("x25519");
@@ -22,7 +22,9 @@ function fixture(dir) {
     return r;
   };
   const ledgerPk = createPublicKey({ format: "der", type: "spki", key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(ledger.key(), "hex")]) });
-  return { ledger, request, ledgerPk, tunnel };
+  const reserve = (seed_id, nonce, want = 8) => ({ name, seed_id, want, nonce,
+    sig: sign(null, Buffer.from(signedMessage("reserve", [name, seed_id, want, nonce])), ed.privateKey).toString("hex") });
+  return { ledger, request, reserve, ledgerPk, tunnel };
 }
 
 test("seed grants bind asset identities, current request, recipient, and complete encrypted seed", () => {
@@ -57,6 +59,46 @@ test("seed grants bind asset identities, current request, recipient, and complet
       { grant_version: 2 }, { name: "pixel\n8" }, { name: "x".repeat(65) }, { epoch: -1 },
       { epoch: 0 }, { epoch: Number.MAX_SAFE_INTEGER+1 }, { box: g.box + "\n" }, { epk: "00" },
     ]) assert.throws(() => seedGrantMessage({ ...g, ...invalid }), /invalid/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("reserve reply binds the pVM nonce; an old signed window cannot be replayed on reconnect", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pad-window-v2-"));
+  const source = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
+  try {
+    const f = fixture(join(dir, "ledger")), seed = f.ledger.seed(f.request()).body.seed_id;
+    const bin = join(dir, "probe");
+    execFileSync("cc", ["-std=c11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+      "-I", source("wasm/ggml-shielded"), source("test/fixtures/shielded-pad-window.c"),
+      source("wasm/ggml-shielded/tweetnacl.c"), "-o", bin], { timeout: 30_000, stdio: "pipe" });
+    const options = { timeout: 10_000, encoding: "utf8", env: { ...process.env,
+      ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1", UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1" } };
+    for (const bytes of [16, 32, 64]) {
+      const nonce = randomBytes(bytes).toString("hex"), req = f.reserve(seed, nonce);
+      const result = f.ledger.reserve(req); assert.equal(result.status, 200);
+      const w = result.body;
+      assert.equal(w.window_version, 2); assert.equal(w.request_nonce, nonce);
+      assert.ok(verify(null, Buffer.from(windowMessageV2(seed, w.lo, w.hi, w.iat, nonce)), f.ledgerPk, Buffer.from(w.sig_v2, "hex")));
+      const args = [f.ledger.key(), seed, String(w.lo), String(w.hi), String(w.iat), nonce, w.sig_v2];
+      assert.equal(execFileSync(bin, args, options).trim(), "ok");
+      const bad = (i, value, why) => {
+        const changed = [...args]; changed[i] = value;
+        const r = spawnSync(bin, changed, options);
+        assert.equal(r.status, 1, `${why}: ${r.stderr}`); assert.equal(r.stdout.trim(), "rejected", why);
+      };
+      bad(5, randomBytes(bytes).toString("hex"), "old response after a new pVM request");
+      bad(6, w.sig, "legacy window signature cannot downgrade freshness");
+      bad(1, "00".repeat(16), "another seed");
+      bad(2, String(w.lo+1), "changed low edge");
+      bad(3, String(w.hi+1), "changed high edge");
+      bad(4, String(w.iat+1), "changed issue time");
+      bad(3, String(w.lo), "empty window");
+      bad(3, "18446744073709551615", "overflowing window");
+      bad(5, nonce + "\n", "noncanonical nonce");
+      assert.equal(f.ledger.reserve(req).status, 409, "request replay remains refused");
+    }
+    for (const nonce of ["a".repeat(33), "a".repeat(32) + "\n", "AA".repeat(16), "a".repeat(130)])
+      assert.equal(f.ledger.reserve(f.reserve(seed, nonce)).status, 403, "malformed nonce is refused before reserve");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

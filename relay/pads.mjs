@@ -48,7 +48,7 @@ import { createHash, createPrivateKey, createPublicKey, createCipheriv, diffieHe
          hkdfSync, randomBytes, sign as edSign, verify as edVerify } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage } from "./pad-grant.mjs";
+import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage, windowMessageV2 } from "./pad-grant.mjs";
 
 /* ---- the HTTP surface, shared by api-relay.js and the local hub ----------
  * Returns true when the request was one of ours (answered), false otherwise.
@@ -244,7 +244,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
   function callerOf(name, kind, fields, nonce, sig) {
     const t = hub && hub.info ? hub.info(name) : null;
     if (!t || !t.spki) return { error: "unknown_tunnel", message: "no attested tunnel by that name" };
-    if (!/^[0-9a-f]{32,128}$/.test(String(nonce || ""))) return { error: "bad_nonce", message: "nonce must be 16..64 bytes hex" };
+    if (typeof nonce !== "string" || nonce.length < 32 || nonce.length > 128 || nonce.length % 2 || /[^0-9a-f]/.test(nonce))
+      return { error: "bad_nonce", message: "nonce must be 16..64 bytes lowercase hex" };
     let key;
     try { key = createPublicKey({ key: Buffer.from(t.spki, "base64"), format: "der", type: "spki" }); }
     catch { return { error: "bad_key", message: "the tunnel's transport key is not a public key" }; }
@@ -311,7 +312,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       rec.mark = hi; rec.updated = iat;
       save();                                                  // durable BEFORE the window is handed out
       const wsig = edSign(null, Buffer.from(windowMessage(seed_id, lo, hi, iat)), priv).toString("hex");
-      return { status: 200, body: { seed_id, lo, hi, iat, sig: wsig } };
+      const sig_v2 = edSign(null, Buffer.from(windowMessageV2(seed_id, lo, hi, iat, nonce)), priv).toString("hex");
+      return { status: 200, body: { seed_id, lo, hi, iat, sig: wsig, window_version: 2, request_nonce: nonce, sig_v2 } };
     },
 
     /* POST /v1/pads/receipt: the pVM's word on what a run consumed. Signed by
