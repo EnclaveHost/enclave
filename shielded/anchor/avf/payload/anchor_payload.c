@@ -769,7 +769,13 @@ static int run_bridgebench(int fd, const char *sizes) {
         if (errno || !end || *end || v < 1 || v > cap) { OUT("BENCH size '%s' out of range (1..%zu)", tok, cap); OUT("BENCH RUN FAILED"); return -1; }
         anchor_frame_stats st;
         const int rc = anchor_frame_bench(fd, (size_t)v, 10, 200, 30000, sbuf, rbuf, &st);
-        if (rc != AFL_OK) { OUT("BENCH %llu B: FAILED (%s)", v, afl_strerror(rc)); OUT("BENCH RUN FAILED"); return -1; }
+        if (rc != AFL_OK) {
+            static const char *const ph[] = {"none","write_len","write_payload","read_len","read_payload"};
+            const int pv = st.fail_phase >= 0 && st.fail_phase <= 4 ? st.fail_phase : 0;
+            OUT("BENCH %llu B: FAILED (%s) at iter %d phase=%s moved=%llu/%llu (which direction stalled and how far)",
+                v, afl_strerror(rc), st.fail_iter, ph[pv], st.fail_moved, st.fail_total);
+            OUT("BENCH RUN FAILED"); return -1;
+        }
         OUT("BENCH %llu B: p50=%.0f us p90=%.0f us min=%.0f us (n=%d, framed)", v, st.p50_us, st.p90_us, st.min_us, st.iters);
     }
     /* END handshake: the guest is done measuring; the server records t_end and holds the established
