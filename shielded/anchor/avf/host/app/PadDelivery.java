@@ -49,9 +49,12 @@ final class PadDelivery {
         synchronized boolean accepted(String name) { return accepted.contains(name); }
         synchronized void accept(String name) { if (active && belongs(name)) accepted.add(name); }
         synchronized boolean shouldFetch(String name) { return active && belongs(name) && !accepted.contains(name); }
-        synchronized boolean prune(File file, long mark) {
-            // mark is the RESERVED floor. Only H/K from this run makes removal safe.
-            if (!active || !belongs(file.getName()) || !accepted.contains(file.getName()) || endOf(file.getName()) > mark) return false;
+        synchronized boolean prune(File file, long ackFloor) {
+            // ackFloor is the durably-ACKNOWLEDGED delivery floor (not the reservation mark): a shipment
+            // whose whole range is at or below it is safe to drop from this prefetch cache (accepted by
+            // this run, and a later re-offer of an acknowledged range is a no-op). Reservation ahead of
+            // this floor is NOT delivery and must never authorize a drop.
+            if (!active || !belongs(file.getName()) || !accepted.contains(file.getName()) || endOf(file.getName()) > ackFloor) return false;
             return file.delete();
         }
         synchronized boolean pruneForeign(File file) {
