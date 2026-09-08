@@ -649,6 +649,12 @@ static int model_stage(uint64_t bytes) {
     return 0;
 }
 
+/* This process's resident set and high-water mark (the engine runs in-process): the memory regression's numbers. */
+static void mem_line(const char *when) {
+    FILE *f = fopen("/proc/self/status", "r"); char l[256], rss[64] = "?", hwm[64] = "?";
+    if (f) { while (fgets(l, sizeof l, f)) { if (!strncmp(l, "VmRSS:", 6)) { l[strcspn(l, "\n")] = 0; snprintf(rss, sizeof rss, "%s", l + 6); } else if (!strncmp(l, "VmHWM:", 6)) { l[strcspn(l, "\n")] = 0; snprintf(hwm, sizeof hwm, "%s", l + 6); } } fclose(f); }
+    OUT("MEM %s: VmRSS=%s VmHWM=%s", when, rss, hwm);
+}
 static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt, int n_predict, int threads, uint64_t model_bytes, int with_pads, int with_prefix) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512], calib[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk); snprintf(calib, sizeof calib, "%s/assets/model.calib", apk);
@@ -707,7 +713,15 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         pthread_t th; pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads); pthread_detach(th);
     }
     OUT("ENGINE libraries loaded from %s; starting", lib_dir);
+    /* ANCHOR_WEIGHT_CACHE=1 (owner-settable, boolean): the compact encoded-weight cache lives in a directory
+     * THIS payload chooses inside its encrypted store, never a host-supplied path */
+    { const char *wc = getenv("ANCHOR_WEIGHT_CACHE"); const char *es = AVmPayload_getEncryptedStoragePath();
+      if (wc && !strcmp(wc, "1") && es) { char d[512]; snprintf(d, sizeof d, "%s/wcache", es); if (mkdir(d, 0700) == 0 || errno == EEXIST) { setenv("SHIELDED_WEIGHT_CACHE_DIR", d, 1); OUT("ENGINE weight cache: %s", d); } else OUT("ENGINE weight cache: cannot create %s: %s", d, strerror(errno)); }
+      else if (wc && !strcmp(wc, "1")) OUT("ENGINE weight cache requested but no encrypted store: off");
+      else unsetenv("SHIELDED_WEIGHT_CACHE_DIR"); }
+    mem_line("before engine");
     int rc = em(g_ctl, worker_fd, model_fd, lib_dir, calib, prompt, n_predict, threads, pp);
+    mem_line("after engine");
     OUT("ENGINE exit %d", rc);
     close(model_fd);
 }
@@ -949,7 +963,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", NULL };
+                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ANCHOR_WEIGHT_CACHE", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
