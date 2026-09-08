@@ -5,6 +5,7 @@
  * Contract:
  *  - never closes, dups or otherwise takes ownership of a, b or cancel_fd; O_NONBLOCK is set for the
  *    run and the original flags are restored on every exit path;
+ *  - circular buffers reuse consumed space without compacting pending bytes;
  *  - backpressure: a side is only read when its direction's buffer has room, only written when it
  *    has data; the buffers never grow (buf_bytes each);
  *  - partial reads/writes are handled; EINTR and EAGAIN return to poll so
@@ -34,7 +35,7 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef struct { uint8_t *buf; size_t cap, head, tail; int src_eof, dst_shut; } bridge_dir;
+typedef struct { uint8_t *buf; size_t cap, head, used; int src_eof, dst_shut; } bridge_dir;
 
 static int set_nonblock(int fd, int *saved) {
     const int fl = fcntl(fd, F_GETFL);
@@ -48,11 +49,12 @@ static void restore_flags(int fd, int saved) { if (saved >= 0) (void)fcntl(fd, F
 /* read from fd into d while there is room; 0 = fine (including nothing to do), -errno = failure */
 static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *s) {
     if (d->src_eof || !(revents & (POLLIN | POLLHUP | POLLERR))) return 0;
-    if (d->tail == d->cap && d->head > 0) { memmove(d->buf, d->buf + d->head, d->tail - d->head); d->tail -= d->head; d->head = 0; }
-    if (d->tail == d->cap) return 0;   /* no room: the sink side must drain first (backpressure) */
+    if (d->used == d->cap) return 0;
+    const size_t tail = (d->head + d->used) % d->cap;
+    const size_t room = d->cap - d->used < d->cap - tail ? d->cap - d->used : d->cap - tail;
     for (;;) {
-        const ssize_t n = read(fd, d->buf + d->tail, d->cap - d->tail);
-        if (n > 0) { d->tail += (size_t)n; s->reads++; if ((uint64_t)n > s->max_chunk) s->max_chunk = (uint64_t)n; return 0; }
+        const ssize_t n = read(fd, d->buf + tail, room);
+        if (n > 0) { d->used += (size_t)n; s->reads++; if ((uint64_t)n > s->max_chunk) s->max_chunk = (uint64_t)n; return 0; }
         if (n == 0) { d->src_eof = 1; return 0; }
         if (errno == EINTR) return 0;   /* outer loop checks cancel and the idle deadline */
         if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
@@ -61,12 +63,13 @@ static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *
 }
 /* write d's pending bytes to fd; partial writes advance head; 0 = fine, -errno = the sink is gone */
 static int pump_write(int fd, bridge_dir *d, short revents, anchor_bridge_stats *s, uint64_t *delivered) {
-    if (d->head == d->tail || d->dst_shut || !(revents & (POLLOUT | POLLHUP | POLLERR))) return 0;
+    if (d->used == 0 || d->dst_shut || !(revents & (POLLOUT | POLLHUP | POLLERR))) return 0;
+    const size_t span = d->used < d->cap - d->head ? d->used : d->cap - d->head;
     for (;;) {
-        const ssize_t n = send(fd, d->buf + d->head, d->tail - d->head, MSG_NOSIGNAL | MSG_DONTWAIT);
+        const ssize_t n = send(fd, d->buf + d->head, span, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (n > 0) {
-            d->head += (size_t)n; s->writes++; *delivered += (uint64_t)n;
-            if (d->head == d->tail) d->head = d->tail = 0;
+            d->head = (d->head + (size_t)n) % d->cap; d->used -= (size_t)n; s->writes++; *delivered += (uint64_t)n;
+            if (d->used == 0) d->head = 0;
             return 0;
         }
         if (n == 0) return -EIO;
@@ -93,13 +96,10 @@ int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes
     int64_t deadline = idle_ms > 0 ? mono_ms() + idle_ms : 0;
     for (;;) {
         struct pollfd p[3]; int n = 0, ia = -1, ib = -1, ic = -1; short ea = 0, eb = 0;
-        if (!ab.src_eof && ab.tail < ab.cap) ea |= POLLIN;       /* a is readable into ab only with room */
-        if (ba.head < ba.tail && !ba.dst_shut) ea |= POLLOUT;   /* a is written only with pending ba */
-        if (!ba.src_eof && ba.tail < ba.cap) eb |= POLLIN;
-        if (ab.head < ab.tail && !ab.dst_shut) eb |= POLLOUT;
-        /* compaction pending: a full buffer with a consumed head counts as room after the memmove */
-        if (!ab.src_eof && ab.tail == ab.cap && ab.head > 0) ea |= POLLIN;
-        if (!ba.src_eof && ba.tail == ba.cap && ba.head > 0) eb |= POLLIN;
+        if (!ab.src_eof && ab.used < ab.cap) ea |= POLLIN;       /* a is readable into ab only with room */
+        if (ba.used > 0 && !ba.dst_shut) ea |= POLLOUT;   /* a is written only with pending ba */
+        if (!ba.src_eof && ba.used < ba.cap) eb |= POLLIN;
+        if (ab.used > 0 && !ab.dst_shut) eb |= POLLOUT;
         if (ea) { p[n].fd = a; p[n].events = ea; p[n].revents = 0; ia = n++; }
         if (eb) { p[n].fd = b; p[n].events = eb; p[n].revents = 0; ib = n++; }
         if (cancel_fd >= 0) { p[n].fd = cancel_fd; p[n].events = POLLIN; p[n].revents = 0; ic = n++; }
@@ -115,10 +115,10 @@ int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes
         const uint64_t before = s.reads + s.writes;
         if ((rc = pump_read(a, &ab, ra, &s)) != 0) break;
         if ((rc = pump_read(b, &ba, rb, &s)) != 0) break;
-        if ((rc = pump_write(b, &ab, rb | (ab.head < ab.tail ? POLLOUT : 0), &s, &s.a_to_b)) != 0) break;
-        if ((rc = pump_write(a, &ba, ra | (ba.head < ba.tail ? POLLOUT : 0), &s, &s.b_to_a)) != 0) break;
-        if (ab.src_eof && ab.head == ab.tail && !ab.dst_shut) { half_close(b); ab.dst_shut = 1; }
-        if (ba.src_eof && ba.head == ba.tail && !ba.dst_shut) { half_close(a); ba.dst_shut = 1; }
+        if ((rc = pump_write(b, &ab, rb | (ab.used > 0 ? POLLOUT : 0), &s, &s.a_to_b)) != 0) break;
+        if ((rc = pump_write(a, &ba, ra | (ba.used > 0 ? POLLOUT : 0), &s, &s.b_to_a)) != 0) break;
+        if (ab.src_eof && ab.used == 0 && !ab.dst_shut) { half_close(b); ab.dst_shut = 1; }
+        if (ba.src_eof && ba.used == 0 && !ba.dst_shut) { half_close(a); ba.dst_shut = 1; }
         if (idle_ms > 0 && s.reads + s.writes != before) deadline = mono_ms() + idle_ms;   /* progress, and only progress, extends it */
     }
 out:
