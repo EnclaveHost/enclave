@@ -17,6 +17,20 @@ make its shape disagree with the dealer's shipment and produce a misleading
 pad-exhaustion error. Restart with sufficient cache storage after fixing the
 reported I/O problem.
 
+`SHIELDED_WEIGHT_CACHE_SHA256=1` optionally replaces the cache's scalar SHA-512
+with the shared SHA-256 implementation, using ARM SHA2 instructions when the
+guest advertises them and a scalar fallback otherwise. It is off by default.
+The algorithm is captured once in private memory when each cache is created;
+it is never read from host storage. This affects only this process's temporary
+cache, with no change to model pins, prefix signatures or pad formats. Both
+algorithms retain the same private-copy-before-authentication rule and use
+64 bytes of hash storage per block. SHA-256 uses 32 of those bytes and zeroes
+the remainder. The registration log identifies the selected algorithm.
+
+This option targets cache creation and authenticated upload/reconnect reads.
+It does not reduce hashing elsewhere or the normal steady-state GEMM work.
+Measure its effect on the actual phone before enabling it in a recipe.
+
 The cache does not use mmap. On initial upload, reconnect or exact local
 fallback, it reads each whole block into private memory and verifies its hash
 before copying bytes for use. Storage corruption, reordering and truncated
@@ -118,6 +132,10 @@ cleanup, freed-source local products, Freivalds checks, socket upload and
 reconnect, and reader-failure rejection under ASan/UBSan. Device memory and
 performance measurements are still required before enabling this option in a
 phone recipe.
+
+The cache corruption/I/O suite and partial-group disk-full refusal exercise
+both hash algorithms, including changing the environment after creation to
+ensure an existing cache keeps its original algorithm.
 
 `node --test test/shielded-weight-verifier.test.mjs` additionally revokes the source
 pages inside verification and checks encoding plus link-down, contended and wide

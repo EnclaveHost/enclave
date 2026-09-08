@@ -8,6 +8,7 @@
 extern "C" {
 #include "tweetnacl.h"
 }
+#include "shielded-sha256.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -36,6 +37,8 @@ public:
         std::unique_ptr<sh_weight_cache> out(new (std::nothrow) sh_weight_cache);
         if (!out) return nullptr;
         try {
+            const char *mode = getenv("SHIELDED_WEIGHT_CACHE_SHA256");
+            out->sha256_ = mode && !strcmp(mode, "1");
             std::string path = std::string(directory) + "/.shielded-weights-XXXXXX";
             out->hashes_.resize((bytes - 1) / block_bytes + 1);
             out->fd_ = mkstemp(&path[0]);
@@ -47,7 +50,7 @@ public:
             out->bytes_ = bytes;
             for (size_t off = 0, b = 0; off < bytes; off += block_bytes, b++) {
                 const size_t n = std::min(block_bytes, bytes - off);
-                crypto_hash(out->hashes_[b].data(), (const uint8_t *)weights + off, n);
+                out->hash_block((const uint8_t *)weights + off, n, out->hashes_[b]);
                 size_t wrote = 0;
                 while (wrote < n) {
                     const ssize_t w = pwrite(out->fd_, weights + off + wrote, n - wrote, (off_t)(off + wrote));
@@ -84,7 +87,7 @@ public:
                 have += (size_t)r;
             }
             std::array<uint8_t, 64> hash;
-            crypto_hash(hash.data(), block.get(), size);
+            hash_block(block.get(), size, hash);
             if (hash != hashes_[b]) return -1;
             const size_t skip = (size_t)offset - begin, take = std::min(n, size - skip);
             memcpy(out, block.get() + skip, take);
@@ -96,11 +99,22 @@ public:
         return static_cast<sh_weight_cache *>(ctx)->read(offset, out, bytes);
     }
     size_t hash_bytes() const { return hashes_.size() * 64; }
+    const char *hash_algorithm() const { return sha256_ ? "sha256" : "sha512"; }
     uint64_t read_calls() const { return read_calls_.load(std::memory_order_relaxed); }
     uint64_t read_bytes() const { return read_bytes_.load(std::memory_order_relaxed); }
 private:
+    void hash_block(const uint8_t *bytes, size_t n, std::array<uint8_t, 64> &out) const {
+        if (sha256_) {
+            // Private per-cache policy; never inferred from a host file.
+            // Preserve fixed hash storage so both algorithms share the same
+            // cache reader. Unused bytes must compare deterministically.
+            out.fill(0);
+            sha256_ctx h; sha_init(&h); sha_update(&h, bytes, n); sha_final(&h, out.data());
+        } else crypto_hash(out.data(), bytes, n);
+    }
     sh_weight_cache() = default;
     int fd_ = -1;
+    bool sha256_ = false;
     size_t bytes_ = 0;
     std::vector<std::array<uint8_t, 64>> hashes_;
     mutable std::atomic<uint64_t> read_calls_{0}, read_bytes_{0};
