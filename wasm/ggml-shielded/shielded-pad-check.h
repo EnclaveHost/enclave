@@ -3,6 +3,31 @@
 
 #include "shielded-field.h"
 #include <stdint.h>
+#if defined(__cplusplus)
+static_assert(SH_M_MOD > 0 && SH_M_MOD < (INT64_C(1) << 24), "online pad dot requires a field below 2^24");
+#else
+_Static_assert(SH_M_MOD > 0 && SH_M_MOD < (INT64_C(1) << 24), "online pad dot requires a field below 2^24");
+#endif
+
+/* Online pad dot product modulo M. Both operands must be in [-(M-1), M-1]:
+ * r and W^T s are reduced field values, u is balanced, and s is below 2^20.
+ * A chunk contributes at most 32768*(M-1)^2 < 2^63 in magnitude. Reducing
+ * between chunks permits arbitrary supported K/N without signed overflow.
+ * Unlike the preparation helper below, this is NOT a full-int32-domain API.
+ * Fixed public chunk sizes and sequential reads do not depend on secrets.
+ */
+static inline int32_t sh_pad_check_dot_field(const int32_t *a, const int32_t *b, int64_t n) {
+    enum { VALUES = 32768 };
+    int64_t result = 0;
+    for (int64_t at = 0; at < n;) {
+        const int count = n - at < VALUES ? (int)(n - at) : VALUES;
+        int64_t acc = 0;
+        for (int i = 0; i < count; i++) acc += (int64_t)a[at + i] * b[at + i];
+        result = (result + acc % SH_M_MOD) % SH_M_MOD;
+        at += count;
+    }
+    return (int32_t)((result + SH_M_MOD) % SH_M_MOD);
+}
 
 /* Compute W^T s modulo M, with the same result as the column-strided
  * __int128 reference. Each tile reads consecutive weight bytes and keeps its

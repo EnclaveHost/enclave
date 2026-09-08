@@ -44,7 +44,39 @@ static void check(int64_t K, int64_t N, int extremes, int bench) {
     }
     free(w);free(s);free(want);free(got);
 }
+static int32_t dot_reference(const int32_t *a, const int32_t *b, int64_t n) {
+    __int128 acc = 0;
+    for (int64_t i = 0; i < n; i++) acc += (__int128)a[i] * b[i];
+    int64_t v = (int64_t)(acc % SH_M_MOD);
+    return (int32_t)(v < 0 ? v + SH_M_MOD : v);
+}
+static void check_dot(int64_t n, int mode, int bench) {
+    int32_t *a = malloc((size_t)(n+1)*sizeof *a), *b = malloc((size_t)(n+1)*sizeof *b);
+    assert(a && b);
+    for (int64_t i=0; i<n; i++) {
+        a[i] = mode == 0 ? SH_M_MOD-1 : mode == 1 ? 1-SH_M_MOD :
+            (int32_t)(next() % (2*SH_M_MOD-1))-(SH_M_MOD-1);
+        b[i] = mode < 2 ? SH_M_MOD-1 : (int32_t)(next() % (2*SH_M_MOD-1))-(SH_M_MOD-1);
+    }
+    for (int round=0; round<(bench ? 6 : 1); round++) {
+        int32_t want, got; double old_s, new_s, t;
+        if (round & 1) {
+            t=now(); got=sh_pad_check_dot_field(a,b,n); new_s=now()-t;
+            t=now(); want=dot_reference(a,b,n); old_s=now()-t;
+        } else {
+            t=now(); want=dot_reference(a,b,n); old_s=now()-t;
+            t=now(); got=sh_pad_check_dot_field(a,b,n); new_s=now()-t;
+        }
+        assert(want==got);
+        if (bench) printf("pad-dot n=%lld round=%d reference_us=%.3f tiled_us=%.3f exact=yes\n",
+            (long long)n,round,old_s*1e6,new_s*1e6);
+    }
+    free(a); free(b);
+}
 int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1],"--bench-online")) { check_dot(5120,2,1); check_dot(248320,2,1); return 0; }
+    const int64_t lengths[] = {0,1,31,32,32767,32768,32769,65536,65537,248320,1048577};
+    for (size_t i=0; i<sizeof lengths/sizeof *lengths; i++) for (int mode=0;mode<3;mode++) check_dot(lengths[i],mode,0);
     if (argc == 2 && !strcmp(argv[1],"--bench")) { check(5120,17408,0,1); return 0; }
     const int64_t shapes[][2]={{1,1},{31,7},{128,19},{129,257},{256,1024},{65,32767},{65,32768},{65,32769},{257,65537}};
     for (size_t i=0;i<sizeof shapes/sizeof *shapes;i++) for(int extreme=0;extreme<2;extreme++) check(shapes[i][0],shapes[i][1],extreme,0);
