@@ -13,7 +13,7 @@ GGML_CPU_SO, LD_LIBRARY_PATH. The seed is derived exactly as relay/pads.mjs does
 (HKDF-SHA512, salt = keyFp bytes, info "enclave-pads-seed:<epoch>"); the master
 seed is the platform's secret and never leaves the dealer's process.
 """
-import argparse, atexit, fcntl, hashlib, hmac, json, os, queue, re, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
+import argparse, atexit, fcntl, hashlib, hmac, json, math, os, re, select, stat, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
 
 
 def hkdf_sha512(ikm: bytes, salt: bytes, info: bytes, length: int) -> bytes:
@@ -152,32 +152,161 @@ def relay_delete(base: str, seed_id: str, name: str, token: str):
 
 
 _HEX_RE = re.compile(r"^[0-9a-f]+$")
+_JOURNAL_NAME = ".dealer-loop.journal"
+_UINT64_MAX = (1 << 64) - 1
+_PROTO_INDEX_LIMIT = 1 << 24
+_PROTO_MAX_COUNT = 4096
+
+def _is_int(x): return type(x) is int          # exact: neither bool nor float (1.0 must not pass as 1)
+def _is_hex(x, n): return isinstance(x, str) and len(x) == n and _HEX_RE.match(x) is not None
+def _finite_secs(name, v, hi=3600.0):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 < v <= hi:
+        raise ValueError(f"{name} must be a finite number in (0, {hi}]")
+    return float(v)
+
+def _write_all(fd, data, deadline):
+    """Write every byte to a NONBLOCKING fd before the absolute monotonic deadline; TimeoutError past it."""
+    view = memoryview(data); off = 0
+    while off < len(view):
+        left = deadline - time.monotonic()
+        if left <= 0: raise TimeoutError("write deadline")
+        if not select.select([], [fd], [], min(left, 1.0))[1]: continue
+        try: off += os.write(fd, view[off:])
+        except BlockingIOError: continue
+
+def _read_line(fd, buf, deadline, line_max):
+    """One LF-terminated printable-ASCII line from a NONBLOCKING fd through `buf` (a bytearray). None on a
+    clean EOF at a line boundary. TimeoutError past the deadline. ValueError on an oversized/unterminated
+    line, an empty or non-printable line, EOF inside a line, or UNSOLICITED bytes after the line: the child
+    emits exactly one line per turn, so anything more is a protocol violation, never buffered for later."""
+    while True:
+        k = buf.find(b"\n")
+        if k >= 0:
+            line = bytes(buf[:k]); del buf[:k + 1]
+            if buf: raise ValueError("unsolicited output after a protocol line")
+            if not line or any(c < 32 or c > 126 for c in line): raise ValueError("empty or non-printable protocol line")
+            return line.decode("ascii")
+        if len(buf) >= line_max: raise ValueError("oversized or unterminated protocol output")
+        left = deadline - time.monotonic()
+        if left <= 0: raise TimeoutError("read deadline")
+        if not select.select([fd], [], [], min(left, 1.0))[0]: continue
+        try: chunk = os.read(fd, line_max - len(buf))
+        except BlockingIOError: continue
+        if not chunk:
+            if buf: raise ValueError("EOF inside a protocol line")
+            return None
+        buf.extend(chunk)
+
+def _quiet(fd):
+    """True when a nonblocking fd has no pending bytes or EOF: the child must be silent between turns."""
+    return not select.select([fd], [], [], 0)[0]
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_PID_MAX = 4194304
+
+def _boot_id():
+    """This boot's UUID, or None when it cannot be read or is not a UUID (callers treat None as UNKNOWN)."""
+    try:
+        with open("/proc/sys/kernel/random/boot_id") as f: v = f.read().strip()
+    except OSError: return None
+    return v if _UUID_RE.match(v) else None
+
+def _proc_start(pid):
+    """('ok', starttime_ticks) for a live pid, ('zombie', ticks) for an exited-unreaped one, ('gone', None)
+    ONLY when the kernel says the pid does not exist, and ('unknown', None) for every read, permission or
+    parse failure - which is never mistaken for death."""
+    try:
+        with open(f"/proc/{pid}/stat") as f: raw = f.read()
+    except (FileNotFoundError, ProcessLookupError): return ("gone", None)
+    except OSError: return ("unknown", None)
+    try:
+        rest = raw.rsplit(")", 1)[1].split()     # fields after comm: state is rest[0], starttime is rest[19]
+        state, start = rest[0], int(rest[19])
+        if start < 0 or start > (1 << 63): return ("unknown", None)
+    except (ValueError, IndexError): return ("unknown", None)
+    return ("zombie" if state in ("Z", "X") else "ok", start)
+
+def _child_state(boot_id, pid, start):
+    """ALIVE / DEAD / UNKNOWN for one recorded child incarnation. Death is proven only by a verified boot
+    change, the pid being gone, a different incarnation on the same pid, or an exited (zombie) process;
+    any read/parse failure is UNKNOWN, and UNKNOWN always refuses."""
+    now = _boot_id()
+    if now is None: return "UNKNOWN"
+    if now != boot_id: return "DEAD"                      # a reboot: no process survives it
+    st, v = _proc_start(pid)
+    if st == "gone": return "DEAD"
+    if st == "unknown": return "UNKNOWN"
+    if v != start: return "DEAD"                          # same pid, another incarnation
+    return "DEAD" if st == "zombie" else "ALIVE"
+
+def _file_state(path):
+    """'present' / 'absent' (ONLY on ENOENT) / 'unknown' (any other stat failure, which refuses)."""
+    try: os.lstat(path); return "present"
+    except FileNotFoundError: return "absent"
+    except OSError: return "unknown"
+
+def _write_fd_all(fd, data):
+    """Write every byte to a blocking fd, looping through short writes; a zero-length write is a failure."""
+    view = memoryview(data); off = 0
+    while off < len(view):
+        k = os.write(fd, view[off:])
+        if k <= 0: raise OSError("short write (zero bytes)")
+        off += k
+
+def _no_duplicate_keys(pairs):
+    d = {}
+    for k, v in pairs:
+        if k in d: raise ValueError(f"duplicate key {k!r}")
+        d[k] = v
+    return d
 
 class PersistentDealer:
     """One long-lived `shielded-dealer MODEL --jobs-stdin OUT [--mtp 1]` child, reused across refills
     (measured ~5.4x shorter refill latency than a fresh process per pass). CPU-only: the frontend refuses
-    --worker in stream mode. Enforces one job in flight, an exact READY/DONE handshake, bounded startup and
-    mint and line length, a separate stderr drain, and a fail-closed unresolved-job journal. READY/DONE are
-    NOT authority to reserve or consume; the caller's admission and delivery accounting still gate. READY
-    mtp=1 is the SELECTED MODE, not a completeness attestation - full-manifest admission stays upstream."""
+    --worker in stream mode. Guarantees: exactly one job in flight (non-blocking lock); an exact READY
+    (version 1, mtp mode, calib SHA512/256 vs the admitted calibration) and DONE handshake; bounded binary
+    reads (LINE_MAX, printable ASCII, zero tolerance for unsolicited output) and a byte-capped stderr ring;
+    the nonblocking send and the read share ONE absolute deadline; any anomaly kills AND reaps the child
+    before any fd is closed; intent is journaled DURABLY (exclusive 0600 temp, fsync, no-overwrite link,
+    directory fsync) BEFORE the send and cleared (unlink + directory fsync, failing closed) only after the
+    exact DONE. READY/DONE carry no authority to reserve or consume, and READY mtp=1 is the SELECTED MODE,
+    not a completeness attestation - full-manifest admission stays upstream."""
 
     READY_RE = re.compile(r"^PADS-READY 1 mtp=([01]) calib=([0-9a-f]{64})$")
+    LINE_MAX = 512
+    STDERR_CAP = 64 * 1024
 
-    def __init__(self, dealer, model, calib, out, mtp, expect_calib_sha,
-                 startup_timeout=180.0, mint_timeout=120.0, line_max=4096):
-        self.out = out; self.mtp = 1 if mtp else 0
-        self.mint_timeout = mint_timeout; self.line_max = line_max
-        self.journal = os.path.join(out, ".dealer-loop.journal")
-        self.seq = 0; self.dead = False; self._err_tail = []
-        cmd = [dealer, model, "--jobs-stdin", out]
-        if mtp: cmd += ["--mtp", "1"]
-        env = {**os.environ, "SHIELDED_CALIB": calib}
-        self.proc = subprocess.Popen(cmd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE, text=True)
-        self._out_q = queue.Queue()
-        threading.Thread(target=self._pump, args=(self.proc.stdout, self._out_q), daemon=True).start()
-        threading.Thread(target=self._drain_err, daemon=True).start()
-        line = self._readline(startup_timeout)
+    def __init__(self, dealer, model, calib, out, mtp, expect_calib_sha, model_sha,
+                 startup_timeout=180.0, mint_timeout=120.0):
+        if not (_is_hex(expect_calib_sha, 64) and _is_hex(model_sha, 64)):
+            raise ValueError("persistent dealer: admitted identities must be 64 lowercase hex")
+        if isinstance(mtp, bool) or mtp not in (0, 1): raise ValueError("persistent dealer: mtp must be 0 or 1")
+        self.startup_timeout = _finite_secs("startup_timeout", startup_timeout)
+        self.mint_timeout = _finite_secs("mint_timeout", mint_timeout)
+        if not stat.S_ISDIR(os.lstat(out).st_mode): raise ValueError("persistent dealer: OUT must be a real directory")
+        self.out, self.mtp, self.model_sha, self.calib_sha = out, mtp, model_sha, expect_calib_sha
+        self.journal = os.path.join(out, _JOURNAL_NAME)
+        self.seq = 0; self.dead = False; self.reaped = None; self._buf = bytearray(); self._err = bytearray()
+        self._inflight = threading.Lock()
+        self.dir_fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        cmd = [dealer, model, "--jobs-stdin", out] + (["--mtp", "1"] if mtp else [])
+        try:
+            self.proc = subprocess.Popen(cmd, env={**os.environ, "SHIELDED_CALIB": calib}, stdin=subprocess.PIPE,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        except OSError:
+            os.close(self.dir_fd); raise
+        self._in = self.proc.stdin.fileno(); self._outfd = self.proc.stdout.fileno()
+        os.set_blocking(self._in, False); os.set_blocking(self._outfd, False)
+        boot, (pst, pstart) = _boot_id(), _proc_start(self.proc.pid)
+        if boot is None or pst != "ok":
+            self._die(); raise RuntimeError("persistent dealer: cannot establish the child's incarnation (boot id / start time); refusing to mint")
+        self.child = {"boot_id": boot, "child_pid": self.proc.pid, "child_start": pstart}
+        self._stop = threading.Event()
+        self._err_t = threading.Thread(target=self._drain_err, daemon=True); self._err_t.start()
+        try:
+            line = _read_line(self._outfd, self._buf, time.monotonic() + self.startup_timeout, self.LINE_MAX)
+        except (TimeoutError, ValueError, OSError) as e:
+            self._die(); raise RuntimeError(f"persistent dealer: no valid READY ({e}); stderr: {self._tail()}")
         m = self.READY_RE.match(line or "")
         if not m:
             self._die(); raise RuntimeError(f"persistent dealer: bad READY {line!r}; stderr: {self._tail()}")
@@ -186,112 +315,177 @@ class PersistentDealer:
         if m.group(2) != expect_calib_sha:
             self._die(); raise RuntimeError("persistent dealer: READY calib digest differs from the admitted calibration")
 
-    def _pump(self, stream, q):
-        try:
-            for line in stream: q.put(line.rstrip("\n"))
-        except (OSError, ValueError): pass
-        finally: q.put(None)
-
     def _drain_err(self):
+        fd = self.proc.stderr.fileno()
         try:
-            for line in self.proc.stderr:
-                self._err_tail.append(line.rstrip("\n"))
-                if len(self._err_tail) > 50: del self._err_tail[0]
-        except (OSError, ValueError): pass
+            while not self._stop.is_set():
+                if not select.select([fd], [], [], 0.25)[0]: continue     # cooperative: re-check the stop flag
+                chunk = os.read(fd, 4096)
+                if not chunk: return
+                self._err.extend(chunk)
+                if len(self._err) > self.STDERR_CAP: del self._err[:len(self._err) - self.STDERR_CAP]
+        except (OSError, ValueError): return
 
-    def _tail(self): return " | ".join(self._err_tail[-3:])
-
-    def _readline(self, timeout):
-        try: return self._out_q.get(timeout=timeout)   # None = EOF, "" is never a protocol line
-        except queue.Empty: return ""                    # timeout -> caller treats as failure
+    def _tail(self): return self._err[-600:].decode("ascii", "replace").replace("\n", " | ")
 
     def _die(self):
-        self.dead = True
+        """Kill and REAP first; then stop and join the stderr drain before its fd is closed (so the thread can
+        never read a reused descriptor); only then close the pipes. If the child cannot be reaped, that is
+        reported as UNREAPED rather than claimed as a kill."""
+        if self.dead: return
+        self.dead = True; p = self.proc
+        if p.poll() is None:
+            for sig, wait in ((p.terminate, 3), (p.kill, 3)):
+                try: sig()
+                except OSError: pass
+                try: p.wait(timeout=wait); break
+                except subprocess.TimeoutExpired: continue
+        self.reaped = p.poll() is not None
+        if not self.reaped: print(f"persistent dealer: child pid {p.pid} UNREAPED after terminate+kill; its state is unknown", flush=True)
+        self._stop.set(); self._err_t.join(timeout=3)
+        for f in (p.stdin, p.stdout):
+            try: f.close()
+            except OSError: pass
+        if self._err_t.is_alive():
+            print("persistent dealer: stderr drain did not stop; leaving its descriptor open rather than racing it", flush=True)
+        else:
+            try: p.stderr.close()
+            except OSError: pass
+        try: os.close(self.dir_fd)
+        except OSError: pass
+
+    def _journal_write(self, rec):
+        data = (json.dumps(rec, separators=(",", ":"), sort_keys=True) + "\n").encode("ascii")
+        fd, tmp = tempfile.mkstemp(dir=self.out, prefix=_JOURNAL_NAME + ".", suffix=".tmp")   # O_EXCL, 0600
         try:
-            if self.proc.stdin: self.proc.stdin.close()
-        except OSError: pass
-        try: self.proc.terminate()
-        except OSError: pass
-        try: self.proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            try: self.proc.kill(); self.proc.wait(timeout=5)
+            _write_fd_all(fd, data); os.fsync(fd); os.close(fd); fd = -1
+            os.link(tmp, self.journal)          # atomic publish that never overwrites an existing intent
+            os.fsync(self.dir_fd)
+        finally:
+            if fd >= 0: os.close(fd)
+            try: os.unlink(tmp)
             except OSError: pass
 
-    def _write_journal(self, seq, seed_id, index0, count, pk):
-        rec = {"seq": seq, "seed_id": seed_id, "index0": index0, "count": count,
-               "pk": pk, "mtp": self.mtp, "ts": time.time(), "state": "in-flight"}
-        tmp = self.journal + ".tmp"
-        with open(tmp, "w") as f: json.dump(rec, f); f.write("\n")
-        os.replace(tmp, self.journal)
-
-    def _clear_journal(self):
-        try: os.unlink(self.journal)
-        except OSError: pass
+    def _journal_clear(self):
+        os.unlink(self.journal); os.fsync(self.dir_fd)   # any failure propagates: an intent never lingers silently
 
     def mint_range(self, seed, seed_id, pk, index0, count):
-        """Mint ONE shipment; journal intent before the send, require an exact DONE, return its path.
-        Any anomaly terminates the child and marks this adapter dead (caller reconciles the journal)."""
+        """Mint ONE shipment: journal the intent durably, send the record, require the exact DONE, clear the
+        journal, return the path. Any anomaly kills+reaps the child and leaves the adapter dead; the journal
+        then blocks every mutating run on this bank until it is reconciled (see reconcile_persistent_journal)."""
+        if not self._inflight.acquire(blocking=False): raise RuntimeError("persistent dealer: another job is in flight")
+        try: return self._mint(seed, seed_id, pk, index0, count)
+        finally: self._inflight.release()
+
+    def _mint(self, seed, seed_id, pk, index0, count):
         if self.dead: raise RuntimeError("persistent dealer is dead; reconcile before reuse")
-        if not (isinstance(seed, str) and _HEX_RE.match(seed) and len(seed) == 64 and
-                isinstance(seed_id, str) and _HEX_RE.match(seed_id) and len(seed_id) == 32 and
-                isinstance(pk, str) and _HEX_RE.match(pk) and len(pk) == 64):
+        if not (_is_hex(seed, 64) and _is_hex(seed_id, 32) and _is_hex(pk, 64)):
             raise RuntimeError("persistent dealer: non-canonical seed/seed_id/pk")
-        if not (isinstance(index0, int) and isinstance(count, int) and
-                1 <= count <= 4096 and 0 <= index0 < (1 << 24) and index0 + count <= (1 << 24)):
-            raise RuntimeError(f"persistent dealer: range out of protocol bounds ({index0},{count})")
-        seq = self.seq + 1
-        record = f"{seq}\t{seed}\t{seed_id}\t{pk}\t{index0}\t{count}\n"
-        if len(record) >= self.line_max:
-            self._die(); raise RuntimeError("persistent dealer: record too long")
-        self._write_journal(seq, seed_id, index0, count, pk)   # durable intent BEFORE the send
+        if not (_is_int(index0) and _is_int(count) and 1 <= count <= _PROTO_MAX_COUNT and
+                0 <= index0 < _PROTO_INDEX_LIMIT and index0 + count <= _PROTO_INDEX_LIMIT):
+            raise RuntimeError(f"persistent dealer: range out of protocol bounds ({index0!r},{count!r})")
+        if self.seq >= _UINT64_MAX - 1: self._die(); raise RuntimeError("persistent dealer: sequence exhausted")
+        seq = self.seq + 1; deadline = time.monotonic() + self.mint_timeout
+        if self.proc.poll() is not None or not _quiet(self._outfd):
+            self._die(); raise RuntimeError(f"persistent dealer: child exited or spoke unsolicited before seq {seq}; stderr: {self._tail()}")
         try:
-            self.proc.stdin.write(record); self.proc.stdin.flush()
-        except (BrokenPipeError, OSError) as e:
-            self._die(); raise RuntimeError(f"persistent dealer: write failed ({e}); stderr: {self._tail()}")
-        line = self._readline(self.mint_timeout)
-        if not line:   # "" (timeout) or None (EOF)
-            self._die(); raise RuntimeError(f"persistent dealer: no DONE for seq {seq} (timeout/EOF); stderr: {self._tail()}")
+            self._journal_write({"v": 1, "seq": seq, "seed_id": seed_id, "index0": index0, "count": count, "pk": pk,
+                                 "mtp": self.mtp, "model_sha256": self.model_sha, "calib_sha512": self.calib_sha,
+                                 "ts": time.time(), "state": "in-flight", **self.child})
+        except OSError as e:
+            self._die(); raise RuntimeError(f"persistent dealer: cannot journal intent durably ({e}); refusing to send")
+        record = bytearray(f"{seq}\t{seed}\t{seed_id}\t{pk}\t{index0}\t{count}\n", "ascii")
+        try:
+            try: _write_all(self._in, record, deadline)
+            finally:
+                for k in range(len(record)): record[k] = 0
+            line = _read_line(self._outfd, self._buf, deadline, self.LINE_MAX)
+        except (TimeoutError, ValueError, OSError) as e:
+            self._die(); raise RuntimeError(f"persistent dealer: seq {seq} failed ({e}); stderr: {self._tail()}")
         expect = f"PADS-DONE {seq} {seed_id} {index0} {count}"
         if line != expect:
             self._die(); raise RuntimeError(f"persistent dealer: expected {expect!r}, got {line!r}; stderr: {self._tail()}")
+        try: self._journal_clear()
+        except OSError as e:
+            self._die(); raise RuntimeError(f"persistent dealer: seq {seq} published but its journal cannot be cleared ({e}); the intent stays and blocks until reconciled")
         self.seq = seq
-        self._clear_journal()
         return os.path.join(self.out, f"{seed_id}-{index0}-{count}.pads")
 
     def close(self):
+        """Clean EOF -> the child exits 0; a child that will not exit is killed and reaped."""
         if self.dead: return
-        try:
-            if self.proc.stdin: self.proc.stdin.close()   # clean EOF -> child exits 0
+        try: self.proc.stdin.close()
         except OSError: pass
         try: rc = self.proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            self._die(); return
-        self.dead = True
-        if rc != 0:
-            print(f"persistent dealer exited {rc}; stderr: {self._tail()}", flush=True)
+        except subprocess.TimeoutExpired: rc = None
+        if rc != 0: print(f"persistent dealer exited {rc}; stderr: {self._tail()}", flush=True)
+        self._die()
 
 
-def reconcile_persistent_journal(out):
-    """Fail-closed recovery for an interrupted persistent run. Never accepts a filename as proof.
-    A pending entry with NO published file was never delivered -> discard it (planning re-mints the gap).
-    A pending entry whose file EXISTS cannot be authenticated from here -> REFUSE and surface it, rather
-    than accept it or blindly re-mint. A malformed/unreadable journal also fails closed."""
-    path = os.path.join(out, ".dealer-loop.journal")
-    if not os.path.exists(path): return
+def reconcile_persistent_journal(out, model_sha=None, calib_sha=None):
+    """Runs for EVERY mutating mode under the bank lock, flag or not, with NO bypass flag. The journal is
+    read bounded, without following symlinks, against an exact schema with type/range/state/sequence checks,
+    and its admitted model/calibration identities are compared with the local assets. It names the child
+    incarnation (boot id, pid, start time) that was minting, so recovery can independently verify that the
+    child is stopped:
+      child still alive                -> REFUSE (an orphan is minting into this bank; stop it first)
+      child stopped, file ABSENT       -> the shipment was never published and no writer can publish it now:
+                                          discard the intent (unlink + directory fsync) and continue
+      child stopped, file PRESENT      -> REFUSE: a name is not proof of seed/key/model/geometry; validate or
+                                          remove the file by hand, then remove the journal by hand
+    Never accepts a filename as proof, and never clears an intent it cannot prove is harmless."""
+    path = os.path.join(out, _JOURNAL_NAME)
+    try: st = os.lstat(path)
+    except FileNotFoundError: return
+    except OSError as e: sys.exit(f"persistent journal: cannot stat {path} ({e}); refusing every mutating operation")
+    if not stat.S_ISREG(st.st_mode): sys.exit(f"persistent journal: {path} is not a regular file; refusing")
+    if st.st_size > 4096: sys.exit("persistent journal: oversized; refusing")
     try:
-        with open(path) as f: rec = json.load(f)
-        sid, i0, c = rec["seed_id"], rec["index0"], rec["count"]
-        assert isinstance(sid, str) and NAME_RE.fullmatch(f"{sid}-{i0}-{c}.pads")
-    except (OSError, ValueError, KeyError, AssertionError, TypeError):
-        sys.exit(f"persistent journal {path} present but unreadable/malformed; refusing to guess. Reconcile manually.")
-    fpath = os.path.join(out, f"{sid}-{i0}-{c}.pads")
-    if os.path.exists(fpath):
-        sys.exit(f"persistent journal: shipment {os.path.basename(fpath)} was in flight and a FILE EXISTS, but its "
-                 f"completion and contents are unconfirmed (a filename is not proof of seed/key/model/geometry). "
-                 f"Refusing. Validate it against the admitted identity, or remove it if known-bad, then rerun.")
-    print(f"persistent journal: shipment {os.path.basename(fpath)} was in flight but not published; discarding intent, planning will re-mint", flush=True)
-    try: os.unlink(path)
-    except OSError: pass
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try: raw = os.read(fd, 4097)
+        finally: os.close(fd)
+        rec = json.loads(raw.decode("ascii"), object_pairs_hook=_no_duplicate_keys)
+    except (OSError, ValueError) as e: sys.exit(f"persistent journal: unreadable or malformed ({e}); refusing")
+    keys = {"v", "seq", "seed_id", "index0", "count", "pk", "mtp", "model_sha256", "calib_sha512", "ts", "state",
+            "boot_id", "child_pid", "child_start"}
+    if not isinstance(rec, dict) or set(rec) != keys: sys.exit("persistent journal: unexpected schema; refusing")
+    bad = []
+    if not (_is_int(rec["v"]) and rec["v"] == 1): bad.append("version")
+    if rec["state"] != "in-flight": bad.append("state")
+    if not (_is_int(rec["seq"]) and 1 <= rec["seq"] <= _UINT64_MAX): bad.append("seq")
+    i0, c = rec["index0"], rec["count"]
+    if not (_is_int(i0) and _is_int(c) and 1 <= c <= _PROTO_MAX_COUNT and 0 <= i0 < _PROTO_INDEX_LIMIT and i0 + c <= _PROTO_INDEX_LIMIT): bad.append("range")
+    if not (_is_hex(rec["seed_id"], 32) and _is_hex(rec["pk"], 64) and _is_hex(rec["model_sha256"], 64) and _is_hex(rec["calib_sha512"], 64)): bad.append("identities")
+    if not (_is_int(rec["mtp"]) and rec["mtp"] in (0, 1)): bad.append("mtp")
+    if type(rec["ts"]) not in (int, float) or not math.isfinite(rec["ts"]): bad.append("ts")
+    if not (isinstance(rec["boot_id"], str) and _UUID_RE.match(rec["boot_id"]) and _is_int(rec["child_pid"]) and
+            1 <= rec["child_pid"] <= _PID_MAX and _is_int(rec["child_start"]) and 0 <= rec["child_start"] <= (1 << 63)): bad.append("child")
+    if bad: sys.exit(f"persistent journal: invalid fields ({', '.join(bad)}); refusing")
+    ident = "matches" if (model_sha == rec["model_sha256"] and calib_sha == rec["calib_sha512"]) else "does NOT match (or cannot be checked)"
+    name = f"{rec['seed_id']}-{i0}-{c}.pads"; tag = f"{rec['seq']}:{name[:-5]}"
+    child = _child_state(rec["boot_id"], rec["child_pid"], rec["child_start"])
+    if child == "ALIVE":
+        sys.exit(f"persistent journal: UNRESOLVED intent {tag} and its dealer child pid {rec['child_pid']} is STILL RUNNING (an orphan is "
+                 f"minting into this bank). Refusing every mutating operation; stop that child, then rerun.")
+    if child == "UNKNOWN":
+        sys.exit(f"persistent journal: UNRESOLVED intent {tag}; the state of its dealer child pid {rec['child_pid']} is UNKNOWN (boot id or "
+                 f"/proc unreadable). Unknown is never treated as stopped. Refusing every mutating operation until it can be verified.")
+    fstate = _file_state(os.path.join(out, name)); present = fstate == "present"
+    if fstate == "unknown":
+        sys.exit(f"persistent journal: UNRESOLVED intent {tag}; cannot stat {name} (only a missing file counts as absent). Refusing.")
+    if not present:
+        try:
+            os.unlink(path); dfd = os.open(out, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(dfd)
+            finally: os.close(dfd)
+        except OSError as e: sys.exit(f"persistent journal: child stopped and {name} absent, but the intent cannot be discarded ({e}); refusing")
+        print(f"persistent journal: intent {tag} discarded - its child (pid {rec['child_pid']}) is verified stopped and {name} was never "
+              f"published, so nothing can publish it now; planning will re-mint the gap (local identity {ident})", flush=True)
+        return
+    sys.exit(f"persistent journal: UNRESOLVED intent {tag}: its child is stopped but {name} is PRESENT with unconfirmed completion and "
+             f"contents (a name is not proof of seed/key/model/geometry; local model/calib identity {ident}). Refusing every mutating "
+             f"operation on this bank. Manual recovery only: validate that file against the admitted identity or remove it, then remove "
+             f"{path} by hand. There is deliberately no flag for this.")
 
 
 def main():
@@ -330,10 +524,16 @@ def main():
 
     token = os.environ.get("PADS_DEALER_TOKEN", "")
     if a.push and not (a.relay and token): sys.exit("--push needs --relay and PADS_DEALER_TOKEN")
-    if a.persistent_dealer and not a.plan_only:
-        if a.worker: sys.exit("--persistent-dealer is CPU-only and cannot be combined with --worker")
-        if not (a.model and a.calib): sys.exit("--persistent-dealer needs --model and --calib")
-        reconcile_persistent_journal(a.out)
+    if not a.plan_only:   # EVERY mutating mode holds the bank lock here: an unresolved intent blocks it, flag or not
+        msha = csha = None
+        try:
+            if a.model: msha = identity.digest(a.model, "sha256")
+            if a.calib: csha = identity.digest(a.calib, "sha512")
+        except (OSError, ValueError): msha = csha = None
+        reconcile_persistent_journal(a.out, msha, csha)
+        if a.persistent_dealer:
+            if a.worker: sys.exit("--persistent-dealer is CPU-only and cannot be combined with --worker")
+            if not (a.model and a.calib): sys.exit("--persistent-dealer needs --model and --calib")
 
     warned_old, warned_cap = set(), set()
     def prune_and_plan(seed_id, mark, ack_floor=None, acked=(), finalized=False):
@@ -393,7 +593,7 @@ def main():
         if persistent["pd"] is None:
             dealer = os.environ.get("DEALER", "shielded-dealer")
             persistent["pd"] = PersistentDealer(dealer, a.model, a.calib, a.out, a.mtp,
-                                                identity.digest(a.calib, "sha512"))
+                                                identity.digest(a.calib, "sha512"), identity.digest(a.model, "sha256"))
         return persistent["pd"]
     atexit.register(lambda: persistent["pd"].close() if persistent["pd"] else None)
 
