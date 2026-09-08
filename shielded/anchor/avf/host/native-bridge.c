@@ -7,7 +7,8 @@
  *    run and the original flags are restored on every exit path;
  *  - backpressure: a side is only read when its direction's buffer has room, only written when it
  *    has data; the buffers never grow (buf_bytes each);
- *  - partial reads/writes and EINTR are handled; EAGAIN waits in poll;
+ *  - partial reads/writes are handled; EINTR and EAGAIN return to poll so
+ *    cancellation and the no-progress deadline are checked between attempts;
  *  - EOF on a source, once everything buffered has reached the sink, half-closes the sink
  *    (shutdown SHUT_WR; a non-socket sink is left alone); the other direction keeps flowing;
  *    the run ends when both directions are drained and shut;
@@ -53,7 +54,7 @@ static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *
         const ssize_t n = read(fd, d->buf + d->tail, d->cap - d->tail);
         if (n > 0) { d->tail += (size_t)n; s->reads++; if ((uint64_t)n > s->max_chunk) s->max_chunk = (uint64_t)n; return 0; }
         if (n == 0) { d->src_eof = 1; return 0; }
-        if (errno == EINTR) continue;
+        if (errno == EINTR) return 0;   /* outer loop checks cancel and the idle deadline */
         if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
         return -errno;
     }
@@ -69,7 +70,7 @@ static int pump_write(int fd, bridge_dir *d, short revents, anchor_bridge_stats 
             return 0;
         }
         if (n == 0) return -EIO;
-        if (errno == EINTR) continue;
+        if (errno == EINTR) return 0;   /* do not retry indefinitely inside the pump */
         if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
         return -errno;
     }
