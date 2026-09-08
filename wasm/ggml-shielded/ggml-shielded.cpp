@@ -366,6 +366,11 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
         if (s.link) sh_link_pool_stats(s.link, &used, &missed);
         uint64_t waited = 0; double wait_ms = 0;
         sh_link_pad_wait_stats(s.link, &waited, &wait_ms);
+        sh_wire_timing wt = {}; sh_link_wire_timing(s.link, &wt);
+        fprintf(stderr, "[shielded] wire phases: calls=%llu request_bytes=%llu reply_bytes=%llu write=%.1fms overlap=%.1fms header=%.1fms body=%.1fms max=%.1fms over100ms=%llu over1s=%llu (socket FIELD_GEMM only; body includes allocation)\n",
+                (unsigned long long)wt.calls, (unsigned long long)wt.request_bytes, (unsigned long long)wt.reply_bytes,
+                wt.write_ms, wt.work_ms, wt.header_ms, wt.body_ms, wt.max_ms,
+                (unsigned long long)wt.over_100ms, (unsigned long long)wt.over_1s);
         fprintf(stderr, "[shielded] widths: exchanges by rows m1=%llu m2=%llu m3=%llu m4=%llu m5=%llu m6=%llu m7=%llu m8=%llu m9+=%llu | graphs by widest matmul rows 1=%llu 2-4=%llu 5-8=%llu 9+=%llu\n",
                 (unsigned long long)s.m_hist[1], (unsigned long long)s.m_hist[2], (unsigned long long)s.m_hist[3], (unsigned long long)s.m_hist[4], (unsigned long long)s.m_hist[5], (unsigned long long)s.m_hist[6], (unsigned long long)s.m_hist[7], (unsigned long long)s.m_hist[8], (unsigned long long)s.m_hist[9],
                 (unsigned long long)s.graph_w[0], (unsigned long long)s.graph_w[1], (unsigned long long)s.graph_w[2], (unsigned long long)s.graph_w[3]);

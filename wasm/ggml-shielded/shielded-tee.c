@@ -384,6 +384,7 @@ static void dealt_advanced(sh_link *l);
 static void dealt_receipt(sh_link *l);
 const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
 double sh_link_last_wire_us(const sh_link *l) { return l ? l->last_wire_us : 0.0; }
+void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out) { sh_pipe_wire_timing(l ? l->pipe : NULL, out); }
 
 const char *sh_link_last_error(const sh_link *l) { return l ? l->err : ""; }
 

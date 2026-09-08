@@ -57,6 +57,7 @@ struct sh_pipe {
     uint64_t seq;
     int      misses;
     int      stream_load;
+    sh_wire_timing timing;
 };
 
 /* Frames per exchange that fit the stack-resident iovec/header arrays. Every
@@ -116,6 +117,13 @@ size_t sh_pack_field_gemm(void *dst, uint32_t n_nodes, uint32_t m, const int *no
 }
 
 const char *sh_pipe_last_error(const sh_pipe *p) { return p ? p->err : ""; }
+void sh_pipe_wire_timing(const sh_pipe *p, sh_wire_timing *out) {
+    if (out) { if (p) *out = p->timing; else memset(out, 0, sizeof *out); }
+}
+static double wire_now_ms(void) {
+    struct timespec t = {0}; clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
+}
 
 sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
     if (err) *err = SH_OK;
@@ -175,8 +183,11 @@ void sh_pipe_close(sh_pipe *p) {
 
 static int write_all(int fd, struct iovec *iov, int iovcnt) {
     while (iovcnt > 0) {
+        while (iovcnt > 0 && iov->iov_len == 0) { iov++; iovcnt--; }
+        if (!iovcnt) break;
         ssize_t n = writev(fd, iov, iovcnt > IOV_MAX ? IOV_MAX : iovcnt);
         if (n < 0) { if (errno == EINTR) continue; return SH_ERR_IO; }
+        if (n == 0) { errno = EIO; return SH_ERR_IO; } // no progress must not spin forever
         while (iovcnt > 0 && (size_t)n >= iov->iov_len) { n -= (ssize_t)iov->iov_len; iov++; iovcnt--; }
         if (iovcnt > 0 && n > 0) {
             iov->iov_base = (char *)iov->iov_base + n;
@@ -277,11 +288,18 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
             iov[iovcnt].iov_len  = frames[i].len2; iovcnt++;
         }
     }
+    const char *profile_env = getenv("SHIELDED_PROFILE");
+    const int profile = n == 1 && (frames[0].cmd == SH_CMD_FIELD_GEMM || frames[0].cmd == SH_CMD_FIELD_GEMM24) &&
+                        profile_env && *profile_env && strcmp(profile_env, "0");
+    const double begin = profile ? wire_now_ms() : 0;
     int rc = write_all(p->fd, iov, iovcnt);
     if (n > SH_STACK_FRAMES) { free(iov); free(hdrs); }
     if (rc != SH_OK) { snprintf(p->err, sizeof p->err, "write failed: %s", strerror(errno)); return rc; }
 
+    const double wrote = profile ? wire_now_ms() : 0;
     if (work && n) work(ctx);
+    const double worked = profile ? wire_now_ms() : 0;
+    double headed = 0, bodied = 0;
 
     /* Replies land back to back in the pipe's buffer. Growing it can move the
      * earlier ones, so pointers are assigned once the whole batch is in. */
@@ -292,6 +310,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
             snprintf(p->err, sizeof p->err, "short response header at frame %zu", i);
             goto fail;
         }
+        if (profile) headed = wire_now_ms();
         uint64_t size = get_u64(h + 1);
         if (size > SH_MAX_FRAME) {
             snprintf(p->err, sizeof p->err, "response frame %llu exceeds cap", (unsigned long long)size);
@@ -304,6 +323,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
             snprintf(p->err, sizeof p->err, "short response body at frame %zu", i);
             goto fail;
         }
+        if (profile) bodied = wire_now_ms();
         if (out[i].status != 0) {
             /* A violation is always the last frame: the worker closes after it.
              * Surface the reason verbatim -- it names the node and the op, which
@@ -316,6 +336,16 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
     }
     used = 0;
     for (size_t i = 0; i < n; i++) { out[i].data = out[i].len ? p->rbuf + used : NULL; used += out[i].len; }
+    if (profile) {
+        sh_wire_timing *t = &p->timing;
+        const double total = bodied - begin;
+        t->calls++; t->request_bytes += SH_HDR + frames[0].len + frames[0].len2;
+        t->reply_bytes += SH_HDR + out[0].len;
+        t->write_ms += wrote - begin; t->work_ms += worked - wrote;
+        t->header_ms += headed - worked; t->body_ms += bodied - headed;
+        if (total > t->max_ms) t->max_ms = total;
+        t->over_100ms += total > 100; t->over_1s += total > 1000;
+    }
     return SH_OK;
 fail:
     for (size_t i = 0; i < n; i++) sh_reply_free(&out[i]);

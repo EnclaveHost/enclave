@@ -42,6 +42,14 @@ extern "C" {
  * is the same; only the reply shrinks (25%, 152 KB on the 0.5B's lm_head).
  * Sent only to a worker whose HELLO says minor >= 2. */
 #define SH_CMD_FIELD_GEMM24    13
+/* Successful single-frame socket FIELD_GEMMs only, when SHIELDED_PROFILE is
+ * enabled. Body time includes reply-buffer allocation; overlap work is separate.
+ * This measures wall time, including scheduling, and does not localize network
+ * versus kernel delays by itself. Read while the pipe is not being exchanged. */
+typedef struct {
+    uint64_t calls, request_bytes, reply_bytes, over_100ms, over_1s;
+    double write_ms, work_ms, header_ms, body_ms, max_ms;
+} sh_wire_timing;
 /* Protocol 1.2: bind a shared-memory ring (SHIELDED_SHM) to this connection.
  * | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.
  * granted == 0 is an answer, not a violation: the link keeps the socket. See
@@ -86,6 +94,7 @@ void     sh_pipe_close(sh_pipe *p);
 
 /* The last violation reason the worker sent, or "" -- diagnostics only. */
 const char *sh_pipe_last_error(const sh_pipe *p);
+void sh_pipe_wire_timing(const sh_pipe *p, sh_wire_timing *out);
 
 /* Write every frame in ONE writev and then read all n responses. This is what
  * makes a masked exchange (SET_TENSOR, RECOMPUTE, GET_TENSOR) cost one RTT
