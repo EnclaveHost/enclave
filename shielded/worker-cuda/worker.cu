@@ -86,6 +86,7 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+#include "public-weight-cache.h"
 
 extern "C" {
 #include "shielded-field.h"
@@ -101,12 +102,14 @@ enum : uint8_t {
     CMD_FIELD_GEMM = 12,
     CMD_FIELD_GEMM24 = 13,   /* 1.2: the same request, 3-byte reply values */
     CMD_SHM_ATTACH = 14,     /* 1.2: bind a shared-memory ring to this connection */
-    CMD_COUNT = 15,
+    CMD_PUBLIC_WEIGHT_CACHE = 15, /* 1.4: optional public weight RAM reuse */
+    CMD_COUNT = 16,
 };
 /* 1.2: SHM_ATTACH -- the shared-memory ring. A 1.1 link never sends it.
  * 1.3: HELLO carries an optional u64 reservation and the reply names the
  *      card's reservations. A 4-byte HELLO is a 1.2 link: reserves nothing. */
-static const int PROTO_MAJOR = 1, PROTO_MINOR = 3, PROTO_PATCH = 0;
+static const int PROTO_MAJOR = 1, PROTO_MINOR = 4, PROTO_PATCH = 0;
+static std::unique_ptr<PublicWeightCache> g_public_weights(new PublicWeightCache());
 static const uint8_t STATUS_OK = 0, STATUS_VIOLATION = 1;
 static const size_t MAX_FRAME = (size_t)256 << 20;
 static const size_t SH_HDR = 9;
@@ -1339,11 +1342,12 @@ struct Conn {
                    "\"vram_budget\":%lld,\"vram_reserved\":%lld,\"vram_reserve\":%lld,"
                    "\"sm_count\":%d,\"capability\":\"%d.%d\","
                    "\"clock_khz\":%d,\"card_tflops\":%.1f,"
-                   "\"field_gmac_per_s\":%.1f,\"worker\":\"shielded/worker-cuda\"}",
+                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"worker\":\"shielded/worker-cuda\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
                    g_vram_budget, g_reserved, reserve, g_props.multiProcessorCount, g_props.major, g_props.minor,
-                   g_props.clockRate, rated_fp16_tflops(g_props), g_gmacs);
+                   g_props.clockRate, rated_fp16_tflops(g_props), g_gmacs,
+                   (unsigned long long)g_public_weights->budget());
     }
 
     std::string alloc(const uint8_t *p, size_t n) {
@@ -1400,6 +1404,23 @@ struct Conn {
             memcpy(b.host.data() + off, p + 24, nbytes);
         }
         return "";
+    }
+
+    std::string public_weight_cache(const uint8_t *p, size_t n) {
+        PublicWeightRequest r;
+        if (!public_weight_request(p, n, r)) VIOLATE("malformed public weight cache request");
+        if (!g_public_weights->budget()) VIOLATE("public weight cache is disabled");
+        if (installed) VIOLATE("public weight cache after graph install");
+        Buffer &b = region_ok(r.bid, r.offset, r.nbytes);
+        if (b.role != "weights" || b.consumed || b.dev || b.host.size() != b.size)
+            VIOLATE("public weight cache requires live public weights");
+        int hit;
+        if (r.action == 0)
+            hit = g_public_weights->copy(r.digest.data(), (size_t)r.nbytes, b.host.data() + r.offset);
+        else
+            hit = g_public_weights->admit(r.digest.data(), b.host.data() + r.offset, (size_t)r.nbytes);
+        if (hit < 0) VIOLATE("public weight cache digest mismatch");
+        return std::string(1, hit ? '\1' : '\0');
     }
 
     std::string get_tensor(const uint8_t *p, size_t n) {
@@ -1806,6 +1827,7 @@ struct Conn {
             case CMD_FIELD_GEMM:      field_gemm(p, n, false); return std::string();
             case CMD_FIELD_GEMM24:    field_gemm(p, n, true);  return std::string();
             case CMD_SHM_ATTACH:      return shm_attach(p, n);
+            case CMD_PUBLIC_WEIGHT_CACHE: return public_weight_cache(p, n);
             case CMD_BUFFER_GET_BASE: case CMD_GET_ALIGNMENT: case CMD_GET_MAX_SIZE:
             case CMD_GET_DEVICE_MEMORY: case CMD_DEVICE_COUNT:
                 return "";
@@ -1958,10 +1980,18 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--vram-gb") && i + 1 < argc) vram_gb = atof(argv[++i]);
         else if (!strcmp(argv[i], "--shm") && i + 1 < argc) shm_path = argv[++i];
         else if (!strcmp(argv[i], "--quiet")) g_quiet = true;
+        else if (!strcmp(argv[i], "--public-weight-cache-mib") && i + 1 < argc) {
+            const char *arg = argv[++i]; char *end = nullptr; errno = 0;
+            unsigned long long mib = strtoull(arg, &end, 10);
+            if (*arg < '0' || *arg > '9' || !end || *end || errno || mib > (1ull << 20)) {
+                fprintf(stderr, "public weight cache MiB must be an integer between 0 and 1048576\n"); return 2;
+            }
+            g_public_weights.reset(new PublicWeightCache((size_t)mib << 20));
+        }
 #ifdef SH_XPROF
         else if (!strcmp(argv[i], "--kbench")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench(); }
 #endif
-        else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--shm FILE] [--quiet]\n"); return 2; }
+        else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--shm FILE] [--public-weight-cache-mib M] [--quiet]\n"); return 2; }
     }
     if (shm_path) {
         /* The launcher creates and sizes the file (it is also the ivshmem

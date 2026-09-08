@@ -45,7 +45,7 @@ because the failure mode of guessing is running an attacker's graph.
 import json
 import struct
 
-PROTO_VERSION = (1, 3, 0)   # 1.1: FIELD_GEMM, the one-frame exchange; 1.2: FIELD_GEMM24 (packed reply) and SHM_ATTACH (the ring); 1.3: HELLO reserves
+PROTO_VERSION = (1, 4, 0)   # 1.1: FIELD_GEMM; 1.2: packed reply/ring; 1.3: reserves; 1.4: optional public weight RAM cache
 
 # HELLO (1.3): | major u32 | [reserve_bytes u64] |
 #
@@ -91,7 +91,8 @@ CMD_FIELD_GEMM24 = 13    # the SAME request; the products as 3-byte values (1.2)
 # reply is the same masked products, narrower. A 1.1 peer never sends 13.
 REPLY_WIDTH = {CMD_FIELD_GEMM: 4, CMD_FIELD_GEMM24: 3}
 CMD_SHM_ATTACH = 14      # 1.2: bind a shared-memory ring to this connection (FIELD_GEMM only)
-CMD_COUNT = 15
+CMD_PUBLIC_WEIGHT_CACHE = 15  # 1.4: optional immutable PUBLIC weights, RAM only
+CMD_COUNT = 16
 
 # The shared-memory ring (wasm/ggml-shielded/shielded-wire.h): a file (the
 # ivshmem backing store of the CVM) of SHM_RING_BYTES rings. The ring carries
@@ -111,6 +112,7 @@ COMMAND_NAMES = {
     CMD_GET_TENSOR: "GET_TENSOR", CMD_GRAPH_INSTALL: "GRAPH_INSTALL",
     CMD_GRAPH_RECOMPUTE: "GRAPH_RECOMPUTE", CMD_FIELD_GEMM: "FIELD_GEMM",
     CMD_FIELD_GEMM24: "FIELD_GEMM24",
+    CMD_PUBLIC_WEIGHT_CACHE: "PUBLIC_WEIGHT_CACHE",
 }
 
 # Commands that exist in stock ggml-rpc and are deliberately absent here. Named
@@ -243,7 +245,8 @@ class ShieldedWorkerState:
     special handling beyond re-uploading weights.
     """
 
-    def __init__(self, vram_bytes=8 << 30, shm_rings=0, ring_owners=None, ledger=None):
+    def __init__(self, vram_bytes=8 << 30, shm_rings=0, ring_owners=None, ledger=None,
+                 public_weight_cache_bytes=0):
         self.hello_done = False
         self.buffers = {}
         self.next_bid = 1
@@ -266,6 +269,7 @@ class ShieldedWorkerState:
         self.shm_rings = shm_rings
         self.ring_owners = ring_owners if ring_owners is not None else set()
         self.ring = None
+        self.public_weight_cache_bytes = public_weight_cache_bytes
 
     # -- admission ---------------------------------------------------------
     def handle(self, cmd, payload):
@@ -291,6 +295,8 @@ class ShieldedWorkerState:
             return self._field_gemm(payload, CMD_FIELD_GEMM24)
         if cmd == CMD_SHM_ATTACH:
             return self._shm_attach(payload)
+        if cmd == CMD_PUBLIC_WEIGHT_CACHE:
+            return self._public_weight_cache(payload)
         if cmd in (CMD_BUFFER_GET_BASE, CMD_GET_ALIGNMENT, CMD_GET_MAX_SIZE,
                    CMD_GET_DEVICE_MEMORY, CMD_DEVICE_COUNT):
             return {"ok": True}
@@ -310,6 +316,7 @@ class ShieldedWorkerState:
             self.reserve = want
         self.hello_done = True
         return {"ok": True, "version": PROTO_VERSION,
+                "public_weight_cache_bytes": self.public_weight_cache_bytes,
                 "vram_budget": self.ledger.budget, "vram_reserved": self.ledger.reserved,
                 "vram_reserve": self.reserve, "vram_free": self.ledger.card_free}
 
@@ -386,6 +393,23 @@ class ShieldedWorkerState:
             raise ProtocolViolation(
                 f"GET_TENSOR region ({bid},{offset},{nbytes}) is not a declared graph output")
         return {"ok": True, "read": nbytes}
+
+    def _public_weight_cache(self, payload):
+        # | action u8 | bid u64 | offset u64 | nbytes u64 | SHA256 32 bytes |
+        # Both operations are pre-install and weights-only. The reply is just
+        # one boolean byte; this adds no arbitrary-region network read.
+        if len(payload) != 57 or payload[0] not in (0, 1):
+            raise ProtocolViolation("malformed public weight cache request")
+        if not self.public_weight_cache_bytes:
+            raise ProtocolViolation("public weight cache is disabled")
+        if self.graph is not None:
+            raise ProtocolViolation("public weight cache after graph install")
+        bid, offset, nbytes = struct.unpack_from("<QQQ", payload, 1)
+        buf = self._region_ok(bid, offset, nbytes)
+        if not nbytes or buf.role != "weights" or buf.consumed:
+            raise ProtocolViolation("public weight cache requires live public weights")
+        return {"ok": True, "action": payload[0], "bid": bid, "offset": offset,
+                "nbytes": nbytes, "digest": payload[25:]}
 
     def _graph_install(self, payload):
         if self.graph is not None:
