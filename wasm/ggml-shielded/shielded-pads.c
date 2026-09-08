@@ -13,6 +13,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/random.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -49,11 +50,13 @@ __attribute__((weak)) void randombytes(unsigned char *p, unsigned long long n) {
 
 /* ---- r derivation ------------------------------------------------------ */
 void sh_pad_r(const uint8_t seed[32], uint32_t group, uint64_t index, int64_t K, int32_t *r_out) {
+    if (!seed || !r_out || group >= SH_PADS_GROUP_LIMIT || index >= SH_PADS_INDEX_LIMIT ||
+        K <= 0 || K > SH_PADS_K_LIMIT) abort();
     uint32_t key[8];
     for (int i = 0; i < 8; i++)
         key[i] = (uint32_t)seed[4 * i] | ((uint32_t)seed[4 * i + 1] << 8) |
                  ((uint32_t)seed[4 * i + 2] << 16) | ((uint32_t)seed[4 * i + 3] << 24);
-    uint64_t ctr = ((uint64_t)group << 48) | ((index & 0xFFFFFFull) << 24);
+    uint64_t ctr = ((uint64_t)group << 48) | (index << 24);
     uint32_t blk[16];
     int64_t produced = 0;
     while (produced < K) {
@@ -131,7 +134,10 @@ sh_pads_writer *sh_pads_writer_open(const char *path, const uint8_t model_digest
                                     const uint8_t seed_id[16], const sh_pads_group *groups, uint32_t n_groups,
                                     uint64_t index0, uint64_t index_count, const uint8_t consumer_pk[32], int *err) {
     *err = SH_OK;
-    if (!n_groups || !index_count) { *err = SH_ERR_RANGE; return NULL; }
+    if (!groups || !n_groups || n_groups >= SH_PADS_GROUP_LIMIT || !index_count ||
+        index0 >= SH_PADS_INDEX_LIMIT || index_count > SH_PADS_INDEX_LIMIT - index0) { *err = SH_ERR_RANGE; return NULL; }
+    for (uint32_t g = 0; g < n_groups; g++)
+        if (!groups[g].K || groups[g].K > SH_PADS_K_LIMIT || groups[g].group >= SH_PADS_GROUP_LIMIT) { *err = SH_ERR_RANGE; return NULL; }
     sh_pads_writer *w = (sh_pads_writer *)calloc(1, sizeof *w);
     if (!w) { *err = SH_ERR_NOMEM; return NULL; }
     w->fd = -1;
@@ -273,7 +279,8 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
     if (f->fd < 0) return SH_ERR_IO;
     if (pread(f->fd, &f->hdr, sizeof f->hdr, 0) != (ssize_t)sizeof f->hdr) { file_close(f); return SH_ERR_IO; }
     sh_pads_hdr *h = &f->hdr;
-    if (memcmp(h->magic, SH_PADS_MAGIC, 8) || h->version != SH_PADS_VERSION || !h->group_count || h->group_count > 65535 ||
+    if (memcmp(h->magic, SH_PADS_MAGIC, 8) || h->version != SH_PADS_VERSION || !h->group_count || h->group_count >= SH_PADS_GROUP_LIMIT ||
+        !h->index_count || h->index0 >= SH_PADS_INDEX_LIMIT || h->index_count > SH_PADS_INDEX_LIMIT - h->index0 ||
         memcmp(h->seed_id, r->seed_id, 16) || (r->have_digest && memcmp(h->model_digest, r->model_digest, 32))) { file_close(f); return SH_ERR_VERIFY; }
     f->groups = (sh_pads_group *)calloc(h->group_count, sizeof *f->groups);
     f->group_off = (uint64_t *)calloc(h->group_count, sizeof *f->group_off);
@@ -295,6 +302,7 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
 
     uint64_t row = 0;
     for (uint32_t g = 0; g < h->group_count; g++) {
+        if (!f->groups[g].K || f->groups[g].K > SH_PADS_K_LIMIT || f->groups[g].group >= SH_PADS_GROUP_LIMIT) { file_close(f); return SH_ERR_VERIFY; }
         f->group_off[g] = row;
         row += cell_bytes(f->groups[g].u_len);
     }
@@ -484,13 +492,25 @@ void sh_pads_reader_require_digest(sh_pads_reader *r, const uint8_t model_digest
 
 /* ---- ledger window (P1: a local file) ----------------------------------- */
 int sh_pads_window_reserve(const char *ledger_path, uint64_t want, uint64_t *lo, uint64_t *hi) {
-    if (!ledger_path || !want) return SH_ERR_RANGE;
+    if (!ledger_path || !want || !lo || !hi) return SH_ERR_RANGE;
+    if (want > SH_PADS_INDEX_LIMIT) return SH_ERR_EXHAUST;
     int fd = open(ledger_path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (fd < 0) return SH_ERR_IO;
+    if (flock(fd, LOCK_EX) != 0) { close(fd); return SH_ERR_IO; }
     char buf[32] = {0};
+    struct stat st;
+    if (fstat(fd, &st) != 0) { close(fd); return SH_ERR_IO; }
+    if (st.st_size < 0 || st.st_size >= (off_t)sizeof buf) { close(fd); return SH_ERR_VERIFY; }
     ssize_t n = pread(fd, buf, sizeof buf - 1, 0);
     uint64_t mark = 0;
-    if (n > 0) mark = strtoull(buf, NULL, 10);
+    if (n < 0) { close(fd); return SH_ERR_IO; }
+    if (n > 0) {
+        char *end; errno = 0;
+        mark = strtoull(buf, &end, 10);
+        if (errno || buf[0] < '0' || buf[0] > '9' ||
+            !((end == buf+n) || (end == buf+n-1 && *end == '\n'))) { close(fd); return SH_ERR_VERIFY; }
+    }
+    if (mark > SH_PADS_INDEX_LIMIT || want > SH_PADS_INDEX_LIMIT - mark) { close(fd); return SH_ERR_EXHAUST; }
     const uint64_t next = mark + want;
     const int len = snprintf(buf, sizeof buf, "%llu\n", (unsigned long long)next);
     /* Advance the mark BEFORE handing out the window (reserve-before-use). */

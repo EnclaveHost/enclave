@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
-import { createPadsLedger, signedMessage, boxToPadKey } from "../relay/pads.mjs";
+import { createPadsLedger, signedMessage, boxToPadKey, PAD_INDEX_LIMIT } from "../relay/pads.mjs";
 import { seedGrantMessage, windowMessageV2 } from "../relay/pad-grant.mjs";
 
 function fixture(dir) {
@@ -59,6 +59,31 @@ test("seed grants bind asset identities, current request, recipient, and complet
       { grant_version: 2 }, { name: "pixel\n8" }, { name: "x".repeat(65) }, { epoch: -1 },
       { epoch: 0 }, { epoch: Number.MAX_SAFE_INTEGER+1 }, { box: g.box + "\n" }, { epk: "00" },
     ]) assert.throws(() => seedGrantMessage({ ...g, ...invalid }), /invalid/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the relay exhausts each seed before its 24-bit pad index can repeat", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pad-window-limit-"));
+  try {
+    const f = fixture(dir), seed = f.ledger.seed(f.request()).body.seed_id;
+    const file = join(dir, "pads-ledger.json"), state = JSON.parse(readFileSync(file, "utf8"));
+    const reopen = (mark) => {
+      state.seeds[seed].mark = mark;
+      writeFileSync(file, JSON.stringify(state));
+      return createPadsLedger({ dir, hub: { info: (n) => n === f.tunnel.name ? f.tunnel : null }, log: () => {} });
+    };
+    let ledger = reopen(PAD_INDEX_LIMIT-1);
+    const last = ledger.reserve(f.reserve(seed, randomBytes(16).toString("hex"), 1));
+    assert.equal(last.status, 200);
+    assert.equal(last.body.lo, PAD_INDEX_LIMIT-1); assert.equal(last.body.hi, PAD_INDEX_LIMIT);
+    assert.equal(ledger.reserve(f.reserve(seed, randomBytes(16).toString("hex"), 1)).body.error, "seed_exhausted");
+    assert.equal(ledger.mark(seed).mark, PAD_INDEX_LIMIT);
+    for (const mark of [PAD_INDEX_LIMIT-1, PAD_INDEX_LIMIT, PAD_INDEX_LIMIT+1, -1, null, Number.MAX_SAFE_INTEGER]) {
+      ledger = reopen(mark);
+      const r = ledger.reserve(f.reserve(seed, randomBytes(16).toString("hex"), 8));
+      assert.equal(r.status, 409); assert.equal(r.body.error, "seed_exhausted");
+      assert.equal(ledger.mark(seed).mark, mark, "invalid/exhausted counters never advance or wrap");
+    }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

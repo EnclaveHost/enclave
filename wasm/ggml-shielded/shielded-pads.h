@@ -28,6 +28,11 @@ extern "C" {
 #define SH_PADS_NAME_MAX  64
 #define SH_PADS_CELL_TAG  16          /* Poly1305 */
 #define SH_PADS_HDR_BYTES 256
+/* ChaCha counter fields: group16 | index24 | block24; 8 values per block.
+ * Exhaustion requires a fresh seed, never masking/reducing an index. */
+#define SH_PADS_INDEX_LIMIT (UINT64_C(1) << 24)
+#define SH_PADS_GROUP_LIMIT (UINT32_C(1) << 16)
+#define SH_PADS_K_LIMIT     (INT64_C(8) << 24)
 
 typedef struct {
     uint32_t group;                   /* consumer's ordinal at mint time */
@@ -58,7 +63,10 @@ typedef struct {
 void sh_chacha20_block(const uint32_t key[8], uint64_t counter, uint32_t out[16]);
 /* r for (seed, group, index): ChaCha20 keyed by the seed, block counter
  * (group << 48) | (index << 24) | block, values uniform over [0, M) by the
- * same uint64 draw the engine's own mask bank uses. Both sides call this. */
+ * same uint64 draw the engine's own mask bank uses. Both sides call this.
+ * Requires group < GROUP_LIMIT, index < INDEX_LIMIT, 0 < K <= K_LIMIT;
+ * invalid calls abort rather than generating repeated masks. Public writer,
+ * reader and link entry points reject invalid geometry before reaching it. */
 void sh_pad_r(const uint8_t seed[32], uint32_t group, uint64_t index, int64_t K, int32_t *r_out);
 
 /* --- writer (the dealer) -------------------------------------------------- */
