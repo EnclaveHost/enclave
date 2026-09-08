@@ -49,6 +49,7 @@ import { createHash, createPrivateKey, createPublicKey, createCipheriv, diffieHe
 import fs from "node:fs";
 import path from "node:path";
 import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage, windowMessageV2 } from "./pad-grant.mjs";
+import { loadPadState, savePadState } from "./pad-state.mjs";
 
 /* ---- the HTTP surface, shared by api-relay.js and the local hub ----------
  * Returns true when the request was one of ours (answered), false otherwise.
@@ -219,23 +220,26 @@ function rawEd25519Public(keyObject) {
 
 export function createPadsLedger({ dir, hub, log = console.log, masterSeed = null }) {
   const file = path.join(dir, "pads-ledger.json");
-  let state = { master: null, ledgerKey: null, seeds: {} };
-  try { state = { ...state, ...JSON.parse(fs.readFileSync(file, "utf8")) }; } catch {}
-  if (masterSeed) state.master = Buffer.from(masterSeed, "hex").toString("hex");
-  if (!state.master || state.master.length !== 64) state.master = randomBytes(32).toString("hex");
+  const existing = loadPadState(file);
+  const state = existing || { master: null, ledgerKey: null, seeds: {} };
+  if (masterSeed !== null) {
+    if (typeof masterSeed !== "string" || masterSeed.length !== 64 || /[^0-9a-f]/i.test(masterSeed))
+      throw new Error("pad master seed must be exactly 32 bytes of hex");
+    const configured = masterSeed.toLowerCase();
+    if (existing && state.master !== configured)
+      throw new Error("pad master seed differs from the existing ledger; refusing implicit rotation");
+    state.master = configured;
+  }
+  if (!state.master) state.master = randomBytes(32).toString("hex");
   if (!state.ledgerKey) {
     const kp = generateKeyPairSync("ed25519");
     state.ledgerKey = kp.privateKey.export({ type: "pkcs8", format: "pem" });
   }
   const priv = createPrivateKey(state.ledgerKey);
+  if (priv.asymmetricKeyType !== "ed25519") throw new Error("pad ledger signing key must be Ed25519");
   const pub = createPublicKey(priv);
   const master = Buffer.from(state.master, "hex");
-  const save = () => {
-    fs.mkdirSync(dir, { recursive: true });
-    const tmp = file + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 1));
-    fs.renameSync(tmp, file);
-  };
+  const save = () => savePadState(file, state);
   save();
   log(`[pads] ledger ${file}: ${Object.keys(state.seeds).length} seed(s), key ${rawEd25519Public(pub).toString("hex").slice(0, 16)}…`);
 
