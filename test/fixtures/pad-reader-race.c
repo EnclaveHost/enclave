@@ -30,8 +30,8 @@ static int checked_fcntl(int fd, int op, ...) {
 #undef pread
 #undef fcntl
 
-typedef struct { sh_pads_reader *r; int32_t out[3]; int rc; } job;
-static void *read_cell(void *arg) { job *j=arg;j->rc=sh_pads_reader_cell(j->r,0,0,j->out);return NULL; }
+typedef struct { sh_pads_reader *r; int32_t out[3]; int rc; uint32_t ordinal; } job;
+static void *read_cell(void *arg) { job *j=arg;j->rc=sh_pads_reader_cell_ordinal(j->r,0,0,j->out,&j->ordinal);return NULL; }
 int main(int argc,char **argv) {
     assert(argc==2);
     uint8_t pk[32],sk[32],sid[16]={2},digest[32]={3}; crypto_box_keypair(pk,sk);
@@ -43,7 +43,7 @@ int main(int argc,char **argv) {
     sh_pads_reader *r=sh_pads_reader_open(argv[1],sid,sk,&err);assert(r && err==SH_OK);
     assert(sh_pads_reader_bind(r,&group,1)==SH_OK && r->n_files==1);
     int original=r->files[0].fd;
-    job j={.r=r,.out={99,99,99},.rc=123};
+    job j={.r=r,.out={99,99,99},.rc=123,.ordinal=UINT32_MAX};
     atomic_store(&fail_dup,1);
     assert(sh_pads_reader_cell(r,0,0,j.out)==SH_ERR_IO);
     for(int i=0;i<3;i++)assert(j.out[i]==99);
@@ -58,7 +58,7 @@ int main(int argc,char **argv) {
     if(decoy!=original) { assert(dup2(decoy,original)==original);close(decoy);decoy=original; }
     assert(ftruncate(decoy,8192)==0);   /* old fd number now reads zeros from a different inode */
     pthread_barrier_wait(&proceed);
-    assert(pthread_join(t,NULL)==0 && j.rc==SH_OK && !memcmp(j.out,expected,sizeof expected));
+    assert(pthread_join(t,NULL)==0 && j.rc==SH_OK && j.ordinal==0 && !memcmp(j.out,expected,sizeof expected));
     atomic_store(&pause_cell,0);
     assert(sh_pads_reader_cell(r,0,0,j.out)==SH_ERR_EXHAUST);
     close(decoy);sh_pads_reader_close(r);
