@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <vector>
 #include <android/log.h>
+#include "anchor_placement.h"
 
 static int g_ctl = -1;
 /* The payload's locked line writer (anchor_ctl_write): the control channel is shared with the
@@ -270,10 +271,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * head, prefill) on the slow generic kernels. Pinning only the calib's sites to the plain
      * CPU buffer lets everything else repack. The site names come from the calib itself. */
     static std::string sh_pin_pattern; static llama_model_tensor_buft_override sh_pin[2];
+    sh_pin_pattern.clear();
     {
         std::vector<std::string> names;
+        std::string cal;
         if (FILE *cf = fopen(calib_path, "rb")) {
-            std::string cal; char cb[65536]; size_t got;
+            char cb[65536]; size_t got;
             while ((got = fread(cb, 1, sizeof cb, cf)) > 0) cal.append(cb, got);
             fclose(cf);
             for (size_t at = cal.find("blk."); at != std::string::npos; at = cal.find("blk.", at + 4)) {
@@ -292,15 +295,24 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
          * projection live outside those layers and repack. */
         std::vector<int> layers;
         for (const std::string &nm : names) { int li = atoi(nm.c_str() + 4); bool have = false; for (int x : layers) if (x == li) have = true; if (!have) layers.push_back(li); }
-        if (!layers.empty()) {
+        const char *fine = getenv("ANCHOR_FINE_PLACEMENT");
+        if (fine && strcmp(fine, "1") == 0) {
+            size_t count = 0; std::string error;
+            if (!anchor_placement_pattern(cal, getenv("SHIELDED_LOCAL_SITES"), sh_pin_pattern, count, error)) {
+                outf("ENGINE placement refused: %s", error.c_str()); return 2;
+            }
+            outf("ENGINE placement: fine, %zu calibrated group/member names pinned to CPU_plain; other weights may repack", count);
+        } else if (!layers.empty()) {
             sh_pin_pattern = "^blk\\.(";
             for (size_t n = 0; n < layers.size(); n++) { if (n) sh_pin_pattern += "|"; sh_pin_pattern += std::to_string(layers[n]); }
             sh_pin_pattern += ")\\..*\\.weight$";
+        }
+        if (!sh_pin_pattern.empty()) {
             sh_plain_buft.device = ggml_backend_buft_get_device(ggml_backend_cpu_buffer_type());
             sh_pin[0].pattern = sh_pin_pattern.c_str(); sh_pin[0].buft = &sh_plain_buft;
             sh_pin[1].pattern = nullptr; sh_pin[1].buft = nullptr;
         }
-        outf("ENGINE placement: %zu calibrated layers pinned to plain CPU rows (CPU_plain); the rest may repack", layers.size());
+        if (!(fine && strcmp(fine, "1") == 0)) outf("ENGINE placement: %zu calibrated layers pinned to plain CPU rows (CPU_plain); the rest may repack", layers.size());
     }
     llama_model_params mp = llama_model_default_params(); mp.n_gpu_layers = 0;
     if (!sh_pin_pattern.empty()) mp.tensor_buft_overrides = sh_pin;
