@@ -118,7 +118,9 @@ int  sh_pads_window_reserve(const char *ledger_path, uint64_t want, uint64_t *lo
 
 /* --- the platform's seed box and signed windows (relay/pads.mjs) ------------
  * seed box: X25519(epk, pad key) -> HKDF-SHA512(shared, salt = epk || pad_pk,
- * info "enclave-pads-seed-box") -> ChaCha20-Poly1305 (RFC 8439, no AAD). */
+ * info "enclave-pads-seed-box") -> ChaCha20-Poly1305 (RFC 8439, no AAD).
+ * Opening is allocation-free and rejects all-zero DH outputs. seed_out is
+ * cleared on every failure; it must point to a writable 32-byte buffer. */
 int  sh_pads_seed_open(const uint8_t epk[32], const uint8_t nonce[12], const uint8_t *box, size_t box_len,
                        const uint8_t pad_sk[32], const uint8_t pad_pk[32], uint8_t seed_out[32]);
 /* A ledger window: Ed25519 over "enclave-pads-window\n<seed_id hex>\n<lo>\n<hi>\n<iat>". */
