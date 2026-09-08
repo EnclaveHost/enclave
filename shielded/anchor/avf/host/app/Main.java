@@ -308,7 +308,10 @@ public class Main extends Activity {
             }
             // 4b. dealt pads: once the tunnel is bound, fetch the VM's seed through the platform's ledger
             boolean pads = false;
-            if (relay != null && !padKey.isEmpty() && !plan.pads.isEmpty())
+            // Only ENGINE decode consumes pads. Diagnostic modes (echo/bridgebench) need no masks, so they
+            // must NOT grant a seed or the dealer mints two 759 MiB shipments per diagnostic leg and
+            // contends with the very measurement (confound seen 2026-09-08).
+            if (relay != null && !padKey.isEmpty() && !plan.pads.isEmpty() && plan.mode.equals("engine"))
                 pads = PadsClient.bootstrap(padSession, PadsClient.httpBase(plan.relay), plan.name, out, r);
             // 4c. shared-prefix KV: the VM pins the platform's prefix key; the files follow over the pads port
             boolean prefix = false;
