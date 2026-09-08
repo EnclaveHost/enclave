@@ -209,6 +209,7 @@ int  sh_link_reply_width(const sh_link *l);
  * microseconds: what the backend watches to notice a card that is being
  * shared with something else. */
 double sh_link_last_wire_us(const sh_link *l);
+void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out);
 
 /* How the worker is reached ("vsock:9500", "tcp 10.0.2.2:9500 ..."), for logs. */
 const char *sh_link_transport(const sh_link *l);

@@ -79,6 +79,15 @@ snapshots after prefill and after decoding to distinguish upload from steady
 inference reads. These counters exclude initial cache writes and original-model
 source reads.
 
+With `SHIELDED_PROFILE=1`, the `[shielded] wire phases:` line separately reports
+request writes, overlapped verification work, reply-header reads, and reply-body
+reads including buffer allocation. It includes the longest successful exchange
+and counts exceeding 100 ms and one second. These are socket FIELD_GEMM calls on
+the current connection; upload traffic and ring exchanges are excluded. This
+distinguishes a few long stalls from a uniform latency increase. Wall times also
+include scheduling delays, so a slow socket-read phase alone does not identify
+which transport component stalled.
+
 Memory retained for cached encodings is 64 bytes per 1 MiB block plus file and
 object metadata. Registration still needs one full encoded matrix at a time;
 local fallback needs a block of whole matrix rows (about 1 MiB, or one input row
