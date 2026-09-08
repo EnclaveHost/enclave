@@ -375,12 +375,20 @@ struct sh_link {
     sh_window_fn win_fn; void *win_ctx;     /* a provider (the pVM's owner-app path) replaces the ledger file */
 
     uint64_t   exchanges, macs, verify_fail, pads_used, pads_missed;
+    /* Background importers publish this monotonic latch atomically. Keep it
+     * separate from the caller-owned remote-product counter. Never reset it
+     * when stopping/restarting refill threads or reconnecting the socket. */
+    bool       pad_integrity_failed;
     uint64_t   pads_waited;
     double     pad_wait_ms;
     double     last_wire_us;
     char       transport[192];
     char       err[256];
 };
+
+static bool sh_integrity_failed(const sh_link *l) {
+    return l && (l->verify_fail || __atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE));
+}
 
 static int dealt_reserve(sh_link *l, uint64_t *lo, uint64_t *hi);   /* dealt pads: below, after the refill loop */
 static void dealt_advanced(sh_link *l);
@@ -395,7 +403,7 @@ void sh_link_stats(const sh_link *l, uint64_t *e, uint64_t *m, uint64_t *v) {
     if (!l) return;
     if (e) *e = l->exchanges;
     if (m) *m = l->macs;
-    if (v) *v = l->verify_fail;
+    if (v) *v = l->verify_fail + (uint64_t)__atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE);
 }
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
     if (!l) return;
@@ -662,7 +670,7 @@ static int pad_check_prepare(sh_node *nd) {
 
 int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with) {
-    if (l && l->verify_fail) return SH_ERR_VERIFY;
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     if (!l || !name || !*name || strlen(name) >= sizeof(((sh_node *)0)->name) || !w_fixed ||
         K <= 0 || N <= 0 || max_m <= 0 || l->n_nodes >= INT_MAX || l->n_groups >= INT_MAX ||
         (uint64_t)K > SIZE_MAX / (SH_FV_REPS * sizeof(int64_t)) ||
@@ -851,6 +859,7 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
  * not prefetched the index yet; past that the bank is behind and the link
  * stops (a dealt engine never mints for itself). */
 static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t index0, int b, int32_t *r_out, int32_t *u_out) {
+    if (__atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE)) return SH_ERR_VERIFY;
     const char *tiled_env = getenv("SHIELDED_PAD_CHECK_TILED");
     const bool tiled_check = tiled_env && !strcmp(tiled_env, "1");
     for (int i = 0; i < b; i++) {
@@ -867,6 +876,7 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
         if (rc != SH_OK) {
             snprintf(l->err, sizeof l->err, "dealt pads: group %u index %llu %s", gi, (unsigned long long)index,
                      rc == SH_ERR_EXHAUST ? "not in any shipment (bank behind)" : rc == SH_ERR_VERIFY ? "failed to open (tampered or wrong key)" : "unreadable");
+            if (rc == SH_ERR_VERIFY) __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
             return rc;
         }
         /* The reader matches by name, not by position. Use the ordinal of
@@ -892,6 +902,7 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
             }
             if (a != b) {
                 snprintf(l->err, sizeof l->err, "dealt pads: group %u index %llu: pad FAILED the check on %s (the dealer minted u != r.W for this seed)", gi, (unsigned long long)index, nd->name);
+                __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
                 return SH_ERR_VERIFY;
             }
         }
@@ -1154,6 +1165,7 @@ static int dealt_open(sh_link *l) {
 
 static int start_pools(sh_link *l) {
     stop_threads(l);
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     free_pools(l);
     { const int rc = dealt_open(l); if (rc != SH_OK) return rc; }
     for (size_t i = 0; i < l->n_groups; i++) {
@@ -1196,7 +1208,7 @@ static int start_pools(sh_link *l) {
         }
         pthread_mutex_unlock(&l->pool_mu);
     }
-    return SH_OK;
+    return sh_integrity_failed(l) ? SH_ERR_VERIFY : SH_OK;
 }
 
 /* Dealt mode: a short ring means the importers have not caught up yet, not
@@ -1335,7 +1347,7 @@ int sh_link_start(sh_link *l) {
     /* A reconnect retains the prepared secret challenges. Once the peer has
      * failed one, never give it another verification attempt with those same
      * challenges. Recovery requires a new link and fresh registration. */
-    if (l && l->verify_fail) {
+    if (sh_integrity_failed(l)) {
         snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
         return SH_ERR_VERIFY;
     }
@@ -1595,7 +1607,7 @@ static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, cons
 
 int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                        const int64_t *x_field, int32_t m, int64_t **y_out) {
-    if (l && l->verify_fail) return SH_ERR_VERIFY;
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     if (!n_nodes || !m) return SH_OK;
     if (!l || !nodes || !x_field || !y_out || m < 0 || n_nodes > SH_GROUP_MAX) return SH_ERR_PROTO;
     for (size_t i = 0; i < n_nodes; i++) {
@@ -1709,7 +1721,7 @@ static bool sh_reply32_balanced(const int32_t *values, size_t n) {
 
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
-    if (l && l->verify_fail) {
+    if (sh_integrity_failed(l)) {
         snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
         return SH_ERR_VERIFY;
     }
@@ -1758,6 +1770,9 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     double t0 = now_ms();
     if (l->dealt && l->threads_running) dealt_wait(l, g, m);
     const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;
+    /* A background rejection must reach the backend as an integrity error,
+     * even if a different group still had ready pads. Taken pads stay burned. */
+    if (sh_integrity_failed(l)) { rc = SH_ERR_VERIFY; goto fail; }
     for (int i = 0; i < took; i++) {
         l->rp[i] = g->r_store + (size_t)l->slots[i] * K;
         l->up[i] = g->u_store + (size_t)l->slots[i] * g->u_len;
@@ -2080,6 +2095,7 @@ bool sh_link_has_bank(const sh_link *l) { return l && l->padbank; }
  * path the refill threads use. Returns the number of rows imported, or an
  * error; dealt-selftest.c checks them against the shipment's plaintext. */
 int sh_link_dealt_selftest(sh_link *l, int rows, int32_t *r_out, int32_t *u_out) {
+    if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     if (!l || !l->dealt || !l->n_groups) return SH_ERR_RANGE;
     int rc = dealt_open(l);
     if (rc != SH_OK) return rc;

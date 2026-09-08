@@ -31,7 +31,7 @@ test('weight authentication binds the private encoded source and prevents fallba
     run('c++', [...flags, '-std=c++17', '-I' + join(headers, 'ggml/include'), '-I' + join(headers, 'ggml/src'),
       join(root, 'test/fixtures/shielded-weight-verifier.cpp'), ...objects, '-Wl,--gc-sections',
       '-L' + libs, '-lggml', '-lggml-cpu', '-lggml-base', '-lpthread', '-lm', '-Wl,-rpath,' + libs, '-o', bin]);
-    for (const scenario of ['honest', 'tamper', 'shape', 'source', 'source_tamper', 'source_readfail', 'source_cpu'])
+    for (const scenario of ['honest', 'tamper', 'shape', 'source', 'source_tamper', 'source_readfail', 'source_cpu', 'start_integrity'])
       assert.match(run(bin, [dir, scenario]), /weight-verifier: private-copy encoding/);
     const refused = spawnSync(bin, [dir, 'source_cpu_tamper'], {env, encoding: 'utf8', timeout: 60_000});
     assert.equal(refused.signal, 'SIGABRT');
