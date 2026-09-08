@@ -69,10 +69,13 @@ int anchor_pins_load(const char *dir, anchor_pins *p) {
     char path[600]; snprintf(path, sizeof path, "%s/anchor.mode", dir ? dir : "");
     FILE *f = fopen(path, "rb");
     if (!f) { snprintf(p->err, sizeof p->err, "anchor.mode missing: the trust mode is a measured build option, not a default"); return 0; }
-    char m[32]; size_t n = fread(m, 1, sizeof m - 1, f); fclose(f); m[n] = 0;
-    if (n && m[n - 1] == '\n') m[--n] = 0;
-    if (!strcmp(m, "dev")) p->mode = ANCHOR_MODE_DEV;
-    else if (!strcmp(m, "protected")) p->mode = ANCHOR_MODE_PROTECTED;
+    /* exact canonical bytes: "dev" or "protected", at most one trailing newline, nothing else - no
+     * embedded NUL (strcmp would stop there), no padding, no longer file */
+    char m[32]; size_t n = fread(m, 1, sizeof m, f); const int bad = ferror(f); fclose(f);
+    if (bad || n == sizeof m) { snprintf(p->err, sizeof p->err, "anchor.mode unreadable or too long"); return 0; }
+    if (n && m[n - 1] == '\n') n--;
+    if (n == 3 && !memcmp(m, "dev", 3)) p->mode = ANCHOR_MODE_DEV;
+    else if (n == 9 && !memcmp(m, "protected", 9)) p->mode = ANCHOR_MODE_PROTECTED;
     else { snprintf(p->err, sizeof p->err, "anchor.mode is neither dev nor protected"); return 0; }
     const int rl = read_hex32(dir, "ledger.pk", p->ledger_pk), rm = read_hex32(dir, "model.sha256", p->model_sha256), rp = read_hex32(dir, "prefix.pk", p->prefix_pk);
     if (rl < 0) { snprintf(p->err, sizeof p->err, "ledger.pk present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
