@@ -246,6 +246,17 @@ static struct ggml_backend_buffer_type sh_plain_buft = {
     /* .context = */ nullptr,
 };
 
+/* first32(SHA-512(calibration file)) as hex: the identity the dealer records in every shipment header and
+ * the prefix v2 sidecar binds; "" when the file is unreadable or over 64 MiB (never a truncated digest). */
+static std::string calib_digest_hex(const char *path) {
+    std::string cal; FILE *f = fopen(path, "rb"); if (!f) return "";
+    char b[65536]; size_t k; bool ok = true;
+    while ((k = fread(b, 1, sizeof b, f)) > 0) { if (cal.size() + k > (64u << 20)) { ok = false; break; } cal.append(b, k); }
+    if (ferror(f)) ok = false; fclose(f); if (!ok) return "";
+    uint8_t h[64]; crypto_hash(h, (const uint8_t *)cal.data(), cal.size());
+    char hex[65]; sh_pads_bin2hex(h, 32, hex); return std::string(hex);
+}
+
 extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *lib_dir, const char *calib_path,
                            const char *prompt, int n_predict, int n_threads, const anchor_pads *pads) {
     g_ctl = ctl_fd;
@@ -714,11 +725,18 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (stats) stats(&off, &loc, &macs, &vf);
     cache_stats_line("after decode");
     const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused");
-    outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
-         "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d}",
-         status, mtp_fallback, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
+    /* identity + the requested budget + the MTP counters ride in the result so a harness can judge a leg
+     * from this one line: full budget or an explicit EOS, verify_fail 0, no sticky fallback, real MTP
+     * rounds when k > 0, and the model/calibration it actually ran (never the recipe's claim) */
+    std::string model_hex; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); model_hex = hx; }
+    const std::string calib_hex = calib_digest_hex(calib_path);
+    outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"requested\":%d,\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
+         "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d,"
+         "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\"}",
+         status, mtp_fallback, n_predict, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
          (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 / (n_gen - n_gen_steady0) : 0.0,
-         (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads);
+         (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads,
+         mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, model_hex.c_str(), calib_hex.c_str());
     if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + (uint64_t)n_gen); }
     /* the backend's profile lines (SHIELDED_PROFILE=1: exchange counts, mask/wire/unmask
      * time, pad waits) live in stderr; hand the owner the summary so a run explains itself */
