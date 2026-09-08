@@ -394,11 +394,29 @@ verification failures, exit 0, exact text.
   consumed over the cards; tokens = prompt + generated), prints
   `RECEIPT name seed_id pads tokens nonce sig` on the control channel, the
   owner app relays it as `POST /v1/pads/receipt`, and the platform verifies
-  it against the tunnel's attested SPKI, refuses replays (the seed's nonce
-  memory, shared with reserve) and foreign seeds, and accrues per-seed
+  it against the tunnel's attested SPKI, refuses replays and foreign seeds, and accrues per-seed
   totals (`GET /v1/pads/receipts?seed_id=` -> pads, tokens, runs, last 64).
   Billing and the operator payout read those totals; neither the app nor
   the operator can inflate them. `test/pads-ledger.test.mjs` pins it.
+  The v2 phone grant permits one final receipt per seed. Legacy multi-receipt
+  seeds retain a separate durable SHA-256 fingerprint for every accepted receipt
+  nonce; later reservations and the 64-row display-history limit cannot evict
+  that protection. A seed accepts at most 4096 receipts, then refuses new deltas
+  until a fresh seed is obtained. Old state is migrated only when the retained
+  rows cover every prior receipt; incomplete or corrupt history fails closed
+  without altering usage. This deliberately tightens legacy compatibility:
+  re-requesting a seed with the same transport identity does not reset history
+  or rotate its mask domain. Use a fresh attested per-boot transport identity;
+  never clear receipt history to resume an old seed. Tests in
+  `test/pad-state.test.mjs` cover eviction, restart, migration, capacity,
+  malformed history and failed persistence without duplicate accounting.
+  New legacy reservation requests also refuse once history is incomplete,
+  corrupt or full. `receipt_history_incomplete` and `receipt_history_full`
+  responses carry `reseed_required: true`; no automatic epoch rotation or
+  re-labeling of completed usage occurs. Previously signed windows are not
+  revoked by this check, so deploying to long-lived legacy clients requires a
+  planned transition before further runs. The v2 phone path skips this legacy
+  history machinery and retains its one-final-receipt policy.
 - DONE 2026-09-07, refusal: in dealt mode an EXHAUST from the ring is a
   hard graph failure (`ggml-shielded.cpp`, "refusing to proceed without
   dealt pads"), never the self-minting engine's fallback to computing the

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { loadPadState, savePadState } from "../relay/pad-state.mjs";
-import { createPadsLedger, signedMessage } from "../relay/pads.mjs";
+import { createPadsLedger, signedMessage, MAX_RECEIPT_HISTORY } from "../relay/pads.mjs";
 
 function fixture() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pad-state-"));
@@ -153,4 +153,93 @@ test("cumulative receipt counters refuse overflow without consuming a nonce or c
       assert.equal(loadPadState(f.file).seeds[sid].nonces.includes(req.nonce),false);
     } finally {f.close();}
   }
+});
+
+test("receipt deltas cannot replay after reserve nonce eviction, display-history truncation or restart", () => {
+  const f = fixture();
+  try {
+    let L = f.open(); const sid = L.seed(f.request("seed", [])).body.seed_id;
+    const receipt = f.request("receipt", [sid, 11, 7], {seed_id:sid, pads:11, tokens:7});
+    assert.equal(L.receipt(receipt).status, 200);
+    for (let i = 0; i < 257; i++)
+      assert.equal(L.reserve(f.request("reserve", [sid, 1], {seed_id:sid, want:1})).status, 200);
+    assert.equal(loadPadState(f.file).seeds[sid].nonces.includes(receipt.nonce), false);
+    let before = fs.readFileSync(f.file, "utf8");
+    assert.equal(L.receipt(receipt).body.error, "replay");
+    assert.equal(fs.readFileSync(f.file, "utf8"), before);
+    for (let i = 0; i < 70; i++)
+      assert.equal(L.receipt(f.request("receipt", [sid, 1, 2], {seed_id:sid, pads:1, tokens:2})).status, 200);
+    assert.equal(L.receipts(sid).last.some(r => r.nonce === receipt.nonce), false);
+    L = f.open(); before = fs.readFileSync(f.file, "utf8");
+    assert.equal(L.receipt(receipt).body.error, "replay");
+    assert.equal(fs.readFileSync(f.file, "utf8"), before);
+    assert.deepEqual([L.receipts(sid).pads, L.receipts(sid).tokens, L.receipts(sid).runs], [81, 147, 71]);
+    assert.equal(loadPadState(f.file).seeds[sid].receiptNonceHashes.length, 71);
+  } finally {f.close();}
+});
+
+test("legacy receipt migration requires complete retained history and never guesses forgotten nonces", () => {
+  const f = fixture();
+  try {
+    let L = f.open(); const sid = L.seed(f.request("seed", [])).body.seed_id;
+    const first = f.request("receipt", [sid, 1, 2], {seed_id:sid, pads:1, tokens:2});
+    assert.equal(L.receipt(first).status, 200);
+    let state = loadPadState(f.file); delete state.seeds[sid].receiptNonceHashes; state.seeds[sid].nonces = [];
+    savePadState(f.file, state); L = f.open();
+    let before = fs.readFileSync(f.file, "utf8");
+    assert.equal(L.receipt(first).body.error, "replay");
+    assert.equal(fs.readFileSync(f.file, "utf8"), before);
+    assert.equal(L.receipt(f.request("receipt", [sid, 3, 4], {seed_id:sid, pads:3, tokens:4})).status, 200);
+    assert.equal(loadPadState(f.file).seeds[sid].receiptNonceHashes.length, 2);
+    // A pre-upgrade ledger whose display tail lost earlier receipts cannot
+    // safely accept any new legacy delta, even with a new valid signature.
+    state = loadPadState(f.file); delete state.seeds[sid].receiptNonceHashes;
+    state.seeds[sid].usage.runs++; state.seeds[sid].nonces = [];
+    savePadState(f.file, state); L = f.open(); before = fs.readFileSync(f.file, "utf8");
+    const next = f.request("receipt", [sid, 3, 4], {seed_id:sid, pads:3, tokens:4});
+    assert.equal(L.receipt(next).body.error, "receipt_history_incomplete");
+    const reserve = f.request("reserve", [sid, 1], {seed_id:sid, want:1});
+    assert.deepEqual([L.reserve(reserve).body.error, L.reserve(reserve).body.reseed_required], ["receipt_history_incomplete", true]);
+    assert.equal(fs.readFileSync(f.file, "utf8"), before);
+  } finally {f.close();}
+});
+
+test("receipt history is exact, bounded and fails closed on corrupted stored fingerprints", () => {
+  const f = fixture();
+  try {
+    let L = f.open(); const sid = L.seed(f.request("seed", [])).body.seed_id;
+    const req = f.request("receipt", [sid, 1, 1], {seed_id:sid, pads:1, tokens:1});
+    const original = loadPadState(f.file);
+    for (const hashes of [null, {}, ["bad"], ["a".repeat(64), "a".repeat(64)]]) {
+      const state = structuredClone(original);
+      state.seeds[sid].receiptNonceHashes = hashes;
+      state.seeds[sid].usage = {pads:0, tokens:0, runs:Array.isArray(hashes) ? hashes.length : 0, last:[]};
+      savePadState(f.file, state); L = f.open(); const before = fs.readFileSync(f.file, "utf8");
+      assert.equal(L.receipt(req).body.error, "receipt_history_state");
+      assert.equal(L.reserve(f.request("reserve", [sid, 1], {seed_id:sid, want:1})).body.error, "receipt_history_state");
+      assert.equal(fs.readFileSync(f.file, "utf8"), before);
+    }
+    const state = structuredClone(original);
+    state.seeds[sid].receiptNonceHashes = Array.from({length:MAX_RECEIPT_HISTORY}, (_,i) => createHash("sha256").update(String(i)).digest("hex"));
+    state.seeds[sid].usage = {pads:0, tokens:0, runs:MAX_RECEIPT_HISTORY, last:[]};
+    savePadState(f.file, state); L = f.open(); const before = fs.readFileSync(f.file, "utf8");
+    assert.equal(L.receipt(req).body.error, "receipt_history_full");
+    const reserve = f.request("reserve", [sid, 1], {seed_id:sid, want:1});
+    assert.deepEqual([L.reserve(reserve).body.error, L.reserve(reserve).body.reseed_required], ["receipt_history_full", true]);
+    assert.equal(fs.readFileSync(f.file, "utf8"), before);
+  } finally {f.close();}
+});
+
+test("v2 phone final receipts retain their one-run policy without allocating legacy history", () => {
+  const f = fixture();
+  try {
+    let L = f.open(); const assets = {model_digest:"ab".repeat(32), calib_digest:"cd".repeat(32)};
+    const sid = L.seed(f.request("seed-v2", Object.values(assets), assets)).body.seed_id;
+    assert.equal(L.reserve(f.request("reserve", [sid, 64], {seed_id:sid, want:64})).status, 200);
+    const req = f.request("receipt", [sid, 23, 16], {seed_id:sid, pads:23, tokens:16});
+    assert.equal(L.receipt(req).status, 200);
+    assert.equal(loadPadState(f.file).seeds[sid].receiptNonceHashes, undefined);
+    L = f.open();
+    assert.equal(L.receipt(req).body.error, "receipt_finalized");
+  } finally {f.close();}
 });
