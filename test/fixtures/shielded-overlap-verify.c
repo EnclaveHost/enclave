@@ -169,6 +169,31 @@ static void run_case(int enabled, bool verify, int width, int ring_mode) {
     for (int i = 0; i < N1 * K; i++) w1[i] = i % 7 - 3;
     assert(sh_link_add_weight(l, "a", w0, K, N0, MAX_M, -1) == 0);
     assert(sh_link_add_weight(l, "b", w1, K, N1, MAX_M, 0) == 1);
+    // Invalid integer inputs are rejected before ANY pad or output is used,
+    // even when the ordinary path would use the local exact fallback.
+    const int ids[] = {0, 1};
+    int64_t x_bad[K] = {0}, untouched0[N0], untouched1[N1];
+    int64_t *rejected[] = {untouched0, untouched1};
+    const int64_t bad_values[] = {INT64_MIN, -SH_FV_X_LIMIT, SH_FV_X_LIMIT, INT64_C(1) << 32, INT64_MAX};
+    for (size_t b = 0; b < sizeof bad_values / sizeof bad_values[0]; b++) {
+        x_bad[K - 1] = bad_values[b];
+        for (int j = 0; j < N0; j++) untouched0[j] = 123;
+        for (int j = 0; j < N1; j++) untouched1[j] = 456;
+        assert(sh_link_gemm(l, ids, 2, x_bad, 1, rejected) == SH_ERR_VERIFY);
+        assert(sh_link_gemm_local(l, ids, 2, x_bad, 1, rejected) == SH_ERR_VERIFY);
+        assert(!sh_link_verify(l, 0, x_bad, untouched0, 1));
+        assert(l->pads_used == 0 && l->exchanges == 0);
+        for (int j = 0; j < N0; j++) assert(untouched0[j] == 123);
+        for (int j = 0; j < N1; j++) assert(untouched1[j] == 456);
+    }
+    for (int sign = -1; sign <= 1; sign += 2) {
+        x_bad[K - 1] = sign * (SH_FV_X_LIMIT - 1);
+        assert(sh_link_gemm_local(l, ids, 2, x_bad, 1, rejected) == SH_OK);
+        for (int j = 0; j < N0; j++) assert(untouched0[j] == sh_balanced(x_bad[K - 1] * w0[j * K + K - 1]));
+    }
+    x_bad[K - 1] = 0;
+    untouched0[0] = INT64_MAX;
+    assert(!sh_link_verify(l, 0, x_bad, untouched0, 1));
     sh_group *g = &l->groups[0];
     g->depth = DEPTH; g->head = DEPTH - 2; g->count = DEPTH;
     g->r_store = malloc(DEPTH * K * sizeof(int32_t));

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const fixture = (name) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const source = (name) => fileURLToPath(new URL(`../wasm/ggml-shielded/${name}`, import.meta.url));
 const flags = ['-std=c11', '-O1', '-Wall', '-Wextra', '-ffunction-sections', '-fdata-sections'];
+if (process.env.SHIELDED_TEST_SANITIZE === '1') flags.push('-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer');
 const testEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('SHIELDED_')));
 
 test('socket work runs once on the caller after the full write, before reading, including reply failures', () => {

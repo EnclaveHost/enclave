@@ -843,6 +843,22 @@ endpoint and the exact local field fallback, never a GPU worker. Scheduler
 tests also exercise missing calibration, forced-local sites, invalid worker
 configuration, wide batches and repeated execution with changed inputs.
 
+## Numerical input bounds
+
+The backend rejects nonfinite activations and values that cannot be safely
+encoded before integer conversion. Activation and output scales must remain
+finite and positive; unsupported calibration exponents leave the site local.
+The checked encoder uses a public limit derived from the number of held-out
+channels so their local integer sum cannot overflow. Large, representable
+outlier values remain supported.
+
+Both the online link and its exact local fallback require each offloaded input
+integer to have magnitude below `2^26`. This is the existing Freivalds kernel's
+accumulation bound; it is independent of the request's activation distribution.
+An invalid input returns `SH_ERR_VERIFY` before taking a pad or writing output,
+and the backend aborts that graph. The tighter field-product wrap check remains
+in force. These checks add no adaptive scaling or secret-dependent wire metadata.
+
 ## Open risks, ranked
 
 0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC

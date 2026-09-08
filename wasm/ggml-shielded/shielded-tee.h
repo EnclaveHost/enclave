@@ -130,6 +130,12 @@ int sh_link_start(sh_link *l);
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out);
 
+/* Both GEMM entry points reject |x_field| >= SH_FV_X_LIMIT (2^26) with
+ * SH_ERR_VERIFY before using pads or writing output. This public arithmetic
+ * bound protects masking, verification and the exact local accumulator; it
+ * does not replace the tighter product-wrap check against the field modulus.
+ * Callers must abort on this error, including on a local fallback. */
+
 /* The same product, computed in the TEE in plain int64, with no worker
  * involved. Numerically IDENTICAL to sh_link_gemm -- the offloaded path is
  * exact -- which is what makes it a fallback rather than a degraded mode. */

@@ -37,7 +37,7 @@ double sh_prof[8];
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
     sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, sh_simd_##sfx##_refill, sh_simd_##sfx##_outlier_add, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
-    sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv }
+    sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv, sh_simd_##sfx##_encode_checked }
 #if !defined(__aarch64__)
 static const sh_simd simd_avx512  = SIMD_TABLE(avx512, "avx512-vnni");
 #endif
@@ -145,6 +145,10 @@ static bool simd_agree(const sh_simd *a, const sh_simd *b) {
     for (int i = 0; i < B * K; i++) fsrc[i] = ((float)(int)(RND() % 200001) - 100000.0f) / 8.0f;   /* .0/.125 steps: exact ties */
     a->encode(fsrc, B * K, 4.0f, ea); b->encode(fsrc, B * K, 4.0f, eb);
     if (memcmp(ea, eb, sizeof ea)) return false;
+    if (!a->encode_checked(fsrc, B * K, 4.0f, (float)SH_FV_X_LIMIT, ea) ||
+        memcmp(ea, eb, sizeof ea) ||
+        !b->encode_checked(fsrc, B * K, 4.0f, (float)SH_FV_X_LIMIT, eb) ||
+        memcmp(ea, eb, sizeof ea)) return false;
 #undef RND
     return true;
 }
@@ -1372,8 +1376,21 @@ int sh_link_start(sh_link *l) {
     return start_pools(l);
 }
 
+/* The SIMD mask and Freivalds kernels have finite integer bounds. Check once
+ * at the link boundary, before taking any pad or touching output. Unsigned
+ * range reduction handles INT64_MIN/MAX without signed overflow and permits
+ * vectorization on the normal path. This limit is public and never adapted. */
+static bool sh_values_within(const int64_t *values, size_t n, uint64_t limit) {
+    uint64_t bad = 0;
+    for (size_t i = 0; i < n; i++) bad |= (uint64_t)values[i] + limit - 1 >= 2 * limit - 1;
+    return bad == 0;
+}
+
 /* --- Freivalds over an unrelated prime ------------------------------------ */
 static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, const int64_t *y, int32_t m) {
+    if (m < 0 || m > nd->max_m || !x || !y ||
+        !sh_values_within(x, (size_t)m * nd->K, SH_FV_X_LIMIT) ||
+        !sh_values_within(y, (size_t)m * nd->N, (uint64_t)SH_HALF_M + 1)) return false;
     for (int32_t row = 0; row < m; row++) {
         int64_t lhs[SH_FV_REPS], rhs[SH_FV_REPS];
         l->simd->fv_dots(y + (int64_t)row * nd->N, nd->s32, SH_FV_REPS, nd->N, lhs);
@@ -1386,6 +1403,17 @@ static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, cons
 
 int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                        const int64_t *x_field, int32_t m, int64_t **y_out) {
+    if (!n_nodes || !m) return SH_OK;
+    if (!l || !nodes || !x_field || !y_out || m < 0 || n_nodes > SH_GROUP_MAX) return SH_ERR_PROTO;
+    for (size_t i = 0; i < n_nodes; i++) {
+        if (nodes[i] < 0 || (size_t)nodes[i] >= l->n_nodes || !y_out[i]) return SH_ERR_PROTO;
+        const sh_node *nd = &l->nodes[nodes[i]];
+        if (m > nd->max_m) return SH_ERR_PROTO;
+        if (!sh_values_within(x_field, (size_t)m * nd->K, SH_FV_X_LIMIT)) {
+            snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
+            return SH_ERR_VERIFY;
+        }
+    }
     for (size_t i = 0; i < n_nodes; i++) {
         const sh_node *nd = &l->nodes[nodes[i]];
         const int64_t K = nd->K, N = nd->N;
@@ -1414,7 +1442,7 @@ const int8_t *sh_link_weight(const sh_link *l, int node) {
 }
 
 bool sh_link_verify(const sh_link *l, int node, const int64_t *x, const int64_t *y, int32_t m) {
-    if (!l || node < 0 || (size_t)node >= l->n_nodes) return false;
+    if (!l || !l->verify || node < 0 || (size_t)node >= l->n_nodes) return false;
     return fv_check(l, &l->nodes[node], x, y, m);
 }
 
@@ -1468,7 +1496,10 @@ static bool sh_reply32_balanced(const int32_t *values, size_t n) {
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
     if (!n_nodes) return SH_OK;
+    if (!l || !nodes || !x_field || !y_out) return SH_ERR_PROTO;
     if (n_nodes > SH_GROUP_MAX) { snprintf(l->err, sizeof l->err, "too many nodes in one exchange"); return SH_ERR_PROTO; }
+    for (size_t i = 0; i < n_nodes; i++)
+        if (nodes[i] < 0 || (size_t)nodes[i] >= l->n_nodes || !y_out[i]) return SH_ERR_PROTO;
     sh_group *g = &l->groups[l->nodes[nodes[0]].group];
     for (size_t i = 0; i < n_nodes; i++)
         if (l->nodes[nodes[i]].group != l->nodes[nodes[0]].group) {
@@ -1478,6 +1509,10 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         snprintf(l->err, sizeof l->err, "m=%d outside this group's [1,%d]", m, g->max_m); return SH_ERR_PROTO;
     }
     const int64_t K = g->K;
+    if (!sh_values_within(x_field, (size_t)m * K, SH_FV_X_LIMIT)) {
+        snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
+        return SH_ERR_VERIFY;
+    }
     const bool overlap = l->verify && l->overlap_verify && !sh_pipe_ring_live(l->pipe);
     int rc;
     /* Steady state allocates nothing: every buffer here has grown to its
