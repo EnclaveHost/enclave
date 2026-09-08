@@ -669,6 +669,8 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     }
 
     const double t0 = sh_now_ms();
+    const bool profile_registration = getenv("SHIELDED_PROFILE") != nullptr;
+    double source_read_ms = 0, source_auth_ms = 0;
     sh_state::entry e;
     e.K = K; e.N = N; e.site = site; e.group = sh_group_key(name);
     const void *source = w->data;
@@ -685,10 +687,16 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
             catch (const std::bad_alloc &) { valid = false; }
             catch (const std::length_error &) { valid = false; }
             if (valid) {
+                const double tr = profile_registration ? sh_now_ms() : 0;
                 if (sh_is_weight_source(w)) valid = sh_source_read_for_registration(w, private_source.data(), bytes);
                 else memcpy(private_source.data(), source, bytes);
+                const double ta = profile_registration ? sh_now_ms() : 0;
                 valid = valid && g_weight_verifier(g_weight_verifier_ctx, name.c_str(), (uint32_t)w->type,
                                                    w->ne, private_source.data(), bytes) == SH_OK;
+                if (profile_registration) {
+                    source_read_ms = ta - tr;
+                    source_auth_ms = sh_now_ms() - ta;
+                }
                 source = private_source.data();
             }
         }
@@ -700,6 +708,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         }
         e.source_verified = true;
     }
+    const double t_source = profile_registration ? sh_now_ms() : 0;
     e.w.resize((size_t)K * N);
     e.f_w.resize((size_t)N);
     /* Rows are independent: spread the encoding over threads. Registration
@@ -716,6 +725,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     // all remaining registration work reads the encoded rows in e.w.
     std::vector<uint8_t>().swap(private_source);
     source = nullptr;
+    const double t_encode = profile_registration ? sh_now_ms() : 0;
 
     /* The outlier columns, kept in the TEE. Their contribution is computed here
      * in plain int64 where nothing can wrap, and the offloaded activation has
@@ -772,6 +782,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     int lo = e.f_w[0], hi = e.f_w[0];
     for (int64_t j = 1; j < N; j++) { if (e.f_w[j] < lo) lo = e.f_w[j]; if (e.f_w[j] > hi) hi = e.f_w[j]; }
 
+    const double t_setup = profile_registration ? sh_now_ms() : 0;
     // Dealt decoding needs only the check vectors and outlier columns in RAM.
     // Cache before committing the node, so an I/O failure cannot leave a link
     // borrowing a destroyed vector. No change to dealer/local-mint builds.
@@ -786,6 +797,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         }
     }
 
+    const double t_cache = profile_registration ? sh_now_ms() : 0;
     sh_state::entry &stored = s.weights[name];
     stored = std::move(e);
     stored.name = name;
@@ -797,6 +809,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         s.weights.erase(name); s.refused.insert(name);
         return false;
     }
+    const double t_checks = profile_registration ? sh_now_ms() : 0;
     stored.node = node;
     if (stored.w_cache) {
         if (sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get()) == SH_OK) {
@@ -816,6 +829,14 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     s.group_members[stored.group].push_back(name);
     if (s.probe_group.empty()) s.probe_group = stored.group;
     s.dirty = true;
+    if (profile_registration) {
+        const double t_done = sh_now_ms();
+        fprintf(stderr, "[shielded] profile registration %s: source=%.3fms (read=%.3fms auth=%.3fms) "
+                        "encode=%.3fms local_setup=%.3fms cache=%.3fms link=%.3fms commit=%.3fms total=%.3fms\n",
+                name.c_str(), t_source - t0, source_read_ms, source_auth_ms,
+                t_encode - t_source, t_setup - t_encode, t_cache - t_setup,
+                t_checks - t_cache, t_done - t_checks, t_done - t0);
+    }
     SH_LOG("registered %s K=%lld N=%lld f_w=%d..%d act_frac=%d outliers=%zu group=%s (%.0f ms)\n",
            name.c_str(), (long long)K, (long long)N, lo, hi, site->act_frac, nout, stored.group.c_str(), sh_now_ms() - t0);
     return true;

@@ -681,6 +681,8 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
     }
     /* Check aligned byte offsets before reading weights or publishing a node. */
     if (l->wbytes < 0 || l->abytes < 0 || l->wbytes > INT64_MAX - SH_ALIGN || l->abytes > INT64_MAX - SH_ALIGN) return SH_ERR_RANGE;
+    const bool profile_registration = getenv("SHIELDED_PROFILE") != NULL;
+    const double tp0 = profile_registration ? now_ms() : 0;
     sh_node staged = {0}; sh_node *nd = &staged;
     nd->w_off = align_up(l->wbytes); nd->x_off = align_up(l->abytes);
     const __int128 yoff = ((__int128)nd->x_off + 3 * (__int128)max_m * K + SH_ALIGN - 1) & ~((__int128)SH_ALIGN - 1);
@@ -716,8 +718,10 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
         if (!ng) return SH_ERR_NOMEM;
         l->groups = ng; l->cap_groups = cap;
     }
+    const double t_scan = profile_registration ? now_ms() : 0;
     int rc = SH_OK;
     if (l->verify) rc = fv_prepare(l, nd);
+    const double t_fv = profile_registration ? now_ms() : 0;
     const char *pad_check = getenv("SHIELDED_PAD_CHECK");
     if (rc == SH_OK && pad_check && *pad_check && strcmp(pad_check, "0")) rc = pad_check_prepare(nd);
     if (rc != SH_OK) {
@@ -725,6 +729,7 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
         snprintf(l->err, sizeof l->err, "%s: verification setup failed (%d)", name, rc);
         return rc;
     }
+    const double t_pad = profile_registration ? now_ms() : 0;
     const char *public_cache = getenv("SHIELDED_PUBLIC_WEIGHT_CACHE");
     if (l->verify && public_cache && !strcmp(public_cache, "1")) {
         sha256_ctx sha; sha_init(&sha);
@@ -732,6 +737,7 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
         sha_final(&sha, nd->public_digest); nd->public_digest_ready = true;
     }
 
+    const double t_identity = profile_registration ? now_ms() : 0;
     /* Commit only after both verification setups succeed. Failure leaves the
      * existing group memberships, offsets and node counts unchanged. */
     if (share_x_with >= 0) {
@@ -749,7 +755,15 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
     if (N > l->Nmax) l->Nmax = N;
     if (l->groups[nd->group].u_len > l->ulen_max) l->ulen_max = l->groups[nd->group].u_len;
     l->nodes[l->n_nodes] = staged;
-    return (int)l->n_nodes++;
+    const int node = (int)l->n_nodes++;
+    if (profile_registration) {
+        const double t_done = now_ms();
+        fprintf(stderr, "[shielded] profile registration checks %s: scan_alloc=%.3fms fv=%.3fms "
+                        "pad=%.3fms public_identity=%.3fms commit=%.3fms total=%.3fms\n",
+                name, t_scan - tp0, t_fv - t_scan, t_pad - t_fv,
+                t_identity - t_pad, t_done - t_identity, t_done - tp0);
+    }
+    return node;
 }
 
 int sh_link_set_weight_reader(sh_link *l, int node, sh_weight_read_fn reader, void *ctx) {
