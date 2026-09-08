@@ -292,6 +292,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* no SHIELDED_SPIN_US here: a 20 ms spin-poll on the link thread took the wire from 5.4 to 18 ms
      * per exchange on the phone (run24): the spinning vCPU starves the compute threads */
     setenv("SHIELDED_CALIB", calib_path, 1);
+    /* Calibration identity for the result line, taken NOW, before the backend loads the same path. Premise:
+     * calib_path is inside /mnt/apk, the APK the VM verified (idsig/fs-verity) and mounts read-only, so
+     * the bytes the backend parses are these bytes; this is still a separate read of a measured mount,
+     * not the backend's own private copy, and the field says so by name (calib_digest_at_start). */
+    const std::string calib_hex_at_start = calib_digest_hex(calib_path);
     setenv("SHIELDED_PROFILE", "1", 1);
 
     std::string cpu_so = std::string(lib_dir) + "/libggml-cpu.so", sh_so = std::string(lib_dir) + "/libggml-shielded.so";
@@ -729,14 +734,13 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * from this one line: full budget or an explicit EOS, verify_fail 0, no sticky fallback, real MTP
      * rounds when k > 0, and the model/calibration it actually ran (never the recipe's claim) */
     std::string model_hex; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); model_hex = hx; }
-    const std::string calib_hex = calib_digest_hex(calib_path);
     outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"requested\":%d,\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
          "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d,"
-         "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\"}",
+         "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"calib_digest_source\":\"start-of-run read of the verified APK mount\"}",
          status, mtp_fallback, n_predict, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? (t_tg1 - t_tg0) / 1e3 / n_gen : 0.0,
          (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 / (n_gen - n_gen_steady0) : 0.0,
          (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads,
-         mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, model_hex.c_str(), calib_hex.c_str());
+         mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, model_hex.c_str(), calib_hex_at_start.c_str());
     if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + (uint64_t)n_gen); }
     /* the backend's profile lines (SHIELDED_PROFILE=1: exchange counts, mask/wire/unmask
      * time, pad waits) live in stderr; hand the owner the summary so a run explains itself */
