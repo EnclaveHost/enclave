@@ -37,6 +37,19 @@ int main(int argc,char **argv) {
         sha_init(&c);
         for(size_t at=0;at<n;) {size_t take=(at*17+1)%137+1;if(take>n-at)take=n-at;sha_update(&c,data+offset+at,take);sha_update(&c,NULL,0);at+=take;}
         sha_final(&c,fragmented);assert(!memcmp(fast,fragmented,32));
+        // Public incremental contexts may be unaligned and interleaved.
+        uint8_t opaque[sizeof(anchor_sha256_ctx)+2], other[sizeof(anchor_sha256_ctx)];
+        memset(opaque,0xa5,sizeof opaque);anchor_sha256_init(opaque+1);anchor_sha256_init(other);
+        for(size_t at=0;at<n;) {
+            size_t take=(at*19+3)%257+1;if(take>n-at)take=n-at;
+            anchor_sha256_update(opaque+1,data+offset+at,take);
+            anchor_sha256_update(opaque+1,NULL,0);
+            anchor_sha256_update(other,data+offset+at,take);at+=take;
+        }
+        anchor_sha256_final(opaque+1,fragmented);assert(!memcmp(fast,fragmented,32));
+        anchor_sha256_final(other,fragmented);assert(!memcmp(fast,fragmented,32));
+        assert(opaque[0]==0xa5 && opaque[sizeof opaque-1]==0xa5);
+        for(size_t j=1;j+1<sizeof opaque;j++)assert(opaque[j]==0);
         printf("%zu %zu ",n,offset);hex(fast);puts("");
     }
     if(argc==2) {

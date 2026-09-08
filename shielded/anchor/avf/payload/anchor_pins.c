@@ -99,6 +99,20 @@ static void sha_final(sha256_ctx *c, uint8_t out[32]) {
     for (int j = 0; j < 8; j++) { out[4*j] = (uint8_t)(c->h[j] >> 24); out[4*j+1] = (uint8_t)(c->h[j] >> 16); out[4*j+2] = (uint8_t)(c->h[j] >> 8); out[4*j+3] = (uint8_t)c->h[j]; }
 }
 void anchor_sha256(const uint8_t *m, size_t n, uint8_t out[32]) { sha256_ctx c; sha_init(&c); sha_update(&c, m, n); sha_final(&c, out); }
+_Static_assert(sizeof(sha256_ctx) <= sizeof(anchor_sha256_ctx), "incremental SHA context is too small");
+/* Copying the small state avoids alignment and aliasing requirements for an
+ * opaque caller buffer; bulk message bytes still go directly to SHA2. */
+void anchor_sha256_init(void *ctx) {
+    sha256_ctx c = {0}; sha_init(&c);
+    memset(ctx, 0, sizeof(anchor_sha256_ctx)); memcpy(ctx, &c, sizeof c);
+}
+void anchor_sha256_update(void *ctx, const uint8_t *m, size_t n) {
+    sha256_ctx c; memcpy(&c, ctx, sizeof c); sha_update(&c, m, n); memcpy(ctx, &c, sizeof c);
+}
+void anchor_sha256_final(void *ctx, uint8_t out[32]) {
+    sha256_ctx c; memcpy(&c, ctx, sizeof c); sha_final(&c, out);
+    memset(ctx, 0, sizeof(anchor_sha256_ctx));
+}
 /* -1 on ANY failure, including a read error mid-file: a short digest must never pass for the file's. */
 int anchor_sha256_file(const char *path, uint8_t out[32], uint64_t *bytes) {
     FILE *f = fopen(path, "rb"); if (!f) return -1;
