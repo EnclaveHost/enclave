@@ -7,6 +7,7 @@
 #include "shielded-pads.h"
 #include "tweetnacl.h"
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,23 @@ int main(void) {
 
     assert(sh_prefix_kv_sign(kv, model, prefix, strlen(prefix), 25, sk, err, sizeof err) == 0);
     assert(sh_prefix_kv_verify(kv, pk, model, prefix, strlen(prefix), &n, err, sizeof err) == 0 && n == 25);
+
+    /* by descriptor: the inode the consumer holds is what is verified, even after the name is taken by another file */
+    {
+        int fd = open(kv, O_RDONLY); assert(fd >= 0);
+        assert(sh_prefix_kv_verify_fd(kv, fd, pk, model, prefix, strlen(prefix), &n, err, sizeof err) == 0 && n == 25);
+        char other[600]; snprintf(other, sizeof other, "%s/other.kv", dir);
+        { FILE *f = fopen(other, "wb"); assert(f); for (int i = 0; i < 100000; i++) fputc((i * 11) & 0xff, f); fclose(f); }
+        assert(rename(other, kv) == 0);                                                     /* the name now means other bytes */
+        assert(sh_prefix_kv_verify_fd(kv, fd, pk, model, prefix, strlen(prefix), &n, err, sizeof err) == 0);      /* the held inode still verifies */
+        assert(sh_prefix_kv_verify(kv, pk, model, prefix, strlen(prefix), &n, err, sizeof err) != 0 && strstr(err, "does not match"));   /* the name does not */
+        char fdpath[64]; snprintf(fdpath, sizeof fdpath, "/proc/self/fd/%d", fd);
+        FILE *f = fopen(fdpath, "rb"); assert(f); int c0 = fgetc(f); fclose(f); assert(c0 == 0);                   /* what a load by /proc/self/fd sees: the verified bytes */
+        close(fd);
+        /* put the signed file back for the cases below */
+        { FILE *g = fopen(kv, "wb"); assert(g); for (int i = 0; i < 100000; i++) fputc((i * 7) & 0xff, g); fclose(g); }
+        assert(sh_prefix_kv_verify(kv, pk, model, prefix, strlen(prefix), &n, err, sizeof err) == 0);
+    }
 
     /* wrong key */
     assert(sh_prefix_kv_verify(kv, pk2, model, prefix, strlen(prefix), &n, err, sizeof err) != 0 && strstr(err, "REJECTED"));

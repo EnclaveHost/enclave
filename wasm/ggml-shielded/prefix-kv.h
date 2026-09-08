@@ -35,6 +35,11 @@ int sh_prefix_kv_sign(const char *kv_path, const uint8_t model_digest[32], const
  * -1 = not usable (err says why). Never loads anything into llama. */
 int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                         uint64_t *n_tokens_out, char *err, size_t err_cap);
+/* The same verdict over a descriptor the caller HOLDS: the sidecar is read from kv_path + ".sig", the
+ * content hashed through kv_fd, so the bytes verified are the bytes the caller then loads from that
+ * descriptor (/proc/self/fd/N) - a file replaced under its name between the two is not believed. */
+int sh_prefix_kv_verify_fd(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
+                           uint64_t *n_tokens_out, char *err, size_t err_cap);
 
 #ifdef __cplusplus
 }

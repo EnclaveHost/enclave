@@ -26,6 +26,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -378,9 +380,17 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!slurp(pf, prefix) || !slurp(calib_path, cal)) { outf("ENGINE prefix KV: files never arrived (%s)", pf); return 2; }
         { uint8_t h[64]; crypto_hash(h, (const uint8_t *)cal.data(), cal.size()); memcpy(digest, h, 32); }
         char err[256]; uint64_t ntok = 0;
-        if (sh_prefix_kv_verify(kv, pk, digest, prefix.data(), prefix.size(), &ntok, err, sizeof err)) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
-        std::vector<llama_token> loaded(ntok + 16); size_t got = 0;
-        if (!llama_state_seq_load_file(ctx, kv, 0, loaded.data(), loaded.size(), &got) || got != ntok) { outf("ENGINE prefix KV load failed (%zu of %llu tokens)", got, (unsigned long long)ntok); return 2; }
+        /* verify and load the SAME inode: the descriptor is held across both, and the load reads it
+         * through /proc/self/fd so a file re-offered under the name in between is never the one used */
+        int kfd; do { kfd = open(kv, O_RDONLY | O_CLOEXEC); } while (kfd < 0 && errno == EINTR);
+        if (kfd < 0) { outf("ENGINE prefix KV: cannot open %s", kv); return 2; }
+        if (sh_prefix_kv_verify_fd(kv, kfd, pk, digest, prefix.data(), prefix.size(), &ntok, err, sizeof err)) { close(kfd); outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
+        if (ntok == 0 || ntok > (uint64_t)llama_n_ctx(ctx)) { close(kfd); outf("ENGINE prefix KV REFUSED: %llu tokens outside (0, %u]", (unsigned long long)ntok, llama_n_ctx(ctx)); return 2; }
+        char fdpath[64]; snprintf(fdpath, sizeof fdpath, "/proc/self/fd/%d", kfd);
+        std::vector<llama_token> loaded((size_t)ntok + 16); size_t got = 0;
+        const bool loaded_ok = llama_state_seq_load_file(ctx, fdpath, 0, loaded.data(), loaded.size(), &got);
+        close(kfd);
+        if (!loaded_ok || got != ntok) { outf("ENGINE prefix KV load failed (%zu of %llu tokens)", got, (unsigned long long)ntok); return 2; }
         n_loaded = (int)got;
         full_prompt = prefix + prompt;
         outf("ENGINE prefix KV: %d tokens loaded and verified (%s)", n_loaded, kv);

@@ -595,8 +595,11 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         /* Pin the model: only shipments the dealer minted for THIS calibration
          * (SHA-512/256 of the calib file, what shielded-dealer records) are used. */
         { uint8_t dg[32]; char dh[65];
-          if (!calib_digest_file(calib, dg)) OUT("ENGINE model.calib could not be hashed whole: pad model pin set to all zeros, every shipment will be refused");
-          sh_pads_bin2hex(dg, 32, dh); setenv("SHIELDED_PAD_MODEL_DIGEST", dh, 1); }   /* fail closed: an unreadable calibration pins nothing that a dealer could match */
+          if (!calib_digest_file(calib, dg)) {   /* no digest, no engine: an all-zero pin is still a value a forged header could carry */
+              OUT("ENGINE refused: model.calib could not be hashed whole, no pad model pin"); memset(hs, 0, sizeof hs); memset(hsk, 0, sizeof hsk);
+              close(worker_fd); close(model_fd); return;
+          }
+          sh_pads_bin2hex(dg, 32, dh); setenv("SHIELDED_PAD_MODEL_DIGEST", dh, 1); }
         memset(hs, 0, sizeof hs); memset(hsk, 0, sizeof hsk);
         pp = &pads;
         OUT("ENGINE dealt pads on: bank %s, seed %s", g_pads_dir, g_seed_id_hex);

@@ -1,4 +1,8 @@
 #include "prefix-kv.h"
+#include <unistd.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <fcntl.h>
 #include "shielded-pads.h"
 #include "tweetnacl.h"
 #include <stdio.h>
@@ -49,8 +53,28 @@ int sh_prefix_kv_sign(const char *kv_path, const uint8_t model_digest[32], const
     return 0;
 }
 
+/* The content hash by descriptor (pread by offset, EINTR retried): what a consumer holds open cannot be
+ * swapped between the hash and the load. */
+static int fd_sha512(int fd, uint8_t out[64]) {
+    struct stat st; if (fstat(fd, &st) != 0 || st.st_size < 0) return -1;
+    const size_t n = (size_t)st.st_size;
+    uint8_t *buf = (uint8_t *)malloc(n ? n : 1); if (!buf) return -1;
+    size_t off = 0;
+    while (off < n) { ssize_t r = pread(fd, buf + off, n - off, (off_t)off); if (r < 0) { if (errno == EINTR) continue; free(buf); return -1; } if (r == 0) { free(buf); return -1; } off += (size_t)r; }
+    crypto_hash(out, buf, (unsigned long long)n);
+    free(buf);
+    return 0;
+}
 int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
                         uint64_t *n_tokens_out, char *err, size_t err_cap) {
+    int fd; do { fd = open(kv_path, O_RDONLY | O_CLOEXEC); } while (fd < 0 && errno == EINTR);
+    if (fd < 0) { snprintf(err, err_cap, "cannot open %s", kv_path); return -1; }
+    const int rc = sh_prefix_kv_verify_fd(kv_path, fd, pk, model_digest, prefix, prefix_len, n_tokens_out, err, err_cap);
+    close(fd);
+    return rc;
+}
+int sh_prefix_kv_verify_fd(const char *kv_path, int kv_fd, const uint8_t pk[32], const uint8_t model_digest[32], const char *prefix, size_t prefix_len,
+                           uint64_t *n_tokens_out, char *err, size_t err_cap) {
     char path[1024]; snprintf(path, sizeof path, "%s.sig", kv_path);
     FILE *f = fopen(path, "r");
     if (!f) { snprintf(err, err_cap, "no sidecar %s", path); return -1; }
@@ -76,7 +100,7 @@ int sh_prefix_kv_verify(const char *kv_path, const uint8_t pk[32], const uint8_t
     if (strcmp(hex, md)) { snprintf(err, err_cap, "signed for another model (%.*s...)", 16, md); return -1; }
     crypto_hash(want_ph, (const uint8_t *)prefix, (unsigned long long)prefix_len); sh_pads_bin2hex(want_ph, 64, hex);
     if (strcmp(hex, ph)) { snprintf(err, err_cap, "signed for another prefix text"); return -1; }
-    if (file_sha512(kv_path, want_fh)) { snprintf(err, err_cap, "cannot hash %s", kv_path); return -1; }
+    if (fd_sha512(kv_fd, want_fh)) { snprintf(err, err_cap, "cannot hash %s", kv_path); return -1; }
     sh_pads_bin2hex(want_fh, 64, hex);
     if (strcmp(hex, fh)) { snprintf(err, err_cap, "the KV file does not match its signature (tampered or truncated)"); return -1; }
     (void)want_md;
