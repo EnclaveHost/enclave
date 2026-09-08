@@ -196,10 +196,10 @@ static int weight_verify(void *, const char *name, uint32_t type, const int64_t 
 /* The compact encoded-weight cache's cumulative reads (calls, bytes actually read from storage), bound from
  * the shielded module by name; printed after prefill and after decode so steady-state I/O is a delta, not a guess. */
 static void (*g_cache_stats)(uint64_t *, uint64_t *) = nullptr;
+static void (*g_source_stats)(uint64_t *, uint64_t *) = nullptr;   /* streamed-source reader invocations (Astra), distinct from cache reads */
 static void cache_stats_line(const char *when) {
-    if (!g_cache_stats) return;
-    uint64_t calls = 0, bytes = 0; g_cache_stats(&calls, &bytes);
-    outf("CACHE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes);
+    if (g_cache_stats) { uint64_t calls = 0, bytes = 0; g_cache_stats(&calls, &bytes); outf("CACHE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes); }
+    if (g_source_stats) { uint64_t calls = 0, bytes = 0; g_source_stats(&calls, &bytes); outf("SOURCE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes); }
 }
 /* Streamed weights (ANCHOR_STREAM_WEIGHTS=1): tensors llama placed on the plain-rows type (the calibrated
  * members the backend encodes and offloads) get a source buffer instead of a resident copy; the backend's
@@ -406,6 +406,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       set_ver_fn set_ver = sh_h ? (set_ver_fn)dlsym(sh_h, "ggml_backend_shielded_set_weight_verifier") : nullptr;
       g_cache_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_cache_stats") : nullptr;
       g_weight_source = sh_h ? (weight_source_fn)dlsym(sh_h, "ggml_backend_shielded_weight_source") : nullptr;
+      g_source_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_source_stats") : nullptr;
       if (!set_ver) { outf("ENGINE refused: the shielded module has no weight verifier hook"); return 2; }
       if (set_ver(weight_verify, nullptr) != 0) { outf("ENGINE refused: the backend did not take the weight verifier"); return 2; } }
     g_plain_tensors.clear();
