@@ -163,6 +163,41 @@ export const MAX_WINDOW = 4096;
 export const PAD_INDEX_LIMIT = 2 ** 24;          // sh_pad_r's index field; a fresh seed is required at exhaustion
 const RECEIPT_MEMORY = 64;     // per seed, the most recent receipts kept verbatim (totals are cumulative)
 const NONCE_MEMORY = 256;                        // recent request nonces kept per seed (replay guard)
+export const MAX_RECEIPT_HISTORY = 4096;          // exact lifetime receipt replay guard; fresh seed at capacity
+
+function receiptNonceHash(nonce) {
+  return createHash("sha256").update("enclave-pads-receipt-nonce-v1\n").update(nonce).digest("hex");
+}
+
+// Usage deltas cannot safely share an evicting reserve-request replay cache.
+// Keep every accepted receipt's nonce fingerprint for the seed's lifetime.
+// Old state can migrate only if its retained receipts cover ALL previous runs;
+// missing history cannot be reconstructed from totals or recent reserve nonces.
+function receiptHistory(rec, usage) {
+  let hashes = rec.receiptNonceHashes;
+  if (hashes === undefined) {
+    if (usage.runs !== usage.last.length)
+      return { status: 409, body: { error: "receipt_history_incomplete", reseed_required: true,
+        message: "legacy receipt history is incomplete; future work needs a fresh attested transport/seed; do not relabel old receipts" } };
+    if (usage.last.length > MAX_RECEIPT_HISTORY)
+      return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history exceeds its resource limit" } };
+    hashes = [];
+    for (const row of usage.last) {
+      if (!row || typeof row.nonce !== "string" || !/^[0-9a-f]{32,128}$/.test(row.nonce) || row.nonce.length % 2)
+        return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history is invalid" } };
+      hashes.push(receiptNonceHash(row.nonce));
+    }
+  }
+  if (!Array.isArray(hashes) || hashes.length !== usage.runs || hashes.length > MAX_RECEIPT_HISTORY ||
+      hashes.some(h => typeof h !== "string" || !/^[0-9a-f]{64}$/.test(h)) || new Set(hashes).size !== hashes.length)
+    return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history is invalid" } };
+  return { hashes };
+}
+
+function receiptHistoryFull() {
+  return { status: 409, body: { error: "receipt_history_full", reseed_required: true,
+    message: "receipt history capacity reached; future work needs a fresh attested transport/seed" } };
+}
 
 export function signedMessage(kind, fields) {
   return ["enclave-pads-" + kind, ...fields.map(String)].join("\n");
@@ -306,6 +341,17 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (c.error) return { status: 403, body: c };
       const rec = seedRecord(seed_id);
       if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      // Stop authorizing new legacy work once its accounting history can no
+      // longer admit a safe receipt. Already-issued windows are not revoked;
+      // upgrading an old long-lived consumer still requires a planned rekey.
+      if (!rec.finalReceiptOnly) {
+        const usage = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+        if (![usage.pads, usage.tokens, usage.runs].every(n => Number.isSafeInteger(n) && n >= 0) || !Array.isArray(usage.last))
+          return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
+        const history = receiptHistory(rec, usage);
+        if (!history.hashes) return history;
+        if (history.hashes.length >= MAX_RECEIPT_HISTORY) return receiptHistoryFull();
+      }
       if (!Number.isSafeInteger(rec.mark) || rec.mark < 0 || rec.mark > PAD_INDEX_LIMIT - want)
         return { status: 409, body: { error: "seed_exhausted", message: "pad counter domain exhausted; obtain a fresh per-boot seed" } };
       if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
@@ -346,7 +392,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
     /* POST /v1/pads/receipt: the pVM's word on what a run consumed. Signed by
      * the same transport key as the windows, so neither the owner app nor an
      * operator can inflate it; totals are what billing and the operator payout
-     * read. Nonces share the seed's replay memory with reserve. */
+     * read. Receipt nonce fingerprints persist for the seed's lifetime; reserve
+     * traffic or truncated display history must never make a delta replayable. */
     receipt({ name, seed_id, pads, tokens, nonce, sig }) {
       pads = Number(pads); tokens = Number(tokens);
       if (!/^[0-9a-f]{32}$/.test(String(seed_id || ""))) return { status: 400, body: { error: "bad_seed_id" } };
@@ -365,6 +412,16 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       const u = { pads: previous.pads + pads, tokens: previous.tokens + tokens, runs: previous.runs + 1, last: previous.last.slice() };
       if (![u.pads, u.tokens, u.runs].every(validCount))
         return { status: 409, body: { error: "receipt_overflow", message: "cumulative usage exceeds the exact counter range" } };
+      let receiptHashes;
+      if (!rec.finalReceiptOnly) {
+        const history = receiptHistory(rec, previous);
+        if (!history.hashes) return history;
+        const receiptHash = receiptNonceHash(nonce);
+        if (history.hashes.includes(receiptHash))
+          return { status: 409, body: { error: "replay", message: "receipt nonce already used" } };
+        if (history.hashes.length >= MAX_RECEIPT_HISTORY) return receiptHistoryFull();
+        receiptHashes = [...history.hashes, receiptHash];
+      }
       const iat = Math.floor(Date.now() / 1000);
       u.last.push({ pads, tokens, iat, nonce }); if (u.last.length > RECEIPT_MEMORY) u.last.splice(0, u.last.length - RECEIPT_MEMORY);
       // Keep the old record intact until persistence succeeds. A failed save
@@ -372,7 +429,8 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       // this process. After an uncertain rename/directory-sync failure, a
       // restart may recover either version; its replay/finalization policy
       // then applies to retries.
-      state.seeds[seed_id] = { ...rec, usage: u, nonces: [...rec.nonces, nonce].slice(-NONCE_MEMORY) };
+      state.seeds[seed_id] = { ...rec, usage: u, ...(receiptHashes ? {receiptNonceHashes: receiptHashes} : {}),
+        nonces: [...rec.nonces, nonce].slice(-NONCE_MEMORY) };
       try { save(); } catch (e) { state.seeds[seed_id] = rec; throw e; }
       return { status: 200, body: { seed_id, pads: u.pads, tokens: u.tokens, runs: u.runs, iat } };
     },
