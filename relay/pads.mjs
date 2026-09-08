@@ -341,13 +341,19 @@ export function createPadsLedger({ dir, hub, log = console.log, masterSeed = nul
       if (c.error) return { status: 403, body: c };
       const rec = seedRecord(seed_id);
       if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      const usage = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+      if (![usage.pads, usage.tokens, usage.runs].every(n => Number.isSafeInteger(n) && n >= 0) || !Array.isArray(usage.last))
+        return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
+      // A final receipt closes NEW work as well as accounting. Dealer minting
+      // already stops for this seed; signing more windows would authorize work
+      // whose usage can no longer be recorded. Issued windows stay burned.
+      if (rec.finalReceiptOnly && usage.runs > 0)
+        return { status: 409, body: { error: "seed_finalized", reseed_required: true,
+          message: "this pVM seed has its final receipt; future work needs a fresh attested transport/seed" } };
       // Stop authorizing new legacy work once its accounting history can no
       // longer admit a safe receipt. Already-issued windows are not revoked;
       // upgrading an old long-lived consumer still requires a planned rekey.
       if (!rec.finalReceiptOnly) {
-        const usage = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
-        if (![usage.pads, usage.tokens, usage.runs].every(n => Number.isSafeInteger(n) && n >= 0) || !Array.isArray(usage.last))
-          return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
         const history = receiptHistory(rec, usage);
         if (!history.hashes) return history;
         if (history.hashes.length >= MAX_RECEIPT_HISTORY) return receiptHistoryFull();

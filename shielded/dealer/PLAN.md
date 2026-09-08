@@ -416,7 +416,12 @@ verification failures, exit 0, exact text.
   re-labeling of completed usage occurs. Previously signed windows are not
   revoked by this check, so deploying to long-lived legacy clients requires a
   planned transition before further runs. The v2 phone path skips this legacy
-  history machinery and retains its one-final-receipt policy.
+  history machinery and retains its one-final-receipt policy. After that final
+  receipt, new v2 reservations refuse with `seed_finalized` and
+  `reseed_required: true`, matching the dealer's existing no-further-mint policy.
+  Restarting the relay, renewing the same transport's grant, or using a legacy
+  seed request cannot reopen it. Previously issued windows are not revoked or
+  reclaimed; they remain burned, and clients must end the run before finalizing.
 - DONE 2026-09-07, refusal: in dealt mode an EXHAUST from the ring is a
   hard graph failure (`ggml-shielded.cpp`, "refusing to proceed without
   dealt pads"), never the self-minting engine's fallback to computing the

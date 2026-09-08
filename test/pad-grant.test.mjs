@@ -31,24 +31,34 @@ function fixture(dir) {
   return { ledger, request, reserve, ledgerPk, tunnel, signedRequest };
 }
 
-test("a v2 pVM boot's final receipt cannot replay after nonce eviction, restart, or a legacy seed request", () => {
+test("a v2 final receipt closes new reservations and cannot replay after old nonce eviction, restart, or legacy downgrade", () => {
   const dir = mkdtempSync(join(tmpdir(), "pad-final-receipt-"));
   try {
     const f = fixture(dir); let L = f.ledger;
     const seed_id = L.seed(f.request()).body.seed_id;
+    assert.equal(L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),64)).status,200);
     const receipt = f.signedRequest("receipt", [seed_id,123,17], {seed_id,pads:123,tokens:17});
     assert.equal(L.receipt(receipt).status,200);
-    // Reproduce the old attack: valid intervening reserve requests evict the
-    // receipt nonce from the shared 256-entry LRU, then replay its signature.
-    for (let i=0;i<270;i++) assert.equal(L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),1)).status,200);
-    const state=JSON.parse(readFileSync(join(dir,"pads-ledger.json"),"utf8"));
+    const file=join(dir,"pads-ledger.json"), before=readFileSync(file,"utf8");
+    for (let i=0;i<270;i++) {
+      const res=L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),1));
+      assert.deepEqual([res.status,res.body.error,res.body.reseed_required],[409,"seed_finalized",true]);
+    }
+    assert.equal(readFileSync(file,"utf8"),before,"refusals do not consume nonces, change totals or advance mark");
+    // Import the state an older relay could leave after reserve traffic evicted
+    // the receipt nonce. Finalization must protect the upgraded process too.
+    const state=JSON.parse(before); state.seeds[seed_id].nonces=[];
+    writeFileSync(file,JSON.stringify(state));
     assert.equal(state.seeds[seed_id].nonces.includes(receipt.nonce),false);
     assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
     L=createPadsLedger({dir,hub:{info:(n)=>n===f.tunnel.name?f.tunnel:null},log:()=>{}});
     assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
+    assert.equal(L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),1)).body.error,"seed_finalized");
     // Downgrading the request does not downgrade this seed's durable policy.
     assert.equal(L.seed(f.signedRequest("seed",[])).status,200);
     assert.equal(L.receipt(receipt).body.error,"receipt_finalized");
+    assert.equal(L.seed(f.request()).body.seed_id,seed_id,"renewing the same transport is not a fresh seed");
+    assert.equal(L.reserve(f.reserve(seed_id,randomBytes(16).toString("hex"),1)).body.error,"seed_finalized");
     const second=f.signedRequest("receipt",[seed_id,1,1],{seed_id,pads:1,tokens:1});
     assert.equal(L.receipt(second).body.error,"receipt_finalized");
     assert.deepEqual([L.receipts(seed_id).pads,L.receipts(seed_id).tokens,L.receipts(seed_id).runs],[123,17,1]);

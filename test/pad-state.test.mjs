@@ -133,6 +133,11 @@ test("failed receipt persistence leaves usage and finalization unchanged in memo
       const reopened=f.open();
       assert.deepEqual([reopened.receipts(sid).pads,reopened.receipts(sid).tokens,reopened.receipts(sid).runs],[123,17,1]);
       assert.equal(reopened.receipt(req).status,409);
+      if (v2) {
+        const before=fs.readFileSync(f.file,"utf8");
+        assert.equal(reopened.reserve(f.request("reserve",[sid,8],{seed_id:sid,want:8})).body.error,"seed_finalized");
+        assert.equal(fs.readFileSync(f.file,"utf8"),before);
+      }
     } finally {f.close();}
   }
 });
