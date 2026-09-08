@@ -11,8 +11,11 @@ encoded bytes to an unlinked temporary file, retaining SHA-512 hashes for each
 1 MiB block in process memory. After a dealt, verified, pad-checked link accepts
 the reader, the original int8 vector is released before the next weight is
 registered. A live link that cannot switch reader retains the vector and logs
-that fact. A cache creation failure refuses that site's registration and logs
-it; inspect actual offload and memory counters when validating a configuration.
+that fact. A cache creation failure aborts loading before any weight upload or
+pad binding. Continuing with a partially registered shared-input group would
+make its shape disagree with the dealer's shipment and produce a misleading
+pad-exhaustion error. Restart with sufficient cache storage after fixing the
+reported I/O problem.
 
 The cache does not use mmap. On initial upload, reconnect or exact local
 fallback, it reads each whole block into private memory and verifies its hash

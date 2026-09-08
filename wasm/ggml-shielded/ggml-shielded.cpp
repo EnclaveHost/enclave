@@ -161,6 +161,9 @@ struct sh_state {
      * applies. A file with no header is 1. The env delta is added on top. */
     int calib_version = 1;
     bool link_failed = false;
+    // A failed opt-in cache build can leave half a shared-input group. Such
+    // a table cannot consume the dealer's pads; abort before upload/binding.
+    bool weight_cache_failed = false;
     /* Reconnect policy after a transport failure: the link is retried at the
      * next graph once `link_retry_at` has passed, with the wait doubling from
      * 1 s to 60 s. Until then every claimed matmul is computed in the enclave,
@@ -584,6 +587,7 @@ static int sh_prepare_rows_threaded(const void *blocks, int64_t K, int64_t N, in
 }
 
 static bool sh_register(sh_state &s, const ggml_tensor *w) {
+    if (s.weight_cache_failed) return false;
     const std::string name = ggml_get_name(w);
     if (s.weights.count(name)) return true;
     if (s.refused.count(name)) return false;
@@ -704,7 +708,8 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     if (cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {
         e.w_cache = sh_weight_cache::create(cache_dir, e.w.data(), e.w.size());
         if (!e.w_cache) {
-            fprintf(stderr, "[shielded] %s: cannot create authenticated encoded-weight cache; registration refused\n", name.c_str());
+            fprintf(stderr, "[shielded] %s: cannot create authenticated encoded-weight cache; aborting model load (check cache storage and I/O)\n", name.c_str());
+            s.weight_cache_failed = true;
             s.refused.insert(name);
             return false;
         }
@@ -797,7 +802,10 @@ static void sh_plan(sh_pool &p) {
             if (prev == p.layers.end()) p.layers[layer.first] = card;
             SH_LOG("placement %s -> card %d %s:%d (%lld bytes)\n", g.first.c_str(), card,
                    p.cards[card]->host.c_str(), p.cards[card]->port, (long long)bytes);
-            for (auto *w : g.second) sh_register(*p.cards[card], w);
+            for (auto *w : g.second) {
+                sh_register(*p.cards[card], w);
+                if (p.cards[card]->weight_cache_failed) { p.pending.clear(); return; }
+            }
         }
     }
     p.pending.clear();
@@ -1028,6 +1036,7 @@ static void sh_link_down(sh_state &s) {
 
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
+    if (s.weight_cache_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     const sh_simd *simd = sh_link_simd();
 
@@ -1331,6 +1340,7 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
             p.pending[name] = *w;
     }
     sh_plan(p);
+    for (const auto *s : p.cards) if (s->weight_cache_failed) return GGML_STATUS_FAILED;
     // Preserve dependency order. Each contiguous run belongs to one link;
     // completion caches still combine q/k/v or gate/up across scheduler splits.
     for (int i = 0; i < graph->n_nodes;) {
