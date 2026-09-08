@@ -711,6 +711,11 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         s.refused.insert(name);
         return false;
     }
+    // Encoding has consumed every authenticated source byte. Release this
+    // potentially GiB-sized copy before cache writeback and worker upload;
+    // all remaining registration work reads the encoded rows in e.w.
+    std::vector<uint8_t>().swap(private_source);
+    source = nullptr;
 
     /* The outlier columns, kept in the TEE. Their contribution is computed here
      * in plain int64 where nothing can wrap, and the offloaded activation has
