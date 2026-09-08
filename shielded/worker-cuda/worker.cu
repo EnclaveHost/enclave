@@ -618,14 +618,16 @@ static void launch_g(const GemmTab &tab, int nblocks, int K, const int8_t *X,
 struct GemmPlan { int mr, g, blocks; GemmTab tab; };
 
 /* The G every node of a launch shares: the largest of {8,4,2,1} that still
- * gives the launch at least one block per SM. Measured on the 0.5B down shape
+ * gives the launch at least one block per SM. The opt-in MR8 policy starts
+ * at G=4 and retains the same fallback threshold. Measured on the 0.5B down shape
  * (N=896): G=4 (56 blocks) beat G=1 (224 blocks) 8.4 vs 9.7 us at m=1 and 21.7
  * vs 28 us at m=8; the wider block writes wider output rows and splits K less. */
 static int g_sm_count = 46;
+static bool g_mr8_g4 = false; // opt-in; other MR instantiations retain their policy
 static GemmPlan gemm_plan(const int8_t *const *W, uint8_t *const *Y, const int *N, int nn, int mr, int pack = 0) {
     GemmPlan pl; pl.mr = mr; pl.g = 1; pl.blocks = 0;
     pl.tab.pack = pack;
-    for (int g = 8; g >= 1; g >>= 1) {
+    for (int g = (g_mr8_g4 && mr == 8 ? 4 : 8); g >= 1; g >>= 1) {
         const int rpb = gemm_rows_per_block(mr, g);
         int blocks = 0;
         for (int i = 0; i < nn; i++) blocks += (N[i] + rpb - 1) / rpb;
@@ -2001,6 +2003,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "SHIELDED_GRAPH_CACHE_ENTRIES must be an integer between 1 and 4096\n");
         return 2;
     }
+    if (const char *e = getenv("SHIELDED_WORKER_MR8_G4")) {
+        if (strcmp(e, "0") && strcmp(e, "1")) {
+            fprintf(stderr, "SHIELDED_WORKER_MR8_G4 must be 0 or 1\n");
+            return 2;
+        }
+        g_mr8_g4 = !strcmp(e, "1");
+    }
     const char *host = "127.0.0.1";
     int port = getenv("SHIELDED_PORT") ? atoi(getenv("SHIELDED_PORT")) : 9500;
     int vsock_port = 0;
@@ -2026,6 +2035,7 @@ int main(int argc, char **argv) {
 #endif
         else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--shm FILE] [--public-weight-cache-mib M] [--quiet]\n"); return 2; }
     }
+    logf("MR8 G4 planner policy: %s", g_mr8_g4 ? "on" : "off");
     if (shm_path) {
         /* The launcher creates and sizes the file (it is also the ivshmem
          * backing store of the CVM); this side only maps what exists. */
