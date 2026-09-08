@@ -90,6 +90,7 @@ def main():
     ap.add_argument("--seed"); ap.add_argument("--seed-id"); ap.add_argument("--pk"); ap.add_argument("--mark", type=int)
     ap.add_argument("--model"); ap.add_argument("--calib"); ap.add_argument("--out")
     ap.add_argument("--ahead", type=int, default=256); ap.add_argument("--chunk", type=int, default=64)
+    ap.add_argument("--mint-batch", type=int, default=0, help="shipments per dealer run (0 = all missing at once); small values push the first shipments sooner at the cost of extra model loads")
     ap.add_argument("--once", action="store_true"); ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument("--worker", default=os.environ.get("DEALER_WORKER", ""), help="host:port of the dealer's OWN worker (GPU minting; never an operator's)")
     ap.add_argument("--derive-only", action="store_true"); ap.add_argument("--plan-only", action="store_true")
@@ -135,7 +136,21 @@ def main():
 
     def mint(jobs):
         """jobs: [(seed, seed_id, pk, want)] -> ONE dealer run (one model load), then push. Seeds
-        go through a 0600 file that lives only for the run."""
+        go through a 0600 file that lives only for the run. With --mint-batch N the wanted ranges
+        are minted and pushed N shipments at a time, so a consumer that is already decoding sees
+        its first shipment after one small run instead of after the whole window."""
+        jobs = [j for j in jobs if j[3]]
+        if not jobs: return
+        if a.mint_batch > 0 and any(len(j[3]) > a.mint_batch for j in jobs):
+            pending = [list(j[3]) for j in jobs]
+            while any(pending):
+                part = [(j[0], j[1], j[2], pend[:a.mint_batch]) for j, pend in zip(jobs, pending)]
+                for pend in pending: del pend[:a.mint_batch]
+                mint_once(part)
+            return
+        mint_once(jobs)
+
+    def mint_once(jobs):
         jobs = [j for j in jobs if j[3]]
         if not jobs: return
         if not (a.model and a.calib): sys.exit("minting needs --model and --calib")
@@ -153,8 +168,26 @@ def main():
             if a.worker: cmd += ["--worker", a.worker]
             env = {**os.environ, "SHIELDED_CALIB": a.calib}
             t0 = time.time()
-            r = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-            if r.returncode != 0: sys.exit(f"shielded-dealer failed ({r.returncode}) for {len(jobs)} job(s)")
+            # Streaming publish: shielded-dealer prints "minted <path>: indices [a, b), ..." and flushes
+            # right after each shipment file is closed, so a consumer that is already decoding gets its
+            # first shipment while the same process (one model load) keeps minting the rest. Only paths
+            # from this run's plan are pushed, and only once the line for them has been seen.
+            planned = {os.path.join(a.out, f"{seed_id}-{i0}-{c}.pads"): (seed_id, i0, c) for seed, seed_id, pk, want in jobs for i0, c in want}
+            pushed_now = set()
+            proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            for line in proc.stdout:
+                if not (a.push and line.startswith("minted ")): continue
+                path = line[len("minted "):].split(": indices", 1)[0].strip()
+                if path not in planned or path in pushed_now: continue
+                seed_id_p, i0, c = planned[path]
+                try:
+                    res = relay_put_file(a.relay, seed_id_p, path, token)
+                    pushed_now.add(path)
+                    print(f"  pushed {os.path.basename(path)} (streamed, {time.time() - t0:.1f} s): {res.get('bytes')} bytes, sha256 {str(res.get('sha256'))[:16]}", flush=True)
+                except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+                    print(f"  streamed push of {os.path.basename(path)} failed: {getattr(e, 'code', None) or getattr(e, 'reason', e)}; retried below", flush=True)
+            rc = proc.wait()
+            if rc != 0: sys.exit(f"shielded-dealer failed ({rc}) for {len(jobs)} job(s)")
         finally:
             try: os.unlink(jobfile)
             except OSError: pass
@@ -163,6 +196,7 @@ def main():
             if a.push:
                 for i0, c in want:
                     fpath = os.path.join(a.out, f"{seed_id}-{i0}-{c}.pads")
+                    if fpath in pushed_now: continue   # already published while minting
                     try:
                         res = relay_put_file(a.relay, seed_id, fpath, token)
                         print(f"  pushed {os.path.basename(fpath)}: {res.get('bytes')} bytes, sha256 {str(res.get('sha256'))[:16]}", flush=True)

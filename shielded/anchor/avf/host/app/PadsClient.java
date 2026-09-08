@@ -123,13 +123,22 @@ final class PadsClient {
             if (have != null) for (java.io.File f : have) {
                 String[] parts = f.getName().substring(0, f.getName().length() - 5).split("-");
                 boolean foreign = parts.length != 3 || !parts[0].equals(seedIdNow);
-                boolean spent = !foreign && mark > 0 && Long.parseLong(parts[1]) + Long.parseLong(parts[2]) <= mark;
-                if ((foreign || spent) && f.delete()) Main.say("PADS dropped " + f.getName() + (foreign ? " (another seed)" : " (below mark " + mark + ")"));
+                // "spent" by the ledger mark = RESERVED by the engine, which runs ahead of consumption: a shipment
+                // the VM has not received yet must stay until it has been streamed (the VM prunes its own copy)
+                boolean spent = !foreign && mark > 0 && Long.parseLong(parts[1]) + Long.parseLong(parts[2]) <= mark && streamed.contains(f.getName());
+                if ((foreign || spent) && f.delete()) { dropped.add(f.getName()); Main.say("PADS dropped " + f.getName() + (foreign ? " (another seed)" : " (below mark " + mark + ")")); }
             }
-            for (int i = 0; i < ships.length(); i++) {
-                JSONObject s = ships.getJSONObject(i);
+            // fetch in index order: the relay lists shipments in no particular order and each is 117 MiB,
+            // so an unordered pass can pull "-448-64" before "-0-64" while the engine waits on index 0
+            java.util.List<JSONObject> order = new java.util.ArrayList<>();
+            for (int i = 0; i < ships.length(); i++) order.add(ships.getJSONObject(i));
+            order.sort((x, y) -> Long.compare(indexOf(x.optString("name", "")), indexOf(y.optString("name", ""))));
+            for (JSONObject s : order) {
                 java.io.File f = new java.io.File(dir, s.getString("name"));
                 if (f.exists() && f.length() == s.getLong("bytes")) continue;
+                if (dropped.contains(s.getString("name"))) continue;                       // spent here already; the relay still lists it
+                String[] np = s.getString("name").replace(".pads", "").split("-");
+                if (np.length == 3 && mark > 0 && Long.parseLong(np[1]) + Long.parseLong(np[2]) <= mark) continue;   // wholly below the mark
                 java.io.File tmp = new java.io.File(dir, "." + s.getString("name") + ".part");
                 HttpURLConnection c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seedIdNow + "/" + s.getString("name")).openConnection();
                 c.setConnectTimeout(20000); c.setReadTimeout(120000);
@@ -199,10 +208,20 @@ final class PadsClient {
     static long indexOf(String name) {
         try { String[] p = name.substring(0, name.length() - 5).split("-"); return Long.parseLong(p[p.length - 2]); } catch (Exception e) { return Long.MAX_VALUE; }
     }
+    static final java.util.Set<String> dropped = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+    static final java.util.Set<String> streamed = java.util.Collections.synchronizedSet(new java.util.HashSet<>());   // accepted by the VM
+    /** The fetcher runs on its own thread: a 117 MiB download must never sit between two shipments
+     *  waiting to be streamed into the VM (a 16-row round spends a shipment in ~3 s). */
+    static void fetchLoop(java.io.File dir) {
+        for (int round = 0; round < 3600 && !Main.ended(); round++) {
+            if (!base.isEmpty() && !seedId.isEmpty()) syncBank(dir, seedId);
+            try { Thread.sleep(2000); } catch (InterruptedException e) { return; }
+        }
+    }
     static void streamBank(Object vm, java.io.File dir) {
         java.util.Set<String> done = new java.util.HashSet<>();
+        new Thread(() -> fetchLoop(dir), "pads-fetch").start();
         for (int round = 0; round < 3600 && !Main.ended(); round++) {
-            if (!base.isEmpty() && !seedId.isEmpty() && round % 15 == 0) syncBank(dir, seedId);   // every ~15 s: what the platform has that we do not
             final String mine = seedId.isEmpty() ? null : seedId + "-";
             java.io.File[] files = mine == null ? null : dir.listFiles((d, n) -> n.endsWith(".pads") && n.startsWith(mine));   // this seed only
             if (files != null) {
@@ -217,14 +236,14 @@ final class PadsClient {
                         out.write(("PADS " + f.getName() + " " + f.length() + "\n").getBytes()); out.flush();
                         java.io.FileInputStream ackIn = new java.io.FileInputStream(pfd.getFileDescriptor());
                         int go = ackIn.read();
-                        if (go == 'H') { done.add(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
+                        if (go == 'H') { done.add(f.getName()); streamed.add(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
                         if (go != 'G') { Main.say("PADS " + f.getName() + " VM refused the header"); continue; }
                         byte[] buf = new byte[1 << 20]; int n; long sent = 0;
                         while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); sent += n; }
                         out.flush();
                         int ack = ackIn.read();
                         Main.say("PADS " + f.getName() + " " + (sent >> 20) + " MiB " + (ack == 'K' ? "accepted" : "REFUSED"));
-                        if (ack == 'K') done.add(f.getName());
+                        if (ack == 'K') { done.add(f.getName()); streamed.add(f.getName()); }
                     } catch (Exception e) { Main.say("PADS stream error " + e); }
                     finally { try { pfd.close(); } catch (Exception ignored) { } }
                 }

@@ -40,6 +40,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <dirent.h>
 #include <linux/vm_sockets.h>
 #include <time.h>
@@ -304,6 +305,14 @@ static int pads_prune(const char *keep_seed, unsigned long long below) {
     int n = 0; struct dirent *e;
     while ((e = readdir(d))) {
         size_t len = strlen(e->d_name);
+        /* a reception the VM did not finish (the app was stopped mid-stream) leaves ".<name>.tmp":
+         * 117 MiB each, never referenced again, and enough of them fill the 2 GiB store (ENOSPC on
+         * every later shipment: seen 2026-09-08). They go regardless of seed. */
+        if (len > 5 && e->d_name[0] == '.' && !strcmp(e->d_name + len - 4, ".tmp")) {
+            char path[700]; snprintf(path, sizeof path, "%s/%s", g_pads_dir, e->d_name);
+            if (unlink(path) == 0) n++;
+            continue;
+        }
         if (len < 6 || strcmp(e->d_name + len - 5, ".pads")) continue;
         char sid[33] = ""; unsigned long long i0 = 0, cnt = 0;
         int drop = 0;
@@ -335,17 +344,29 @@ static void *pads_receiver(void *arg) {
         struct stat st;
         if (stat(fin, &st) == 0 && (unsigned long long)st.st_size == bytes) { (void)!write(c, "H", 1); close(c); continue; }
         (void)!write(c, "G", 1);
-        int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-        unsigned long long got = 0; static char buf[1 << 16];
+        /* the encrypted store is shared with the model load and the engine's own writes; a transient
+         * open failure (busy device, momentary ENOSPC while a spent shipment is being unlinked) must not
+         * cost the shipment: retry briefly, and say why when it still fails */
+        int fd = -1, open_errno = 0;
+        for (int attempt = 0; attempt < 20 && fd < 0; attempt++) {
+            fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            if (fd < 0) { open_errno = errno; usleep(100000); }
+        }
+        if (fd < 0) { struct statvfs sv; unsigned long long freeb = statvfs(g_pads_dir, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
+                      OUT("PADS %s: cannot open %s: %s (free %llu MiB in the store)", name, tmp, strerror(open_errno), freeb >> 20); }
+        unsigned long long got = 0; static char buf[1 << 16]; int read_errno = 0, write_errno = 0; ssize_t last_r = 1;
         while (fd >= 0 && got < bytes) {
             size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
-            ssize_t r = read(c, buf, want); if (r <= 0) break;
-            if (write(fd, buf, (size_t)r) != r) break;
+            ssize_t r = read(c, buf, want); if (r < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+            if (r <= 0) { last_r = r; read_errno = errno; break; }
+            if (write(fd, buf, (size_t)r) != r) { write_errno = errno; break; }
             got += (unsigned long long)r;
         }
         if (fd >= 0) { fsync(fd); close(fd); }
         if (got == bytes && rename(tmp, fin) == 0) { (void)!write(c, "K", 1); OUT("PADS %s %llu bytes", name, got); }
-        else { unlink(tmp); (void)!write(c, "E", 1); OUT("PADS %s FAILED at %llu of %llu", name, got, bytes); }
+        else { unlink(tmp); (void)!write(c, "E", 1);
+               OUT("PADS %s FAILED at %llu of %llu (sock fd %d, file fd %d, read %zd/%s, write %s)", name, got, bytes, c, fd,
+                   last_r, last_r < 0 ? strerror(read_errno) : "eof", write_errno ? strerror(write_errno) : "ok"); }
         close(c);
     }
     return NULL;
@@ -536,6 +557,7 @@ int AVmPayload_main(void) {
                     if (!g_pads_dir[0]) pads_dir(g_pads_dir, sizeof g_pads_dir);
                     int dropped = pads_prune(sid, 0);
                     OUT("PADSEED ok %s", sid);
+                    { struct statvfs sv; if (statvfs(g_pads_dir, &sv) == 0) OUT("PADS store: %llu MiB free of %llu", (unsigned long long)sv.f_bavail * sv.f_frsize >> 20, (unsigned long long)sv.f_blocks * sv.f_frsize >> 20); }
                     if (dropped) OUT("PADS dropped %d shipment(s) of other seeds", dropped);
                 } else { g_have_seed = 0; OUT("PADSEED fail"); }
             }
