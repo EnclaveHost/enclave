@@ -44,6 +44,11 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <linux/fsverity.h>
+#include <sys/syscall.h>
+#include <sys/ioctl.h>
+#include <sys/sysinfo.h>
+#include <sys/vfs.h>
 #include <sys/statvfs.h>
 #include <dirent.h>
 #include <linux/vm_sockets.h>
@@ -414,6 +419,39 @@ static int pads_prune(const char *keep_seed, unsigned long long below) {
  * byte, 'H' (have it already, same size: nothing more is sent) or 'G' (go),
  * then the bytes follow, written tmp-then-rename so the engine's reader
  * never sees a partial file. */
+/* What the encrypted store can do for a model larger than the VM (27B-FEASIBILITY.md): its filesystem,
+ * its size, whether fs-verity can be enabled on a file there (kernel-verified paging against a root the
+ * payload measures), whether userfaultfd exists (payload-verified paging), and the RAM this VM was granted. */
+#ifndef FS_IOC_ENABLE_VERITY
+struct fsverity_enable_arg_compat { uint32_t version, hash_algorithm, block_size, salt_size; uint64_t salt_ptr, sig_size; uint32_t __reserved1; uint64_t sig_ptr, __reserved2[11]; };
+#define FS_IOC_ENABLE_VERITY _IOW('f', 133, struct fsverity_enable_arg_compat)
+#define fsverity_enable_arg fsverity_enable_arg_compat
+#define FS_VERITY_HASH_ALG_SHA256 1
+#endif
+static void storage_probe(void) {
+    const char *es = AVmPayload_getEncryptedStoragePath();
+    struct sysinfo si; long ram_mib = sysinfo(&si) == 0 ? (long)((unsigned long long)si.totalram * si.mem_unit >> 20) : -1;
+    if (!es) { OUT("STORAGE none (no encrypted store attached) ram=%ld MiB", ram_mib); return; }
+    struct statfs sf; long long total = -1, avail = -1; unsigned long fstype = 0;
+    if (statfs(es, &sf) == 0) { total = (long long)sf.f_blocks * sf.f_frsize >> 20; avail = (long long)sf.f_bavail * sf.f_frsize >> 20; fstype = (unsigned long)sf.f_type; }
+    char path[512]; snprintf(path, sizeof path, "%s/.verity-probe", es);
+    const char *verity = "not tried"; char vbuf[96];
+    int fd = open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd >= 0) {
+        static const char z[8192] = {0}; (void)!write(fd, z, sizeof z); fsync(fd); close(fd);
+        fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            struct fsverity_enable_arg arg; memset(&arg, 0, sizeof arg); arg.version = 1; arg.hash_algorithm = FS_VERITY_HASH_ALG_SHA256; arg.block_size = 4096;
+            if (ioctl(fd, FS_IOC_ENABLE_VERITY, &arg) == 0) verity = "ENABLED (kernel-verified paging available)";
+            else { snprintf(vbuf, sizeof vbuf, "refused: %s", strerror(errno)); verity = vbuf; }
+            close(fd);
+        }
+        unlink(path);
+    }
+    int uffd = (int)syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK); const char *uf = uffd >= 0 ? "available" : strerror(errno); if (uffd >= 0) close(uffd);
+    OUT("STORAGE %s fstype=0x%lx total=%lld MiB avail=%lld MiB fs-verity=%s userfaultfd=%s ram=%ld MiB", es, fstype, total, avail, verity, uf, ram_mib);
+}
+
 static int write_all(int fd, const char *p, size_t n) {
     while (n) { ssize_t w = write(fd, p, n); if (w < 0) { if (errno == EINTR) continue; return -1; } if (w == 0) { errno = EIO; return -1; } p += w; n -= (size_t)w; }
     return 0;
@@ -715,6 +753,7 @@ int AVmPayload_main(void) {
             OUT("PINS mode=%s ledger=%s model=%s prefix=%s sha256=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
                 g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend());
         } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
+        storage_probe();
     }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
     {
