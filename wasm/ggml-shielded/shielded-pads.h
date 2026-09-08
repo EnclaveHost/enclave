@@ -107,6 +107,10 @@ int  sh_pads_reader_cell(sh_pads_reader *r, uint32_t group, uint64_t index, int3
  * acknowledgment (shielded/anchor/avf/PAD-ACK.md) only after SH_OK. */
 int sh_pads_shipment_check(const char *path, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
                            const uint8_t *model_digest /* 32 bytes or NULL */, uint64_t *index0, uint64_t *index_count);
+/* The same judgment by an open descriptor (read by offset, the caller's position untouched):
+ * a receiver judges the file it holds while it is still hidden and cannot be pruned under it. */
+int sh_pads_shipment_check_fd(int fd, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
+                              const uint8_t *model_digest /* 32 bytes or NULL */, uint64_t *index0, uint64_t *index_count);
 /* Pin the model: shipments whose header digest differs are ignored (the
  * dealer prints the digest it recorded; SHIELDED_PAD_MODEL_DIGEST carries it). */
 void sh_pads_reader_require_digest(sh_pads_reader *r, const uint8_t model_digest[32]);

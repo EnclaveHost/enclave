@@ -296,11 +296,9 @@ static bool reader_has(const sh_pads_reader *r, const char *path) {
 }
 
 /* Open one shipment: header, key unwrap, header check, group table. */
-static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
-    memset(f, 0, sizeof *f); f->fd = -1;
-    snprintf(f->path, sizeof f->path, "%s", path);
-    f->fd = open(path, O_RDONLY | O_CLOEXEC);
-    if (f->fd < 0) return SH_ERR_IO;
+/* f->fd is open: read and verify the header and the group table (the one judgment the reader,
+ * sh_pads_shipment_check and sh_pads_shipment_check_fd share). Closes f on any failure. */
+static int file_judge(sh_pads_reader *r, sh_pads_file *f) {
     if (pread(f->fd, &f->hdr, sizeof f->hdr, 0) != (ssize_t)sizeof f->hdr) { file_close(f); return SH_ERR_IO; }
     sh_pads_hdr *h = &f->hdr;
     if (memcmp(h->magic, SH_PADS_MAGIC, 8) || h->version != SH_PADS_VERSION || !h->group_count || h->group_count >= SH_PADS_GROUP_LIMIT ||
@@ -339,6 +337,14 @@ static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
     }
     if (row != h->row_bytes) { file_close(f); return SH_ERR_VERIFY; }
     return SH_OK;
+}
+
+static int file_open(sh_pads_reader *r, const char *path, sh_pads_file *f) {
+    memset(f, 0, sizeof *f); f->fd = -1;
+    snprintf(f->path, sizeof f->path, "%s", path);
+    f->fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (f->fd < 0) return SH_ERR_IO;
+    return file_judge(r, f);
 }
 
 static int file_bind(sh_pads_reader *r, sh_pads_file *f) {
@@ -382,17 +388,33 @@ static int reader_scan(sh_pads_reader *r) {
     return added;
 }
 
+static int shipment_check(sh_pads_file *f, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
+                          const uint8_t *model_digest, uint64_t *index0, uint64_t *index_count) {
+    sh_pads_reader r; memset(&r, 0, sizeof r);           /* a throwaway reader: the judgment uses its seed, key and digest only */
+    memcpy(r.seed_id, seed_id, 16); memcpy(r.sk, consumer_sk, 32);
+    if (model_digest) { r.have_digest = true; memcpy(r.model_digest, model_digest, 32); }
+    const int rc = file_judge(&r, f);
+    if (rc == SH_OK) { if (index0) *index0 = f->hdr.index0; if (index_count) *index_count = f->hdr.index_count; file_close(f); }
+    memset(r.sk, 0, sizeof r.sk);
+    return rc;
+}
 int sh_pads_shipment_check(const char *path, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
                            const uint8_t *model_digest, uint64_t *index0, uint64_t *index_count) {
     if (!path || !seed_id || !consumer_sk) return SH_ERR_RANGE;
-    sh_pads_reader r; memset(&r, 0, sizeof r);           /* a throwaway reader: file_open judges by its seed, key and digest only */
-    memcpy(r.seed_id, seed_id, 16); memcpy(r.sk, consumer_sk, 32);
-    if (model_digest) { r.have_digest = true; memcpy(r.model_digest, model_digest, 32); }
     sh_pads_file f; memset(&f, 0, sizeof f); f.fd = -1;
-    const int rc = file_open(&r, path, &f);
-    if (rc == SH_OK) { if (index0) *index0 = f.hdr.index0; if (index_count) *index_count = f.hdr.index_count; file_close(&f); }
-    memset(r.sk, 0, sizeof r.sk);
-    return rc;
+    snprintf(f.path, sizeof f.path, "%s", path);
+    f.fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (f.fd < 0) return SH_ERR_IO;
+    return shipment_check(&f, seed_id, consumer_sk, model_digest, index0, index_count);
+}
+int sh_pads_shipment_check_fd(int fd, const uint8_t seed_id[16], const uint8_t consumer_sk[32],
+                              const uint8_t *model_digest, uint64_t *index0, uint64_t *index_count) {
+    if (fd < 0 || !seed_id || !consumer_sk) return SH_ERR_RANGE;
+    sh_pads_file f; memset(&f, 0, sizeof f);
+    snprintf(f.path, sizeof f.path, "<fd %d>", fd);
+    do { f.fd = fcntl(fd, F_DUPFD_CLOEXEC, 0); } while (f.fd < 0 && errno == EINTR);   /* our own descriptor to close; the caller's stays */
+    if (f.fd < 0) return SH_ERR_IO;
+    return shipment_check(&f, seed_id, consumer_sk, model_digest, index0, index_count);
 }
 
 sh_pads_reader *sh_pads_reader_open(const char *dir, const uint8_t seed_id[16], const uint8_t consumer_sk[32], int *err) {

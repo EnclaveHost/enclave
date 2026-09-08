@@ -84,6 +84,13 @@ int main(void) {
         assert(sh_pads_shipment_check(ship, seed_id, sk, digest, &i0, &cnt) == SH_ERR_VERIFY);       /* header changed under its box */
         f = fopen(ship, "r+b"); assert(f); fseek(f, 64, SEEK_SET); fputc(c, f); fclose(f);
         assert(sh_pads_shipment_check(ship, seed_id, sk, digest, &i0, &cnt) == SH_OK);
+        /* by descriptor: the receiver's way (the file may be hidden or already pruned by name) */
+        int fd = open(ship, O_RDONLY); assert(fd >= 0);
+        assert(sh_pads_shipment_check_fd(fd, seed_id, sk, digest, &i0, &cnt) == SH_OK && i0 == 0 && cnt == COUNT);
+        assert(sh_pads_shipment_check_fd(fd, seed_id2, sk, digest, &i0, &cnt) == SH_ERR_VERIFY);
+        char one; assert(pread(fd, &one, 1, 0) == 1);                                                  /* the caller's descriptor survives */
+        close(fd);
+        assert(sh_pads_shipment_check_fd(-1, seed_id, sk, digest, &i0, &cnt) == SH_ERR_RANGE);
     }
 
     /* --- read back, oracle --- */
