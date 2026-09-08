@@ -93,6 +93,7 @@ import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from ".
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
+import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
@@ -126,11 +127,11 @@ const METAL_ALLOWED_MEASUREMENTS = (process.env.METAL_ALLOWED_MEASUREMENTS || ""
 const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
-// may sign them (authorityHash = sha512 of the certificate). Both empty by
-// default -> no AVF attach. The verifier pins Google's roots itself.
-const METAL_AVF_CODE_HASHES = (process.env.METAL_AVF_CODE_HASHES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-const METAL_AVF_AUTHORITY_HASHES = (process.env.METAL_AVF_AUTHORITY_HASHES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-const AVF_ATTEST = METAL_AVF_CODE_HASHES.length && METAL_AVF_AUTHORITY_HASHES.length ? { codeHashes: METAL_AVF_CODE_HASHES, authorityHashes: METAL_AVF_AUTHORITY_HASHES } : null;
+// may sign them (authorityHash = sha512 of the certificate). Routing builds
+// use METAL_AVF_CODE_HASHES; v2 pad bootstrap requires the separately reviewed
+// METAL_AVF_PAD_CODE_HASHES. Either needs METAL_AVF_AUTHORITY_HASHES. All are
+// empty by default. The verifier pins Google's roots itself.
+const AVF_ATTEST = avfPolicyFromEnv(process.env);
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;

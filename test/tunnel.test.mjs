@@ -20,6 +20,7 @@ import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
+import { avfPolicyFromEnv } from "../relay/avf-policy.mjs";
 import fs from "node:fs";
 import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
 
@@ -487,6 +488,18 @@ test("tunnel: owning the name on chain is not enough — the operator must be tr
 });
 
 // ---------- AVF (phone-anchored) attach ------------------------------------
+test("AVF production configuration never promotes legacy build pins to pad access", () => {
+  const legacy = "aa".repeat(32), pad = "bb".repeat(32), authority = "cc".repeat(64);
+  assert.equal(avfPolicyFromEnv({}), null);
+  assert.equal(avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: pad }), null, "APK authority remains mandatory");
+  assert.equal(avfPolicyFromEnv({ METAL_AVF_AUTHORITY_HASHES: authority }), null);
+  const old = avfPolicyFromEnv({ METAL_AVF_CODE_HASHES: legacy, METAL_AVF_AUTHORITY_HASHES: authority });
+  assert.deepEqual(old, { codeHashes: [legacy], padCodeHashes: [], authorityHashes: [authority] });
+  const onlyPad = avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: ` ${pad.toUpperCase()}, `, METAL_AVF_AUTHORITY_HASHES: authority });
+  assert.deepEqual(onlyPad, { codeHashes: [], padCodeHashes: [pad], authorityHashes: [authority] });
+  const both = avfPolicyFromEnv({ METAL_AVF_CODE_HASHES: legacy, METAL_AVF_PAD_CODE_HASHES: pad, METAL_AVF_AUTHORITY_HASHES: authority });
+  assert.deepEqual(both, { codeHashes: [legacy], padCodeHashes: [pad], authorityHashes: [authority] });
+});
 // The same gate, a different root: a phone's protected VM presents the X.509
 // chain Google's RKP issued for its attested key. The relay binds it exactly as
 // it binds an SNP quote — challenge = sha256(transportKey || nonce) inside the
@@ -498,8 +511,9 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
   const dir = tmpdir("avf-tunnel-");
   const ca = makeCa(dir);
   const policy = { codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")] };
-  const h = await hubServer({ attest: { avf: { ...policy, padCodeHashes: [CODE.toString("hex")], rootPins: [ca.rootPin] } } });
-  const hLegacy = await hubServer({ attest: { avf: { ...policy, rootPins: [ca.rootPin] } } });
+  const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
+  const h = await hubServer({ attest: { avf: { ...avfPolicyFromEnv({ ...env, METAL_AVF_PAD_CODE_HASHES: CODE.toString("hex") }), rootPins: [ca.rootPin] } } });
+  const hLegacy = await hubServer({ attest: { avf: { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] } } });
   const hStrict = await hubServer({ attest: { avf: policy } });        // the REAL Google pins: our synthetic root must be refused
   const hSnp = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
   const transport = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
