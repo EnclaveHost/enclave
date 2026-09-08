@@ -31,15 +31,18 @@ test("the store only accepts a seed's own well-named shipments and lists them in
   assert.ok(store.remove(seed, `${seed}-0-64.pads`)); assert.equal(store.list(seed).length, 1);
 });
 
-test("dealer --push streams new shipments with their sha256 and deletes spent ones", async () => {
+test("dealer --push streams new shipments with their sha256 and deletes acknowledged ones", async () => {
   const bank = fs.mkdtempSync(path.join(os.tmpdir(), "bank-"));
   const seed = randomBytes(16).toString("hex");
-  // a "spent" shipment below the mark, and a fake dealer that writes what --ranges asks for
+  // an acknowledged shipment below the delivered floor, and a fake dealer that writes what --ranges asks for
   fs.writeFileSync(path.join(bank, `${seed}-0-64.pads`), "spent");
   const fakeDealer = path.join(repo, "test", "fixtures", "fake-dealer.sh");   // writes 1000 random bytes per range
   const seen = { put: [], del: [] };
   const srv = http.createServer((req, res) => {
     const u = new URL(req.url, "http://x");
+    if (req.method === "GET" && u.pathname === "/v1/pads/shipments") {
+      return res.end(JSON.stringify({ shipments: [{ name: `${seed}-0-64.pads`, index0: 0, count: 64, bytes: 5 }] }));
+    }
     if (req.method === "PUT") {
       const h = createHash("sha256"); let n = 0;
       req.on("data", (c) => { h.update(c); n += c.length; });
@@ -54,7 +57,7 @@ test("dealer --push streams new shipments with their sha256 and deletes spent on
   const base = `http://127.0.0.1:${srv.address().port}`;
   // async: the stub above lives in THIS process, so the loop must keep turning while python runs
   const { stdout: out } = await execFileP("python3", [loop, "--once", "--push", "--relay", base, "--seed", "00".repeat(32), "--seed-id", seed, "--pk", "11".repeat(32),
-    "--mark", "70", "--ahead", "128", "--chunk", "64", "--model", "m.gguf", "--calib", "c.calib", "--out", bank],
+    "--mark", "70", "--ack-floor", "64", "--ahead", "128", "--chunk", "64", "--model", "m.gguf", "--calib", "c.calib", "--out", bank],
     { encoding: "utf8", env: { ...process.env, DEALER: fakeDealer, PADS_DEALER_TOKEN: "tok" }, timeout: 60_000 });
   srv.closeAllConnections(); srv.close(); srv.unref();
   assert.match(out, /pruned .*-0-64\.pads/);
@@ -78,6 +81,7 @@ test("dealer --all serves every consumer the relay lists that has asked for its 
         { name: "box2", keyFp: "bb".repeat(32), padKey: "22".repeat(32), seed_id: idle.seed_id, epoch: 1, mark: 0, issued: false },
       ] }));
     }
+    if (req.method === "GET" && u.pathname === "/v1/pads/shipments") return res.end(JSON.stringify({ shipments: [] }));
     if (req.method === "PUT") { let n = 0; req.on("data", (c) => (n += c.length)); req.on("end", () => { seen.put.push(u.pathname); res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ stored: true, bytes: n, sha256: "x" })); }); return; }
     res.statusCode = 404; res.end("{}");
   });
