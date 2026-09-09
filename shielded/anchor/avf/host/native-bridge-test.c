@@ -142,7 +142,7 @@ int main(void) {
       close(A[0]); close(A[1]); close(B[0]); }
     /* 6. bad arguments */
     { anchor_bridge_stats s; assert(anchor_bridge_run(-1, 3, -1, 0, 0, &s) == -EINVAL && anchor_bridge_run(3, 3, -1, 0, 0, &s) == -EINVAL);
-      for (size_t cap = 1; cap <= 8192; cap *= 2) if (cap != 4096)
+      for (size_t cap = 1; cap <= 65536; cap *= 2) if (cap != 4096 && cap != 8192)
           assert(anchor_bridge_run_profile_limit(10000, 10001, -1, 0, 0, &s, 0, cap) == -EINVAL && s.status == -EINVAL); }
     assert(count_fds() == fds0);   /* nothing leaked, nothing owned */
     puts("native-bridge: backpressure, partial I/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed");
