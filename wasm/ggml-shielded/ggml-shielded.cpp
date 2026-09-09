@@ -89,6 +89,7 @@ static int sh_encoded_reader(void *ctx, uint64_t offset, uint8_t *out, size_t by
     return rc;
 }
 #include "shielded-weight-source.h"
+#include "shielded-source-prefetch.h"
 
 /* --------------------------------------------------------------------------
  * Placement policy.
@@ -680,7 +681,8 @@ static int sh_required_cache_read(void *ctx, uint64_t, uint8_t *, size_t) {
     return -1;
 }
 
-static bool sh_register(sh_state &s, const ggml_tensor *w) {
+static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *prefetch = nullptr,
+                        const ggml_tensor *next_source = nullptr) {
     if (s.weight_cache_failed || s.source_verification_failed) return false;
     const std::string name = ggml_get_name(w);
     if (s.weights.count(name)) return true;
@@ -781,14 +783,25 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
                      (uint64_t)(K / SH_QK) <= SIZE_MAX / sizeof(sh_block_q8_0) / (uint64_t)N;
         if (valid) {
             const size_t bytes = (size_t)(K / SH_QK) * (size_t)N * sizeof(sh_block_q8_0);
-            try { private_source.resize(bytes); }
-            catch (const std::bad_alloc &) { valid = false; }
-            catch (const std::length_error &) { valid = false; }
+            double tr = profile_registration ? sh_now_ms() : 0;
+            auto ready = prefetch ? prefetch->take(w) : nullptr;
+            const bool prefetched = ready && ready->status != 0;
+            if (prefetched) {
+                valid = ready->status == 1 && ready->bytes.size() == bytes;
+                if (valid) private_source = std::move(ready->bytes);
+            } else {
+                try { private_source.resize(bytes); }
+                catch (const std::bad_alloc &) { valid = false; }
+                catch (const std::length_error &) { valid = false; }
+            }
             if (valid) {
-                const double tr = profile_registration ? sh_now_ms() : 0;
-                if (sh_is_weight_source(w)) valid = sh_source_read_for_registration(w, private_source.data(), bytes);
-                else memcpy(private_source.data(), source, bytes);
+                if (!prefetch) tr = profile_registration ? sh_now_ms() : 0;
+                if (!prefetched) {
+                    if (sh_is_weight_source(w)) valid = sh_source_read_for_registration(w, private_source.data(), bytes);
+                    else memcpy(private_source.data(), source, bytes);
+                }
                 const double ta = profile_registration ? sh_now_ms() : 0;
+                if (valid && prefetch) prefetch->start(next_source);
                 valid = valid && g_weight_verifier(g_weight_verifier_ctx, name.c_str(), (uint32_t)w->type,
                                                    w->ne, private_source.data(), bytes) == SH_OK;
                 if (profile_registration) {
@@ -977,6 +990,22 @@ static void sh_plan(sh_pool &p) {
     std::map<std::string, std::map<std::string, weights>> layers;
     for (auto &kv : p.pending)
         layers[sh_layer_key(kv.first)][sh_group_key(kv.first)].push_back(&kv.second);
+    const char *ahead = getenv("SHIELDED_SOURCE_PREFETCH");
+    const bool want_ahead = ahead && !strcmp(ahead, "1");
+    if ((ahead && *ahead && strcmp(ahead, "0") && !want_ahead) ||
+        (want_ahead && (!g_weight_verifier || g_encoded_source))) {
+        p.cards[0]->source_verification_failed = true;
+        fprintf(stderr, "[shielded] source prefetch requires authenticated raw sources and a 0/1 control\n");
+        p.pending.clear(); return;
+    }
+    sh_source_prefetch prefetch;
+    weights ordered;
+    if (want_ahead) {
+        for (auto &layer : layers) for (auto &group : layer.second)
+            ordered.insert(ordered.end(), group.second.begin(), group.second.end());
+        fprintf(stderr, "[shielded] source prefetch: one reader, at most %zu extra private bytes; registration read timing includes only unhidden wait\n", sh_source_prefetch::cap);
+    }
+    size_t source_index = 0;
     auto fit = [&](int c, int64_t bytes) {
         auto &s = *p.cards[c];
         return !s.reserve_cap || s.device_bytes + bytes <= s.reserve_cap;
@@ -1020,7 +1049,8 @@ static void sh_plan(sh_pool &p) {
             SH_LOG("placement %s -> card %d %s:%d (%lld bytes)\n", g.first.c_str(), card,
                    p.cards[card]->host.c_str(), p.cards[card]->port, (long long)bytes);
             for (auto *w : g.second) {
-                if (!sh_register(*p.cards[card], w) && g_weight_verifier) {
+                const ggml_tensor *next = want_ahead && ++source_index < ordered.size() ? ordered[source_index] : nullptr;
+                if (!sh_register(*p.cards[card], w, want_ahead ? &prefetch : nullptr, next) && g_weight_verifier) {
                     p.cards[card]->source_verification_failed = true;
                     fprintf(stderr, "[shielded] %s: authenticated registration failed; aborting model load\n", ggml_get_name(w));
                 }
