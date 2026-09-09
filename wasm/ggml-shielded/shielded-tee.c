@@ -6,6 +6,7 @@
 #include "shielded-http.h"
 #include "shielded-field.h"
 #include "shielded-pad-check.h"
+#include "shielded-pad-parallel.h"
 #include "shielded-sha256.h"
 #include "shielded-pad-manifest.h"
 #include "shielded-mint-balance.h"
@@ -683,7 +684,19 @@ static int pad_check_prepare(sh_node *nd) {
         for (size_t i = 0; i < n; i++) nd->sM[at++] = 1 + (int32_t)(raw[i] % (SH_FV_S_RANGE - 1));
     }
     const char *tiled = getenv("SHIELDED_PAD_PREPARE_TILED");
-    if (tiled && !strcmp(tiled, "1")) {
+    const int use_tiled = tiled && !strcmp(tiled, "1");
+    /* Default off: an absent SHIELDED_PAD_PREPARE_THREADS leaves both serial
+     * paths below exactly as they were. A malformed value fails registration
+     * rather than quietly selecting a different preparation policy. */
+    int prepare_threads = 1;
+    if (sh_pad_par_parse_threads(getenv("SHIELDED_PAD_PREPARE_THREADS"), &prepare_threads) != SH_PAD_PAR_OK)
+        return SH_ERR_PROTO;
+    if (prepare_threads > 1) {
+        /* Disjoint column ranges of stM; every worker is joined before return. */
+        sh_pad_check_prepare_dispatch(nd->w, K, N, nd->sM, nd->stM, use_tiled, prepare_threads);
+        return SH_OK;
+    }
+    if (use_tiled) {
         sh_pad_check_tiled(nd->w, K, N, nd->sM, nd->stM);
         return SH_OK;
     }
