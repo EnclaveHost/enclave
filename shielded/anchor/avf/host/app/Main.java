@@ -419,10 +419,15 @@ public class Main extends Activity {
     /* The model's digest is only a cache TAG on the app side (the VM hashes what it holds); a 27 GB file takes
      * minutes to hash in Java, so the tag is remembered in a sidecar keyed by size and mtime and recomputed
      * only when the file changes. Never used for a security decision here. */
+    /* The sidecar lives in the app's own files dir (filesDir, resolved from the Context at start-up): a model under
+     * /data/local/tmp is readable but not writable by the app, so the sidecar next to it was never created and every
+     * launch re-hashed the whole model (~45 s for the 27B). The key binds path + size + mtime; the digest remains only
+     * the cache TAG sent with MODEL - the VM hashes what it holds. */
     static byte[] fileSha256Cached(String path) {
-        java.io.File f = new java.io.File(path); java.io.File side = new java.io.File(path + ".sha256");
-        String key = f.length() + " " + f.lastModified() + " ";
-        try { if (side.exists()) { String line = new String(java.nio.file.Files.readAllBytes(side.toPath()), StandardCharsets.UTF_8).trim();
+        java.io.File f = new java.io.File(path);
+        java.io.File side = new java.io.File(filesDir, "model-tag-" + Integer.toHexString(path.hashCode()) + ".sha256");
+        String key = f.length() + " " + f.lastModified() + " " + path + " ";
+        try { if (side.exists() && side.length() <= 4096) { String line = new String(java.nio.file.Files.readAllBytes(side.toPath()), StandardCharsets.UTF_8).trim();   /* bounded: a tag line is ~120 bytes; anything larger is not ours */
               if (line.startsWith(key) && line.length() == key.length() + 64) { byte[] d = new byte[32]; for (int i = 0; i < 32; i++) d[i] = (byte) Integer.parseInt(line.substring(key.length() + 2 * i, key.length() + 2 * i + 2), 16); return d; } } } catch (Exception ignored) { }
         byte[] d = fileSha256(path);
         try { java.nio.file.Files.write(side.toPath(), (key + RelayAttach.hex(d) + "\n").getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
