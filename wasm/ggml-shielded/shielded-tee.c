@@ -1258,6 +1258,8 @@ static int start_pools(sh_link *l) {
 static void dealt_wait(sh_link *l, sh_group *g, int m) {
     pthread_mutex_lock(&l->pool_mu);
     if (g->count < m && !l->stop) {
+        const int before = g->count;
+        const double started = now_ms();
         struct timespec dl; clock_gettime(CLOCK_MONOTONIC, &dl);
         dl.tv_sec += l->pad_bank_wait_ms / 1000; dl.tv_nsec += (long)(l->pad_bank_wait_ms % 1000) * 1000000L;
         if (dl.tv_nsec >= 1000000000L) { dl.tv_sec++; dl.tv_nsec -= 1000000000L; }
@@ -1265,6 +1267,11 @@ static void dealt_wait(sh_link *l, sh_group *g, int m) {
         while (g->count < m && !l->stop) {
             if (pthread_cond_timedwait(&l->pool_filled, &l->pool_mu, &dl) == ETIMEDOUT) break;
         }
+        /* This wait was already charged to mask_ms by the exchange caller.
+         * Expose it separately so importing pads is not mistaken for masking
+         * arithmetic. take_pads sees these slots ready and will not recount. */
+        l->pad_wait_ms += now_ms() - started;
+        l->pads_waited += (uint64_t)((g->count < m ? g->count : m) - before);
     }
     pthread_mutex_unlock(&l->pool_mu);
 }
