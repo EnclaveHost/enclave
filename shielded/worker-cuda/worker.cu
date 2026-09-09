@@ -1623,11 +1623,11 @@ struct Conn {
         cudaGraph_t g = nullptr;
         try {
 #ifdef SH_XPROF
-            ck(cudaEventRecord(profile_start,stream),"profile start");
+            ck(cudaEventRecordWithFlags(profile_start,stream,cudaEventRecordExternal),"profile start");
 #endif
             ck(cudaMemcpyAsync(d_x, planes, xbytes, cudaMemcpyHostToDevice, stream), "planes upload");
 #ifdef SH_XPROF
-            ck(cudaEventRecord(profile_uploaded,stream),"profile upload");
+            ck(cudaEventRecordWithFlags(profile_uploaded,stream,cudaEventRecordExternal),"profile upload");
 #endif
             /* Where the GEMM writes and how wide. The packed reply's default
              * form has the epilogue write 3-byte values straight into the
@@ -1656,7 +1656,7 @@ struct Conn {
             }
             if (packed && pm == PACK_KERNEL) pack24_launch(d_y32, (uint8_t *)d_out, (long long)E, stream);
 #ifdef SH_XPROF
-            ck(cudaEventRecord(profile_end,stream),"profile end");
+            ck(cudaEventRecordWithFlags(profile_end,stream,cudaEventRecordExternal),"profile end");
 #endif
         } catch (...) {
             cudaStreamEndCapture(stream, &g);
