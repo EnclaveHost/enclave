@@ -79,6 +79,7 @@ public class Main extends Activity {
         boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
         boolean bridgeProfile = false;       // --ez bridgeprofile true: bridge timing only, independent of the guest source profiler
         int bridgeWriteMax = 0;               // --ei bridgewrite 4096: experimental VM-bound native send cap; 0 keeps existing sends
+        int padWriteMax = 0;                  // --ei padwrite 4096: experimental pad body write cap; cached HTTP downloads unchanged
         boolean bridgeIo = false;            // --ez bridgeio true: bounded metadata-only per-call timeline
         String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
@@ -100,6 +101,7 @@ public class Main extends Activity {
             p.nativeBridge = i.getBooleanExtra("nativebridge", false);
             p.bridgeProfile = i.getBooleanExtra("bridgeprofile", false);
             p.bridgeWriteMax = i.getIntExtra("bridgewrite", 0);
+            p.padWriteMax = i.getIntExtra("padwrite", 0);
             p.bridgeIo = i.getBooleanExtra("bridgeio", false);
             if (i.getStringExtra("benchsizes") != null) p.benchSizes = i.getStringExtra("benchsizes");
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
@@ -132,6 +134,7 @@ public class Main extends Activity {
             else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
             else if (p.bridgeWriteMax != 0 && p.bridgeWriteMax != 4096) p.configError = "bridgewrite must be 0 or 4096";
             else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
+            else if (p.padWriteMax != 0 && p.padWriteMax != 4096) p.configError = "padwrite must be 0 or 4096";
             else if (p.bridgeIo && !p.nativeBridge) p.configError = "bridgeio needs nativebridge";
             else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
@@ -320,7 +323,8 @@ public class Main extends Activity {
     static boolean ended() { return sEnded; }
     static void control(Object vm, Plan plan) {
         sEnded = false;
-        final PadDelivery.Session padSession = PadDelivery.begin();
+        final PadDelivery.Session padSession = PadDelivery.begin(plan.padWriteMax);
+        say("PADS send cap: guest=" + plan.padWriteMax + " cache=0");
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); captureClose(false); return; }
         say("CONTROL connected");

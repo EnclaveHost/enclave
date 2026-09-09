@@ -406,7 +406,7 @@ final class PadsClient {
                                 if (go == 'H') { session.accept(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
                                 if (go != 'G') { Main.say("PADS " + f.getName() + " VM refused the header"); continue; }
                                 Main.say("PAD_SP stream_begin index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());
-                                session.copy(in, out, f.length()); out.flush();
+                                session.copyToVm(in, out, f.length()); out.flush();
                                 Main.say("PAD_SP stream_end index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());
                                 int ack = ackIn.read();
                                 Main.say("PAD_SP ack_end index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());

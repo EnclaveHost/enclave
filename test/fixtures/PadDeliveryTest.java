@@ -71,6 +71,49 @@ public final class PadDeliveryTest {
             three.close();
             AtomicBoolean lateClosed = new AtomicBoolean();
             check(!three.track(() -> lateClosed.set(true)) && lateClosed.get(), "late resource closed immediately");
+            // Exercise production copy paths, including partial reads and the exact EOF check.
+            byte[] body = new byte[(1 << 20) + 37];
+            for (int i = 0; i < body.length; i++) body[i] = (byte)(i * 31);
+            for (int cap : new int[]{0, 4096}) {
+                PadDelivery.Session capped = PadDelivery.begin(cap);
+                final int[] largest = {0};
+                ByteArrayOutputStream sink = new ByteArrayOutputStream() {
+                    @Override public synchronized void write(byte[] b, int off, int len) {
+                        largest[0] = Math.max(largest[0], len); super.write(b, off, len);
+                    }
+                };
+                capped.copyToVm(new ByteArrayInputStream(body), sink, body.length);
+                check(Arrays.equals(body, sink.toByteArray()), "VM body preserved");
+                check(largest[0] == (cap == 0 ? 1 << 20 : cap), "VM write size applied");
+                largest[0] = 0; sink.reset();
+                capped.copy(new ByteArrayInputStream(body), sink, body.length);
+                check(largest[0] == 1 << 20 && Arrays.equals(body, sink.toByteArray()), "HTTP cache copy unchanged");
+                largest[0] = 0; sink.reset();
+                InputStream fragments = new ByteArrayInputStream(body) {
+                    boolean zero = true;
+                    @Override public synchronized int read(byte[] b, int off, int len) {
+                        if (zero) { zero = false; return 0; }
+                        return super.read(b, off, Math.min(len, 997));
+                    }
+                };
+                capped.copyToVm(fragments, sink, body.length);
+                check(Arrays.equals(body, sink.toByteArray()) && largest[0] == 997, "fragmented reads preserved");
+                fails(() -> capped.copyToVm(new ByteArrayInputStream(body), new ByteArrayOutputStream(), body.length + 1));
+                sink.reset();
+                fails(() -> capped.copyToVm(new ByteArrayInputStream(body), sink, body.length - 1));
+                check(sink.size() == body.length - 1, "extra byte never forwarded");
+                final int[] canceledBytes = {0};
+                OutputStream cancelAfterFirst = new OutputStream() {
+                    @Override public void write(int b) { throw new AssertionError("unexpected scalar write"); }
+                    @Override public void write(byte[] b, int off, int len) { canceledBytes[0] += len; capped.close(); }
+                };
+                fails(() -> capped.copyToVm(new ByteArrayInputStream(body), cancelAfterFirst, body.length));
+                check(canceledBytes[0] == (cap == 0 ? 1 << 20 : cap), "cancellation stops before next chunk");
+            }
+            PadDelivery.Session valid = PadDelivery.begin();
+            try { PadDelivery.begin(65536); throw new AssertionError("invalid cap accepted"); }
+            catch (IllegalArgumentException expected) { check(valid.active(), "invalid cap cannot cancel current run"); }
+            valid.close();
             System.out.println("pad-delivery: ok");
         } finally {
             try (var files = Files.walk(dir)) { files.sorted(java.util.Comparator.reverseOrder()).forEach(p -> { try { Files.delete(p); } catch (IOException e) { throw new RuntimeException(e); } }); }
