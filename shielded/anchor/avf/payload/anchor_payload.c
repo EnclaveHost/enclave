@@ -652,6 +652,8 @@ static int64_t maskbench_clock_us(void) { return (int64_t)now_us(); }
 static void maskbench_line(const char *s) { OUT("%s", s); }
 static void maskbench_line4(const char *s) { OUT("PRG4_SPEED%s", s + 9); }
 static void maskbench_line_again(const char *s) { OUT("PRG_AGAIN_SPEED%s", s + 9); }
+#include "anchor_rx_profile.h"
+static void rx_profile_line(void *ctx, const char *line) { (void)ctx; OUT("%s", line); }
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
@@ -685,11 +687,15 @@ static void *pads_receiver(void *arg) {
             }
         }
         const char *diag_env=getenv("SHIELDED_SOURCE_PROFILE");
-        const int diag=diag_env && !strcmp(diag_env,"1");
+        const char *rx_diag_env=getenv("ANCHOR_PAD_RX_PROFILE");
+        const int diag=(diag_env && !strcmp(diag_env,"1")) || (rx_diag_env && !strcmp(rx_diag_env,"1"));
         uint64_t dp[6]={0}, d0=diag?now_us():0;
         struct timespec dc0={0},dc1={0}; if(diag) clock_gettime(CLOCK_THREAD_CPUTIME_ID,&dc0);
         if(diag) OUT("PAD_RX begin mono_us=%llu bytes=%llu",(unsigned long long)d0,bytes);
+        anchor_rx_profile progress={0};
+        if (diag && anchor_rx_profile_start(&progress, bytes, rx_profile_line, NULL)) OUT("PAD_RX progress unavailable: observer creation failed");
         (void)!write(c, "G", 1);
+        anchor_rx_profile_mark(&progress, ARX_OPEN, 0);
         /* the encrypted store is shared with the model load and the engine's own writes; a transient
          * open failure (busy device, momentary ENOSPC while a spent shipment is being unlinked) must not
          * cost the shipment: retry briefly, and say why when it still fails */
@@ -707,17 +713,21 @@ static void *pads_receiver(void *arg) {
         while (fd >= 0 && got < bytes) {
             size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
             uint64_t ds=diag?now_us():0;
+            anchor_rx_profile_mark(&progress, ARX_READ, got);
             ssize_t r = read(c, buf, want); if (r < 0 && (errno == EINTR || errno == EAGAIN)) continue;
             if (r <= 0) { last_r = r; read_errno = errno; break; }
             if(diag) {uint64_t de=now_us();dp[0]+=de-ds;ds=de;}
+            anchor_rx_profile_mark(&progress, ARX_WRITE, got);
             if (write_all(fd, buf, (size_t)r) != 0) { write_errno = errno; break; }
             if(diag) {uint64_t de=now_us();dp[1]+=de-ds;ds=de;}
+            anchor_rx_profile_mark(&progress, ARX_HASH, got);
             if (hashing) anchor_sha256_update(&ah, (const uint8_t *)buf, (size_t)r);   /* exactly the bytes written successfully */
             if(diag) dp[2]+=now_us()-ds;
             got += (unsigned long long)r;
         }
         uint64_t ds=diag?now_us():0;
         int synced = 0;
+        anchor_rx_profile_mark(&progress, ARX_FSYNC, got);
         if (fd >= 0) { int rc; do { rc = fsync(fd); } while (rc < 0 && errno == EINTR); synced = rc == 0; if (!synced && !write_errno) write_errno = errno; }
         if(diag) {dp[3]=now_us()-ds;ds=now_us();}
         /* eligibility for the streamed acknowledgment digest, explicit: every announced byte arrived AND was written
@@ -727,6 +737,7 @@ static void *pads_receiver(void *arg) {
         const int stream_ok = hashing && fd >= 0 && got == bytes && write_errno == 0 && synced;
         uint8_t stream_sha[32]; if (hashing) anchor_sha256_final(&ah, stream_sha);   /* finalised on every shipment path so the context is cleared */
         char ack[512] = "";
+        anchor_rx_profile_mark(&progress, ARX_PUBLISH, got);
         if (fd >= 0 && got == bytes && synced) {
             /* judged and hashed while still HIDDEN, through the descriptor we hold; then published; then the
              * directory made durable; only then is anyone told and the prepared acknowledgment emitted */
@@ -740,6 +751,8 @@ static void *pads_receiver(void *arg) {
         else { if (fd >= 0) close(fd); unlink(tmp); (void)!write(c, "E", 1);
                OUT("PADS %s FAILED at %llu of %llu (sock fd %d, file fd %d, read %zd/%s, write %s)", name, got, bytes, c, fd,
                    last_r, last_r < 0 ? strerror(read_errno) : "eof", write_errno ? strerror(write_errno) : "ok"); }
+        anchor_rx_profile_mark(&progress, ARX_DONE, got);
+        anchor_rx_profile_stop(&progress);
         if(diag) {
             clock_gettime(CLOCK_THREAD_CPUTIME_ID,&dc1);
             OUT("PAD_RX end mono_us=%llu bytes=%llu total_us=%llu cpu_us=%llu read_us=%llu write_us=%llu sha_us=%llu fsync_us=%llu judge_publish_us=%llu",
@@ -1250,7 +1263,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "ANCHOR_CPU_IDLE_PARK", "SHIELDED_SOURCE_PROFILE", "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "ANCHOR_ARTIFACT_PROFILE", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY", "SHIELDED_SOURCE_PREFETCH", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "SHIELDED_PAD_R4", "ANCHOR_CPU_POLL", "ANCHOR_SOURCE_READ_THREADS", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
+                        "ANCHOR_PAD_RX_PROFILE", "ANCHOR_CPU_IDLE_PARK", "SHIELDED_SOURCE_PROFILE", "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "ANCHOR_ARTIFACT_PROFILE", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY", "SHIELDED_SOURCE_PREFETCH", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "SHIELDED_PAD_R4", "ANCHOR_CPU_POLL", "ANCHOR_SOURCE_READ_THREADS", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
