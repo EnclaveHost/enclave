@@ -64,28 +64,7 @@ static void quiet_log(enum ggml_log_level level, const char *text, void *) {
 typedef void (*stats_fn)(uint64_t *offloaded, uint64_t *local, uint64_t *macs, uint64_t *verify_fail);
 typedef void (*adopt_fn)(int fd);
 typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
-struct anchor_idle_pool {
-    using pause_fn = void (*)(ggml_threadpool *);
-    using hook_fn = void (*)(void *);
-    using set_fn = void (*)(hook_fn, void *);
-    pause_fn pause = nullptr; set_fn set = nullptr;
-    ggml_threadpool *target = nullptr, *batch = nullptr;
-    const std::thread::id owner = std::this_thread::get_id();
-    uint64_t calls = 0;
-    static void park(void *v) {
-        auto &p = *static_cast<anchor_idle_pool *>(v);
-        // Draft-ahead also enters this shared backend, but the target CPU
-        // pool may be executing on its owner then. Only its owner can prove
-        // that its preceding CPU split has completed and park it safely.
-        if (std::this_thread::get_id() != p.owner) return;
-        p.pause(p.target);
-        if (p.batch && p.batch != p.target) p.pause(p.batch);
-        ++p.calls;
-        // ggml_graph_compute_kickoff resumes when the NEXT CPU graph is ready.
-        // The independent draft-ahead head pool is not part of this context.
-    }
-    ~anchor_idle_pool() { if (set) set(nullptr, nullptr); }
-};
+#include "anchor_idle_pool.h"
 
 /* ---- dealt pads: ledger windows through the owner app --------------------
  * The engine never talks to the platform itself; it writes a signed PADWIN
@@ -406,9 +385,17 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     uint64_t bench_trials = 0;
     if (const char *e = getenv("ANCHOR_BENCH_TRIALS")) {
         if (!anchor_stderr_cap_parse(e, 0, 16, &bench_trials)) { outf("ENGINE config: ANCHOR_BENCH_TRIALS must be canonical decimal in [0, 16]"); return 4; }
-        if (bench_trials >= 2) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
+        if (bench_trials >= 2 && !getenv("ANCHOR_BENCH_IDLE_PARK")) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
     }
     const bool bench = bench_trials >= 2;
+    int idle_park = 0;
+    if (!anchor_stderr_flag_parse(getenv("ANCHOR_CPU_IDLE_PARK"), &idle_park)) { outf("ENGINE config: ANCHOR_CPU_IDLE_PARK must be 0 or 1"); return 4; }
+    anchor_idle_order idle_order;
+    if (!anchor_idle_order_parse(getenv("ANCHOR_BENCH_IDLE_PARK"), bench_trials, idle_park, idle_order)) {
+        outf("ENGINE config: ANCHOR_BENCH_IDLE_PARK requires off-on or on-off, BENCH_TRIALS=2 and CPU_IDLE_PARK=0"); return 4;
+    }
+    const bool paired_park = idle_order != anchor_idle_order::none;
+
     setvbuf(stderr, NULL, _IONBF, 0);
     auto dump_err = [&]() {
         if (!err_path[0]) return;
@@ -507,6 +494,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     const bool draft_ahead = mtp_k > 0 && getenv("ANCHOR_DRAFT_AHEAD") && atoi(getenv("ANCHOR_DRAFT_AHEAD")) > 0;
     int head_own_pool = 0;
     if (!anchor_stderr_flag_parse(getenv("ANCHOR_HEAD_OWN_POOL"), &head_own_pool)) { outf("ENGINE config: ANCHOR_HEAD_OWN_POOL must be 0 or 1"); return 4; }
+    if (paired_park && !head_own_pool) { outf("ENGINE config: ANCHOR_BENCH_IDLE_PARK requires ANCHOR_HEAD_OWN_POOL=1"); return 4; }
     int head_threads = 4; { const char *e = getenv("ANCHOR_HEAD_THREADS"); if (e && atoi(e) > 0) head_threads = atoi(e); if (head_threads > 8) head_threads = 8; }
     /* Keep the calibrated (offloadable) weights as plain q8_0 rows. The ARM CPU backend
      * otherwise repacks q8_0 into q8_0_4x8 at load (its CPU_REPACK buffer) and the shielded
@@ -692,8 +680,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* one persistent CPU pool: without it every scheduler split respawns the threads (REPORT.md 12) */
     void *cpu_h = dlopen(cpu_so.c_str(), RTLD_NOW);
     anchor_idle_pool idle_pool;
-    int idle_park = 0;
-    if (!anchor_stderr_flag_parse(getenv("ANCHOR_CPU_IDLE_PARK"), &idle_park)) { outf("ENGINE config: ANCHOR_CPU_IDLE_PARK must be 0 or 1"); return 4; }
+    idle_pool.armed = !paired_park;
     tp_new_fn tp_new = cpu_h ? (tp_new_fn)dlsym(cpu_h, "ggml_threadpool_new") : nullptr;
     if (mtp && head_own_pool && !tp_new) { outf("ENGINE config: ANCHOR_HEAD_OWN_POOL requires the persistent CPU pool API"); return 4; }
     if (cpu_poll >= 0 && !tp_new) { outf("ENGINE config: ANCHOR_CPU_POLL requires the persistent CPU pool API"); return 4; }
@@ -706,10 +693,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                   ggml_threadpool_params tpb = pool_params(n_threads_batch); ggml_threadpool *tpb_pool = n_threads_batch != n_threads ? tp_new(&tpb) : tp;
                   if (cpu_poll >= 0 && (!tp || !tpb_pool)) { outf("ENGINE config: ANCHOR_CPU_POLL target/batch pool creation failed"); return 4; }
                   llama_attach_threadpool(ctx, tp, tpb_pool);
-                  if (idle_park) {
+                  if (idle_park || paired_park) {
                       idle_pool.pause = (anchor_idle_pool::pause_fn)dlsym(cpu_h, "ggml_threadpool_pause");
+                      if (paired_park) idle_pool.resume = (anchor_idle_pool::pause_fn)dlsym(cpu_h, "ggml_threadpool_resume");
                       auto setter = sh_h ? (anchor_idle_pool::set_fn)dlsym(sh_h, "ggml_backend_shielded_set_cpu_idle_hook") : nullptr;
-                      if (!tp || !tpb_pool || !idle_pool.pause || !setter) { outf("ENGINE idle park: missing pool/hook API"); return 4; }
+                      if (!tp || !tpb_pool || !idle_pool.pause || !setter || (paired_park && !idle_pool.resume)) { outf("ENGINE idle park: missing pool/hook API"); return 4; }
                       idle_pool.target = tp; idle_pool.batch = tpb_pool;
                       idle_pool.set = setter; setter(anchor_idle_pool::park, &idle_pool);
                   }
@@ -718,7 +706,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                                   if ((cpu_poll >= 0 || head_own_pool) && !tp_head) { outf("ENGINE config: persistent head pool creation failed"); return 4; }
                                   llama_attach_threadpool(anchor_mtp_ctx(mtp), tp_head, tp_head); } }   /* draft-ahead: the head runs on its own pool while the target waits on the link */
     if (mtp && head_own_pool) outf("ENGINE MTP head pool: separate (%d threads), draft-ahead=%d", head_threads, draft_ahead ? 1 : 0);
-    if (idle_park && !idle_pool.set) { outf("ENGINE idle park: persistent pool unavailable"); return 4; }
+    if ((idle_park || paired_park) && !idle_pool.set) { outf("ENGINE idle park: persistent pool unavailable"); return 4; }
+    if (paired_park) outf("ENGINE idle park experiment: order=%s registration=unparked trials=2", getenv("ANCHOR_BENCH_IDLE_PARK"));
     if (idle_park) outf("ENGINE idle park: target/batch pause at Shielded graph entry; next CPU graph resumes");
     if (tp_new) outf("ENGINE CPU pool: poll=%u (%s; target/batch/head)", pool_params(n_threads).poll, cpu_poll < 0 ? "library default" : "explicit override");
     outf("ENGINE prefill threads %d (decode %d)", n_threads_batch, n_threads);
@@ -911,6 +900,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         pre_n = 0; pre_first = -1; mtp_pre_used = mtp_pre_hit = 0; r_steady = -1; t_steady0 = 0; n_gen_steady0 = 0;
         t_restore_us = ggml_time_us() - tr0;
     }
+    const uint64_t park_calls_before = idle_pool.calls;
+    if (paired_park) {
+        const bool enabled = anchor_idle_trial_enabled(idle_order, trial);
+        if (!idle_pool.select(enabled)) { outf("ENGINE idle park experiment: trial selection failed"); bench_reason = "park_selection_failed"; break; }
+        outf("ENGINE idle park trial: trial=%llu enabled=%d", (unsigned long long)trial, enabled ? 1 : 0);
+    }
     if (bench) { char ph[32]; snprintf(ph, sizeof ph, "trial%llu.before", (unsigned long long)trial);
         const std::string line = anchor_bench_begin_json(trial, t_restore_us, bench_counters(ph));
         if (!anchor_bench_fits(line)) { outf("ENGINE bench trial %llu: begin record %zu bytes exceeds the line bound; terminal failure", (unsigned long long)trial, line.size()); bench_reason = "record_too_long"; break; }
@@ -976,6 +971,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     }
     const long t_tg1 = ggml_time_us();
     source_sample.set(1);
+    if (paired_park) outf("ENGINE idle park trial end: trial=%llu calls=%llu", (unsigned long long)trial, (unsigned long long)(idle_pool.calls - park_calls_before));
     if (mtp_rounds) { double rm = 0, dec = 0, am = 0, ob = 0; if (mtp) { anchor_mtp_timers(mtp, &rm, &dec, &am, &ob); rm -= rm0; dec -= dec0; am -= am0; ob -= ob0; }
         outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f emitted tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, join %.0f ms, accept+rollback+observe %.0f ms (head decode %.1f)",
              mtp_rounds, mtp_drafted, mtp_accepted, (double)mtp_emitted / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
@@ -1063,7 +1059,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* ENGINE_EXPORT_STDERR=1 (diagnostic, default off, validated at entry): a FILE SNAPSHOT of engine.err taken
      * now, after engine_main's own cleanup. The process-static shielded pool (links, refill threads) outlives this
      * function and may still write stderr later, so the export is scoped and named as a snapshot, never "all". */
-    if (idle_park) outf("ENGINE idle park: calls=%llu", (unsigned long long)idle_pool.calls);
+    if (idle_park || paired_park) outf("ENGINE idle park: calls=%llu", (unsigned long long)idle_pool.calls);
     source_sample.finish();
     if (err_path[0] && g_export_stderr) { fflush(stderr); anchor_stderr_export(err_path, g_export_cap, [](void *, const char *l) { outf("%s", l); }, nullptr); }
     return any_failed ? 3 : 0;               /* a broken loop, or any non-complete bench outcome, is a failed run */
