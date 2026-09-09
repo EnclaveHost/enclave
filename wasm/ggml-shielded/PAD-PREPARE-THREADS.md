@@ -62,3 +62,38 @@ the injected join failure to raise `SIGABRT`.
 
 No performance claim is made here. Whether this reduces registration time is a
 measurement, not a property of this document.
+
+## SHIELDED_PAD_PREPARE_PROFILE
+
+Default off, diagnostic only. `1` prints one line per registered weight (409 on
+the 27B deployment) to stderr; `0` and an absent value are off; anything else is
+rejected and fails registration, so a malformed value is never read as "off".
+It changes no arithmetic, no policy and no default, and when it is off the
+preparation path performs no additional system call.
+
+```
+profile pad_prepare <public weight name>: K=.. N=.. tiled=.. requested=.. \
+    ncpu_raw=.. ncpu=reported|UNKNOWN tiles=.. jobs=.. create_attempts=.. created=.. inline=..
+```
+
+* `requested` is the limit from `SHIELDED_PAD_PREPARE_THREADS`. It is what was
+  **asked for**, not what happened.
+* `ncpu_raw` is the raw `sysconf(_SC_NPROCESSORS_ONLN)` result the policy saw;
+  `ncpu=UNKNOWN` marks `raw < 1`, which is reported as unknown rather than as
+  zero. The existing fallback for that case (one job) is unchanged.
+* `jobs` is the effective column-range count after
+  `min(requested, ncpu, 16, ceil(K/128))`.
+* `create_attempts` / `created` / `inline` are counted on the calling thread and
+  written **after the join loop**, so they describe work that finished:
+  `created + inline == jobs` always. The serial limit-1 path reports
+  `jobs=1 created=0 inline=1`.
+
+Only public data is printed: the weight's public name, its dimensions, the knob
+values and these counts. No pad, seed, `r`, `u`, `s` or check vector is recorded
+or printed.
+
+This exists because neither the receipt nor the launch environment proves how
+many threads started. The platform's reported CPU count and actual thread
+creation results need to be measured; a requested limit does not establish
+either. `created` records successful thread creation, not simultaneous execution
+or the number of physical cores used.

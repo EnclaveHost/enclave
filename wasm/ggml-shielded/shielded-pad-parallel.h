@@ -47,6 +47,35 @@ enum { SH_PAD_PAR_MAX_THREADS = 16, SH_PAD_PAR_TILE = 128 };
 
 enum { SH_PAD_PAR_OK = 0, SH_PAD_PAR_BAD_KNOB = -1 };
 
+/* Diagnostic metadata for SHIELDED_PAD_PREPARE_PROFILE=1. Public facts only:
+ * the weight's public name and dimensions, the requested limit, the raw CPU
+ * count the policy saw, and how many jobs/threads actually happened. No pad,
+ * seed, r, u, s or check vector is recorded or printed, ever.
+ *
+ * Every field is written by the thread that calls the dispatch - the counts
+ * after its join loop, never by a worker - so no atomics are involved. */
+typedef struct {
+    int64_t K, N, tiles;
+    int  requested;        /* the limit asked for, after knob parsing */
+    long raw_ncpu;         /* raw sysconf(_SC_NPROCESSORS_ONLN) result */
+    int  ncpu_unknown;     /* 1 when raw_ncpu < 1: UNKNOWN, not zero */
+    int  effective_jobs;   /* column ranges the policy actually chose */
+    int  create_attempts;  /* pthread_create calls made */
+    int  created;          /* those that succeeded */
+    int  inline_jobs;      /* ranges executed on the calling thread */
+} sh_pad_par_stats;
+
+/* Strict on/off flag: NULL (absent) is off; only "0" and "1" are accepted.
+ * Anything else is rejected so a malformed diagnostic knob cannot be mistaken
+ * for "profiling was off". */
+static inline int sh_pad_par_parse_flag(const char *env, int *on) {
+    *on = 0;
+    if (!env) return SH_PAD_PAR_OK;
+    if (env[0] == '0' && env[1] == 0) return SH_PAD_PAR_OK;
+    if (env[0] == '1' && env[1] == 0) { *on = 1; return SH_PAD_PAR_OK; }
+    return SH_PAD_PAR_BAD_KNOB;
+}
+
 /* Canonical decimal 1..16, locale-free, errno-free, no secret-dependent branch.
  * NULL (absent) yields 1 and SH_PAD_PAR_OK; "" is rejected. */
 static inline int sh_pad_par_parse_threads(const char *env, int *out) {
@@ -137,10 +166,13 @@ extern int sh_pad_par_test_inline_jobs;   /* ranges run inline after a create fa
 #endif
 
 /* want_threads must already have come from sh_pad_par_parse_threads. On return
- * st[0,K) is fully written and no worker created here is still running. */
+ * st[0,K) is fully written and no worker created here is still running.
+ * stats may be NULL; when given it is filled from this thread only, and its
+ * counters are written after the join loop, so they describe what actually ran. */
 static inline void sh_pad_check_prepare_dispatch(const int8_t *w, int64_t K, int64_t N,
                                                  const int32_t *s, int32_t *st,
-                                                 int tiled, int want_threads) {
+                                                 int tiled, int want_threads,
+                                                 sh_pad_par_stats *stats) {
     int nt = want_threads < 1 ? 1 : want_threads;
     if (nt > SH_PAD_PAR_MAX_THREADS) nt = SH_PAD_PAR_MAX_THREADS;
     const long ncpu = SH_PAD_PAR_NCPU();                 /* public, not a secret */
@@ -150,10 +182,20 @@ static inline void sh_pad_check_prepare_dispatch(const int8_t *w, int64_t K, int
     if ((int64_t)nt > tiles) nt = (int)tiles;            /* never an empty range */
     if (nt < 1) nt = 1;
     SH_PAD_PAR_SET_NT(nt);
+    if (stats) {
+        stats->K = K; stats->N = N; stats->tiles = tiles;
+        stats->requested = want_threads;
+        stats->raw_ncpu = ncpu;
+        stats->ncpu_unknown = ncpu < 1;   /* UNKNOWN is reported as such, not as 0 */
+        stats->effective_jobs = nt;
+        stats->create_attempts = 0; stats->created = 0; stats->inline_jobs = 0;
+    }
 
     if (nt == 1) {
         const sh_pad_par_job whole = { w, K, N, 0, K, s, st, tiled };
         sh_pad_par_run(&whole);
+        /* One job, run by this thread: no thread was created. */
+        if (stats) stats->inline_jobs = 1;
         return;
     }
 
@@ -165,20 +207,59 @@ static inline void sh_pad_check_prepare_dispatch(const int8_t *w, int64_t K, int
     memset(th, 0, sizeof th);
     memset(made, 0, sizeof made);
 
+    int attempts = 0, created = 0, inline_jobs = 0;
     for (int t = 0; t < nt; t++) {
         jobs[t] = (sh_pad_par_job){ w, K, N, sh_pad_par_bound(K, t, nt),
                                     sh_pad_par_bound(K, t + 1, nt), s, st, tiled };
+        attempts++;
         if (SH_PAD_PAR_CREATE(&th[t], sh_pad_par_main, &jobs[t], t) == 0) {
-            made[t] = 1; SH_PAD_PAR_COUNT(sh_pad_par_test_created);
+            made[t] = 1; created++; SH_PAD_PAR_COUNT(sh_pad_par_test_created);
+        } else {
+            inline_jobs++; SH_PAD_PAR_COUNT(sh_pad_par_test_inline_jobs);
+            sh_pad_par_run(&jobs[t]);   /* only THIS range, inline, here. Its columns
+                                         * belong to no other job, so it cannot race a
+                                         * worker, and no second full serial pass is
+                                         * ever written over live workers. */
         }
-        else SH_PAD_PAR_COUNT(sh_pad_par_test_inline_jobs),
-             sh_pad_par_run(&jobs[t]);   /* only THIS range, inline, here. Its columns
-                                          * belong to no other job, so it cannot race a
-                                          * worker, and no second full serial pass is
-                                          * ever written over live workers. */
     }
 
     for (int t = 0; t < nt; t++)
         if (made[t] && SH_PAD_PAR_JOIN(th[t]) != 0) sh_pad_par_fail_closed();
+
+    /* After the joins: these describe work that has finished, not work planned. */
+    if (stats) {
+        stats->create_attempts = attempts;
+        stats->created = created;
+        stats->inline_jobs = inline_jobs;
+    }
+}
+
+/* Fill stats for a preparation that never reached the dispatch: the serial
+ * limit-1 paths in pad_check_prepare. One job, run inline by this thread, no
+ * thread created. The raw CPU count is still read so the diagnostic can show
+ * whether the platform reports one at all - this call happens only when
+ * profiling is explicitly on, so the off path gains no syscall. */
+static inline void sh_pad_par_stats_serial(sh_pad_par_stats *s, int requested,
+                                           int64_t K, int64_t N) {
+    const long ncpu = SH_PAD_PAR_NCPU();
+    s->K = K; s->N = N; s->tiles = sh_pad_par_tiles(K);
+    s->requested = requested;
+    s->raw_ncpu = ncpu;
+    s->ncpu_unknown = ncpu < 1;
+    s->effective_jobs = 1;
+    s->create_attempts = 0;
+    s->created = 0;
+    s->inline_jobs = 1;
+}
+
+/* One line per registered weight. Public name, public dimensions, the knob and
+ * the counts - nothing derived from a pad, seed or check vector. */
+static inline void sh_pad_par_report(const sh_pad_par_stats *s, const char *name, int tiled) {
+    fprintf(stderr,
+            "profile pad_prepare %s: K=%lld N=%lld tiled=%d requested=%d ncpu_raw=%ld ncpu=%s "
+            "tiles=%lld jobs=%d create_attempts=%d created=%d inline=%d\n",
+            name ? name : "?", (long long)s->K, (long long)s->N, tiled, s->requested,
+            s->raw_ncpu, s->ncpu_unknown ? "UNKNOWN" : "reported",
+            (long long)s->tiles, s->effective_jobs, s->create_attempts, s->created, s->inline_jobs);
 }
 #endif

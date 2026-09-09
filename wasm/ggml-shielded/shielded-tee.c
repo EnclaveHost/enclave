@@ -618,9 +618,9 @@ void sh_link_close(sh_link *l) {
 
 
 /* fv_prepare over row ranges on several threads: the products of the ranges
- * are independent and sum mod P2. Registration is serial in the engine's
- * context creation, so this is the one place the link spends threads before
- * the pool exists; the count follows the machine, not the pool policy. */
+ * are independent and sum mod P2. On the streamed path registration is driven
+ * from sh_plan during graph compute. The count follows the machine, not the
+ * pool policy. */
 typedef struct { const sh_simd *simd; const int8_t *W; int64_t K, N; const int64_t *s; int reps; int64_t *st; } fv_job;
 static void *fv_job_main(void *arg) { fv_job *j = (fv_job *)arg; j->simd->fv_prepare(j->W, j->K, j->N, j->s, j->reps, j->st); return NULL; }
 static void fv_prepare_parallel(sh_link *l, const int8_t *W, int64_t K, int64_t N, const int64_t *s, int reps, int64_t *st) {
@@ -691,13 +691,26 @@ static int pad_check_prepare(sh_node *nd) {
     int prepare_threads = 1;
     if (sh_pad_par_parse_threads(getenv("SHIELDED_PAD_PREPARE_THREADS"), &prepare_threads) != SH_PAD_PAR_OK)
         return SH_ERR_PROTO;
+    /* Diagnostic only, default off. It changes no arithmetic and no policy: it
+     * reports what the existing policy already decided. Malformed value fails
+     * registration rather than being read as "profiling was off". */
+    int prepare_profile = 0;
+    if (sh_pad_par_parse_flag(getenv("SHIELDED_PAD_PREPARE_PROFILE"), &prepare_profile) != SH_PAD_PAR_OK)
+        return SH_ERR_PROTO;
+    sh_pad_par_stats pstats;
     if (prepare_threads > 1) {
         /* Disjoint column ranges of stM; every worker is joined before return. */
-        sh_pad_check_prepare_dispatch(nd->w, K, N, nd->sM, nd->stM, use_tiled, prepare_threads);
+        sh_pad_check_prepare_dispatch(nd->w, K, N, nd->sM, nd->stM, use_tiled, prepare_threads,
+                                      prepare_profile ? &pstats : NULL);
+        if (prepare_profile) sh_pad_par_report(&pstats, nd->name, use_tiled);
         return SH_OK;
     }
     if (use_tiled) {
         sh_pad_check_tiled(nd->w, K, N, nd->sM, nd->stM);
+        if (prepare_profile) {
+            sh_pad_par_stats_serial(&pstats, prepare_threads, K, N);
+            sh_pad_par_report(&pstats, nd->name, use_tiled);
+        }
         return SH_OK;
     }
     for (int64_t k = 0; k < K; k++) {
@@ -705,6 +718,10 @@ static int pad_check_prepare(sh_node *nd) {
         for (int64_t j = 0; j < N; j++) acc += (__int128)nd->w[j * K + k] * nd->sM[j];
         int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
         nd->stM[k] = (int32_t)v;
+    }
+    if (prepare_profile) {
+        sh_pad_par_stats_serial(&pstats, prepare_threads, K, N);
+        sh_pad_par_report(&pstats, nd->name, use_tiled);
     }
     return SH_OK;
 }
