@@ -77,6 +77,7 @@ public class Main extends Activity {
         String vmName = "anchor";            // --es vmname: which VM instance (its own encrypted store) this run uses; [a-z0-9_-], 1-32 chars
         boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
         boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
+        boolean bridgeProfile = false;       // --ez bridgeprofile true: bridge timing only, independent of the guest source profiler
         String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
@@ -95,6 +96,7 @@ public class Main extends Activity {
             Plan p = new Plan(); if (i == null) return p;
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
             p.nativeBridge = i.getBooleanExtra("nativebridge", false);
+            p.bridgeProfile = i.getBooleanExtra("bridgeprofile", false);
             if (i.getStringExtra("benchsizes") != null) p.benchSizes = i.getStringExtra("benchsizes");
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
             p.debug = i.getIntExtra("debug", p.debug); p.memMib = i.getIntExtra("mem", (int) p.memMib);
@@ -583,7 +585,9 @@ public class Main extends Activity {
                         if (alreadyEnded) { rc = -125 /* -ECANCELED */; }
                         else {
                             if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority);
-                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, ("," + plan.shenv + ",").contains(",SHIELDED_SOURCE_PROFILE=1,"), st);
+                            boolean profile = plan.bridgeProfile || ("," + plan.shenv + ",").contains(",SHIELDED_SOURCE_PROFILE=1,");
+                            if (profile) say("BRIDGE profile: call CPU and wall timing enabled");
+                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, profile, st);
                         }
                     } finally {
                         synchronized (sBridgeLock) { sBridgeCancel = null; }   /* clear before closing: no signal can touch a closing fd */
