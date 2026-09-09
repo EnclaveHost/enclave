@@ -88,6 +88,7 @@ public class Main extends Activity {
         String artifactsUrl = "";            // --es artifacts_url http://127.0.0.1:<port>/v1/artifacts: stream public artifacts from the host feed (adb reverse) straight into the VM, no phone copy (ArtifactFeed)
         int artifactsDeadlineS = 300;        // --ei artifacts_deadline: the whole feed's budget in seconds (default 300, max 600), measured from the feed's start
         int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
+        String modelCache = "";              // --es model_cache only: the VM reuses a retained model or refuses ('N', nothing streamed, store untouched); "" = today's re-receive on a miss
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
@@ -114,12 +115,16 @@ public class Main extends Activity {
             if (i.getStringExtra("artifacts_url") != null) p.artifactsUrl = i.getStringExtra("artifacts_url");
             p.artifactsDeadlineS = i.getIntExtra("artifacts_deadline", p.artifactsDeadlineS);
             p.artifactsCoalesce = i.getIntExtra("artifacts_coalesce", 0);
+            if (i.getStringExtra("model_cache") != null) p.modelCache = i.getStringExtra("model_cache");
+            if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv");   // read BEFORE the validation chain: prepare mode judges its ANCHOR_ARTIFACT_PROFILE request here
             if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
             else if (!p.artifactsUrl.isEmpty() && !ArtifactFeed.validBase(p.artifactsUrl)) p.configError = "artifacts_url must be http://127.0.0.1:<port>/v1/artifacts (the host feed through adb reverse)";
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
             else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
+            else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
-            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            else if (p.mode.equals("prepare") && ArtifactProfile.requested(p.shenv) < 0) p.configError = "shenv " + ArtifactProfile.KEY + " must be 0 or 1, once (the only shenv key a preparation honours, as the explicit ARTIFACT_PROFILE control line)";
+            p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("delete")) {   // diagnostic deletion of exactly the owned test instance; judged on the RAW extra, after vmname is parsed above
                 final String raw = i.getStringExtra("vmname");
                 if (!"anchorfeed1".equals(raw)) p.configError = "mode delete removes only the owned test VM instance anchorfeed1 (explicit --es vmname anchorfeed1); refused for " + (raw == null ? "<missing>" : "'" + raw + "'");
@@ -402,7 +407,11 @@ public class Main extends Activity {
                 if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
                 if (!plan.artifactsUrl.isEmpty()) { final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; final boolean co = plan.artifactsCoalesce == 1; new Thread(() -> PadsClient.feedArtifacts(vm, url, dl, co), "vsock-artifact-feed").start(); }
             }
-            if (plan.mode.equals("prepare")) cmd.append("PREPARE ").append(plan.artifactsDeadlineS).append('\n');   // artifacts preparation: the VM's receiver takes the feed, then reports PREPARATION present n/count
+            if (plan.mode.equals("prepare")) {   // artifacts preparation: [ARTIFACT_PROFILE 1] PREPARE <s> (ArtifactProfile: the VM's receiver takes the feed, then reports PREPARATION present n/count)
+                String pre = ArtifactProfile.preparePreamble(plan.shenv, plan.artifactsDeadlineS);
+                if (pre == null) throw new IllegalStateException("PREPARE preamble refused (shenv " + ArtifactProfile.KEY + " 0|1 once, artifacts_deadline 1..600): nothing sent");   // already refused at plan parse; CONTROL error + the finally's cleanup if ever reached
+                cmd.append(pre);
+            }
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
             if (!plan.mode.equals("prepare")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
@@ -488,10 +497,12 @@ public class Main extends Activity {
      * appended to the stream (the tamper regression); the tag is always the real file's. */
     /** " auth=catalog" on the MODEL and ENGINE lines when the run asks for catalog-v1 admission (the VM's measured pins decide whether it is admissible). */
     static String authFlag(Plan plan) { return "catalog".equals(plan.modelAuth) ? " auth=catalog" : ""; }
+    /** " cache=only" on the MODEL line only (never on ENGINE): a miss then answers 'N' and the VM's store stays untouched. */
+    static String cacheFlag(Plan plan) { return "only".equals(plan.modelCache) ? " cache=only" : ""; }
     static String modelStage(Object vm, Plan plan, OutputStream out, BufferedReader r, long extra) throws java.io.IOException {
         long modelBytes = new java.io.File(plan.model).length() + extra;
         new Thread(() -> streamModel(vm, plan, extra), "vsock-model").start();
-        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + authFlag(plan) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds (or admits it through its measured catalog)
+        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + authFlag(plan) + cacheFlag(plan) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds (or admits it through its measured catalog)
         String ml; while ((ml = r.readLine()) != null) { final boolean verdict = ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail"); say("VSOCK " + (!verdict && ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); /* the verdict carries the full catalog identities: never truncated */ if (verdict) break; }
         return ml;
     }
@@ -506,6 +517,7 @@ public class Main extends Activity {
             out.write(hdr); out.flush();
             int ans = new java.io.FileInputStream(pfd.getFileDescriptor()).read();     // 'K' = the VM already holds it, 'S' = send
             if (ans == 'K') { say("MODEL already in the VM's encrypted storage (" + (bytes >> 20) + " MiB), not streamed"); return; }
+            if (ans == 'N') { say("MODEL not retained in the VM (cache-only): nothing streamed, the VM's store is unchanged"); return; }
             if (ans != 'S') { say("MODEL guest answered " + ans + ", not streaming"); return; }
             byte[] buf = new byte[1 << 20]; long sent = 0; int r; long t0 = System.nanoTime();
             while ((r = in.read(buf)) > 0) { out.write(buf, 0, r); sent += r; }

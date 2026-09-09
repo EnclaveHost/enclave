@@ -30,6 +30,7 @@
 #include "shielded-avf-binding.h"
 #include "shielded-pad-grant.h"
 #include "anchor_pins.h"
+#include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
 #include "anchor_names.h"
 #include "anchor_gguf.h"
 #include "../host/anchor-frame-loop.h"
@@ -279,22 +280,22 @@ static int read_exact(int fd, void *buf, size_t n) {
  * same-sized different model stream again instead of being mistaken for cached. */
 static char g_model_sha[80] = "";
 static void sidecar_path(char *out, size_t cap, const char *es) { snprintf(out, cap, "%s/model.gguf.sha256", es); }
+/* MODEL … cache=only (g_model_cache_only): a retained model is reused exactly as today; a miss receives NOTHING and leaves the
+ * store untouched (no tag unlink, no O_TRUNC, no memfd, no /data): the owner learns 'N' and the reason. Default = today. */
+static int g_model_cache_only = 0, g_model_cache_verdict = -1;
+/* ARTIFACT_PROFILE 0|1 (anchor_artifact_profile_parse): the owner's explicit switch for the artifact receive profiler; PREPARE
+ * carries no ENGINE environment, so this line is how a preparation run turns it on. -1 = never sent (off unless the ENGINE
+ * environment asks); a malformed or repeated line refuses the run at RUN (never silently off). */
+static int g_artifact_profile = -1, g_artifact_profile_bad = 0;
 static int model_file(uint64_t bytes, int *existing) {
     *existing = 0;
     const char *es = AVmPayload_getEncryptedStoragePath();
     if (es) {
-        char path[512], side[512]; snprintf(path, sizeof path, "%s/model.gguf", es); sidecar_path(side, sizeof side, es);
-        struct stat st; char have[80] = "";
-        { FILE *f = fopen(side, "r"); if (f) { if (!fgets(have, sizeof have, f)) have[0] = 0; fclose(f); have[strcspn(have, "\n")] = 0; } }
-        if (stat(path, &st) == 0 && (uint64_t)st.st_size == bytes && g_model_sha[0] && !strcmp(have, g_model_sha)) {
-            int fd = open(path, O_RDONLY); if (fd >= 0) { *existing = 1; return fd; }
-        }
-        unlink(side);                                             /* whatever is there is not what the owner is offering */
-        int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600);
-        if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
-        OUT("ENGINE encrypted storage %s: %s", path, strerror(errno));
-        if (fd >= 0) close(fd);
+        const int fd = anchor_model_open(es, bytes, g_model_sha[0] ? g_model_sha : "", g_model_cache_only, existing, &g_model_cache_verdict);   /* anchor_model_cache.h, host-fixtured */
+        if (fd >= 0 || fd == -2) return fd;
+        OUT("ENGINE encrypted storage %s/model.gguf: %s", es, strerror(errno));
     }
+    else if (g_model_cache_only) { g_model_cache_verdict = ANCHOR_MODEL_MISS_ABSENT; return -2; }   /* no store at all: cache-only can only miss, and touches nothing */
     int fd = memfd_create("model", 0);
     if (fd >= 0 && ftruncate(fd, (off_t)bytes) == 0) return fd;
     OUT("ENGINE memfd: fd=%d ftruncate errno=%d (%s)", fd, errno, strerror(errno));
@@ -313,6 +314,10 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
     if (c < 0) { OUT("ENGINE no model stream from the owner"); return -1; }
     uint64_t hdr = 0; if (read_exact(c, &hdr, 8) != 0 || hdr != bytes) { OUT("ENGINE model stream header %" PRIu64 " != %" PRIu64, hdr, bytes); close(c); return -1; }
     int existing = 0, fd = model_file(bytes, &existing);
+    if (fd == -2) {                                                        /* cache-only miss: 'N' = not retained, nothing streamed, nothing changed */
+        const char *why = "no encrypted store"; if (AVmPayload_getEncryptedStoragePath()) anchor_model_retained(AVmPayload_getEncryptedStoragePath(), bytes, g_model_sha[0] ? g_model_sha : "", &why);
+        (void)!write(c, "N", 1); close(c); OUT("ENGINE model not retained (cache-only): %s; store unchanged, nothing received", why); return -1;
+    }
     if (fd < 0) { OUT("ENGINE nowhere to put %" PRIu64 " bytes of model (encrypted storage, memfd and /data all refused)", bytes); close(c); return -1; }
     if (existing) { (void)!write(c, "K", 1); close(c); OUT("ENGINE model %" PRIu64 " MiB already in the VM's encrypted storage", bytes >> 20); *out_fd = fd; return 0; }
     (void)!write(c, "S", 1);
@@ -623,9 +628,18 @@ static void artifact_receive_conn(int c, const char *name, unsigned long long by
     (void)!write(c, "G", 1);
     struct timeval tv = { 30, 0 }; (void)setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);   /* a stalled sender surfaces as EAGAIN: refused, not waited for */
     anchor_artifact_receipt r; const double t0 = now_us();
-    const int rc = anchor_artifact_receive(g_art_dirfd, name, e, &g_hash_ops, artifact_sock_read, (void *)(intptr_t)c, 600000, &r);
+    /* ANCHOR_ARTIFACT_PROFILE=1 (performance knob, --es shenv): the core times its wall-clock phases into `prof` (integer ns);
+     * one line per COMPLETED reception follows the verified line. Unset = the plain receive (profile NULL), byte for byte as before. */
+    const int profiling = anchor_artifact_profile_effective(g_artifact_profile, getenv("ANCHOR_ARTIFACT_PROFILE"));   /* the explicit control line first; else the ENGINE environment (anchor_prepare.h, fixtured) */
+    anchor_artifact_profile prof; memset(&prof, 0, sizeof prof);
+    const int rc = anchor_artifact_receive_profiled(g_art_dirfd, name, e, &g_hash_ops, artifact_sock_read, (void *)(intptr_t)c, 600000, &r, profiling ? &prof : NULL);
     static const char *const names[] = { "ok", "arguments", "cannot create the temp file", "read error", "stream ended early", "write error", "block differs from the catalog", "publish failed" };
-    if (rc == ANCHOR_ARTIFACT_OK) { (void)!write(c, "K", 1); OUT("ARTIFACT %s %llu bytes verified against the catalog in %.1f s", name, bytes, (now_us() - t0) / 1e6); }
+    if (rc == ANCHOR_ARTIFACT_OK) {
+        (void)!write(c, "K", 1); OUT("ARTIFACT %s %llu bytes verified against the catalog in %.1f s", name, bytes, (now_us() - t0) / 1e6);
+        if (profiling) OUT("ARTIFACT PROFILE %s bytes=%llu read_calls=%llu write_batches=%llu read_bytes=%llu read_ns=%llu write_ns=%llu hash_ns=%llu file_sync_ns=%llu publish_ns=%llu body_total_ns=%llu clock_errors=%llu",
+                           name, bytes, (unsigned long long)prof.read_calls, (unsigned long long)prof.write_batches, (unsigned long long)prof.read_bytes, (unsigned long long)prof.read_ns, (unsigned long long)prof.write_ns,
+                           (unsigned long long)prof.hash_ns, (unsigned long long)prof.file_sync_ns, (unsigned long long)prof.publish_ns, (unsigned long long)prof.body_total_ns, (unsigned long long)prof.clock_errors);
+    }
     else { (void)!write(c, "E", 1);
            if (rc == ANCHOR_ARTIFACT_E_BLOCK) OUT("ARTIFACT %s REJECTED (block %llu differs from the catalog): removed", name, (unsigned long long)r.bad_block);
            else OUT("ARTIFACT %s REJECTED at %llu of %llu (%s%s%s): removed", name, (unsigned long long)r.got, bytes, rc >= 0 && rc <= 7 ? names[rc] : "?", r.err_no ? ": " : "", r.err_no ? strerror(r.err_no) : ""); }
@@ -717,8 +731,9 @@ typedef int (*engine_main_fn)(int, int, int, const char *, const char *, const c
 /* A rejected model must not survive as "cached": the sidecar carries the owner's tag, so a lying
  * first stream (right tag, wrong bytes) would otherwise be answered 'K' on every later honest run. */
 static void model_cache_purge(void) {
+    if (g_model_cache_only) { OUT("MODEL cache purge SUPPRESSED (cache=only): the retained file was not received in this run; authentication failed, store unchanged"); return; }   /* anchor_model_purge would refuse too; said explicitly here */
     const char *es = AVmPayload_getEncryptedStoragePath();
-    if (es) { char path[512], side[512]; snprintf(path, sizeof path, "%s/model.gguf", es); sidecar_path(side, sizeof side, es); unlink(side); unlink(path); }
+    if (es) anchor_model_purge(es, 0);                                   /* anchor_model_cache.h: the same decision the host fixture exercises */
     unlink("/data/anchor-model.gguf");
     OUT("MODEL cache purged: a rejected model is not kept");
 }
@@ -780,7 +795,7 @@ static int model_stage(uint64_t bytes) {
     g_model_state = 0; g_auth_mode = 0; g_staged_table = NULL; anchor_gguf_free(&g_model_table);   /* any (re)reception invalidates (a catalog admission cannot reach here: guarded above) */
     if (g_req_pending) { g_req_pending = 0; OUT("PADREQ2 request dropped: the model is being re-staged, request again for the new bytes"); }   /* a grant for the old digest must not land on new bytes */
     int fd = -1;
-    if (receive_model(g_ls_model, bytes, &fd) != 0) { OUT("MODEL fail receive"); return -1; }
+    if (receive_model(g_ls_model, bytes, &fd) != 0) { if (g_model_cache_only && g_model_cache_verdict > 0) OUT("MODEL fail cache-only: model not retained (verdict %d); store unchanged", g_model_cache_verdict); else OUT("MODEL fail receive"); return -1; }
     if (want_catalog) return model_stage_catalog(fd, bytes);                                  /* measured catalog + private header; no whole-file scan, no purge on refusal */
     /* the bytes that will be parsed, judged by ONE read: GGUF header walked, whole-file digest (the pin's
      * form) and each tensor's digest from the same pass; then the pin and the grant's frozen digest */
@@ -817,7 +832,7 @@ static void run_prepare(int ls_pads, int seconds) {
     anchor_rx_reset();
     pthread_t th; const int prc = pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads);   /* joinable: quiesced and joined before the snapshot */
     if (prc != 0) { OUT("PREPARE refused: pads-port receiver thread: %s", strerror(prc)); return; }
-    OUT("PREPARE ready: catalog artifacts accepted on the pads port for up to %d s (no engine, no seed, no worker)", seconds);
+    OUT("PREPARE ready: catalog artifacts accepted on the pads port for up to %d s (no engine, no seed, no worker); artifact profile %s", seconds, g_artifact_profile == 1 ? "on" : "off");
     const uint64_t t0 = anchor_prepare_mono_ms();
     const int w = anchor_prepare_wait_stop(g_ctl, t0 + (uint64_t)seconds * 1000u);
     const char *reason = w == ANCHOR_PREPARE_STOP ? "owner stop" : w == ANCHOR_PREPARE_EOF ? "owner gone" : w == ANCHOR_PREPARE_DEADLINE ? "deadline" : w == ANCHOR_PREPARE_OVERLONG ? "owner sent an overlong line" : "control read error";
@@ -1103,9 +1118,11 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "MODEL ", 6)) {       /* MODEL <bytes> [sha256]: receive (or reuse the cache when the owner's tag matches) and judge the bytes that will be parsed */
                 unsigned long long mb = 0; char sha[80] = "";
                 if (sscanf(l + 6, "%llu %79s", &mb, sha) >= 1 && strlen(sha) == 64) { strncpy(g_model_sha, sha, 64); g_model_sha[64] = 0; }   /* a cache tag, nothing more: the hash below decides */
-                const int tok = anchor_auth_token(l);                                       /* MODEL <bytes> [sha256] [auth=catalog|whole-file]: strict, once, exact */
-                g_auth_catalog_requested = tok == ANCHOR_AUTH_TOKEN_CATALOG;
+                const int tok = anchor_auth_token(l);                                       /* MODEL <bytes> [sha256] [auth=catalog|whole-file] [cache=only]: strict, once, exact */
+                const int ctok = anchor_cache_token(l);
+                g_auth_catalog_requested = tok == ANCHOR_AUTH_TOKEN_CATALOG; g_model_cache_only = ctok == ANCHOR_CACHE_TOKEN_ONLY; g_model_cache_verdict = -1;
                 if (tok == ANCHOR_AUTH_TOKEN_MALFORMED) OUT("MODEL fail auth token: exactly one of auth=catalog or auth=whole-file (an unknown mode never becomes the full scan)");
+                else if (ctok == ANCHOR_CACHE_TOKEN_MALFORMED) OUT("MODEL fail cache token: only \"cache=only\" is accepted, once; store unchanged");
                 else if (!mb) OUT("MODEL fail bytes"); else (void)model_stage(mb);
             }
             else if (!strncmp(l, "PADREQ2 ", 8)) {     /* PADREQ2 <name> -> PADREQ2 <name> <model_digest> <calib_digest> <nonce> <sig> | PADREQ2 fail <why> */
@@ -1206,7 +1223,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "ANCHOR_CPU_POLL", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
+                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "ANCHOR_ARTIFACT_PROFILE", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "ANCHOR_CPU_POLL", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
@@ -1226,6 +1243,9 @@ int AVmPayload_main(void) {
             }
             else if (!strcmp(l, "ECHO")) echo = 1;
             else if (!strncmp(l, "BRIDGEBENCH ", 12)) { bridgebench = 1; snprintf(bench_sizes, sizeof bench_sizes, "%s", l + 12); }
+            else if (!strncmp(l, "ARTIFACT_PROFILE", 16)) {   /* ARTIFACT_PROFILE 0|1: strict, once; malformed or repeated refuses the run at RUN */
+                int on = 0; if (g_artifact_profile >= 0 || !anchor_artifact_profile_parse(l, &on)) { g_artifact_profile_bad = 1; OUT("ARTIFACT_PROFILE refused: %s", g_artifact_profile >= 0 ? "repeated" : "malformed (ARTIFACT_PROFILE 0|1)"); }
+                else { g_artifact_profile = on; OUT("ARTIFACT_PROFILE %s", on ? "on: one ARTIFACT PROFILE line per completed reception" : "off"); } }
             else if (!strncmp(l, "PREPARE", 7)) { int sec = 0; if (prepare || !anchor_prepare_parse(l, &sec)) { prep_bad = 1; OUT("PREPARE refused: %s", prepare ? "repeated" : "malformed (PREPARE [1..600])"); } prepare = 1; prep_seconds = sec ? sec : prep_seconds; }
             else if (!strcmp(l, "RUN")) break;
         }
@@ -1242,6 +1262,7 @@ int AVmPayload_main(void) {
     if (prepare) {   /* artifacts preparation: no engine/seed/worker; bounded; reports presence, never a decode result */
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PREPARE refused: pins invalid (%s)", g_pins.err);
         else if (prep_bad) OUT("PREPARE refused: malformed or repeated PREPARE line");
+        else if (g_artifact_profile_bad) OUT("PREPARE refused: malformed or repeated ARTIFACT_PROFILE line");
         else if (engine || echo || bridgebench || n_shapes) OUT("PREPARE refused: conflicting mode commands on the same run (ENGINE/ECHO/BRIDGEBENCH/SHAPE)");
         else run_prepare(ls_pads, prep_seconds);
         OUT("END");
@@ -1252,6 +1273,7 @@ int AVmPayload_main(void) {
     if (engine) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
+        else if (g_artifact_profile_bad) OUT("ENGINE refused: malformed or repeated ARTIFACT_PROFILE line");
         else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);

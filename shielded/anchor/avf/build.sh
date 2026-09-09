@@ -131,7 +131,7 @@ case "$NAME" in
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
                 "$CLANG" -O3 -fPIC -march=armv8.2-a+dotprod -DSH_SIMD_NEON -I"$GG" -c "$GG/shielded-simd.c" -o "$OUT/simd-neon-pic.o"
-                SRCS=("$HERE/payload/anchor_payload.c" "$HERE/payload/anchor_pins.c" "$HERE/payload/anchor_names.c" "$HERE/payload/anchor_gguf.c" "$HERE/payload/anchor_catalog.c" "$HERE/payload/anchor_encoded_catalog.c" "$HERE/payload/anchor_artifacts.c" "$HERE/payload/anchor_auth.c" "$HERE/payload/anchor_prepare.c" "$HERE/payload/anchor_rxctl.c" "$HERE/payload/anchor_copy.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
+                SRCS=("$HERE/payload/anchor_payload.c" "$HERE/payload/anchor_pins.c" "$HERE/payload/anchor_names.c" "$HERE/payload/anchor_gguf.c" "$HERE/payload/anchor_catalog.c" "$HERE/payload/anchor_encoded_catalog.c" "$HERE/payload/anchor_artifacts.c" "$HERE/payload/anchor_auth.c" "$HERE/payload/anchor_prepare.c" "$HERE/payload/anchor_rxctl.c" "$HERE/payload/anchor_model_cache.c" "$HERE/payload/anchor_copy.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
                       "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c" "$GG/shielded-pads.c" "$GG/shielded-bank.c" "$GG/shielded-http.c" "$GG/prefix-kv.c" "$GG/poly1305-donna.c"
                       "$HERE/payload/third_party/tweetnacl.c" "$OUT/simd-neon-pic.o")
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)

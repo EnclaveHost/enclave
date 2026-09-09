@@ -18,3 +18,18 @@ int anchor_auth_token(const char *line) {
     }
     return mode;
 }
+int anchor_cache_token(const char *line) {
+    if (!line) return ANCHOR_CACHE_TOKEN_MALFORMED;
+    int found = 0; const char *p = line;
+    while (*p) {
+        while (*p == ' ') p++;
+        const char *tok = p; while (*p && *p != ' ') p++;
+        const size_t n = (size_t)(p - tok);
+        if (n >= 6 && !memcmp(tok, "cache=", 6)) {
+            if (found) return ANCHOR_CACHE_TOKEN_MALFORMED;                       /* one token, once */
+            found = 1;
+            if (!(n == 6 + 4 && !memcmp(tok + 6, "only", 4))) return ANCHOR_CACHE_TOKEN_MALFORMED;   /* exactly "only" */
+        }
+    }
+    return found ? ANCHOR_CACHE_TOKEN_ONLY : ANCHOR_CACHE_TOKEN_ABSENT;
+}
