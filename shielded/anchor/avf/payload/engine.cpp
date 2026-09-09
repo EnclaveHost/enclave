@@ -70,9 +70,14 @@ struct anchor_idle_pool {
     using set_fn = void (*)(hook_fn, void *);
     pause_fn pause = nullptr; set_fn set = nullptr;
     ggml_threadpool *target = nullptr, *batch = nullptr;
+    const std::thread::id owner = std::this_thread::get_id();
     uint64_t calls = 0;
     static void park(void *v) {
         auto &p = *static_cast<anchor_idle_pool *>(v);
+        // Draft-ahead also enters this shared backend, but the target CPU
+        // pool may be executing on its owner then. Only its owner can prove
+        // that its preceding CPU split has completed and park it safely.
+        if (std::this_thread::get_id() != p.owner) return;
         p.pause(p.target);
         if (p.batch && p.batch != p.target) p.pause(p.batch);
         ++p.calls;
