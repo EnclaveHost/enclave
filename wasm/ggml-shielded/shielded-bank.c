@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,8 @@ struct sh_bank {
     char url[1024], seed_id[33], dir[512];
     uint64_t cache_max, floor, need;
     pthread_t th; pthread_mutex_t mu; pthread_cond_t cv;
-    bool stop, running;
+    atomic_bool stop;
+    bool running, need_set;
     uint64_t fetched_files, fetched_bytes; int last_status;
     char err[256];
 };
@@ -86,6 +88,10 @@ static void *bank_main(void *arg) {
     if (!list) return NULL;
     while (!b->stop) {
         pthread_mutex_lock(&b->mu);
+        /* The caller sets the durable consumption floor before its first
+         * horizon. Do not prefetch with calloc's temporary floor of zero. */
+        while (!b->stop && !b->need_set) pthread_cond_wait(&b->cv, &b->mu);
+        if (b->stop) { pthread_mutex_unlock(&b->mu); break; }
         const uint64_t floor = b->floor, need = b->need;
         pthread_mutex_unlock(&b->mu);
 
@@ -101,7 +107,10 @@ static void *bank_main(void *arg) {
         uint64_t have = cache_bytes(b);
         for (int i = 0; i < n && !b->stop; i++) {
             const bank_entry *e = &list[i];
-            if (e->index0 + e->count <= floor) continue;                      /* spent */
+            pthread_mutex_lock(&b->mu);
+            const uint64_t live_floor = b->floor;
+            pthread_mutex_unlock(&b->mu);
+            if (e->index0 <= live_floor && e->count <= live_floor - e->index0) continue; /* spent */
             const bool wanted = e->index0 < need;                             /* covers the engine's horizon: fetch regardless of budget */
             if (!wanted && have + e->bytes > b->cache_max) break;             /* ahead of the horizon: only inside the budget */
             char fin[800], tmp[800];
@@ -111,9 +120,19 @@ static void *bank_main(void *arg) {
             if (stat(fin, &st) == 0 && (uint64_t)st.st_size == e->bytes) continue;
             char furl[1400]; snprintf(furl, sizeof furl, "%s/%s/%s", b->url, b->seed_id, e->name);
             uint64_t got = 0;
-            if (sh_http_download(furl, tmp, BANK_TIMEOUT_MS, &got) == 0 && got == e->bytes && rename(tmp, fin) == 0) {
-                pthread_mutex_lock(&b->mu); b->fetched_files++; b->fetched_bytes += got; pthread_mutex_unlock(&b->mu);
-                have += got;
+            if (sh_http_download(furl, tmp, BANK_TIMEOUT_MS, &got) == 0 && got == e->bytes) {
+                /* A download can overlap a floor advance. Publication and
+                 * the floor setter share the lock, so stale data cannot be
+                 * restored after the consumer has already pruned it. */
+                pthread_mutex_lock(&b->mu);
+                const bool spent = e->index0 <= b->floor && e->count <= b->floor - e->index0;
+                const bool discard = spent || b->stop;
+                const int published = discard ? 0 : rename(tmp, fin) == 0;
+                if (published) { b->fetched_files++; b->fetched_bytes += got; }
+                else if (!discard) snprintf(b->err, sizeof b->err, "bank publish %s failed", e->name);
+                pthread_mutex_unlock(&b->mu);
+                if (published) have += got;
+                else { unlink(tmp); if (!discard) break; }
             } else {
                 unlink(tmp);
                 snprintf(b->err, sizeof b->err, "bank fetch %s failed (%llu of %llu bytes)", e->name, (unsigned long long)got, (unsigned long long)e->bytes);
@@ -142,6 +161,7 @@ sh_bank *sh_bank_open(const char *url, const char *seed_id_hex, const char *dir,
     snprintf(b->seed_id, sizeof b->seed_id, "%s", seed_id_hex);
     snprintf(b->dir, sizeof b->dir, "%s", dir);
     b->cache_max = cache_max;
+    atomic_init(&b->stop, false);
     pthread_mutex_init(&b->mu, NULL); pthread_cond_init(&b->cv, NULL);
     if (pthread_create(&b->th, NULL, bank_main, b) != 0) {
         pthread_mutex_destroy(&b->mu); pthread_cond_destroy(&b->cv); free(b);
@@ -156,7 +176,7 @@ void sh_bank_set_floor(sh_bank *b, uint64_t floor) {
 }
 void sh_bank_set_need(sh_bank *b, uint64_t need) {
     if (!b) return;
-    pthread_mutex_lock(&b->mu); if (need > b->need) b->need = need; pthread_cond_signal(&b->cv); pthread_mutex_unlock(&b->mu);
+    pthread_mutex_lock(&b->mu); if (need > b->need) b->need = need; b->need_set = true; pthread_cond_signal(&b->cv); pthread_mutex_unlock(&b->mu);
 }
 void sh_bank_stats(const sh_bank *b, uint64_t *files, uint64_t *bytes, int *last_status, char *err, size_t err_cap) {
     if (!b) {

@@ -21,7 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const gg = path.join(root, "wasm", "ggml-shielded");
 const seed = "0123456789abcdef0123456789abcdef";
 
-function stubBank(shipments) {
+function stubBank(shipments, beforeSend) {
   // shipments: [{index0, count, bytes}] -> served as <seed>-<i0>-<n>.pads of that many bytes
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
@@ -35,15 +35,18 @@ function stubBank(shipments) {
     const s = m && shipments.find((x) => `${seed}-${x.index0}-${x.count}.pads` === m[2]);
     if (!s) { res.writeHead(404); res.end("no"); return; }
     server.hits.push(m[2]);
-    res.writeHead(200, { "content-type": "application/octet-stream", "content-length": s.bytes });
-    res.end(Buffer.alloc(s.bytes, s.index0 & 0xff));
+    const send = () => {
+      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": s.bytes });
+      res.end(Buffer.alloc(s.bytes, s.index0 & 0xff));
+    };
+    if (beforeSend) beforeSend(s, send); else send();
   });
   server.hits = [];
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
 test("bank client: fetches in index order up to the horizon, honours the cache budget and the floor", async (t) => {
-  const mk = spawnSync("make", ["-s", "-C", gg, "bank-probe"], { encoding: "utf8", timeout: 600_000 });
+  const mk = spawnSync("make", ["-s", "-C", gg, "bank-probe"], { encoding: "utf8", timeout: 120_000 });
   assert.equal(mk.status, 0, mk.stderr);
   const MB = 1 << 20;
   const server = await stubBank([{ index0: 0, count: 16, bytes: 2 * MB }, { index0: 16, count: 16, bytes: 2 * MB }, { index0: 32, count: 16, bytes: 2 * MB }, { index0: 48, count: 16, bytes: 2 * MB }]);
@@ -62,7 +65,7 @@ test("bank client: fetches in index order up to the horizon, honours the cache b
   // floor 20: the first shipment is spent (never refetched even when deleted); need 64 with a big budget fetches the rest in order
   fs.unlinkSync(path.join(dir, `${seed}-0-16.pads`));
   server.hits.length = 0;
-  r = await probe([url, seed, dir, "64", "64", "20000", "20"]);
+  r = await probe([url, seed, dir, "64", "64", "20000", "20", "500"]);
   assert.equal(r.code, 0, r.stdout + r.stderr);
   assert.deepEqual(server.hits, [`${seed}-32-16.pads`, `${seed}-48-16.pads`]);
   assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith(".pads")).sort(), [`${seed}-16-16.pads`, `${seed}-32-16.pads`, `${seed}-48-16.pads`]);
@@ -72,6 +75,34 @@ test("bank client: fetches in index order up to the horizon, honours the cache b
   r = await probe(["http://127.0.0.1:1/v1/pads/shipments", seed, fs.mkdtempSync(path.join(os.tmpdir(), "bank-")), "16", "64", "1500"]);
   assert.equal(r.code, 1);
   assert.match(r.stdout, /unreachable/);
+});
+
+test("bank client: a download that becomes spent is discarded before publication", { timeout: 15_000 }, async (t) => {
+  const mk = spawnSync("make", ["-s", "-C", gg, "bank-probe"], { encoding: "utf8", timeout: 120_000 });
+  assert.equal(mk.status, 0, mk.stderr);
+  let release, requested;
+  const inFlight = new Promise((resolve) => { requested = resolve; });
+  const server = await stubBank([{ index0: 0, count: 16, bytes: 4096 }, { index0: 32, count: 16, bytes: 4096 }],
+    (shipment, send) => { if (shipment.index0 === 0) { release = send; requested(); } else send(); });
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bank-floor-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const url = `http://127.0.0.1:${server.address().port}/v1/pads/shipments`;
+  const child = spawn(path.join(gg, "bank-probe"), [url, seed, dir, "48", "64", "5000", "0", "0", "advance-floor-stdin"]);
+  t.after(() => { if (child.exitCode === null) child.kill("SIGKILL"); });
+  let stdout = "", stderr = "", advanced;
+  const floorSet = new Promise((resolve) => { advanced = resolve; });
+  child.stdout.on("data", (data) => { stdout += data; if (stdout.includes("floor advanced 20\n")) advanced(); });
+  child.stderr.on("data", (data) => { stderr += data; });
+  const done = new Promise((resolve, reject) => { child.once("error", reject); child.once("close", resolve); });
+  await inFlight;                      // old row is requested; its response is held by the server
+  child.stdin.end("20\n");
+  await floorSet;                      // the consumer confirms its new floor before the response arrives
+  release();
+  assert.equal(await done, 0, stdout + stderr);
+  assert.deepEqual(server.hits, [`${seed}-0-16.pads`, `${seed}-32-16.pads`]);
+  assert.deepEqual(fs.readdirSync(dir), [`${seed}-32-16.pads`]);
+  assert.match(stdout, /fetched 1 file\(s\) 4096 bytes/);
 });
 
 test("window agent (local mode): reserve-before-use windows signed by the key it publishes; bad requests refused", async (t) => {
