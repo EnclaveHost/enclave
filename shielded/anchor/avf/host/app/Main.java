@@ -78,6 +78,7 @@ public class Main extends Activity {
         boolean nativeEcho = false;          // --ez nativeecho true: native loop for worker=echo transport diagnostic only
         boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
         boolean bridgeProfile = false;       // --ez bridgeprofile true: bridge timing only, independent of the guest source profiler
+        int bridgeWriteMax = 0;               // --ei bridgewrite 4096: experimental VM-bound native send cap; 0 keeps existing sends
         String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
@@ -97,6 +98,7 @@ public class Main extends Activity {
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
             p.nativeBridge = i.getBooleanExtra("nativebridge", false);
             p.bridgeProfile = i.getBooleanExtra("bridgeprofile", false);
+            p.bridgeWriteMax = i.getIntExtra("bridgewrite", 0);
             if (i.getStringExtra("benchsizes") != null) p.benchSizes = i.getStringExtra("benchsizes");
             if (i.getStringExtra("payload") != null) p.payload = i.getStringExtra("payload");
             p.debug = i.getIntExtra("debug", p.debug); p.memMib = i.getIntExtra("mem", (int) p.memMib);
@@ -126,6 +128,8 @@ public class Main extends Activity {
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
             else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
             else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
+            else if (p.bridgeWriteMax != 0 && p.bridgeWriteMax != 4096) p.configError = "bridgewrite must be 0 or 4096";
+            else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
             else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
             else if (p.mode.equals("prepare") && ArtifactProfile.requested(p.shenv) < 0) p.configError = "shenv " + ArtifactProfile.KEY + " must be 0 or 1, once (the only shenv key a preparation honours, as the explicit ARTIFACT_PROFILE control line)";
@@ -587,7 +591,8 @@ public class Main extends Activity {
                             if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority);
                             boolean profile = plan.bridgeProfile || ("," + plan.shenv + ",").contains(",SHIELDED_SOURCE_PROFILE=1,");
                             if (profile) say("BRIDGE profile: call CPU and wall timing enabled");
-                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, profile, st);
+                            say("BRIDGE send cap: guest=" + plan.bridgeWriteMax + " tcp=0");
+                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, profile, plan.bridgeWriteMax, st);
                         }
                     } finally {
                         synchronized (sBridgeLock) { sBridgeCancel = null; }   /* clear before closing: no signal can touch a closing fd */

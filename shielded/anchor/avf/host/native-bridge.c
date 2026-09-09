@@ -58,7 +58,7 @@ static void prof_report(uint64_t *v) {
 #endif
 }
 
-typedef struct { uint8_t *buf; size_t cap, head, used; int src_eof, dst_shut; } bridge_dir;
+typedef struct { uint8_t *buf; size_t cap, head, used, write_max; int src_eof, dst_shut; } bridge_dir;
 
 static int set_nonblock(int fd, int *saved) {
     const int fl = fcntl(fd, F_GETFL);
@@ -87,7 +87,8 @@ static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *
 /* write d's pending bytes to fd; partial writes advance head; 0 = fine, -errno = the sink is gone */
 static int pump_write(int fd, bridge_dir *d, short revents, anchor_bridge_stats *s, uint64_t *delivered) {
     if (d->used == 0 || d->dst_shut || !(revents & (POLLOUT | POLLHUP | POLLERR))) return 0;
-    const size_t span = d->used < d->cap - d->head ? d->used : d->cap - d->head;
+    size_t span = d->used < d->cap - d->head ? d->used : d->cap - d->head;
+    if (d->write_max && span > d->write_max) span = d->write_max;
     for (;;) {
         const ssize_t n = send(fd, d->buf + d->head, span, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (n > 0) {
@@ -109,11 +110,14 @@ int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes
     return anchor_bridge_run_profile(a,b,cancel_fd,idle_ms,buf_bytes,st,0);
 }
 int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile) {
+    return anchor_bridge_run_profile_limit(a,b,cancel_fd,idle_ms,buf_bytes,st,profile,0);
+}
+int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max) {
     uint64_t pv[23]={0}, pt=0, pc=0, pu=0, pd=0, user0=0, system0=0;
     int usage_ok=0;
     if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); usage_ok=prof_usage(&user0,&system0); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
-    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
+    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
     if (buf_bytes < 4096) buf_bytes = 1u << 20;
     bridge_dir ab, ba; memset(&ab, 0, sizeof ab); memset(&ba, 0, sizeof ba);
@@ -121,6 +125,10 @@ int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t b
     int fa = -1, fb = -1, rc;
     if (!ab.buf || !ba.buf) { rc = -ENOMEM; goto out; }
     ab.cap = ba.cap = buf_bytes;
+    /* The phone's virtio-vsock send path kmallocs a contiguous packet buffer.
+     * An opt-in 4 KiB cap tests the measured direct-compaction cost without
+     * changing TCP packet sizing, stream contents, or queue capacity. */
+    ba.write_max = a_write_max;
     if ((rc = set_nonblock(a, &fa)) != 0 || (rc = set_nonblock(b, &fb)) != 0) goto out;
     int64_t deadline = idle_ms > 0 ? mono_ms() + idle_ms : 0;
     for (;;) {
@@ -185,9 +193,9 @@ out:
 
 #ifdef __ANDROID__
 #include <jni.h>
-JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jlongArray stats) {
+JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jint guestWriteMax, jlongArray stats) {
     (void)klass;
-    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile(a, b, cancel, idleMs, 0, &s, profile);
+    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile_limit(a, b, cancel, idleMs, 0, &s, profile, (size_t)guestWriteMax);
     if (stats && (*env)->GetArrayLength(env, stats) >= 6) {
         jlong v[6] = { (jlong)s.a_to_b, (jlong)s.b_to_a, (jlong)s.reads, (jlong)s.writes, (jlong)s.polls, (jlong)s.max_chunk };
         (*env)->SetLongArrayRegion(env, stats, 0, 6, v);
