@@ -40,10 +40,19 @@ static void *worker(void *opaque) {
     }
     return NULL;
 }
+static int start_checked(sh_link *l,int expected_rc) {
+    int rc=sh_link_start(l);
+    if(rc!=expected_rc)fprintf(stderr,"weight-reader start: got %d expected %d: %s\n",rc,expected_rc,sh_link_last_error(l));
+    assert(rc==expected_rc);return rc;
+}
 int main(void) {
     signal(SIGPIPE,SIG_IGN);setenv("SHIELDED_NO_SIMD","1",1);setenv("SHIELDED_PAD_CHECK","1",1);setenv("SHIELDED_PREP_THREADS","1",1);
     for(size_t i=0;i<sizeof expected;i++)expected[i]=(int8_t)(i%31-15);
+    /* A dealt start now binds delivered shipments before upload. This upload-only
+     * fixture needs a real empty bank, so it exercises that gate without pads. */
+    char bank[]="/tmp/shielded-weight-reader-bank-XXXXXX";assert(mkdtemp(bank));
     int err; sh_link *l=sh_link_open("127.0.0.1",1,true,&err);assert(l && !err);
+    snprintf(l->pad_dir,sizeof l->pad_dir,"%s",bank);
     int8_t *original=malloc(sizeof expected);assert(original);memcpy(original,expected,sizeof expected);
     assert(sh_link_add_weight(l,"cached.weight",original,K,N,M,-1)==0);
     reader_state rs={0,0};assert(sh_link_set_weight_reader(l,0,reader,&rs)==SH_ERR_RANGE); // not dealt
@@ -62,18 +71,18 @@ int main(void) {
     assert(bind(listener,(void*)&a,sizeof a)==0 && listen(listener,3)==0);socklen_t al=sizeof a;assert(getsockname(listener,(void*)&a,&al)==0);
     l->port=ntohs(a.sin_port);l->vsock_port=0;
     worker_state ws={listener,0,5,0};pthread_t th;assert(pthread_create(&th,NULL,worker,&ws)==0);
-    assert(sh_link_start(l)==SH_ERR_VIOLATION);assert(sh_link_start(l)==SH_ERR_VIOLATION); // same bytes on reconnect
-    rs.fail=1;assert(sh_link_start(l)==SH_ERR_VERIFY);rs.fail=0;
+    start_checked(l,SH_ERR_VIOLATION);start_checked(l,SH_ERR_VIOLATION); // same bytes on reconnect
+    rs.fail=1;start_checked(l,SH_ERR_VERIFY);rs.fail=0;
     assert(ws.uploads==4 && ws.bytes==2*sizeof expected);   /* default: 1 MiB chunks, serial: 2 per start */
     /* pipelined upload (SHIELDED_UPLOAD_PREFETCH=<MiB>): the next chunk is read + authenticated on a helper
      * thread while the current one is in flight. 1 MiB chunks here so the 1.04 MiB weight takes two. */
     setenv("SHIELDED_UPLOAD_PREFETCH","1",1);
-    rs.calls=0;assert(sh_link_start(l)==SH_ERR_VIOLATION);assert(rs.calls==2 && ws.uploads==6 && ws.bytes==3*sizeof expected);   // same bytes, both chunks
-    rs.calls=0;rs.fail_at=2;assert(sh_link_start(l)==SH_ERR_VERIFY);rs.fail_at=0;   // the prefetched second chunk fails its read: joined, refused, never sent
+    rs.calls=0;start_checked(l,SH_ERR_VIOLATION);assert(rs.calls==2 && ws.uploads==6 && ws.bytes==3*sizeof expected);   // same bytes, both chunks
+    rs.calls=0;rs.fail_at=2;start_checked(l,SH_ERR_VERIFY);rs.fail_at=0;   // the prefetched second chunk fails its read: joined, refused, never sent
     assert(rs.calls==2 && ws.uploads==7 && ws.bytes==3*sizeof expected+(1u<<20));
     rs.calls=0;int rc=sh_link_start(l);   // turn 5: the worker closes after the first chunk; the in-flight prefetch is joined, the error is the pipe's
     assert(rc!=SH_OK && rc!=SH_ERR_VERIFY && rs.calls==2 && ws.uploads==8);
     unsetenv("SHIELDED_UPLOAD_PREFETCH");sh_link_close(l);
-    assert(pthread_join(th,NULL)==0);close(listener);
+    assert(pthread_join(th,NULL)==0);close(listener);assert(rmdir(bank)==0);
     free(out);puts("weight-reader: released source, exact fallback, Freivalds, upload/reconnect, failures, pipelined upload (+read failure, worker gone) passed");
 }
