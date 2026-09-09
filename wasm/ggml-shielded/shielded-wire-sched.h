@@ -10,7 +10,7 @@
 
 typedef struct {
     uint64_t before, after, cpu_before, cpu_after, runq;
-    long voluntary, involuntary;
+    long voluntary, involuntary, minor_faults, major_faults;
     int sched_error, usage_error;
 } sh_ws_stamp;
 typedef struct {
@@ -62,7 +62,10 @@ static sh_ws_stamp sh_ws_now(int profile) {
     }
     struct rusage u;
     if (getrusage(RUSAGE_THREAD,&u)) s.usage_error=errno;
-    else { s.voluntary=u.ru_nvcsw;s.involuntary=u.ru_nivcsw; }
+    else {
+        s.voluntary=u.ru_nvcsw;s.involuntary=u.ru_nivcsw;
+        s.minor_faults=u.ru_minflt;s.major_faults=u.ru_majflt;
+    }
     s.cpu_after=sh_sp_ns(CLOCK_THREAD_CPUTIME_ID);s.after=sh_sp_ns(CLOCK_MONOTONIC);
     errno=saved;return s;
 }
@@ -74,6 +77,13 @@ static void sh_ws_end(sh_ws_stamp start,const char *tag,uint64_t call) {
     sh_ws_row *r=&sh_ws_rows[n];r->start=start;r->end=end;r->tag=tag;r->call=call;
     r->tid=(unsigned)syscall(SYS_gettid);
     __atomic_store_n(&r->ready,1u,__ATOMIC_RELEASE);
+}
+static int sh_ws_fault_delta(const sh_ws_stamp *a,const sh_ws_stamp *b,long *minor,long *major) {
+    *minor=*major=0;
+    if(a->usage_error || b->usage_error)return a->usage_error?a->usage_error:b->usage_error;
+    if(a->minor_faults<0 || a->major_faults<0 || b->minor_faults<a->minor_faults || b->major_faults<a->major_faults)return ERANGE;
+    *minor=b->minor_faults-a->minor_faults;*major=b->major_faults-a->major_faults;
+    return 0;
 }
 static void sh_ws_dump(void) {
     if (!sh_ws_enabled()) return;
@@ -90,6 +100,8 @@ static void sh_ws_dump(void) {
             (unsigned long long)(b->before-a->after),(unsigned long long)(b->cpu_before-a->cpu_after),
             (unsigned long long)(se?0:b->runq-a->runq),(unsigned long long)(a->after-a->before),
             (unsigned long long)(b->after-b->before),ue?0:b->voluntary-a->voluntary,ue?0:b->involuntary-a->involuntary,se,ue);
+        long minor,major;int fe=sh_ws_fault_delta(a,b,&minor,&major);
+        fprintf(stderr,"WF %s %u %llu %ld %ld %d\n",r->tag,r->tid,(unsigned long long)r->call,minor,major,fe);
         ++sh_ws_dumped;
     }
     fprintf(stderr,"WS_COUNT recorded=%u dumped=%u dropped=%u\n",cap,sh_ws_dumped,n-cap);
