@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <vector>
 #include <android/log.h>
+#include "anchor_striped_read.h"
 #include "anchor_placement.h"
 
 static int g_ctl = -1;
@@ -270,12 +271,13 @@ static void cache_stats_line(const char *when) {
  * those bytes against the table before anything encodes or copies them. The staged descriptor stays open
  * for the run. This is what keeps the 27B's offloaded 22 GiB out of the VM. */
 static int g_stream_fd = -1;
+static int g_source_read_threads = 0;                  /* ANCHOR_SOURCE_READ_THREADS: 0 = the serial pread below */
+static const uint64_t SOURCE_STRIPED_MIN_BYTES = (uint64_t)16 << 20;
 static int weight_read(void *, const char *name, uint32_t type, const int64_t ne[4], void *bytes, size_t nbytes) {
     const anchor_gguf_tensor *e = table_find(name);
     if (!e || type != e->type || nbytes != e->size) return -1;
     for (int i = 0; i < 4; i++) if ((uint64_t)ne[i] != e->ne[i]) return -1;
-    uint64_t got = 0; uint8_t *dst = (uint8_t *)bytes;
-    while (got < e->size) { ssize_t n = pread(g_stream_fd, dst + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) return -1; got += (uint64_t)n; }
+    if (anchor_striped_pread(g_stream_fd, g_table->data_start + e->offset, (uint8_t *)bytes, e->size, g_source_read_threads, SOURCE_STRIPED_MIN_BYTES) != 0) return -1;   /* all bytes or nothing; authenticated by the caller as before */
     posix_fadvise(g_stream_fd, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* the guest's cache must not swell with 22 GiB of sources */
     return 0;
 }
@@ -339,6 +341,16 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       g_log_info = li != 0; g_export_stderr = ex != 0; g_export_cap = cap;
       if (g_log_info) outf("ENGINE log: ggml INFO kept in engine.err (diagnostic)");
       if (g_export_stderr) outf("ENGINE log: engine.err will be exported as a %s (cap %llu bytes)", ANCHOR_STDERR_SCOPE, (unsigned long long)cap); }
+    /* ANCHOR_SOURCE_READ_THREADS=N (0 = off, default; 2..8): a large streamed source (>= 16 MiB) is read into its private
+     * destination by N threads over disjoint 4 MiB stripes, then joined, before the same authentication as today
+     * (anchor_striped_read.h; serial fallback only after every started thread has joined). A startup lever for the 27B's
+     * 26 GB of per-session source reads; it changes nothing about what is trusted, and 1 is refused as meaningless. */
+    if (const char *e = getenv("ANCHOR_SOURCE_READ_THREADS")) {
+        uint64_t value = 0;
+        if (!anchor_stderr_cap_parse(e, 0, 8, &value) || value == 1) { outf("ENGINE config: ANCHOR_SOURCE_READ_THREADS must be 0 or 2..8"); return 4; }
+        g_source_read_threads = (int)value;
+        if (g_source_read_threads) outf("ENGINE source read: %d concurrent 4 MiB stripes for sources >= 16 MiB", g_source_read_threads);
+    }
     int cpu_poll = -1;
     if (const char *e = getenv("ANCHOR_CPU_POLL")) {
         uint64_t value = 0;
@@ -603,10 +615,9 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
             continue;
         }
         tmp.resize((size_t)e->size);
-        uint64_t got = 0;
-        while (got < e->size) { ssize_t n = pread(src, tmp.data() + got, (size_t)(e->size - got), (off_t)(g_table->data_start + e->offset + got)); if (n < 0 && errno == EINTR) continue; if (n <= 0) break; got += (uint64_t)n; }
+        const bool whole = anchor_striped_pread(src, g_table->data_start + e->offset, tmp.data(), e->size, g_source_read_threads, SOURCE_STRIPED_MIN_BYTES) == 0;
         posix_fadvise(src, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* read once, then out of the guest's cache */
-        if (got != e->size) { outf("ENGINE refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
+        if (!whole) { outf("ENGINE refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
         if (!digest_matches(e, tmp.data(), (size_t)e->size)) { outf("ENGINE refused: %s: bytes in the staged model differ from its digest at stage time", name.c_str()); ok = false; break; }
         ggml_backend_buffer_t buf = ggml_backend_buft_alloc_buffer(buft, ggml_backend_buft_get_alloc_size(buft, t));
         if (!buf) { outf("ENGINE refused: %s: no memory for %zu bytes", name.c_str(), (size_t)e->size); ok = false; break; }
