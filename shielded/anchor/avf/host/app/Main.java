@@ -415,10 +415,11 @@ public class Main extends Activity {
                 if (pre == null) throw new IllegalStateException("PREPARE preamble refused (shenv " + ArtifactProfile.KEY + " 0|1 once, artifacts_deadline 1..600): nothing sent");   // already refused at plan parse; CONTROL error + the finally's cleanup if ever reached
                 cmd.append(pre);
             }
+            if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
-            if (!plan.mode.equals("prepare")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
-            if (!plan.mode.equals("prepare")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
             if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
