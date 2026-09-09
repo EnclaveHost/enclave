@@ -58,7 +58,8 @@ static void prof_report(uint64_t *v) {
 #endif
 }
 
-typedef struct { uint8_t *buf; size_t cap, head, used, write_max; int src_eof, dst_shut; } bridge_dir;
+#include "native-bridge-io.h"
+typedef struct { uint8_t *buf; size_t cap, head, used, write_max; int src_eof, dst_shut; anchor_io_trace *trace; unsigned read_kind, write_kind; } bridge_dir;
 
 static int set_nonblock(int fd, int *saved) {
     const int fl = fcntl(fd, F_GETFL);
@@ -76,7 +77,9 @@ static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *
     const size_t tail = (d->head + d->used) % d->cap;
     const size_t room = d->cap - d->used < d->cap - tail ? d->cap - d->used : d->cap - tail;
     for (;;) {
+        const uint64_t t0=d->trace?prof_ns(CLOCK_MONOTONIC):0;
         const ssize_t n = read(fd, d->buf + tail, room);
+        if (d->trace) { int error=errno;anchor_io_record(d->trace,d->read_kind,t0,n<0?-error:n);errno=error; }
         if (n > 0) { d->used += (size_t)n; s->reads++; if ((uint64_t)n > s->max_chunk) s->max_chunk = (uint64_t)n; return 0; }
         if (n == 0) { d->src_eof = 1; return 0; }
         if (errno == EINTR) return 0;   /* outer loop checks cancel and the idle deadline */
@@ -90,7 +93,9 @@ static int pump_write(int fd, bridge_dir *d, short revents, anchor_bridge_stats 
     size_t span = d->used < d->cap - d->head ? d->used : d->cap - d->head;
     if (d->write_max && span > d->write_max) span = d->write_max;
     for (;;) {
+        const uint64_t t0=d->trace?prof_ns(CLOCK_MONOTONIC):0;
         const ssize_t n = send(fd, d->buf + d->head, span, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (d->trace) { int error=errno;anchor_io_record(d->trace,d->write_kind,t0,n<0?-error:n);errno=error; }
         if (n > 0) {
             d->head = (d->head + (size_t)n) % d->cap; d->used -= (size_t)n; s->writes++; *delivered += (uint64_t)n;
             if (d->used == 0) d->head = 0;
@@ -113,12 +118,16 @@ int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t b
     return anchor_bridge_run_profile_limit(a,b,cancel_fd,idle_ms,buf_bytes,st,profile,0);
 }
 int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max) {
+    return anchor_bridge_run_profile_trace(a,b,cancel_fd,idle_ms,buf_bytes,st,profile,a_write_max,-1);
+}
+int anchor_bridge_run_profile_trace(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd) {
     uint64_t pv[23]={0}, pt=0, pc=0, pu=0, pd=0, user0=0, system0=0;
     int usage_ok=0;
     if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); usage_ok=prof_usage(&user0,&system0); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
     if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
+    anchor_io_trace trace;anchor_io_init(&trace,trace_fd);
     if (buf_bytes < 4096) buf_bytes = 1u << 20;
     bridge_dir ab, ba; memset(&ab, 0, sizeof ab); memset(&ba, 0, sizeof ba);
     ab.buf = (uint8_t *)malloc(buf_bytes); ba.buf = (uint8_t *)malloc(buf_bytes);
@@ -129,6 +138,7 @@ int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, si
      * An opt-in 4 KiB cap tests the measured direct-compaction cost without
      * changing TCP packet sizing, stream contents, or queue capacity. */
     ba.write_max = a_write_max;
+    if (trace.events) { ab.trace=ba.trace=&trace;ab.read_kind=1;ab.write_kind=3;ba.read_kind=2;ba.write_kind=4; }
     if ((rc = set_nonblock(a, &fa)) != 0 || (rc = set_nonblock(b, &fb)) != 0) goto out;
     int64_t deadline = idle_ms > 0 ? mono_ms() + idle_ms : 0;
     for (;;) {
@@ -187,18 +197,24 @@ out:
     }
     restore_flags(a, fa); restore_flags(b, fb);
     free(ab.buf); free(ba.buf);
+    anchor_io_finish(&trace,rc);
+    s.trace_records=trace.header.count;s.trace_dropped=trace.header.dropped;s.trace_bytes=trace.file_bytes;s.trace_status=-trace.error;
     s.status = rc; if (st) *st = s;
     return rc;
 }
 
 #ifdef __ANDROID__
 #include <jni.h>
-JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jint guestWriteMax, jlongArray stats) {
+JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jint guestWriteMax, jint traceFd, jlongArray stats) {
     (void)klass;
-    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile_limit(a, b, cancel, idleMs, 0, &s, profile, (size_t)guestWriteMax);
+    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile_trace(a, b, cancel, idleMs, 0, &s, profile, (size_t)guestWriteMax, traceFd);
     if (stats && (*env)->GetArrayLength(env, stats) >= 6) {
         jlong v[6] = { (jlong)s.a_to_b, (jlong)s.b_to_a, (jlong)s.reads, (jlong)s.writes, (jlong)s.polls, (jlong)s.max_chunk };
         (*env)->SetLongArrayRegion(env, stats, 0, 6, v);
+        if ((*env)->GetArrayLength(env,stats)>=10) {
+            jlong more[4]={(jlong)s.trace_records,(jlong)s.trace_dropped,(jlong)s.trace_bytes,(jlong)s.trace_status};
+            (*env)->SetLongArrayRegion(env,stats,6,4,more);
+        }
     }
     return rc;
 }

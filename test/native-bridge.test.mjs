@@ -74,3 +74,17 @@ test('native bridge caps only VM-bound sends while preserving both streams and c
   assert.match(out,/native-bridge: backpressure, partial I\/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed/);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+test('native bridge IO metadata preserves real stream bytes, tracks exact offsets and exposes bounded truncation',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'native-bridge-io-'));
+ try {
+  for (const cap of [131072,16]) {
+   const bin=join(dir,`test-${cap}`);
+   execFileSync('cc',[...flags,`-DANCHOR_IO_MAX=${cap}`,'-I',host,join(host,'native-bridge-test.c'),'-o',bin],{encoding:'utf8',timeout:60_000,env});
+   const out=execFileSync(bin,[],{encoding:'utf8',timeout:10_000,env:{...env,BRIDGE_TEST_N:'4194304',BRIDGE_TEST_TRACE:'1'}});
+   assert.match(out,/IO trace: exact offsets and transfer counters, bounded records, dropped=\d+ PASS/);
+   if(cap===131072) assert.match(out,/dropped=0 PASS/);
+   assert.match(out,/native-bridge: backpressure, partial I\/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed/);
+  }
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});
