@@ -49,9 +49,23 @@ __attribute__((weak)) void randombytes(unsigned char *p, unsigned long long n) {
 }
 
 /* ---- r derivation ------------------------------------------------------ */
+#if defined(__aarch64__)
+#include "shielded-pad-r4.h"
+static pthread_once_t pad_r4_once = PTHREAD_ONCE_INIT;
+static int pad_r4_enabled;
+static void pad_r4_init(void) {
+    const char *v = getenv("SHIELDED_PAD_R4");
+    pad_r4_enabled = v && strcmp(v, "1") == 0;
+    if (pad_r4_enabled) fprintf(stderr, "shielded-pads: sampler=neon4 exact-stream\n");
+}
+#endif
 void sh_pad_r(const uint8_t seed[32], uint32_t group, uint64_t index, int64_t K, int32_t *r_out) {
     if (!seed || !r_out || group >= SH_PADS_GROUP_LIMIT || index >= SH_PADS_INDEX_LIMIT ||
         K <= 0 || K > SH_PADS_K_LIMIT) abort();
+#if defined(__aarch64__)
+    pthread_once(&pad_r4_once, pad_r4_init);
+    if (pad_r4_enabled) { sh_pad_r_four_blocks(seed, group, index, K, r_out); return; }
+#endif
     uint32_t key[8];
     for (int i = 0; i < 8; i++)
         key[i] = (uint32_t)seed[4 * i] | ((uint32_t)seed[4 * i + 1] << 8) |
