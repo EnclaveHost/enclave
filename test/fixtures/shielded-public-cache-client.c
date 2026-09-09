@@ -77,6 +77,14 @@ int main(int argc,char **argv) {
         assert(s.uploads==((turn<=5 || turn==10 || turn==11)?2:0));
         if(turn==6 || turn==7 || turn==8)assert(rs.calls==0);
     }
+    for(int turn=0;turn<7;turn++) {
+        setenv("SHIELDED_PUBLIC_WEIGHT_CACHE","1",1); rs.calls=0; rs.fail=1;
+        peer s={listener,turn,0,0,0}; pthread_t th; assert(pthread_create(&th,NULL,cache_peer,&s)==0);
+        const int rc=sh_link_start(l); sh_pipe_close(l->pipe); l->pipe=NULL;
+        assert(pthread_join(th,NULL)==0);
+        assert(rc==(turn==6 ? SH_ERR_VIOLATION : SH_ERR_VERIFY));
+        assert(s.uploads==0 && s.admits==0 && rs.calls==(turn==6 ? 0 : 1));
+    }
     close(listener);sh_link_close(l);
     assert(rmdir(bank)==0);
     puts("public-cache-client: legacy/default fallback, authenticated hash, hits/misses, no warm reads and malformed reply refusal PASS");
