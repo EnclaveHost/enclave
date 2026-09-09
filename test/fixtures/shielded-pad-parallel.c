@@ -93,7 +93,9 @@ static void one_run(const int8_t *w, int64_t K, int64_t N, const int32_t *s,
     sh_pad_par_test_nt = -1;
     sh_pad_par_test_create_calls = sh_pad_par_test_created = sh_pad_par_test_inline_jobs = 0;
 
-    sh_pad_check_prepare_dispatch(w, K, N, s, st, tiled, threads);
+    sh_pad_par_stats ps;
+    memset(&ps, 0xA5, sizeof ps);   /* poisoned: every reported field must be written */
+    sh_pad_check_prepare_dispatch(w, K, N, s, st, tiled, threads, &ps);
 
     sh_pad_par_test_fail_mask = 0u;
     sh_pad_par_test_ncpu = 0;
@@ -110,11 +112,11 @@ static void one_run(const int8_t *w, int64_t K, int64_t N, const int32_t *s,
 
     /* Dispatch bookkeeping: this is what an always-serial implementation fails. */
     const int want = expected_nt(threads, ncpu, K);
+    const int want_fail = want > 1 ? popcount_low(mask, want) : 0;
     char dw[512];   /* holds `what` plus the counter text */
     snprintf(dw, sizeof dw, "%s: effective nt %d == expected %d", what, sh_pad_par_test_nt, want);
     check(sh_pad_par_test_nt == want, dw);
     if (want > 1) {
-        const int want_fail = popcount_low(mask, want);
         snprintf(dw, sizeof dw, "%s: %d create attempts == nt %d", what, sh_pad_par_test_create_calls, want);
         check(sh_pad_par_test_create_calls == want, dw);
         snprintf(dw, sizeof dw, "%s: created %d + inline %d == nt %d",
@@ -126,6 +128,86 @@ static void one_run(const int8_t *w, int64_t K, int64_t N, const int32_t *s,
         snprintf(dw, sizeof dw, "%s: serial path creates no thread", what);
         check(sh_pad_par_test_create_calls == 0, dw);
     }
+
+    /* The REPORTED diagnostic must agree with the injected hooks, field by
+     * field. This is what proves the profile line describes what really ran and
+     * is not an echo of the requested limit. */
+    const long want_ncpu = ncpu ? ncpu : sysconf(_SC_NPROCESSORS_ONLN);
+    snprintf(dw, sizeof dw, "%s: stats.requested %d == %d", what, ps.requested, threads);
+    check(ps.requested == threads, dw);
+    snprintf(dw, sizeof dw, "%s: stats.raw_ncpu %ld == injected %ld", what, ps.raw_ncpu, want_ncpu);
+    check(ps.raw_ncpu == want_ncpu, dw);
+    snprintf(dw, sizeof dw, "%s: stats.ncpu_unknown %d (raw %ld)", what, ps.ncpu_unknown, ps.raw_ncpu);
+    check(ps.ncpu_unknown == (ps.raw_ncpu < 1), dw);
+    snprintf(dw, sizeof dw, "%s: stats.effective_jobs %d == %d", what, ps.effective_jobs, want);
+    check(ps.effective_jobs == want, dw);
+    snprintf(dw, sizeof dw, "%s: stats.create_attempts %d == %d", what, ps.create_attempts, want > 1 ? want : 0);
+    check(ps.create_attempts == (want > 1 ? want : 0), dw);
+    snprintf(dw, sizeof dw, "%s: stats.created %d == %d", what, ps.created, want > 1 ? want - want_fail : 0);
+    check(ps.created == (want > 1 ? want - want_fail : 0), dw);
+    snprintf(dw, sizeof dw, "%s: stats.inline_jobs %d == %d", what, ps.inline_jobs, want > 1 ? want_fail : 1);
+    check(ps.inline_jobs == (want > 1 ? want_fail : 1), dw);
+    snprintf(dw, sizeof dw, "%s: stats.created+inline %d == jobs %d", what, ps.created + ps.inline_jobs, want);
+    check(ps.created + ps.inline_jobs == want, dw);
+    snprintf(dw, sizeof dw, "%s: stats dimensions K/N/tiles", what);
+    check(ps.K == K && ps.N == N && ps.tiles == K / SH_PAD_PAR_TILE + (K % SH_PAD_PAR_TILE != 0), dw);
+    /* The reported counts must agree with the independent hook counters too. */
+    snprintf(dw, sizeof dw, "%s: stats agrees with hook counters", what);
+    check(ps.effective_jobs == sh_pad_par_test_nt &&
+          ps.create_attempts == sh_pad_par_test_create_calls &&
+          ps.created == sh_pad_par_test_created &&
+          ps.inline_jobs == (want > 1 ? sh_pad_par_test_inline_jobs : 1), dw);
+}
+
+/* The serial limit-1 case must report jobs=1, created=0, inline=1 - the shape a
+ * reader needs in order to tell "ran serially" apart from "did not report". */
+static void test_serial_stats_shape(void) {
+    const int64_t K = 512, N = 5;
+    int8_t *w = (int8_t *)calloc((size_t)(K * N), 1);
+    int32_t *s = (int32_t *)calloc((size_t)N, sizeof *s);
+    int32_t *st = (int32_t *)calloc((size_t)K, sizeof *st);
+    if (!w || !s || !st) { failures++; printf("FAIL serial stats: out of memory\n"); goto done; }
+    for (int64_t j = 0; j < N; j++) s[j] = 1;
+    for (int u = 0; u < 2; u++) {                 /* real sysconf, then UNKNOWN */
+        sh_pad_par_stats ps;
+        memset(&ps, 0xA5, sizeof ps);
+        sh_pad_par_test_ncpu = u ? -1 : 0;
+        sh_pad_check_prepare_dispatch(w, K, N, s, st, 1, 1, &ps);
+        sh_pad_par_test_ncpu = 0;
+        check(ps.effective_jobs == 1 && ps.create_attempts == 0 && ps.created == 0 && ps.inline_jobs == 1,
+              "serial limit 1 reports jobs=1 created=0 inline=1");
+        check(ps.ncpu_unknown == (u ? 1 : 0), "serial limit 1 reports UNKNOWN cpu as unknown, not zero");
+    }
+    /* sh_pad_par_stats_serial is the path pad_check_prepare uses when it never
+     * reaches the dispatch at all; it must report the same shape. */
+    sh_pad_par_stats sp;
+    memset(&sp, 0xA5, sizeof sp);
+    sh_pad_par_test_ncpu = -1;
+    sh_pad_par_stats_serial(&sp, 1, K, N);
+    sh_pad_par_test_ncpu = 0;
+    check(sp.requested == 1 && sp.effective_jobs == 1 && sp.create_attempts == 0 &&
+          sp.created == 0 && sp.inline_jobs == 1 && sp.ncpu_unknown == 1 && sp.raw_ncpu == -1,
+          "stats_serial reports jobs=1 created=0 inline=1 with UNKNOWN cpu");
+    printf("ok   serial limit-1 diagnostic shape\n");
+done:
+    free(w); free(s); free(st);
+}
+
+/* The diagnostic knob is strict: absent is off, only "0"/"1" are accepted, and
+ * anything else must be rejected (pad_check_prepare turns that into SH_ERR_PROTO)
+ * rather than being read as "profiling was off". */
+static void test_profile_flag_parsing(void) {
+    int on = 9;
+    check(sh_pad_par_parse_flag(NULL, &on) == SH_PAD_PAR_OK && on == 0, "profile flag absent => off");
+    check(sh_pad_par_parse_flag("0", &on) == SH_PAD_PAR_OK && on == 0, "profile flag 0 => off");
+    check(sh_pad_par_parse_flag("1", &on) == SH_PAD_PAR_OK && on == 1, "profile flag 1 => on");
+    static const char *bad[] = { "", "2", "01", "10", "1 ", " 1", "on", "true", "yes", "-1", "1\n" };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        char what[64]; snprintf(what, sizeof what, "profile flag rejected: \"%s\"", bad[i]);
+        on = 9;
+        check(sh_pad_par_parse_flag(bad[i], &on) == SH_PAD_PAR_BAD_KNOB && on == 0, what);
+    }
+    printf("ok   profile flag parsing (strict 0/1)\n");
 }
 
 /* ---------------------------------------------------------------- shapes */
@@ -269,7 +351,7 @@ static void test_join_failure_aborts(void) {
         for (int64_t j = 0; j < N; j++) s[j] = 1;
         sh_pad_par_test_join_fails = 1;
         sh_pad_par_test_ncpu = 8;
-        sh_pad_check_prepare_dispatch(w, K, N, s, st, 1, 4);
+        sh_pad_check_prepare_dispatch(w, K, N, s, st, 1, 4, NULL);   /* NULL stats is legal */
         _exit(71);                      /* returned instead of aborting => failure */
     }
     if (pid < 0) { failures++; printf("FAIL join-failure test: fork failed\n"); return; }
@@ -283,7 +365,9 @@ static void test_join_failure_aborts(void) {
 
 int main(void) {
     test_knob_parsing();
+    test_profile_flag_parsing();
     test_partition();
+    test_serial_stats_shape();
     test_cartesian_small();
 
     /* Ragged K and tile-count boundaries, small N. */
