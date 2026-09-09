@@ -95,6 +95,9 @@ public class Main extends Activity {
         int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
         int padsDirect = 0;                  // --ei pads_direct 1: stream a NEW sealed shipment from its HTTP body straight into the PADS receiver (no Android file); 0 = cached-file path
         int padsDirectFill = 0;              // --ei pads_direct_fill 1: gather HTTP fragments into bounded VM body writes; requires pads_direct
+        int padCredit = 0;                   // --ei padcredit 8192: EXPERIMENT, engine mode only. The VM's PAD LISTENER receive credit window, set and
+                                             // acknowledged (PADWINDOW) before any pads-port sender starts. 0 = default, no command sent, nothing changed.
+                                             // Everything that uses the pads port is affected: shipments, prefix assets and artifacts.
         String modelCache = "";              // --es model_cache only: the VM reuses a retained model or refuses ('N', nothing streamed, store untouched); "" = today's re-receive on a miss
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
@@ -129,6 +132,7 @@ public class Main extends Activity {
             p.artifactsCoalesce = i.getIntExtra("artifacts_coalesce", 0);
             p.padsDirect = i.getIntExtra("pads_direct", 0);
             p.padsDirectFill = i.getIntExtra("pads_direct_fill", 0);
+            p.padCredit = i.getIntExtra("padcredit", 0);
             if (i.getStringExtra("model_cache") != null) p.modelCache = i.getStringExtra("model_cache");
             if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv");   // read BEFORE the validation chain: prepare mode judges its ANCHOR_ARTIFACT_PROFILE request here
             if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
@@ -138,6 +142,8 @@ public class Main extends Activity {
             else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
             else if (p.padsDirectFill != 0 && p.padsDirectFill != 1) p.configError = "pads_direct_fill must be 0 or 1";
             else if (p.padsDirectFill != 0 && p.padsDirect == 0) p.configError = "pads_direct_fill needs pads_direct";
+            else if (p.padCredit != 0 && p.padCredit != 8192) p.configError = "padcredit must be 0 or 8192";
+            else if (p.padCredit != 0 && !p.mode.equals("engine")) p.configError = "padcredit is an engine-mode experiment only (mode " + p.mode + " refused rather than silently ignored)";
             else if (p.bridgeWriteMax != 0 && p.bridgeWriteMax != 4096 && p.bridgeWriteMax != 8192) p.configError = "bridgewrite must be 0, 4096 or 8192";
             else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
             else if (p.bridgeBatch != 0 && p.bridgeBatch != 65536) p.configError = "bridgebatch must be 0 or 65536";
@@ -427,6 +433,18 @@ public class Main extends Activity {
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append(authFlag(plan)).append('\n');
                 startBurners(plan.burners);
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads" + (plan.mtp > 0 ? ", MTP draft k=" + plan.mtp : "") + (pads ? ", dealt pads from " + plan.pads : ""));
+                if (plan.padCredit != 0) {
+                    // The pad receive window must be in force before ANY connection to the pads port exists: the guest kernel
+                    // creates and initialises the accepted child on the incoming REQUEST, not at the VM's accept(). This is sent
+                    // and acknowledged here, ahead of the pads/prefix/artifact sender threads below and ahead of the buffered
+                    // ENGINE..RUN block, which is still written unchanged at its own point. Nothing before this line opens the
+                    // pads port: bootstrap and fetchPrefix use this control channel and HTTP only, and the model stage is 7779.
+                    // until() skips the ordinary diagnostics that may still be queued on the channel; the verdict is then exact.
+                    out.write(("PADWINDOW " + plan.padCredit + "\n").getBytes()); out.flush();
+                    String padAck = PadsClient.until(r, "PADWINDOW ");
+                    if (padAck == null || !padAck.equals("PADWINDOW ok listener=" + plan.padCredit))
+                        throw new IllegalStateException("PADWINDOW not acknowledged (" + padAck + "): the run is refused rather than measured at the default window");
+                }
                 if (pads) { final java.io.File bank = new java.io.File(plan.pads); final boolean direct = plan.padsDirect == 1; new Thread(() -> PadsClient.streamBank(padSession, vm, bank, direct), "vsock-pads").start(); if (direct) say("PADS direct: new shipments stream from HTTP into the VM without a phone file (one attempt per shipment, then the cached-file path)"); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
                 if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
@@ -452,6 +470,10 @@ public class Main extends Activity {
             int n = 0;
             while ((line = r.readLine()) != null) {
                 say("VSOCK " + line); n++;
+                // The experiment measures ONE window. A child that did not inherit it has already stopped the VM's pads
+                // receiver, so the run can only stall: end it here instead, through the finally below.
+                if (plan.padCredit != 0 && line.startsWith("PADWINDOW child REFUSED"))
+                    throw new IllegalStateException("the VM refused an accepted pads connection: " + line);
                 if (line.startsWith("PADWIN ")) PadsClient.onWindow(padSession, line, plan.name, out);   // the engine asks for a ledger window
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
