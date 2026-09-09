@@ -17,19 +17,39 @@
 #ifdef SH_PREFIX_TEST_IO
 static int io_mode, io_calls, mutation_fd = -1;
 ssize_t __real_pread(int, void *, size_t, off_t);
-ssize_t __wrap_pread(int fd, void *buf, size_t n, off_t off) {
+#ifdef __GLIBC__
+ssize_t __real___pread_chk(int, void *, size_t, off_t, size_t);
+#endif
+static ssize_t test_pread(int fd, void *buf, size_t n, off_t off, size_t capacity, int checked) {
     io_calls++;
     if (io_mode == 1 && io_calls == 1) { errno = EINTR; return -1; }
     if (io_mode == 2 && io_calls == 2) return 0;
     if (io_mode == 3) { errno = EIO; return -1; }
     if (n > 997) n = 997; // force actual short reads
-    const ssize_t r = __real_pread(fd, buf, n, off);
+    ssize_t r;
+#ifdef __GLIBC__
+    // Fortify level 3 uses dynamic allocation bounds and redirects this call.
+    // Retain the real libc bounds check while injecting the same I/O faults.
+    if (checked) r = __real___pread_chk(fd, buf, n, off, capacity);
+    else
+#else
+    (void)capacity; (void)checked;
+#endif
+        r = __real_pread(fd, buf, n, off);
     if (io_mode == 4 && io_calls == 1) {
         uint8_t byte = 1;
         assert(mutation_fd >= 0 && pwrite(mutation_fd, &byte, 1, 50000) == 1);
     }
     return r;
 }
+ssize_t __wrap_pread(int fd, void *buf, size_t n, off_t off) {
+    return test_pread(fd, buf, n, off, 0, 0);
+}
+#ifdef __GLIBC__
+ssize_t __wrap___pread_chk(int fd, void *buf, size_t n, off_t off, size_t capacity) {
+    return test_pread(fd, buf, n, off, capacity, 1);
+}
+#endif
 #endif
 
 int main(void) {
