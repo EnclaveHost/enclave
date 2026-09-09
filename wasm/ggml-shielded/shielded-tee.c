@@ -49,6 +49,9 @@ static const sh_simd simd_avx512_crt = SIMD_TABLE_REFILL(avx512,
 static const sh_simd simd_generic = SIMD_TABLE(generic, "generic");
 #if defined(__aarch64__)
 static const sh_simd simd_neon    = SIMD_TABLE(neon, "neon-sdot");
+#ifdef SH_HAVE_NEON_TUNED
+static const sh_simd simd_neon_tuned = SIMD_TABLE(neon_tuned, "neon-sdot-tuned");
+#endif
 #endif
 
 const sh_simd *sh_simd_generic(void) { return &simd_generic; }
@@ -167,11 +170,16 @@ const sh_simd *sh_simd_get(void) {
      * against the generic build exactly as AVX-512 is on x86. */
     bool want_neon = !(off && *off && strcmp(off, "0"));
     if (want_neon) want_neon = (getauxval(AT_HWCAP) & HWCAP_ASIMDDP) != 0;
-    if (want_neon && !simd_agree(&simd_neon, &simd_generic)) {
+    const sh_simd *fast = &simd_neon;
+#ifdef SH_HAVE_NEON_TUNED
+    const char *tuned = getenv("SHIELDED_ARM_TUNED");
+    if (tuned && !strcmp(tuned, "1")) fast = &simd_neon_tuned;
+#endif
+    if (want_neon && !simd_agree(fast, &simd_generic)) {
         fprintf(stderr, "[shielded] the NEON kernels disagree with the generic ones on this CPU; using generic\n");
         want_neon = false;
     }
-    chosen = want_neon ? &simd_neon : &simd_generic;
+    chosen = want_neon ? fast : &simd_generic;
     return chosen;
 #else
     bool want_avx512 = !(off && *off && strcmp(off, "0"));

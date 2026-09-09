@@ -47,7 +47,11 @@ static inline long sh_lrintf_nolibm(float v) {
 #define FN(name) sh_simd_avx512_##name
 #elif defined(SH_SIMD_NEON)
 #include <arm_neon.h>
+#ifdef SH_SIMD_NEON_TUNED
+#define FN(name) sh_simd_neon_tuned_##name
+#else
 #define FN(name) sh_simd_neon_##name
+#endif
 #else
 #define FN(name) sh_simd_generic_##name
 #endif
@@ -99,14 +103,23 @@ void FN(pad_planes)(const int32_t *r, size_t n, uint8_t *p0, uint8_t *p1, uint8_
  * outside Z_M can still wrap here and fail Freivalds, but arbitrary int64
  * inputs would violate the addition/quotient bounds. r is in [0,M). */
 void FN(mask_planes)(const int64_t *x, const int32_t *r, size_t n, int8_t *p0, int8_t *p1, int8_t *p2) {
+#if !defined(SH_SIMD_NEON) || !defined(SH_SIMD_NEON_TUNED)
     const double invM = 1.0 / (double)M_MOD;
+#endif
     for (size_t i = 0; i < n; i++) {
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+        /* M is a multiple of each Q, so the intermediate reduction modulo M
+         * is redundant. The caller guarantees |x| < 2^26 and 0 <= r < M:
+         * x+r fits int32 and lies inside modq's exact |v| < 2^28 domain. */
+        const int32_t w = (int32_t)x[i] + r[i];
+#else
         int64_t v = x[i] + r[i];
         int64_t t = (int64_t)((double)v * invM);
         v -= t * M_MOD;
         v += (v < 0) ? M_MOD : 0;
         v -= (v >= M_MOD) ? M_MOD : 0;
         const int32_t w = (int32_t)v;
+#endif
         int32_t a0 = modq(w, Q0, 1.0f / Q0), a1 = modq(w, Q1, 1.0f / Q1), a2 = modq(w, Q2, 1.0f / Q2);
         a0 -= (a0 > Q0 / 2) ? Q0 : 0;
         a1 -= (a1 > Q1 / 2) ? Q1 : 0;
@@ -181,6 +194,37 @@ int FN(encode_checked)(const float *src, size_t n, float scale, float limit, int
         const __m512i q = _mm512_cvtps_epi32(v);
         _mm512_storeu_si512((void *)(x + i), _mm512_cvtepi32_epi64(_mm512_castsi512_si256(q)));
         _mm512_storeu_si512((void *)(x + i + 8), _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(q, 1)));
+    }
+#elif defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+    /* The phone anchor's checked encode used scalar rounding instructions per activation. This follows the AVX-512
+     * path's shape on four lanes: one IEEE single multiply (identical to the scalar product: no add, so no
+     * contraction), the SAME acceptance test as the scalar loop expressed as its complement (|v| >= fast_limit
+     * or v is NaN -> that group takes the scalar loop below, which refuses exactly as before), and the same
+     * rounding the scalar loop uses (current FPCR mode via FRINTX+FCVTZS for libm builds; fixed nearest-even for
+     * SH_NO_LIBM) widened to int64. Values the vector path converts satisfy |v| < min(limit, 2^30), so the int32
+     * conversion cannot overflow. */
+    const float32x4_t sc = vdupq_n_f32(scale);
+    const float32x4_t fast_limit = vdupq_n_f32(limit < 0x1p30f ? limit : 0x1p30f);
+    for (; i + 4 <= n; i += 4) {
+        const float32x4_t v = vmulq_f32(vld1q_f32(src + i), sc);
+        const uint32x4_t big = vorrq_u32(vcgeq_f32(vabsq_f32(v), fast_limit), vmvnq_u32(vceqq_f32(v, v)));
+        if (__builtin_expect(vmaxvq_u32(big) != 0, 0)) {
+            for (int t = 0; t < 4; t++) {
+                const float value = src[i + t] * scale;
+                if (!(value > -limit && value < limit)) return 0;
+                x[i + t] = (int64_t)sh_lrintf(value);
+            }
+            continue;
+        }
+#ifdef SH_NO_LIBM
+        const int32x4_t q = vcvtnq_s32_f32(v);              /* the TA flavour: fixed nearest-even, exactly sh_lrintf_nolibm's FCVTNS */
+#else
+        /* the libm flavour: lrintf rounds in the CURRENT FPCR mode (clang lowers it to FRINTX + FCVTZS); FRINTX on the
+         * vector rounds each lane to an integral value in that same mode, and FCVTZS of an integral value is exact */
+        const int32x4_t q = vcvtq_s32_f32(vrndxq_f32(v));
+#endif
+        vst1q_s64(x + i, vmovl_s32(vget_low_s32(q)));
+        vst1q_s64(x + i + 2, vmovl_s32(vget_high_s32(q)));
     }
 #endif
     for (; i < n; i++) {
@@ -570,6 +614,39 @@ static inline int64_t fv_fold(int64_t total, int64_t acc) {
     return (total + acc) % SH_FV_P2;
 }
 
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+/* NEON has no int64 lane multiply, but every reference contract here keeps one operand inside int32 (|y| < 2^24
+ * balanced, |x| < 2^26 checked) and the other IS int32 (s < 2^20, st < 2^31), so the products come from SMULL/SMLAL
+ * (32x32 -> 64, two lanes per instruction) into int64 lanes; integer sums are exact and order-independent, the
+ * chunk bounds and the modulo folds stay exactly the reference's, so the results are bit-identical. A group of four
+ * int64 operands that does NOT round-trip through int32 (outside the proven range: a wrapped value that will fail
+ * the check anyway) takes the reference scalar statements for that group. */
+static inline int fv_narrow4(const int64_t *v, int32x2_t *lo, int32x2_t *hi) {
+    const int64x2_t a = vld1q_s64(v), b = vld1q_s64(v + 2);
+    const int32x2_t na = vmovn_s64(a), nb = vmovn_s64(b);
+    const uint64x2_t ok = vandq_u64(vceqq_s64(a, vmovl_s32(na)), vceqq_s64(b, vmovl_s32(nb)));
+    *lo = na; *hi = nb;
+    return vgetq_lane_u64(ok, 0) != 0 && vgetq_lane_u64(ok, 1) != 0;
+}
+/* a0 += sum y[j]*s0[j], a1 += sum y[j]*s1[j] over [k0,k1): vector on int32-fitting groups, reference statements otherwise */
+static inline void fv_dots2_range(const int64_t *y, const int32_t *s0, const int32_t *s1, int64_t k0, int64_t k1, int64_t *a0, int64_t *a1) {
+    int64x2_t acc0 = vdupq_n_s64(0), acc1 = vdupq_n_s64(0);
+    int64_t j = k0;
+    for (; j + 4 <= k1; j += 4) {
+        int32x2_t lo, hi;
+        if (__builtin_expect(!fv_narrow4(y + j, &lo, &hi), 0)) {
+            for (int t = 0; t < 4; t++) { const int64_t v = y[j + t]; *a0 += v * (int64_t)s0[j + t]; *a1 += v * (int64_t)s1[j + t]; }
+            continue;
+        }
+        const int32x4_t q0 = vld1q_s32(s0 + j), q1 = vld1q_s32(s1 + j);
+        acc0 = vmlal_s32(acc0, lo, vget_low_s32(q0)); acc0 = vmlal_s32(acc0, hi, vget_high_s32(q0));
+        acc1 = vmlal_s32(acc1, lo, vget_low_s32(q1)); acc1 = vmlal_s32(acc1, hi, vget_high_s32(q1));
+    }
+    for (; j < k1; j++) { const int64_t v = y[j]; *a0 += v * (int64_t)s0[j]; *a1 += v * (int64_t)s1[j]; }
+    *a0 += vaddvq_s64(acc0); *a1 += vaddvq_s64(acc1);
+}
+#endif
+
 void FN(fv_dots)(const int64_t *y, const int32_t *s, int reps, int64_t n, int64_t *out) {
     for (int r = 0; r < reps; r++) out[r] = 0;
     for (int64_t k0 = 0; k0 < n; k0 += 262144) {
@@ -577,11 +654,15 @@ void FN(fv_dots)(const int64_t *y, const int32_t *s, int reps, int64_t n, int64_
         if (reps == 2) {
             const int32_t *s0 = s, *s1 = s + n;
             int64_t a0 = 0, a1 = 0;
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+            fv_dots2_range(y, s0, s1, k0, k1, &a0, &a1);
+#else
             for (int64_t j = k0; j < k1; j++) {
                 const int64_t v = y[j];
                 a0 += v * (int64_t)s0[j];
                 a1 += v * (int64_t)s1[j];
             }
+#endif
             out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
         } else {
             for (int r = 0; r < reps; r++) {
@@ -601,11 +682,15 @@ void FN(fv_dots_x)(const int64_t *x, const int32_t *st, int reps, int64_t n, int
         if (reps == 2) {
             const int32_t *t0 = st, *t1 = st + n;
             int64_t a0 = 0, a1 = 0;
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+            fv_dots2_range(x, t0, t1, k0, k1, &a0, &a1);   /* |x| < 2^26 fits int32; st < 2^31: products < 2^57, 32 terms < 2^62 */
+#else
             for (int64_t k = k0; k < k1; k++) {
                 const int64_t v = x[k];
                 a0 += v * (int64_t)t0[k];
                 a1 += v * (int64_t)t1[k];
             }
+#endif
             out[0] = fv_fold(out[0], a0); out[1] = fv_fold(out[1], a1);
         } else {
             for (int r = 0; r < reps; r++) {
@@ -629,7 +714,24 @@ void FN(unmask_fv)(const int32_t *ym, const int32_t *u, const int32_t *s, int re
         if (reps == 2) {
             const int32_t *s0 = s, *s1 = s + n;
             int64_t a0 = 0, a1 = 0;
-            for (int64_t j = k0; j < k1; j++) {
+            int64_t j = k0;
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+            /* the two corrections as lane masks (exactly the scalar statements), v stays int32 for SMLAL */
+            {   const int32x4_t mneg = vdupq_n_s32(-(int32_t)(M_MOD / 2)), mpos = vdupq_n_s32((int32_t)(M_MOD / 2)), mm = vdupq_n_s32((int32_t)M_MOD);
+                int64x2_t acc0 = vdupq_n_s64(0), acc1 = vdupq_n_s64(0);
+                for (; j + 4 <= k1; j += 4) {
+                    int32x4_t v = vsubq_s32(vld1q_s32(ym + j), vld1q_s32(u + j));
+                    v = vaddq_s32(v, vandq_s32(vreinterpretq_s32_u32(vcleq_s32(v, mneg)), mm));
+                    v = vsubq_s32(v, vandq_s32(vreinterpretq_s32_u32(vcgtq_s32(v, mpos)), mm));
+                    vst1q_s64(y + j, vmovl_s32(vget_low_s32(v))); vst1q_s64(y + j + 2, vmovl_s32(vget_high_s32(v)));
+                    const int32x4_t q0 = vld1q_s32(s0 + j), q1 = vld1q_s32(s1 + j);
+                    acc0 = vmlal_s32(acc0, vget_low_s32(v), vget_low_s32(q0)); acc0 = vmlal_s32(acc0, vget_high_s32(v), vget_high_s32(q0));
+                    acc1 = vmlal_s32(acc1, vget_low_s32(v), vget_low_s32(q1)); acc1 = vmlal_s32(acc1, vget_high_s32(v), vget_high_s32(q1));
+                }
+                a0 += vaddvq_s64(acc0); a1 += vaddvq_s64(acc1);
+            }
+#endif
+            for (; j < k1; j++) {
                 int32_t v = ym[j] - u[j];
                 v += (v <= -(int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
                 v -= (v > (int32_t)(M_MOD / 2)) ? (int32_t)M_MOD : 0;
@@ -665,6 +767,28 @@ static inline int32_t ld24(const uint8_t *p) {
     const uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
     return (int32_t)(v << 8) >> 8;
 }
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+/* 8 packed values -> two int32x4 lanes. ONE de-interleaving vld3 reads EXACTLY the 24 bytes of those 8 values
+ * (no over-read: the caller needs no slack past its last value, unlike the AVX-512 loader above), and the sign
+ * extension is the same shift pair as ld24. */
+static inline void ld24x8(const uint8_t *p, int32x4_t *lo, int32x4_t *hi) {
+    const uint8x8x3_t b = vld3_u8(p);
+    const uint16x8_t w01 = vorrq_u16(vmovl_u8(b.val[0]), vshll_n_u8(b.val[1], 8));
+    const uint16x8_t w2 = vmovl_u8(b.val[2]);
+    const uint32x4_t l = vorrq_u32(vmovl_u16(vget_low_u16(w01)), vshll_n_u16(vget_low_u16(w2), 16));
+    const uint32x4_t h = vorrq_u32(vmovl_u16(vget_high_u16(w01)), vshll_n_u16(vget_high_u16(w2), 16));
+    *lo = vshrq_n_s32(vshlq_n_s32(vreinterpretq_s32_u32(l), 8), 8);
+    *hi = vshrq_n_s32(vshlq_n_s32(vreinterpretq_s32_u32(h), 8), 8);
+}
+/* balanced(ym - u) on 4 lanes: the two unmask corrections as lane masks, applied in the scalar order (the second
+ * compare sees the first correction); v stays int32 for SMLAL. */
+static inline int32x4_t balance4(int32x4_t v) {
+    const int32x4_t mneg = vdupq_n_s32(-(int32_t)(M_MOD / 2)), mpos = vdupq_n_s32((int32_t)(M_MOD / 2)), mm = vdupq_n_s32((int32_t)M_MOD);
+    v = vaddq_s32(v, vandq_s32(vreinterpretq_s32_u32(vcleq_s32(v, mneg)), mm));
+    v = vsubq_s32(v, vandq_s32(vreinterpretq_s32_u32(vcgtq_s32(v, mpos)), mm));
+    return v;
+}
+#endif
 
 #ifdef SH_SIMD_AVX512
 /* 16 packed values (48 bytes) -> 16 sign-extended int32 lanes. Reads 52
@@ -737,6 +861,26 @@ void FN(unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int 
             }
             a0 = _mm512_reduce_add_epi64(_mm512_add_epi64(c0l, c0h));
             a1 = _mm512_reduce_add_epi64(_mm512_add_epi64(c1l, c1h));
+#endif
+#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
+            /* |v| < 2^24 (balanced) times |s| < 2^20: 2^44 per product, from SMLAL (32x32 -> 64) into int64
+             * lanes; 8 values per step give each lane 4 products, so a lane sees 2^17 per chunk (< 2^61): exact
+             * integer sums, order-independent, and the chunk fold below is the reference's. Reads stop at the
+             * last full group of 8 (ld24x8 has no over-read); the scalar loop finishes the tail. */
+            {   int64x2_t acc0 = vdupq_n_s64(0), acc1 = vdupq_n_s64(0);
+                for (; j + 8 <= k1; j += 8) {
+                    int32x4_t v0, v1; ld24x8(ym + 3 * j, &v0, &v1);
+                    v0 = balance4(vsubq_s32(v0, vld1q_s32(u + j))); v1 = balance4(vsubq_s32(v1, vld1q_s32(u + j + 4)));
+                    vst1q_s64(y + j, vmovl_s32(vget_low_s32(v0))); vst1q_s64(y + j + 2, vmovl_s32(vget_high_s32(v0)));
+                    vst1q_s64(y + j + 4, vmovl_s32(vget_low_s32(v1))); vst1q_s64(y + j + 6, vmovl_s32(vget_high_s32(v1)));
+                    const int32x4_t p0 = vld1q_s32(s0 + j), p1 = vld1q_s32(s0 + j + 4), q0 = vld1q_s32(s1 + j), q1 = vld1q_s32(s1 + j + 4);
+                    acc0 = vmlal_s32(acc0, vget_low_s32(v0), vget_low_s32(p0)); acc0 = vmlal_s32(acc0, vget_high_s32(v0), vget_high_s32(p0));
+                    acc0 = vmlal_s32(acc0, vget_low_s32(v1), vget_low_s32(p1)); acc0 = vmlal_s32(acc0, vget_high_s32(v1), vget_high_s32(p1));
+                    acc1 = vmlal_s32(acc1, vget_low_s32(v0), vget_low_s32(q0)); acc1 = vmlal_s32(acc1, vget_high_s32(v0), vget_high_s32(q0));
+                    acc1 = vmlal_s32(acc1, vget_low_s32(v1), vget_low_s32(q1)); acc1 = vmlal_s32(acc1, vget_high_s32(v1), vget_high_s32(q1));
+                }
+                a0 += vaddvq_s64(acc0); a1 += vaddvq_s64(acc1);
+            }
 #endif
             for (; j < k1; j++) {
                 int32_t v = ld24(ym + 3 * j) - u[j];

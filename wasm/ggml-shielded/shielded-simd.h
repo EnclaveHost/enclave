@@ -89,6 +89,10 @@ SH_SIMD_DECL(generic)
 /* The third build, aarch64 only (-DSH_SIMD_NEON, suffix _neon): SDOT for the
  * refill inner product, the same C body as generic for everything else. */
 SH_SIMD_DECL(neon)
+#ifdef SH_HAVE_NEON_TUNED
+/* Optional experimental table, selected only by SHIELDED_ARM_TUNED=1. */
+SH_SIMD_DECL(neon_tuned)
+#endif
 #endif
 
 #ifdef __cplusplus

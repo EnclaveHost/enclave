@@ -111,16 +111,17 @@ case "$NAME" in
            CXX="${CLANG}++"; INC=(-I"$LSRC/include" -I"$LSRC/ggml/include" -I"$LSRC/ggml/src"); E="$OUT/engine-pvm"; mkdir -p "$E"
            PF=(-O2 -fPIC -march=armv8.2-a+dotprod -I"$GG" -I"$HERE/../harness")
            "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$E/simd-neon.o"
+           "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -DSH_SIMD_NEON_TUNED -c "$GG/shielded-simd.c" -o "$E/simd-neon-tuned.o"
            "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
            "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
            "$CLANG" "${PF[@]}" -c "$HERE/../harness/wire-fd.c" -o "$E/wire-fd.o"                       # shielded-wire.c + sh_pipe_open_fd + the hook
-           "$CLANG" "${PF[@]}" -Dsh_pipe_open=sh_pipe_open_hook -c "$GG/shielded-tee.c" -o "$E/tee.o"    # the trusted half dials through the hook
+           "$CLANG" "${PF[@]}" -DSH_HAVE_NEON_TUNED -Dsh_pipe_open=sh_pipe_open_hook -c "$GG/shielded-tee.c" -o "$E/tee.o"    # the trusted half dials through the hook
            "$CLANG" "${PF[@]}" -c "$GG/shielded-pads.c" -o "$E/pads.o"      # dealt pads (shielded/dealer/PLAN.md)
            "$CLANG" "${PF[@]}" -c "$GG/shielded-bank.c" -o "$E/bank.o"; "$CLANG" "${PF[@]}" -c "$GG/shielded-http.c" -o "$E/http.o"; "$CLANG" "${PF[@]}" -c "$GG/prefix-kv.c" -o "$E/prefixkv.o"
            "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$E/nacl.o"
            "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$E/poly.o"
            "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
-           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
+           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-neon-tuned.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
            "$CLANG" "${PF[@]}" -D_GNU_SOURCE "${INC[@]}" -c "$HERE/payload/anchor_mtp.c" -o "$E/mtp.o"   # the MTP head as the draft model
            "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
