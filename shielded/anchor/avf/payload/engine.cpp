@@ -654,7 +654,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (rc) { outf("ENGINE prefill failed (%d tokens)", n); dump_err(); return 2; }
     }
     const long t_pp1 = ggml_time_us();
-    { uint64_t o = 0, l = 0, m = 0, v = 0; if (stats) stats(&o, &l, &m, &v);
+    { uint64_t o = 0, l = 0, m = 0, v = 0; if (stats) {
+          fprintf(stderr, "[shielded] snapshot begin: phase=prefill\n");
+          stats(&o, &l, &m, &v);
+          fprintf(stderr, "[shielded] snapshot end: phase=prefill\n");
+      }
       outf("ENGINE prefill %d tokens in %.0f ms: %llu nodes offloaded, %llu local, %.2f GMAC, verify_fail %llu (first graph = weights to the worker + pool warm-up)",
            n, (t_pp1 - t_pp0) / 1e3, (unsigned long long)o, (unsigned long long)l, m / 1e9, (unsigned long long)v);
       cache_stats_line("after prefill");
@@ -760,7 +764,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                        n_gen_steady0, r_steady, n_gen, (t_tg1 - t_tg0) / 1e3, (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0, (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 : 0.0);
     if (mtp) anchor_mtp_free(mtp);
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
-    if (stats) stats(&off, &loc, &macs, &vf);
+    if (stats) {
+        fprintf(stderr, "[shielded] snapshot begin: phase=decode\n");
+        stats(&off, &loc, &macs, &vf);
+        fprintf(stderr, "[shielded] snapshot end: phase=decode\n");
+    }
     cache_stats_line("after decode");
     const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused");
     const double decode_ms = (t_tg1 - t_tg0) / 1e3;
@@ -783,11 +791,12 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* the backend's profile lines (SHIELDED_PROFILE=1: exchange counts, mask/wire/unmask
      * time, pad waits) live in stderr; hand the owner the summary so a run explains itself */
     if (err_path[0]) {
+        fflush(stderr);
         FILE *f = fopen(err_path, "r");
         if (f) {
             char line[1024]; int warned = 0;
             while (fgets(line, sizeof line, f)) {
-                const bool summary = strstr(line, "[shielded] profile: exchanges") || strstr(line, "[shielded] widths:") || strstr(line, "[shielded] wire");
+                const bool summary = strstr(line, "[shielded] snapshot ") || strstr(line, "[shielded] profile: exchanges") || strstr(line, "[shielded] widths:") || strstr(line, "[shielded] wire");
                 const bool warning = strstr(line, "[shielded]") && (strstr(line, "offload failed") || strstr(line, "refus") || strstr(line, "contend") || strstr(line, "unavailable") || strstr(line, "cannot") || strstr(line, "REJECT") || strstr(line, "stopped") || strstr(line, "link:"));
                 if (!summary && !(warning && warned < 12)) continue;
                 if (warning) warned++;
