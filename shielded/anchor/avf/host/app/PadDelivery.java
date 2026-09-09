@@ -19,7 +19,7 @@ final class PadDelivery {
         return begin(vmWriteMax, false);
     }
     static Session begin(int vmWriteMax, boolean directFill) {
-        if (vmWriteMax != 0 && vmWriteMax != 4096 && vmWriteMax != 8192) throw new IllegalArgumentException("pad VM write cap must be 0, 4096 or 8192");
+        if (vmWriteMax != 0 && vmWriteMax != 4096 && vmWriteMax != 8192 && vmWriteMax != 65536) throw new IllegalArgumentException("pad VM write cap must be 0, 4096, 8192 or 65536");
         Session next = new Session(vmWriteMax, directFill); Closeable[] pending;
         synchronized (PadDelivery.class) {
             pending = current == null ? new Closeable[0] : current.stop();

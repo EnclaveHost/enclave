@@ -80,7 +80,7 @@ public class Main extends Activity {
         boolean bridgeProfile = false;       // --ez bridgeprofile true: bridge timing only, independent of the guest source profiler
         int bridgeWriteMax = 0;               // --ei bridgewrite 4096|8192: experimental VM-bound native send cap; 0 keeps existing sends
         int bridgeBatch = 0;                  // --ei bridgebatch 65536: batch Shielded response bytes, flushing each final tail
-        int padWriteMax = 0;                  // --ei padwrite 4096|8192: experimental pad body write cap; cached HTTP downloads unchanged
+        int padWriteMax = 0;                  // --ei padwrite 4096|8192|65536: experimental pad body write cap; cached HTTP downloads unchanged
         boolean bridgeIo = false;            // --ez bridgeio true: bounded metadata-only per-call timeline
         String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
         String shapes = "256,256,1,30,0;896,896,1,30,0;896,4864,2,12,0";
@@ -142,7 +142,7 @@ public class Main extends Activity {
             else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
             else if (p.bridgeBatch != 0 && p.bridgeBatch != 65536) p.configError = "bridgebatch must be 0 or 65536";
             else if (p.bridgeBatch != 0 && !p.nativeBridge) p.configError = "bridgebatch needs nativebridge";
-            else if (p.padWriteMax != 0 && p.padWriteMax != 4096 && p.padWriteMax != 8192) p.configError = "padwrite must be 0, 4096 or 8192";
+            else if (p.padWriteMax != 0 && p.padWriteMax != 4096 && p.padWriteMax != 8192 && p.padWriteMax != 65536) p.configError = "padwrite must be 0, 4096, 8192 or 65536";
             else if (p.bridgeIo && !p.nativeBridge) p.configError = "bridgeio needs nativebridge";
             else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
