@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -39,10 +40,17 @@
 #include <android/log.h>
 #endif
 static uint64_t prof_ns(clockid_t id) { struct timespec t={0}; clock_gettime(id,&t); return (uint64_t)t.tv_sec*1000000000+t.tv_nsec; }
+static int prof_usage(uint64_t *user, uint64_t *system) {
+    struct rusage r;
+    if (getrusage(RUSAGE_THREAD, &r)) return 0;
+    *user=(uint64_t)r.ru_utime.tv_sec*1000000000+(uint64_t)r.ru_utime.tv_usec*1000;
+    *system=(uint64_t)r.ru_stime.tv_sec*1000000000+(uint64_t)r.ru_stime.tv_usec*1000;
+    return 1;
+}
 static void prof_report(uint64_t *v) {
-    char line[800];
-    snprintf(line,sizeof line,"BRIDGE_SP mono=%llu realtime=%llu dt=%llu cpu=%llu poll_empty=%llu poll_up=%llu poll_down=%llu poll_both=%llu read_guest=%llu read_host=%llu write_host=%llu write_guest=%llu up=%llu down=%llu queued_up=%llu queued_down=%llu",
-        (unsigned long long)v[0],(unsigned long long)prof_ns(CLOCK_REALTIME),(unsigned long long)v[1],(unsigned long long)v[2],(unsigned long long)v[3],(unsigned long long)v[4],(unsigned long long)v[5],(unsigned long long)v[6],(unsigned long long)v[7],(unsigned long long)v[8],(unsigned long long)v[9],(unsigned long long)v[10],(unsigned long long)v[11],(unsigned long long)v[12],(unsigned long long)v[13],(unsigned long long)v[14]);
+    char line[1400];
+    snprintf(line,sizeof line,"BRIDGE_SP mono=%llu realtime=%llu dt=%llu cpu=%llu poll_empty=%llu poll_up=%llu poll_down=%llu poll_both=%llu read_guest=%llu read_host=%llu write_host=%llu write_guest=%llu up=%llu down=%llu queued_up=%llu queued_down=%llu cpu_read_guest=%llu cpu_read_host=%llu cpu_write_host=%llu cpu_write_guest=%llu cpu_poll=%llu cpu_user=%llu cpu_system=%llu usage_available=%llu",
+        (unsigned long long)v[0],(unsigned long long)prof_ns(CLOCK_REALTIME),(unsigned long long)v[1],(unsigned long long)v[2],(unsigned long long)v[3],(unsigned long long)v[4],(unsigned long long)v[5],(unsigned long long)v[6],(unsigned long long)v[7],(unsigned long long)v[8],(unsigned long long)v[9],(unsigned long long)v[10],(unsigned long long)v[11],(unsigned long long)v[12],(unsigned long long)v[13],(unsigned long long)v[14],(unsigned long long)v[15],(unsigned long long)v[16],(unsigned long long)v[17],(unsigned long long)v[18],(unsigned long long)v[19],(unsigned long long)v[20],(unsigned long long)v[21],(unsigned long long)v[22]);
 #ifdef __ANDROID__
     __android_log_print(ANDROID_LOG_INFO,"anchor-bridge","%s",line);
 #else
@@ -101,8 +109,9 @@ int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes
     return anchor_bridge_run_profile(a,b,cancel_fd,idle_ms,buf_bytes,st,0);
 }
 int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile) {
-    uint64_t pv[15]={0}, pt=0, pc=0, pu=0, pd=0;
-    if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); }
+    uint64_t pv[23]={0}, pt=0, pc=0, pu=0, pd=0, user0=0, system0=0;
+    int usage_ok=0;
+    if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); usage_ok=prof_usage(&user0,&system0); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
     if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
@@ -127,29 +136,33 @@ int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t b
         int wait = -1;
         if (idle_ms > 0) { const int64_t left = deadline - mono_ms(); if (left <= 0) { rc = -ETIMEDOUT; break; } wait = left > INT32_MAX ? INT32_MAX : (int)left; }
         uint64_t p0=profile?prof_ns(CLOCK_MONOTONIC):0;
+        uint64_t c0=profile?prof_ns(CLOCK_THREAD_CPUTIME_ID):0;
         unsigned bucket=(ab.used?1:0)+(ba.used?2:0);
         const int r = poll(p, n, wait); s.polls++;
-        if (profile) pv[3+bucket]+=prof_ns(CLOCK_MONOTONIC)-p0;
+        if (profile) { pv[3+bucket]+=prof_ns(CLOCK_MONOTONIC)-p0; pv[19]+=prof_ns(CLOCK_THREAD_CPUTIME_ID)-c0; }
         if (r < 0) { if (errno == EINTR) continue; rc = -errno; break; }   /* EINTR: the deadline stands, not restarted */
         if (r == 0) { rc = -ETIMEDOUT; break; }
         if (ic >= 0 && p[ic].revents) { rc = -ECANCELED; break; }
         if ((ia >= 0 && (p[ia].revents & POLLNVAL)) || (ib >= 0 && (p[ib].revents & POLLNVAL))) { rc = -EBADF; break; }
         const short ra = ia >= 0 ? p[ia].revents : 0, rb = ib >= 0 ? p[ib].revents : 0;
         const uint64_t before = s.reads + s.writes;
-        if(profile) p0=prof_ns(CLOCK_MONOTONIC);
+        if(profile) { p0=prof_ns(CLOCK_MONOTONIC); c0=prof_ns(CLOCK_THREAD_CPUTIME_ID); }
         if ((rc = pump_read(a, &ab, ra, &s)) != 0) break;
-        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[7]+=p1-p0;p0=p1; }
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC),c1=prof_ns(CLOCK_THREAD_CPUTIME_ID);pv[7]+=p1-p0;pv[15]+=c1-c0;p0=p1;c0=c1; }
         if ((rc = pump_read(b, &ba, rb, &s)) != 0) break;
-        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[8]+=p1-p0;p0=p1; }
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC),c1=prof_ns(CLOCK_THREAD_CPUTIME_ID);pv[8]+=p1-p0;pv[16]+=c1-c0;p0=p1;c0=c1; }
         if ((rc = pump_write(b, &ab, rb | (ab.used > 0 ? POLLOUT : 0), &s, &s.a_to_b)) != 0) break;
-        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[9]+=p1-p0;p0=p1; }
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC),c1=prof_ns(CLOCK_THREAD_CPUTIME_ID);pv[9]+=p1-p0;pv[17]+=c1-c0;p0=p1;c0=c1; }
         if ((rc = pump_write(a, &ba, ra | (ba.used > 0 ? POLLOUT : 0), &s, &s.b_to_a)) != 0) break;
         if(profile) {
-            uint64_t p1=prof_ns(CLOCK_MONOTONIC); pv[10]+=p1-p0;
+            uint64_t p1=prof_ns(CLOCK_MONOTONIC); pv[10]+=p1-p0;pv[18]+=prof_ns(CLOCK_THREAD_CPUTIME_ID)-c0;
             if (p1-pt>=250000000) {
                 uint64_t c1=prof_ns(CLOCK_THREAD_CPUTIME_ID); pv[0]=p1;pv[1]=p1-pt;pv[2]=c1-pc;
                 pv[11]=s.a_to_b-pu;pv[12]=s.b_to_a-pd;pv[13]=ab.used;pv[14]=ba.used;
+                uint64_t u=0,k=0;int ok=prof_usage(&u,&k);pv[22]=usage_ok&&ok;
+                if(pv[22]) { pv[20]=u-user0;pv[21]=k-system0; }
                 prof_report(pv);memset(pv,0,sizeof pv);pt=p1;pc=c1;pu=s.a_to_b;pd=s.b_to_a;
+                user0=u;system0=k;usage_ok=ok;
             }
         }
         if (ab.src_eof && ab.used == 0 && !ab.dst_shut) { half_close(b); ab.dst_shut = 1; }
@@ -157,6 +170,13 @@ int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t b
         if (idle_ms > 0 && s.reads + s.writes != before) deadline = mono_ms() + idle_ms;   /* progress, and only progress, extends it */
     }
 out:
+    if(profile) { /* Keep the final partial interval, including cancellation/EOF. */
+        uint64_t p1=prof_ns(CLOCK_MONOTONIC),c1=prof_ns(CLOCK_THREAD_CPUTIME_ID),u=0,k=0;
+        int ok=prof_usage(&u,&k);pv[0]=p1;pv[1]=p1-pt;pv[2]=c1-pc;
+        pv[11]=s.a_to_b-pu;pv[12]=s.b_to_a-pd;pv[13]=ab.used;pv[14]=ba.used;pv[22]=usage_ok&&ok;
+        if(pv[22]) { pv[20]=u-user0;pv[21]=k-system0; }
+        prof_report(pv);
+    }
     restore_flags(a, fa); restore_flags(b, fb);
     free(ab.buf); free(ba.buf);
     s.status = rc; if (st) *st = s;

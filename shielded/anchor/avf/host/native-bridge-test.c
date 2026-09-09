@@ -26,7 +26,7 @@ static void *reader(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16)
     for (;;) { ssize_t r = read(j->fd, buf, 1 << 16); if (r < 0) { if (errno == EINTR) continue; perror("read"); abort(); } if (r == 0) break; for (ssize_t i=0;i<r;++i) { exact ^= exact << 13; exact ^= exact >> 7; exact ^= exact << 17; assert(buf[i] == (uint8_t)exact); } j->hash = fnv(buf, (size_t)r, j->hash); got += (size_t)r; if (j->slow && (got & 0xfffff) < (size_t)r) usleep(300); }
     j->n = got; free(buf); return NULL; }
 typedef struct { int a, b, cancel, idle; anchor_bridge_stats st; int rc; } run_job;
-static void *runner(void *arg) { run_job *r = arg; r->rc = anchor_bridge_run(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st); return NULL; }
+static void *runner(void *arg) { run_job *r = arg; r->rc = anchor_bridge_run_profile(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st, getenv("BRIDGE_TEST_PROFILE") != NULL); return NULL; }
 static atomic_int storm = 1;
 static void *storm_main(void *arg) { pthread_t *t = arg; while (storm) { pthread_kill(*t, SIGUSR1); usleep(100); } return NULL; }
 static void small_bufs(int fd) { int v = 8192; setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &v, sizeof v); setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &v, sizeof v); }
