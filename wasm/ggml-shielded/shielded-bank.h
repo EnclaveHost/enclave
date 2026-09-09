@@ -29,6 +29,8 @@ typedef struct sh_bank sh_bank;
 sh_bank *sh_bank_open(const char *url, const char *seed_id_hex, const char *dir, uint64_t cache_max, int *err);
 /* Indices below `floor` are spent; shipments wholly below it are never fetched (again). */
 void sh_bank_set_floor(sh_bank *b, uint64_t floor);
+/* The first call activates fetching. Set the initial floor before this call;
+ * an opened bank remains idle until its initial horizon is supplied. */
 /* Fetch, in index order and ahead of the cache budget, everything covering [floor, need). */
 void sh_bank_set_need(sh_bank *b, uint64_t need);
 /* Counters for the profile line: complete fetches, bytes, and the last listing's status (0 = unreachable). */

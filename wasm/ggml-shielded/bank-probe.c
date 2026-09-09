@@ -3,7 +3,7 @@
  * horizon, waits until the cache covers it (or the timeout), prints what
  * landed, then moves the floor and shows the fetcher skipping spent rows.
  *
- *   bank-probe <bank url> <seed_id hex> <cache dir> <need> <cache MB> [timeout ms] [floor]
+ *   bank-probe <bank url> <seed_id hex> <cache dir> <need> <cache MB> [timeout ms] [floor] [initialization delay ms] [advance-floor-stdin]
  * Exit 0 when every shipment below `need` is in the cache. */
 #include "shielded-bank.h"
 #include "shielded-tee.h"
@@ -37,12 +37,24 @@ int main(int argc, char **argv) {
     const char *url = argv[1], *seed = argv[2], *dir = argv[3];
     const uint64_t need = strtoull(argv[4], NULL, 10), cache_mb = strtoull(argv[5], NULL, 10);
     const int timeout_ms = argc > 6 ? atoi(argv[6]) : 20000;
-    const uint64_t floor = argc > 7 ? strtoull(argv[7], NULL, 10) : 0;
+    uint64_t floor = argc > 7 ? strtoull(argv[7], NULL, 10) : 0;
     int err = 0;
     sh_bank *b = sh_bank_open(url, seed, dir, cache_mb << 20, &err);
     if (!b) { fprintf(stderr, "bank-probe: open failed (%d)\n", err); return 1; }
+    /* Deliberately let the fetch thread run before initialization, to exercise
+     * startup ordering instead of relying on the caller winning the race. */
+    const int init_delay_ms = argc > 8 ? atoi(argv[8]) : 0;
+    if (init_delay_ms > 0 && init_delay_ms <= 5000) usleep((useconds_t)init_delay_ms * 1000u);
     sh_bank_set_floor(b, floor);
     sh_bank_set_need(b, need);
+    if (argc > 9 && !strcmp(argv[9], "advance-floor-stdin")) {
+        char line[64];
+        if (!fgets(line, sizeof line, stdin)) { sh_bank_close(b); return 2; }
+        const uint64_t next = strtoull(line, NULL, 10);
+        if (next > floor) floor = next;
+        sh_bank_set_floor(b, floor);
+        printf("bank-probe: floor advanced %llu\n", (unsigned long long)floor); fflush(stdout);
+    }
     uint64_t total = 0, hi = 0; int n = 0;
     const double t0 = (double)clock() / CLOCKS_PER_SEC;
     for (int waited = 0; waited < timeout_ms; waited += 100) {
