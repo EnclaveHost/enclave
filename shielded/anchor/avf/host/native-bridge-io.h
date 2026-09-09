@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 
 #ifndef ANCHOR_IO_MAX
-#define ANCHOR_IO_MAX 131072
+#define ANCHOR_IO_MAX 524288
 #endif
 typedef struct {
     uint64_t start_ns, end_ns, offset;
