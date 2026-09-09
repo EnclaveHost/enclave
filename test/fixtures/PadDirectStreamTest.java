@@ -7,9 +7,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * outcome but ACCEPTED/ALREADY ever accepts. Prints {"status","executed_checks"}. */
 public final class PadDirectStreamTest {
     static int checks = 0, failed = 0;
+    static boolean fill;
     static void check(boolean c, String what) { checks++; if (!c) { failed++; System.err.println("FAIL " + what); } }
     static final String NAME = "0123456789abcdef0123456789abcdef-0-64.pads";
-    static PadDelivery.Session session() throws IOException { PadDelivery.Session s = PadDelivery.begin(); s.bind("http://127.0.0.1:1", "0123456789abcdef0123456789abcdef"); return s; }
+    static PadDelivery.Session session() throws IOException { PadDelivery.Session s = PadDelivery.begin(0, fill); s.bind("http://127.0.0.1:1", "0123456789abcdef0123456789abcdef"); return s; }
     /** A counting body: `have` bytes available, then EOF. */
     static final class Body extends ByteArrayInputStream { final AtomicInteger read = new AtomicInteger(); Body(byte[] b) { super(b); }
         @Override public int read(byte[] d, int o, int n) { int r = super.read(d, o, n); if (r > 0) read.addAndGet(r); return r; } @Override public int read() { int r = super.read(); if (r >= 0) read.incrementAndGet(); return r; } }
@@ -50,6 +51,8 @@ public final class PadDirectStreamTest {
     static PadDirectStream.Outcome runSilent(Vm vm, PadDelivery.Session s, String name, long bytes, long clen, InputStream body) throws Exception { return run(vm, s, name, bytes, clen, body); }
     static byte[] bytes(int n) { byte[] b = new byte[n]; for (int i = 0; i < n; i++) b[i] = (byte) (i * 7 + 3); return b; }
     public static void main(String[] a) throws Exception {
+        for (boolean enabled : new boolean[]{false, true}) {
+        fill = enabled;
         final int N = 3 * 1024 * 1024 + 12345;
         { PadDelivery.Session s = session(); byte[] data = bytes(N); Body body = new Body(data); Vm vm = new Vm('G', N, "K");
           PadDirectStream.Outcome o = run(vm, s, NAME, N, N, body);
@@ -63,7 +66,7 @@ public final class PadDirectStreamTest {
           check(o == PadDirectStream.Outcome.REFUSED_HEADER && !s.accepted(NAME), "E: refused, not accepted " + o); check(body.read.get() == 0 && vm.got.size() == 0, "E: zero body bytes read or sent"); s.close(); }
         { PadDelivery.Session s = session(); Body body = new Body(bytes(N - 1000)); Vm vm = new Vm('G', N, "K");
           PadDirectStream.Outcome o = run(vm, s, NAME, N, -1, body);
-          check(o == PadDirectStream.Outcome.SHORT_BODY && !s.accepted(NAME), "short body: not accepted " + o); check(vm.got.size() == N - 1000, "short body: VM saw the partial stream (refused there)"); s.close(); }
+          check(o == PadDirectStream.Outcome.SHORT_BODY && !s.accepted(NAME), "short body: not accepted " + o); check(vm.got.size() == (fill ? ((N - 1000) / (1 << 20)) * (1 << 20) : N - 1000), "short body: VM saw the partial stream (refused there)"); s.close(); }
         { PadDelivery.Session s = session(); Body body = new Body(bytes(N + 1)); Vm vm = new Vm('G', N, "K");
           PadDirectStream.Outcome o = run(vm, s, NAME, N, -1, body);
           check(o == PadDirectStream.Outcome.OVERSIZED_BODY && !s.accepted(NAME), "oversize body: not accepted " + o); check(vm.got.size() == N, "oversize: VM received exactly N"); s.close(); }
@@ -86,6 +89,14 @@ public final class PadDirectStreamTest {
           check(PadDirectStream.stream(s, "not-a-shipment.pads", N, N, body, vm.appOut, vm.appIn) == PadDirectStream.Outcome.SESSION_ENDED, "foreign name refused before any I/O"); check(body.read.get() == 0, "foreign name: nothing read"); s.close(); }
         { check(PadDirectStream.stream(null, NAME, 1, 1, new Body(new byte[1]), new ByteArrayOutputStream(), new ByteArrayInputStream(new byte[0])) == PadDirectStream.Outcome.IO_ERROR, "null session"); 
           PadDelivery.Session s = session(); check(PadDirectStream.stream(s, NAME, 0, 0, new Body(new byte[0]), new ByteArrayOutputStream(), new ByteArrayInputStream(new byte[0])) == PadDirectStream.Outcome.IO_ERROR && !s.accepted(NAME), "zero bytes"); s.close(); }
+        { PadDelivery.Session s = session(); Vm vm = new Vm('G', N, "K");
+          InputStream closed = new InputStream() {
+              @Override public int read() throws IOException { s.close(); throw new IOException("closed"); }
+              @Override public int read(byte[] b, int off, int len) throws IOException { return read(); }
+          };
+          PadDirectStream.Outcome o = run(vm, s, NAME, N, N, closed);
+          check(o == PadDirectStream.Outcome.SESSION_ENDED && !s.accepted(NAME), "closed body after cancellation: ended " + o);
+          check(vm.got.size() == 0, "canceled body writes nothing"); }
         /* cancellation while WAITING for G: the receiver never answers; the session's tracked descriptor is closed by another thread
          * (what the app's cancel path does), the blocked read returns, outcome SESSION_ENDED, nothing accepted; bounded by a 5 s join */
         { PadDelivery.Session s = session(); Body body = new Body(bytes(N)); Vm vm = new Vm('\0', 0, "");   /* '\0' = never answer */
@@ -99,6 +110,7 @@ public final class PadDirectStreamTest {
           Thread closer = new Thread(() -> { try { Thread.sleep(400); } catch (InterruptedException ignored) { } s.close(); }, "canceller"); closer.start();
           PadDirectStream.Outcome o = runSilent(vm, s, NAME, N, N, body); joined(closer);
           check(o == PadDirectStream.Outcome.SESSION_ENDED && !s.accepted(NAME), "cancel while waiting for K: ended, not accepted " + o); check(vm.got.size() == N, "cancel at K: the VM had received every byte (it will refuse or judge on its own)"); }
+        }
         System.out.println("{\"status\":\"" + (failed == 0 ? "PASS" : "FAIL") + "\",\"executed_checks\":" + checks + "}");
         System.exit(failed == 0 ? 0 : 1);
     }

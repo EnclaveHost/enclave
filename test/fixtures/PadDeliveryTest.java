@@ -110,6 +110,52 @@ public final class PadDeliveryTest {
                 fails(() -> capped.copyToVm(new ByteArrayInputStream(body), cancelAfterFirst, body.length));
                 check(canceledBytes[0] == (cap == 0 ? 1 << 20 : cap), "cancellation stops before next chunk");
             }
+            // Model fragmented HTTP delivery and count actual VM-bound writes, not just buffer size.
+            for (boolean fill : new boolean[]{false, true}) for (int cap : new int[]{0, 4096}) {
+                PadDelivery.Session direct = PadDelivery.begin(cap, fill);
+                final java.util.List<Integer> sizes = new java.util.ArrayList<>();
+                ByteArrayOutputStream sink = new ByteArrayOutputStream() {
+                    @Override public synchronized void write(byte[] b, int off, int len) {
+                        sizes.add(len); super.write(b, off, len);
+                    }
+                };
+                InputStream http = new ByteArrayInputStream(body) {
+                    int reads;
+                    @Override public synchronized int read(byte[] b, int off, int len) {
+                        if (++reads % 17 == 0) return 0;
+                        return super.read(b, off, Math.min(len, 8192));
+                    }
+                };
+                direct.copyDirectToVm(http, sink, body.length);
+                check(Arrays.equals(body, sink.toByteArray()), "direct fragmented body exact");
+                int step = fill ? (cap == 0 ? 1 << 20 : cap) : (cap == 0 ? 8192 : cap);
+                check(sizes.size() == (body.length + step - 1) / step, "one VM write per filled buffer");
+                for (int i = 0; i < sizes.size(); i++)
+                    check(sizes.get(i) == Math.min(step, body.length - i * step), "bounded write including final tail");
+                sink.reset(); sizes.clear();
+                direct.copyToVm(new ByteArrayInputStream(body) {
+                    @Override public synchronized int read(byte[] b, int off, int len) {
+                        return super.read(b, off, Math.min(len, 8192));
+                    }
+                }, sink, body.length);
+                check(sizes.get(0) == (cap == 0 ? 8192 : cap), "cached VM path is never gathered");
+                sink.reset(); sizes.clear();
+                fails(() -> direct.copyDirectToVm(new ByteArrayInputStream(body), sink, body.length - 1));
+                check(sink.size() == body.length - 1, "direct extra byte never forwarded");
+                sink.reset(); sizes.clear();
+                fails(() -> direct.copyDirectToVm(new ByteArrayInputStream(body), sink, body.length + 1));
+                check(sink.size() <= body.length, "truncated direct body fails");
+                direct.close();
+            }
+            PadDelivery.Session gather = PadDelivery.begin(0, true);
+            ByteArrayOutputStream abandoned = new ByteArrayOutputStream();
+            InputStream cancelMidGather = new ByteArrayInputStream(body) {
+                @Override public synchronized int read(byte[] b, int off, int len) {
+                    int n = super.read(b, off, Math.min(len, 8192)); gather.close(); return n;
+                }
+            };
+            fails(() -> gather.copyDirectToVm(cancelMidGather, abandoned, body.length));
+            check(abandoned.size() == 0, "canceled partial gathered chunk never written");
             PadDelivery.Session valid = PadDelivery.begin();
             try { PadDelivery.begin(65536); throw new AssertionError("invalid cap accepted"); }
             catch (IllegalArgumentException expected) { check(valid.active(), "invalid cap cannot cancel current run"); }

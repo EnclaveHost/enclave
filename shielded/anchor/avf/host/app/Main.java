@@ -94,6 +94,7 @@ public class Main extends Activity {
         int artifactsDeadlineS = 300;        // --ei artifacts_deadline: the whole feed's budget in seconds (default 300, max 600), measured from the feed's start
         int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
         int padsDirect = 0;                  // --ei pads_direct 1: stream a NEW sealed shipment from its HTTP body straight into the PADS receiver (no Android file); 0 = cached-file path
+        int padsDirectFill = 0;              // --ei pads_direct_fill 1: gather HTTP fragments into bounded VM body writes; requires pads_direct
         String modelCache = "";              // --es model_cache only: the VM reuses a retained model or refuses ('N', nothing streamed, store untouched); "" = today's re-receive on a miss
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
@@ -127,6 +128,7 @@ public class Main extends Activity {
             p.artifactsDeadlineS = i.getIntExtra("artifacts_deadline", p.artifactsDeadlineS);
             p.artifactsCoalesce = i.getIntExtra("artifacts_coalesce", 0);
             p.padsDirect = i.getIntExtra("pads_direct", 0);
+            p.padsDirectFill = i.getIntExtra("pads_direct_fill", 0);
             if (i.getStringExtra("model_cache") != null) p.modelCache = i.getStringExtra("model_cache");
             if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv");   // read BEFORE the validation chain: prepare mode judges its ANCHOR_ARTIFACT_PROFILE request here
             if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
@@ -134,6 +136,8 @@ public class Main extends Activity {
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
             else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
             else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
+            else if (p.padsDirectFill != 0 && p.padsDirectFill != 1) p.configError = "pads_direct_fill must be 0 or 1";
+            else if (p.padsDirectFill != 0 && p.padsDirect == 0) p.configError = "pads_direct_fill needs pads_direct";
             else if (p.bridgeWriteMax != 0 && p.bridgeWriteMax != 4096) p.configError = "bridgewrite must be 0 or 4096";
             else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
             else if (p.bridgeBatch != 0 && p.bridgeBatch != 65536) p.configError = "bridgebatch must be 0 or 65536";
@@ -327,8 +331,9 @@ public class Main extends Activity {
     static boolean ended() { return sEnded; }
     static void control(Object vm, Plan plan) {
         sEnded = false;
-        final PadDelivery.Session padSession = PadDelivery.begin(plan.padWriteMax);
+        final PadDelivery.Session padSession = PadDelivery.begin(plan.padWriteMax, plan.padsDirectFill != 0);
         say("PADS send cap: guest=" + plan.padWriteMax + " cache=0");
+        say("PADS direct fill: enabled=" + plan.padsDirectFill);
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); captureClose(false); return; }
         say("CONTROL connected");
