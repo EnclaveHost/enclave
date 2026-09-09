@@ -43,8 +43,10 @@ static void *cache_peer(void *opaque) {
 int main(int argc,char **argv) {
     signal(SIGPIPE,SIG_IGN);setenv("SHIELDED_NO_SIMD","1",1);setenv("SHIELDED_PAD_CHECK","1",1);
     setenv("SHIELDED_PUBLIC_WEIGHT_CACHE","1",1);
+    char bank[]="/tmp/shielded-public-cache-bank-XXXXXX";assert(mkdtemp(bank));
     for(size_t i=0;i<sizeof expected;i++)expected[i]=(int8_t)(i%31-15);
     int err;sh_link *l=sh_link_open("127.0.0.1",1,true,&err);assert(l && !err);
+    snprintf(l->pad_dir,sizeof l->pad_dir,"%s",bank);
     int8_t *original=malloc(sizeof expected);assert(original);memcpy(original,expected,sizeof expected);
     assert(sh_link_add_weight(l,"cached.weight",original,K,N,M,-1)==0 && l->nodes[0].public_digest_ready);
     l->dealt=true;reader_state rs={0};assert(sh_link_set_weight_reader(l,0,reader,&rs)==SH_OK);free(original);
@@ -53,7 +55,7 @@ int main(int argc,char **argv) {
         l->port=atoi(argv[1]);
         assert(sh_link_start(l)==SH_ERR_VIOLATION && rs.calls==2);
         rs.calls=0;rs.fail=1;assert(sh_link_start(l)==SH_ERR_VIOLATION && rs.calls==0);
-        sh_link_close(l);puts("public-cache-client: actual CPU worker cold/warm negotiation PASS");return 0;
+        sh_link_close(l);assert(rmdir(bank)==0);puts("public-cache-client: actual CPU worker cold/warm negotiation PASS");return 0;
     }
     const char *bad[]={"{}","{\"public_weight_cache_bytes\":-1}","{\"public_weight_cache_bytes\":1.5}",
         "{\"public_weight_cache_bytes\":18446744073709551616}","{\"public_weight_cache_bytes\":\"1\"}"};
@@ -76,5 +78,6 @@ int main(int argc,char **argv) {
         if(turn==6 || turn==7 || turn==8)assert(rs.calls==0);
     }
     close(listener);sh_link_close(l);
+    assert(rmdir(bank)==0);
     puts("public-cache-client: legacy/default fallback, authenticated hash, hits/misses, no warm reads and malformed reply refusal PASS");
 }
