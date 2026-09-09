@@ -87,6 +87,7 @@ public class Main extends Activity {
         boolean artifactsConsume = false;    // --ez artifacts_consume true: delete a local artifact ONLY after the VM answered 'K' (fresh, block-verified); never after 'H'
         String artifactsUrl = "";            // --es artifacts_url http://127.0.0.1:<port>/v1/artifacts: stream public artifacts from the host feed (adb reverse) straight into the VM, no phone copy (ArtifactFeed)
         int artifactsDeadlineS = 300;        // --ei artifacts_deadline: the whole feed's budget in seconds (default 300, max 600), measured from the feed's start
+        int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
@@ -112,9 +113,11 @@ public class Main extends Activity {
             p.artifactsConsume = i.getBooleanExtra("artifacts_consume", false);
             if (i.getStringExtra("artifacts_url") != null) p.artifactsUrl = i.getStringExtra("artifacts_url");
             p.artifactsDeadlineS = i.getIntExtra("artifacts_deadline", p.artifactsDeadlineS);
+            p.artifactsCoalesce = i.getIntExtra("artifacts_coalesce", 0);
             if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
             else if (!p.artifactsUrl.isEmpty() && !ArtifactFeed.validBase(p.artifactsUrl)) p.configError = "artifacts_url must be http://127.0.0.1:<port>/v1/artifacts (the host feed through adb reverse)";
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
+            else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
             p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("delete")) {   // diagnostic deletion of exactly the owned test instance; judged on the RAW extra, after vmname is parsed above
@@ -397,7 +400,7 @@ public class Main extends Activity {
                 if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(padSession, vm, bank), "vsock-pads").start(); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
                 if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
-                if (!plan.artifactsUrl.isEmpty()) { final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; new Thread(() -> PadsClient.feedArtifacts(vm, url, dl), "vsock-artifact-feed").start(); }
+                if (!plan.artifactsUrl.isEmpty()) { final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; final boolean co = plan.artifactsCoalesce == 1; new Thread(() -> PadsClient.feedArtifacts(vm, url, dl, co), "vsock-artifact-feed").start(); }
             }
             if (plan.mode.equals("prepare")) cmd.append("PREPARE ").append(plan.artifactsDeadlineS).append('\n');   // artifacts preparation: the VM's receiver takes the feed, then reports PREPARATION present n/count
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
@@ -407,8 +410,8 @@ public class Main extends Activity {
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
             if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
-                final OutputStream o = out; final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS;
-                feedThread = new Thread(() -> { try { PadsClient.feedArtifacts(vm, url, dl); } finally { try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } } catch (Exception e) { say("PREPARE stop not sent: " + e); } } }, "vsock-artifact-feed");
+                final OutputStream o = out; final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; final boolean co = plan.artifactsCoalesce == 1;
+                feedThread = new Thread(() -> { try { PadsClient.feedArtifacts(vm, url, dl, co); } finally { try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } } catch (Exception e) { say("PREPARE stop not sent: " + e); } } }, "vsock-artifact-feed");
                 feedThread.start();
             }
             int n = 0;

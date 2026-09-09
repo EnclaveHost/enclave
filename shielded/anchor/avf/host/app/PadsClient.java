@@ -291,7 +291,7 @@ final class PadsClient {
     }
     /** The host feed (artifact-feed.py through adb reverse) straight into the VM's artifact receiver: ArtifactFeed does the bounded
      *  work (manifest rounds, exact lengths, deadline/ended closer); this only supplies pads-port connections and the app's log. */
-    static void feedArtifacts(Object vm, String base, int deadlineS) {
+    static void feedArtifacts(Object vm, String base, int deadlineS, boolean coalesce) {
         /* ONE bounded connector for the whole feed: the raw connect is a single reflective connectVsock call (Main.connect with one
          * try) on the connector's own thread; ArtifactFeed.open() waits at most its budget slice and abandons the request, and a
          * descriptor that comes back late is closed by the connector. No thread is spawned per retry. */
@@ -307,7 +307,7 @@ final class PadsClient {
             };
         };
         final ArtifactFeed.BoundedConnector connector = new ArtifactFeed.BoundedConnector(connect, Main::ended);
-        try { ArtifactFeed.run(base, connector, deadlineS * 1000L, Main::ended, Main::say); }
+        try { ArtifactFeed.run(base, connector, deadlineS * 1000L, Main::ended, Main::say, coalesce); }   /* coalesce: the A/B option (default off; see ArtifactFeed's timeout note) */
         finally { connector.close(); }
     }
     /** One artifact offer: 'K' verified and stored, 'H' already there (kept locally), 0 = not now (retry). */
