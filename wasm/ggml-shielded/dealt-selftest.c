@@ -218,7 +218,7 @@ int main(void) {
         setenv("SHIELDED_PAD_WINDOW", "64", 1);
         int32_t *R2 = calloc((size_t)2 * 30 * KA, sizeof *R2), *U2 = calloc((size_t)2 * 30 * (NA + NB), sizeof *U2);
         assert(sh_link_dealt_selftest(c, 30, R2, U2) == SH_ERR_EXHAUST);    /* window of 8 cannot hold 30 */
-        free(R); free(U); free(R2); free(U2);
+        free(R2); free(U2);
         sh_link_close(c);
         /* a window provider replaces the ledger file: the pVM's path */
         unsetenv("SHIELDED_PAD_LEDGER");
@@ -237,6 +237,7 @@ int main(void) {
             assert(sh_link_dealt_selftest(none, 3, R, U) == SH_ERR_RANGE);
             sh_link_close(none);
         }
+        free(R); free(U);
         setenv("SHIELDED_PAD_LEDGER", ledger, 1);
         /* the pad check (SHIELDED_PAD_CHECK): the good shipment passes; a shipment
          * minted for ANOTHER seed opens (same consumer key) but fails u = r.W */

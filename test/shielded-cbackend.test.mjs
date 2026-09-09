@@ -99,10 +99,17 @@ test("dealt pads: minting through a worker (zero pads, product checked mod M) eq
   t.after(() => { try { worker.kill("SIGKILL"); } catch {} });
   let wlog = "";
   await new Promise((resolve, reject) => {
-    const onData = (d) => { wlog += d; if (wlog.includes("listening on")) resolve(); };
+    const finish = (error) => {
+      clearTimeout(timer);
+      worker.stdout.off("data", onData); worker.stderr.off("data", onData);
+      worker.off("exit", onExit); worker.off("error", finish);
+      if (error) reject(error); else resolve();
+    };
+    const onData = (d) => { wlog += d; if (wlog.includes("listening on")) finish(); };
+    const onExit = (c) => finish(new Error("worker exited " + c + ":\n" + wlog));
+    const timer = setTimeout(() => finish(new Error("worker never listened:\n" + wlog)), 30000);
     worker.stdout.on("data", onData); worker.stderr.on("data", onData);
-    worker.on("exit", (c) => reject(new Error("worker exited " + c + ":\n" + wlog)));
-    setTimeout(() => reject(new Error("worker never listened:\n" + wlog)), 30000);
+    worker.once("exit", onExit); worker.once("error", finish);
   });
   const r = spawnSync(join(dir, "dealt-selftest"), { encoding: "utf8", timeout: 300_000, env: { ...process.env, SHIELDED_WORKER: `127.0.0.1:${port}` } });
   assert.equal(r.status, 0, `dealt-selftest (worker mint) failed: ${r.signal || r.status} ${r.stderr || ""}`);
