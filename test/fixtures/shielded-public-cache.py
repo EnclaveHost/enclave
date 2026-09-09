@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'shielded'))
 from protocol import *
@@ -14,6 +15,16 @@ def request(action, bid, data, offset=0, digest=None):
     return struct.pack('<BQQQ', action, bid, offset, len(data)) + (digest or hashlib.sha256(data).digest())
 
 class CacheTests(unittest.TestCase):
+    def test_cuda_missing_kernel_refuses_before_listening(self):
+        import worker
+        with patch.object(worker, 'DEVICE', 'cuda'), \
+             patch.object(worker.torch.cuda, 'is_available', return_value=True), \
+             patch.object(worker, '_field_kernel', side_effect=ImportError('fixture missing kernel')), \
+             patch.object(worker.socket, 'socket') as listen:
+            with self.assertRaisesRegex(ImportError, 'fixture missing kernel'):
+                worker.serve('127.0.0.1', 0, 1, quiet=True)
+            listen.assert_not_called()
+
     def test_identity_eviction_and_private_copies(self):
         cache=PublicWeightCache(16)
         a,b,c=bytearray(b'a'*8),b'b'*8,b'c'*8
@@ -62,6 +73,7 @@ class CacheTests(unittest.TestCase):
     def test_real_cpu_worker_reconnect_and_field_result(self):
         import worker
         import numpy as np
+        self.assertNotIn('fused_field_gemm', sys.modules, 'CPU import must not require Triton')
         worker.DEVICE='cpu'
         worker.torch.set_num_threads(1)
         cache=PublicWeightCache(64); ledger=ReservationLedger(4096)
@@ -94,5 +106,6 @@ class CacheTests(unittest.TestCase):
                           for v in np.frombuffer(data,dtype=np.uint8).reshape(2,32).sum(axis=1))
         self.assertEqual(outputs,[expected,expected])
         self.assertEqual(cache.used,64)
+        self.assertNotIn('fused_field_gemm', sys.modules, 'CPU arithmetic must not load a CUDA kernel')
 
 if __name__=='__main__':unittest.main()

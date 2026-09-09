@@ -47,9 +47,18 @@ jobs:
           # script uses only long-stable array APIs, and apt avoids PEP 668's
           # externally-managed-environment refusal that plain `pip install` hits
           # on current runner images.
-          sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools python3-numpy libgoogle-perftools4
+          sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools python3-numpy python3-venv libgoogle-perftools4
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
+      - name: Install CPU worker test dependency
+        # Public-cache tests exercise the real worker's tensor arithmetic and
+        # C-client reconnects. Use a CPU wheel in a venv; keep distro numpy and
+        # leave the runner's system Python untouched.
+        run: |
+          python3 -m venv --system-site-packages "$RUNNER_TEMP/shielded-test-python"
+          timeout 180 "$RUNNER_TEMP/shielded-test-python/bin/python" -m pip install --disable-pip-version-check --no-input 'torch==2.9.1+cpu' --index-url https://download.pytorch.org/whl/cpu
+          "$RUNNER_TEMP/shielded-test-python/bin/python" -c 'import numpy, torch; assert torch.version.cuda is None; print("CPU worker dependencies:", numpy.__version__, torch.__version__)'
+          echo "$RUNNER_TEMP/shielded-test-python/bin" >> "$GITHUB_PATH"
       - name: node --test
         # npm test verbatim but with CI headroom on the per-file timeout:
         # cli.test.mjs runs ~14s here vs ~8s locally, and root package.json
