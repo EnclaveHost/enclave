@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 #include "shielded-wire.h"
+#define SH_SP_LOCAL_ENABLE_ENV "SHIELDED_WIRE_PROFILE"
 #include "shielded-source-profile.h"
+#undef SH_SP_LOCAL_ENABLE_ENV
 
 #include <errno.h>
 #include <netdb.h>

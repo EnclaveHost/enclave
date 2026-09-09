@@ -23,7 +23,15 @@ static sh_sp_row sh_sp_rows[SH_SP_CAP];
 static unsigned sh_sp_count, sh_sp_dumped;
 static int sh_sp_on;
 static pthread_once_t sh_sp_once = PTHREAD_ONCE_INIT;
-static void sh_sp_init(void) { const char *e = getenv("SHIELDED_SOURCE_PROFILE"); sh_sp_on = e && !strcmp(e, "1"); }
+static void sh_sp_init(void) {
+    const char *e = getenv("SHIELDED_SOURCE_PROFILE");
+    sh_sp_on = e && !strcmp(e, "1");
+#ifdef SH_SP_LOCAL_ENABLE_ENV
+    /* A translation unit can expose a narrower diagnostic independently. */
+    e = getenv(SH_SP_LOCAL_ENABLE_ENV);
+    sh_sp_on |= e && !strcmp(e, "1");
+#endif
+}
 static int sh_sp_enabled(void) { pthread_once(&sh_sp_once, sh_sp_init); return sh_sp_on; }
 static uint64_t sh_sp_ns(clockid_t c) { struct timespec t = {0}; clock_gettime(c, &t); return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec; }
 static sh_sp_stamp sh_sp_now(void) {
