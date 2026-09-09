@@ -26,14 +26,14 @@ static void *serve(void *arg) {
     peer *p = arg;
     for (int i = 0; i < p->count; i++) {
         uint8_t h[9], payload[5];
-        assert(read_all(p->fd, h, sizeof h) == SH_OK);
+        assert(read_all(p->fd, h, sizeof h, NULL) == SH_OK);
         assert(h[0] == p->cmd && get_u64(h + 1) == sizeof payload);
-        assert(read_all(p->fd, payload, sizeof payload) == SH_OK);
+        assert(read_all(p->fd, payload, sizeof payload, NULL) == SH_OK);
         assert(!memcmp(payload, "hello", 5));
     }
     send_bytes(p->ready, "r", 1);
     char release;
-    assert(read_all(p->release, &release, 1) == SH_OK && release == 'w');
+    assert(read_all(p->release, &release, 1, NULL) == SH_OK && release == 'w');
     if (p->mode == 4) usleep(15000);
     for (int i = 0; i < p->count; i++) {
         uint8_t h[9] = {0};
@@ -54,7 +54,7 @@ static void do_work(void *arg) {
     assert(pthread_equal(pthread_self(), w->caller));
     w->calls++;
     char ready;
-    assert(read_all(w->ready, &ready, 1) == SH_OK && ready == 'r');
+    assert(read_all(w->ready, &ready, 1, NULL) == SH_OK && ready == 'r');
     if (w->delay) usleep(10000);
     send_bytes(w->release, "w", 1);
 }
