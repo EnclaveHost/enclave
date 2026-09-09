@@ -29,6 +29,21 @@ static inline int32_t sh_pad_check_dot_field(const int32_t *a, const int32_t *b,
     return (int32_t)((result + SH_M_MOD) % SH_M_MOD);
 }
 
+/* Column-strided __int128 reference over st[k_begin, k_end). Same expression
+ * and same modulus as pad_check_prepare's serial loop, which is left in place
+ * unchanged; this form exists so a threaded dispatch can cover a sub-range.
+ * Reads W with the original row stride K. */
+static inline void sh_pad_check_ref_range(const int8_t *weights, int64_t K, int64_t N,
+                                          int64_t k_begin, int64_t k_end,
+                                          const int32_t *s, int32_t *st) {
+    for (int64_t k = k_begin; k < k_end; k++) {
+        __int128 acc = 0;
+        for (int64_t j = 0; j < N; j++) acc += (__int128)weights[j * K + k] * s[j];
+        int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
+        st[k] = (int32_t)v;
+    }
+}
+
 /* Compute W^T s modulo M, with the same result as the column-strided
  * __int128 reference. Each tile reads consecutive weight bytes and keeps its
  * accumulators in a small stack buffer. The caller validates K*N and buffers.
@@ -37,11 +52,18 @@ static inline int32_t sh_pad_check_dot_field(const int32_t *a, const int32_t *b,
  * 32768 * 128 * 2^31 = 2^53 in magnitude. Reducing between row chunks keeps
  * every int64 accumulator bounded independently of the total row count.
  * No secret-dependent branches, indices, or early exits. */
-static inline void sh_pad_check_tiled(const int8_t *weights, int64_t K, int64_t N,
-                                     const int32_t *s, int32_t *st) {
+/* The tiled kernel now takes an explicit [k_begin, k_end) column range. The
+ * arithmetic, the tile sizes, the row chunking and the reduction order are
+ * unchanged; only the loop bounds are parameterised. The row chunking (j0,
+ * ROWS) does not depend on k_begin, so a column's reduction sequence - and
+ * therefore st[k] - is the same under any column partition. Callers still
+ * align split points to COLS so each worker's tiling is the serial tiling. */
+static inline void sh_pad_check_tiled_range(const int8_t *weights, int64_t K, int64_t N,
+                                            int64_t k_begin, int64_t k_end,
+                                            const int32_t *s, int32_t *st) {
     enum { COLS = 128, ROWS = 32768 };
-    for (int64_t k0 = 0; k0 < K;) {
-        const int cols = K - k0 < COLS ? (int)(K - k0) : COLS;
+    for (int64_t k0 = k_begin; k0 < k_end;) {
+        const int cols = k_end - k0 < COLS ? (int)(k_end - k0) : COLS;
         for (int c = 0; c < cols; c++) st[k0 + c] = 0;
         for (int64_t j0 = 0; j0 < N;) {
             const int rows = N - j0 < ROWS ? (int)(N - j0) : ROWS;
@@ -59,5 +81,11 @@ static inline void sh_pad_check_tiled(const int8_t *weights, int64_t K, int64_t 
         }
         k0 += cols;
     }
+}
+
+/* Original entry point: unchanged signature and behaviour, full column range. */
+static inline void sh_pad_check_tiled(const int8_t *weights, int64_t K, int64_t N,
+                                     const int32_t *s, int32_t *st) {
+    sh_pad_check_tiled_range(weights, K, N, 0, K, s, st);
 }
 #endif
