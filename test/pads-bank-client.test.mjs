@@ -131,7 +131,17 @@ test("window agent (local mode): reserve-before-use windows signed by the key it
   // receipts in local mode accrue next to the ledger
   const rcpt = (body) => fetch(base + "/receipt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: await r.json() }));
   assert.deepEqual((await rcpt({ seed_id: seed, pads: 97, tokens: 1 })).body.pads, 97);
-  assert.deepEqual((await rcpt({ seed_id: seed, pads: 3, tokens: 1 })).body, { ...(await rcpt({ seed_id: seed, pads: 0, tokens: 0 })).body, pads: 100, tokens: 2, runs: 2 });
+  // Every receipt has its own issuance time, including a zero-usage receipt.
+  // Compare usage exactly and bound each timestamp by its own request interval.
+  for (const [pads, tokens, runs] of [[3, 1, 2], [0, 0, 3]]) {
+    const before = Math.floor(Date.now() / 1000);
+    const receipt = await rcpt({ seed_id: seed, pads, tokens });
+    const after = Math.floor(Date.now() / 1000);
+    assert.equal(receipt.status, 200);
+    const { iat } = receipt.body;
+    assert.ok(Number.isSafeInteger(iat) && before <= iat && iat <= after);
+    assert.deepEqual(receipt.body, { seed_id: seed, pads: 100, tokens: 2, runs, iat });
+  }
   assert.equal((await rcpt({ seed_id: seed, pads: -5, tokens: 1 })).status, 400);
   // the key persists: a restarted agent signs with the same key
   agent.kill();
