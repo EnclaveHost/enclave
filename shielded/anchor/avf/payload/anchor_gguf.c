@@ -37,7 +37,7 @@ static int type_geom(uint32_t t, uint32_t *blck, uint32_t *bytes) {
 /* The one reader: every byte handed out is also hashed into the whole-file digest and, while the header is
  * being parsed, appended to the retained header copy. */
 typedef struct {
-    int fd; uint64_t pos, size; uint8_t *buf; size_t have, at;
+    int fd; const uint8_t *private_header; size_t private_header_len; uint64_t pos, size; uint8_t *buf; size_t have, at;
     const anchor_hash_ops *h; void *whole;
     uint8_t *hdr; size_t hdr_len, hdr_cap; int keep_hdr;
     char *err; size_t errcap;
@@ -47,7 +47,14 @@ static int fill(rd *r) {
     if (r->at < r->have) return 1;
     if (r->pos >= r->size) { snprintf(r->err, r->errcap, "runs past the end of the file at %llu", (unsigned long long)r->pos); return 0; }
     size_t want = r->size - r->pos < CHUNK ? (size_t)(r->size - r->pos) : CHUNK;
-    ssize_t n; do { n = pread(r->fd, r->buf, want, (off_t)r->pos); } while (n < 0 && errno == EINTR);
+    ssize_t n;
+    if (r->private_header) {
+        if (r->pos >= r->private_header_len) { snprintf(r->err, r->errcap, "header parse exceeds authenticated bytes"); return 0; }
+        if (want > r->private_header_len - (size_t)r->pos) want = r->private_header_len - (size_t)r->pos;
+        memcpy(r->buf, r->private_header + (size_t)r->pos, want); n = (ssize_t)want;
+    } else {
+        do { n = pread(r->fd, r->buf, want, (off_t)r->pos); } while (n < 0 && errno == EINTR);
+    }
     if (n <= 0) { snprintf(r->err, r->errcap, n < 0 ? "read error at %llu" : "file shrank at %llu", (unsigned long long)r->pos); return 0; }
     if (r->h) r->h->update(r->whole, r->buf, (size_t)n);
     /* hashed ranges leave the page cache 64 MiB at a time: a guest that keeps 27 GB of cache gets its app killed */
@@ -107,10 +114,11 @@ const anchor_gguf_tensor *anchor_gguf_find(const anchor_gguf_table *t, const cha
     return NULL;
 }
 
-int anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], char *err, size_t errcap) {
+static int stage_impl(int fd, const uint8_t *private_header, size_t private_header_len,
+        uint64_t file_size, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], char *err, size_t errcap) {
     memset(t, 0, sizeof *t); if (errcap) err[0] = 0;
-    struct stat st; if (fd < 0 || fstat(fd, &st) != 0 || st.st_size <= 0) { snprintf(err, errcap, "not a readable file"); return 0; }
-    rd r; memset(&r, 0, sizeof r); r.fd = fd; r.size = (uint64_t)st.st_size; r.err = err; r.errcap = errcap; r.h = h; r.keep_hdr = 1;
+    struct stat st; memset(&st, 0, sizeof st); if (!private_header && (fd < 0 || fstat(fd, &st) != 0 || st.st_size <= 0)) { snprintf(err, errcap, "not a readable file"); return 0; }
+    rd r; memset(&r, 0, sizeof r); r.fd = fd; r.private_header = private_header; r.private_header_len = private_header_len; r.size = private_header ? file_size : (uint64_t)st.st_size; r.err = err; r.errcap = errcap; r.h = h; r.keep_hdr = 1;
     r.buf = (uint8_t *)malloc(CHUNK); uint8_t whole[256]; r.whole = whole;
     if (!r.buf) { snprintf(err, errcap, "no memory"); return 0; }
     if (h) h->init(whole);
@@ -184,4 +192,24 @@ int anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, ui
     return 1;
 bad:
     free(r.buf); free(r.hdr); anchor_gguf_free(t); return 0;
+}
+
+int anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h,
+        uint8_t pin[32], char *err, size_t errcap) {
+    return stage_impl(fd, NULL, 0, 0, t, h, pin, err, errcap);
+}
+
+/* Internal catalog helper: input is an already authenticated private buffer.
+ * The logical file size is retained for the production parser's tensor bounds.
+ * This only parses metadata; no digest or authentication flag is fabricated. */
+int anchor_gguf_private_header(const uint8_t *header, size_t n, uint64_t file_size,
+        anchor_gguf_table *t, char *err, size_t errcap) {
+    if (!header || !n || n > (256u << 20) || n > file_size || file_size > INT64_MAX) {
+        memset(t, 0, sizeof *t); snprintf(err, errcap, "invalid private header bounds"); return 0;
+    }
+    if (!stage_impl(-1, header, n, file_size, t, NULL, NULL, err, errcap)) return 0;
+    if (t->header_len != n) {
+        anchor_gguf_free(t); snprintf(err, errcap, "catalog header length differs from parser"); return 0;
+    }
+    return 1;
 }

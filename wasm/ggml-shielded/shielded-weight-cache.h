@@ -22,6 +22,7 @@ extern "C" {
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <vector>
 
 class sh_weight_cache {
@@ -66,6 +67,36 @@ public:
             return out;
         } catch (const std::bad_alloc &) { return nullptr; }
           catch (const std::length_error &) { return nullptr; }
+    }
+
+    // Expected hashes must come from a separately
+    // authenticated publisher catalog, bound to model/name/layout/encoding.
+    // This does not authenticate a catalog, the source GGUF or row exponents.
+    // No data is trusted merely because this constructor succeeded: read()
+    // authenticates every private block before it is returned to the caller.
+    static std::unique_ptr<sh_weight_cache> open_catalog_sha256(int source_fd,
+            uint64_t bytes, const std::vector<std::array<uint8_t, 32>> &expected) {
+        static constexpr uint64_t max_bytes = UINT64_C(64) << 30;
+        if (source_fd < 0 || !bytes || bytes > max_bytes || bytes > SIZE_MAX ||
+                expected.size() != (bytes - 1) / block_bytes + 1) return nullptr;
+        std::unique_ptr<sh_weight_cache> out(new (std::nothrow) sh_weight_cache);
+        if (!out) return nullptr;
+        out->fd_ = fcntl(source_fd, F_DUPFD_CLOEXEC, 0);
+        if (out->fd_ < 0) return nullptr;
+        struct stat st;
+        if (fstat(out->fd_, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 ||
+                (uint64_t)st.st_size != bytes) return nullptr;
+        out->sha256_ = true;  // policy is explicit; never chosen by host bytes/env
+        out->bytes_ = (size_t)bytes;
+        try {
+            out->hashes_.resize(expected.size());
+            for (size_t i = 0; i < expected.size(); ++i) {
+                out->hashes_[i].fill(0);
+                std::copy(expected[i].begin(), expected[i].end(), out->hashes_[i].begin());
+            }
+        } catch (const std::bad_alloc &) { return nullptr; }
+          catch (const std::length_error &) { return nullptr; }
+        return out;
     }
 
     // Failure invalidates the entire output, including any earlier blocks.
