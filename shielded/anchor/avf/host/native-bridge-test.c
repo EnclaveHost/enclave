@@ -2,7 +2,11 @@
  * socket buffers (partial writes, EAGAIN), an EINTR storm, half-close ordering, cancellation, idle
  * timeout, an abruptly closed peer, and a descriptor/flag audit. */
 #define _GNU_SOURCE
+#include <sys/socket.h>
+static ssize_t checked_send(int fd, const void *buf, size_t n, int flags);
+#define send checked_send
 #include "native-bridge.c"
+#undef send
 #include <assert.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -14,6 +18,15 @@
 #define BRIDGE_CAP (1u << 20)
 #endif
 static size_t N = 24u << 20; static int USE_STORM = 1, USE_SMALL = 1;
+static size_t WRITE_MAX = 0;
+static _Thread_local int guest_fd;
+static _Thread_local size_t largest_guest_send, largest_host_send;
+static ssize_t checked_send(int fd, const void *buf, size_t n, int flags) {
+    size_t *largest = fd == guest_fd ? &largest_guest_send : &largest_host_send;
+    if (n > *largest) *largest = n;
+    if (fd == guest_fd && WRITE_MAX) assert(n <= WRITE_MAX);
+    return send(fd, buf, n, flags);
+}
 static void on_usr1(int sig) { (void)sig; }
 static int count_fds(void) { DIR *d = opendir("/proc/self/fd"); int n = 0; struct dirent *e; while ((e = readdir(d))) if (e->d_name[0] != '.') n++; closedir(d); return n - 1; }
 static uint64_t fnv(const uint8_t *p, size_t n, uint64_t h) { for (size_t i = 0; i < n; i++) { h ^= p[i]; h *= 1099511628211ull; } return h; }
@@ -25,8 +38,10 @@ static void *writer(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16)
 static void *reader(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16); j->hash = 1469598103934665603ull; size_t got = 0; uint64_t exact = 0x9e3779b97f4a7c15ull ^ (uint64_t)j->source_fd;
     for (;;) { ssize_t r = read(j->fd, buf, 1 << 16); if (r < 0) { if (errno == EINTR) continue; perror("read"); abort(); } if (r == 0) break; for (ssize_t i=0;i<r;++i) { exact ^= exact << 13; exact ^= exact >> 7; exact ^= exact << 17; assert(buf[i] == (uint8_t)exact); } j->hash = fnv(buf, (size_t)r, j->hash); got += (size_t)r; if (j->slow && (got & 0xfffff) < (size_t)r) usleep(300); }
     j->n = got; free(buf); return NULL; }
-typedef struct { int a, b, cancel, idle; anchor_bridge_stats st; int rc; } run_job;
-static void *runner(void *arg) { run_job *r = arg; r->rc = anchor_bridge_run_profile(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st, getenv("BRIDGE_TEST_PROFILE") != NULL); return NULL; }
+typedef struct { int a, b, cancel, idle; anchor_bridge_stats st; int rc; size_t guest_max, host_max; } run_job;
+static void *runner(void *arg) { run_job *r = arg; guest_fd=r->a; largest_guest_send=largest_host_send=0;
+    r->rc = anchor_bridge_run_profile_limit(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st, getenv("BRIDGE_TEST_PROFILE") != NULL, WRITE_MAX);
+    r->guest_max=largest_guest_send; r->host_max=largest_host_send; return NULL; }
 static atomic_int storm = 1;
 static void *storm_main(void *arg) { pthread_t *t = arg; while (storm) { pthread_kill(*t, SIGUSR1); usleep(100); } return NULL; }
 static void small_bufs(int fd) { int v = 8192; setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &v, sizeof v); setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &v, sizeof v); }
@@ -36,6 +51,7 @@ int main(void) {
     if (getenv("BRIDGE_TEST_N")) N = (size_t)atol(getenv("BRIDGE_TEST_N"));
     if (getenv("BRIDGE_TEST_STORM")) USE_STORM = atoi(getenv("BRIDGE_TEST_STORM"));
     if (getenv("BRIDGE_TEST_SMALL")) USE_SMALL = atoi(getenv("BRIDGE_TEST_SMALL"));
+    if (getenv("BRIDGE_TEST_WRITE_MAX")) WRITE_MAX = (size_t)atol(getenv("BRIDGE_TEST_WRITE_MAX"));
     struct sigaction sa = { .sa_handler = on_usr1 }; sigaction(SIGUSR1, &sa, NULL);   /* no SA_RESTART: syscalls see EINTR */
     signal(SIGPIPE, SIG_DFL);   /* the bridge must not raise it even so */
     const int fds0 = count_fds();
@@ -50,6 +66,11 @@ int main(void) {
       storm = 0; if (USE_STORM) pthread_join(st, NULL); pthread_join(rt, NULL);
       assert(r.rc == 0); assert(rb.n == N && rb.hash == wa.hash); assert(ra.n == N / 2 && ra.hash == wb.hash);
       assert(r.st.a_to_b == N && r.st.b_to_a == N / 2 && r.st.max_chunk <= BRIDGE_CAP);
+      if (WRITE_MAX) {
+          assert(r.guest_max > 0 && r.guest_max <= WRITE_MAX);
+          if (!USE_SMALL && BRIDGE_CAP > 4096) assert(r.host_max > WRITE_MAX);
+          printf("send cap: guest <= %zu; host maximum %zu; both streams exact PASS\n", WRITE_MAX, r.host_max);
+      }
       assert(fcntl(A[1], F_GETFL) == fla && fcntl(B[0], F_GETFL) == flb);   /* flags restored */
       printf("case 1: %zu + %zu bytes exact both ways, reads %llu writes %llu polls %llu max_chunk %llu, EINTR storm, flags restored\n", N, N / 2, (unsigned long long)r.st.reads, (unsigned long long)r.st.writes, (unsigned long long)r.st.polls, (unsigned long long)r.st.max_chunk);
       close(A[0]); close(A[1]); close(B[0]); close(B[1]); }
@@ -97,7 +118,9 @@ int main(void) {
       pthread_join(rt, NULL); assert(r.rc == -EPIPE || r.rc == -ECONNRESET); printf("case 5: dead sink -> %s, no SIGPIPE\n", r.rc == -EPIPE ? "-EPIPE" : "-ECONNRESET");
       close(A[0]); close(A[1]); close(B[0]); }
     /* 6. bad arguments */
-    { anchor_bridge_stats s; assert(anchor_bridge_run(-1, 3, -1, 0, 0, &s) == -EINVAL && anchor_bridge_run(3, 3, -1, 0, 0, &s) == -EINVAL); }
+    { anchor_bridge_stats s; assert(anchor_bridge_run(-1, 3, -1, 0, 0, &s) == -EINVAL && anchor_bridge_run(3, 3, -1, 0, 0, &s) == -EINVAL);
+      for (size_t cap = 1; cap <= 8192; cap *= 2) if (cap != 4096)
+          assert(anchor_bridge_run_profile_limit(10000, 10001, -1, 0, 0, &s, 0, cap) == -EINVAL && s.status == -EINVAL); }
     assert(count_fds() == fds0);   /* nothing leaked, nothing owned */
     puts("native-bridge: backpressure, partial I/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed");
     return 0;
