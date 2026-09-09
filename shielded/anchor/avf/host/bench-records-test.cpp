@@ -28,5 +28,16 @@ int main(int argc, char **argv) {
     check(!anchor_bench_fits(anchor_bench_result_json(big)), "oversized result refused by the guard");
     anchor_bench_counters none = {false, true, 0, 0, 0, 0, 0, 0}; check(anchor_bench_counters_json(none) == "null", "unavailable counters -> null, not zeroes");
     check(anchor_bench_escape("a\"b\\c\nd\x01") == "a\\\"b\\\\c\\nd\\u0001", "escape");
+    /* internal snprintf truncation: an oversized metadata string in the session must yield the sentinel, never a cut record */
+    anchor_bench_session huge = s; huge.stream_min_bytes = std::string(3000, 'x'); check(!anchor_bench_fits(anchor_bench_session_json(huge)), "oversized session metadata refused");
+    anchor_bench_session model_long = s; model_long.model_sha256 = std::string(1500, 'f'); check(!anchor_bench_fits(anchor_bench_session_json(model_long)), "oversized identity refused");
+    /* extreme numerics still format within their buffers and fit */
+    anchor_bench_counters ext = {true, true, ~0ull, ~0ull, ~0ull, ~0ull, ~0ull, ~0ull}; std::string cj = anchor_bench_counters_json(ext); check(anchor_bench_fits(cj) && cj.find("18446744073709551615") != std::string::npos, "extreme counters");
+    anchor_bench_session xs = s; xs.trials = ~0ull; xs.target_bytes = ~(size_t)0; xs.head_bytes = ~(size_t)0; xs.pending_bytes = ~(size_t)0; xs.snapshot_ms = 1e300; xs.prefill_ms = 1e300; xs.prompt_observe_us = 0x7fffffffffffffffL; xs.n_past = 0x7fffffff; xs.first_token = -0x7fffffff; xs.prompt_tokens = 0x7fffffff;
+    check(anchor_bench_fits(anchor_bench_session_json(xs)), "extreme session numerics fit");
+    anchor_bench_result xr = big; xr.completion = ""; xr.decode_us = 0x7fffffffffffffffL; xr.steady_us = 0x7fffffffffffffffL; xr.generated = 0x7fffffff; xr.steady_tokens = 0x7fffffff; xr.rounds = xr.drafted = xr.accepted = xr.emitted = 0x7fffffff; xr.counters_after = cj;
+    check(anchor_bench_fits(anchor_bench_result_json(xr)), "extreme result numerics fit");
+    check(anchor_bench_fits(anchor_bench_end_json(~0ull, ~0ull, "incomplete", false, false, ~0ull, true)), "extreme end numerics fit");
+    check(!anchor_bench_fits(anchor_bench_end_json(1, 1, std::string(5000, 'r').c_str(), true, true, 1, false)), "oversized end reason refused");
     printf("{\"self_checks\":%s}\n", fails ? "FAIL" : "PASS"); return fails ? 1 : 0;
 }

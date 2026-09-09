@@ -13,6 +13,11 @@
 
 #define ANCHOR_BENCH_LINE_MAX 4000u   /* outf: 4096 - '\n' - NUL, with margin */
 
+/* Every internal snprintf is checked: a negative or truncated result yields the OVERSIZED sentinel, a string longer than
+ * the line bound that anchor_bench_fits() rejects, so an internally truncated record can never be emitted as valid. */
+static inline std::string anchor_bench_oversized(void) { return std::string(ANCHOR_BENCH_LINE_MAX + 1, '#'); }
+static inline bool anchor_bench_snprintf_ok(int n, size_t cap) { return n >= 0 && (size_t)n < cap; }
+
 static inline std::string anchor_bench_escape(const std::string &in) {
     std::string o; o.reserve(in.size() + 8); char hex[8];
     for (unsigned char c : in) {
@@ -27,9 +32,9 @@ struct anchor_bench_counters { bool have_stats, have_pads; uint64_t offloaded, l
 static inline std::string anchor_bench_counters_json(const anchor_bench_counters &c) {
     if (!c.have_stats || !c.have_pads) return "null";
     char b[320];
-    snprintf(b, sizeof b, "{\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"macs\":%llu,\"gmac\":%.3f,\"verify_fail\":%llu,\"pads_used\":%llu,\"pads_missed\":%llu}",
+    const int n = snprintf(b, sizeof b, "{\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"macs\":%llu,\"gmac\":%.3f,\"verify_fail\":%llu,\"pads_used\":%llu,\"pads_missed\":%llu}",
              (unsigned long long)c.offloaded, (unsigned long long)c.local, (unsigned long long)c.macs, c.macs / 1e9, (unsigned long long)c.verify_fail, (unsigned long long)c.pads_used, (unsigned long long)c.pads_missed);
-    return b;
+    return anchor_bench_snprintf_ok(n, sizeof b) ? std::string(b) : anchor_bench_oversized();
 }
 struct anchor_bench_session {
     uint64_t trials; std::string model_sha256, calib_digest; size_t target_bytes, head_bytes, pending_bytes; double snapshot_ms; long prompt_observe_us;
@@ -38,17 +43,20 @@ struct anchor_bench_session {
 };
 static inline std::string anchor_bench_session_json(const anchor_bench_session &s) {
     char b[1024];
-    snprintf(b, sizeof b, "BENCH v1 {\"record\":\"session\",\"trials\":%llu,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"snapshot_bytes\":{\"target\":%zu,\"head\":%zu,\"pending\":%zu},\"snapshot_ms\":%.3f,\"prompt_observe_us\":%ld,"
+    int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"session\",\"trials\":%llu,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"snapshot_bytes\":{\"target\":%zu,\"head\":%zu,\"pending\":%zu},\"snapshot_ms\":%.3f,\"prompt_observe_us\":%ld,"
              "\"n_past\":%d,\"first_token\":%d,\"prompt_tokens\":%d,\"prefill_ms\":%.3f,\"mtp_requested_k\":%d,\"mtp_fallback\":\"%s\",\"counters_available\":{\"stats\":%s,\"pads\":%s},",
              (unsigned long long)s.trials, anchor_bench_escape(s.model_sha256).c_str(), anchor_bench_escape(s.calib_digest).c_str(), s.target_bytes, s.head_bytes, s.pending_bytes, s.snapshot_ms, s.prompt_observe_us,
              s.n_past, s.first_token, s.prompt_tokens, s.prefill_ms, s.mtp_requested_k, anchor_bench_escape(s.mtp_fallback).c_str(), s.have_stats ? "true" : "false", s.have_pads ? "true" : "false");
+    if (!anchor_bench_snprintf_ok(n, sizeof b)) return anchor_bench_oversized();
     std::string r = b;
-    snprintf(b, sizeof b, "\"settings\":{\"n_predict\":%d,\"mtp_k\":%d,\"draft_ahead\":%d,\"threads\":%d,\"threads_batch\":%d,\"head_threads\":%d,\"cpu_poll\":\"%s\",\"arm_tuned\":\"%s\",\"stream_min_bytes\":\"%s\"},\"not_restored\":\"pads,seed,spent indices,receipts,verification state\"}",
+    n = snprintf(b, sizeof b, "\"settings\":{\"n_predict\":%d,\"mtp_k\":%d,\"draft_ahead\":%d,\"threads\":%d,\"threads_batch\":%d,\"head_threads\":%d,\"cpu_poll\":\"%s\",\"arm_tuned\":\"%s\",\"stream_min_bytes\":\"%s\"},\"not_restored\":\"pads,seed,spent indices,receipts,verification state\"}",
              s.n_predict, s.mtp_k_effective, s.draft_ahead, s.threads, s.threads_batch, s.head_threads, anchor_bench_escape(s.cpu_poll).c_str(), anchor_bench_escape(s.arm_tuned).c_str(), anchor_bench_escape(s.stream_min_bytes).c_str());
+    if (!anchor_bench_snprintf_ok(n, sizeof b)) return anchor_bench_oversized();
     return r + b;
 }
 static inline std::string anchor_bench_begin_json(uint64_t trial, long restore_us, const std::string &counters) {
-    char b[128]; snprintf(b, sizeof b, "BENCH v1 {\"record\":\"begin\",\"trial\":%llu,\"restore_us\":%ld,\"counters_before\":", (unsigned long long)trial, restore_us);
+    char b[128]; const int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"begin\",\"trial\":%llu,\"restore_us\":%ld,\"counters_before\":", (unsigned long long)trial, restore_us);
+    if (!anchor_bench_snprintf_ok(n, sizeof b)) return anchor_bench_oversized();
     return std::string(b) + counters + "}";
 }
 struct anchor_bench_result {
@@ -57,17 +65,18 @@ struct anchor_bench_result {
 };
 static inline std::string anchor_bench_result_json(const anchor_bench_result &r) {
     char b[512];
-    snprintf(b, sizeof b, "BENCH v1 {\"record\":\"result\",\"trial\":%llu,\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"generated\":%d,\"decode_us\":%ld,\"decode_tokens\":%d,\"steady_us\":%ld,\"steady_tokens\":%d,"
+    const int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"result\",\"trial\":%llu,\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"generated\":%d,\"decode_us\":%ld,\"decode_tokens\":%d,\"steady_us\":%ld,\"steady_tokens\":%d,"
              "\"mtp\":{\"rounds\":%d,\"drafted\":%d,\"accepted\":%d,\"emitted\":%d},\"text_sha256\":\"%s\",\"completion\":\"",
              (unsigned long long)r.trial, anchor_bench_escape(r.status).c_str(), anchor_bench_escape(r.mtp_fallback).c_str(), r.generated, r.decode_us, r.generated, r.steady_us, r.steady_tokens,
              r.rounds, r.drafted, r.accepted, r.emitted, anchor_bench_escape(r.text_sha256).c_str());
+    if (!anchor_bench_snprintf_ok(n, sizeof b)) return anchor_bench_oversized();
     return std::string(b) + anchor_bench_escape(r.completion) + "\",\"counters_after\":" + r.counters_after + "}";
 }
 static inline std::string anchor_bench_end_json(uint64_t trials, uint64_t completed, const char *reason, bool identical_text, bool identical_mtp, uint64_t generated_total, bool any_failed) {
     char b[320];
-    snprintf(b, sizeof b, "BENCH v1 {\"record\":\"end\",\"trials\":%llu,\"completed\":%llu,\"reason\":\"%s\",\"identical_text\":%s,\"identical_mtp\":%s,\"generated_total\":%llu,\"any_failed\":%s}",
+    const int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"end\",\"trials\":%llu,\"completed\":%llu,\"reason\":\"%s\",\"identical_text\":%s,\"identical_mtp\":%s,\"generated_total\":%llu,\"any_failed\":%s}",
              (unsigned long long)trials, (unsigned long long)completed, anchor_bench_escape(reason).c_str(), identical_text ? "true" : "false", identical_mtp ? "true" : "false", (unsigned long long)generated_total, any_failed ? "true" : "false");
-    return b;
+    return anchor_bench_snprintf_ok(n, sizeof b) ? std::string(b) : anchor_bench_oversized();
 }
 static inline bool anchor_bench_fits(const std::string &line) { return line.size() <= ANCHOR_BENCH_LINE_MAX; }
 #endif
