@@ -67,10 +67,27 @@ static int write_all(int fd, const uint8_t *p, size_t n) {
 }
 static int fsync_retry(int fd) { int rc; do { rc = fsync(fd); } while (rc < 0 && errno == EINTR); return rc; }
 #define EINTR_LIMIT 10000                                /* consecutive interrupted reads before the reception is refused */
+static uint64_t profile_now(anchor_artifact_profile *p) {
+    const int saved = errno; struct timespec ts;
+    const int rc = clock_gettime(CLOCK_MONOTONIC, &ts); errno = saved;
+    if (rc != 0) { p->clock_errors++; return 0; }
+    return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
+}
+static void profile_add(anchor_artifact_profile *p, uint64_t *field, uint64_t start) {
+    const uint64_t end = profile_now(p);
+    if (start && end >= start) *field += end - start;
+    else if (start && end) p->clock_errors++;
+}
 int anchor_artifact_receive(int dirfd, const char *name, const anchor_encoded_entry *e, const anchor_hash_ops *h,
                             anchor_artifact_reader rd, void *ctx, unsigned max_ms, anchor_artifact_receipt *r) {
+    return anchor_artifact_receive_profiled(dirfd, name, e, h, rd, ctx, max_ms, r, NULL);
+}
+int anchor_artifact_receive_profiled(int dirfd, const char *name, const anchor_encoded_entry *e, const anchor_hash_ops *h,
+                            anchor_artifact_reader rd, void *ctx, unsigned max_ms, anchor_artifact_receipt *r,
+                            anchor_artifact_profile *p) {
     anchor_artifact_receipt local; if (!r) r = &local;
     memset(r, 0, sizeof *r);
+    if (p) memset(p, 0, sizeof *p);
     if (dirfd < 0 || !e || !h || !h->init || !h->update || !h->final || !rd) return ANCHOR_ARTIFACT_E_ARGS;
     if (anchor_name_classify(name, NULL, NULL, NULL) != ANCHOR_NAME_ARTIFACT) return ANCHOR_ARTIFACT_E_ARGS;
     if (!e->bytes || !e->block_sha256 || e->blocks != (e->bytes - 1) / BLOCK + 1) return ANCHOR_ARTIFACT_E_ARGS;
@@ -81,19 +98,28 @@ int anchor_artifact_receive(int dirfd, const char *name, const anchor_encoded_en
     if (fd < 0) { r->err_no = errno; return ANCHOR_ARTIFACT_E_OPEN; }
     uint8_t *buf = malloc(CHUNK);
     if (!buf) { r->err_no = ENOMEM; close(fd); unlinkat(dirfd, tmp, 0); return ANCHOR_ARTIFACT_E_WRITE; }
+    const uint64_t body_start = p ? profile_now(p) : 0;
+    uint64_t phase_start = p ? profile_now(p) : 0;
     uint64_t hctx[64]; h->init(hctx);                       /* opaque hash state: at least 256 bytes, aligned */
+    if (p) profile_add(p, &p->hash_ns, phase_start);
     uint64_t block = 0, in_block = 0; int rc = ANCHOR_ARTIFACT_OK; unsigned eintr = 0; const uint64_t t0 = mono_ms();
     while (r->got < e->bytes) {
         if (max_ms && mono_ms() - t0 > max_ms) { r->err_no = ETIMEDOUT; rc = ANCHOR_ARTIFACT_E_READ; break; }   /* the whole reception is bounded */
         const size_t want = e->bytes - r->got < CHUNK ? (size_t)(e->bytes - r->got) : CHUNK;
+        phase_start = p ? profile_now(p) : 0;
         const ssize_t n = rd(ctx, buf, want);
+        if (p) { profile_add(p, &p->read_ns, phase_start); p->read_calls++; if (n > 0 && (size_t)n <= want) p->read_bytes += (uint64_t)n; }
         if (n < 0 && errno == EINTR) { if (++eintr < EINTR_LIMIT) continue; r->err_no = EINTR; rc = ANCHOR_ARTIFACT_E_READ; break; }
         if (n < 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_READ; break; }   /* EAGAIN = the socket's receive timeout: a stalled sender is refused, not waited for */
         eintr = 0;
         if (max_ms && mono_ms() - t0 > max_ms) { r->err_no = ETIMEDOUT; rc = ANCHOR_ARTIFACT_E_READ; break; }   /* a chunk that ARRIVED late counts too */
         if (n == 0) { rc = ANCHOR_ARTIFACT_E_SHORT; break; }
         if ((size_t)n > want) { r->err_no = EOVERFLOW; rc = ANCHOR_ARTIFACT_E_READ; break; }   /* an over-delivering reader is a broken reader */
-        if (write_all(fd, buf, (size_t)n) != 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_WRITE; break; }
+        phase_start = p ? profile_now(p) : 0;
+        const int write_rc = write_all(fd, buf, (size_t)n);
+        if (p) { profile_add(p, &p->write_ns, phase_start); p->write_batches++; }
+        if (write_rc != 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_WRITE; break; }
+        phase_start = p ? profile_now(p) : 0;
         size_t off = 0;
         while (off < (size_t)n) {                            /* hash by catalog block, compare the moment a block completes */
             const uint64_t room = BLOCK - in_block; const size_t take = (size_t)n - off < room ? (size_t)n - off : (size_t)room;
@@ -105,18 +131,27 @@ int anchor_artifact_receive(int dirfd, const char *name, const anchor_encoded_en
                 if (r->got < e->bytes) h->init(hctx);
             }
         }
+        if (p) profile_add(p, &p->hash_ns, phase_start);
         if (rc != ANCHOR_ARTIFACT_OK) break;
     }
     free(buf);
     if (rc == ANCHOR_ARTIFACT_OK && block != e->blocks) rc = ANCHOR_ARTIFACT_E_BLOCK;   /* unreachable by construction; refuse rather than publish */
     if (rc == ANCHOR_ARTIFACT_OK && max_ms && mono_ms() - t0 > max_ms) { r->err_no = ETIMEDOUT; rc = ANCHOR_ARTIFACT_E_READ; }   /* the deadline holds up to the publish itself */
-    if (rc == ANCHOR_ARTIFACT_OK && fsync_retry(fd) != 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_WRITE; }
     if (rc == ANCHOR_ARTIFACT_OK) {
+        phase_start = p ? profile_now(p) : 0;
+        const int sync_rc = fsync_retry(fd);
+        if (p) profile_add(p, &p->file_sync_ns, phase_start);
+        if (sync_rc != 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_WRITE; }
+    }
+    if (rc == ANCHOR_ARTIFACT_OK) {
+        phase_start = p ? profile_now(p) : 0;
         close(fd); fd = -1;
         if (renameat(dirfd, tmp, dirfd, name) != 0) { r->err_no = errno; rc = ANCHOR_ARTIFACT_E_PUBLISH; }
         else if (fsync_retry(dirfd) != 0) { r->err_no = errno; unlinkat(dirfd, name, 0); rc = ANCHOR_ARTIFACT_E_PUBLISH; }
+        if (p) profile_add(p, &p->publish_ns, phase_start);
     }
     if (rc != ANCHOR_ARTIFACT_OK) { if (fd >= 0) close(fd); unlinkat(dirfd, tmp, 0); }
+    if (p) profile_add(p, &p->body_total_ns, body_start);
     return rc;
 }
 int anchor_artifact_sweep(int dirfd, const anchor_encoded_catalog *cat) {

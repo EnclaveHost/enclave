@@ -31,6 +31,15 @@ typedef enum {
     ANCHOR_ARTIFACT_E_SHORT = 4, ANCHOR_ARTIFACT_E_WRITE = 5, ANCHOR_ARTIFACT_E_BLOCK = 6, ANCHOR_ARTIFACT_E_PUBLISH = 7
 } anchor_artifact_rc;
 typedef struct { uint64_t got; uint64_t bad_block; int err_no; } anchor_artifact_receipt;
+/* Optional, non-overlapping wall-clock breakdown. Read includes waiting for the sender;
+ * writes count write_all batches, not individual write(2) calls. Body total begins
+ * after temporary-file creation/allocation and includes final publication/cleanup.
+ * These timings never establish CPU utilization. A nonzero clock_errors invalidates
+ * the timing data. Existing callers incur no additional clock reads. */
+typedef struct {
+    uint64_t read_ns, write_ns, hash_ns, file_sync_ns, publish_ns, body_total_ns;
+    uint64_t read_calls, write_batches, read_bytes, clock_errors;
+} anchor_artifact_profile;
 /* Receives exactly e->bytes through `rd` into ".<name>.tmp" beneath dirfd. `name` must spell e->encoded_sha256 (E_ARGS
  * before anything is created or unlinked otherwise). Every 1 MiB block is hashed with `h` and
  * compared with the catalog's digest the moment it completes; the first mismatch ends the reception (E_BLOCK,
@@ -41,6 +50,11 @@ typedef struct { uint64_t got; uint64_t bad_block; int err_no; } anchor_artifact
  * and max_ms > 0 bounds the WHOLE reception on the monotonic clock (E_READ, err_no ETIMEDOUT). `r` may be NULL. */
 int anchor_artifact_receive(int dirfd, const char *name, const anchor_encoded_entry *e, const anchor_hash_ops *h,
                             anchor_artifact_reader rd, void *ctx, unsigned max_ms, anchor_artifact_receipt *r);
+/* Same admission, verification and publication semantics; profile==NULL disables
+ * additional timing. The profile is zeroed on entry, including rejected arguments. */
+int anchor_artifact_receive_profiled(int dirfd, const char *name, const anchor_encoded_entry *e, const anchor_hash_ops *h,
+                            anchor_artifact_reader rd, void *ctx, unsigned max_ms, anchor_artifact_receipt *r,
+                            anchor_artifact_profile *profile);
 /* Bounded, directory-scoped sweep after a VERIFIED admission: unlinks ".<artifact>.tmp" leftovers, artifact names the
  * catalog does not list, and catalog-named entries that are not a regular file of the listed size. Touches no other
  * name (the model, pads and prefix assets never live here anyway). Returns the number removed; -1 when the catalog
