@@ -31,6 +31,7 @@
 #include "shielded-pad-grant.h"
 #include "anchor_maskbench.h"
 #include "output_mask_speed.h"
+#include "chacha4_check.h"
 #include "anchor_pins.h"
 #include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
 #include "anchor_names.h"
@@ -649,6 +650,8 @@ static void artifact_receive_conn(int c, const char *name, unsigned long long by
 /* MASKBENCH adapters: the probe helper and the comparator take a monotonic-microsecond clock and a line sink */
 static int64_t maskbench_clock_us(void) { return (int64_t)now_us(); }
 static void maskbench_line(const char *s) { OUT("%s", s); }
+static void maskbench_line4(const char *s) { OUT("PRG4_SPEED%s", s + 9); }
+static void maskbench_line_again(const char *s) { OUT("PRG_AGAIN_SPEED%s", s + 9); }
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
@@ -1263,13 +1266,17 @@ int AVmPayload_main(void) {
         else if (engine || echo || prepare || bridgebench || n_shapes) OUT("MASKBENCH refused: conflicting mode commands on the same run (ENGINE/ECHO/PREPARE/BRIDGEBENCH/SHAPE)");
         else {
             OUT("MASKBENCH begin: existing sh_pad_r sampler on public inputs, then warm-file cell import; no model, no seed, no worker, no inference");
+            const int checks4 = astra_chacha4_check();
+            OUT("PRG4_CHECK status=%s comparisons=%d", checks4 == 608 ? "PASS" : "FAIL", checks4);
             const int g = astra_output_mask_speed(sh_pad_r, maskbench_clock_us, maskbench_line);
+            const int g4 = checks4 == 608 ? astra_output_mask_speed(astra_pad_r4, maskbench_clock_us, maskbench_line4) : 2;
+            const int ga = astra_output_mask_speed(sh_pad_r, maskbench_clock_us, maskbench_line_again);
             const char *es = AVmPayload_getEncryptedStoragePath(), *apk = AVmPayload_getApkContentsPath();
             char asset[600]; snprintf(asset, sizeof asset, "%s/assets/maskbench.pads", apk ? apk : "");   /* the host-minted public shipment (build: ANCHOR_MASKBENCH_PADS) */
             const int i = es && apk ? anchor_maskbench_import(es, asset, maskbench_clock_us, maskbench_line) : 2;
             if (!es || !apk) OUT("CELL_IMPORT FAIL no encrypted store or APK path");
-            if (g == 0 && i == 0) mrc = 0;
-            OUT("MASKBENCH status=%s generation_rc=%d import_rc=%d", mrc == 0 ? "PASS" : "FAIL", g, i);
+            if (g == 0 && i == 0 && g4 == 0 && ga == 0) mrc = 0;
+            OUT("MASKBENCH status=%s generation_rc=%d import_rc=%d fourblock_rc=%d repeat_rc=%d", mrc == 0 ? "PASS" : "FAIL", g, i, g4, ga);
         }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
