@@ -381,6 +381,14 @@ extern "C" int ggml_backend_shielded_set_rcvlowat(int cap, uint64_t *buffer_byte
     std::lock_guard<std::mutex> state_lock(s.mu);
     return sh_link_set_rcvlowat(s.link, cap, buffer_bytes);
 }
+extern "C" int ggml_backend_shielded_set_rcvbuf(int bytes, uint64_t *actual_bytes) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lock(p.mu);
+    if (p.cards.size() != 1) return SH_ERR_RANGE;
+    sh_state &s = *p.cards[0];
+    std::lock_guard<std::mutex> state_lock(s.mu);
+    return sh_link_set_rcvbuf(s.link, bytes, actual_bytes);
+}
 
 void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes) {
     sh_pool &p = sh_pool_get();

@@ -385,7 +385,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     uint64_t bench_trials = 0;
     if (const char *e = getenv("ANCHOR_BENCH_TRIALS")) {
         if (!anchor_stderr_cap_parse(e, 0, 16, &bench_trials)) { outf("ENGINE config: ANCHOR_BENCH_TRIALS must be canonical decimal in [0, 16]"); return 4; }
-        if (bench_trials >= 2 && !getenv("ANCHOR_BENCH_IDLE_PARK") && !getenv("ANCHOR_BENCH_RCVLOWAT")) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
+        if (bench_trials >= 2 && !getenv("ANCHOR_BENCH_IDLE_PARK") && !getenv("ANCHOR_BENCH_RCVLOWAT") && !getenv("ANCHOR_BENCH_RCVBUF")) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
     }
     const bool bench = bench_trials >= 2;
     int idle_park = 0;
@@ -406,9 +406,23 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         outf("ENGINE config: ANCHOR_BENCH_RCVLOWAT requires off-on or on-off, BENCH_TRIALS=2 and parking disabled"); return 4;
     }
     const bool paired_rcvlowat = rcvlowat_order != anchor_idle_order::none;
+    anchor_idle_order rcvbuf_order;
+    if (!anchor_idle_order_parse(getenv("ANCHOR_BENCH_RCVBUF"), bench_trials, idle_park || paired_park || paired_rcvlowat, rcvbuf_order)) {
+        outf("ENGINE config: ANCHOR_BENCH_RCVBUF requires off-on or on-off, BENCH_TRIALS=2 and no other paired experiment"); return 4;
+    }
+    const bool paired_rcvbuf = rcvbuf_order != anchor_idle_order::none;
+    uint64_t rcvbuf_bytes = 0;
+    if (const char *e = getenv("SHIELDED_RCVBUF")) {
+        if (!anchor_stderr_cap_parse(e, 0, 4194304, &rcvbuf_bytes)) {
+            outf("ENGINE config: SHIELDED_RCVBUF must be canonical decimal 0 or 4194304"); return 4;
+        }
+    }
+    if (paired_rcvbuf != (rcvbuf_bytes != 0) || (paired_rcvbuf && (rcvbuf_bytes != 4194304 || rcvlowat_cap != 131072))) {
+        outf("ENGINE config: RCVBUF requires paired order, buffer=4194304 and fixed RCVLOWAT=131072 together"); return 4;
+    }
     const char *spin = getenv("SHIELDED_SPIN_US");
-    if (paired_rcvlowat != (rcvlowat_cap > 0) || (paired_rcvlowat && spin && strcmp(spin, "0"))) {
-        outf("ENGINE config: RCVLOWAT requires a nonzero cap and paired order together, with SPIN_US unset or 0"); return 4;
+    if ((paired_rcvlowat || paired_rcvbuf) != (rcvlowat_cap > 0) || ((paired_rcvlowat || paired_rcvbuf) && spin && strcmp(spin, "0"))) {
+        outf("ENGINE config: RCVLOWAT requires a nonzero cap and a paired receive experiment, with SPIN_US unset or 0"); return 4;
     }
 
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -449,13 +463,22 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     void *sh_h = dlopen(sh_so.c_str(), RTLD_NOW);
     using rcvlowat_fn = int (*)(int, uint64_t *);
     struct rcvlowat_guard {
-        rcvlowat_fn set = nullptr;
-        ~rcvlowat_guard() { if (set) set(0, nullptr); }
+        rcvlowat_fn set = nullptr, set_buffer = nullptr;
+        ~rcvlowat_guard() {
+            if (set) set(0, nullptr);
+            if (set_buffer) set_buffer(0, nullptr);
+        }
     } rcvlowat;
-    if (paired_rcvlowat) {
+    if (paired_rcvlowat || paired_rcvbuf) {
         rcvlowat.set = sh_h ? (rcvlowat_fn)dlsym(sh_h, "ggml_backend_shielded_set_rcvlowat") : nullptr;
         if (!rcvlowat.set) { outf("ENGINE receive low-water experiment: backend setter unavailable"); return 2; }
-        outf("ENGINE receive low-water experiment: order=%s cap=%llu setup=off trials=2", getenv("ANCHOR_BENCH_RCVLOWAT"), (unsigned long long)rcvlowat_cap);
+        if (paired_rcvbuf) {
+            rcvlowat.set_buffer = (rcvlowat_fn)dlsym(sh_h, "ggml_backend_shielded_set_rcvbuf");
+            if (!rcvlowat.set_buffer) { outf("ENGINE receive buffer experiment: backend setter unavailable"); return 2; }
+            outf("ENGINE receive buffer experiment: order=%s bytes=%llu cap=%llu setup=off trials=2", getenv("ANCHOR_BENCH_RCVBUF"), (unsigned long long)rcvbuf_bytes, (unsigned long long)rcvlowat_cap);
+        } else {
+            outf("ENGINE receive low-water experiment: order=%s cap=%llu setup=off trials=2", getenv("ANCHOR_BENCH_RCVLOWAT"), (unsigned long long)rcvlowat_cap);
+        }
     }
     stats_fn stats = sh_h ? (stats_fn)dlsym(sh_h, "ggml_backend_shielded_stats") : nullptr;
     typedef void (*pads_used_fn)(uint64_t *, uint64_t *);
@@ -926,6 +949,17 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         t_restore_us = ggml_time_us() - tr0;
     }
     const uint64_t park_calls_before = idle_pool.calls;
+    if (paired_rcvbuf) {
+        const int bytes = anchor_idle_trial_enabled(rcvbuf_order, trial) ? (int)rcvbuf_bytes : 0;
+        uint64_t before = 0, actual = 0, lowat_buffer = 0;
+        if (rcvlowat.set_buffer(0, &before) || before != 262144 ||
+            rcvlowat.set_buffer(bytes, &actual) || actual != (bytes ? (uint64_t)bytes : before) ||
+            rcvlowat.set((int)rcvlowat_cap, &lowat_buffer) || lowat_buffer != actual) {
+            outf("ENGINE receive buffer experiment: trial selection failed"); bench_reason = "rcvbuf_selection_failed"; break;
+        }
+        outf("ENGINE receive buffer trial: trial=%llu bytes=%d cap=%llu buffer=%llu original=%llu", (unsigned long long)trial, bytes,
+             (unsigned long long)rcvlowat_cap, (unsigned long long)actual, (unsigned long long)before);
+    }
     if (paired_rcvlowat) {
         const int cap = anchor_idle_trial_enabled(rcvlowat_order, trial) ? (int)rcvlowat_cap : 0;
         uint64_t buffer = 0;
@@ -1001,6 +1035,13 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         cur = bonus;
     }
     const long t_tg1 = ggml_time_us();
+    if (paired_rcvbuf) {
+        uint64_t restored = 0;
+        if (rcvlowat.set(0, nullptr) || rcvlowat.set_buffer(0, &restored) || restored != 262144) {
+            outf("ENGINE receive buffer experiment: disarm failed"); bench_reason = "rcvbuf_disarm_failed"; break;
+        }
+        outf("ENGINE receive buffer trial end: trial=%llu cap=0 buffer=%llu", (unsigned long long)trial, (unsigned long long)restored);
+    }
     if (paired_rcvlowat) {
         if (rcvlowat.set(0, nullptr)) { outf("ENGINE receive low-water experiment: disarm failed"); bench_reason = "rcvlowat_disarm_failed"; break; }
         outf("ENGINE receive low-water trial end: trial=%llu cap=0", (unsigned long long)trial);

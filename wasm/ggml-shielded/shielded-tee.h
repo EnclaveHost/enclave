@@ -230,6 +230,7 @@ void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out);
 /* How the worker is reached ("vsock:9500", "tcp 10.0.2.2:9500 ..."), for logs. */
 const char *sh_link_transport(const sh_link *l);
 int sh_link_set_rcvlowat(sh_link *l, int cap, uint64_t *buffer_bytes);
+int sh_link_set_rcvbuf(sh_link *l, int bytes, uint64_t *actual_bytes);
 
 /* The SIMD table this process runs on, for callers with hot loops of their own. */
 const sh_simd *sh_link_simd(void);

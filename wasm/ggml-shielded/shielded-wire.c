@@ -63,6 +63,8 @@ struct sh_pipe {
     int      misses;
     int      stream_load;
     int      rcvlowat_cap; /* opt-in, changed only with the pipe owner idle */
+    int      rcvbuf_saved;
+    uint64_t rcvbuf_size, rcvbuf_max;
     sh_wire_timing timing;
 };
 
@@ -284,6 +286,61 @@ int sh_pipe_set_rcvlowat(sh_pipe *p, int cap, uint64_t *buffer_bytes) {
     p->rcvlowat_cap = cap;
     if (buffer_bytes) *buffer_bytes = buffer;
     return SH_OK;
+}
+
+static int read_vsock_buffer(int fd, int opt, uint64_t *value) {
+    unsigned long long v = 0;
+    socklen_t len = sizeof v;
+    if (getsockopt(fd, AF_VSOCK, opt, &v, &len) || len != sizeof v) return SH_ERR_IO;
+    *value = v;
+    return SH_OK;
+}
+static int write_vsock_buffer(int fd, int opt, uint64_t value) {
+    unsigned long long v = value;
+    return setsockopt(fd, AF_VSOCK, opt, &v, sizeof v) ? SH_ERR_IO : SH_OK;
+}
+
+/* Serialized idle owner only. Zero restores the saved options, or queries the
+ * current size when disabled. Changing credit does not change packet sizing. */
+int sh_pipe_set_rcvbuf(sh_pipe *p, int bytes, uint64_t *actual_bytes) {
+    if (actual_bytes) *actual_bytes = 0;
+    if (!p || p->fd < 0) return SH_ERR_IO;
+    if (bytes < 0 || bytes > 8388608 || p->ring || p->rcvlowat_cap || spin_us() > 0)
+        return SH_ERR_PROTO;
+    struct sockaddr_storage address;
+    socklen_t len = sizeof address;
+    if (getsockname(p->fd, (struct sockaddr *)&address, &len) || address.ss_family != AF_VSOCK)
+        return SH_ERR_IO;
+    uint64_t size = 0, maximum = 0, wanted = 0, wanted_max = 0;
+    if (bytes) {
+        if (p->rcvbuf_saved) return SH_ERR_PROTO;
+        if (read_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_SIZE, &size) ||
+            read_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &maximum)) return SH_ERR_IO;
+        if (!size || size > maximum || (uint64_t)bytes < size) return SH_ERR_PROTO;
+        p->rcvbuf_size = size; p->rcvbuf_max = maximum; p->rcvbuf_saved = 1;
+        wanted = (uint64_t)bytes; wanted_max = wanted > maximum ? wanted : maximum;
+        if (write_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_MAX_SIZE, wanted_max) ||
+            write_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_SIZE, wanted)) goto failed;
+    } else if (p->rcvbuf_saved) {
+        wanted = p->rcvbuf_size; wanted_max = p->rcvbuf_max;
+        /* Restore size before maximum: lowering maximum can clamp size. */
+        if (write_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_SIZE, wanted) ||
+            write_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_MAX_SIZE, wanted_max)) goto failed;
+    } else {
+        if (read_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_SIZE, &size)) return SH_ERR_IO;
+        if (actual_bytes) *actual_bytes = size;
+        return SH_OK;
+    }
+    if (read_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_SIZE, &size) ||
+        read_vsock_buffer(p->fd, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &maximum) ||
+        size != wanted || maximum != wanted_max) goto failed;
+    if (!bytes) p->rcvbuf_saved = 0;
+    if (actual_bytes) *actual_bytes = size;
+    return SH_OK;
+failed:
+    /* A partial or unverified policy change cannot leave a reusable pipe. */
+    close(p->fd); p->fd = -1; p->rcvbuf_saved = 0;
+    return SH_ERR_IO;
 }
 
 static int read_reply(sh_pipe *pipe, void *buf, size_t n) {

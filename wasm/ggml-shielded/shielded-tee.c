@@ -411,6 +411,9 @@ const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? 
 int sh_link_set_rcvlowat(sh_link *l, int cap, uint64_t *buffer_bytes) {
     return l ? sh_pipe_set_rcvlowat(l->pipe, cap, buffer_bytes) : SH_ERR_IO;
 }
+int sh_link_set_rcvbuf(sh_link *l, int bytes, uint64_t *actual_bytes) {
+    return l ? sh_pipe_set_rcvbuf(l->pipe, bytes, actual_bytes) : SH_ERR_IO;
+}
 double sh_link_last_wire_us(const sh_link *l) { return l ? l->last_wire_us : 0.0; }
 void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out) {
     sh_sp_dump("tee");

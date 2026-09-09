@@ -3,7 +3,9 @@
 Default off. Use `ANCHOR_BENCH_RCVLOWAT=off-on` (or `on-off`),
 `SHIELDED_RCVLOWAT=131072` and `ANCHOR_BENCH_TRIALS=2` together.
 Parking must be disabled and `SHIELDED_SPIN_US` unset or zero.
-The cap is canonical decimal, 1..131072. A cap without an order is refused.
+The cap is canonical decimal, 1..131072. A cap without a paired receive
+experiment is refused. The separate `BENCH-RCVBUF.md` mode holds this threshold
+fixed while varying the credit window; the two paired modes are exclusive.
 
 The engine leaves registration, prefill, prompt observation, snapshot and restore
 unchanged, then selects the cap before each measured trial and clears it immediately

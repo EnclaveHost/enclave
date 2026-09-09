@@ -82,6 +82,10 @@ typedef struct sh_pipe sh_pipe;
  * with receive buffer strictly larger than cap. Zero disables the experiment.
  * Each read restores the prior socket mark; restore failure closes the pipe. */
 int sh_pipe_set_rcvlowat(sh_pipe *p, int cap, uint64_t *buffer_bytes);
+/* Default off, idle VSOCK owner only; 1..8 MiB grows the receive credit window.
+ * Disable low-water first. Zero restores original size/max and returns size.
+ * A failed or unverifiable mutation closes the pipe. No protocol change. */
+int sh_pipe_set_rcvbuf(sh_pipe *p, int bytes, uint64_t *actual_bytes);
 
 /* One outbound frame in a pipelined batch. Both segments are borrowed, never
  * copied. The second exists for SET_TENSOR, whose payload is a fixed header
