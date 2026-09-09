@@ -33,8 +33,10 @@ int main(int argc, char **argv) {
     anchor_bench_session model_long = s; model_long.model_sha256 = std::string(1500, 'f'); check(!anchor_bench_fits(anchor_bench_session_json(model_long)), "oversized identity refused");
     /* extreme numerics still format within their buffers and fit */
     anchor_bench_counters ext = {true, true, ~0ull, ~0ull, ~0ull, ~0ull, ~0ull, ~0ull}; std::string cj = anchor_bench_counters_json(ext); check(anchor_bench_fits(cj) && cj.find("18446744073709551615") != std::string::npos, "extreme counters");
-    anchor_bench_session xs = s; xs.trials = ~0ull; xs.target_bytes = ~(size_t)0; xs.head_bytes = ~(size_t)0; xs.pending_bytes = ~(size_t)0; xs.snapshot_ms = 1e300; xs.prefill_ms = 1e300; xs.prompt_observe_us = 0x7fffffffffffffffL; xs.n_past = 0x7fffffff; xs.first_token = -0x7fffffff; xs.prompt_tokens = 0x7fffffff;
-    check(anchor_bench_fits(anchor_bench_session_json(xs)), "extreme session numerics fit");
+    anchor_bench_session xs = s; xs.trials = ~0ull; xs.target_bytes = ~(size_t)0; xs.head_bytes = ~(size_t)0; xs.pending_bytes = ~(size_t)0; xs.snapshot_ms = 1e12; xs.prefill_ms = 1e12; xs.prompt_observe_us = 0x7fffffffffffffffL; xs.n_past = 0x7fffffff; xs.first_token = -0x7fffffff; xs.prompt_tokens = 0x7fffffff;
+    check(anchor_bench_fits(anchor_bench_session_json(xs)), "extreme (but representable) session numerics fit");
+    anchor_bench_session absurd = s; absurd.snapshot_ms = 1e300; absurd.prefill_ms = 1e300;   /* ~600 digits of %.3f would overflow the 1 KiB buffer: REFUSED, never cut */
+    check(!anchor_bench_fits(anchor_bench_session_json(absurd)), "absurd doubles are refused by the internal-truncation check");
     anchor_bench_result xr = big; xr.completion = ""; xr.decode_us = 0x7fffffffffffffffL; xr.steady_us = 0x7fffffffffffffffL; xr.generated = 0x7fffffff; xr.steady_tokens = 0x7fffffff; xr.rounds = xr.drafted = xr.accepted = xr.emitted = 0x7fffffff; xr.counters_after = cj;
     check(anchor_bench_fits(anchor_bench_result_json(xr)), "extreme result numerics fit");
     check(anchor_bench_fits(anchor_bench_end_json(~0ull, ~0ull, "incomplete", false, false, ~0ull, true)), "extreme end numerics fit");
