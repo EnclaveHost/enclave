@@ -48,6 +48,20 @@ app, the pVM:
    the rejection; no acknowledgment is emitted;
 4. on success: answers 'K' and prints the prepared PADACK on the control channel.
 
+An optional `SHIELDED_PAD_ACK_STREAM=1` computes the acknowledgment SHA-256
+while writing a **new** canonical shipment, avoiding one complete reread.
+Unset, `0`, and all other values retain the descriptor reread above. The
+streamed digest is eligible only after every announced byte was written and
+fsync succeeded; descriptor header judgment and exact file size must still
+pass before publication. Prefix assets never enter this hash path.
+
+The enabled path trusts successful write and fsync for the acknowledged
+bytes. The default reread can additionally detect same-length corruption
+introduced between fsync and acknowledgment. With streaming enabled, that
+corruption is detected by the unchanged per-cell AEAD when consumed. This
+changes detection timing, not the header, signature, publication or one-use
+requirements. It remains an experimental opt-in; no phone speedup is claimed.
+
 The cached path acknowledges too: a "PADS <name> <bytes>" for a file the
 store already holds re-judges and hashes a retained descriptor and answers 'H'
 with a fresh PADACK. Engine pruning of the pathname cannot invalidate that
@@ -57,6 +71,14 @@ and signs with (seed, name, calibration digest) is one snapshot taken under
 a lock at grant time, so a new grant on the control thread cannot split a
 validation from its signature. The control channel is written under a lock:
 a PADACK line never interleaves with another thread's line.
+
+Cached retries always reread the held descriptor, including when streaming
+is enabled. `test/pad-ack-receiver.test.mjs` compiles the actual receiver and
+judge blocks with bounded fault injection. It checks short writes, EINTR,
+incomplete delivery, failed fsync/publication/signing, exact SHA-256 against
+an independent oracle, and 18 switch/new/retry/prefix combinations. Crypto
+judgment and signing boundaries are stubbed in that receiver test; the
+existing protocol tests cover them separately.
 
 ```
 PADACK <seed_id:32hex> <index0:dec> <count:dec> <sha256:64hex> <nonce:32hex> <sig:128hex>
