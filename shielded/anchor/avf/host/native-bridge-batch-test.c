@@ -65,4 +65,4 @@ static void oversized(void) {
     r.batch=123;bridge(&r);assert(r.rc==-EINVAL);
     for(int i=0;i<2;i++){close(a[i]);close(b[i]);}
 }
-int main(void) {signal(SIGPIPE,SIG_IGN);full_stream(4096,0,65536,0);full_stream(0,0,65536,0);full_stream(0,4096,65536,1);full_stream(0,0,65536,2);full_stream(0,0,0,0);blocked(1,0);blocked(1,1);blocked(0,0);batch_and_tail();oversized();puts("framed reply batching: PASS");}
+int main(void) {signal(SIGPIPE,SIG_IGN);full_stream(4096,0,65536,0);full_stream(0,0,65536,0);full_stream(0,4096,65536,1);full_stream(0,8192,65536,0);full_stream(0,0,65536,2);full_stream(0,0,0,0);blocked(1,0);blocked(1,1);blocked(0,0);batch_and_tail();oversized();puts("framed reply batching: PASS");}

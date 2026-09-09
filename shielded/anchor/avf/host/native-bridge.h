@@ -17,7 +17,7 @@ typedef struct {
  * hung up; -ETIMEDOUT when idle_ms > 0 passed with nothing to move; -errno on an I/O error (the
  * caller closes and reconnects as it does today). buf_bytes per direction (0 = 1 MiB). */
 int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile);
-/* Experimental VM-bound send cap: a_write_max is 0 (unchanged) or 4096.
+/* Experimental VM-bound send cap: a_write_max is 0 (unchanged), 4096 or 8192.
  * Only sends to a are capped; buffer capacity and sends to b are unchanged. */
 int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max);
 /* trace_fd=-1 disables the metadata timeline. Otherwise the caller supplies an

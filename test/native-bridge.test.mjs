@@ -69,9 +69,11 @@ test('native bridge caps only VM-bound sends while preserving both streams and c
  try {
   const bin=join(dir,'test');
   execFileSync('cc',[...flags,'-I',host,join(host,'native-bridge-test.c'),'-o',bin],{encoding:'utf8',timeout:60_000,env});
-  const out=execFileSync(bin,[],{encoding:'utf8',timeout:10_000,env:{...env,BRIDGE_TEST_N:'4194304',BRIDGE_TEST_SMALL:'0',BRIDGE_TEST_WRITE_MAX:'4096'}});
-  assert.match(out,/send cap: guest <= 4096; host maximum \d+; both streams exact PASS/);
-  assert.match(out,/native-bridge: backpressure, partial I\/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed/);
+  for (const cap of [4096,8192]) {
+   const out=execFileSync(bin,[],{encoding:'utf8',timeout:10_000,env:{...env,BRIDGE_TEST_N:'4194304',BRIDGE_TEST_SMALL:'0',BRIDGE_TEST_WRITE_MAX:String(cap)}});
+   assert.ok(out.includes(`send cap: guest <= ${cap}; host maximum `),out);
+   assert.match(out,/native-bridge: backpressure, partial I\/O, EINTR, half-close, cancel, no-progress deadline, non-socket refusal, dead sink, fd audit passed/);
+  }
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 

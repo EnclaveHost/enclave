@@ -149,7 +149,7 @@ int anchor_bridge_run_profile_trace_batch(int a, int b, int cancel_fd, int idle_
     int usage_ok=0;
     if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); usage_ok=prof_usage(&user0,&system0); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
-    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096) || (reply_batch != 0 && reply_batch != 65536)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
+    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096 && a_write_max != 8192) || (reply_batch != 0 && reply_batch != 65536)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
     anchor_io_trace trace;anchor_io_init(&trace,trace_fd);
     if (buf_bytes < 4096) buf_bytes = 1u << 20;

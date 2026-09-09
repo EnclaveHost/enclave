@@ -74,7 +74,7 @@ public final class PadDeliveryTest {
             // Exercise production copy paths, including partial reads and the exact EOF check.
             byte[] body = new byte[(1 << 20) + 37];
             for (int i = 0; i < body.length; i++) body[i] = (byte)(i * 31);
-            for (int cap : new int[]{0, 4096}) {
+            for (int cap : new int[]{0, 4096, 8192}) {
                 PadDelivery.Session capped = PadDelivery.begin(cap);
                 final int[] largest = {0};
                 ByteArrayOutputStream sink = new ByteArrayOutputStream() {
@@ -111,7 +111,7 @@ public final class PadDeliveryTest {
                 check(canceledBytes[0] == (cap == 0 ? 1 << 20 : cap), "cancellation stops before next chunk");
             }
             // Model fragmented HTTP delivery and count actual VM-bound writes, not just buffer size.
-            for (boolean fill : new boolean[]{false, true}) for (int cap : new int[]{0, 4096}) {
+            for (boolean fill : new boolean[]{false, true}) for (int cap : new int[]{0, 4096, 8192}) {
                 PadDelivery.Session direct = PadDelivery.begin(cap, fill);
                 final java.util.List<Integer> sizes = new java.util.ArrayList<>();
                 ByteArrayOutputStream sink = new ByteArrayOutputStream() {
@@ -157,8 +157,10 @@ public final class PadDeliveryTest {
             fails(() -> gather.copyDirectToVm(cancelMidGather, abandoned, body.length));
             check(abandoned.size() == 0, "canceled partial gathered chunk never written");
             PadDelivery.Session valid = PadDelivery.begin();
-            try { PadDelivery.begin(65536); throw new AssertionError("invalid cap accepted"); }
-            catch (IllegalArgumentException expected) { check(valid.active(), "invalid cap cannot cancel current run"); }
+            for (int cap : new int[]{-1, 1, 4095, 4097, 8191, 8193, 16384, 65536}) {
+                try { PadDelivery.begin(cap); throw new AssertionError("invalid cap accepted"); }
+                catch (IllegalArgumentException expected) { check(valid.active(), "invalid cap cannot cancel current run"); }
+            }
             valid.close();
             System.out.println("pad-delivery: ok");
         } finally {
