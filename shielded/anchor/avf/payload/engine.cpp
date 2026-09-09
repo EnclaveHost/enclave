@@ -64,6 +64,23 @@ static void quiet_log(enum ggml_log_level level, const char *text, void *) {
 typedef void (*stats_fn)(uint64_t *offloaded, uint64_t *local, uint64_t *macs, uint64_t *verify_fail);
 typedef void (*adopt_fn)(int fd);
 typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
+struct anchor_idle_pool {
+    using pause_fn = void (*)(ggml_threadpool *);
+    using hook_fn = void (*)(void *);
+    using set_fn = void (*)(hook_fn, void *);
+    pause_fn pause = nullptr; set_fn set = nullptr;
+    ggml_threadpool *target = nullptr, *batch = nullptr;
+    uint64_t calls = 0;
+    static void park(void *v) {
+        auto &p = *static_cast<anchor_idle_pool *>(v);
+        p.pause(p.target);
+        if (p.batch && p.batch != p.target) p.pause(p.batch);
+        ++p.calls;
+        // ggml_graph_compute_kickoff resumes when the NEXT CPU graph is ready.
+        // The independent draft-ahead head pool is not part of this context.
+    }
+    ~anchor_idle_pool() { if (set) set(nullptr, nullptr); }
+};
 
 /* ---- dealt pads: ledger windows through the owner app --------------------
  * The engine never talks to the platform itself; it writes a signed PADWIN
@@ -667,6 +684,9 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (mtp_k > 0) outf("ENGINE MTP draft: %s (k=%d, p_min=%.2f, rollback depth %u)", mtp ? "on" : "UNAVAILABLE (no nextn layer or symbols); decoding plainly", mtp_k, mtp_pmin, llama_n_rs_seq(ctx));
     /* one persistent CPU pool: without it every scheduler split respawns the threads (REPORT.md 12) */
     void *cpu_h = dlopen(cpu_so.c_str(), RTLD_NOW);
+    anchor_idle_pool idle_pool;
+    int idle_park = 0;
+    if (!anchor_stderr_flag_parse(getenv("ANCHOR_CPU_IDLE_PARK"), &idle_park)) { outf("ENGINE config: ANCHOR_CPU_IDLE_PARK must be 0 or 1"); return 4; }
     tp_new_fn tp_new = cpu_h ? (tp_new_fn)dlsym(cpu_h, "ggml_threadpool_new") : nullptr;
     if (cpu_poll >= 0 && !tp_new) { outf("ENGINE config: ANCHOR_CPU_POLL requires the persistent CPU pool API"); return 4; }
     auto pool_params = [cpu_poll](int threads) {
@@ -678,10 +698,19 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                   ggml_threadpool_params tpb = pool_params(n_threads_batch); ggml_threadpool *tpb_pool = n_threads_batch != n_threads ? tp_new(&tpb) : tp;
                   if (cpu_poll >= 0 && (!tp || !tpb_pool)) { outf("ENGINE config: ANCHOR_CPU_POLL target/batch pool creation failed"); return 4; }
                   llama_attach_threadpool(ctx, tp, tpb_pool);
+                  if (idle_park) {
+                      idle_pool.pause = (anchor_idle_pool::pause_fn)dlsym(cpu_h, "ggml_threadpool_pause");
+                      auto setter = sh_h ? (anchor_idle_pool::set_fn)dlsym(sh_h, "ggml_backend_shielded_set_cpu_idle_hook") : nullptr;
+                      if (!tp || !tpb_pool || !idle_pool.pause || !setter) { outf("ENGINE idle park: missing pool/hook API"); return 4; }
+                      idle_pool.target = tp; idle_pool.batch = tpb_pool;
+                      idle_pool.set = setter; setter(anchor_idle_pool::park, &idle_pool);
+                  }
                   if (mtp && !draft_ahead) llama_attach_threadpool(anchor_mtp_ctx(mtp), tp, tp);   /* one decode pool for target and head; the batch pool prefills */
                   else if (mtp) { ggml_threadpool_params tph = pool_params(head_threads); ggml_threadpool *tp_head = tp_new(&tph);
                                   if (cpu_poll >= 0 && !tp_head) { outf("ENGINE config: ANCHOR_CPU_POLL head pool creation failed"); return 4; }
                                   llama_attach_threadpool(anchor_mtp_ctx(mtp), tp_head, tp_head); } }   /* draft-ahead: the head runs on its own pool while the target waits on the link */
+    if (idle_park && !idle_pool.set) { outf("ENGINE idle park: persistent pool unavailable"); return 4; }
+    if (idle_park) outf("ENGINE idle park: target/batch pause at Shielded graph entry; next CPU graph resumes");
     if (tp_new) outf("ENGINE CPU pool: poll=%u (%s; target/batch/head)", pool_params(n_threads).poll, cpu_poll < 0 ? "library default" : "explicit override");
     outf("ENGINE prefill threads %d (decode %d)", n_threads_batch, n_threads);
     outf("ENGINE context ready, %d threads, persistent pool=%s", n_threads, tp_new ? "yes" : "no");
@@ -1025,6 +1054,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* ENGINE_EXPORT_STDERR=1 (diagnostic, default off, validated at entry): a FILE SNAPSHOT of engine.err taken
      * now, after engine_main's own cleanup. The process-static shielded pool (links, refill threads) outlives this
      * function and may still write stderr later, so the export is scoped and named as a snapshot, never "all". */
+    if (idle_park) outf("ENGINE idle park: calls=%llu", (unsigned long long)idle_pool.calls);
     source_sample.finish();
     if (err_path[0] && g_export_stderr) { fflush(stderr); anchor_stderr_export(err_path, g_export_cap, [](void *, const char *l) { outf("%s", l); }, nullptr); }
     return any_failed ? 3 : 0;               /* a broken loop, or any non-complete bench outcome, is a failed run */

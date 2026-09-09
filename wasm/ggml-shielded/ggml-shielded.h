@@ -115,6 +115,13 @@ GGML_BACKEND_API int ggml_backend_shielded_set_encoded_source(ggml_shielded_enco
 typedef void (*ggml_shielded_encoded_failure)(void *ctx, const char *name, const char *why);
 GGML_BACKEND_API int ggml_backend_shielded_set_encoded_failure(ggml_shielded_encoded_failure notify, void *ctx);
 
+/* Optional caller-owned idle-pool hook, run on entry to each synchronous
+ * Shielded graph under its pool lock. The scheduler must have completed prior
+ * CPU work; hook must not reenter this backend. Unset by default. Clear with
+ * (NULL,NULL) before releasing ctx; setter serializes with graph execution. */
+typedef void (*ggml_shielded_cpu_idle_hook)(void *ctx);
+GGML_BACKEND_API void ggml_backend_shielded_set_cpu_idle_hook(ggml_shielded_cpu_idle_hook hook, void *ctx);
+
 /* Capability probe used by the manager before admitting a pooled tenant. */
 GGML_BACKEND_API int ggml_backend_shielded_pool_version(void);
 /* Dealt pads: mint one .pads shipment from the registered weights (single
