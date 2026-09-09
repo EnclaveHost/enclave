@@ -669,6 +669,17 @@ static int sh_prepare_rows_threaded(const void *blocks, int64_t K, int64_t N, in
     return 0;
 }
 
+/* In required-public-cache mode, registration still authenticates/encodes W
+ * and prepares private product/pad checks. Only then can its temporary rows
+ * go away. The existing link looks up their digest before calling a reader;
+ * missing/evicted entries and local fallback must fail, never upload or use
+ * an absent source. No worker cache claim replaces product verification. */
+static int sh_required_cache_read(void *ctx, uint64_t, uint8_t *, size_t) {
+    const auto *e = static_cast<const sh_state::entry *>(ctx);
+    fprintf(stderr, "[shielded] %s: required public worker cache unavailable; no local weight copy retained\n", e->name.c_str());
+    return -1;
+}
+
 static bool sh_register(sh_state &s, const ggml_tensor *w) {
     if (s.weight_cache_failed || s.source_verification_failed) return false;
     const std::string name = ggml_get_name(w);
@@ -678,6 +689,17 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const int64_t K = w->ne[0], N = w->ne[1];
     const sh_calib_site *site = sh_site_for(s, name.c_str());
     if (!site) return false;
+    const char *only = getenv("SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY");
+    const bool cache_only = only && !strcmp(only, "1");
+    const char *pc = getenv("SHIELDED_PUBLIC_WEIGHT_CACHE");
+    const char *pad_check = getenv("SHIELDED_PAD_CHECK");
+    if ((only && *only && strcmp(only, "0") && !cache_only) ||
+        (cache_only && (!g_weight_verifier || !pc || strcmp(pc, "1") ||
+                        !pad_check || !*pad_check || !strcmp(pad_check, "0")))) {
+        fprintf(stderr, "[shielded] %s: required public cache needs authenticated weights, public cache and pad checks\n", name.c_str());
+        s.weight_cache_failed = true;
+        return false;
+    }
     if (K <= 0 || N <= 0 || (__int128)K*N + (__int128)sh_max_m()*(3*(__int128)K + 4*(__int128)N) > INT64_MAX)
         return false;
     if (K % SH_QK != 0) return false;
@@ -864,7 +886,12 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     // Cache before committing the node, so an I/O failure cannot leave a link
     // borrowing a destroyed vector. No change to dealer/local-mint builds.
     const char *cache_dir = getenv("SHIELDED_WEIGHT_CACHE_DIR");
-    if (!hit && cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {   /* a hit already carries the catalog reader */
+    if (cache_only && !sh_link_is_dealt(s.link)) {
+        fprintf(stderr, "[shielded] %s: required public cache needs a dealt link\n", name.c_str());
+        s.weight_cache_failed = true;
+        return false;
+    }
+    if (!cache_only && !hit && cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {   /* a hit already carries the catalog reader */
         e.w_cache = sh_weight_cache::create(cache_dir, e.w.data(), e.w.size());
         if (!e.w_cache) {
             fprintf(stderr, "[shielded] %s: cannot create authenticated encoded-weight cache; aborting model load (check cache storage and I/O)\n", name.c_str());
@@ -888,7 +915,18 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     }
     const double t_checks = profile_registration ? sh_now_ms() : 0;
     stored.node = node;
-    if (stored.w_cache) {
+    if (cache_only) {
+        if (sh_link_set_weight_reader(s.link, node, sh_required_cache_read, &stored) != SH_OK) {
+            // Keep the borrowed vector alive on failure; the entire model
+            // load is now refused before any execution or pad consumption.
+            s.weight_cache_failed = true;
+            return false;
+        }
+        const size_t bytes = stored.w.size();
+        std::vector<int8_t>().swap(stored.w);
+        stored.w_cache.reset(); stored.w_cache_ctx.reset();
+        fprintf(stderr, "[shielded] %s: required public cache, released %zu encoded bytes after private checks\n", name.c_str(), bytes);
+    } else if (stored.w_cache) {
         int rrc;
         if (stored.encoded_hit) { stored.w_cache_ctx.reset(new sh_encoded_reader_ctx{ stored.w_cache.get(), name }); rrc = sh_link_set_weight_reader(s.link, node, sh_encoded_reader, stored.w_cache_ctx.get()); }
         else rrc = sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get());
