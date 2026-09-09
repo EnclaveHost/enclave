@@ -79,7 +79,7 @@ static void send_bytes(int fd,const void *p,size_t n) {
 }
 struct job {int fd,mode;size_t size;};
 static void *server(void *v) {
-    struct job *j=v;uint8_t h[9],q[3];assert(read_all(j->fd,h,9)==SH_OK && read_all(j->fd,q,3)==SH_OK);
+    struct job *j=v;uint8_t h[9],q[3];assert(read_all(j->fd,h,9,NULL)==SH_OK && read_all(j->fd,q,3,NULL)==SH_OK);
     memset(h,0,sizeof h);h[0]=j->mode==3;put_u64(h+1,j->mode==4?SH_MAX_FRAME+1:j->size);
     send_bytes(j->fd,h,j->mode==1?4:9);
     if(j->mode!=1 && j->mode!=4) {
@@ -107,7 +107,7 @@ static void exchange(int enabled,int mode) {
     assert(mark(target)==old && !(fcntl(target,F_GETFL)&O_NONBLOCK));
     if(!enabled)assert(set_calls==0);
     if(!mode) {char ack=42;send_bytes(target,&ack,1);}
-    assert(!pthread_join(t,NULL));close(fds[1]);sh_pipe_close(p);
+    assert(!pthread_join(t,NULL));close(fds[1]);sh_wire_timing timing;sh_pipe_wire_timing(p,&timing);sh_pipe_close(p);
 }
 static void failures(void) {
     int fds[2];tcp_pair(fds);sh_pipe p={.fd=fds[0]};fake_vsock=1;
@@ -117,16 +117,24 @@ static void failures(void) {
     get_mismatch=1;assert(sh_pipe_set_rcvlowat(&p,131072,NULL)==SH_ERR_IO && !p.rcvlowat_cap && mark(target)==1);
     get_mismatch=0;set_calls=0;set_fail=1;assert(sh_pipe_set_rcvlowat(&p,131072,NULL)==SH_ERR_IO && mark(target)==1);
     set_calls=0;set_fail=0;assert(sh_pipe_set_rcvlowat(&p,131072,NULL)==SH_OK);
-    set_calls=0;set_fail=1;uint8_t out[9];assert(read_reply(&p,out,sizeof out)==SH_ERR_IO && mark(target)==1);
+    set_calls=0;set_fail=1;uint8_t out[9];assert(read_reply(&p,out,sizeof out,1,100,"body")==SH_ERR_IO && mark(target)==1);
     set_fail=0;set_calls=0;send_bytes(fds[1],"123456789",9);
     /* Successful read, failed restoration: must close and invalidate the fd. */
-    set_fail=2;assert(read_reply(&p,out,sizeof out)==SH_ERR_IO && p.fd==-1);
+    set_fail=2;assert(read_reply(&p,out,sizeof out,1,100,"body")==SH_ERR_IO && p.fd==-1);
     assert(fcntl(fds[0],F_GETFD)==-1 && errno==EBADF);close(fds[1]);
     tcp_pair(fds);p.fd=fds[0];fake_vsock=1;set_fail=2;
     assert(sh_pipe_set_rcvlowat(&p,131072,NULL)==SH_ERR_IO && p.fd==-1);close(fds[1]);
 }
-int main(void) {
+int main(int argc,char **argv) {
     alarm(10);
+    if(argc==2 || getenv("SHIELDED_RECV_PROFILE")) {
+        setenv("SHIELDED_WIRE_PROFILE","1",1);
+        setenv("SHIELDED_PROFILE","1",1);
+    }
+    if(argc==2 && !strcmp(argv[1],"capture")) {
+        setenv("SHIELDED_WIRE_SCHED","1",1);setenv("SHIELDED_RECV_PROFILE","1",1);
+        exchange(1,0);puts("receive capture: PASS");return 0;
+    }
     for(int enabled=0;enabled<2;enabled++)for(int mode=0;mode<5;mode++)exchange(enabled,mode);
     failures();puts("receive low-water: PASS");return 0;
 }
