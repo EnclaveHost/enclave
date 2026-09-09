@@ -111,7 +111,26 @@ public class Main extends Activity {
     }
 
     private static volatile TextView sScreen;
+    /* Opt-in bounded capture of every say() line (CaptureSink.java): `--es capture <label>` [`--ei capture_cap_mib` 1..64,
+     * default 16]. A REQUESTED capture that cannot be opened refuses the launch (both entry paths check the result). */
+    private static volatile CaptureSink sCapture;
+    private static final CaptureSink.Warn sCaptureWarn = m -> Log.w(TAG, m);
+    static boolean captureOpen(Context ctx, Intent i) {
+        if (i == null || !i.hasExtra("capture")) return true;                       /* not requested: nothing changes */
+        if (sCapture != null) { Log.w(TAG, "CAPTURE FAIL already open"); return false; }
+        final int capMib = i.hasExtra("capture_cap_mib") ? i.getIntExtra("capture_cap_mib", -1) : CaptureSink.CAP_MIB_DEFAULT;   /* malformed -> -1 -> refused */
+        CaptureSink c = CaptureSink.open(new java.io.File(ctx.getFilesDir(), "capture"), i.getStringExtra("capture"), capMib, sCaptureWarn);
+        if (c == null) return false;
+        sCapture = c; return true;
+    }
+    static void captureClose(boolean sawEnd) {
+        CaptureSink c = sCapture; sCapture = null;   /* unpublish first: the footer line below must not be captured */
+        if (c == null) return;
+        String footer = c.close(sawEnd);
+        if (footer != null) say(footer);
+    }
     static void say(String s) {
+        CaptureSink c = sCapture; if (c != null) c.line(s, sCaptureWarn);   /* the file first: logd may drop or delay */
         Log.i(TAG, s);
         TextView t = sScreen;
         if (t != null) t.post(() -> t.append(s + "\n"));
@@ -122,6 +141,7 @@ public class Main extends Activity {
         TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 48, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
         ScrollView sv = new ScrollView(this); sv.addView(t); setContentView(sv); sScreen = t;
         final Plan plan = Plan.from(getIntent());
+        if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
         new Thread(() -> runVm(this, plan), "anchor-host").start();
     }
     @Override protected void onDestroy() { sScreen = null; super.onDestroy(); }
@@ -257,8 +277,9 @@ public class Main extends Activity {
         sEnded = false;
         final PadDelivery.Session padSession = PadDelivery.begin();
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
-        if (pfd == null) { padSession.close(); say("CONTROL connect failed"); return; }
+        if (pfd == null) { padSession.close(); say("CONTROL connect failed"); captureClose(false); return; }
         say("CONTROL connected");
+        boolean sawEnd = false;
         if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
@@ -361,7 +382,7 @@ public class Main extends Activity {
                 if (line.startsWith("PADWIN ")) PadsClient.onWindow(padSession, line, plan.name, out);   // the engine asks for a ledger window
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
-                if (line.equals("END")) break;
+                if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");
         } catch (Exception e) {
@@ -369,8 +390,10 @@ public class Main extends Activity {
         } finally {
             padSession.close();
             sEnded = true; cancelNativeBridge();
+            burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
+            captureClose(sawEnd);   /* the footer, then nothing more is written to the capture file */
         }
     }
 
