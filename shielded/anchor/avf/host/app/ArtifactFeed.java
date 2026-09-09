@@ -30,7 +30,14 @@ import java.util.function.Consumer;
  *  manifest is malformed; the identities must not change between rounds. HTTP: loopback base only, no redirects, status 200, exact
  *  Content-Length and a body of exactly that length (a short body is a server fault and the feed stops). HttpURLConnection frames
  *  the body by Content-Length, so bytes a misbehaving server might append beyond that frame are not observable here and no claim
- *  about them is made; the guest's block verification is the authority over every byte it stores. */
+ *  about them is made; the guest's block verification is the authority over every byte it stores.
+ *
+ *  Coalescing (run(..., coalesce=true), app extra artifacts_coalesce=1, default off): each vsock write carries a full 1 MiB chunk
+ *  instead of whatever HTTP fragment arrived. TIMEOUT INTERACTION: while a chunk fills, nothing reaches the guest, and the
+ *  guest's receiver refuses a reception after 30 s without bytes (its per-read timeout); so coalescing is safe only while the
+ *  HTTP side sustains more than 1 MiB per 30 s (~35 KB/s) for every chunk. On a stalled or very slow source it refuses safely
+ *  (the guest removes its temp, the file is retried next round) where byte-by-byte forwarding would have survived. It is an
+ *  A/B option for a measured phone comparison, not a general production gain claim. */
 final class ArtifactFeed {
     static final long MANIFEST_MAX = 1L << 20, FILE_MAX = 4L << 30, TOTAL_MAX = 64L << 30, DEADLINE_DEFAULT_MS = 300_000L, DEADLINE_MAX_MS = 600_000L;
     static final int COUNT_MAX = 4096, IO_TIMEOUT_MS = 30_000;
@@ -88,7 +95,7 @@ final class ArtifactFeed {
         boolean workerAlive() { return worker.isAlive(); }
     }
     static final class Result {
-        int offered, verified, present, pending, refused, rounds; long bytes, ms; String reason = "";
+        int offered, verified, present, pending, refused, rounds; long bytes, ms, bodyReads, bodyWrites, writtenBytes; String reason = "";
         boolean complete() { return reason.equals("complete"); }
         String line() { return "ARTIFACTS feed: offered " + offered + ", verified " + verified + " (" + (bytes >> 20) + " MiB), already-present " + present + ", pending " + pending + ", refused " + refused + ", rounds " + rounds + ", " + ms + " ms, reason=" + reason; }
     }
@@ -196,11 +203,13 @@ final class ArtifactFeed {
 
     /* ---- the bounded run ---- */
     private final String base; private final Port port; private final long deadline; private final BooleanSupplier ended; private final Consumer<String> say;
+    private final boolean coalesce;
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final AtomicReference<Closeable> active = new AtomicReference<>();   /* the one resource a blocking operation is using right now */
     private volatile String cancelReason = "";
     private volatile Manifest lastManifest = null; private final Set<String> done = new HashSet<>();   /* pending is always recomputed from these, whatever path ends the run */
-    private ArtifactFeed(String base, Port port, long deadlineMs, BooleanSupplier ended, Consumer<String> say) {
+    private ArtifactFeed(String base, Port port, long deadlineMs, BooleanSupplier ended, Consumer<String> say, boolean coalesce) {
+        this.coalesce = coalesce;
         this.base = base; this.port = port; this.ended = ended; this.say = say;
         long d = deadlineMs <= 0 ? DEADLINE_DEFAULT_MS : Math.min(deadlineMs, DEADLINE_MAX_MS);
         this.deadline = System.nanoTime() + d * 1_000_000L;
@@ -214,9 +223,15 @@ final class ArtifactFeed {
     private void done() { active.set(null); }
 
     static Result run(String base, Port port, long deadlineMs, BooleanSupplier ended, Consumer<String> say) {
+        return run(base, port, deadlineMs, ended, say, false);
+    }
+    static Result runCoalesced(String base, Port port, long deadlineMs, BooleanSupplier ended, Consumer<String> say) {
+        return run(base, port, deadlineMs, ended, say, true);
+    }
+    static Result run(String base, Port port, long deadlineMs, BooleanSupplier ended, Consumer<String> say, boolean coalesce) {
         Result r = new Result(); long t0 = System.nanoTime();
         if (!validBase(base)) { r.reason = "invalid base url (loopback http://127.0.0.1:<port>/v1/artifacts only)"; say.accept(r.line()); return r; }
-        ArtifactFeed f = new ArtifactFeed(base, port, deadlineMs, ended, say);
+        ArtifactFeed f = new ArtifactFeed(base, port, deadlineMs, ended, say, coalesce);
         Thread closer = new Thread(() -> {
             while (!f.cancelled.get()) {
                 if (f.remainingMs() == 0) { f.cancel("deadline"); break; }
@@ -245,7 +260,7 @@ final class ArtifactFeed {
         else r.reason = outcome;
         if (r.reason.isEmpty()) r.reason = "cancelled";                                       /* never an empty terminal reason */
         if (closerAlive) r.reason += " (closer thread still alive)";
-        r.ms = (System.nanoTime() - t0) / 1_000_000L; say.accept(r.line()); return r;
+        r.ms = (System.nanoTime() - t0) / 1_000_000L; say.accept(r.line()); say.accept("ARTIFACTS transfer: coalesced=" + coalesce + " body_reads=" + r.bodyReads + " completed_writes=" + r.bodyWrites + " completed_write_bytes=" + r.writtenBytes); return r;
     }
     /** every listed file that is neither verified nor present; before the first manifest nothing is known, so nothing is claimed done */
     int pendingNow() { Manifest m = lastManifest; if (m == null) return 0; int n = 0; for (Entry e : m.files) if (!done.contains(e.name)) n++; return n; }
@@ -295,6 +310,23 @@ final class ArtifactFeed {
             return parseManifest(body);
         } finally { done(); c.disconnect(); }
     }
+    /** Fill one bounded chunk when enabled. The existing registered closer still interrupts a blocked HTTP read.
+     * A cancelled or short chunk is not forwarded; the guest removes its incomplete temporary file. */
+    static int readTransferChunk(InputStream in, byte[] buffer, int want, boolean coalesce,
+                                 BooleanSupplier cancelled, Result result) throws IOException {
+        if (want <= 0 || want > buffer.length) throw new IllegalArgumentException("chunk size");
+        int got = 0;
+        do {
+            if (cancelled.getAsBoolean()) throw new IOException("feed cancelled while filling chunk");
+            int n = in.read(buffer, got, want - got);
+            if (n < 0) throw new IOException("short body while filling chunk: " + got + " of " + want);
+            if (n == 0) throw new IOException("body read made no progress");
+            result.bodyReads++;
+            got += n;
+        } while (coalesce && got < want);
+        if (cancelled.getAsBoolean()) throw new IOException("feed cancelled before chunk write");
+        return got;
+    }
     /** one offer of one artifact: returns 'K' (verified by the guest now), 'H' (already there), 'E' (not now: retry next round), or 'X' (refused, no retry this round) */
     private int offer(Entry e, Result r) throws IOException {
         if (cancelled.get()) throw new IOException("feed " + cancelReason);
@@ -317,10 +349,9 @@ final class ArtifactFeed {
                 try (InputStream in = c.getInputStream()) {
                     while (sent < e.bytes) {
                         if (cancelled.get()) throw new IOException("feed " + cancelReason);
-                        int n = in.read(buf, 0, (int) Math.min(buf.length, e.bytes - sent));
-                        if (n < 0) throw new IOException(e.name + ": short body at " + sent + " of " + e.bytes);   /* the guest sees EOF and removes its temp */
+                        int n = readTransferChunk(in, buf, (int) Math.min(buf.length, e.bytes - sent), coalesce, cancelled::get, r);   /* a short body throws in there: nothing partial is forwarded */
                         try { conn.out().write(buf, 0, n); } catch (IOException ge) { if (cancelled.get()) throw new IOException("feed " + cancelReason); guestGone = true; break; }
-                        sent += n;
+                        sent += n; r.bodyWrites++; r.writtenBytes += n;
                     }
                     if (!guestGone && in.read() != -1) throw new IOException(e.name + ": trailing bytes after " + e.bytes);
                 }
