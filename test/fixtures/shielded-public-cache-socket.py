@@ -49,4 +49,5 @@ finally:
     t.join(timeout=15);server.close()
 assert not t.is_alive() and not errors,(errors,stats)
 assert stats==[2,0] and cache.used==64*17003,stats
+assert 'fused_field_gemm' not in sys.modules, 'CPU reconnect must not require Triton'
 print('public-cache-socket: C client and CPU worker cold/warm exact bytes PASS')

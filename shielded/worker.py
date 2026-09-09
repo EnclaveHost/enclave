@@ -64,10 +64,21 @@ from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FR
                       CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
                       CMD_HELLO, CMD_SET_TENSOR, CMD_PUBLIC_WEIGHT_CACHE, PROTO_VERSION, ProtocolViolation,
                       ReservationLedger, ShieldedWorkerState)
-from field import M_MOD, Q0, Q1, Q2, crt_host
+from field import M_MOD, Q0, Q1, Q2, QK, crt_host
 import wire
 from public_weight_cache import PublicWeightCache
-from fused_field_gemm import QK, field_gemm
+
+# CPU reference mode uses pre-encoded float64 arithmetic and needs no Triton.
+# CUDA serving still resolves its kernel before it opens the listener.
+_FIELD_KERNEL = None
+
+
+def _field_kernel():
+    global _FIELD_KERNEL
+    if _FIELD_KERNEL is None:
+        from fused_field_gemm import field_gemm
+        _FIELD_KERNEL = field_gemm
+    return _FIELD_KERNEL
 
 GPU_LOCK = threading.Lock()
 
@@ -94,11 +105,11 @@ def measure_field_throughput(m=32, K=4096, N=4096, iters=12):
         wd_t = torch.from_numpy(wd).cuda()
         xr = [torch.from_numpy(p).cuda() for p in x_res]
         for _ in range(3):
-            field_gemm(xr, wq_t, wd_t, m, N)      # warm up, and compile the shape
+            _field_kernel()(xr, wq_t, wd_t, m, N)      # warm up, and compile the shape
         torch.cuda.synchronize()
         t0 = time.perf_counter()
         for _ in range(iters):
-            field_gemm(xr, wq_t, wd_t, m, N)
+            _field_kernel()(xr, wq_t, wd_t, m, N)
         torch.cuda.synchronize()
         dt = time.perf_counter() - t0
         del wq_t, wd_t, xr
@@ -149,7 +160,7 @@ class Node:
     def gemm(self, xr, m):
         """(m,N) int32 products of the residue planes xr (3 x (m,K) int8)."""
         if self.wf is None:
-            return field_gemm(xr, self.wq, self.wd, m, self.N)
+            return _field_kernel()(xr, self.wq, self.wd, m, self.N)
         # The pre-encoded path, exact in float64 (K * 125 * 119 << 2^53), then
         # CRT on the device. Reference speed, not production speed: the C++
         # worker is where the (N,K) layout is fast.
@@ -462,6 +473,7 @@ def serve(host, port, vram_gb, quiet=False, public_weight_cache_mib=0):
     if DEVICE == "cuda":
         if not torch.cuda.is_available():
             raise SystemExit("no CUDA device; the shielded worker is the GPU half by definition")
+        _field_kernel()
         props = torch.cuda.get_device_properties(0)
         budget = int(vram_gb * (1 << 30)) if vram_gb else int(props.total_memory * 0.85)
         log(f"{props.name}, sm_{props.major}{props.minor}, "
