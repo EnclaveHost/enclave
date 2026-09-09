@@ -23,5 +23,9 @@ int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, si
 /* trace_fd=-1 disables the metadata timeline. Otherwise the caller supplies an
  * empty regular file, retains ownership, and reads trace_status separately. */
 int anchor_bridge_run_profile_trace(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd);
+/* Experimental response batching: 0 keeps opaque forwarding; 65536 batches
+ * only b->a using Shielded's 9-byte response headers. Final frame tails and
+ * EOF drain immediately. Buffer capacity, cancellation and ownership stay as above. */
+int anchor_bridge_run_profile_trace_batch(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd, size_t reply_batch);
 int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st);
 #endif
