@@ -289,6 +289,27 @@ final class PadsClient {
         }
         Main.say("ARTIFACTS " + files.length + " offered: " + accepted + " accepted (" + (bytes >> 20) + " MiB), " + present + " already present, " + refused + " not delivered, " + ((System.nanoTime() - t0) / 1000000L) + " ms");
     }
+    /** The host feed (artifact-feed.py through adb reverse) straight into the VM's artifact receiver: ArtifactFeed does the bounded
+     *  work (manifest rounds, exact lengths, deadline/ended closer); this only supplies pads-port connections and the app's log. */
+    static void feedArtifacts(Object vm, String base, int deadlineS) {
+        /* ONE bounded connector for the whole feed: the raw connect is a single reflective connectVsock call (Main.connect with one
+         * try) on the connector's own thread; ArtifactFeed.open() waits at most its budget slice and abandons the request, and a
+         * descriptor that comes back late is closed by the connector. No thread is spawned per retry. */
+        final ArtifactFeed.Connect connect = () -> {
+            final ParcelFileDescriptor pfd;
+            try { pfd = Main.connect(vm, PADS_PORT, 1); } catch (RuntimeException e) { throw new java.io.IOException("pads port connect failed: " + e); }
+            if (pfd == null) throw new java.io.IOException("pads port not connectable yet");
+            final InputStream in = new java.io.FileInputStream(pfd.getFileDescriptor()); final OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
+            return new ArtifactFeed.Conn() {
+                public InputStream in() { return in; }
+                public OutputStream out() { return out; }
+                public void close() throws java.io.IOException { try { pfd.close(); } finally { try { in.close(); } catch (java.io.IOException ignored) { } try { out.close(); } catch (java.io.IOException ignored) { } } }
+            };
+        };
+        final ArtifactFeed.BoundedConnector connector = new ArtifactFeed.BoundedConnector(connect, Main::ended);
+        try { ArtifactFeed.run(base, connector, deadlineS * 1000L, Main::ended, Main::say); }
+        finally { connector.close(); }
+    }
     /** One artifact offer: 'K' verified and stored, 'H' already there (kept locally), 0 = not now (retry). */
     static int streamArtifact(Object vm, java.io.File f) {
         ParcelFileDescriptor pfd = Main.connect(vm, PADS_PORT, 5);

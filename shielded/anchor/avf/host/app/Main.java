@@ -85,6 +85,9 @@ public class Main extends Activity {
         String modelAuth = "whole-file";     // --es model_auth catalog: the VM admits the model through its measured catalog (assets/model.agcat) instead of the whole-file scan
         String artifacts = "";               // --es artifacts <dir>: public encoded-weight artifacts (<64hex>.i8) streamed into the VM over the pads port after the ENGINE line
         boolean artifactsConsume = false;    // --ez artifacts_consume true: delete a local artifact ONLY after the VM answered 'K' (fresh, block-verified); never after 'H'
+        String artifactsUrl = "";            // --es artifacts_url http://127.0.0.1:<port>/v1/artifacts: stream public artifacts from the host feed (adb reverse) straight into the VM, no phone copy (ArtifactFeed)
+        int artifactsDeadlineS = 300;        // --ei artifacts_deadline: the whole feed's budget in seconds (default 300, max 600), measured from the feed's start
+        String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
@@ -107,7 +110,17 @@ public class Main extends Activity {
             if (i.getStringExtra("model_auth") != null) p.modelAuth = i.getStringExtra("model_auth");
             if (i.getStringExtra("artifacts") != null) p.artifacts = i.getStringExtra("artifacts");
             p.artifactsConsume = i.getBooleanExtra("artifacts_consume", false);
+            if (i.getStringExtra("artifacts_url") != null) p.artifactsUrl = i.getStringExtra("artifacts_url");
+            p.artifactsDeadlineS = i.getIntExtra("artifacts_deadline", p.artifactsDeadlineS);
+            if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
+            else if (!p.artifactsUrl.isEmpty() && !ArtifactFeed.validBase(p.artifactsUrl)) p.configError = "artifacts_url must be http://127.0.0.1:<port>/v1/artifacts (the host feed through adb reverse)";
+            else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
+            else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
             p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
+            if (p.mode.equals("delete")) {   // diagnostic deletion of exactly the owned test instance; judged on the RAW extra, after vmname is parsed above
+                final String raw = i.getStringExtra("vmname");
+                if (!"anchorfeed1".equals(raw)) p.configError = "mode delete removes only the owned test VM instance anchorfeed1 (explicit --es vmname anchorfeed1); refused for " + (raw == null ? "<missing>" : "'" + raw + "'");
+            }
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
@@ -147,6 +160,7 @@ public class Main extends Activity {
         TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 48, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
         ScrollView sv = new ScrollView(this); sv.addView(t); setContentView(sv); sScreen = t;
         final Plan plan = Plan.from(getIntent());
+        if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
         if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
         new Thread(() -> runVm(this, plan), "anchor-host").start();
     }
@@ -198,6 +212,11 @@ public class Main extends Activity {
             say("HOST start payload=" + plan.payload + " debug=" + plan.debug + " mem=" + plan.memMib + "MiB worker=" + plan.worker + " mode=" + plan.mode + " host=" + ctx.getClass().getSimpleName());
             Object vmm = ctx.getSystemService("virtualization");
             if (vmm == null) { say("HOST no VirtualMachineManager: this build of Android has no AVF"); return; }
+            if (plan.mode.equals("delete")) {   // --es mode delete --es vmname <test instance>: reclaim a test store (Astra 03:58); nothing is created or started
+                try { call(vmm, "delete", plan.vmName); say("HOST VM instance '" + plan.vmName + "' deleted (mode delete): its encrypted store is gone"); }
+                catch (Throwable t) { say("HOST VM instance '" + plan.vmName + "' NOT deleted: " + (t.getCause() != null ? t.getCause().getMessage() : t.getMessage())); }
+                captureClose(true); return;
+            }
             gate(vmm);      // informative; the run proceeds so an unsupported phone still shows what it can do
 
             Class<?> cBuilder = Class.forName(PKG + "VirtualMachineConfig$Builder");
@@ -285,7 +304,7 @@ public class Main extends Activity {
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); captureClose(false); return; }
         say("CONTROL connected");
-        boolean sawEnd = false;
+        boolean sawEnd = false; Thread feedThread = null;   /* prepare mode: joined (bounded) at END so its terminal line lands in the capture */
         if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
@@ -329,9 +348,11 @@ public class Main extends Activity {
             }
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
             //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
-            if (plan.mode.equals("engine")) {
+            boolean modelOk = false;
+            if (plan.mode.equals("engine") || plan.mode.equals("prepare")) {
                 String ml = modelStage(vm, plan, out, r, 0);
-                if (ml == null || !ml.startsWith("MODEL ok")) say("MODEL stage did not pass: " + ml + " (pads bootstrap will be refused)");
+                modelOk = ml != null && ml.startsWith("MODEL ok");
+                if (!modelOk) say("MODEL stage did not pass: " + ml + (plan.mode.equals("prepare") ? " (the artifact feed will NOT start; the VM refuses PREPARE and ends)" : " (pads bootstrap will be refused)"));
             }
             // 4b. dealt pads: once the tunnel is bound, fetch the VM's seed through the platform's ledger
             boolean pads = false;
@@ -376,13 +397,20 @@ public class Main extends Activity {
                 if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(padSession, vm, bank), "vsock-pads").start(); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
                 if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
+                if (!plan.artifactsUrl.isEmpty()) { final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; new Thread(() -> PadsClient.feedArtifacts(vm, url, dl), "vsock-artifact-feed").start(); }
             }
+            if (plan.mode.equals("prepare")) cmd.append("PREPARE ").append(plan.artifactsDeadlineS).append('\n');   // artifacts preparation: the VM's receiver takes the feed, then reports PREPARATION present n/count
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
-            cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');
-            for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }
+            if (!plan.mode.equals("prepare")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
+            if (!plan.mode.equals("prepare")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
+            if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
+                final OutputStream o = out; final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS;
+                feedThread = new Thread(() -> { try { PadsClient.feedArtifacts(vm, url, dl); } finally { try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } } catch (Exception e) { say("PREPARE stop not sent: " + e); } } }, "vsock-artifact-feed");
+                feedThread.start();
+            }
             int n = 0;
             while ((line = r.readLine()) != null) {
                 say("VSOCK " + line); n++;
@@ -397,6 +425,10 @@ public class Main extends Activity {
         } finally {
             padSession.close();
             sEnded = true; cancelNativeBridge();
+            if (feedThread != null) {   /* the guest may end first (its own deadline): the feed's terminal line must be in the capture, or its absence said explicitly */
+                try { feedThread.join(5000); } catch (InterruptedException ignored) { }
+                if (feedThread.isAlive()) say("PREPARE feed thread still running after a 5 s join: its terminal ARTIFACTS feed line is NOT in this capture");
+            }
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
@@ -457,7 +489,7 @@ public class Main extends Activity {
         long modelBytes = new java.io.File(plan.model).length() + extra;
         new Thread(() -> streamModel(vm, plan, extra), "vsock-model").start();
         out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + authFlag(plan) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds (or admits it through its measured catalog)
-        String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
+        String ml; while ((ml = r.readLine()) != null) { final boolean verdict = ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail"); say("VSOCK " + (!verdict && ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); /* the verdict carries the full catalog identities: never truncated */ if (verdict) break; }
         return ml;
     }
 

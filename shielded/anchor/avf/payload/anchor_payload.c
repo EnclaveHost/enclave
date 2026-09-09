@@ -348,6 +348,7 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_artifacts.h"
 #include "anchor_model_auth.h"
 #include "anchor_auth.h"
+#include "anchor_prepare.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
  * (assets/ledger.pk) when present: then PADLEDGER from the app must match, only signed grants
@@ -793,6 +794,28 @@ static void artifact_suspect_cb(void *ctx, const uint8_t sha256[32]) {
     (void)ctx; char nm[ANCHOR_ARTIFACT_NAME_LEN + 1]; anchor_artifact_name(sha256, nm);
     if (g_art_dirfd >= 0 && unlinkat(g_art_dirfd, nm, 0) == 0) OUT("ARTIFACT %s removed: the engine refused its bytes; the next cycle re-delivers it", nm);
 }
+/* PREPARE [seconds] (after a MODEL … auth=catalog admission, instead of ENGINE): artifacts preparation with NO engine, seed,
+ * dealer or worker. The admitted encoded catalog's receiver takes public artifacts on the pads port for a bounded time; the
+ * owner sends STOP when its feed is done (or the deadline ends it: anchor_prepare_wait_stop never blocks in a read); the run
+ * reports what is PRESENT by name and size (availability only: use-time reads verify) and ends. Never a decode result. */
+static void run_prepare(int ls_pads, int seconds) {
+    if (g_model_state != 1 || g_auth_mode != ANCHOR_MODEL_AUTH_CATALOG_V1 || !g_ecat.authenticated || g_art_dirfd < 0) { OUT("PREPARE refused: no encoded catalog admitted (send MODEL <bytes> <sha256> auth=catalog first)"); return; }
+    pthread_t th; const int prc = pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads);
+    if (prc != 0) { OUT("PREPARE refused: pads-port receiver thread: %s", strerror(prc)); return; }
+    pthread_detach(th);
+    OUT("PREPARE ready: catalog artifacts accepted on the pads port for up to %d s (no engine, no seed, no worker)", seconds);
+    const uint64_t t0 = anchor_prepare_mono_ms();
+    const int w = anchor_prepare_wait_stop(g_ctl, t0 + (uint64_t)seconds * 1000u);
+    const char *reason = w == ANCHOR_PREPARE_STOP ? "owner stop" : w == ANCHOR_PREPARE_EOF ? "owner gone" : w == ANCHOR_PREPARE_DEADLINE ? "deadline" : w == ANCHOR_PREPARE_OVERLONG ? "owner sent an overlong line" : "control read error";
+    size_t present = 0; unsigned long long bytes = 0, total = 0;
+    for (size_t i = 0; i < g_ecat.count; i++) {
+        char nm[ANCHOR_ARTIFACT_NAME_LEN + 1]; anchor_artifact_name(g_ecat.entries[i].encoded_sha256, nm); total += g_ecat.entries[i].bytes;
+        if (anchor_artifact_have(g_art_dirfd, nm, g_ecat.entries[i].bytes) == 1) { present++; bytes += g_ecat.entries[i].bytes; }
+    }
+    struct statvfs sv; const unsigned long long freeb = fstatvfs(g_art_dirfd, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
+    OUT("PREPARATION present %zu/%zu (%llu of %llu bytes, availability only: use-time reads verify), store free %llu MiB, %.1f s, reason=%s",
+        present, g_ecat.count, bytes, total, freeb >> 20, (anchor_prepare_mono_ms() - t0) / 1e3, reason);
+}
 static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt, int n_predict, int threads, uint64_t model_bytes, int with_pads, int with_prefix) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512], calib[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk); snprintf(calib, sizeof calib, "%s/assets/model.calib", apk);
@@ -1032,6 +1055,7 @@ int AVmPayload_main(void) {
     int engine = 0, eng_n = 8, eng_threads = 4; uint64_t eng_model = 0; static char eng_prompt[2048] = "The capital of France is";
     int echo = 0, with_pads = 0, with_prefix = 0;
     int bridgebench = 0; static char bench_sizes[128] = "";
+    int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
@@ -1177,6 +1201,7 @@ int AVmPayload_main(void) {
             }
             else if (!strcmp(l, "ECHO")) echo = 1;
             else if (!strncmp(l, "BRIDGEBENCH ", 12)) { bridgebench = 1; snprintf(bench_sizes, sizeof bench_sizes, "%s", l + 12); }
+            else if (!strncmp(l, "PREPARE", 7)) { int sec = 0; if (prepare || !anchor_prepare_parse(l, &sec)) { prep_bad = 1; OUT("PREPARE refused: %s", prepare ? "repeated" : "malformed (PREPARE [1..600])"); } prepare = 1; prep_seconds = sec ? sec : prep_seconds; }
             else if (!strcmp(l, "RUN")) break;
         }
     }
@@ -1186,6 +1211,16 @@ int AVmPayload_main(void) {
         if (c >= 0) { static uint8_t b[65536]; ssize_t r; while ((r = read(c, b, sizeof b)) > 0) { if (write(c, b, (size_t)r) != r) break; } close(c); }
         if (ls >= 0) close(ls);
         OUT("END");
+        ctl_close();
+        sleep(1); return 0;
+    }
+    if (prepare) {   /* artifacts preparation: no engine/seed/worker; bounded; reports presence, never a decode result */
+        if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PREPARE refused: pins invalid (%s)", g_pins.err);
+        else if (prep_bad) OUT("PREPARE refused: malformed or repeated PREPARE line");
+        else if (engine || echo || bridgebench || n_shapes) OUT("PREPARE refused: conflicting mode commands on the same run (ENGINE/ECHO/BRIDGEBENCH/SHAPE)");
+        else run_prepare(ls_pads, prep_seconds);
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();
         sleep(1); return 0;
     }
