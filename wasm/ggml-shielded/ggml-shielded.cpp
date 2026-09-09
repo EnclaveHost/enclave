@@ -2,6 +2,7 @@
 #include "shielded-latency.h"
 #include "shielded-fusion.h"
 #include "shielded-weight-cache.h"
+#include "shielded-encoded-source.h"
 #include "ggml-backend-impl.h"
 #include "ggml-impl.h"
 
@@ -73,6 +74,20 @@ static int64_t sh_af_delta(const sh_state &s);
 static sh_window_fn g_win_fn; static void *g_win_ctx;   /* dealt pads: see ggml_backend_shielded_set_window_provider */
 static ggml_shielded_weight_verifier g_weight_verifier;
 static void *g_weight_verifier_ctx;
+static ggml_shielded_encoded_source g_encoded_source;   /* optional catalog hit path (shielded-encoded-source.h) */
+static void *g_encoded_source_ctx;
+static ggml_shielded_encoded_failure g_encoded_failure;  /* optional: names the tensor whose catalog artifact failed a verified read */
+static void *g_encoded_failure_ctx;
+static void sh_encoded_failed(const std::string &name, const char *why) { if (g_encoded_failure) g_encoded_failure(g_encoded_failure_ctx, name.c_str(), why); }
+/* A catalog artifact's reader for the link's later block reads: the same authenticated cache read, plus the failure
+ * notice naming THIS tensor when a block differs (a corrupt same-size file must be retired, not answered 'H' forever). */
+struct sh_encoded_reader_ctx { sh_weight_cache *cache; std::string name; };
+static int sh_encoded_reader(void *ctx, uint64_t offset, uint8_t *out, size_t bytes) {
+    sh_encoded_reader_ctx *r = static_cast<sh_encoded_reader_ctx *>(ctx);
+    const int rc = r->cache->read(offset, out, bytes);
+    if (rc != 0) sh_encoded_failed(r->name, "block differs from the catalog at a later read");
+    return rc;
+}
 #include "shielded-weight-source.h"
 
 /* --------------------------------------------------------------------------
@@ -203,6 +218,8 @@ struct sh_state {
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         bool source_verified = false;
+        bool encoded_hit = false;       /* w_cache is a catalog artifact (its later reads report a failed block by name) */
+        std::unique_ptr<sh_encoded_reader_ctx> w_cache_ctx;
         std::vector<int8_t> out_cols;   /* nout x N: the outlier channels' weights, for the TEE-side term */
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
         float act_scale = 0, encode_limit = 0;
@@ -301,6 +318,32 @@ int ggml_backend_shielded_set_weight_verifier(ggml_shielded_weight_verifier veri
         if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
             return SH_ERR_RANGE;
     g_weight_verifier = verifier; g_weight_verifier_ctx = ctx;
+    return SH_OK;
+}
+
+/* Same admission rules as the verifier: only before any registration, and only WITH a verifier (the catalog is an
+ * authority over public bytes; unverified runs keep their source path). */
+int ggml_backend_shielded_set_encoded_source(ggml_shielded_encoded_source source, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    sh_pool_init(p);
+    if (!source || g_encoded_source || !g_weight_verifier || p.invalid || !p.pending.empty()) return SH_ERR_RANGE;
+    for (const auto *s : p.cards)
+        if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
+            return SH_ERR_RANGE;
+    g_encoded_source = source; g_encoded_source_ctx = ctx;
+    return SH_OK;
+}
+/* Same admission, and only once a source is installed: a failure notice can only ever name an artifact the source served. */
+int ggml_backend_shielded_set_encoded_failure(ggml_shielded_encoded_failure notify, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lk(p.mu);
+    sh_pool_init(p);
+    if (!notify || g_encoded_failure || !g_encoded_source || p.invalid || !p.pending.empty()) return SH_ERR_RANGE;
+    for (const auto *s : p.cards)
+        if (!s->weights.empty() || !s->refused.empty() || s->source_verification_failed || s->weight_cache_failed)
+            return SH_ERR_RANGE;
+    g_encoded_failure = notify; g_encoded_failure_ctx = ctx;
     return SH_OK;
 }
 
@@ -678,6 +721,34 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     double source_read_ms = 0, source_auth_ms = 0;
     sh_state::entry e;
     e.K = K; e.N = N; e.site = site; e.group = sh_group_key(name);
+    /* ---- catalog hit path: ONE authenticated read of the encoded rows replaces source read + auth + encode + cache
+     * create; everything from the outlier extraction onward is unchanged. ABSENT (1) -> the source path below;
+     * PRESENT-but-invalid (< 0), a geometry/count mismatch, an unreadable block or an out-of-range exponent -> refuse
+     * and abort the load (never a fallback). ---- */
+    bool hit = false; double t_source = 0, t_encode = 0, catalog_read_ms = 0;
+    if (g_encoded_source) {   /* the setter admitted the hook only with a verifier installed; a PRESENT error is fatal regardless */
+        ggml_shielded_encoded_entry ce; memset(&ce, 0, sizeof ce); ce.fd = -1;
+        const int hr = g_encoded_source(g_encoded_source_ctx, name.c_str(), (uint32_t)w->type, w->ne, &ce);
+        if (hr != 0 && hr != 1) { fprintf(stderr, "[shielded] %s: catalog entry present but invalid (%d); aborting model load\n", name.c_str(), hr); s.source_verification_failed = true; s.weight_cache_failed = true; s.refused.insert(name); return false; }   /* both flags: the registration loop aborts on either, verifier or not */
+        if (hr == 0) {
+            const double tr = sh_now_ms();
+            const int64_t af_h = (int64_t)site->act_frac + sh_af_delta(s);
+            std::vector<std::array<uint8_t, 32>> digests;
+            bool ok = sh_encoded_entry_ok(ce.fd, ce.bytes, ce.blocks, ce.rows, K, N) && ce.block_sha256 && ce.f_w_le32;
+            if (ok) { try { digests.resize(ce.blocks); for (size_t b = 0; b < ce.blocks; b++) memcpy(digests[b].data(), ce.block_sha256 + 32 * b, 32); } catch (const std::bad_alloc &) { ok = false; } catch (const std::length_error &) { ok = false; } }
+            std::unique_ptr<sh_weight_cache> reader = ok ? sh_weight_cache::open_catalog_sha256(ce.fd, ce.bytes, digests) : nullptr;
+            ok = ok && reader != nullptr;
+            if (ok) { try { e.w.resize((size_t)K * N); } catch (const std::bad_alloc &) { ok = false; } catch (const std::length_error &) { ok = false; } }
+            const bool read_failed = ok && reader->read(0, (uint8_t *)e.w.data(), e.w.size()) != 0;   /* every block verified against the catalog */
+            ok = ok && !read_failed;
+            ok = ok && sh_encoded_decode_f_w_le32(ce.f_w_le32, ce.rows, af_h, e.f_w);   /* explicit LE int32, range-checked */
+            if (read_failed) sh_encoded_failed(name, "block differs from the catalog");   /* the artifact's own bytes: name it, so THAT file is retired */
+            if (!ok) { fprintf(stderr, "[shielded] %s: catalog-authenticated encoded weights refused (%s); aborting model load\n", name.c_str(), read_failed ? "a block differs from the catalog" : "geometry or exponent"); s.source_verification_failed = true; s.weight_cache_failed = true; s.refused.insert(name); return false; }
+            e.w_cache = std::move(reader); e.source_verified = true; e.encoded_hit = true; hit = true;
+            catalog_read_ms = sh_now_ms() - tr; t_source = t_encode = profile_registration ? sh_now_ms() : 0;
+        }
+    }
+    if (!hit) {
     const void *source = w->data;
     std::vector<uint8_t> private_source;
     if (g_weight_verifier) {
@@ -713,7 +784,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
         }
         e.source_verified = true;
     }
-    const double t_source = profile_registration ? sh_now_ms() : 0;
+    t_source = profile_registration ? sh_now_ms() : 0;
     e.w.resize((size_t)K * N);
     e.f_w.resize((size_t)N);
     /* Rows are independent: spread the encoding over threads. Registration
@@ -730,7 +801,8 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     // all remaining registration work reads the encoded rows in e.w.
     std::vector<uint8_t>().swap(private_source);
     source = nullptr;
-    const double t_encode = profile_registration ? sh_now_ms() : 0;
+    t_encode = profile_registration ? sh_now_ms() : 0;
+    }   /* !hit */
 
     /* The outlier columns, kept in the TEE. Their contribution is computed here
      * in plain int64 where nothing can wrap, and the offloaded activation has
@@ -792,7 +864,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     // Cache before committing the node, so an I/O failure cannot leave a link
     // borrowing a destroyed vector. No change to dealer/local-mint builds.
     const char *cache_dir = getenv("SHIELDED_WEIGHT_CACHE_DIR");
-    if (cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {
+    if (!hit && cache_dir && *cache_dir && sh_link_is_dealt(s.link)) {   /* a hit already carries the catalog reader */
         e.w_cache = sh_weight_cache::create(cache_dir, e.w.data(), e.w.size());
         if (!e.w_cache) {
             fprintf(stderr, "[shielded] %s: cannot create authenticated encoded-weight cache; aborting model load (check cache storage and I/O)\n", name.c_str());
@@ -817,7 +889,10 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     const double t_checks = profile_registration ? sh_now_ms() : 0;
     stored.node = node;
     if (stored.w_cache) {
-        if (sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get()) == SH_OK) {
+        int rrc;
+        if (stored.encoded_hit) { stored.w_cache_ctx.reset(new sh_encoded_reader_ctx{ stored.w_cache.get(), name }); rrc = sh_link_set_weight_reader(s.link, node, sh_encoded_reader, stored.w_cache_ctx.get()); }
+        else rrc = sh_link_set_weight_reader(s.link, node, sh_weight_cache::reader, stored.w_cache.get());
+        if (rrc == SH_OK) {
             const size_t bytes = stored.w.size();
             std::vector<int8_t>().swap(stored.w);
             SH_LOG("%s: cached %zu encoded bytes, %zu bytes of trusted block hashes retained (%s)\n",
@@ -826,7 +901,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
             // A live link or missing pad check cannot discard its source.
             // Retain the original lifetime contract and report that explicitly.
             fprintf(stderr, "[shielded] %s: compact cache not admitted; encoded weights retained in RAM\n", name.c_str());
-            stored.w_cache.reset();
+            stored.w_cache.reset(); stored.w_cache_ctx.reset();
         }
     }
     s.device_bytes += dev_add;   /* committed to the card; counts against reserve_cap */
@@ -837,10 +912,10 @@ static bool sh_register(sh_state &s, const ggml_tensor *w) {
     if (profile_registration) {
         const double t_done = sh_now_ms();
         fprintf(stderr, "[shielded] profile registration %s: source=%.3fms (read=%.3fms auth=%.3fms) "
-                        "encode=%.3fms local_setup=%.3fms cache=%.3fms link=%.3fms commit=%.3fms total=%.3fms\n",
+                        "encode=%.3fms local_setup=%.3fms cache=%.3fms link=%.3fms commit=%.3fms total=%.3fms hit=%d catalog_read=%.3fms\n",
                 name.c_str(), t_source - t0, source_read_ms, source_auth_ms,
                 t_encode - t_source, t_setup - t_encode, t_cache - t_setup,
-                t_checks - t_cache, t_done - t_checks, t_done - t0);
+                t_checks - t_cache, t_done - t_checks, t_done - t0, hit ? 1 : 0, catalog_read_ms);
     }
     SH_LOG("registered %s K=%lld N=%lld f_w=%d..%d act_frac=%d outliers=%zu group=%s (%.0f ms)\n",
            name.c_str(), (long long)K, (long long)N, lo, hi, site->act_frac, nout, stored.group.c_str(), sh_now_ms() - t0);

@@ -131,7 +131,7 @@ case "$NAME" in
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
                 "$CLANG" -O3 -fPIC -march=armv8.2-a+dotprod -DSH_SIMD_NEON -I"$GG" -c "$GG/shielded-simd.c" -o "$OUT/simd-neon-pic.o"
-                SRCS=("$HERE/payload/anchor_payload.c" "$HERE/payload/anchor_pins.c" "$HERE/payload/anchor_names.c" "$HERE/payload/anchor_gguf.c" "$HERE/payload/anchor_copy.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
+                SRCS=("$HERE/payload/anchor_payload.c" "$HERE/payload/anchor_pins.c" "$HERE/payload/anchor_names.c" "$HERE/payload/anchor_gguf.c" "$HERE/payload/anchor_catalog.c" "$HERE/payload/anchor_encoded_catalog.c" "$HERE/payload/anchor_artifacts.c" "$HERE/payload/anchor_auth.c" "$HERE/payload/anchor_copy.c" "$CORE/anchor-core.c" "$GG/shielded-simd.c" "$GG/shielded-field.c"
                       "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c" "$GG/shielded-pads.c" "$GG/shielded-bank.c" "$GG/shielded-http.c" "$GG/prefix-kv.c" "$GG/poly1305-donna.c"
                       "$HERE/payload/third_party/tweetnacl.c" "$OUT/simd-neon-pic.o")
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)
@@ -167,6 +167,22 @@ pin() { local var="$1" file="$2"; local src="${!var:-}"; if [ -n "$src" ]; then 
         tr -d ' \n' < "$src" > "$STAGE/assets/$file"; [ "$(wc -c < "$STAGE/assets/$file")" = 64 ] || { echo "$var: $src is not 64 hex" >&2; exit 2; }; echo "pinned $file from $src"
         else rm -f "$STAGE/assets/$file"; fi; }
 pin ANCHOR_LEDGER_PK ledger.pk; pin ANCHOR_MODEL_SHA256 model.sha256; pin ANCHOR_PREFIX_PK prefix.pk
+# Catalog pins and catalog assets (payload/anchor_catalog.h, CATALOG.md, opt-in at run time with model_auth=catalog):
+# ANCHOR_SOURCE_CATALOG_SHA256 / ANCHOR_ENCODED_CATALOG_SHA256 / ANCHOR_CONVERTER_SHA256 name 64-hex files and land as
+# assets/source-catalog.sha256, encoded-catalog.sha256, converter.sha256; ANCHOR_SOURCE_CATALOG / ANCHOR_ENCODED_CATALOG
+# name the catalog files and land as assets/model.agcat, model.ewcat. Unset = removed from the stage, like the pins.
+# A catalog without its pin, a pin without its catalog, a pin that is not the staged file's digest, or an encoded
+# catalog without the source catalog and converter pins refuses to package: the payload would refuse it anyway.
+pin ANCHOR_SOURCE_CATALOG_SHA256 source-catalog.sha256; pin ANCHOR_ENCODED_CATALOG_SHA256 encoded-catalog.sha256; pin ANCHOR_CONVERTER_SHA256 converter.sha256
+asset() { local var="$1" file="$2"; local src="${!var:-}"; if [ -n "$src" ]; then [ -f "$src" ] || { echo "$var: $src not found" >&2; exit 2; }
+          cp "$src" "$STAGE/assets/$file"; echo "staged assets/$file from $src ($(stat -c %s "$src") bytes, sha256 $(sha256sum "$src" | cut -c1-16)...)"; else rm -f "$STAGE/assets/$file"; fi; }
+asset ANCHOR_SOURCE_CATALOG model.agcat; asset ANCHOR_ENCODED_CATALOG model.ewcat
+for pair in source-catalog.sha256:model.agcat encoded-catalog.sha256:model.ewcat; do p="${pair%%:*}"; a="${pair##*:}"
+    if [ -f "$STAGE/assets/$p" ] && [ ! -f "$STAGE/assets/$a" ]; then echo "assets/$p is pinned but assets/$a is not staged" >&2; exit 2; fi
+    if [ ! -f "$STAGE/assets/$p" ] && [ -f "$STAGE/assets/$a" ]; then echo "assets/$a is staged but assets/$p is not pinned" >&2; exit 2; fi
+    if [ -f "$STAGE/assets/$p" ] && [ "$(sha256sum "$STAGE/assets/$a" | cut -c1-64)" != "$(cat "$STAGE/assets/$p")" ]; then echo "assets/$p is not the digest of the staged assets/$a" >&2; exit 2; fi
+done
+if [ -f "$STAGE/assets/encoded-catalog.sha256" ] && { [ ! -f "$STAGE/assets/source-catalog.sha256" ] || [ ! -f "$STAGE/assets/converter.sha256" ]; }; then echo "an encoded catalog needs the source-catalog and converter pins" >&2; exit 2; fi
 if [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'

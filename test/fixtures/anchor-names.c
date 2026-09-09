@@ -12,6 +12,11 @@ int main(void) {
     assert(anchor_name_classify("prefix.kv", sid, &i0, &c) == ANCHOR_NAME_PREFIX && sid[0] == 0 && i0 == 0 && c == 0);
     assert(anchor_name_classify("prefix.kv.sig", NULL, NULL, NULL) == ANCHOR_NAME_PREFIX);
     assert(anchor_name_classify("prefix.txt", NULL, NULL, NULL) == ANCHOR_NAME_PREFIX);
+    /* a catalog artifact: exactly "<64 lowercase hex>.i8", the shipment outputs cleared */
+    { strcpy(sid, "x"); i0 = c = 9; assert(anchor_name_classify(H32 H32 ".i8", sid, &i0, &c) == ANCHOR_NAME_ARTIFACT && sid[0] == 0 && i0 == 0 && c == 0); }
+    { const char *not_artifacts[] = { "0123456789ABCDEF0123456789abcdef" H32 ".i8", H32 "0123456789abcdef0123456789abcde.i8", H32 H32 "0.i8", H32 H32 ".I8",
+          H32 H32 ".i8x", H32 H32 ".i8/", "/" H32 H32 ".i8", "." H32 H32 ".i8.tmp", H32 H32 ".i8.tmp", H32 H32 ".pads", H32 H32, H32 H32 ".i", "g" H32 H32 ".i8", NULL };
+      for (int i = 0; not_artifacts[i]; i++) assert(anchor_name_classify(not_artifacts[i], sid, &i0, &c) == ANCHOR_NAME_REFUSED); }
     /* refused shapes */
     const char *bad[] = { "prefix.kv.bak", "Prefix.kv", "prefix.kv/", "../prefix.kv", "prefix.txt.pads",
         H32 "-0-0.pads",                    /* empty range */

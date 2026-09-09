@@ -82,6 +82,8 @@ extern "C" {
 #include "prefix-kv-llama.h"
 #include "prefix-mtp.h"
 #include "anchor_gguf.h"
+#include "anchor_encoded_catalog.h"   /* catalog-v1: the admitted encoded catalog the artifact hook answers from */
+#include "anchor_model_auth.h"        /* the versioned model-authentication capability the payload hands over */
 #include "anchor_header_file.h"
 #include "llama-model.h"
 #include <sys/mman.h>
@@ -185,6 +187,58 @@ static std::vector<ggml_backend_buffer_t> g_owned;   /* the private weight buffe
 static const anchor_gguf_table *g_table = nullptr;
 static const anchor_hash_ops *g_hops = nullptr;
 extern "C" void engine_set_model_table(const anchor_gguf_table *t, const anchor_hash_ops *h) { g_table = t; g_hops = h; }
+/* Versioned capability (anchor_model_auth.h): how the payload authenticated the model, and where encoded artifacts
+ * come from. A payload in catalog mode refuses an engine without this symbol; an engine refuses a struct it cannot
+ * interpret (size, version, mode) or a catalog table that claims a whole-file scan. Mode 1 through the older call
+ * above keeps g_auth zero: every report then says "whole-file-sha256" only when the table really has_whole. */
+static anchor_model_auth_v1 g_auth;
+extern "C" int engine_set_model_auth_v1(const anchor_model_auth_v1 *a) {
+    const int why = anchor_model_auth_check(a);                    /* pure, host-fixtured (anchor_model_auth.h) */
+    if (why != ANCHOR_MODEL_AUTH_OK) { fprintf(stderr, "[auth] capability refused (%d)\n", why); return -why; }
+    g_auth = *a; g_table = a->table; g_hops = a->hops; return 0;
+}
+static bool auth_catalog() { return g_auth.mode == ANCHOR_MODEL_AUTH_CATALOG_V1; }
+static const char *auth_mode_name() { return auth_catalog() ? "catalog-v1" : "whole-file-sha256"; }
+static std::string hex32(const uint8_t *p) { char hx[65]; sh_pads_bin2hex(p, 32, hx); return hx; }
+/* the model identity every report carries: the catalog's authenticated identity in mode 2, the whole-file digest
+ * in mode 1 (and "" when the stage produced neither: never a made-up value) */
+static std::string model_identity_hex() { if (auth_catalog()) return hex32(g_auth.model_identity); if (g_table && g_table->has_whole) return hex32(g_table->whole_digest); return ""; }
+static std::string source_catalog_hex() { return auth_catalog() ? hex32(g_auth.source_catalog_sha256) : ""; }
+static bool g_encoded_on = false; static unsigned g_artifact_wait_ms = 0; static int g_encoded_fd = -1;
+/* Lookup over the borrowed, immutable entries. Deliberately NOT the payload library's own finder: that symbol lives in
+ * libanchor.so, and libengine.so must not acquire a cross-DSO dependency whose Microdroid visibility is unproven. */
+static const anchor_encoded_entry *encoded_entry(const char *name) {
+    const anchor_encoded_catalog *cat = (const anchor_encoded_catalog *)g_auth.encoded;
+    if (!cat || !cat->authenticated || !cat->entries || !name) return nullptr;
+    for (size_t i = 0; i < cat->count; i++) if (cat->entries[i].source && !strcmp(cat->entries[i].source->name, name)) return &cat->entries[i];
+    return nullptr;
+}
+/* The backend names the TENSOR whose catalog-authenticated artifact failed a verified read (at registration, or at any
+ * later block read): that one public file, and only it, is handed to the payload for removal so the next cycle
+ * re-delivers it instead of answering 'H' forever. Nothing else is ever evicted from here. */
+static void encoded_failed(void *, const char *name, const char *why) {
+    const anchor_encoded_entry *e = encoded_entry(name);
+    fprintf(stderr, "[encoded] %s: artifact refused by the backend (%s)%s\n", name, why ? why : "?", e ? "; asking the payload to remove that file" : "; not a catalog entry");
+    if (e && g_auth.artifact_suspect) g_auth.artifact_suspect(g_auth.ctx, e->encoded_sha256);
+}
+static std::string encoded_catalog_hex() { return g_encoded_on ? hex32(g_auth.encoded_catalog_sha256) : ""; }   /* 64 hex ONLY when the hook is installed for this run */
+/* The catalog-authenticated ENCODED source (ggml-shielded.h, opt-in ANCHOR_ENCODED_ARTIFACTS=1): the backend asks per
+ * registered tensor; the answer comes ONLY from the admitted EWCAT and the payload's held directory. 1 = the catalog
+ * does not list this tensor (the production source path). A LISTED tensor whose artifact is missing after the bounded
+ * wait, or present but wrong, is 2 = refused: never a silent fall-back to the source/cache path (a partly provisioned
+ * store must fail loudly, not overflow). */
+static int encoded_source(void *, const char *name, uint32_t type, const int64_t ne[4], struct ggml_shielded_encoded_entry *out) {
+    const anchor_encoded_entry *e = encoded_entry(name);
+    if (!e) return 1;
+    if (!e->source || (uint32_t)e->source->type != type) { fprintf(stderr, "[encoded] %s: the catalog's source type differs from the tensor's\n", name); return 2; }
+    for (int i = 0; i < 4; i++) if ((uint64_t)ne[i] != e->source->ne[i]) { fprintf(stderr, "[encoded] %s: the catalog's source dims differ from the tensor's\n", name); return 2; }
+    if (g_encoded_fd >= 0) { close(g_encoded_fd); g_encoded_fd = -1; }     /* the previous artifact's descriptor; the backend dup'd the one it keeps */
+    int state = 2; const int fd = g_auth.artifact_open(g_auth.ctx, e->encoded_sha256, e->bytes, g_artifact_wait_ms, &state);
+    if (fd < 0) { fprintf(stderr, "[encoded] %s: listed artifact %s\n", name, state == 1 ? "not delivered within the wait" : "present but not the artifact (link, directory, other size)"); return 2; }
+    g_encoded_fd = fd;
+    out->fd = fd; out->bytes = e->bytes; out->block_sha256 = e->block_sha256; out->blocks = (size_t)e->blocks; out->f_w_le32 = e->exponents_le32; out->rows = (size_t)e->rows;
+    return 0;
+}
 static const anchor_gguf_tensor *table_find(const char *name) {
     if (!g_table) return nullptr;
     for (size_t i = 0; i < g_table->n; i++) if (!strcmp(g_table->t[i].name, name)) return &g_table->t[i];
@@ -478,6 +532,22 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       g_source_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_source_stats") : nullptr;
       if (!set_ver) { outf("ENGINE refused: the shielded module has no weight verifier hook"); return 2; }
       if (set_ver(weight_verify, nullptr) != 0) { outf("ENGINE refused: the backend did not take the weight verifier"); return 2; } }
+    { /* opt-in encoded artifacts (default OFF): only after the verifier, only with an admitted encoded catalog */
+      const char *ea = getenv("ANCHOR_ENCODED_ARTIFACTS"); const bool want = ea && !strcmp(ea, "1");
+      if (want && g_auth.encoded) {
+        typedef int (*set_enc_fn)(ggml_shielded_encoded_source, void *);
+        set_enc_fn set_enc = sh_h ? (set_enc_fn)dlsym(sh_h, "ggml_backend_shielded_set_encoded_source") : nullptr;
+        if (!set_enc) { outf("ENGINE refused: encoded artifacts requested but the shielded module has no encoded source hook"); return 2; }
+        const char *ws = getenv("ANCHOR_ARTIFACT_WAIT_S"); long w = ws ? atol(ws) : 0; if (w < 0) w = 0; if (w > 600) w = 600; g_artifact_wait_ms = (unsigned)w * 1000u;
+        typedef int (*set_fail_fn)(ggml_shielded_encoded_failure, void *);
+        set_fail_fn set_fail = sh_h ? (set_fail_fn)dlsym(sh_h, "ggml_backend_shielded_set_encoded_failure") : nullptr;
+        if (!set_fail) { outf("ENGINE refused: encoded artifacts requested but the shielded module cannot report a failed artifact"); return 2; }
+        if (set_enc(encoded_source, nullptr) != 0) { outf("ENGINE refused: the backend did not take the encoded source"); return 2; }
+        if (set_fail(encoded_failed, nullptr) != 0) { outf("ENGINE refused: the backend did not take the encoded failure notifier"); return 2; }
+        g_encoded_on = true;
+        outf("ENGINE encoded artifacts ON: %zu catalog entries, wait up to %ld s for a listed artifact still in flight", ((const anchor_encoded_catalog *)g_auth.encoded)->count, w);
+      } else if (want) outf("ENGINE encoded artifacts requested but no encoded catalog was admitted this session: OFF (source path)"); }
+    outf("ENGINE model authentication: %s%s%s", auth_mode_name(), auth_catalog() ? ", source catalog " : "", auth_catalog() ? source_catalog_hex().c_str() : "");
     g_plain_tensors.clear();
     /* VERIFIED LOADING (27B-FEASIBILITY.md s.11; route proved bit-identical by Astra's metadata-noalloc.cpp):
      * llama parses its metadata from a SEALED sparse memfd holding only the header bytes the stage hashed
@@ -548,6 +618,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         vbytes += e->size;
       }
       if (n_stream) g_stream_fd = src; else close(src);                 /* streamed sources read the staged file for the whole run */
+      if (g_encoded_fd >= 0) { close(g_encoded_fd); g_encoded_fd = -1; }   /* one descriptor: the hook's most recent open. Registration is NOT over here (streamed tensors register at graph time); later hook calls close the previous fd, and the backend dup'd every one it keeps */
       if (!ok) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; } return 2; }
       model->hparams.no_alloc = false;   /* the pinned fork's flag: every tensor is real now, contexts may allocate (proof: metadata-noalloc.cpp) */
       outf("ENGINE verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu plain rows (offloadable), %zu repacked from verified bytes, %zu other CPU (llama's own buffer choices); %zu streamed sources (%.1f MiB never resident, verified by the backend on read; floor %llu bytes); metadata from the verified header; staged file %s",
@@ -634,8 +705,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         sh_prefix_kv_snapshot snap; memset(&snap, 0, sizeof snap);
         /* v2 sidecar only (e220ae74): signed for THIS model's whole-file digest AND this calibration; a v1
          * sidecar binds only the calibration, which two different models can share, so it is not accepted */
-        if (!g_table || !g_table->has_whole) { close(kfd); outf("ENGINE prefix KV REFUSED: no whole-model digest from the stage"); return 2; }
-        const int rrc = sh_prefix_kv_snapshot_read_v2(kv, kfd, pk, g_table->whole_digest, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
+        /* the identity the sidecar is bound to: the whole-file digest (mode 1) or, ONLY through the explicit catalog-v1
+         * capability, the catalog-authenticated model identity; never a table that merely lacks has_whole */
+        const uint8_t *bind = auth_catalog() ? g_auth.model_identity : (g_table && g_table->has_whole ? g_table->whole_digest : nullptr);
+        if (!bind) { close(kfd); outf("ENGINE prefix KV REFUSED: no whole-model digest from the stage"); return 2; }
+        const int rrc = sh_prefix_kv_snapshot_read_v2(kv, kfd, pk, bind, digest, prefix.data(), prefix.size(), (size_t)1 << 30, (uint64_t)llama_n_ctx(ctx), &snap, err, sizeof err);
         close(kfd);
         if (rrc) { outf("ENGINE prefix KV REFUSED: %s", err); return 2; }
         /* compound container (prefix-mtp.h, 4bf0f01b): the target sequence, the MTP head's sequence and its
@@ -760,7 +834,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!ok) { outf("ENGINE bench REFUSED: prompt-state snapshot failed"); return 4; }
         bsnap.cur0 = cur; bsnap.n_past0 = n_past;
         anchor_bench_session ses;
-        ses.trials = bench_trials; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); ses.model_sha256 = hx; } ses.calib_digest = calib_hex_at_start;
+        ses.trials = bench_trials; ses.model_sha256 = model_identity_hex(); ses.calib_digest = calib_hex_at_start;
+        ses.model_authentication = auth_mode_name(); ses.source_catalog_sha256 = source_catalog_hex(); ses.encoded_catalog_sha256 = encoded_catalog_hex();
         ses.target_bytes = tsz; ses.head_bytes = hsz; ses.pending_bytes = pn * sizeof(float); ses.snapshot_ms = (ggml_time_us() - ts0) / 1e3; ses.prompt_observe_us = t_prompt_observe_us;
         ses.n_past = n_past; ses.first_token = (int)cur; ses.prompt_tokens = n; ses.prefill_ms = (t_pp1 - t_pp0) / 1e3; ses.mtp_requested_k = mtp_k; ses.mtp_k_effective = mtp ? mtp_k : 0; ses.mtp_fallback = mtp_fallback;
         ses.have_stats = stats != nullptr; ses.have_pads = pads_used != nullptr;
@@ -890,16 +965,17 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* identity + the requested budget + the MTP counters ride in the result so a harness can judge a leg
      * from this one line: full budget or an explicit EOS, verify_fail 0, no sticky fallback, real MTP
      * rounds when k > 0, and the model/calibration it actually ran (never the recipe's claim) */
-    std::string model_hex; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); model_hex = hx; }
+    const std::string model_hex = model_identity_hex();
     outf("{\"engine\":\"avf-pvm\",\"status\":\"%s\",\"mtp_fallback\":\"%s\",\"requested\":%d,\"prompt_tokens\":%d,\"generated\":%d,\"completion\":\"%s\",\"prefill_ms\":%.0f,"
          "\"decode_ms_per_tok\":%.1f,\"decode_ms_per_tok_steady\":%.1f,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,\"gmac\":%.2f,\"verify_fail\":%llu,\"threads\":%d,"
          "\"mtp_k\":%d,\"mtp_rounds\":%d,\"mtp_drafted\":%d,\"mtp_accepted\":%d,\"mtp_emitted\":%d,\"decode_ms\":%.3f,\"decode_ms_steady\":%.3f,\"decode_tokens_steady\":%d,"
-         "\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"calib_digest_source\":\"start-of-run read of the verified APK mount\"}",
+         "\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"calib_digest_source\":\"start-of-run read of the verified APK mount\","
+         "\"model_authentication\":\"%s\",\"source_catalog_sha256\":\"%s\",\"encoded_catalog_sha256\":\"%s\"}",
          status, mtp_fallback, n_predict, n, n_gen, json_escape(out).c_str(), (t_pp1 - t_pp0) / 1e3, n_gen ? decode_ms / n_gen : 0.0,
          steady_tokens ? steady_ms / steady_tokens : 0.0,
          (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads,
          mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, mtp_emitted, decode_ms, steady_ms, steady_tokens,
-         model_hex.c_str(), calib_hex_at_start.c_str());
+         model_hex.c_str(), calib_hex_at_start.c_str(), auth_mode_name(), source_catalog_hex().c_str(), encoded_catalog_hex().c_str());
     }   /* trial loop */
     if (bench) {
         if (mtp) anchor_mtp_free(mtp);

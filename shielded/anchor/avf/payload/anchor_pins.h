@@ -15,10 +15,16 @@ typedef struct {
     int mode;                                   /* ANCHOR_MODE_* */
     int has_ledger, has_model, has_prefix;      /* which pins the build carries */
     uint8_t ledger_pk[32], model_sha256[32], prefix_pk[32];
+    /* Catalog pins (CATALOG.md): the measured identities of assets/model.agcat (source catalog), assets/model.ewcat
+     * (encoded-artifact catalog) and the offline converter. Optional in either mode; present-but-malformed is INVALID
+     * like every other pin, and an encoded pin without both the source-catalog and converter pins is INVALID. */
+    int has_source_catalog, has_encoded_catalog, has_converter;
+    uint8_t source_catalog_sha256[32], encoded_catalog_sha256[32], converter_sha256[32];
     char err[160];                              /* why the pins are not usable */
 } anchor_pins;
 
-/* Reads <dir>/anchor.mode ("dev" | "protected"), <dir>/ledger.pk, <dir>/model.sha256, <dir>/prefix.pk
+/* Reads <dir>/anchor.mode ("dev" | "protected"), <dir>/ledger.pk, <dir>/model.sha256, <dir>/prefix.pk, and the
+ * optional <dir>/source-catalog.sha256, <dir>/encoded-catalog.sha256, <dir>/converter.sha256
  * (64 lowercase hex, one trailing newline allowed). Returns 1 when the build's pins are usable, 0 when
  * they are not (pins->err says why, pins->mode is ANCHOR_MODE_INVALID). A protected build needs all
  * three pins well-formed; a dev build may lack pins, but a pin that is present and malformed is an

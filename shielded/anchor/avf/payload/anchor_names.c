@@ -22,6 +22,10 @@ anchor_name_class anchor_name_classify(const char *name, char seed_hex_out[33], 
     if (!name) return ANCHOR_NAME_REFUSED;
     if (!strcmp(name, "prefix.kv") || !strcmp(name, "prefix.kv.sig") || !strcmp(name, "prefix.txt")) return ANCHOR_NAME_PREFIX;
     const size_t n = strlen(name);
+    if (n == 64 + 3 && !strcmp(name + 64, ".i8")) {           /* "<64 lowercase hex>.i8": the artifact's own content digest */
+        for (int i = 0; i < 64; i++) { const char c = name[i]; if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return ANCHOR_NAME_REFUSED; }
+        return ANCHOR_NAME_ARTIFACT;
+    }
     if (n < 32 + 1 + 1 + 1 + 1 + 5 || n > 127) return ANCHOR_NAME_REFUSED;
     for (int i = 0; i < 32; i++) { const char c = name[i]; if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return ANCHOR_NAME_REFUSED; }
     if (name[32] != '-') return ANCHOR_NAME_REFUSED;
