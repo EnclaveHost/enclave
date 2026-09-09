@@ -19,7 +19,9 @@ test('pad receiver preserves ACK digests and rejects failed delivery with stream
     const source = join(dir, 'receiver.c'), binary = join(dir, 'receiver');
     run('python3', [join(root, 'test/fixtures/pad-ack-receiver-generate.py'),
       join(root, 'shielded/anchor/avf/payload/anchor_payload.c'), source]);
-    run('cc', ['-O2', '-pthread', '-I', join(root, 'wasm/ggml-shielded'), source, '-o', binary]);
+    const payload = join(root, 'shielded/anchor/avf/payload');
+    run('cc', ['-O2', '-pthread', '-I', join(root, 'wasm/ggml-shielded'), '-I', payload,
+      source, join(payload, 'anchor_rxctl.c'), '-o', binary]);
     const output = run('python3', [join(root, 'test/fixtures/pad-ack-receiver-check.py'), binary], 45_000);
     assert.match(output, /RESULT PASS/);
     assert.equal(output.split('\n').filter(line => line.startsWith('PASS ')).length, 35);
