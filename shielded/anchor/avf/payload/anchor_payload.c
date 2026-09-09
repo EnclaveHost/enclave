@@ -290,6 +290,18 @@ static int g_model_cache_only = 0, g_model_cache_verdict = -1;
  * carries no ENGINE environment, so this line is how a preparation run turns it on. -1 = never sent (off unless the ENGINE
  * environment asks); a malformed or repeated line refuses the run at RUN (never silently off). */
 static int g_artifact_profile = -1, g_artifact_profile_bad = 0;
+/* PADWINDOW 0|8192 (control line, strict, once, acknowledged before the owner starts any pads-port
+ * sender): the vsock receive credit window of the PAD LISTENER. An accepted child inherits
+ * buffer_size from its parent, and its first credit advertisement carries it, so 8192 bounds what the
+ * host may allocate per packet. 0 = default: nothing is set, nothing is read back, nothing is logged.
+ * The line must be EXACTLY "PADWINDOW 0" or "PADWINDOW 8192": anything else on a line beginning with
+ * PADWINDOW (a bare command, a sign, a leading zero, trailing text) is refused, and a refusal here -
+ * like a failed setsockopt or readback - refuses the run at RUN. An accepted child that reads back
+ * wrong stops the receiver and is said publicly, so the owner ends the run. There is no silent
+ * fallback to the default: the whole point of the experiment is knowing which window was measured.
+ * The accepted children's count lives in the receiver thread (a local), never in a global another
+ * thread reads. */
+static int g_pad_window = 0, g_pad_window_seen = 0, g_pad_window_bad = 0;
 static int model_file(uint64_t bytes, int *existing) {
     *existing = 0;
     const char *es = AVmPayload_getEncryptedStoragePath();
@@ -656,11 +668,33 @@ static void maskbench_line_again(const char *s) { OUT("PRG_AGAIN_SPEED%s", s + 9
 static void rx_profile_line(void *ctx, const char *line) { (void)ctx; OUT("%s", line); }
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
+    unsigned window_conns = 0;   /* PADWINDOW children proved so far; this thread's own, so no other thread reads it */
     for (;;) {
         if (anchor_rx_should_stop()) break;                              /* a PREPARE run quiesces the receiver before it counts (anchor_rxctl.h) */
         int c = vs_accept(ls, 1000);                                      /* short poll: a stop is seen within a second (the engine path never stops it) */
         if (c < 0) continue;
         if (!anchor_rx_set_active(c)) { anchor_rx_close(c); continue; }   /* the stop landed during the accept: nothing is read from this connection */
+        if (g_pad_window) {   /* every accepted child must carry the inherited window BEFORE a header or body byte is read */
+            /* SO_VM_SOCKETS_BUFFER_SIZE is a u64 in the option ABI and SO_RCVLOWAT an int: a readback that
+             * returns another length is not the value we asked about, so the length is checked too. The
+             * low-water must be exactly 1; at or above the window every read would fail with -ENOMEM. */
+            uint64_t cb = 0; socklen_t cl = sizeof cb; int lw = -1; socklen_t ll = sizeof lw;
+            const int rb = getsockopt(c, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &cb, &cl);
+            const int rl = getsockopt(c, SOL_SOCKET, SO_RCVLOWAT, &lw, &ll);
+            const int okb = rb == 0 && cl == sizeof cb && cb == (uint64_t)g_pad_window;
+            const int okl = rl == 0 && ll == sizeof lw && lw == 1;
+            if (!okb || !okl) {
+                /* A child at another window would be measured as if it had this one. The connection is closed
+                 * unread, the refusal is public (the owner's control loop ends the run on it), and the receiver
+                 * STOPS: nothing more is taken at an unknown window. */
+                OUT("PADWINDOW child REFUSED want=%d buffer_size rc=%d len=%u value=%llu lowat rc=%d len=%u value=%d: the pads receiver stops, nothing more is received",
+                    g_pad_window, rb, (unsigned)cl, (unsigned long long)cb, rl, (unsigned)ll, lw);
+                anchor_rx_close(c);
+                break;
+            }
+            if (!window_conns) OUT("PADWINDOW child buf=%llu lowat=%d", (unsigned long long)cb, lw);   /* one public line; every later child is proved the same way, silently */
+            window_conns++;
+        }
         char hdr[256]; size_t n = 0;
         while (n + 1 < sizeof hdr) { char ch; if (read(c, &ch, 1) != 1) { n = 0; break; } if (ch == '\n') break; hdr[n++] = ch; }
         hdr[n] = 0;
@@ -1287,6 +1321,34 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "ARTIFACT_PROFILE", 16)) {   /* ARTIFACT_PROFILE 0|1: strict, once; malformed or repeated refuses the run at RUN */
                 int on = 0; if (g_artifact_profile >= 0 || !anchor_artifact_profile_parse(l, &on)) { g_artifact_profile_bad = 1; OUT("ARTIFACT_PROFILE refused: %s", g_artifact_profile >= 0 ? "repeated" : "malformed (ARTIFACT_PROFILE 0|1)"); }
                 else { g_artifact_profile = on; OUT("ARTIFACT_PROFILE %s", on ? "on: one ARTIFACT PROFILE line per completed reception" : "off"); } }
+            else if (!strncmp(l, "PADWINDOW", 9)) {   /* pad listener credit window; the WHOLE line must be one of exactly two, once, before any pads-port connection */
+                const int zero = !strcmp(l, "PADWINDOW 0"), eight_k = !strcmp(l, "PADWINDOW 8192");
+                if (g_pad_window_seen) { g_pad_window_bad = 1; OUT("PADWINDOW refused: repeated"); }
+                else if (!zero && !eight_k) { g_pad_window_seen = 1; g_pad_window_bad = 1; OUT("PADWINDOW refused: malformed (the line must be exactly \"PADWINDOW 0\" or \"PADWINDOW 8192\")"); }
+                else {
+                    g_pad_window_seen = 1;
+                    if (zero) OUT("PADWINDOW ok listener=0");                        /* default: nothing applied */
+                    else if (ls_pads < 0) { g_pad_window_bad = 1; OUT("PADWINDOW refused: no pads listener"); }
+                    else {
+                        /* The kernel creates and initialises an accepted child - inheriting buffer_size - when the
+                         * REQUEST arrives, not when this payload calls accept(2), so a connection already sitting in
+                         * the listener's queue holds a DEFAULT-window child. A non-blocking poll refuses that case.
+                         * It is not a proof of absence: a REQUEST landing between this poll and the setsockopt below
+                         * still yields a default-window child, and nothing here can stop another client of this port.
+                         * What makes the order sound is the owner's protocol - this line is sent and ACKNOWLEDGED
+                         * before ANY pads-port sender starts - and the per-child readback in the receiver, which
+                         * refuses (and stops on) any child that did not inherit the window. */
+                        struct pollfd qp = { .fd = ls_pads, .events = POLLIN, .revents = 0 };
+                        uint64_t want = 8192, got = 0; socklen_t gl = sizeof got;
+                        int lw = -1; socklen_t ll = sizeof lw;
+                        if (poll(&qp, 1, 0) != 0) { g_pad_window_bad = 1; OUT("PADWINDOW refused: pads listener queue probe was not clear (events=%u)", (unsigned)qp.revents); }
+                        else if (setsockopt(ls_pads, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &want, sizeof want) != 0) { g_pad_window_bad = 1; OUT("PADWINDOW refused: setsockopt: %s", strerror(errno)); }
+                        else if (getsockopt(ls_pads, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &got, &gl) != 0 || gl != sizeof got || got != want) { g_pad_window_bad = 1; OUT("PADWINDOW refused: listener readback len=%u value=%llu", (unsigned)gl, (unsigned long long)got); }
+                        else if (getsockopt(ls_pads, SOL_SOCKET, SO_RCVLOWAT, &lw, &ll) != 0 || ll != sizeof lw || lw != 1) { g_pad_window_bad = 1; OUT("PADWINDOW refused: listener lowat len=%u value=%d (nothing but 1 may be inherited alongside an 8192 window)", (unsigned)ll, lw); }
+                        else { g_pad_window = 8192; OUT("PADWINDOW ok listener=8192"); }
+                    }
+                }
+            }
             else if (!strncmp(l, "PREPARE", 7)) { int sec = 0; if (prepare || !anchor_prepare_parse(l, &sec)) { prep_bad = 1; OUT("PREPARE refused: %s", prepare ? "repeated" : "malformed (PREPARE [1..600])"); } prepare = 1; prep_seconds = sec ? sec : prep_seconds; }
             else if (!strcmp(l, "RUN")) break;
         }
@@ -1327,6 +1389,7 @@ int AVmPayload_main(void) {
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PREPARE refused: pins invalid (%s)", g_pins.err);
         else if (prep_bad) OUT("PREPARE refused: malformed or repeated PREPARE line");
         else if (g_artifact_profile_bad) OUT("PREPARE refused: malformed or repeated ARTIFACT_PROFILE line");
+        else if (g_pad_window_bad) OUT("PREPARE refused: PADWINDOW was refused; the pad receive window is not what was asked for");
         else if (engine || echo || bridgebench || n_shapes) OUT("PREPARE refused: conflicting mode commands on the same run (ENGINE/ECHO/BRIDGEBENCH/SHAPE)");
         else run_prepare(ls_pads, prep_seconds);
         OUT("END");
@@ -1338,6 +1401,7 @@ int AVmPayload_main(void) {
         OUT("ANCHOR engine mode: model %" PRIu64 " bytes, %d tokens, %d threads", eng_model, eng_n, eng_threads);
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("ENGINE refused: pins invalid (%s)", g_pins.err);
         else if (g_artifact_profile_bad) OUT("ENGINE refused: malformed or repeated ARTIFACT_PROFILE line");
+        else if (g_pad_window_bad) OUT("ENGINE refused: PADWINDOW was refused; the pad receive window is not what was asked for");
         else { run_engine(ls_wk, ls_model, ls_pads, eng_prompt, eng_n, eng_threads, eng_model, with_pads, with_prefix); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
