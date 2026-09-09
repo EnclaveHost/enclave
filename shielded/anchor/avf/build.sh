@@ -54,7 +54,7 @@ if [ ! -f "$STUB/libvm_payload.so" ]; then
 fi
 
 # --- 2. the payload .so -----------------------------------------------------
-CFLAGS=(-O2 -fPIC -Wall -march=armv8.2-a+dotprod -I"$HDR/avfref" -I"$CORE" -I"$GG")
+CFLAGS=(-O2 -g -fPIC -Wall -march=armv8.2-a+dotprod -I"$HDR/avfref" -I"$CORE" -I"$GG")
 case "$NAME" in
   sink)  # the host side of a --debug none VM's vsock report channel (static, runs from adb shell)
          "$CLANG" -O2 -static -Wall -o "$OUT/vsock-sink" "$HERE/host/vsock-sink.c"
@@ -84,7 +84,7 @@ case "$NAME" in
            GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; LSRC="$(dirname "$GA")/llama.cpp"
            [ -d "$GA/lib" ] || { echo "no arm64 llama.cpp at $GA; run build-ggml-arm64.sh first" >&2; exit 2; }
            CXX="${CLANG}++"; INC=(-I"$LSRC/include" -I"$LSRC/ggml/include" -I"$LSRC/ggml/src"); E="$OUT/engine"; mkdir -p "$E"
-           PF=(-O2 -fPIC -march=armv8.2-a+dotprod -I"$GG")
+           PF=(-O2 -g -fPIC -march=armv8.2-a+dotprod -I"$GG")
            "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$E/simd-neon.o"
            "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
            "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
@@ -95,12 +95,12 @@ case "$NAME" in
            "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$E/nacl.o"
            "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$E/poly.o"
            CORE=("$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire.o" "$E/simd-neon.o" "$E/simd-generic.o")
-           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
            # bionic does not resolve a dlopened module's symbols against the executable's other libraries: link libggml too
            "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lm
-           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded.o"
-           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/ggml-test" "$GG/ggml-test.cpp" "$E/ggml-shielded.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lggml-cpu -lm
-           "$CXX" -O2 -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" "${CORE[@]}" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded.o"
+           "$CXX" -O2 -g -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/ggml-test" "$GG/ggml-test.cpp" "$E/ggml-shielded.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lggml-cpu -lm
+           "$CXX" -O2 -g -std=c++17 -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -o "$E/shielded-run" "$GG/shielded-run.cpp" "${CORE[@]}" -L"$GA/lib" -lllama -lggml -lggml-base -ldl -lm
            cp "$GA"/lib/libllama.so "$GA"/lib/libggml.so "$GA"/lib/libggml-base.so "$GA"/lib/libggml-cpu.so "$GA"/lib/libc++_shared.so "$GG/test.calib" "$E/"
            echo "engine: $E (push the directory to the phone)"; ls "$E" | grep -vE '\.o$' | tr '\n' ' '; echo; exit 0 ;;
   engine-pvm)  # the engine FOR THE VM: the shielded module with the fd-adopting hook, and libengine.so
@@ -109,7 +109,7 @@ case "$NAME" in
            GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; LSRC="$(dirname "$GA")/llama.cpp"
            [ -d "$GA/lib" ] || { echo "no arm64 llama.cpp at $GA; run build-ggml-arm64.sh first" >&2; exit 2; }
            CXX="${CLANG}++"; INC=(-I"$LSRC/include" -I"$LSRC/ggml/include" -I"$LSRC/ggml/src"); E="$OUT/engine-pvm"; mkdir -p "$E"
-           PF=(-O2 -fPIC -march=armv8.2-a+dotprod -I"$GG" -I"$HERE/../harness")
+           PF=(-O2 -g -fPIC -march=armv8.2-a+dotprod -I"$GG" -I"$HERE/../harness")
            "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -c "$GG/shielded-simd.c" -o "$E/simd-neon.o"
            "$CLANG" "${PF[@]}" -O3 -DSH_SIMD_NEON -DSH_SIMD_NEON_TUNED -c "$GG/shielded-simd.c" -o "$E/simd-neon-tuned.o"
            "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
@@ -120,10 +120,10 @@ case "$NAME" in
            "$CLANG" "${PF[@]}" -c "$GG/shielded-bank.c" -o "$E/bank.o"; "$CLANG" "${PF[@]}" -c "$GG/shielded-http.c" -o "$E/http.o"; "$CLANG" "${PF[@]}" -c "$GG/prefix-kv.c" -o "$E/prefixkv.o"
            "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$E/nacl.o"
            "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$E/poly.o"
-           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
            "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-neon-tuned.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
            "$CLANG" "${PF[@]}" -D_GNU_SOURCE "${INC[@]}" -c "$HERE/payload/anchor_mtp.c" -o "$E/mtp.o"   # the MTP head as the draft model
-           "$CXX" -O2 -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
            echo "engine-pvm: $E/libggml-shielded.so ($(stat -c %s "$E/libggml-shielded.so") B), libengine.so ($(stat -c %s "$E/libengine.so") B)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
@@ -151,7 +151,7 @@ for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"
 # App-side echo diagnostic; no libvm_payload dependency and no inference hook.
 if [ "$NAME" = anchor ]; then
   "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so"
-  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so"   # opt-in native worker bridge (--ez nativebridge true)
+  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so"   # opt-in native worker bridge (--ez nativebridge true)
 fi
 # stripped copies: the dynamic symbol table (what dlopen/dlsym need) stays, the rest of libllama's 40 MB goes
 for x in "$STAGE"/lib/arm64-v8a/*.so; do "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$x"; done

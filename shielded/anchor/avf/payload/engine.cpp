@@ -34,6 +34,7 @@
 #include <android/log.h>
 #include "anchor_striped_read.h"
 #include "anchor_placement.h"
+#include "anchor_source_sample.h"
 
 static int g_ctl = -1;
 /* The payload's locked line writer (anchor_ctl_write): the control channel is shared with the
@@ -332,6 +333,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     { const char *es = getenv("ANCHOR_ENCRYPTED_STORE"); snprintf(err_path, sizeof err_path, "%s/engine.err", es && *es ? es : "/data/local/tmp"); }
     if (!freopen(err_path, "w", stderr)) { outf("ENGINE stderr not captured (%s: %s)", err_path, strerror(errno)); err_path[0] = 0; }
     else outf("ENGINE stderr -> %s", err_path);
+    anchor_sample::Session source_sample;
     /* Diagnostic config is parsed and cached HERE, before any backend/model work, and an invalid value FAILS the
      * run (exit 4) rather than being ignored: a diagnostic leg must never run with a misspelled knob. */
     { int li = 0, ex = 0; uint64_t cap = 4u << 20; const char *cm = getenv("ENGINE_EXPORT_STDERR_MAX");
@@ -876,6 +878,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!anchor_bench_fits(line)) { outf("ENGINE bench trial %llu: begin record %zu bytes exceeds the line bound; terminal failure", (unsigned long long)trial, line.size()); bench_reason = "record_too_long"; break; }
         outf("%s", line.c_str()); }
     double rm0 = 0, dec0 = 0, am0 = 0, ob0 = 0; if (bench && mtp) anchor_mtp_timers(mtp, &rm0, &dec0, &am0, &ob0);   /* bench: this trial's head-timer share = the delta; non-bench: zero offsets = unchanged numbers */
+    source_sample.set((unsigned)trial + 1);
     const long t_tg0 = bench ? ggml_time_us() : t_tg0_first;   /* bench: EVERY trial's clock starts after its counters/records; non-bench: unchanged */
     bool go = n_predict > 0 && emit(cur);
     while (go) {
@@ -934,6 +937,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         cur = bonus;
     }
     const long t_tg1 = ggml_time_us();
+    source_sample.set(1);
     if (mtp_rounds) { double rm = 0, dec = 0, am = 0, ob = 0; if (mtp) { anchor_mtp_timers(mtp, &rm, &dec, &am, &ob); rm -= rm0; dec -= dec0; am -= am0; ob -= ob0; }
         outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f emitted tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, join %.0f ms, accept+rollback+observe %.0f ms (head decode %.1f)",
              mtp_rounds, mtp_drafted, mtp_accepted, (double)mtp_emitted / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
@@ -1021,6 +1025,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     /* ENGINE_EXPORT_STDERR=1 (diagnostic, default off, validated at entry): a FILE SNAPSHOT of engine.err taken
      * now, after engine_main's own cleanup. The process-static shielded pool (links, refill threads) outlives this
      * function and may still write stderr later, so the export is scoped and named as a snapshot, never "all". */
+    source_sample.finish();
     if (err_path[0] && g_export_stderr) { fflush(stderr); anchor_stderr_export(err_path, g_export_cap, [](void *, const char *l) { outf("%s", l); }, nullptr); }
     return any_failed ? 3 : 0;               /* a broken loop, or any non-complete bench outcome, is a failed run */
 }

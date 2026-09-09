@@ -34,6 +34,21 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdio.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+static uint64_t prof_ns(clockid_t id) { struct timespec t={0}; clock_gettime(id,&t); return (uint64_t)t.tv_sec*1000000000+t.tv_nsec; }
+static void prof_report(uint64_t *v) {
+    char line[800];
+    snprintf(line,sizeof line,"BRIDGE_SP mono=%llu realtime=%llu dt=%llu cpu=%llu poll_empty=%llu poll_up=%llu poll_down=%llu poll_both=%llu read_guest=%llu read_host=%llu write_host=%llu write_guest=%llu up=%llu down=%llu queued_up=%llu queued_down=%llu",
+        (unsigned long long)v[0],(unsigned long long)prof_ns(CLOCK_REALTIME),(unsigned long long)v[1],(unsigned long long)v[2],(unsigned long long)v[3],(unsigned long long)v[4],(unsigned long long)v[5],(unsigned long long)v[6],(unsigned long long)v[7],(unsigned long long)v[8],(unsigned long long)v[9],(unsigned long long)v[10],(unsigned long long)v[11],(unsigned long long)v[12],(unsigned long long)v[13],(unsigned long long)v[14]);
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_INFO,"anchor-bridge","%s",line);
+#else
+    fprintf(stderr,"%s\n",line);
+#endif
+}
 
 typedef struct { uint8_t *buf; size_t cap, head, used; int src_eof, dst_shut; } bridge_dir;
 
@@ -83,6 +98,11 @@ static int is_stream_socket(int fd) { int t = 0; socklen_t l = sizeof t; return 
 static int64_t mono_ms(void) { struct timespec ts; if (clock_gettime(CLOCK_MONOTONIC, &ts)) return 0; return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000; }
 
 int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st) {
+    return anchor_bridge_run_profile(a,b,cancel_fd,idle_ms,buf_bytes,st,0);
+}
+int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile) {
+    uint64_t pv[15]={0}, pt=0, pc=0, pu=0, pd=0;
+    if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
     if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
@@ -106,17 +126,32 @@ int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes
         if (ia < 0 && ib < 0) { rc = 0; break; }   /* both directions drained and shut: done */
         int wait = -1;
         if (idle_ms > 0) { const int64_t left = deadline - mono_ms(); if (left <= 0) { rc = -ETIMEDOUT; break; } wait = left > INT32_MAX ? INT32_MAX : (int)left; }
+        uint64_t p0=profile?prof_ns(CLOCK_MONOTONIC):0;
+        unsigned bucket=(ab.used?1:0)+(ba.used?2:0);
         const int r = poll(p, n, wait); s.polls++;
+        if (profile) pv[3+bucket]+=prof_ns(CLOCK_MONOTONIC)-p0;
         if (r < 0) { if (errno == EINTR) continue; rc = -errno; break; }   /* EINTR: the deadline stands, not restarted */
         if (r == 0) { rc = -ETIMEDOUT; break; }
         if (ic >= 0 && p[ic].revents) { rc = -ECANCELED; break; }
         if ((ia >= 0 && (p[ia].revents & POLLNVAL)) || (ib >= 0 && (p[ib].revents & POLLNVAL))) { rc = -EBADF; break; }
         const short ra = ia >= 0 ? p[ia].revents : 0, rb = ib >= 0 ? p[ib].revents : 0;
         const uint64_t before = s.reads + s.writes;
+        if(profile) p0=prof_ns(CLOCK_MONOTONIC);
         if ((rc = pump_read(a, &ab, ra, &s)) != 0) break;
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[7]+=p1-p0;p0=p1; }
         if ((rc = pump_read(b, &ba, rb, &s)) != 0) break;
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[8]+=p1-p0;p0=p1; }
         if ((rc = pump_write(b, &ab, rb | (ab.used > 0 ? POLLOUT : 0), &s, &s.a_to_b)) != 0) break;
+        if(profile) { uint64_t p1=prof_ns(CLOCK_MONOTONIC);pv[9]+=p1-p0;p0=p1; }
         if ((rc = pump_write(a, &ba, ra | (ba.used > 0 ? POLLOUT : 0), &s, &s.b_to_a)) != 0) break;
+        if(profile) {
+            uint64_t p1=prof_ns(CLOCK_MONOTONIC); pv[10]+=p1-p0;
+            if (p1-pt>=250000000) {
+                uint64_t c1=prof_ns(CLOCK_THREAD_CPUTIME_ID); pv[0]=p1;pv[1]=p1-pt;pv[2]=c1-pc;
+                pv[11]=s.a_to_b-pu;pv[12]=s.b_to_a-pd;pv[13]=ab.used;pv[14]=ba.used;
+                prof_report(pv);memset(pv,0,sizeof pv);pt=p1;pc=c1;pu=s.a_to_b;pd=s.b_to_a;
+            }
+        }
         if (ab.src_eof && ab.used == 0 && !ab.dst_shut) { half_close(b); ab.dst_shut = 1; }
         if (ba.src_eof && ba.used == 0 && !ba.dst_shut) { half_close(a); ba.dst_shut = 1; }
         if (idle_ms > 0 && s.reads + s.writes != before) deadline = mono_ms() + idle_ms;   /* progress, and only progress, extends it */
@@ -130,9 +165,9 @@ out:
 
 #ifdef __ANDROID__
 #include <jni.h>
-JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jlongArray stats) {
+JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jlongArray stats) {
     (void)klass;
-    anchor_bridge_stats s; const int rc = anchor_bridge_run(a, b, cancel, idleMs, 0, &s);
+    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile(a, b, cancel, idleMs, 0, &s, profile);
     if (stats && (*env)->GetArrayLength(env, stats) >= 6) {
         jlong v[6] = { (jlong)s.a_to_b, (jlong)s.b_to_a, (jlong)s.reads, (jlong)s.writes, (jlong)s.polls, (jlong)s.max_chunk };
         (*env)->SetLongArrayRegion(env, stats, 0, 6, v);

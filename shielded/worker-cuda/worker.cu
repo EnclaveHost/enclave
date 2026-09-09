@@ -1223,6 +1223,7 @@ struct Conn {
     double graph_capture_ms = 0;
 #ifdef SH_XPROF
     WorkerExchangeProfile profile;
+    cudaEvent_t profile_start=nullptr, profile_end=nullptr, profile_uploaded=nullptr;
 #endif
     uint64_t exchanges = 0, recomputes = 0;
     double gemm_ms = 0;
@@ -1621,7 +1622,13 @@ struct Conn {
         ck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal), "capture");
         cudaGraph_t g = nullptr;
         try {
+#ifdef SH_XPROF
+            ck(cudaEventRecord(profile_start,stream),"profile start");
+#endif
             ck(cudaMemcpyAsync(d_x, planes, xbytes, cudaMemcpyHostToDevice, stream), "planes upload");
+#ifdef SH_XPROF
+            ck(cudaEventRecord(profile_uploaded,stream),"profile upload");
+#endif
             /* Where the GEMM writes and how wide. The packed reply's default
              * form has the epilogue write 3-byte values straight into the
              * mapped reply; PACK_KERNEL has it write int32 to device memory
@@ -1648,6 +1655,9 @@ struct Conn {
                 E = yoff / yw;
             }
             if (packed && pm == PACK_KERNEL) pack24_launch(d_y32, (uint8_t *)d_out, (long long)E, stream);
+#ifdef SH_XPROF
+            ck(cudaEventRecord(profile_end,stream),"profile end");
+#endif
         } catch (...) {
             cudaStreamEndCapture(stream, &g);
             if (g) cudaGraphDestroy(g);
@@ -1728,6 +1738,12 @@ struct Conn {
             XP_MARK(LAUNCH_CALL);
             ck(cudaStreamSynchronize(stream), "exchange sync");
             XP_MARK(STREAM_SYNC);
+#ifdef SH_XPROF
+            float gpu_ms=0; ck(cudaEventElapsedTime(&gpu_ms,profile_start,profile_end),"profile elapsed");
+            profile.gpu_us=double(gpu_ms)*1000;
+            ck(cudaEventElapsedTime(&gpu_ms,profile_start,profile_uploaded),"profile upload elapsed");
+            profile.upload_us=double(gpu_ms)*1000;
+#endif
             if (packed && pm == PACK_CPU) {
                 if (h_pack.size() < ybytes) h_pack.resize(ybytes);
                 pack24_host((const int32_t *)h_out, h_pack.data(), (long long)E);
@@ -1855,12 +1871,20 @@ struct Conn {
 
     void serve() {
         ck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking), "stream create");
+#ifdef SH_XPROF
+        ck(cudaEventCreate(&profile_start),"profile event create");
+        ck(cudaEventCreate(&profile_end),"profile event create");
+        ck(cudaEventCreate(&profile_uploaded),"profile event create");
+#endif
         std::vector<uint8_t> buf;
         for (;;) {
             uint8_t h[SH_HDR];
             if (ring ? !next_header(h) : !read_exact(fd, h, SH_HDR)) break;
             const uint8_t cmd = h[0];
             const uint64_t size = rd_u64(h + 1);
+#ifdef SH_XPROF
+            if (cmd==CMD_FIELD_GEMM || cmd==CMD_FIELD_GEMM24) profile.request(size);
+#endif
             std::string resp; bool violation = false;
             if (cmd >= CMD_COUNT || size > MAX_FRAME) {
                 resp = cmd >= CMD_COUNT ? fmt("unknown command %u", cmd) : fmt("frame of %llu bytes exceeds cap", (unsigned long long)size);
@@ -1910,11 +1934,15 @@ struct Conn {
             /* Header and body in one writev: one syscall, one segment on the wire. */
             if (!writev_all(fd, rh, SH_HDR, rp, rl)) break;
             if (!violation && (cmd == CMD_FIELD_GEMM || cmd == CMD_FIELD_GEMM24)) XP_MARK(TCP_REPLY);
+#ifdef SH_XPROF
+            if (!violation && (cmd==CMD_FIELD_GEMM || cmd==CMD_FIELD_GEMM24)) profile.finish(exchanges,rl);
+#endif
             if (violation) break;
         }
         close(fd);
 #ifdef SH_XPROF
         if (exchanges) {
+            profile.dump();
             logf("%s exchange profile: host elapsed only; diagnostic build; invalid_intervals=%llu",
                  peer.c_str(), (unsigned long long)profile.invalid_intervals);
             for (size_t i = 0; i < WorkerExchangeProfile::COUNT; ++i) {
@@ -1924,6 +1952,9 @@ struct Conn {
                      (unsigned long long)s.count, s.total_us, s.max_us);
             }
         }
+#endif
+#ifdef SH_XPROF
+        cudaEventDestroy(profile_start); cudaEventDestroy(profile_end); cudaEventDestroy(profile_uploaded);
 #endif
         if (exchanges || recomputes)
             logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync)",
