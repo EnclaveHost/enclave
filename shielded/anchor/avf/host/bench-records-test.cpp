@@ -8,7 +8,7 @@ static int fails = 0; static void check(bool ok, const char *w) { if (!ok) { fai
 int main(int argc, char **argv) {
     if (argc < 4) { printf("usage: out.log model_sha calib_sha\n"); return 2; }
     FILE *f = fopen(argv[1], "w"); if (!f) return 2;
-    anchor_bench_session s; s.trials = 3; s.model_sha256 = argv[2]; s.calib_digest = argv[3]; s.target_bytes = 1048576; s.head_bytes = 65536; s.pending_bytes = 4096;
+    anchor_bench_session s; s.trials = 3; s.model_sha256 = argv[2]; s.calib_digest = argv[3]; s.model_authentication = "catalog-v1"; s.source_catalog_sha256 = argv[2]; s.encoded_catalog_sha256 = ""; s.target_bytes = 1048576; s.head_bytes = 65536; s.pending_bytes = 4096;
     s.snapshot_ms = 12.345; s.prompt_observe_us = 2500; s.n_past = 5; s.first_token = 12; s.prompt_tokens = 5; s.prefill_ms = 900.5; s.mtp_requested_k = 15; s.mtp_k_effective = 15; s.mtp_fallback = "";
     s.have_stats = true; s.have_pads = true; s.n_predict = 128; s.draft_ahead = 1; s.threads = 4; s.threads_batch = 4; s.head_threads = 2; s.cpu_poll = "unset"; s.arm_tuned = "unset"; s.stream_min_bytes = "unset";
     std::string line = anchor_bench_session_json(s); check(anchor_bench_fits(line), "session fits"); fprintf(f, "VSOCK %s\n", line.c_str());

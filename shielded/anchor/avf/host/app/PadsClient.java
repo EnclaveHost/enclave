@@ -266,6 +266,49 @@ final class PadsClient {
         }
     }
 
+    /** Public encoded-weight artifacts ("<64 lowercase hex>.i8", named by their own content digest) into the VM over the pads
+     *  port, in file-name order. The VM admits a name only against its measured encoded catalog and block-verifies every
+     *  byte before it publishes the file; 'H' means a same-name, same-size file is already there (an availability hint:
+     *  the local copy is kept), 'K' means this reception was verified (the local copy may be consumed), 'E' is a refusal
+     *  (the VM says why on its own console; retried with backoff while the VM has not admitted its catalog yet). Bounded:
+     *  at most 300 attempts per file, one second apart. */
+    static void streamArtifacts(Object vm, java.io.File dir, boolean consume) {
+        java.io.File[] files = dir.listFiles((d, n) -> n.matches("[0-9a-f]{64}\\.i8"));
+        if (files == null || files.length == 0) { Main.say("ARTIFACTS none in " + dir); return; }
+        java.util.Arrays.sort(files, (x, y) -> x.getName().compareTo(y.getName()));
+        int accepted = 0, present = 0, refused = 0; long bytes = 0, t0 = System.nanoTime();
+        for (java.io.File f : files) {
+            int outcome = 0;
+            for (int attempt = 0; attempt < 300 && outcome == 0 && !Thread.currentThread().isInterrupted(); attempt++) {
+                outcome = streamArtifact(vm, f);
+                if (outcome == 0) { try { Thread.sleep(1000); } catch (InterruptedException e) { return; } }
+            }
+            if (outcome == 'K') { accepted++; bytes += f.length(); if (consume && !f.delete()) Main.say("ARTIFACT " + f.getName() + " accepted but the local copy could not be deleted"); }
+            else if (outcome == 'H') present++;
+            else { refused++; Main.say("ARTIFACT " + f.getName() + " NOT delivered after 300 attempts"); }
+        }
+        Main.say("ARTIFACTS " + files.length + " offered: " + accepted + " accepted (" + (bytes >> 20) + " MiB), " + present + " already present, " + refused + " not delivered, " + ((System.nanoTime() - t0) / 1000000L) + " ms");
+    }
+    /** One artifact offer: 'K' verified and stored, 'H' already there (kept locally), 0 = not now (retry). */
+    static int streamArtifact(Object vm, java.io.File f) {
+        ParcelFileDescriptor pfd = Main.connect(vm, PADS_PORT, 5);
+        if (pfd == null) return 0;
+        try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new java.io.FileInputStream(f)) {
+            out.write(("PADS " + f.getName() + " " + f.length() + "\n").getBytes()); out.flush();
+            java.io.FileInputStream ackIn = new java.io.FileInputStream(pfd.getFileDescriptor());
+            int go = ackIn.read();
+            if (go == 'H') { Main.say("ARTIFACT " + f.getName() + " already in the VM (local copy kept)"); return 'H'; }
+            if (go != 'G') { return 0; }                                                    // 'E' or a dropped connection: the VM said why; retry later
+            byte[] buf = new byte[1 << 20]; int n; long sent = 0;
+            while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); sent += n; }
+            out.flush();
+            int ack = ackIn.read();
+            Main.say("ARTIFACT " + f.getName() + " " + (sent >> 10) + " KiB " + (ack == 'K' ? "verified and stored" : "REFUSED"));
+            return ack == 'K' ? 'K' : 0;
+        } catch (Exception e) { Main.say("ARTIFACT stream error " + e); return 0; }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
+    }
+
     /** Fetch and stream independently, with immutable run ownership and per-run acknowledgments. */
     static void fetchLoop(PadDelivery.Session session, java.io.File dir) {
         for (int round = 0; round < 3600 && session.active() && !Thread.currentThread().isInterrupted(); round++) {

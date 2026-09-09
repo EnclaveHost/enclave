@@ -8,13 +8,17 @@ TEXT_SHA=$(python3 -c "import hashlib; print(hashlib.sha256(' Paris.\n\"The\" ca
 "$O/t" "$O/capture.log" "$M" "$K" "$TEXT_SHA" || exit 1
 python3 - "$O/capture.log" <<'PY' || exit 1
 import json, sys
-keys={'session':{'record','trials','model_sha256','calib_digest','snapshot_bytes','snapshot_ms','prompt_observe_us','n_past','first_token','prompt_tokens','prefill_ms','mtp_requested_k','mtp_fallback','counters_available','settings','not_restored'},
+keys={'session':{'record','trials','model_sha256','calib_digest','model_authentication','source_catalog_sha256','encoded_catalog_sha256','snapshot_bytes','snapshot_ms','prompt_observe_us','n_past','first_token','prompt_tokens','prefill_ms','mtp_requested_k','mtp_fallback','counters_available','settings','not_restored'},
  'begin':{'record','trial','restore_us','counters_before'},'result':{'record','trial','status','mtp_fallback','generated','decode_us','decode_tokens','steady_us','steady_tokens','mtp','text_sha256','completion','counters_after'},
  'end':{'record','trials','completed','reason','identical_text','identical_mtp','generated_total','any_failed'}}
 n=0; ok=True
 for l in open(sys.argv[1]):
     assert l.startswith('VSOCK BENCH v1 '); r=json.loads(l[len('VSOCK BENCH v1 '):]); n+=1
     if set(r)!=keys[r['record']]: ok=False; print('KEYSET', r['record'], set(r)^keys[r['record']])
+    if r['record']=='session':   # the explicit authentication fields: a named mode, and 64-hex-or-empty catalog identities
+        if r['model_authentication'] not in ('whole-file-sha256','catalog-v1'): ok=False; print('AUTH', r['model_authentication'])
+        for k in ('source_catalog_sha256','encoded_catalog_sha256'):
+            if not (r[k]=='' or (len(r[k])==64 and all(c in '0123456789abcdef' for c in r[k]))): ok=False; print('HEX', k, r[k])
     for c in ('counters_before','counters_after'):
         if c in r: assert set(r[c])=={'offloaded_nodes','local_nodes','macs','gmac','verify_fail','pads_used','pads_missed'}
 print(json.dumps(dict(records=n, json_valid=True, keysets=ok))); sys.exit(0 if ok else 1)

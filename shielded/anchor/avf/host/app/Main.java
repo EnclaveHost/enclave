@@ -82,6 +82,9 @@ public class Main extends Activity {
         String pads = "";                    // dealt pads: bank dir of .pads files on this phone; "" = the VM mints its own
         String prefix = "", prefixPk = "";   // shared-prefix KV dir (prefix.kv + .sig + prefix.txt) and the platform's prefix key
         String prefixName = "", prefixDigest = "";   // or fetch them from the platform store by (model digest, name)
+        String modelAuth = "whole-file";     // --es model_auth catalog: the VM admits the model through its measured catalog (assets/model.agcat) instead of the whole-file scan
+        String artifacts = "";               // --es artifacts <dir>: public encoded-weight artifacts (<64hex>.i8) streamed into the VM over the pads port after the ENGINE line
+        boolean artifactsConsume = false;    // --ez artifacts_consume true: delete a local artifact ONLY after the VM answered 'K' (fresh, block-verified); never after 'H'
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
             p.nativeEcho = i.getBooleanExtra("nativeecho", false);
@@ -101,6 +104,9 @@ public class Main extends Activity {
             if (i.getStringExtra("prefixpk") != null) p.prefixPk = i.getStringExtra("prefixpk");   // the platform's prefix key (64 hex) the VM pins
             if (i.getStringExtra("prefixname") != null) p.prefixName = i.getStringExtra("prefixname");       // fetch <name>.kv/.sig/.txt from the platform's store...
             if (i.getStringExtra("prefixdigest") != null) p.prefixDigest = i.getStringExtra("prefixdigest"); // ...for this model digest, into files/prefix
+            if (i.getStringExtra("model_auth") != null) p.modelAuth = i.getStringExtra("model_auth");
+            if (i.getStringExtra("artifacts") != null) p.artifacts = i.getStringExtra("artifacts");
+            p.artifactsConsume = i.getBooleanExtra("artifacts_consume", false);
             p.n = i.getIntExtra("n", p.n); p.threads = i.getIntExtra("threads", p.threads); p.mtp = i.getIntExtra("mtp", p.mtp); p.boost = i.getIntExtra("boost", p.boost); p.burners = i.getIntExtra("burners", p.burners); if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv"); p.hugepages = i.getIntExtra("hugepages", p.hugepages); p.pumpprio = i.getIntExtra("pumpprio", p.pumpprio); p.tamper = i.getIntExtra("tamper", p.tamper); p.fresh = i.getIntExtra("fresh", p.fresh); if (i.getStringExtra("vmname") != null && i.getStringExtra("vmname").matches("[a-z0-9_-]{1,32}")) p.vmName = i.getStringExtra("vmname"); pumpPriority = p.pumpprio; paceBytesPerSec = (long) i.getIntExtra("pace_mbps", 0) << 20; p.storageMib = i.getIntExtra("storage", (int) p.storageMib);
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
@@ -364,11 +370,12 @@ public class Main extends Activity {
                 long bytes = new java.io.File(plan.model).length();
                 String sha = RelayAttach.hex(fileSha256Cached(plan.model));
                 cmd.append("ENGINE model_bytes=").append(bytes).append(" model_sha256=").append(sha).append(" n=").append(plan.n).append(" threads=").append(plan.threads).append(" mtp=").append(plan.mtp).append(" boost=").append(plan.boost).append(plan.shenv.isEmpty() ? "" : " env=" + RelayAttach.hex(plan.shenv.getBytes("UTF-8")))
-                   .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append('\n');
+                   .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append(authFlag(plan)).append('\n');
                 startBurners(plan.burners);
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads" + (plan.mtp > 0 ? ", MTP draft k=" + plan.mtp : "") + (pads ? ", dealt pads from " + plan.pads : ""));
                 if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(padSession, vm, bank), "vsock-pads").start(); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
+                if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
             }
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
@@ -444,10 +451,12 @@ public class Main extends Activity {
     /* One model stage: a streamer for this line, "MODEL <bytes> <cache tag>" on the control channel, then the
      * VM's verdict line ("MODEL ok ..." / "MODEL fail ..."; null when the channel ended). `extra` bytes are
      * appended to the stream (the tamper regression); the tag is always the real file's. */
+    /** " auth=catalog" on the MODEL and ENGINE lines when the run asks for catalog-v1 admission (the VM's measured pins decide whether it is admissible). */
+    static String authFlag(Plan plan) { return "catalog".equals(plan.modelAuth) ? " auth=catalog" : ""; }
     static String modelStage(Object vm, Plan plan, OutputStream out, BufferedReader r, long extra) throws java.io.IOException {
         long modelBytes = new java.io.File(plan.model).length() + extra;
         new Thread(() -> streamModel(vm, plan, extra), "vsock-model").start();
-        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds
+        out.write(("MODEL " + modelBytes + " " + RelayAttach.hex(fileSha256Cached(plan.model)) + authFlag(plan) + "\n").getBytes()); out.flush();   // the sha is only the cache tag; the VM hashes what it holds (or admits it through its measured catalog)
         String ml; while ((ml = r.readLine()) != null) { say("VSOCK " + (ml.length() > 160 ? ml.substring(0, 160) + "…" : ml)); if (ml.startsWith("MODEL ok") || ml.startsWith("MODEL fail")) break; }
         return ml;
     }

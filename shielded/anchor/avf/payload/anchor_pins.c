@@ -68,6 +68,15 @@ int anchor_pins_load(const char *dir, anchor_pins *p) {
     if (rm < 0) { snprintf(p->err, sizeof p->err, "model.sha256 present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
     if (rp < 0) { snprintf(p->err, sizeof p->err, "prefix.pk present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
     p->has_ledger = rl == 1; p->has_model = rm == 1; p->has_prefix = rp == 1;
+    const int rs = read_hex32(dir, "source-catalog.sha256", p->source_catalog_sha256), re = read_hex32(dir, "encoded-catalog.sha256", p->encoded_catalog_sha256), rc = read_hex32(dir, "converter.sha256", p->converter_sha256);
+    if (rs < 0) { snprintf(p->err, sizeof p->err, "source-catalog.sha256 present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    if (re < 0) { snprintf(p->err, sizeof p->err, "encoded-catalog.sha256 present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    if (rc < 0) { snprintf(p->err, sizeof p->err, "converter.sha256 present but malformed or unreadable"); p->mode = ANCHOR_MODE_INVALID; return 0; }
+    p->has_source_catalog = rs == 1; p->has_encoded_catalog = re == 1; p->has_converter = rc == 1;
+    if (p->has_encoded_catalog && !(p->has_source_catalog && p->has_converter)) {   /* an encoded catalog binds both; a build that pins one without the others is inconsistent, not "partially on" */
+        snprintf(p->err, sizeof p->err, "encoded-catalog.sha256 without%s%s", p->has_source_catalog ? "" : " source-catalog.sha256", p->has_converter ? "" : " converter.sha256");
+        p->mode = ANCHOR_MODE_INVALID; return 0;
+    }
     if (p->mode == ANCHOR_MODE_PROTECTED && !(p->has_ledger && p->has_model && p->has_prefix)) {
         snprintf(p->err, sizeof p->err, "protected build without pins:%s%s%s", p->has_ledger ? "" : " ledger", p->has_model ? "" : " model", p->has_prefix ? "" : " prefix");
         p->mode = ANCHOR_MODE_INVALID; return 0;

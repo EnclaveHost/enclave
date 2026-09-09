@@ -343,6 +343,11 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
  * key (PADLEDGER). Shipments stream in on PADS_PORT into the bank directory. */
 #include "anchor_pads.h"
 #include "shielded-pads.h"
+#include "anchor_catalog.h"
+#include "anchor_encoded_catalog.h"
+#include "anchor_artifacts.h"
+#include "anchor_model_auth.h"
+#include "anchor_auth.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
  * (assets/ledger.pk) when present: then PADLEDGER from the app must match, only signed grants
@@ -361,6 +366,15 @@ static uint8_t g_model_digest[32], g_grant_model[32];
  * differently. RAM only; dropped whenever the stage is invalidated. */
 static anchor_gguf_table g_model_table;
 static const anchor_hash_ops g_hash_ops = { anchor_sha256_init, anchor_sha256_update, anchor_sha256_final };
+/* Catalog mode (CATALOG.md; encoded-artifact-delivery-design.md). MODEL/ENGINE lines carrying " auth=catalog" ask
+ * for it; the measured pins decide whether it is admissible; the default is the whole-file scan, byte for byte as
+ * before. Admission is at most ONCE per VM session and the admitted catalogs are never freed: the pads-port
+ * receiver thread and the engine's artifact hook borrow entries from them without a lock because nothing ever
+ * mutates or frees them. g_auth_mode is the mode of the STAGED model (1 whole-file-sha256, 2 catalog-v1); a line
+ * asking for the other mode after a stage is refused, never silently honoured. */
+static anchor_catalog_table g_cat; static anchor_encoded_catalog g_ecat;
+static int g_cat_admitted = 0, g_auth_mode = 0, g_auth_catalog_requested = 0, g_art_dirfd = -1;
+static const anchor_gguf_table *g_staged_table = NULL;   /* &g_model_table (mode 1) or &g_cat.table (mode 2) */
 static char g_req_name[65]; static uint8_t g_req_nonce[32], g_req_model[32], g_req_calib[32];
 /* The calibration's identity as shielded-dealer records it: SHA-512/256 of the WHOLE file. 1 when the
  * file was read completely (size checked against fstat, read errors refused); 0 otherwise, out zeroed - a
@@ -581,6 +595,29 @@ static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap, con
     snprintf(ack, ackcap, "PADACK %s %s %s %s %s %s", id.seed_id_hex, i0s, cnts, shah, nh, sh);
     return 1;
 }
+/* A PUBLIC encoded-weight artifact offered on the pads port: "PADS <64hex>.i8 <bytes>". Admitted only when an
+ * encoded catalog was admitted this session AND the name spells one of its digests AND the size matches; stored
+ * beneath the held artifacts directory, block-verified against the catalog while received (anchor_artifacts.h);
+ * never acknowledged (no PADACK: a public file has no consumer identity). 'H' is an availability hint only (name
+ * and size): the owner keeps its copy until a fresh 'K'. A reception is bounded (30 s per read, 600 s whole). */
+static ssize_t artifact_sock_read(void *ctx, void *buf, size_t n) { return read((int)(intptr_t)ctx, buf, n); }
+static void artifact_receive_conn(int c, const char *name, unsigned long long bytes) {
+    const char *why = "no encoded catalog admitted yet";
+    const anchor_encoded_entry *e = g_cat_admitted && g_ecat.authenticated && g_art_dirfd >= 0 ? anchor_artifact_admit(&g_ecat, name, bytes, &why) : NULL;
+    if (!e) { OUT("ARTIFACT %s refused: %s", name, why); (void)!write(c, "E", 1); return; }
+    if (anchor_artifact_have(g_art_dirfd, name, bytes) == 1) { (void)!write(c, "H", 1); return; }
+    struct statvfs sv; const unsigned long long freeb = fstatvfs(g_art_dirfd, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0, need = bytes + (64ull << 20);
+    if (freeb < need) { OUT("ARTIFACT %s refused: store has %llu MiB free, this artifact needs %llu MiB", name, freeb >> 20, need >> 20); (void)!write(c, "E", 1); return; }
+    (void)!write(c, "G", 1);
+    struct timeval tv = { 30, 0 }; (void)setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);   /* a stalled sender surfaces as EAGAIN: refused, not waited for */
+    anchor_artifact_receipt r; const double t0 = now_us();
+    const int rc = anchor_artifact_receive(g_art_dirfd, name, e, &g_hash_ops, artifact_sock_read, (void *)(intptr_t)c, 600000, &r);
+    static const char *const names[] = { "ok", "arguments", "cannot create the temp file", "read error", "stream ended early", "write error", "block differs from the catalog", "publish failed" };
+    if (rc == ANCHOR_ARTIFACT_OK) { (void)!write(c, "K", 1); OUT("ARTIFACT %s %llu bytes verified against the catalog in %.1f s", name, bytes, (now_us() - t0) / 1e6); }
+    else { (void)!write(c, "E", 1);
+           if (rc == ANCHOR_ARTIFACT_E_BLOCK) OUT("ARTIFACT %s REJECTED (block %llu differs from the catalog): removed", name, (unsigned long long)r.bad_block);
+           else OUT("ARTIFACT %s REJECTED at %llu of %llu (%s%s%s): removed", name, (unsigned long long)r.got, bytes, rc >= 0 && rc <= 7 ? names[rc] : "?", r.err_no ? ": " : "", r.err_no ? strerror(r.err_no) : ""); }
+}
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
@@ -594,7 +631,8 @@ static void *pads_receiver(void *arg) {
         /* only two kinds of file may land here: a canonical shipment (judged against its header, acknowledged)
          * or one of the exact shared-prefix assets (stored as offered, verified at use, never acknowledged) */
         const anchor_name_class kind = anchor_name_classify(name, NULL, NULL, NULL);
-        if (kind == ANCHOR_NAME_REFUSED) { OUT("PADS %s refused: neither a shipment nor a prefix asset", name); (void)!write(c, "E", 1); close(c); continue; }
+        if (kind == ANCHOR_NAME_REFUSED) { OUT("PADS %s refused: neither a shipment, a prefix asset nor a catalog artifact", name); (void)!write(c, "E", 1); close(c); continue; }
+        if (kind == ANCHOR_NAME_ARTIFACT) { artifact_receive_conn(c, name, bytes); close(c); continue; }   /* its own store namespace, never the bank */
         char tmp[700], fin[700]; snprintf(tmp, sizeof tmp, "%s/.%s.tmp", g_pads_dir, name); snprintf(fin, sizeof fin, "%s/%s", g_pads_dir, name);
         struct stat st;
         {   /* have it already? judged and hashed on a retained descriptor (the owner may be retrying a lost
@@ -669,23 +707,73 @@ static void model_cache_purge(void) {
     unlink("/data/anchor-model.gguf");
     OUT("MODEL cache purged: a rejected model is not kept");
 }
+/* Catalog-v1 admission of the received (or retained) model file (CATALOG.md): the measured catalog and the private
+ * header decide, no whole-file scan. A failure here never purges the model file: a packaging or catalog problem is
+ * not a bad model. On success the admission is published for the rest of the session (never freed). */
+static int model_stage_catalog(int fd, uint64_t bytes) {
+    const char *apk = AVmPayload_getApkContentsPath(); const char *es = AVmPayload_getEncryptedStoragePath();
+    char why[256] = "", agcat[600], ewcat[600]; snprintf(agcat, sizeof agcat, "%s/assets/model.agcat", apk); snprintf(ewcat, sizeof ewcat, "%s/assets/model.ewcat", apk);
+    if (!g_pins.has_model || !g_pins.has_source_catalog) { close(fd); OUT("MODEL fail catalog requested but the build carries no catalog pins (model %s, source catalog %s)", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_source_catalog ? "pinned" : "unpinned"); return -1; }
+    if (!es) { close(fd); OUT("MODEL fail catalog mode needs the encrypted store (artifacts live there)"); return -1; }
+    int cf; do { cf = open(agcat, O_RDONLY | O_NOFOLLOW | O_CLOEXEC); } while (cf < 0 && errno == EINTR);
+    if (cf < 0) { close(fd); OUT("MODEL fail source catalog pinned but assets/model.agcat unreadable: %s", strerror(errno)); return -1; }
+    anchor_catalog_table cat; memset(&cat, 0, sizeof cat);
+    const int ok = anchor_catalog_open(fd, cf, g_pins.source_catalog_sha256, g_pins.model_sha256, &g_hash_ops, &cat, why, sizeof why); close(cf);
+    if (!ok) { close(fd); OUT("MODEL fail catalog: %s (the retained model file is untouched)", why); return -1; }
+    if (g_have_seed && memcmp(cat.model_identity, g_grant_model, 32) != 0) { anchor_catalog_free(&cat); close(fd); OUT("MODEL fail model differs from the one the seed was granted for"); return -1; }
+    anchor_encoded_catalog ecat; memset(&ecat, 0, sizeof ecat); int dfd = -1;
+    if (g_pins.has_encoded_catalog) {
+        uint8_t cd[32];
+        if (!calib_digest32(cd)) { anchor_catalog_free(&cat); close(fd); OUT("MODEL fail encoded catalog: model.calib could not be hashed whole"); return -1; }
+        int ef; do { ef = open(ewcat, O_RDONLY | O_NOFOLLOW | O_CLOEXEC); } while (ef < 0 && errno == EINTR);
+        if (ef < 0) { anchor_catalog_free(&cat); close(fd); OUT("MODEL fail encoded catalog pinned but assets/model.ewcat unreadable: %s", strerror(errno)); return -1; }
+        const int eok = anchor_encoded_catalog_open(ef, g_pins.encoded_catalog_sha256, &cat, cd, g_pins.converter_sha256, &g_hash_ops, &ecat, why, sizeof why); close(ef);
+        if (!eok) { anchor_catalog_free(&cat); close(fd); OUT("MODEL fail encoded catalog: %s (a present catalog that fails is never 'no artifacts')", why); return -1; }
+        char d[600]; snprintf(d, sizeof d, "%s/artifacts", es);       /* the held directory: inside the store, chosen HERE, opened once */
+        if (mkdir(d, 0700) != 0 && errno != EEXIST) { anchor_encoded_catalog_free(&ecat); anchor_catalog_free(&cat); close(fd); OUT("MODEL fail artifacts directory %s: %s", d, strerror(errno)); return -1; }
+        do { dfd = open(d, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC); } while (dfd < 0 && errno == EINTR);
+        if (dfd < 0) { anchor_encoded_catalog_free(&ecat); anchor_catalog_free(&cat); close(fd); OUT("MODEL fail artifacts directory %s: %s", d, strerror(errno)); return -1; }
+    }
+    g_cat = cat; g_ecat = ecat; g_art_dirfd = dfd; g_cat_admitted = 1; g_auth_mode = 2; g_staged_table = &g_cat.table;   /* immutable from here on */
+    memcpy(g_model_digest, g_cat.model_identity, 32);
+    g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1;
+    OUT("MODEL table: %zu tensors from the measured catalog, %zu header bytes verified in private memory, whole-file scan NOT performed (%s)", g_cat.table.n, g_cat.table.header_len, anchor_sha256_backend());
+    char dh[65], sh[65], eh[65] = "none"; sh_pads_bin2hex(g_model_digest, 32, dh); sh_pads_bin2hex(g_cat.catalog_identity, 32, sh);
+    if (g_ecat.authenticated) {
+        sh_pads_bin2hex(g_ecat.identity, 32, eh);
+        const int swept = anchor_artifact_sweep(g_art_dirfd, &g_ecat);          /* only now: after a VERIFIED admission, held-directory scoped */
+        size_t present = 0; unsigned long long total = 0, present_bytes = 0;
+        for (size_t i = 0; i < g_ecat.count; i++) {
+            char nm[ANCHOR_ARTIFACT_NAME_LEN + 1]; anchor_artifact_name(g_ecat.entries[i].encoded_sha256, nm); total += g_ecat.entries[i].bytes;
+            if (anchor_artifact_have(g_art_dirfd, nm, g_ecat.entries[i].bytes) == 1) { present++; present_bytes += g_ecat.entries[i].bytes; }
+        }
+        struct statvfs sv; const unsigned long long freeb = fstatvfs(g_art_dirfd, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
+        OUT("ARTIFACTS catalog %zu entries %llu bytes, present %zu (%llu bytes, availability only), swept %d, store free %llu MiB", g_ecat.count, total, present, present_bytes, swept, freeb >> 20);
+    }
+    OUT("MODEL ok %s (catalog-v1: source catalog %s, encoded catalog %s)", dh, sh, eh);
+    return 0;
+}
 static int model_stage(uint64_t bytes) {
     if (g_pins.mode == ANCHOR_MODE_INVALID) { OUT("MODEL fail pins-invalid"); return -1; }
+    const int want_catalog = g_auth_catalog_requested;
+    if (g_model_state == 1 && g_auth_mode && want_catalog != (g_auth_mode == 2)) { OUT("MODEL fail authentication mode differs from the staged model's (%s): restart the VM", g_auth_mode == 2 ? "catalog-v1" : "whole-file-sha256"); return -1; }
+    if (want_catalog && g_cat_admitted && !(g_model_fd >= 0 && g_model_state == 1 && g_model_fd_bytes == bytes)) { OUT("MODEL fail catalog admission is once per VM session: restart the VM for other bytes"); return -1; }
     if (g_model_fd >= 0 && g_model_state == 1 && g_model_fd_bytes == bytes) {              /* staged already, unchanged: say so, the owner waits for a verdict */
         char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh); OUT("MODEL ok %s (staged already, unchanged)", dh); return 0;
     }
     if (g_model_fd >= 0) { close(g_model_fd); g_model_fd = -1; }
-    g_model_state = 0; anchor_gguf_free(&g_model_table);                                  /* any (re)reception invalidates */
+    g_model_state = 0; g_auth_mode = 0; g_staged_table = NULL; anchor_gguf_free(&g_model_table);   /* any (re)reception invalidates (a catalog admission cannot reach here: guarded above) */
     if (g_req_pending) { g_req_pending = 0; OUT("PADREQ2 request dropped: the model is being re-staged, request again for the new bytes"); }   /* a grant for the old digest must not land on new bytes */
     int fd = -1;
     if (receive_model(g_ls_model, bytes, &fd) != 0) { OUT("MODEL fail receive"); return -1; }
+    if (want_catalog) return model_stage_catalog(fd, bytes);                                  /* measured catalog + private header; no whole-file scan, no purge on refusal */
     /* the bytes that will be parsed, judged by ONE read: GGUF header walked, whole-file digest (the pin's
      * form) and each tensor's digest from the same pass; then the pin and the grant's frozen digest */
     char why[256] = "";
     if (!anchor_gguf_stage(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail not a usable GGUF: %s", why); model_cache_purge(); return -1; }
     if (g_pins.has_model && memcmp(g_model_digest, g_pins.model_sha256, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the measured pin"); model_cache_purge(); return -1; }
     if (g_have_seed && memcmp(g_model_digest, g_grant_model, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the one the seed was granted for"); model_cache_purge(); return -1; }
-    g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1;
+    g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1; g_auth_mode = 1; g_staged_table = &g_model_table;
     OUT("MODEL table: %zu tensors, header %zu bytes retained, data at %llu, digests from the pin's own read (%s)", g_model_table.n, g_model_table.header_len, (unsigned long long)g_model_table.data_start, anchor_sha256_backend());
     char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh);
     OUT("MODEL ok %s (%s)", dh, g_pins.has_model ? "matches the pin" : g_have_seed ? "matches the grant" : "unpinned: hashed only");
@@ -697,6 +785,13 @@ static void mem_line(const char *when) {
     FILE *f = fopen("/proc/self/status", "r"); char l[256], rss[64] = "?", hwm[64] = "?";
     if (f) { while (fgets(l, sizeof l, f)) { if (!strncmp(l, "VmRSS:", 6)) { l[strcspn(l, "\n")] = 0; snprintf(rss, sizeof rss, "%s", l + 6); } else if (!strncmp(l, "VmHWM:", 6)) { l[strcspn(l, "\n")] = 0; snprintf(hwm, sizeof hwm, "%s", l + 6); } } fclose(f); }
     OUT("MEM %s: VmRSS=%s VmHWM=%s", when, rss, hwm);
+}
+/* The engine's artifact reads (anchor_model_auth.h): by digest, beneath the held directory, bounded wait; and the
+ * one file it names when the load was refused (a public, re-deliverable artifact; never the model). */
+static int artifact_open_cb(void *ctx, const uint8_t sha256[32], uint64_t bytes, unsigned wait_ms, int *state) { (void)ctx; int en = 0; return anchor_artifact_open_wait(g_art_dirfd, sha256, bytes, wait_ms, 250, state, &en); }
+static void artifact_suspect_cb(void *ctx, const uint8_t sha256[32]) {
+    (void)ctx; char nm[ANCHOR_ARTIFACT_NAME_LEN + 1]; anchor_artifact_name(sha256, nm);
+    if (g_art_dirfd >= 0 && unlinkat(g_art_dirfd, nm, 0) == 0) OUT("ARTIFACT %s removed: the engine refused its bytes; the next cycle re-delivers it", nm);
 }
 static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt, int n_predict, int threads, uint64_t model_bytes, int with_pads, int with_prefix) {
     const char *apk = AVmPayload_getApkContentsPath();
@@ -716,9 +811,20 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
     engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
     { void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_set_ctl_writer");
       if (setw) setw(anchor_ctl_write); else OUT("ENGINE has no engine_set_ctl_writer: its lines bypass the writers' lock"); }
-    { void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_set_model_table");
-      if (!sett || g_model_state != 1 || !g_model_table.t) { OUT("ENGINE refused: %s", sett ? "no staged model table" : "engine has no engine_set_model_table"); close(worker_fd); close(model_fd); return; }
-      sett(&g_model_table, &g_hash_ops); }
+    if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { OUT("ENGINE refused: no staged model table"); close(worker_fd); close(model_fd); return; }
+    if (g_auth_mode == ANCHOR_MODEL_AUTH_CATALOG_V1) {   /* the engine must take the versioned capability or it does not run this model */
+      int (*seta)(const anchor_model_auth_v1 *) = (int (*)(const anchor_model_auth_v1 *))dlsym(h, "engine_set_model_auth_v1");
+      if (!seta) { OUT("ENGINE refused: this engine cannot interpret catalog authentication (no engine_set_model_auth_v1)"); close(worker_fd); close(model_fd); return; }
+      static anchor_model_auth_v1 auth; memset(&auth, 0, sizeof auth);
+      auth.size = sizeof auth; auth.version = ANCHOR_MODEL_AUTH_VERSION; auth.mode = ANCHOR_MODEL_AUTH_CATALOG_V1; auth.table = g_staged_table; auth.hops = &g_hash_ops;
+      memcpy(auth.model_identity, g_cat.model_identity, 32); memcpy(auth.source_catalog_sha256, g_cat.catalog_identity, 32);
+      if (g_ecat.authenticated) { memcpy(auth.encoded_catalog_sha256, g_ecat.identity, 32); auth.encoded = &g_ecat; auth.artifact_open = artifact_open_cb; auth.artifact_suspect = artifact_suspect_cb; }
+      if (seta(&auth) != 0) { OUT("ENGINE refused: the engine did not take the catalog authentication"); close(worker_fd); close(model_fd); return; }
+      OUT("ENGINE model authentication: catalog-v1%s", g_ecat.authenticated ? " with encoded artifacts available (engine opt-in ANCHOR_ENCODED_ARTIFACTS=1)" : "");
+    } else {
+      void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_set_model_table");
+      if (!sett) { OUT("ENGINE refused: engine has no engine_set_model_table"); close(worker_fd); close(model_fd); return; }
+      sett(g_staged_table, &g_hash_ops); }
     if (!em) { OUT("ENGINE libengine.so has no engine_main"); return; }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine.err lives there */
     anchor_pads pads = { g_tsk, g_ledger_pk, g_pad_name, g_seed_id_hex, g_ledger_pinned };
@@ -754,9 +860,12 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
         pp = &pads;
         OUT("ENGINE dealt pads on: bank %s, seed %s", g_pads_dir, g_seed_id_hex);
     }
-    if (with_pads || with_prefix) {
-        /* shipments, and the prefix files, ride the same port into the store */
-        pthread_t th; pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads); pthread_detach(th);
+    if (with_pads || with_prefix || g_ecat.authenticated) {
+        /* shipments, the prefix files, and catalog artifacts ride the same port into the store; without the receiver
+         * nothing can arrive, so a thread that cannot start refuses the engine now instead of waiting for it */
+        pthread_t th; const int prc = pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads);
+        if (prc != 0) { OUT("ENGINE refused: pads-port receiver thread: %s", strerror(prc)); close(worker_fd); close(model_fd); return; }
+        pthread_detach(th);
     }
     OUT("ENGINE libraries loaded from %s; starting", lib_dir);
     /* ANCHOR_WEIGHT_CACHE=1 (owner-settable, boolean): the compact encoded-weight cache lives in a directory
@@ -945,7 +1054,10 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "MODEL ", 6)) {       /* MODEL <bytes> [sha256]: receive (or reuse the cache when the owner's tag matches) and judge the bytes that will be parsed */
                 unsigned long long mb = 0; char sha[80] = "";
                 if (sscanf(l + 6, "%llu %79s", &mb, sha) >= 1 && strlen(sha) == 64) { strncpy(g_model_sha, sha, 64); g_model_sha[64] = 0; }   /* a cache tag, nothing more: the hash below decides */
-                if (!mb) OUT("MODEL fail bytes"); else (void)model_stage(mb);
+                const int tok = anchor_auth_token(l);                                       /* MODEL <bytes> [sha256] [auth=catalog|whole-file]: strict, once, exact */
+                g_auth_catalog_requested = tok == ANCHOR_AUTH_TOKEN_CATALOG;
+                if (tok == ANCHOR_AUTH_TOKEN_MALFORMED) OUT("MODEL fail auth token: exactly one of auth=catalog or auth=whole-file (an unknown mode never becomes the full scan)");
+                else if (!mb) OUT("MODEL fail bytes"); else (void)model_stage(mb);
             }
             else if (!strncmp(l, "PADREQ2 ", 8)) {     /* PADREQ2 <name> -> PADREQ2 <name> <model_digest> <calib_digest> <nonce> <sig> | PADREQ2 fail <why> */
                 char name[65] = ""; sscanf(l + 8, "%64s", name);
@@ -1045,7 +1157,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "ANCHOR_CPU_POLL", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
+                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "ANCHOR_CPU_POLL", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
@@ -1055,6 +1167,9 @@ int AVmPayload_main(void) {
                 if ((q = strstr(l, "prompt="))) { size_t k = unhex(q + 7, (uint8_t *)eng_prompt, sizeof eng_prompt - 1); eng_prompt[k] = 0; }
                 with_pads = strstr(l, " pads=1") != NULL;
                 with_prefix = strstr(l, " prefix=1") != NULL;
+                { const int tok = anchor_auth_token(l);                                    /* strict; must agree with the MODEL line that staged it, or the stage is refused */
+                  if (tok == ANCHOR_AUTH_TOKEN_MALFORMED) { engine = 0; OUT("ENGINE refused: auth token: exactly one of auth=catalog or auth=whole-file"); }
+                  g_auth_catalog_requested = tok == ANCHOR_AUTH_TOKEN_CATALOG; }
             }
             else if (!strncmp(l, "SHAPE ", 6) && n_shapes < MAX_SHAPES) {
                 long long k, n; int nd, it, xm;

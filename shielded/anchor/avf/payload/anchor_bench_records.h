@@ -37,15 +37,15 @@ static inline std::string anchor_bench_counters_json(const anchor_bench_counters
     return anchor_bench_snprintf_ok(n, sizeof b) ? std::string(b) : anchor_bench_oversized();
 }
 struct anchor_bench_session {
-    uint64_t trials; std::string model_sha256, calib_digest; size_t target_bytes, head_bytes, pending_bytes; double snapshot_ms; long prompt_observe_us;
+    uint64_t trials; std::string model_sha256, calib_digest; std::string model_authentication, source_catalog_sha256, encoded_catalog_sha256; size_t target_bytes, head_bytes, pending_bytes; double snapshot_ms; long prompt_observe_us;
     int n_past, first_token, prompt_tokens; double prefill_ms; int mtp_requested_k, mtp_k_effective; std::string mtp_fallback; bool have_stats, have_pads;
     int n_predict, draft_ahead, threads, threads_batch, head_threads; std::string cpu_poll, arm_tuned, stream_min_bytes;
 };
 static inline std::string anchor_bench_session_json(const anchor_bench_session &s) {
     char b[1024];
-    int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"session\",\"trials\":%llu,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"snapshot_bytes\":{\"target\":%zu,\"head\":%zu,\"pending\":%zu},\"snapshot_ms\":%.3f,\"prompt_observe_us\":%ld,"
+    int n = snprintf(b, sizeof b, "BENCH v1 {\"record\":\"session\",\"trials\":%llu,\"model_sha256\":\"%s\",\"calib_digest\":\"%s\",\"model_authentication\":\"%s\",\"source_catalog_sha256\":\"%s\",\"encoded_catalog_sha256\":\"%s\",\"snapshot_bytes\":{\"target\":%zu,\"head\":%zu,\"pending\":%zu},\"snapshot_ms\":%.3f,\"prompt_observe_us\":%ld,"
              "\"n_past\":%d,\"first_token\":%d,\"prompt_tokens\":%d,\"prefill_ms\":%.3f,\"mtp_requested_k\":%d,\"mtp_fallback\":\"%s\",\"counters_available\":{\"stats\":%s,\"pads\":%s},",
-             (unsigned long long)s.trials, anchor_bench_escape(s.model_sha256).c_str(), anchor_bench_escape(s.calib_digest).c_str(), s.target_bytes, s.head_bytes, s.pending_bytes, s.snapshot_ms, s.prompt_observe_us,
+             (unsigned long long)s.trials, anchor_bench_escape(s.model_sha256).c_str(), anchor_bench_escape(s.calib_digest).c_str(), anchor_bench_escape(s.model_authentication).c_str(), anchor_bench_escape(s.source_catalog_sha256).c_str(), anchor_bench_escape(s.encoded_catalog_sha256).c_str(), s.target_bytes, s.head_bytes, s.pending_bytes, s.snapshot_ms, s.prompt_observe_us,
              s.n_past, s.first_token, s.prompt_tokens, s.prefill_ms, s.mtp_requested_k, anchor_bench_escape(s.mtp_fallback).c_str(), s.have_stats ? "true" : "false", s.have_pads ? "true" : "false");
     if (!anchor_bench_snprintf_ok(n, sizeof b)) return anchor_bench_oversized();
     std::string r = b;

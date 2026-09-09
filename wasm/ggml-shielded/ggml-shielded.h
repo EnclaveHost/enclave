@@ -92,6 +92,29 @@ GGML_BACKEND_API void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, 
  * prefill/decode boundaries; counters live for this backend module's lifetime. */
 GGML_BACKEND_API void ggml_backend_shielded_weight_source_stats(uint64_t *calls, uint64_t *bytes);
 
+/* Optional catalog-authenticated ENCODED weights (a registration hit path). The
+ * engine answers ONLY from an APK-authenticated catalog: `fd` of the artifact
+ * (owned by the engine for the run), `bytes` = K*N int8 rows in e.w's layout,
+ * the catalog's per-1 MiB-block SHA-256 digests (blocks x 32 bytes) and the
+ * catalog's per-row exponents as explicit little-endian int32 (rows x 4 bytes).
+ * Return 1 = ABSENT (no entry: the backend takes its source path), 0 = PRESENT
+ * (the backend reads every block through the digests before use and refuses
+ * the model load on any mismatch), anything else = PRESENT BUT INVALID (a listed
+ * artifact missing or wrong, calibration, identity or geometry mismatch: refused,
+ * never a fallback; the engine returns 2). Install the
+ * verifier first; the hook must outlive the backend and must not reenter it. */
+struct ggml_shielded_encoded_entry {
+    int fd; uint64_t bytes; const uint8_t *block_sha256; size_t blocks; const uint8_t *f_w_le32; size_t rows;
+};
+typedef int (*ggml_shielded_encoded_source)(void *ctx, const char *name, uint32_t type, const int64_t ne[4],
+    struct ggml_shielded_encoded_entry *out);
+GGML_BACKEND_API int ggml_backend_shielded_set_encoded_source(ggml_shielded_encoded_source source, void *ctx);
+/* Optional: named when a catalog-authenticated artifact FAILS a verified read, at registration or at any later block
+ * read through its reader (`why` is a short static reason). Only artifacts served by the encoded source are ever
+ * named; the caller may then retire that one public file. Same admission as the source; install before the model loads. */
+typedef void (*ggml_shielded_encoded_failure)(void *ctx, const char *name, const char *why);
+GGML_BACKEND_API int ggml_backend_shielded_set_encoded_failure(ggml_shielded_encoded_failure notify, void *ctx);
+
 /* Capability probe used by the manager before admitting a pooled tenant. */
 GGML_BACKEND_API int ggml_backend_shielded_pool_version(void);
 /* Dealt pads: mint one .pads shipment from the registered weights (single
