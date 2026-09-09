@@ -207,7 +207,9 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
 /* Pool health: pads consumed, and how many had to be generated on the
  * request path because the pool was dry (the number that should be ~0). */
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed);
-/* Optional wait for already-reserved pads: pads obtained and total wait time. */
+/* Waiting for reserved local pads or imported dealt pads: newly ready pads
+ * and elapsed wait. This time is already included in the link's mask_ms;
+ * it is a breakdown, not extra time to add to that profile. */
 void sh_link_pad_wait_stats(const sh_link *l, uint64_t *waited, double *wait_ms);
 /* The same counters for this node's shared-activation group, plus time spent
  * generating missing pads on the request path. Public weight metadata only. */

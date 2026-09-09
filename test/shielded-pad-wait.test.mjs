@@ -12,6 +12,7 @@ test("waiting for in-flight pads preserves consumption and times out without tak
     writeFileSync(join(dir, "test.c"), `
 #include ${JSON.stringify(source)}
 #include <assert.h>
+#include <stdatomic.h>
 
 typedef struct { sh_link *l; sh_group *g; int n; bool stop; } publication;
 static void *publish(void *arg) {
@@ -21,6 +22,18 @@ static void *publish(void *arg) {
     p->g->count += p->n;
     p->g->generating -= p->n;
     if (p->stop) p->l->stop = true;
+    pthread_cond_broadcast(&p->l->pool_filled);
+    pthread_mutex_unlock(&p->l->pool_mu);
+    return NULL;
+}
+static atomic_bool importer_waiting;
+static void *import_on_request(void *arg) {
+    publication *p = arg;
+    pthread_mutex_lock(&p->l->pool_mu);
+    atomic_store(&importer_waiting, true);
+    pthread_cond_wait(&p->l->need_refill, &p->l->pool_mu);
+    p->g->count += p->n;
+    p->g->generating -= p->n;
     pthread_cond_broadcast(&p->l->pool_filled);
     pthread_mutex_unlock(&p->l->pool_mu);
     return NULL;
@@ -88,6 +101,37 @@ int main(void) {
     assert(take_pads(&l, &g, 4, slots) == 0);
     pthread_join(producer, NULL);
     assert(g.head == 7 && g.generating == 4 && g.held == 0);
+
+    // Dealt pads can wait for import without generating anything on the
+    // request path. Count that wait once; taking its ready pads adds nothing.
+    l.stop = false; l.pad_wait_us = 0; l.pad_bank_wait_ms = 1000;
+    g.count = 1; g.generating = 3;
+    uint64_t waited_pads = l.pads_waited; waited = l.pad_wait_ms;
+    p = (publication){&l, &g, 3, false};
+    atomic_store(&importer_waiting, false);
+    assert(pthread_create(&producer, NULL, import_on_request, &p) == 0);
+    while (!atomic_load(&importer_waiting)) usleep(100);
+    dealt_wait(&l, &g, 4);
+    pthread_join(producer, NULL);
+    assert(l.pads_waited == waited_pads + 3 && l.pad_wait_ms > waited);
+    assert(g.count == 4 && g.generating == 0 && g.held == 0);
+    waited = l.pad_wait_ms;
+    assert(take_pads(&l, &g, 4, slots) == 4);
+    assert(l.pads_waited == waited_pads + 3 && l.pad_wait_ms == waited);
+    release_pads(&l, &g, 4);
+
+    // Already-ready pads do not report a wait. A timeout still reports elapsed
+    // time, with zero pads obtained and no consumption or changed ownership.
+    g.count = 4; dealt_wait(&l, &g, 4);
+    assert(l.pad_wait_ms == waited);
+    g.count = 0; g.generating = 4; l.pad_bank_wait_ms = 2;
+    waited_pads = l.pads_waited;
+    dealt_wait(&l, &g, 4);
+    assert(l.pad_wait_ms > waited && l.pads_waited == waited_pads);
+    assert(g.count == 0 && g.generating == 4 && g.held == 0);
+    waited = l.pad_wait_ms; l.stop = true;
+    dealt_wait(&l, &g, 4);
+    assert(l.pad_wait_ms == waited && l.pads_waited == waited_pads);
     pthread_cond_destroy(&l.pool_filled); pthread_cond_destroy(&l.need_refill);
     pthread_mutex_destroy(&l.pool_mu);
 }
