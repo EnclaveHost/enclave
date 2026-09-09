@@ -296,6 +296,8 @@ static sh_state &sh_get() { static sh_state s; return s; }
 struct sh_pool {
     std::mutex mu;
     bool initialized = false, invalid = false;
+    ggml_shielded_cpu_idle_hook cpu_idle_hook = nullptr;
+    void *cpu_idle_ctx = nullptr;
     std::vector<std::unique_ptr<sh_state>> extra;
     std::vector<sh_state *> cards;
     std::map<std::string, ggml_tensor> pending;
@@ -304,6 +306,11 @@ struct sh_pool {
 };
 static sh_pool &sh_pool_get() { static sh_pool p; return p; }
 static void sh_pool_init(sh_pool &p);
+void ggml_backend_shielded_set_cpu_idle_hook(ggml_shielded_cpu_idle_hook hook, void *ctx) {
+    sh_pool &p = sh_pool_get();
+    std::lock_guard<std::mutex> lock(p.mu);
+    p.cpu_idle_hook = hook; p.cpu_idle_ctx = hook ? ctx : nullptr;
+}
 static int sh_owner(sh_pool &p, const ggml_tensor *w) {
     auto it = p.owners.find(sh_group_key(ggml_get_name(w)));
     return it == p.owners.end() ? -1 : it->second;
@@ -1628,6 +1635,9 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
 static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml_cgraph *graph) {
     sh_pool &p = sh_pool_get();
     std::unique_lock<std::mutex> lk(p.mu);
+    // Prior CPU split is complete. Its workers otherwise poll while this
+    // synchronous backend handles registration, pad availability and sockets.
+    if (p.cpu_idle_hook) p.cpu_idle_hook(p.cpu_idle_ctx);
     sh_pool_init(p);
     /* Retire the whole multi-card backend before planning or touching another
      * graph. This pool lives for the process: an integrity failure requires
