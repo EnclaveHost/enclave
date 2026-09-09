@@ -29,6 +29,8 @@
 #include <errno.h>
 #include "shielded-avf-binding.h"
 #include "shielded-pad-grant.h"
+#include "anchor_maskbench.h"
+#include "output_mask_speed.h"
 #include "anchor_pins.h"
 #include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
 #include "anchor_names.h"
@@ -644,6 +646,9 @@ static void artifact_receive_conn(int c, const char *name, unsigned long long by
            if (rc == ANCHOR_ARTIFACT_E_BLOCK) OUT("ARTIFACT %s REJECTED (block %llu differs from the catalog): removed", name, (unsigned long long)r.bad_block);
            else OUT("ARTIFACT %s REJECTED at %llu of %llu (%s%s%s): removed", name, (unsigned long long)r.got, bytes, rc >= 0 && rc <= 7 ? names[rc] : "?", r.err_no ? ": " : "", r.err_no ? strerror(r.err_no) : ""); }
 }
+/* MASKBENCH adapters: the probe helper and the comparator take a monotonic-microsecond clock and a line sink */
+static int64_t maskbench_clock_us(void) { return (int64_t)now_us(); }
+static void maskbench_line(const char *s) { OUT("%s", s); }
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
@@ -1095,6 +1100,7 @@ int AVmPayload_main(void) {
     int engine = 0, eng_n = 8, eng_threads = 4; uint64_t eng_model = 0; static char eng_prompt[2048] = "The capital of France is";
     int echo = 0, with_pads = 0, with_prefix = 0;
     int bridgebench = 0; static char bench_sizes[128] = "";
+    int maskbench = 0, maskbench_bad = 0;                     /* MASKBENCH: the sampler + cell-import speed probe; no model, seed, worker or shapes */
     int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
@@ -1241,6 +1247,7 @@ int AVmPayload_main(void) {
                 long long k, n; int nd, it, xm;
                 if (sscanf(l + 6, "%lld %lld %d %d %d", &k, &n, &nd, &it, &xm) == 5) { SK[n_shapes] = k; SN[n_shapes] = n; Snode[n_shapes] = nd; Siter[n_shapes] = it; Sx[n_shapes] = xm; n_shapes++; }
             }
+            else if (!strcmp(l, "MASKBENCH")) { if (maskbench) { maskbench_bad = 1; OUT("MASKBENCH refused: repeated"); } maskbench = 1; }   /* exact line, once */
             else if (!strcmp(l, "ECHO")) echo = 1;
             else if (!strncmp(l, "BRIDGEBENCH ", 12)) { bridgebench = 1; snprintf(bench_sizes, sizeof bench_sizes, "%s", l + 12); }
             else if (!strncmp(l, "ARTIFACT_PROFILE", 16)) {   /* ARTIFACT_PROFILE 0|1: strict, once; malformed or repeated refuses the run at RUN */
@@ -1249,6 +1256,24 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "PREPARE", 7)) { int sec = 0; if (prepare || !anchor_prepare_parse(l, &sec)) { prep_bad = 1; OUT("PREPARE refused: %s", prepare ? "repeated" : "malformed (PREPARE [1..600])"); } prepare = 1; prep_seconds = sec ? sec : prep_seconds; }
             else if (!strcmp(l, "RUN")) break;
         }
+    }
+    if (maskbench) {   /* speed probe of the existing pad sampler and the 3-byte cell import; judged BEFORE every other mode so nothing else can win the dispatch */
+        int mrc = 4;                                              /* failure unless both halves pass: the exit must agree with the status line (as BRIDGEBENCH) */
+        if (maskbench_bad) OUT("MASKBENCH refused: repeated MASKBENCH line");
+        else if (engine || echo || prepare || bridgebench || n_shapes) OUT("MASKBENCH refused: conflicting mode commands on the same run (ENGINE/ECHO/PREPARE/BRIDGEBENCH/SHAPE)");
+        else {
+            OUT("MASKBENCH begin: existing sh_pad_r sampler on public inputs, then warm-file cell import; no model, no seed, no worker, no inference");
+            const int g = astra_output_mask_speed(sh_pad_r, maskbench_clock_us, maskbench_line);
+            const char *es = AVmPayload_getEncryptedStoragePath();
+            const int i = es ? anchor_maskbench_import(es, maskbench_clock_us, maskbench_line) : 2;
+            if (!es) OUT("CELL_IMPORT FAIL no encrypted store");
+            if (g == 0 && i == 0) mrc = 0;
+            OUT("MASKBENCH status=%s generation_rc=%d import_rc=%d", mrc == 0 ? "PASS" : "FAIL", g, i);
+        }
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
+        ctl_close();
+        sleep(1); return mrc;
     }
     if (echo) {   /* the vsock round trip itself, app <-> guest, nothing else in the loop */
         int ls = vs_bind(ECHO_PORT); int c = vs_accept(ls, 20000);
