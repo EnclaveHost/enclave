@@ -16,8 +16,11 @@ final class PadDelivery {
         return begin(0);
     }
     static Session begin(int vmWriteMax) {
+        return begin(vmWriteMax, false);
+    }
+    static Session begin(int vmWriteMax, boolean directFill) {
         if (vmWriteMax != 0 && vmWriteMax != 4096) throw new IllegalArgumentException("pad VM write cap must be 0 or 4096");
-        Session next = new Session(vmWriteMax); Closeable[] pending;
+        Session next = new Session(vmWriteMax, directFill); Closeable[] pending;
         synchronized (PadDelivery.class) {
             pending = current == null ? new Closeable[0] : current.stop();
             current = next;
@@ -28,7 +31,8 @@ final class PadDelivery {
 
     static final class Session implements Closeable {
         private final int vmWriteMax;
-        private Session(int vmWriteMax) { this.vmWriteMax = vmWriteMax; }
+        private final boolean directFill;
+        private Session(int vmWriteMax, boolean directFill) { this.vmWriteMax = vmWriteMax; this.directFill = directFill; }
         private boolean active = true;
         private String base = "", seed = "";
         private PadAckQueue acknowledgments;
@@ -91,6 +95,34 @@ final class PadDelivery {
         // A small buffer also bounds the array passed through each Java/native write boundary.
         void copyToVm(InputStream in, OutputStream out, long expected) throws IOException {
             copy(in, out, expected, vmWriteMax == 0 ? 1 << 20 : vmWriteMax);
+        }
+        // HTTP reads can return small fragments. Only the opt-in direct path gathers them
+        // into bounded VM writes; cached downloads and cached VM streaming keep their behavior.
+        void copyDirectToVm(InputStream in, OutputStream out, long expected) throws IOException {
+            if (!directFill) { copyToVm(in, out, expected); return; }
+            if (expected <= 0) throw new IOException("invalid shipment length");
+            byte[] buf = new byte[vmWriteMax == 0 ? 1 << 20 : vmWriteMax];
+            long total = 0;
+            while (total < expected) {
+                int want = (int)Math.min(buf.length, expected - total), have = 0;
+                while (have < want) {
+                    if (!active()) throw new IOException("pad session ended");
+                    int n = in.read(buf, have, want - have);
+                    if (!active()) throw new IOException("pad session ended");
+                    if (n < 0) throw new IOException("incomplete shipment");
+                    have += n;
+                }
+                out.write(buf, 0, have); total += have;
+            }
+            // Preserve the existing exact-length/EOF gate before waiting for K. An extra
+            // byte is never forwarded and a closed session can never report completion.
+            for (;;) {
+                if (!active()) throw new IOException("pad session ended");
+                int n = in.read(buf, 0, 1);
+                if (!active()) throw new IOException("pad session ended");
+                if (n < 0) return;
+                if (n > 0) throw new IOException("oversized shipment");
+            }
         }
         private void copy(InputStream in, OutputStream out, long expected, int bufferBytes) throws IOException {
             if (expected <= 0) throw new IOException("invalid shipment length");

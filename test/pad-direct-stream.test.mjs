@@ -16,6 +16,6 @@ test('a sealed shipment streams from its HTTP body into the PADS receiver with n
     assert.equal(cc.status, 0, cc.stdout + cc.stderr);
     const run = spawnSync('java', ['-cp', dir, 'host.enclave.anchor.avf.PadDirectStreamTest'], {encoding:'utf8', timeout:60_000});
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()), {status:'PASS', executed_checks:29});
+    assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()), {status:'PASS', executed_checks:62});
   } finally { rmSync(dir, {recursive:true, force:true}); }
 });

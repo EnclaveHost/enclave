@@ -28,8 +28,9 @@ final class PadDirectStream {
             if (go == 'H') { session.accept(name); return session.accepted(name) ? Outcome.ALREADY : Outcome.SESSION_ENDED; }   /* accept() is a no-op once cancelled: say so */
             if (go < 0 && !session.active()) return Outcome.SESSION_ENDED;
             if (go != 'G') return Outcome.REFUSED_HEADER;
-            try { session.copyToVm(body, toVm, bytes); }
+            try { session.copyDirectToVm(body, toVm, bytes); }
             catch (IOException e) {
+                if (!session.active()) return Outcome.SESSION_ENDED;
                 final String why = String.valueOf(e.getMessage());
                 if (why.contains("incomplete")) return Outcome.SHORT_BODY;
                 if (why.contains("oversized")) return Outcome.OVERSIZED_BODY;
