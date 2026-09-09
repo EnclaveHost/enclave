@@ -177,6 +177,7 @@ pin ANCHOR_SOURCE_CATALOG_SHA256 source-catalog.sha256; pin ANCHOR_ENCODED_CATAL
 asset() { local var="$1" file="$2"; local src="${!var:-}"; if [ -n "$src" ]; then [ -f "$src" ] || { echo "$var: $src not found" >&2; exit 2; }
           cp "$src" "$STAGE/assets/$file"; echo "staged assets/$file from $src ($(stat -c %s "$src") bytes, sha256 $(sha256sum "$src" | cut -c1-16)...)"; else rm -f "$STAGE/assets/$file"; fi; }
 asset ANCHOR_SOURCE_CATALOG model.agcat; asset ANCHOR_ENCODED_CATALOG model.ewcat
+asset ANCHOR_MASKBENCH_PADS maskbench.pads   # MASKBENCH: the host-minted PUBLIC shipment the pVM copies and times (payload/anchor_maskbench_mint.c); unset = not packaged
 for pair in source-catalog.sha256:model.agcat encoded-catalog.sha256:model.ewcat; do p="${pair%%:*}"; a="${pair##*:}"
     if [ -f "$STAGE/assets/$p" ] && [ ! -f "$STAGE/assets/$a" ]; then echo "assets/$p is pinned but assets/$a is not staged" >&2; exit 2; fi
     if [ ! -f "$STAGE/assets/$p" ] && [ -f "$STAGE/assets/$a" ]; then echo "assets/$a is staged but assets/$p is not pinned" >&2; exit 2; fi
