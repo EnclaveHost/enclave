@@ -26,7 +26,7 @@ static void exchange(sh_pipe *p, int peer, const uint8_t *payload, size_t n, siz
     assert(rc == (status ? SH_ERR_VIOLATION : SH_OK));
     if (!status) assert(r.len == 6 && !memcmp(r.data, "answer", 6));
     uint8_t wire[128]; assert(n + 9 <= sizeof wire);
-    assert(read_all(peer, wire, n + 9) == SH_OK);
+    assert(read_all(peer, wire, n + 9, NULL) == SH_OK);
     assert(wire[0] == cmd && get_u64(wire + 1) == n && !memcmp(wire + 9, payload, n));
     assert(tick_pos == tick_count);
 }

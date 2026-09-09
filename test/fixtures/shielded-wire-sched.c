@@ -7,7 +7,7 @@ static void delay_ms(long ms) {struct timespec t={0,ms*1000000};while(nanosleep(
 static void *server(void *arg) {
     int fd=*(int *)arg;
     for(int i=0;i<2;i++) {
-        uint8_t req[33];assert(read_all(fd,req,sizeof req)==SH_OK);
+        uint8_t req[33];assert(read_all(fd,req,sizeof req,NULL)==SH_OK);
         assert(req[0]==SH_CMD_FIELD_GEMM24 && get_u64(req+1)==24);
         uint8_t reply[15]={0};put_u64(reply+1,6);memcpy(reply+9,"answer",6);
         delay_ms(12);assert(write(fd,reply,12)==12);delay_ms(4);assert(write(fd,reply+12,3)==3);

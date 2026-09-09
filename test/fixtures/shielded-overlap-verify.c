@@ -57,12 +57,12 @@ static void *serve(void *arg) {
     if (p->ring) {
         while (!(seq = ld_acq(p->ring + SH_RING_OFF_REQ))) sched_yield();
         memcpy(h, p->ring + SH_RING_OFF_RQH, sizeof h);
-    } else assert(read_all(p->fd, h, sizeof h) == SH_OK);
+    } else assert(read_all(p->fd, h, sizeof h, NULL) == SH_OK);
     assert(h[0] == (p->width == 3 ? SH_CMD_FIELD_GEMM24 : SH_CMD_FIELD_GEMM));
     size_t size = get_u64(h + 1), hn = 8 + 4 * p->count;
     assert(size == hn + 3 * (size_t)p->rows * K && size <= sizeof req);
     if (p->ring) memcpy(req, p->ring + SH_RING_OFF_RQP, size);
-    else assert(read_all(p->fd, req, size) == SH_OK);
+    else assert(read_all(p->fd, req, size, NULL) == SH_OK);
     assert(read_u32(req) == (uint32_t)p->count && read_u32(req + 4) == (uint32_t)p->rows);
     for (int i = 0; i < p->count; i++) assert(read_u32(req + 8 + 4 * i) == (uint32_t)p->nodes[i]);
     pthread_mutex_lock(&p->mu);

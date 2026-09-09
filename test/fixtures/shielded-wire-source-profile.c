@@ -13,7 +13,7 @@ int main(int argc,char **argv) {
         sh_frame frame={SH_CMD_FIELD_GEMM24,req,7,req+7,sizeof req-7};sh_reply out;
         assert(sh_pipe_exchange(p,&frame,1,&out)==SH_OK);
         assert(out.len==6 && !memcmp(out.data,"answer",6));
-        uint8_t got[33];assert(read_all(fds[1],got,sizeof got)==SH_OK);
+        uint8_t got[33];assert(read_all(fds[1],got,sizeof got,NULL)==SH_OK);
         assert(got[0]==SH_CMD_FIELD_GEMM24 && get_u64(got+1)==24 && !memcmp(got+9,req,24));
     }
     sh_wire_timing timing;sh_pipe_wire_timing(p,&timing);
