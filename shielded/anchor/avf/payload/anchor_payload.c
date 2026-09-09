@@ -38,6 +38,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -305,6 +306,8 @@ static int model_file(uint64_t bytes, int *existing) {
 }
 /* The stream: 8-byte length from the owner, one byte back ('K' = keep, I have
  * it; 'S' = send), then the bytes. */
+static int write_all(int fd, const char *p, size_t n);   /* defined with the receiver below; the durable cache tag uses them too */
+static int dir_sync(const char *dir);
 static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
     int c = vs_accept(ls_model, 60000);
     if (c < 0) { OUT("ENGINE no model stream from the owner"); return -1; }
@@ -328,8 +331,15 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
     close(c);
     if (anchor_fsync_retry(fd) != 0) { OUT("ENGINE model fsync failed: %s (reception not remembered)", strerror(errno)); close(fd); return -1; }
     if (g_model_sha[0] && AVmPayload_getEncryptedStoragePath()) {    /* remember what this file is, ONLY now that it is durable */
-        char side[512]; sidecar_path(side, sizeof side, AVmPayload_getEncryptedStoragePath());
-        FILE *f = fopen(side, "w"); if (f) { fprintf(f, "%s\n", g_model_sha); fclose(f); }
+        /* the tag itself must be durable too: a short run (PREPARE) can end seconds after this write, and an unsynced tag
+         * is lost while the fsynced model survives, so the next boot re-streams a model it already holds (seen 2026-09-09:
+         * 43 s copy on a warm store). Temp + fsync + rename + directory fsync, like every other published file here. */
+        const char *es = AVmPayload_getEncryptedStoragePath(); char side[512], stmp[520]; sidecar_path(side, sizeof side, es); snprintf(stmp, sizeof stmp, "%s.tmp", side);
+        int sfd; do { sfd = open(stmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600); } while (sfd < 0 && errno == EINTR);
+        int ok = sfd >= 0;
+        if (ok) { char line[66]; const int n = snprintf(line, sizeof line, "%s\n", g_model_sha); ok = n > 0 && write_all(sfd, line, (size_t)n) == 0 && anchor_fsync_retry(sfd) == 0; close(sfd); }
+        if (ok) ok = rename(stmp, side) == 0 && dir_sync(es) == 0;
+        if (!ok) { unlink(stmp); OUT("ENGINE model cache tag not published (%s): the model will be received again next boot", strerror(errno)); }
     }
     OUT("ENGINE model %" PRIu64 " MiB received in %.1f s", got >> 20, (now_us() - t0) / 1e6);
     *out_fd = fd; return 0;
@@ -349,6 +359,7 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_model_auth.h"
 #include "anchor_auth.h"
 #include "anchor_prepare.h"
+#include "anchor_rxctl.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
  * (assets/ledger.pk) when present: then PADLEDGER from the app must match, only signed grants
@@ -622,18 +633,20 @@ static void artifact_receive_conn(int c, const char *name, unsigned long long by
 static void *pads_receiver(void *arg) {
     int ls = (int)(intptr_t)arg;
     for (;;) {
-        int c = vs_accept(ls, 3600000);
+        if (anchor_rx_should_stop()) break;                              /* a PREPARE run quiesces the receiver before it counts (anchor_rxctl.h) */
+        int c = vs_accept(ls, 1000);                                      /* short poll: a stop is seen within a second (the engine path never stops it) */
         if (c < 0) continue;
+        if (!anchor_rx_set_active(c)) { anchor_rx_close(c); continue; }   /* the stop landed during the accept: nothing is read from this connection */
         char hdr[256]; size_t n = 0;
         while (n + 1 < sizeof hdr) { char ch; if (read(c, &ch, 1) != 1) { n = 0; break; } if (ch == '\n') break; hdr[n++] = ch; }
         hdr[n] = 0;
         char name[128] = ""; unsigned long long bytes = 0;
-        if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2) { close(c); continue; }
+        if (n == 0 || sscanf(hdr, "PADS %127s %llu", name, &bytes) != 2) { anchor_rx_close(c); continue; }
         /* only two kinds of file may land here: a canonical shipment (judged against its header, acknowledged)
          * or one of the exact shared-prefix assets (stored as offered, verified at use, never acknowledged) */
         const anchor_name_class kind = anchor_name_classify(name, NULL, NULL, NULL);
-        if (kind == ANCHOR_NAME_REFUSED) { OUT("PADS %s refused: neither a shipment, a prefix asset nor a catalog artifact", name); (void)!write(c, "E", 1); close(c); continue; }
-        if (kind == ANCHOR_NAME_ARTIFACT) { artifact_receive_conn(c, name, bytes); close(c); continue; }   /* its own store namespace, never the bank */
+        if (kind == ANCHOR_NAME_REFUSED) { OUT("PADS %s refused: neither a shipment, a prefix asset nor a catalog artifact", name); (void)!write(c, "E", 1); anchor_rx_close(c); continue; }
+        if (kind == ANCHOR_NAME_ARTIFACT) { artifact_receive_conn(c, name, bytes); anchor_rx_close(c); continue; }   /* its own store namespace, never the bank */
         char tmp[700], fin[700]; snprintf(tmp, sizeof tmp, "%s/.%s.tmp", g_pads_dir, name); snprintf(fin, sizeof fin, "%s/%s", g_pads_dir, name);
         struct stat st;
         {   /* have it already? judged and hashed on a retained descriptor (the owner may be retrying a lost
@@ -644,7 +657,7 @@ static void *pads_receiver(void *arg) {
                     char ack[512] = ""; const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, hfd, ack, sizeof ack, NULL, bytes) : 0; close(hfd);
                     if (j < 0) { unlink(fin); (void)!write(c, "E", 1); }
                     else { (void)!write(c, "H", 1); if (ack[0]) OUT("%s", ack); }
-                    close(c); continue;
+                    anchor_rx_close(c); continue;
                 }
                 close(hfd);                                       /* another size under that name: it is replaced below */
             }
@@ -694,8 +707,9 @@ static void *pads_receiver(void *arg) {
         else { if (fd >= 0) close(fd); unlink(tmp); (void)!write(c, "E", 1);
                OUT("PADS %s FAILED at %llu of %llu (sock fd %d, file fd %d, read %zd/%s, write %s)", name, got, bytes, c, fd,
                    last_r, last_r < 0 ? strerror(read_errno) : "eof", write_errno ? strerror(write_errno) : "ok"); }
-        close(c);
+        anchor_rx_close(c);
     }
+    anchor_rx_exited();
     return NULL;
 }
 
@@ -800,19 +814,27 @@ static void artifact_suspect_cb(void *ctx, const uint8_t sha256[32]) {
  * reports what is PRESENT by name and size (availability only: use-time reads verify) and ends. Never a decode result. */
 static void run_prepare(int ls_pads, int seconds) {
     if (g_model_state != 1 || g_auth_mode != ANCHOR_MODEL_AUTH_CATALOG_V1 || !g_ecat.authenticated || g_art_dirfd < 0) { OUT("PREPARE refused: no encoded catalog admitted (send MODEL <bytes> <sha256> auth=catalog first)"); return; }
-    pthread_t th; const int prc = pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads);
+    anchor_rx_reset();
+    pthread_t th; const int prc = pthread_create(&th, NULL, pads_receiver, (void *)(intptr_t)ls_pads);   /* joinable: quiesced and joined before the snapshot */
     if (prc != 0) { OUT("PREPARE refused: pads-port receiver thread: %s", strerror(prc)); return; }
-    pthread_detach(th);
     OUT("PREPARE ready: catalog artifacts accepted on the pads port for up to %d s (no engine, no seed, no worker)", seconds);
     const uint64_t t0 = anchor_prepare_mono_ms();
     const int w = anchor_prepare_wait_stop(g_ctl, t0 + (uint64_t)seconds * 1000u);
     const char *reason = w == ANCHOR_PREPARE_STOP ? "owner stop" : w == ANCHOR_PREPARE_EOF ? "owner gone" : w == ANCHOR_PREPARE_DEADLINE ? "deadline" : w == ANCHOR_PREPARE_OVERLONG ? "owner sent an overlong line" : "control read error";
+    /* QUIESCE before counting: no more offers are accepted, a reception still reading is shut down (its temp is removed,
+     * nothing is published), one that had already received every byte may finish publishing, and the receiver thread has
+     * exited and been joined; only THEN is the snapshot taken, so nothing can be published after the receipt. A receiver
+     * that does not quiesce in time yields NO snapshot: an explicit failure. */
+    const uint64_t tq = anchor_prepare_mono_ms();
+    if (!anchor_rx_quiesce(th, 5000)) { OUT("PREPARE failed: the artifact receiver did not quiesce within 5 s after %s; no snapshot taken (files already published are kept, nothing else is trusted)", reason); return; }
+    const double quiesce_ms = (double)(anchor_prepare_mono_ms() - tq);
     size_t present = 0; unsigned long long bytes = 0, total = 0;
     for (size_t i = 0; i < g_ecat.count; i++) {
         char nm[ANCHOR_ARTIFACT_NAME_LEN + 1]; anchor_artifact_name(g_ecat.entries[i].encoded_sha256, nm); total += g_ecat.entries[i].bytes;
         if (anchor_artifact_have(g_art_dirfd, nm, g_ecat.entries[i].bytes) == 1) { present++; bytes += g_ecat.entries[i].bytes; }
     }
     struct statvfs sv; const unsigned long long freeb = fstatvfs(g_art_dirfd, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
+    OUT("PREPARATION quiesced in %.0f ms: receiver joined, no reception in flight", quiesce_ms);
     OUT("PREPARATION present %zu/%zu (%llu of %llu bytes, availability only: use-time reads verify), store free %llu MiB, %.1f s, reason=%s",
         present, g_ecat.count, bytes, total, freeb >> 20, (anchor_prepare_mono_ms() - t0) / 1e3, reason);
 }
@@ -1019,6 +1041,9 @@ static void run_shape(int64_t K, int64_t N, int n_nodes, int iters, int xmax, in
 }
 
 int AVmPayload_main(void) {
+    /* Writes to a control or pads connection whose peer is gone, and the receiver's own write after a quiesce shutdown, must fail
+     * with EPIPE rather than kill the payload (the default SIGPIPE action would end the VM mid-run). */
+    signal(SIGPIPE, SIG_IGN);
     setvbuf(stdout, NULL, _IONBF, 0);
     int ls_ctl = vs_bind(CTRL_PORT), ls_wk = vs_bind(WORKER_PORT), ls_model = vs_bind(MODEL_PORT), ls_pads = vs_bind(PADS_PORT);
     g_ls_model = ls_model;
