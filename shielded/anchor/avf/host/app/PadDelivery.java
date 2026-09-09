@@ -13,7 +13,11 @@ import java.util.Set;
 final class PadDelivery {
     private static Session current;
     static Session begin() {
-        Session next = new Session(); Closeable[] pending;
+        return begin(0);
+    }
+    static Session begin(int vmWriteMax) {
+        if (vmWriteMax != 0 && vmWriteMax != 4096) throw new IllegalArgumentException("pad VM write cap must be 0 or 4096");
+        Session next = new Session(vmWriteMax); Closeable[] pending;
         synchronized (PadDelivery.class) {
             pending = current == null ? new Closeable[0] : current.stop();
             current = next;
@@ -23,6 +27,8 @@ final class PadDelivery {
     }
 
     static final class Session implements Closeable {
+        private final int vmWriteMax;
+        private Session(int vmWriteMax) { this.vmWriteMax = vmWriteMax; }
         private boolean active = true;
         private String base = "", seed = "";
         private PadAckQueue acknowledgments;
@@ -79,8 +85,16 @@ final class PadDelivery {
         }
         @Override public void close() { closeAll(stop()); }
         void copy(InputStream in, OutputStream out, long expected) throws IOException {
+            copy(in, out, expected, 1 << 20);
+        }
+        // Limit only VM-bound body writes. Cached HTTP downloads retain their larger buffer.
+        // A small buffer also bounds the array passed through each Java/native write boundary.
+        void copyToVm(InputStream in, OutputStream out, long expected) throws IOException {
+            copy(in, out, expected, vmWriteMax == 0 ? 1 << 20 : vmWriteMax);
+        }
+        private void copy(InputStream in, OutputStream out, long expected, int bufferBytes) throws IOException {
             if (expected <= 0) throw new IOException("invalid shipment length");
-            byte[] buf = new byte[1 << 20]; long total = 0;
+            byte[] buf = new byte[bufferBytes]; long total = 0;
             while (active()) {
                 long remaining = expected - total;
                 int n = in.read(buf, 0, (int)Math.min(buf.length, remaining == 0 ? 1 : remaining));
