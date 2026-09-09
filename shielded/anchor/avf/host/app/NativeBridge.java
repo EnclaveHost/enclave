@@ -7,5 +7,5 @@ package host.enclave.anchor.avf;
  * reads, writes, polls, largest read. Returns 0 (both sides EOF), -ECANCELED, -ETIMEDOUT or -errno. */
 final class NativeBridge {
     static { System.loadLibrary("anchor-bridge"); }
-    static native int run(int aFd, int bFd, int cancelFd, int idleMs, boolean profile, int guestWriteMax, long[] stats);
+    static native int run(int aFd, int bFd, int cancelFd, int idleMs, boolean profile, int guestWriteMax, int traceFd, long[] stats);
 }

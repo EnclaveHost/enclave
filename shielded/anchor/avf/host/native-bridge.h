@@ -10,6 +10,8 @@ typedef struct {
     uint64_t reads, writes, polls; /* syscalls */
     uint64_t max_chunk;           /* largest single read */
     int status;                   /* the return value */
+    uint64_t trace_records, trace_dropped, trace_bytes;
+    int trace_status;             /* negative errno, separate from bridge status */
 } anchor_bridge_stats;
 /* 0 when both directions reached EOF and were drained; -ECANCELED when cancel_fd became readable or
  * hung up; -ETIMEDOUT when idle_ms > 0 passed with nothing to move; -errno on an I/O error (the
@@ -18,5 +20,8 @@ int anchor_bridge_run_profile(int a, int b, int cancel_fd, int idle_ms, size_t b
 /* Experimental VM-bound send cap: a_write_max is 0 (unchanged) or 4096.
  * Only sends to a are capped; buffer capacity and sends to b are unchanged. */
 int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max);
+/* trace_fd=-1 disables the metadata timeline. Otherwise the caller supplies an
+ * empty regular file, retains ownership, and reads trace_status separately. */
+int anchor_bridge_run_profile_trace(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd);
 int anchor_bridge_run(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st);
 #endif

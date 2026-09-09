@@ -40,7 +40,24 @@ static void *reader(void *arg) { io_job *j = arg; uint8_t *buf = malloc(1 << 16)
     j->n = got; free(buf); return NULL; }
 typedef struct { int a, b, cancel, idle; anchor_bridge_stats st; int rc; size_t guest_max, host_max; } run_job;
 static void *runner(void *arg) { run_job *r = arg; guest_fd=r->a; largest_guest_send=largest_host_send=0;
-    r->rc = anchor_bridge_run_profile_limit(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st, getenv("BRIDGE_TEST_PROFILE") != NULL, WRITE_MAX);
+    FILE *trace=getenv("BRIDGE_TEST_TRACE")?tmpfile():NULL;
+    if (getenv("BRIDGE_TEST_TRACE")) assert(trace);
+    r->rc = anchor_bridge_run_profile_trace(r->a, r->b, r->cancel, r->idle, BRIDGE_CAP, &r->st, getenv("BRIDGE_TEST_PROFILE") != NULL, WRITE_MAX, trace?fileno(trace):-1);
+    if (trace) {
+        anchor_io_header h;rewind(trace);assert(fread(&h,1,sizeof h,trace)==sizeof h);
+        assert(!memcmp(h.magic,"ABIO0001",8) && h.complete==1 && h.bridge_status==r->rc);
+        assert(h.count==r->st.trace_records && h.count<=ANCHOR_IO_MAX && h.dropped==r->st.trace_dropped && r->st.trace_status==0);
+        uint64_t offsets[4]={0},end=0;
+        for (uint64_t i=0;i<h.count;i++) {
+            anchor_io_event e;assert(fread(&e,1,sizeof e,trace)==sizeof e);
+            assert(e.kind>=1 && e.kind<=4 && e.reserved==0 && e.start_ns>=end && e.end_ns>=e.start_ns);
+            assert(e.offset==offsets[e.kind-1]);if(e.result>0) offsets[e.kind-1]+=(uint64_t)e.result;end=e.end_ns;
+        }
+        assert(fgetc(trace)==EOF && r->st.trace_bytes==sizeof h+h.count*sizeof(anchor_io_event));
+        if (!h.dropped) assert(!memcmp(offsets,h.bytes,sizeof offsets));
+        assert(h.bytes[2]==r->st.a_to_b && h.bytes[3]==r->st.b_to_a);
+        assert(fcntl(fileno(trace),F_GETFD)>=0);fclose(trace);
+    }
     r->guest_max=largest_guest_send; r->host_max=largest_host_send; return NULL; }
 static atomic_int storm = 1;
 static void *storm_main(void *arg) { pthread_t *t = arg; while (storm) { pthread_kill(*t, SIGUSR1); usleep(100); } return NULL; }
@@ -66,6 +83,12 @@ int main(void) {
       storm = 0; if (USE_STORM) pthread_join(st, NULL); pthread_join(rt, NULL);
       assert(r.rc == 0); assert(rb.n == N && rb.hash == wa.hash); assert(ra.n == N / 2 && ra.hash == wb.hash);
       assert(r.st.a_to_b == N && r.st.b_to_a == N / 2 && r.st.max_chunk <= BRIDGE_CAP);
+      if (getenv("BRIDGE_TEST_TRACE")) {
+          assert(r.st.trace_records>0);
+          if (ANCHOR_IO_MAX<32) assert(r.st.trace_dropped>0);
+          else assert(r.st.trace_dropped==0);
+          printf("IO trace: exact offsets and transfer counters, bounded records, dropped=%llu PASS\n",(unsigned long long)r.st.trace_dropped);
+      }
       if (WRITE_MAX) {
           assert(r.guest_max > 0 && r.guest_max <= WRITE_MAX);
           if (!USE_SMALL && BRIDGE_CAP > 4096) assert(r.host_max > WRITE_MAX);
