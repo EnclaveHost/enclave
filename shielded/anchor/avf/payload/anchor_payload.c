@@ -1264,9 +1264,10 @@ int AVmPayload_main(void) {
         else {
             OUT("MASKBENCH begin: existing sh_pad_r sampler on public inputs, then warm-file cell import; no model, no seed, no worker, no inference");
             const int g = astra_output_mask_speed(sh_pad_r, maskbench_clock_us, maskbench_line);
-            const char *es = AVmPayload_getEncryptedStoragePath();
-            const int i = es ? anchor_maskbench_import(es, maskbench_clock_us, maskbench_line) : 2;
-            if (!es) OUT("CELL_IMPORT FAIL no encrypted store");
+            const char *es = AVmPayload_getEncryptedStoragePath(), *apk = AVmPayload_getApkContentsPath();
+            char asset[600]; snprintf(asset, sizeof asset, "%s/assets/maskbench.pads", apk ? apk : "");   /* the host-minted public shipment (build: ANCHOR_MASKBENCH_PADS) */
+            const int i = es && apk ? anchor_maskbench_import(es, asset, maskbench_clock_us, maskbench_line) : 2;
+            if (!es || !apk) OUT("CELL_IMPORT FAIL no encrypted store or APK path");
             if (g == 0 && i == 0) mrc = 0;
             OUT("MASKBENCH status=%s generation_rc=%d import_rc=%d", mrc == 0 ? "PASS" : "FAIL", g, i);
         }
