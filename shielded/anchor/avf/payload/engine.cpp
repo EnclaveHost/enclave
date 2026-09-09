@@ -292,6 +292,19 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         }
         cpu_poll = (int)value;
     }
+    /* ANCHOR_STREAM_MIN_BYTES (default 0 = every calibrated member streams, unchanged): a calibrated member SMALLER than
+     * this stays RESIDENT through the verified loader path (read once, digest-checked against the staged table, set)
+     * instead of becoming a streamed source. Why: a streamed source that a CPU op consumes is re-read and re-hashed
+     * WHOLE on every get_tensor; ping-3 re-read the 96 ssm_alpha/ssm_beta members (5120x48 Q8_0, 261,120 B each)
+     * every MTP round: a measured 576 reads / 150,405,120 B over 16 tokens. Validated here, before anything is
+     * allocated; malformed refuses the run (STREAM-MIN.md). */
+    uint64_t stream_min_bytes = 0;
+    if (const char *e = getenv("ANCHOR_STREAM_MIN_BYTES")) {
+        if (!anchor_stderr_cap_parse(e, 0, UINT64_C(1) << 40, &stream_min_bytes)) {
+            outf("ENGINE config: ANCHOR_STREAM_MIN_BYTES must be canonical decimal in [0, 2^40]"); return 4;
+        }
+        outf("ENGINE config: streamed-source floor %llu bytes (calibrated members below it stay resident)", (unsigned long long)stream_min_bytes);
+    }
     setvbuf(stderr, NULL, _IONBF, 0);
     auto dump_err = [&]() {
         if (!err_path[0]) return;
@@ -499,7 +512,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (!same) { outf("ENGINE refused: %s: type/dims/size differ between the verified header and the table", name.c_str()); ok = false; break; }
         ggml_backend_buffer_type_t buft = t->buffer ? ggml_backend_buffer_get_type(t->buffer) : ggml_backend_cpu_buffer_type();   /* llama's choice */
         const char *bname = ggml_backend_buft_name(buft);
-        if (stream_weights && buft == &sh_plain_buft) {                     /* offloadable: never resident, read + verified on demand */
+        if (stream_weights && buft == &sh_plain_buft && e->size >= stream_min_bytes) {   /* offloadable: never resident, read + verified on demand (members below the floor stay resident) */
             ggml_backend_buffer_t sb = g_weight_source(t, weight_read, nullptr);
             if (!sb) { outf("ENGINE refused: %s: the backend did not take the streamed source", name.c_str()); ok = false; break; }
             g_owned.push_back(sb); n_stream++; sbytes += e->size;
@@ -523,8 +536,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       if (n_stream) g_stream_fd = src; else close(src);                 /* streamed sources read the staged file for the whole run */
       if (!ok) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); if (g_stream_fd >= 0) { close(g_stream_fd); g_stream_fd = -1; } return 2; }
       model->hparams.no_alloc = false;   /* the pinned fork's flag: every tensor is real now, contexts may allocate (proof: metadata-noalloc.cpp) */
-      outf("ENGINE verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu plain rows (offloadable), %zu repacked from verified bytes, %zu other CPU (llama's own buffer choices); %zu streamed sources (%.1f MiB never resident, verified by the backend on read); metadata from the verified header; staged file %s",
-           n_plain + n_repack + n_cpu, vbytes / 1048576.0, n_plain, n_repack, n_cpu, n_stream, sbytes / 1048576.0, n_stream ? "held for streaming" : "closed");
+      outf("ENGINE verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu plain rows (offloadable), %zu repacked from verified bytes, %zu other CPU (llama's own buffer choices); %zu streamed sources (%.1f MiB never resident, verified by the backend on read; floor %llu bytes); metadata from the verified header; staged file %s",
+           n_plain + n_repack + n_cpu, vbytes / 1048576.0, n_plain, n_repack, n_cpu, n_stream, sbytes / 1048576.0, (unsigned long long)stream_min_bytes, n_stream ? "held for streaming" : "closed");
     }
     { uint64_t vb = 0; if (verify_plain_tensors(&vb) != 0) { llama_model_free(model); for (ggml_backend_buffer_t b : g_owned) ggml_backend_buffer_free(b); g_owned.clear(); return 2; } }
     outf("ENGINE model loaded in %.1f s", (ggml_time_us() - t_load0) / 1e6);
