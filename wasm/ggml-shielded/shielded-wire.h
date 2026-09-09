@@ -78,6 +78,10 @@ typedef struct {
 #define SH_ERR_NOMEM     -4
 
 typedef struct sh_pipe sh_pipe;
+/* Default off. Serialized owner only; cap 1..131072 requires a live VSOCK
+ * with receive buffer strictly larger than cap. Zero disables the experiment.
+ * Each read restores the prior socket mark; restore failure closes the pipe. */
+int sh_pipe_set_rcvlowat(sh_pipe *p, int cap, uint64_t *buffer_bytes);
 
 /* One outbound frame in a pipelined batch. Both segments are borrowed, never
  * copied. The second exists for SET_TENSOR, whose payload is a fixed header

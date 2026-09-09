@@ -408,6 +408,9 @@ static int dealt_reserve(sh_link *l, uint64_t *lo, uint64_t *hi);   /* dealt pad
 static void dealt_advanced(sh_link *l);
 static void dealt_receipt(sh_link *l);
 const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
+int sh_link_set_rcvlowat(sh_link *l, int cap, uint64_t *buffer_bytes) {
+    return l ? sh_pipe_set_rcvlowat(l->pipe, cap, buffer_bytes) : SH_ERR_IO;
+}
 double sh_link_last_wire_us(const sh_link *l) { return l ? l->last_wire_us : 0.0; }
 void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out) {
     sh_sp_dump("tee");

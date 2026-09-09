@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <poll.h>
 #if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
 #define SH_CPU_RELAX() _mm_pause()
@@ -61,6 +62,7 @@ struct sh_pipe {
     uint64_t seq;
     int      misses;
     int      stream_load;
+    int      rcvlowat_cap; /* opt-in, changed only with the pipe owner idle */
     sh_wire_timing timing;
 };
 
@@ -251,6 +253,79 @@ static int read_all(int fd, void *buf, size_t n) {
     return SH_OK;
 }
 
+/* Configure only the live VSOCK path. No reconnect, global environment cache,
+ * receive-buffer resize or persistent change to the socket's original mark.
+ * The caller must serialize this with exchanges (as for every pipe operation). */
+int sh_pipe_set_rcvlowat(sh_pipe *p, int cap, uint64_t *buffer_bytes) {
+    if (buffer_bytes) *buffer_bytes = 0;
+    if (!p || p->fd < 0) return SH_ERR_IO;
+    if (cap < 0 || cap > 131072) return SH_ERR_PROTO;
+    if (!cap) { p->rcvlowat_cap = 0; return SH_OK; }
+    if (p->ring || spin_us() > 0) return SH_ERR_PROTO;
+    struct sockaddr_storage address;
+    socklen_t len = sizeof address;
+    if (getsockname(p->fd, (struct sockaddr *)&address, &len) || address.ss_family != AF_VSOCK)
+        return SH_ERR_IO;
+    unsigned long long buffer = 0;
+    len = sizeof buffer;
+    if (getsockopt(p->fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &buffer, &len) ||
+        len != sizeof buffer || (uint64_t)cap >= buffer) return SH_ERR_PROTO;
+    int old = 0, actual = 0;
+    len = sizeof old;
+    if (getsockopt(p->fd, SOL_SOCKET, SO_RCVLOWAT, &old, &len) || len != sizeof old || old < 1)
+        return SH_ERR_IO;
+    if (setsockopt(p->fd, SOL_SOCKET, SO_RCVLOWAT, &cap, sizeof cap)) return SH_ERR_IO;
+    len = sizeof actual;
+    int rc = getsockopt(p->fd, SOL_SOCKET, SO_RCVLOWAT, &actual, &len);
+    if (setsockopt(p->fd, SOL_SOCKET, SO_RCVLOWAT, &old, sizeof old)) {
+        close(p->fd); p->fd = -1; return SH_ERR_IO;
+    }
+    if (rc || len != sizeof actual || actual != cap) return SH_ERR_IO;
+    p->rcvlowat_cap = cap;
+    if (buffer_bytes) *buffer_bytes = buffer;
+    return SH_OK;
+}
+
+static int read_reply(sh_pipe *pipe, void *buf, size_t n) {
+    if (!pipe->rcvlowat_cap || !n) return read_all(pipe->fd, buf, n);
+    int old = 0;
+    socklen_t len = sizeof old;
+    if (getsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, &len) || len != sizeof old || old < 1)
+        return SH_ERR_IO;
+    int rc = SH_OK, mark = old, saved_errno = 0;
+    uint8_t *p = (uint8_t *)buf;
+    while (n) {
+        const int want = n < (size_t)pipe->rcvlowat_cap ? (int)n : pipe->rcvlowat_cap;
+        if (want != mark) {
+            if (setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &want, sizeof want)) { rc = SH_ERR_IO; break; }
+            mark = want;
+        }
+        /* Android's VSOCK poll honors the mark, including already queued data.
+         * A blocking read is unsafe here: it can consume a queued prefix, then
+         * sleep inside recvmsg with the ORIGINAL mark and an unreachable tail.
+         * MSG_DONTWAIT returns the partial prefix to us so the next iteration
+         * lowers the mark. Neither O_NONBLOCK nor protocol bytes are changed. */
+        struct pollfd wait = {pipe->fd, POLLIN, 0};
+        int ready = poll(&wait, 1, -1);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready <= 0 || (wait.revents & POLLNVAL)) { rc = SH_ERR_IO; break; }
+        ssize_t got = recv(pipe->fd, p, n, MSG_DONTWAIT);
+        if (got < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
+            if (wait.revents & (POLLERR | POLLHUP)) { rc = SH_ERR_IO; break; }
+            continue;
+        }
+        if (got <= 0) { rc = SH_ERR_IO; break; }
+        p += got; n -= (size_t)got;
+    }
+    saved_errno = errno;
+    if (mark != old && setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, sizeof old)) {
+        /* Never reuse a descriptor whose receive policy could not be restored. */
+        close(pipe->fd); pipe->fd = -1; return SH_ERR_IO;
+    }
+    errno = saved_errno;
+    return rc;
+}
+
 void sh_reply_free(sh_reply *r) {
     /* The bytes live in the pipe's buffer; only the view is cleared. */
     if (!r) return;
@@ -321,7 +396,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
     for (size_t i = 0; i < n; i++) {
         uint8_t h[SH_HDR];
         ws=sh_ws_now(profile);
-        if ((rc = read_all(p->fd, h, SH_HDR)) != SH_OK) {
+        if ((rc = read_reply(p, h, SH_HDR)) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response header at frame %zu", i);
             goto fail;
         }
@@ -339,7 +414,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         out[i].status = h[0];
         out[i].len = (size_t)size;
         ws=sh_ws_now(profile);
-        if (size && (rc = read_all(p->fd, p->rbuf + used, (size_t)size)) != SH_OK) {
+        if (size && (rc = read_reply(p, p->rbuf + used, (size_t)size)) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response body at frame %zu", i);
             goto fail;
         }
