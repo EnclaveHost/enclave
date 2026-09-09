@@ -4,6 +4,7 @@
 #include "shielded-source-profile.h"
 #undef SH_SP_LOCAL_ENABLE_ENV
 #include "shielded-wire-sched.h"
+#include "shielded-recv-profile.h"
 
 #include <errno.h>
 #include <netdb.h>
@@ -128,6 +129,7 @@ const char *sh_pipe_last_error(const sh_pipe *p) { return p ? p->err : ""; }
 void sh_pipe_wire_timing(const sh_pipe *p, sh_wire_timing *out) {
     sh_sp_dump("wire");
     sh_ws_dump();
+    sh_rp_dump();
     if (out) { if (p) *out = p->timing; else memset(out, 0, sizeof *out); }
 }
 static double wire_now_ms(void) {
@@ -230,13 +232,15 @@ static int spin_us(void) {
     return v;
 }
 
-static int read_all(int fd, void *buf, size_t n) {
+static int read_all(int fd, void *buf, size_t n, sh_rp_row *rp) {
     uint8_t *p = (uint8_t *)buf;
     const int budget = spin_us();
     if (budget > 0) {
         struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
         for (int spins = 0; n; spins++) {
+            sh_rp_stamp rs = sh_rp_now(rp);
             ssize_t r = recv(fd, p, n, MSG_DONTWAIT);
+            sh_rp_end(rp, SH_RP_RECV, rs, r);
             if (r > 0) { p += r; n -= (size_t)r; continue; }
             if (r == 0) return SH_ERR_IO;
             if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return SH_ERR_IO;
@@ -247,7 +251,9 @@ static int read_all(int fd, void *buf, size_t n) {
         }
     }
     while (n) {
+        sh_rp_stamp rs = sh_rp_now(rp);
         ssize_t r = read(fd, p, n);
+        sh_rp_end(rp, SH_RP_READ, rs, r);
         if (r < 0) { if (errno == EINTR) continue; return SH_ERR_IO; }
         if (r == 0) return SH_ERR_IO;             /* peer closed mid-frame */
         p += r; n -= (size_t)r;
@@ -343,18 +349,26 @@ failed:
     return SH_ERR_IO;
 }
 
-static int read_reply(sh_pipe *pipe, void *buf, size_t n) {
-    if (!pipe->rcvlowat_cap || !n) return read_all(pipe->fd, buf, n);
+static int read_reply(sh_pipe *pipe, void *buf, size_t n, int profile, uint64_t call, const char *kind) {
+    sh_rp_row *rp = sh_rp_new(profile, call, kind, n, pipe->rcvlowat_cap);
+    if (!pipe->rcvlowat_cap || !n) {
+        const int rc = read_all(pipe->fd, buf, n, rp); sh_rp_finish(rp, rc); return rc;
+    }
     int old = 0;
     socklen_t len = sizeof old;
-    if (getsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, &len) || len != sizeof old || old < 1)
-        return SH_ERR_IO;
+    sh_rp_stamp rs = sh_rp_now(rp);
+    int option_rc = getsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, &len);
+    sh_rp_end(rp, SH_RP_GET, rs, option_rc);
+    if (option_rc || len != sizeof old || old < 1) { sh_rp_finish(rp, SH_ERR_IO); return SH_ERR_IO; }
     int rc = SH_OK, mark = old, saved_errno = 0;
     uint8_t *p = (uint8_t *)buf;
     while (n) {
         const int want = n < (size_t)pipe->rcvlowat_cap ? (int)n : pipe->rcvlowat_cap;
         if (want != mark) {
-            if (setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &want, sizeof want)) { rc = SH_ERR_IO; break; }
+            rs = sh_rp_now(rp);
+            option_rc = setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &want, sizeof want);
+            sh_rp_end(rp, SH_RP_SET, rs, option_rc);
+            if (option_rc) { rc = SH_ERR_IO; break; }
             mark = want;
         }
         /* Android's VSOCK poll honors the mark, including already queued data.
@@ -363,10 +377,15 @@ static int read_reply(sh_pipe *pipe, void *buf, size_t n) {
          * MSG_DONTWAIT returns the partial prefix to us so the next iteration
          * lowers the mark. Neither O_NONBLOCK nor protocol bytes are changed. */
         struct pollfd wait = {pipe->fd, POLLIN, 0};
+        rs = sh_rp_now(rp);
         int ready = poll(&wait, 1, -1);
+        sh_rp_end(rp, SH_RP_POLL, rs, ready);
+        if (rp && ready > 0) rp->poll_flags |= (uint64_t)(unsigned short)wait.revents;
         if (ready < 0 && errno == EINTR) continue;
         if (ready <= 0 || (wait.revents & POLLNVAL)) { rc = SH_ERR_IO; break; }
+        rs = sh_rp_now(rp);
         ssize_t got = recv(pipe->fd, p, n, MSG_DONTWAIT);
+        sh_rp_end(rp, SH_RP_RECV, rs, got);
         if (got < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (wait.revents & (POLLERR | POLLHUP)) { rc = SH_ERR_IO; break; }
             continue;
@@ -375,11 +394,17 @@ static int read_reply(sh_pipe *pipe, void *buf, size_t n) {
         p += got; n -= (size_t)got;
     }
     saved_errno = errno;
-    if (mark != old && setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, sizeof old)) {
-        /* Never reuse a descriptor whose receive policy could not be restored. */
-        close(pipe->fd); pipe->fd = -1; return SH_ERR_IO;
+    if (mark != old) {
+        rs = sh_rp_now(rp);
+        option_rc = setsockopt(pipe->fd, SOL_SOCKET, SO_RCVLOWAT, &old, sizeof old);
+        sh_rp_end(rp, SH_RP_RESTORE, rs, option_rc);
+        if (option_rc) {
+            /* Never reuse a descriptor whose receive policy could not be restored. */
+            close(pipe->fd); pipe->fd = -1; sh_rp_finish(rp, SH_ERR_IO); return SH_ERR_IO;
+        }
     }
     errno = saved_errno;
+    sh_rp_finish(rp, rc);
     return rc;
 }
 
@@ -453,7 +478,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
     for (size_t i = 0; i < n; i++) {
         uint8_t h[SH_HDR];
         ws=sh_ws_now(profile);
-        if ((rc = read_reply(p, h, SH_HDR)) != SH_OK) {
+        if ((rc = read_reply(p, h, SH_HDR, profile, sp_id, "header")) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response header at frame %zu", i);
             goto fail;
         }
@@ -471,7 +496,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         out[i].status = h[0];
         out[i].len = (size_t)size;
         ws=sh_ws_now(profile);
-        if (size && (rc = read_reply(p, p->rbuf + used, (size_t)size)) != SH_OK) {
+        if (size && (rc = read_reply(p, p->rbuf + used, (size_t)size, profile, sp_id, "body")) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response body at frame %zu", i);
             goto fail;
         }
