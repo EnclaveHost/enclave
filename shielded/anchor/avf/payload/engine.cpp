@@ -505,6 +505,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * the whole next draft. When the target accepts every row and samples the guessed token, the
      * next round starts without its serial draft. Text is unchanged: the target verifies as before. */
     const bool draft_ahead = mtp_k > 0 && getenv("ANCHOR_DRAFT_AHEAD") && atoi(getenv("ANCHOR_DRAFT_AHEAD")) > 0;
+    int head_own_pool = 0;
+    if (!anchor_stderr_flag_parse(getenv("ANCHOR_HEAD_OWN_POOL"), &head_own_pool)) { outf("ENGINE config: ANCHOR_HEAD_OWN_POOL must be 0 or 1"); return 4; }
     int head_threads = 4; { const char *e = getenv("ANCHOR_HEAD_THREADS"); if (e && atoi(e) > 0) head_threads = atoi(e); if (head_threads > 8) head_threads = 8; }
     /* Keep the calibrated (offloadable) weights as plain q8_0 rows. The ARM CPU backend
      * otherwise repacks q8_0 into q8_0_4x8 at load (its CPU_REPACK buffer) and the shielded
@@ -693,6 +695,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     int idle_park = 0;
     if (!anchor_stderr_flag_parse(getenv("ANCHOR_CPU_IDLE_PARK"), &idle_park)) { outf("ENGINE config: ANCHOR_CPU_IDLE_PARK must be 0 or 1"); return 4; }
     tp_new_fn tp_new = cpu_h ? (tp_new_fn)dlsym(cpu_h, "ggml_threadpool_new") : nullptr;
+    if (mtp && head_own_pool && !tp_new) { outf("ENGINE config: ANCHOR_HEAD_OWN_POOL requires the persistent CPU pool API"); return 4; }
     if (cpu_poll >= 0 && !tp_new) { outf("ENGINE config: ANCHOR_CPU_POLL requires the persistent CPU pool API"); return 4; }
     auto pool_params = [cpu_poll](int threads) {
         ggml_threadpool_params p = ggml_threadpool_params_default(threads);
@@ -710,10 +713,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
                       idle_pool.target = tp; idle_pool.batch = tpb_pool;
                       idle_pool.set = setter; setter(anchor_idle_pool::park, &idle_pool);
                   }
-                  if (mtp && !draft_ahead) llama_attach_threadpool(anchor_mtp_ctx(mtp), tp, tp);   /* one decode pool for target and head; the batch pool prefills */
+                  if (mtp && !draft_ahead && !head_own_pool) llama_attach_threadpool(anchor_mtp_ctx(mtp), tp, tp);   /* one decode pool for target and head; the batch pool prefills */
                   else if (mtp) { ggml_threadpool_params tph = pool_params(head_threads); ggml_threadpool *tp_head = tp_new(&tph);
-                                  if (cpu_poll >= 0 && !tp_head) { outf("ENGINE config: ANCHOR_CPU_POLL head pool creation failed"); return 4; }
+                                  if ((cpu_poll >= 0 || head_own_pool) && !tp_head) { outf("ENGINE config: persistent head pool creation failed"); return 4; }
                                   llama_attach_threadpool(anchor_mtp_ctx(mtp), tp_head, tp_head); } }   /* draft-ahead: the head runs on its own pool while the target waits on the link */
+    if (mtp && head_own_pool) outf("ENGINE MTP head pool: separate (%d threads), draft-ahead=%d", head_threads, draft_ahead ? 1 : 0);
     if (idle_park && !idle_pool.set) { outf("ENGINE idle park: persistent pool unavailable"); return 4; }
     if (idle_park) outf("ENGINE idle park: target/batch pause at Shielded graph entry; next CPU graph resumes");
     if (tp_new) outf("ENGINE CPU pool: poll=%u (%s; target/batch/head)", pool_params(n_threads).poll, cpu_poll < 0 ? "library default" : "explicit override");
