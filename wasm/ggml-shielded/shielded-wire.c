@@ -3,6 +3,7 @@
 #define SH_SP_LOCAL_ENABLE_ENV "SHIELDED_WIRE_PROFILE"
 #include "shielded-source-profile.h"
 #undef SH_SP_LOCAL_ENABLE_ENV
+#include "shielded-wire-sched.h"
 
 #include <errno.h>
 #include <netdb.h>
@@ -122,6 +123,7 @@ size_t sh_pack_field_gemm(void *dst, uint32_t n_nodes, uint32_t m, const int *no
 const char *sh_pipe_last_error(const sh_pipe *p) { return p ? p->err : ""; }
 void sh_pipe_wire_timing(const sh_pipe *p, sh_wire_timing *out) {
     sh_sp_dump("wire");
+    sh_ws_dump();
     if (out) { if (p) *out = p->timing; else memset(out, 0, sizeof *out); }
 }
 static double wire_now_ms(void) {
@@ -298,11 +300,13 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
     sh_sp_stamp sp = sh_sp_now();
     const uint64_t sp_id = p->timing.calls + 1;
     const double begin = profile ? wire_now_ms() : 0;
+    sh_ws_stamp ws=sh_ws_now(profile);
     int rc = write_all(p->fd, iov, iovcnt);
     if (n > SH_STACK_FRAMES) { free(iov); free(hdrs); }
     if (rc != SH_OK) { snprintf(p->err, sizeof p->err, "write failed: %s", strerror(errno)); return rc; }
 
     if (profile) SH_SP_END(sp, "write_request", sp_id, SH_HDR+frames[0].len+frames[0].len2);
+    sh_ws_end(ws,"write_request",sp_id);
     sp = sh_sp_now();
     const double wrote = profile ? wire_now_ms() : 0;
     if (work && n) work(ctx);
@@ -316,11 +320,13 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
     size_t used = 0;
     for (size_t i = 0; i < n; i++) {
         uint8_t h[SH_HDR];
+        ws=sh_ws_now(profile);
         if ((rc = read_all(p->fd, h, SH_HDR)) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response header at frame %zu", i);
             goto fail;
         }
         if (profile) { SH_SP_END(sp, "read_header", sp_id, SH_HDR); headed = wire_now_ms(); }
+        sh_ws_end(ws,"read_header",sp_id);
         sp = sh_sp_now();
         uint64_t size = get_u64(h + 1);
         if (size > SH_MAX_FRAME) {
@@ -332,11 +338,13 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         sp = sh_sp_now();
         out[i].status = h[0];
         out[i].len = (size_t)size;
+        ws=sh_ws_now(profile);
         if (size && (rc = read_all(p->fd, p->rbuf + used, (size_t)size)) != SH_OK) {
             snprintf(p->err, sizeof p->err, "short response body at frame %zu", i);
             goto fail;
         }
         if (profile) { SH_SP_END(sp, "read_body", sp_id, size); bodied = wire_now_ms(); }
+        sh_ws_end(ws,"read_body",sp_id);
         if (out[i].status != 0) {
             /* A violation is always the last frame: the worker closes after it.
              * Surface the reason verbatim -- it names the node and the op, which
