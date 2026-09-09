@@ -163,7 +163,11 @@ final class PadsClient {
 
     /** Prefetch: the platform's store lists this seed's shipments; download the ones this phone
      *  does not hold yet (whole files, tmp-then-rename, so streamBank never sees a partial). */
-    static void syncBank(PadDelivery.Session session, java.io.File dir) {
+    static void syncBank(PadDelivery.Session session, java.io.File dir) { syncBank(session, dir, null, null); }
+    /** pads_direct: `vm` non-null and `directFailed` non-null enable ONE attempt per shipment name to stream the HTTP body
+     *  straight into the pVM's PADS receiver (PadDirectStream); any outcome but ACCEPTED/ALREADY records the name in
+     *  `directFailed` and the next round takes the cached-file path below, unchanged. */
+    static void syncBank(PadDelivery.Session session, java.io.File dir, Object vm, java.util.Set<String> directFailed) {
         if (!session.ready()) return;
         final String base = session.base(), seed = session.seed();
         try {
@@ -199,6 +203,12 @@ final class PadsClient {
                 if (bytes <= 0) continue;
                 java.io.File f = new java.io.File(dir, name);
                 if (f.exists() && f.length() == bytes) continue;
+                if (vm != null && directFailed != null && !directFailed.contains(name)) {
+                    directFailed.add(name);                                   /* one direct attempt per name per session; removed only on success */
+                    if (streamDirect(session, vm, base, seed, name, bytes)) { directFailed.remove(name); continue; }
+                    if (!session.active()) return;
+                    continue;                                                 /* the cached-file path takes this name on the next round */
+                }
                 java.io.File tmp = java.io.File.createTempFile("." + name + ".", ".part", dir);
                 HttpURLConnection c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seed + "/" + name).openConnection();
                 java.io.Closeable connection = c::disconnect;
@@ -214,6 +224,36 @@ final class PadsClient {
                 } finally { session.untrack(connection); c.disconnect(); tmp.delete(); }
             }
         } catch (Exception e) { if (session.active()) Main.say("PADS sync error " + e); }
+    }
+
+    /** One shipment from its HTTP response straight into the PADS receiver: no Android file, no re-read. True only when the
+     *  VM acknowledged (K) or already held it (H). The vsock descriptor is closed in `finally`, BEFORE the caller can fall
+     *  back, so the single-threaded receiver sees EOF, unlinks its temp and can take the next offer. */
+    static boolean streamDirect(PadDelivery.Session session, Object vm, String base, String seed, String name, long bytes) {
+        HttpURLConnection c = null; ParcelFileDescriptor pfd = null; java.io.Closeable connection = null;
+        PadDirectStream.Outcome outcome = PadDirectStream.Outcome.IO_ERROR;
+        try {
+            c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seed + "/" + name).openConnection();
+            connection = c::disconnect;
+            if (!session.track(connection)) return false;
+            c.setConnectTimeout(20000); c.setReadTimeout(120000);
+            final int code = c.getResponseCode();
+            if (code != 200) { Main.say("PADS direct " + name + " http " + code); return false; }
+            pfd = Main.connect(vm, PADS_PORT, 50);
+            if (pfd == null) { Main.say("PADS direct " + name + ": connect failed"); return false; }
+            if (!session.track(pfd)) return false;
+            try (InputStream body = c.getInputStream(); OutputStream toVm = new FileOutputStream(pfd.getFileDescriptor()); InputStream fromVm = new java.io.FileInputStream(pfd.getFileDescriptor())) {
+                outcome = PadDirectStream.stream(session, name, bytes, c.getContentLengthLong(), body, toVm, fromVm);
+            }
+        } catch (Exception e) { if (session.active()) Main.say("PADS direct " + name + " error " + e); }
+        finally {
+            if (pfd != null) { session.untrack(pfd); try { pfd.close(); } catch (Exception ignored) { } }   /* EOF to the receiver first */
+            if (connection != null) session.untrack(connection);
+            if (c != null) c.disconnect();
+        }
+        final boolean ok = outcome == PadDirectStream.Outcome.ACCEPTED || outcome == PadDirectStream.Outcome.ALREADY;
+        Main.say("PADS direct " + name + " " + (bytes >> 20) + " MiB " + outcome + (ok ? "" : " (cached-file path next)"));
+        return ok;
     }
 
     /** The platform's shared-prefix artifacts (prefix-kv.h) for (model digest, name): prefix.kv,
@@ -331,14 +371,17 @@ final class PadsClient {
     }
 
     /** Fetch and stream independently, with immutable run ownership and per-run acknowledgments. */
-    static void fetchLoop(PadDelivery.Session session, java.io.File dir) {
+    static void fetchLoop(PadDelivery.Session session, java.io.File dir) { fetchLoop(session, dir, null); }
+    static void fetchLoop(PadDelivery.Session session, java.io.File dir, Object vm) {
+        final java.util.Set<String> directFailed = vm != null ? new java.util.HashSet<>() : null;   /* per launch, never static */
         for (int round = 0; round < 3600 && session.active() && !Thread.currentThread().isInterrupted(); round++) {
-            syncBank(session, dir);
+            syncBank(session, dir, vm, directFailed);
             try { Thread.sleep(2000); } catch (InterruptedException e) { return; }
         }
     }
-    static void streamBank(PadDelivery.Session session, Object vm, java.io.File dir) {
-        Thread fetcher = new Thread(() -> fetchLoop(session, dir), "pads-fetch");
+    static void streamBank(PadDelivery.Session session, Object vm, java.io.File dir) { streamBank(session, vm, dir, false); }
+    static void streamBank(PadDelivery.Session session, Object vm, java.io.File dir, boolean direct) {
+        Thread fetcher = new Thread(() -> fetchLoop(session, dir, direct ? vm : null), "pads-fetch");
         java.io.Closeable cancelFetch = fetcher::interrupt;
         try {
             if (!session.ready() || !session.track(cancelFetch)) return;

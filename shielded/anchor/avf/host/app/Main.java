@@ -88,6 +88,7 @@ public class Main extends Activity {
         String artifactsUrl = "";            // --es artifacts_url http://127.0.0.1:<port>/v1/artifacts: stream public artifacts from the host feed (adb reverse) straight into the VM, no phone copy (ArtifactFeed)
         int artifactsDeadlineS = 300;        // --ei artifacts_deadline: the whole feed's budget in seconds (default 300, max 600), measured from the feed's start
         int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
+        int padsDirect = 0;                  // --ei pads_direct 1: stream a NEW sealed shipment from its HTTP body straight into the PADS receiver (no Android file); 0 = cached-file path
         String modelCache = "";              // --es model_cache only: the VM reuses a retained model or refuses ('N', nothing streamed, store untouched); "" = today's re-receive on a miss
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
@@ -115,12 +116,14 @@ public class Main extends Activity {
             if (i.getStringExtra("artifacts_url") != null) p.artifactsUrl = i.getStringExtra("artifacts_url");
             p.artifactsDeadlineS = i.getIntExtra("artifacts_deadline", p.artifactsDeadlineS);
             p.artifactsCoalesce = i.getIntExtra("artifacts_coalesce", 0);
+            p.padsDirect = i.getIntExtra("pads_direct", 0);
             if (i.getStringExtra("model_cache") != null) p.modelCache = i.getStringExtra("model_cache");
             if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv");   // read BEFORE the validation chain: prepare mode judges its ANCHOR_ARTIFACT_PROFILE request here
             if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
             else if (!p.artifactsUrl.isEmpty() && !ArtifactFeed.validBase(p.artifactsUrl)) p.configError = "artifacts_url must be http://127.0.0.1:<port>/v1/artifacts (the host feed through adb reverse)";
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
             else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
+            else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
             else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
             else if (p.mode.equals("prepare") && (!"catalog".equals(p.modelAuth) || p.artifactsUrl.isEmpty())) p.configError = "mode prepare needs model_auth catalog and artifacts_url (no engine, no seed, no worker)";
             else if (p.mode.equals("prepare") && ArtifactProfile.requested(p.shenv) < 0) p.configError = "shenv " + ArtifactProfile.KEY + " must be 0 or 1, once (the only shenv key a preparation honours, as the explicit ARTIFACT_PROFILE control line)";
@@ -402,7 +405,7 @@ public class Main extends Activity {
                    .append(" prompt=").append(RelayAttach.hex(plan.prompt.getBytes("UTF-8"))).append(pads ? " pads=1" : "").append(prefix ? " prefix=1" : "").append(authFlag(plan)).append('\n');
                 startBurners(plan.burners);
                 say("ENGINE plan: " + plan.model + " (" + (bytes >> 20) + " MiB), " + plan.n + " tokens, " + plan.threads + " threads" + (plan.mtp > 0 ? ", MTP draft k=" + plan.mtp : "") + (pads ? ", dealt pads from " + plan.pads : ""));
-                if (pads) { final java.io.File bank = new java.io.File(plan.pads); new Thread(() -> PadsClient.streamBank(padSession, vm, bank), "vsock-pads").start(); }
+                if (pads) { final java.io.File bank = new java.io.File(plan.pads); final boolean direct = plan.padsDirect == 1; new Thread(() -> PadsClient.streamBank(padSession, vm, bank, direct), "vsock-pads").start(); if (direct) say("PADS direct: new shipments stream from HTTP into the VM without a phone file (one attempt per shipment, then the cached-file path)"); }
                 if (prefix) { final java.io.File pdir = new java.io.File(plan.prefix); new Thread(() -> PadsClient.streamFiles(vm, pdir, new String[] { "prefix.kv", "prefix.kv.sig", "prefix.txt" }), "vsock-prefix").start(); }
                 if (!plan.artifacts.isEmpty()) { final java.io.File adir = new java.io.File(plan.artifacts); final boolean consume = plan.artifactsConsume; new Thread(() -> PadsClient.streamArtifacts(vm, adir, consume), "vsock-artifacts").start(); }
                 if (!plan.artifactsUrl.isEmpty()) { final String url = plan.artifactsUrl; final int dl = plan.artifactsDeadlineS; final boolean co = plan.artifactsCoalesce == 1; new Thread(() -> PadsClient.feedArtifacts(vm, url, dl, co), "vsock-artifact-feed").start(); }
