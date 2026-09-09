@@ -72,6 +72,7 @@ typedef ggml_threadpool *(*tp_new_fn)(ggml_threadpool_params *);
 extern "C" {
 #include "shielded-pad-grant.h"   /* static inline C over TweetNaCl: its declarations need C linkage here */
 #include "shielded-sha256.h"      /* digests for the stderr export (diagnostic, default off) */
+#include "anchor_bench_records.h"  /* BENCH v1 record formatting (pure; the host fixture runs the repeat parser on it) */
 #include "anchor_stderr_export.h"  /* the export itself: shared with the compiled host fixture */
 }
 #include "shielded-pads.h"
@@ -305,6 +306,19 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         }
         outf("ENGINE config: streamed-source floor %llu bytes (calibrated members below it stay resident)", (unsigned long long)stream_min_bytes);
     }
+    /* ANCHOR_BENCH_TRIALS (default 0/1 = one decode, byte-for-byte unchanged incl. timing and receipts; 2..16 = BENCH.md):
+     * after the prompt is prefilled and the head has observed it, snapshot ONLY the model's prompt state (target
+     * sequence state, head sequence state, the head's pending row, the first token, n_past) in RAM and run the decode
+     * that many times from it. Pads, seed, spent indices, receipts and verification state are never restored: every
+     * trial consumes fresh pads and the dealer keeps replenishing. Greedy text AND the MTP counts must repeat exactly;
+     * any restore failure, lost head, mismatch or incomplete repeat count is a terminal failure (exit 3). Records:
+     * `BENCH v1 {json}` lines (session / begin / result / end); the single-run result JSON is NOT emitted. */
+    uint64_t bench_trials = 0;
+    if (const char *e = getenv("ANCHOR_BENCH_TRIALS")) {
+        if (!anchor_stderr_cap_parse(e, 0, 16, &bench_trials)) { outf("ENGINE config: ANCHOR_BENCH_TRIALS must be canonical decimal in [0, 16]"); return 4; }
+        if (bench_trials >= 2) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
+    }
+    const bool bench = bench_trials >= 2;
     setvbuf(stderr, NULL, _IONBF, 0);
     auto dump_err = [&]() {
         if (!err_path[0]) return;
@@ -722,11 +736,61 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * the link's 8 rows) the first offloaded graph also ships the weights to the worker (~50 s) */
     long t_steady0 = 0; int n_gen_steady0 = 0;
         int32_t pre[33]; int pre_n = 0; int32_t pre_first = -1; int mtp_pre_used = 0, mtp_pre_hit = 0;   /* draft-ahead hand-off between rounds */
-    const long t_tg0 = ggml_time_us();
+    const long t_tg0_first = ggml_time_us();   /* non-bench: the decode clock starts here, exactly as before */
     cur = argmax(llama_get_logits_ith(ctx, -1));
     const long t_po0 = ggml_time_us();
     if (mtp && n > 0) { if (anchor_mtp_harvest(mtp, ctx, n) || anchor_mtp_observe(mtp, n_loaded, toks.data(), n)) { mtp_fallback = "prompt_observe_failed"; outf("ENGINE MTP: the head could not observe the prompt; decoding plainly"); anchor_mtp_free(mtp); mtp = nullptr; } }
     if (eprofile && mtp && n > 0) outf("ENGINE MTP profile: prompt-observe %.1f ms (%d prompt rows)", (ggml_time_us() - t_po0) / 1e3, n);
+    /* ---- bench (BENCH.md): one-time set-up = prompt observe + snapshot, then N trials from the snapshot ---- */
+    const long t_prompt_observe_us = ggml_time_us() - t_po0;   /* one-time set-up, reported in the session record */
+    struct { std::vector<uint8_t> target, head; std::vector<float> pending; llama_token cur0 = 0; int n_past0 = 0; } bsnap;
+    auto bench_counters = [&](const char *phase) {   /* cumulative backend + pad counters (FROZEN flat schema; null when either source is unavailable) */
+        anchor_bench_counters c = {stats != nullptr, pads_used != nullptr, 0, 0, 0, 0, 0, 0};
+        if (stats) { fprintf(stderr, "[shielded] snapshot begin: phase=%s\n", phase); stats(&c.offloaded, &c.local, &c.macs, &c.verify_fail); fprintf(stderr, "[shielded] snapshot end: phase=%s\n", phase); }
+        if (pads_used) pads_used(&c.pads_used, &c.pads_missed);
+        return anchor_bench_counters_json(c); };
+    if (bench) {
+        const long ts0 = ggml_time_us();
+        const size_t tsz = llama_state_seq_get_size(ctx, 0), hsz = mtp ? anchor_mtp_state_size(mtp) : 0, pn = mtp ? anchor_mtp_n_embd(mtp) : 0;
+        const size_t cap = (size_t)1 << 30;
+        if (tsz == 0 || hsz > cap || tsz > cap - hsz || pn * sizeof(float) > cap - hsz - tsz) { outf("ENGINE bench REFUSED: prompt-state snapshot %zu+%zu+%zu bytes is empty or over the %zu-byte bound", tsz, hsz, pn * sizeof(float), cap); return 4; }
+        bsnap.target.resize(tsz); bsnap.head.resize(hsz); bsnap.pending.resize(pn);
+        bool ok = llama_state_seq_get_data(ctx, bsnap.target.data(), tsz, 0) == tsz;
+        if (ok && mtp) ok = anchor_mtp_state_export(mtp, bsnap.head.data(), hsz) == hsz && anchor_mtp_pending_export(mtp, bsnap.pending.data(), pn) == 0;
+        if (!ok) { outf("ENGINE bench REFUSED: prompt-state snapshot failed"); return 4; }
+        bsnap.cur0 = cur; bsnap.n_past0 = n_past;
+        anchor_bench_session ses;
+        ses.trials = bench_trials; if (g_table && g_table->has_whole) { char hx[65]; sh_pads_bin2hex(g_table->whole_digest, 32, hx); ses.model_sha256 = hx; } ses.calib_digest = calib_hex_at_start;
+        ses.target_bytes = tsz; ses.head_bytes = hsz; ses.pending_bytes = pn * sizeof(float); ses.snapshot_ms = (ggml_time_us() - ts0) / 1e3; ses.prompt_observe_us = t_prompt_observe_us;
+        ses.n_past = n_past; ses.first_token = (int)cur; ses.prompt_tokens = n; ses.prefill_ms = (t_pp1 - t_pp0) / 1e3; ses.mtp_requested_k = mtp_k; ses.mtp_k_effective = mtp ? mtp_k : 0; ses.mtp_fallback = mtp_fallback;
+        ses.have_stats = stats != nullptr; ses.have_pads = pads_used != nullptr;
+        ses.n_predict = n_predict; ses.draft_ahead = draft_ahead ? 1 : 0; ses.threads = n_threads; ses.threads_batch = n_threads_batch; ses.head_threads = head_threads;
+        const char *poll_e = getenv("ANCHOR_CPU_POLL"), *tuned_e = getenv("SHIELDED_ARM_TUNED"), *smin_e = getenv("ANCHOR_STREAM_MIN_BYTES");
+        ses.cpu_poll = poll_e ? poll_e : "unset"; ses.arm_tuned = tuned_e ? tuned_e : "unset"; ses.stream_min_bytes = smin_e ? smin_e : "unset";
+        const std::string line = anchor_bench_session_json(ses);
+        if (!anchor_bench_fits(line)) { outf("ENGINE bench REFUSED: session record %zu bytes exceeds the %u-byte line bound", line.size(), ANCHOR_BENCH_LINE_MAX); return 4; }
+        outf("%s", line.c_str());
+    }
+    std::string bench_text0; int bench_mtp0[4] = {0, 0, 0, 0}; const char *bench_reason = "complete"; bool any_failed = false; uint64_t bench_done = 0, n_gen_total = 0;
+    for (uint64_t trial = 1; trial <= (bench ? bench_trials : 1); trial++) {
+    long t_restore_us = 0;
+    if (trial > 1) {   /* replay the prompt state: llama's state_read removes the sequence first, so no seq_rm is needed here */
+        if (!mtp && mtp_k > 0) { outf("ENGINE bench trial %llu: the MTP head is gone (fallback); terminal failure", (unsigned long long)trial); bench_reason = "head_lost"; break; }
+        const long tr0 = ggml_time_us();
+        bool ok = llama_state_seq_set_data(ctx, bsnap.target.data(), bsnap.target.size(), 0) == bsnap.target.size();
+        if (ok && mtp) ok = anchor_mtp_state_import(mtp, bsnap.head.data(), bsnap.head.size()) == bsnap.head.size() && anchor_mtp_pending_import(mtp, bsnap.pending.data(), bsnap.pending.size()) == 0;
+        if (!ok) { outf("ENGINE bench trial %llu: prompt-state restore FAILED; terminal failure", (unsigned long long)trial); bench_reason = "restore_failed"; break; }
+        cur = bsnap.cur0; n_past = bsnap.n_past0; out.clear(); n_gen = 0; status = "budget";
+        mtp_rounds = mtp_drafted = mtp_accepted = mtp_emitted = 0; t_draft = t_verify = t_join = t_observe = 0;
+        pre_n = 0; pre_first = -1; mtp_pre_used = mtp_pre_hit = 0; r_steady = -1; t_steady0 = 0; n_gen_steady0 = 0;
+        t_restore_us = ggml_time_us() - tr0;
+    }
+    if (bench) { char ph[32]; snprintf(ph, sizeof ph, "trial%llu.before", (unsigned long long)trial);
+        const std::string line = anchor_bench_begin_json(trial, t_restore_us, bench_counters(ph));
+        if (!anchor_bench_fits(line)) { outf("ENGINE bench trial %llu: begin record %zu bytes exceeds the line bound; terminal failure", (unsigned long long)trial, line.size()); bench_reason = "record_too_long"; break; }
+        outf("%s", line.c_str()); }
+    double rm0 = 0, dec0 = 0, am0 = 0, ob0 = 0; if (bench && mtp) anchor_mtp_timers(mtp, &rm0, &dec0, &am0, &ob0);   /* bench: this trial's head-timer share = the delta; non-bench: zero offsets = unchanged numbers */
+    const long t_tg0 = bench ? ggml_time_us() : t_tg0_first;   /* bench: EVERY trial's clock starts after its counters/records; non-bench: unchanged */
     bool go = n_predict > 0 && emit(cur);
     while (go) {
         if (t_steady0 == 0 && n_gen > 1) { t_steady0 = ggml_time_us(); n_gen_steady0 = n_gen; r_steady = mtp_rounds; }
@@ -784,7 +848,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         cur = bonus;
     }
     const long t_tg1 = ggml_time_us();
-    if (mtp_rounds) { double rm = 0, dec = 0, am = 0, ob = 0; if (mtp) anchor_mtp_timers(mtp, &rm, &dec, &am, &ob);
+    if (mtp_rounds) { double rm = 0, dec = 0, am = 0, ob = 0; if (mtp) { anchor_mtp_timers(mtp, &rm, &dec, &am, &ob); rm -= rm0; dec -= dec0; am -= am0; ob -= ob0; }
         outf("ENGINE MTP: %d rounds, %d drafted, %d accepted (%.2f emitted tokens per round, %.0f%% of drafts); per round: draft %.0f ms (seq_rm %.1f, head decode %.1f, argmax+copy %.1f), verify %.0f ms, join %.0f ms, accept+rollback+observe %.0f ms (head decode %.1f)",
              mtp_rounds, mtp_drafted, mtp_accepted, (double)mtp_emitted / mtp_rounds, mtp_drafted ? 100.0 * mtp_accepted / mtp_drafted : 0.0,
              t_draft / 1e3 / mtp_rounds, rm / 1e3 / mtp_rounds, dec / 1e3 / mtp_rounds, am / 1e3 / mtp_rounds,
@@ -792,18 +856,37 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
     if (draft_ahead && mtp_rounds) outf("ENGINE draft-ahead: %d of %d rounds started from a pre-draft (%d chains landed)", mtp_pre_used, mtp_rounds, mtp_pre_hit);
     if (eprofile) outf("ENGINE MTP profile: steady starts at generated token %d (after round %ld); whole-decode denom = %d tokens over %.0f ms, steady denom = %d tokens over %.0f ms",
                        n_gen_steady0, r_steady, n_gen, (t_tg1 - t_tg0) / 1e3, (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0, (t_steady0 && n_gen > n_gen_steady0) ? (t_tg1 - t_steady0) / 1e3 : 0.0);
-    if (mtp) anchor_mtp_free(mtp);
+    if (mtp && !bench) anchor_mtp_free(mtp);
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
-    if (stats) {
+    std::string counters_after;
+    if (bench) { char ph[32]; snprintf(ph, sizeof ph, "trial%llu.after", (unsigned long long)trial); counters_after = bench_counters(ph); }
+    else if (stats) {
         fprintf(stderr, "[shielded] snapshot begin: phase=decode\n");
         stats(&off, &loc, &macs, &vf);
         fprintf(stderr, "[shielded] snapshot end: phase=decode\n");
     }
-    cache_stats_line("after decode");
-    const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused");
+    cache_stats_line(bench ? "after trial" : "after decode");
+    const bool failed = !strcmp(status, "decode_failed") || !strcmp(status, "rollback_refused"); any_failed = any_failed || failed;
     const double decode_ms = (t_tg1 - t_tg0) / 1e3;
     const int steady_tokens = (t_steady0 && n_gen > n_gen_steady0) ? n_gen - n_gen_steady0 : 0;
     const double steady_ms = steady_tokens ? (t_tg1 - t_steady0) / 1e3 : 0.0;
+    n_gen_total += (uint64_t)n_gen;
+    if (bench) {   /* the trial record (exact numerators/denominators, text digest, cumulative counters after), then the invariants */
+        uint8_t td[32]; char tdh[65]; { sha256_ctx h; sha_init(&h); sha_update(&h, (const uint8_t *)out.data(), out.size()); sha_final(&h, td); } sh_pads_bin2hex(td, 32, tdh);
+        anchor_bench_result res; res.trial = trial; res.status = status; res.mtp_fallback = mtp_fallback; res.generated = n_gen; res.decode_us = (long)(t_tg1 - t_tg0);
+        res.steady_us = steady_tokens ? (long)(t_tg1 - t_steady0) : 0L; res.steady_tokens = steady_tokens; res.rounds = mtp_rounds; res.drafted = mtp_drafted; res.accepted = mtp_accepted; res.emitted = mtp_emitted;
+        res.text_sha256 = tdh; res.completion = out; res.counters_after = counters_after;
+        const std::string line = anchor_bench_result_json(res);
+        if (!anchor_bench_fits(line)) { outf("ENGINE bench trial %llu: result record %zu bytes exceeds the %u-byte line bound (shorter n_predict); terminal failure", (unsigned long long)trial, line.size(), ANCHOR_BENCH_LINE_MAX); bench_reason = "record_too_long"; break; }
+        outf("%s", line.c_str());
+        bench_done++;
+        if (failed) { bench_reason = "trial_failed"; outf("ENGINE bench trial %llu failed (%s); terminal failure", (unsigned long long)trial, status); break; }
+        if (mtp_fallback[0] || (mtp_k > 0 && !mtp)) { bench_reason = "head_lost"; outf("ENGINE bench trial %llu: MTP fell back (%s); terminal failure", (unsigned long long)trial, mtp_fallback); break; }   /* sticky fallback in ANY trial, the last included */
+        if (trial == 1) { bench_text0 = out; bench_mtp0[0] = mtp_rounds; bench_mtp0[1] = mtp_drafted; bench_mtp0[2] = mtp_accepted; bench_mtp0[3] = mtp_emitted; }
+        else if (out != bench_text0) { bench_reason = "text_mismatch"; outf("ENGINE bench trial %llu: greedy text differs from trial 1; terminal failure", (unsigned long long)trial); break; }
+        else if (mtp_rounds != bench_mtp0[0] || mtp_drafted != bench_mtp0[1] || mtp_accepted != bench_mtp0[2] || mtp_emitted != bench_mtp0[3]) { bench_reason = "mtp_mismatch"; outf("ENGINE bench trial %llu: MTP counts differ from trial 1; terminal failure", (unsigned long long)trial); break; }
+        continue;   /* no single-run result JSON in bench mode: single-result analysis must reject this log */
+    }
     /* identity + the requested budget + the MTP counters ride in the result so a harness can judge a leg
      * from this one line: full budget or an explicit EOS, verify_fail 0, no sticky fallback, real MTP
      * rounds when k > 0, and the model/calibration it actually ran (never the recipe's claim) */
@@ -817,7 +900,16 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
          (unsigned long long)off, (unsigned long long)loc, macs / 1e9, (unsigned long long)vf, n_threads,
          mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, mtp_emitted, decode_ms, steady_ms, steady_tokens,
          model_hex.c_str(), calib_hex_at_start.c_str());
-    if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + (uint64_t)n_gen); }
+    }   /* trial loop */
+    if (bench) {
+        if (mtp) anchor_mtp_free(mtp);
+        if (!strcmp(bench_reason, "complete") && bench_done < bench_trials) bench_reason = "incomplete";
+        if (strcmp(bench_reason, "complete")) any_failed = true;   /* every non-complete outcome is a failed run (exit 3) */
+        const bool id_text = strcmp(bench_reason, "text_mismatch") != 0, id_mtp = strcmp(bench_reason, "mtp_mismatch") != 0;
+        const std::string line = anchor_bench_end_json(bench_trials, bench_done, bench_reason, id_text, id_mtp, n_gen_total, any_failed);
+        if (anchor_bench_fits(line)) outf("%s", line.c_str()); else outf("ENGINE bench: end record exceeds the line bound");   /* cannot happen with these fields; never truncated */
+    }
+    if (pads && pads_used) { uint64_t pu = 0, pm = 0; pads_used(&pu, &pm); pads_receipt(pads, pu, (uint64_t)n + n_gen_total); }
     /* the backend's profile lines (SHIELDED_PROFILE=1: exchange counts, mask/wire/unmask
      * time, pad waits) live in stderr; hand the owner the summary so a run explains itself */
     if (err_path[0]) {
@@ -843,5 +935,5 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
      * now, after engine_main's own cleanup. The process-static shielded pool (links, refill threads) outlives this
      * function and may still write stderr later, so the export is scoped and named as a snapshot, never "all". */
     if (err_path[0] && g_export_stderr) { fflush(stderr); anchor_stderr_export(err_path, g_export_cap, [](void *, const char *l) { outf("%s", l); }, nullptr); }
-    return failed ? 3 : 0;                   /* a broken loop is a failed run: the harness must not count it */
+    return any_failed ? 3 : 0;               /* a broken loop, or any non-complete bench outcome, is a failed run */
 }
