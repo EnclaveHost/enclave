@@ -546,7 +546,15 @@ static int dir_sync(const char *dir) {
  * intact -> the signed delivery acknowledgment line is PREPARED into `ack` (the caller emits it only once
  * the name is durable); anything else -> -1, the owner hears why and the caller removes the file.
  * 0 = kept unjudged (no seed yet: ack empty). A hash failure is a failure, never a silent 'K'. */
-static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap) {
+/* stream_sha: for a NEW canonical shipment reception, the SHA-256 the receiver accumulated over exactly the bytes it wrote
+ * through this descriptor. The receiver finalises that context on EVERY shipment path (finalisation clears it) but passes
+ * the digest here only when every byte arrived, no write failed and fsync succeeded (expect_bytes = the announced size,
+ * which the descriptor must still hold). NULL on the existing-file/retry path, which hashes the held descriptor as
+ * before. ASSUMPTION (recorded, and it does change one thing): the acknowledgment now attests the bytes this receiver
+ * successfully wrote and made durable, trusting that write+fsync; the old readback hash could also notice a same-length
+ * corruption of the stored file between fsync and the acknowledgment, which is now left to the per-cell AEAD at
+ * consumption (unchanged) - the ack itself never authenticated cells either way. */
+static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap, const uint8_t *stream_sha, unsigned long long expect_bytes) {
     ack[0] = 0;
     ack_identity id; pthread_mutex_lock(&g_ack_mu); id = g_ack; pthread_mutex_unlock(&g_ack_mu);
     if (!id.valid) { OUT("PADS %s kept unjudged: no seed granted yet", name); return 0; }
@@ -558,7 +566,12 @@ static int pads_judge_fd(const char *name, int fd, char *ack, size_t ackcap) {
         OUT("PADS %s REJECTED (name does not match its header %llu+%llu): removed", name, (unsigned long long)i0, (unsigned long long)cnt); return -1;
     }
     uint8_t sha[32]; uint64_t bytes = 0;
-    if (anchor_sha256_fd(fd, sha, &bytes) != 0 || !bytes) { OUT("PADS %s REJECTED (cannot hash it for the acknowledgment: %s): removed", name, strerror(errno)); return -1; }
+    if (stream_sha) {                                             /* new reception: the digest of what was written; the descriptor must still hold exactly the announced bytes */
+        struct stat js; if (fstat(fd, &js) != 0) { OUT("PADS %s REJECTED (cannot size it for the acknowledgment: %s): removed", name, strerror(errno)); return -1; }
+        if (js.st_size <= 0 || (unsigned long long)js.st_size != expect_bytes) { OUT("PADS %s REJECTED (size %llu differs from the %llu bytes written): removed", name, (unsigned long long)js.st_size, expect_bytes); return -1; }
+        memcpy(sha, stream_sha, 32); bytes = (uint64_t)js.st_size;
+    }
+    else if (anchor_sha256_fd(fd, sha, &bytes) != 0 || !bytes) { OUT("PADS %s REJECTED (cannot hash it for the acknowledgment: %s): removed", name, strerror(errno)); return -1; }
     char shah[65], i0s[24], cnts[24], nh[33], sh[129]; uint8_t nonce[16], sig[64];
     sh_pads_bin2hex(sha, 32, shah); snprintf(i0s, sizeof i0s, "%llu", (unsigned long long)i0); snprintf(cnts, sizeof cnts, "%llu", (unsigned long long)cnt);
     randombytes(nonce, 16); sh_pads_bin2hex(nonce, 16, nh);
@@ -589,7 +602,7 @@ static void *pads_receiver(void *arg) {
             int hfd; do { hfd = open(fin, O_RDONLY | O_CLOEXEC); } while (hfd < 0 && errno == EINTR);
             if (hfd >= 0) {
                 if (fstat(hfd, &st) == 0 && (unsigned long long)st.st_size == bytes) {
-                    char ack[512] = ""; const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, hfd, ack, sizeof ack) : 0; close(hfd);
+                    char ack[512] = ""; const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, hfd, ack, sizeof ack, NULL, bytes) : 0; close(hfd);
                     if (j < 0) { unlink(fin); (void)!write(c, "E", 1); }
                     else { (void)!write(c, "H", 1); if (ack[0]) OUT("%s", ack); }
                     close(c); continue;
@@ -609,20 +622,30 @@ static void *pads_receiver(void *arg) {
         if (fd < 0) { struct statvfs sv; unsigned long long freeb = statvfs(g_pads_dir, &sv) == 0 ? (unsigned long long)sv.f_bavail * sv.f_frsize : 0;
                       OUT("PADS %s: cannot open %s: %s (free %llu MiB in the store)", name, tmp, strerror(open_errno), freeb >> 20); }
         unsigned long long got = 0; static char buf[1 << 16]; int read_errno = 0, write_errno = 0; ssize_t last_r = 1;
+        const char *ack_stream = getenv("SHIELDED_PAD_ACK_STREAM");
+        const int hashing = kind == ANCHOR_NAME_SHIPMENT && ack_stream && !strcmp(ack_stream, "1");         /* only a canonical shipment's acknowledgment needs a digest; prefix assets are not hashed */
+        anchor_sha256_ctx ah; if (hashing) anchor_sha256_init(&ah);
         while (fd >= 0 && got < bytes) {
             size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf;
             ssize_t r = read(c, buf, want); if (r < 0 && (errno == EINTR || errno == EAGAIN)) continue;
             if (r <= 0) { last_r = r; read_errno = errno; break; }
             if (write_all(fd, buf, (size_t)r) != 0) { write_errno = errno; break; }
+            if (hashing) anchor_sha256_update(&ah, (const uint8_t *)buf, (size_t)r);   /* exactly the bytes written successfully */
             got += (unsigned long long)r;
         }
         int synced = 0;
         if (fd >= 0) { int rc; do { rc = fsync(fd); } while (rc < 0 && errno == EINTR); synced = rc == 0; if (!synced && !write_errno) write_errno = errno; }
+        /* eligibility for the streamed acknowledgment digest, explicit: every announced byte arrived AND was written
+         * without error AND fsync succeeded. A new reception that fails any of these is refused below (never judged,
+         * never acknowledged, never re-hashed from the file); a retry of an already stored shipment takes the held-
+         * descriptor path above. */
+        const int stream_ok = hashing && fd >= 0 && got == bytes && write_errno == 0 && synced;
+        uint8_t stream_sha[32]; if (hashing) anchor_sha256_final(&ah, stream_sha);   /* finalised on every shipment path so the context is cleared */
         char ack[512] = "";
         if (fd >= 0 && got == bytes && synced) {
             /* judged and hashed while still HIDDEN, through the descriptor we hold; then published; then the
              * directory made durable; only then is anyone told and the prepared acknowledgment emitted */
-            const int j = kind == ANCHOR_NAME_SHIPMENT ? pads_judge_fd(name, fd, ack, sizeof ack) : 0;   /* a prefix asset is stored as offered */
+            const int j = kind == ANCHOR_NAME_SHIPMENT ? (hashing ? (stream_ok ? pads_judge_fd(name, fd, ack, sizeof ack, stream_sha, bytes) : -1) : pads_judge_fd(name, fd, ack, sizeof ack, NULL, bytes)) : 0;   /* a prefix asset is stored as offered */
             close(fd); fd = -1;
             if (j < 0) { unlink(tmp); (void)!write(c, "E", 1); }
             else if (rename(tmp, fin) != 0) { const int e = errno; unlink(tmp); (void)!write(c, "E", 1); OUT("PADS %s: publish failed: %s", name, strerror(e)); }
@@ -1022,7 +1045,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", NULL };
+                        "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;
