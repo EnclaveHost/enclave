@@ -18,6 +18,14 @@ Wall minus caller CPU includes scheduling and blocking. A bounded scheduling
 estimate can narrow the remainder, but does not identify a guest-kernel function.
 Other profiler work and interference can still perturb inference.
 
+Each retained `WS` row also emits a `WF` row containing tag, TID, call ordinal,
+minor-fault delta, major-fault delta and error. These use the **same existing**
+`getrusage` snapshots; no additional syscall occurs around an exchange. Invalid
+or decreasing counters report an error with zero placeholders. A consumer must
+check errors and one-to-one row identity before interpreting those placeholders.
+Faults can occur in the observer windows as well as the phase. Their count does
+not measure fault latency or prove that memory pressure caused a socket stall.
+
 The protected Pixel capability probe established readable, increasing per-thread
 schedstat counters and working RUSAGE_THREAD. The schedstats sysctl is unreadable
 and tracefs is absent in that payload domain. No permissions or kernel settings

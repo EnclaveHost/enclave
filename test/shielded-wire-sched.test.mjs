@@ -18,7 +18,16 @@ test('guest scheduler counters distinguish blocked real replies and report bound
         assert.equal(out.status,0,out.stderr);
         assert.match(out.stdout,/wire scheduling profile: PASS/);
         const rows=out.stderr.split('\n').filter(l=>l.startsWith('WS '));
+        const faults=out.stderr.split('\n').filter(l=>l.startsWith('WF '));
         assert.equal(rows.length,flag==='1'?Math.min(cap,6):0);
+        assert.equal(faults.length,rows.length);
+        for(let i=0;i<rows.length;i++) {
+          const fields=faults[i].split(' ');
+          assert.equal(fields.length,7);
+          assert.deepEqual(fields.slice(1,4),rows[i].split(' ').slice(1,4));
+          assert.ok(Number(fields[4])>=0 && Number(fields[5])>=0);
+          assert.equal(fields[6],'0');
+        }
         if(flag==='1') assert.equal(out.stderr.split('\n').filter(l=>l===`WS_COUNT recorded=${Math.min(cap,6)} dumped=${Math.min(cap,6)} dropped=${6-Math.min(cap,6)}`).length,2);
         else assert.equal(out.stderr,'');
       }

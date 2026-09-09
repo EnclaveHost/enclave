@@ -2,6 +2,7 @@
  * fragmented replies. No performance threshold is inferred from this fixture. */
 #include "../../wasm/ggml-shielded/shielded-wire.c"
 #include <assert.h>
+#include <sys/mman.h>
 static void delay_ms(long ms) {struct timespec t={0,ms*1000000};while(nanosleep(&t,&t)&&errno==EINTR){}}
 static void *server(void *arg) {
     int fd=*(int *)arg;
@@ -22,6 +23,19 @@ int main(int argc,char **argv) {
     assert(sh_ws_parse("12 34 56 junk",&q)==EINVAL);
     errno=ECHILD;sh_ws_stamp a=sh_ws_now(1);assert(errno==ECHILD);
     assert(enabled ? a.before && !a.sched_error && !a.usage_error : !a.before);
+    if(enabled) {
+        size_t bytes=(size_t)sysconf(_SC_PAGESIZE)*64;
+        volatile char *pages=mmap(NULL,bytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(pages!=MAP_FAILED);
+        sh_ws_stamp before=sh_ws_now(1);
+        for(size_t i=0;i<bytes;i+=(size_t)sysconf(_SC_PAGESIZE))pages[i]=1;
+        sh_ws_stamp after=sh_ws_now(1);long minor,major;
+        assert(!sh_ws_fault_delta(&before,&after,&minor,&major) && minor>=64 && major>=0);
+        assert(!munmap((void *)pages,bytes));
+        before.minor_faults=after.minor_faults+1;
+        assert(sh_ws_fault_delta(&before,&after,&minor,&major)==ERANGE && !minor && !major);
+        before.usage_error=EACCES;
+        assert(sh_ws_fault_delta(&before,&after,&minor,&major)==EACCES && !minor && !major);
+    }
     int fds[2];assert(socketpair(AF_UNIX,SOCK_STREAM,0,fds)==0);
     pthread_t thread;assert(!pthread_create(&thread,NULL,server,&fds[1]));
     sh_pipe *p=calloc(1,sizeof *p);assert(p);p->fd=fds[0];uint8_t req[24]={0};
