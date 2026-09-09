@@ -59,7 +59,25 @@ static void prof_report(uint64_t *v) {
 }
 
 #include "native-bridge-io.h"
-typedef struct { uint8_t *buf; size_t cap, head, used, write_max; int src_eof, dst_shut; anchor_io_trace *trace; unsigned read_kind, write_kind; } bridge_dir;
+typedef struct { uint8_t *buf; size_t cap, head, used, write_max, batch; uint64_t frame_left; int src_eof, dst_shut; anchor_io_trace *trace; unsigned read_kind, write_kind; } bridge_dir;
+
+/* No byte is consumed here. A partial header waits for more input except at
+ * EOF, when the original short stream must reach the guest unchanged. The
+ * public length bounds buffering decisions; it is never an allocation size. */
+static int write_ready(bridge_dir *d) {
+    if (!d->used || d->dst_shut) return 0;
+    if (!d->batch) return 1;
+    if (!d->frame_left) {
+        if (d->used<9) return d->src_eof;
+        uint64_t size=0;
+        for (unsigned i=0;i<8;i++) size|=(uint64_t)d->buf[(d->head+1+i)%d->cap]<<(8*i);
+        if (size>(UINT64_C(256)<<20)) return -EMSGSIZE;
+        d->frame_left=9+size;
+    }
+    size_t want=d->batch<d->cap?d->batch:d->cap;
+    if (d->frame_left<want) want=(size_t)d->frame_left;
+    return d->src_eof || d->used>=want;
+}
 
 static int set_nonblock(int fd, int *saved) {
     const int fl = fcntl(fd, F_GETFL);
@@ -90,13 +108,16 @@ static int pump_read(int fd, bridge_dir *d, short revents, anchor_bridge_stats *
 /* write d's pending bytes to fd; partial writes advance head; 0 = fine, -errno = the sink is gone */
 static int pump_write(int fd, bridge_dir *d, short revents, anchor_bridge_stats *s, uint64_t *delivered) {
     if (d->used == 0 || d->dst_shut || !(revents & (POLLOUT | POLLHUP | POLLERR))) return 0;
+    int ready=write_ready(d);if (ready<=0) return ready;
     size_t span = d->used < d->cap - d->head ? d->used : d->cap - d->head;
+    if (d->batch && d->frame_left && span>d->frame_left) span=(size_t)d->frame_left;
     if (d->write_max && span > d->write_max) span = d->write_max;
     for (;;) {
         const uint64_t t0=d->trace?prof_ns(CLOCK_MONOTONIC):0;
         const ssize_t n = send(fd, d->buf + d->head, span, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (d->trace) { int error=errno;anchor_io_record(d->trace,d->write_kind,t0,n<0?-error:n);errno=error; }
         if (n > 0) {
+            if (d->batch && d->frame_left) d->frame_left-=(uint64_t)n;
             d->head = (d->head + (size_t)n) % d->cap; d->used -= (size_t)n; s->writes++; *delivered += (uint64_t)n;
             if (d->used == 0) d->head = 0;
             return 0;
@@ -121,11 +142,14 @@ int anchor_bridge_run_profile_limit(int a, int b, int cancel_fd, int idle_ms, si
     return anchor_bridge_run_profile_trace(a,b,cancel_fd,idle_ms,buf_bytes,st,profile,a_write_max,-1);
 }
 int anchor_bridge_run_profile_trace(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd) {
+    return anchor_bridge_run_profile_trace_batch(a,b,cancel_fd,idle_ms,buf_bytes,st,profile,a_write_max,trace_fd,0);
+}
+int anchor_bridge_run_profile_trace_batch(int a, int b, int cancel_fd, int idle_ms, size_t buf_bytes, anchor_bridge_stats *st, int profile, size_t a_write_max, int trace_fd, size_t reply_batch) {
     uint64_t pv[23]={0}, pt=0, pc=0, pu=0, pd=0, user0=0, system0=0;
     int usage_ok=0;
     if (profile) { pt=prof_ns(CLOCK_MONOTONIC); pc=prof_ns(CLOCK_THREAD_CPUTIME_ID); usage_ok=prof_usage(&user0,&system0); }
     anchor_bridge_stats s; memset(&s, 0, sizeof s);
-    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
+    if (a < 0 || b < 0 || a == b || cancel_fd == a || cancel_fd == b || (a_write_max != 0 && a_write_max != 4096) || (reply_batch != 0 && reply_batch != 65536)) { if (st) { s.status = -EINVAL; *st = s; } return -EINVAL; }
     if (!is_stream_socket(a) || !is_stream_socket(b)) { if (st) { s.status = -ENOTSOCK; *st = s; } return -ENOTSOCK; }
     anchor_io_trace trace;anchor_io_init(&trace,trace_fd);
     if (buf_bytes < 4096) buf_bytes = 1u << 20;
@@ -138,13 +162,15 @@ int anchor_bridge_run_profile_trace(int a, int b, int cancel_fd, int idle_ms, si
      * An opt-in 4 KiB cap tests the measured direct-compaction cost without
      * changing TCP packet sizing, stream contents, or queue capacity. */
     ba.write_max = a_write_max;
+    ba.batch = reply_batch;
     if (trace.events) { ab.trace=ba.trace=&trace;ab.read_kind=1;ab.write_kind=3;ba.read_kind=2;ba.write_kind=4; }
     if ((rc = set_nonblock(a, &fa)) != 0 || (rc = set_nonblock(b, &fb)) != 0) goto out;
     int64_t deadline = idle_ms > 0 ? mono_ms() + idle_ms : 0;
     for (;;) {
         struct pollfd p[3]; int n = 0, ia = -1, ib = -1, ic = -1; short ea = 0, eb = 0;
+        int ba_ready=write_ready(&ba);if (ba_ready<0) { rc=ba_ready;break; }
         if (!ab.src_eof && ab.used < ab.cap) ea |= POLLIN;       /* a is readable into ab only with room */
-        if (ba.used > 0 && !ba.dst_shut) ea |= POLLOUT;   /* a is written only with pending ba */
+        if (ba_ready) ea |= POLLOUT;   /* incomplete batches must not spin on a writable sink */
         if (!ba.src_eof && ba.used < ba.cap) eb |= POLLIN;
         if (ab.used > 0 && !ab.dst_shut) eb |= POLLOUT;
         if (ea) { p[n].fd = a; p[n].events = ea; p[n].revents = 0; ia = n++; }
@@ -205,9 +231,9 @@ out:
 
 #ifdef __ANDROID__
 #include <jni.h>
-JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jint guestWriteMax, jint traceFd, jlongArray stats) {
+JNIEXPORT jint JNICALL Java_host_enclave_anchor_avf_NativeBridge_run(JNIEnv *env, jclass klass, jint a, jint b, jint cancel, jint idleMs, jboolean profile, jint guestWriteMax, jint traceFd, jint replyBatch, jlongArray stats) {
     (void)klass;
-    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile_trace(a, b, cancel, idleMs, 0, &s, profile, (size_t)guestWriteMax, traceFd);
+    anchor_bridge_stats s; const int rc = anchor_bridge_run_profile_trace_batch(a, b, cancel, idleMs, 0, &s, profile, (size_t)guestWriteMax, traceFd, (size_t)replyBatch);
     if (stats && (*env)->GetArrayLength(env, stats) >= 6) {
         jlong v[6] = { (jlong)s.a_to_b, (jlong)s.b_to_a, (jlong)s.reads, (jlong)s.writes, (jlong)s.polls, (jlong)s.max_chunk };
         (*env)->SetLongArrayRegion(env, stats, 0, 6, v);

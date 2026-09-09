@@ -79,6 +79,7 @@ public class Main extends Activity {
         boolean nativeBridge = false;        // --ez nativebridge true: the worker bridge runs as one native pump (NativeBridge) instead of the two Java pipe() threads
         boolean bridgeProfile = false;       // --ez bridgeprofile true: bridge timing only, independent of the guest source profiler
         int bridgeWriteMax = 0;               // --ei bridgewrite 4096: experimental VM-bound native send cap; 0 keeps existing sends
+        int bridgeBatch = 0;                  // --ei bridgebatch 65536: batch Shielded response bytes, flushing each final tail
         int padWriteMax = 0;                  // --ei padwrite 4096: experimental pad body write cap; cached HTTP downloads unchanged
         boolean bridgeIo = false;            // --ez bridgeio true: bounded metadata-only per-call timeline
         String benchSizes = "65536,262144,1048576,3145728";   // --es benchsizes: frame sizes for mode=bridgebench
@@ -101,6 +102,7 @@ public class Main extends Activity {
             p.nativeBridge = i.getBooleanExtra("nativebridge", false);
             p.bridgeProfile = i.getBooleanExtra("bridgeprofile", false);
             p.bridgeWriteMax = i.getIntExtra("bridgewrite", 0);
+            p.bridgeBatch = i.getIntExtra("bridgebatch", 0);
             p.padWriteMax = i.getIntExtra("padwrite", 0);
             p.bridgeIo = i.getBooleanExtra("bridgeio", false);
             if (i.getStringExtra("benchsizes") != null) p.benchSizes = i.getStringExtra("benchsizes");
@@ -134,6 +136,8 @@ public class Main extends Activity {
             else if (p.padsDirect != 0 && p.padsDirect != 1) p.configError = "pads_direct must be 0 or 1";
             else if (p.bridgeWriteMax != 0 && p.bridgeWriteMax != 4096) p.configError = "bridgewrite must be 0 or 4096";
             else if (p.bridgeWriteMax != 0 && !p.nativeBridge) p.configError = "bridgewrite needs nativebridge";
+            else if (p.bridgeBatch != 0 && p.bridgeBatch != 65536) p.configError = "bridgebatch must be 0 or 65536";
+            else if (p.bridgeBatch != 0 && !p.nativeBridge) p.configError = "bridgebatch needs nativebridge";
             else if (p.padWriteMax != 0 && p.padWriteMax != 4096) p.configError = "padwrite must be 0 or 4096";
             else if (p.bridgeIo && !p.nativeBridge) p.configError = "bridgeio needs nativebridge";
             else if (!p.modelCache.isEmpty() && !p.modelCache.equals("only")) p.configError = "model_cache must be \"only\" or absent";
@@ -599,12 +603,13 @@ public class Main extends Activity {
                             boolean profile = plan.bridgeProfile || ("," + plan.shenv + ",").contains(",SHIELDED_SOURCE_PROFILE=1,");
                             if (profile) say("BRIDGE profile: call CPU and wall timing enabled");
                             say("BRIDGE send cap: guest=" + plan.bridgeWriteMax + " tcp=0");
+                            say("BRIDGE reply batch: bytes=" + plan.bridgeBatch);
                             if (plan.bridgeIo) {
                                 traceFile = java.io.File.createTempFile("bridge-io-", ".bin", filesDir);
                                 traceFd = ParcelFileDescriptor.open(traceFile, ParcelFileDescriptor.MODE_WRITE_ONLY);
                                 say("BRIDGE_IO file=" + traceFile.getName());
                             }
-                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, profile, plan.bridgeWriteMax, traceFd == null ? -1 : traceFd.getFd(), st);
+                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, profile, plan.bridgeWriteMax, traceFd == null ? -1 : traceFd.getFd(), plan.bridgeBatch, st);
                         }
                     } finally {
                         if (traceFd != null) try { traceFd.close(); } catch (Exception ignored) { }
