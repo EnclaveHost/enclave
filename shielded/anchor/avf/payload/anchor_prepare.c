@@ -2,10 +2,20 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 uint64_t anchor_prepare_mono_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u; }
+int anchor_artifact_profile_parse(const char *line, int *on) {
+    if (!line || !on || strncmp(line, "ARTIFACT_PROFILE ", 17) != 0) return 0;
+    if ((line[17] != '0' && line[17] != '1') || line[18] != 0) return 0;   /* exactly one of the two digits, nothing after it */
+    *on = line[17] - '0'; return 1;
+}
+int anchor_artifact_profile_effective(int explicit_setting, const char *env_value) {
+    if (explicit_setting == 0 || explicit_setting == 1) return explicit_setting;
+    return env_value != NULL && strcmp(env_value, "1") == 0;
+}
 int anchor_prepare_parse(const char *line, int *seconds) {
     if (!line || !seconds || strncmp(line, "PREPARE", 7) != 0) return 0;
     const char *p = line + 7;
