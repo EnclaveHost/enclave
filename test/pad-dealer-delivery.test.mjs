@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -12,6 +13,11 @@ const exec = promisify(execFile), root = path.resolve(path.dirname(fileURLToPath
 test("late dealer retries reserved but undelivered files, uses remote coverage, and waits when listing fails", async t => {
   const bank = fs.mkdtempSync(path.join(os.tmpdir(), "dealer-delivery-")), seed = "ab".repeat(16);
   t.after(() => fs.rmSync(bank, { recursive: true, force: true }));
+  // Consumer-bound minting authenticates both assets even with a fake dealer.
+  const model = path.join(bank, "fixture.gguf"), calib = path.join(bank, "fixture.calib");
+  fs.writeFileSync(model, "delivery model fixture\n"); fs.writeFileSync(calib, "delivery calibration fixture\n");
+  const modelDigest = createHash("sha256").update(fs.readFileSync(model)).digest("hex");
+  const calibDigest = createHash("sha512").update(fs.readFileSync(calib)).digest().subarray(0, 32).toString("hex");
   const remote = new Map([[`${seed}-64-64.pads`, Buffer.alloc(1000, 9)]]), puts = [], deletes = [];
   let failPut = true, failList = false, info = null;
   const server = http.createServer(async (req, res) => {
@@ -38,7 +44,7 @@ test("late dealer retries reserved but undelivered files, uses remote coverage, 
   const base = `http://127.0.0.1:${server.address().port}`;
   const run = (mark, floor = 0, extra = []) => exec("python3", [path.join(root,"shielded/dealer/dealer-loop.py"), "--once", "--push", "--relay", base,
     "--seed", "00".repeat(32), "--seed-id", seed, "--pk", "11".repeat(32), "--mark", String(mark), "--ack-floor", String(floor),
-    "--ahead", "64", "--chunk", "64", "--out", bank, "--model", "fixture.gguf", "--calib", "fixture.calib", ...extra],
+    "--ahead", "64", "--chunk", "64", "--out", bank, "--model", model, "--calib", calib, ...extra],
     { env: { ...process.env, DEALER: path.join(root,"test/fixtures/fake-dealer.sh"), PADS_DEALER_TOKEN: "fixture" }, timeout: 10000 });
   await run(64);
   const pending = path.join(bank, `${seed}-0-64.pads`), original = fs.readFileSync(pending);
@@ -59,7 +65,8 @@ test("late dealer retries reserved but undelivered files, uses remote coverage, 
   // authoritative; a finalized v2 seed must never launch another mint.
   for (const n of fs.readdirSync(bank).filter(n => n.endsWith(".pads"))) fs.unlinkSync(path.join(bank,n));
   remote.clear(); puts.length = 0;
-  info = { seed_id: seed, padKey: "11".repeat(32), issued: true, mark: 128, ack_floor: 0, acked: [[64,128]], finalized: false };
+  info = { seed_id: seed, padKey: "11".repeat(32), issued: true, mark: 128, ack_floor: 0, acked: [[64,128]], finalized: false,
+    model_digest: modelDigest, calib_digest: calibDigest };
   await run(128, 0, ["--name", "phone1"]);
   assert.deepEqual(puts.sort(), [`${seed}-0-64.pads`, `${seed}-128-64.pads`]);
   info.finalized = true; puts.length = 0;

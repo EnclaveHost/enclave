@@ -61,7 +61,12 @@ int main(int argc,char **argv) {
     assert(header_hash(&h,&group,1,hash)==SH_ERR_NOMEM);
     for(size_t i=0;i<sizeof hash;i++)assert(hash[i]==0xa5);
     assert(file_open(&r,bad,&f)==SH_ERR_NOMEM);
-    assert(!sh_pads_writer_open(path,digest,sid,&group,1,0,1,pk,&err) && err==SH_ERR_NOMEM);
+    // Existing paths fail before hashing. Use a fresh path to exercise the
+    // injected header-hash allocation failure, and retain the old file check.
+    assert(!sh_pads_writer_open(path,digest,sid,&group,1,0,1,pk,&err) && err==SH_ERR_IO);
+    char fresh[1024];snprintf(fresh,sizeof fresh,"%s/hash-allocation.pads",argv[1]);
+    assert(!sh_pads_writer_open(fresh,digest,sid,&group,1,0,1,pk,&err) && err==SH_ERR_NOMEM);
+    assert(access(fresh,F_OK)!=0);
     fail_size=0;
     assert(file_open(&r,path,&f)==SH_OK);file_close(&f);  // failed writer preserved the previous file
     puts("pad-layout: ok");

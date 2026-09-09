@@ -28,8 +28,12 @@ int main(int argc,char **argv) {
         for(int i=0;i<32;i++)assert(raw[i]==0);
         memset(checked,0xa5,32);assert(box_shared_checked(checked,low,sk)==SH_ERR_VERIFY);
         for(int i=0;i<32;i++)assert(checked[i]==0);
-        // Invalid recipient keys must fail before opening/truncating a file.
-        assert(!sh_pads_writer_open(good,digest,sid,&group,1,0,1,low,&err) && err==SH_ERR_VERIFY);
+        // Existing shipments are refused before key validation; a fresh path
+        // reaches the zero-DH check without weakening non-overwrite protection.
+        assert(!sh_pads_writer_open(good,digest,sid,&group,1,0,1,low,&err) && err==SH_ERR_IO);
+        char rejected[1024];snprintf(rejected,sizeof rejected,"%s/rejected-%d.pads",argv[1],kind);
+        assert(!sh_pads_writer_open(rejected,digest,sid,&group,1,0,1,low,&err) && err==SH_ERR_VERIFY);
+        assert(access(rejected,F_OK)!=0);
         assert(sh_pads_shipment_check(good,sid,sk,digest,&lo,&count)==SH_OK);
         // Forge BOTH authenticators under the public zero-DH-derived key.
         // Tag failure would hide this bug, so confirm the old primitive opens it.

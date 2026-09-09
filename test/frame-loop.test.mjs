@@ -14,6 +14,6 @@ test('framed diagnostic loop: bounded-buffer success, timeouts bound both direct
   const bin=join(dir,'t');
   execFileSync('cc',[...flags,join(root,'test/fixtures/shielded-frame-loop.c'),'-o',bin],{encoding:'utf8',timeout:60_000,env});
   const out=execFileSync(bin,[],{encoding:'utf8',timeout:120_000,env});
-  assert.match(out,/frame-loop: 3MiB success, size 1, dead reader\/writer timeout, corruption, partial header, fd audit passed/);
+  assert.match(out,/^frame-loop: success\(3MiB\/1\/256K\), timeout\+phase\(reader\/writer\/partial-hdr\), content\+phase, length\+phase, range\+setup sentinel, control\(ok\/timeout\/length\), fd audit passed$/m);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
