@@ -214,12 +214,14 @@ final class PadsClient {
                 java.io.Closeable connection = c::disconnect;
                 try {
                     if (!session.track(connection)) return;
+                    Main.say("PAD_SP fetch_begin index=" + PadDelivery.indexOf(name) + " mono_ns=" + System.nanoTime());
                     c.setConnectTimeout(20000); c.setReadTimeout(120000);
                     int code = c.getResponseCode();
                     if (code != 200) { Main.say("PADS fetch " + name + " http " + code); continue; }
                     try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
                         session.copy(in, out, bytes);
                     }
+                    Main.say("PAD_SP fetch_end index=" + PadDelivery.indexOf(name) + " mono_ns=" + System.nanoTime());
                     if (session.publish(tmp, f)) Main.say("PADS fetched " + f.getName() + " (" + (f.length() >> 20) + " MiB)");
                 } finally { session.untrack(connection); c.disconnect(); tmp.delete(); }
             }
@@ -403,8 +405,11 @@ final class PadsClient {
                                 int go = ackIn.read();
                                 if (go == 'H') { session.accept(f.getName()); Main.say("PADS " + f.getName() + " already in the VM"); continue; }
                                 if (go != 'G') { Main.say("PADS " + f.getName() + " VM refused the header"); continue; }
+                                Main.say("PAD_SP stream_begin index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());
                                 session.copy(in, out, f.length()); out.flush();
+                                Main.say("PAD_SP stream_end index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());
                                 int ack = ackIn.read();
+                                Main.say("PAD_SP ack_end index=" + PadDelivery.indexOf(f.getName()) + " mono_ns=" + System.nanoTime());
                                 Main.say("PADS " + f.getName() + " " + (f.length() >> 20) + " MiB " + (ack == 'K' ? "accepted" : "REFUSED"));
                                 if (ack == 'K') session.accept(f.getName());
                             }

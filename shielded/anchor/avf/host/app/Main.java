@@ -583,7 +583,7 @@ public class Main extends Activity {
                         if (alreadyEnded) { rc = -125 /* -ECANCELED */; }
                         else {
                             if (pumpPriority != 0) android.os.Process.setThreadPriority(pumpPriority);
-                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, st);
+                            rc = NativeBridge.run(pfd.getFd(), spfd.getFd(), cancel[0].getFd(), 0, ("," + plan.shenv + ",").contains(",SHIELDED_SOURCE_PROFILE=1,"), st);
                         }
                     } finally {
                         synchronized (sBridgeLock) { sBridgeCancel = null; }   /* clear before closing: no signal can touch a closing fd */

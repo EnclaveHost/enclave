@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "shielded-tee.h"
+#include "shielded-source-profile.h"
 #include "shielded-pads.h"
 #include "shielded-bank.h"
 #include "shielded-http.h"
@@ -409,6 +410,7 @@ static void dealt_receipt(sh_link *l);
 const char *sh_link_transport(const sh_link *l) { return l && l->transport[0] ? l->transport : "not connected"; }
 double sh_link_last_wire_us(const sh_link *l) { return l ? l->last_wire_us : 0.0; }
 void sh_link_wire_timing(const sh_link *l, sh_wire_timing *out) {
+    sh_sp_dump("tee");
     sh_pipe_wire_timing(l ? l->pipe : NULL, out);
     if (l && out && out->peak.metadata_valid && out->peak.first_node < l->n_nodes)
         snprintf(out->peak.first_node_name, sizeof out->peak.first_node_name, "%s", l->nodes[out->peak.first_node].name);
@@ -886,6 +888,7 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
         const uint64_t index = index0 + (uint64_t)i;
         const double t0 = now_ms();
         int rc;
+        sh_sp_stamp sp = sh_sp_now();
         uint32_t shipment_group = UINT32_MAX;
         for (;;) {
             rc = sh_pads_reader_cell_ordinal(l->pads, gi, index,
@@ -899,10 +902,14 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
             if (rc == SH_ERR_VERIFY) __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
             return rc;
         }
+        SH_SP_END(sp, "pad_read_open_wait", gi, g->u_len);
+        sp = sh_sp_now();
         /* The reader matches by name, not by position. Use the ordinal of
          * the authenticated cell we just opened, even when the consumer's
          * registration order differs or it uses only a subset of groups. */
         sh_pad_r(l->pad_seed, shipment_group, index, g->K, r_out + (size_t)i * g->K);
+        SH_SP_END(sp, "pad_prg", gi, g->K);
+        sp = sh_sp_now();
         /* The pad check: every node of the group, (u . s) == (r . (W s)) mod M. */
         for (int n = 0; n < g->n_nodes; n++) {
             const sh_node *nd = &l->nodes[g->nodes[n]];
@@ -926,6 +933,7 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
                 return SH_ERR_VERIFY;
             }
         }
+        SH_SP_END(sp, "pad_freivalds", gi, g->u_len);
     }
     return SH_OK;
 }
