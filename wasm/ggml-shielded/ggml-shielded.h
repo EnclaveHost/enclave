@@ -36,6 +36,8 @@
 #include "ggml-backend.h"
 #include "shielded-tee.h"
 
+#include "shielded-pad-budget.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,6 +87,23 @@ GGML_BACKEND_API ggml_backend_buffer_t ggml_backend_shielded_weight_source(
  * including block authentication over-read. Snapshot after prefill and decode
  * to distinguish initial upload from steady inference I/O. */
 GGML_BACKEND_API void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes);
+
+/* Pad-budget diagnostic (SHIELDED_PAD_BUDGET), one bounded versioned record per
+ * card. Read-only metadata: no cell is decrypted, no window reserved, no
+ * directory scanned, nothing bound, pruned or started, and the pool is NOT
+ * initialised - a process that never registered a weight reports 0 cards.
+ * Every lock is TRY-locked: SH_PAD_BUDGET_BUSY means not observed and must
+ * never be read as an empty bank. _cards() returns the number of cards, 0 when
+ * the pool is not up, or -SH_PAD_BUDGET_BUSY on contention. _pad_budget()
+ * fills one card's record plus as much of the caller's interval and group arrays
+ * as they hold; the arrays belong to the caller and every field is formatted by
+ * the caller AFTER this returns, with all locks dropped. Status values are the
+ * SH_PAD_BUDGET_* codes in shielded-pad-budget.h; SH_PAD_BUDGET_INCOMPLETE means
+ * an array was too small and the record claims nothing about coverage. */
+GGML_BACKEND_API int ggml_backend_shielded_pad_budget_cards(void);
+GGML_BACKEND_API int ggml_backend_shielded_pad_budget(int card, sh_pad_budget *out,
+                                                      sh_pad_interval *intervals, uint32_t cap_intervals,
+                                                      sh_pad_group_budget *groups, uint32_t cap_groups);
 /* Cumulative streamed-source reader calls (including failed calls) and raw bytes
  * delivered by successful full-tensor callbacks, including generic CPU/view
  * copies. These are source callback bytes, not encoded-cache or filesystem I/O;

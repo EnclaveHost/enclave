@@ -1190,6 +1190,146 @@ static void dealt_receipt(sh_link *l) {
     else fprintf(stderr, "[shielded] dealt pads: receipt refused (http %d); retrying at the next window\n", status);
 }
 
+/* ---- pad-budget diagnostic (SHIELDED_PAD_BUDGET) -------------------------
+ *
+ * Read-only metadata for one link at one instant. It TRY-locks pool_mu, copies
+ * scalars and per-group ring state, calls the reader's coverage union under the
+ * reader mutex (pool_mu -> r->mu, the order dealt_advanced already establishes
+ * by calling prune_below with pool_mu held), and returns. No cell is opened or
+ * decrypted, no window is reserved, no directory is scanned, nothing is bound,
+ * pruned or started: this cannot advance any durable state.
+ *
+ * Try-lock, not lock: pool_mu is held by a refill across dealt_reserve, which
+ * can fsync a ledger or make an HTTP round trip. Waiting there would let a
+ * diagnostic stall decode. BUSY means NOT OBSERVED, never an empty ring.
+ *
+ * Two things pool_mu does NOT cover, both the caller's obligation:
+ *   - start_pools replaces l->pads and l->groups without pool_mu, so the caller
+ *     must exclude sh_link_start. In the backend that is sh_state::mu, which
+ *     sh_card_compute holds around its sh_link_start call.
+ *   - threads_running is written by start_pools and stop_threads, neither under
+ *     pool_mu, so reading it here is meaningful only under the SAME exclusion of
+ *     sh_link_start/sh_link_close; pool_mu does not order it. The backend export
+ *     holds sh_state::mu, which does.
+ *   - the request path writes pads_used/pads_missed WITHOUT pool_mu (take_pads
+ *     releases it before the gemm updates them), so those are read only when the
+ *     caller passes SH_PAD_BUDGET_F_REQUEST_PATH_EXCLUDED. Without it they stay
+ *     zero and counters_valid is false, rather than being read in a data race.
+ * A mutex cannot protect against destruction; a direct caller must externally
+ * exclude every non-refill link API, close included.
+ *
+ * Refill threads resume the instant pool_mu is released, so several links read
+ * in sequence are a sequence of observations, not one atomic inventory. */
+static bool budget_mono_ns(uint64_t *out) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) { *out = 0; return false; }
+    *out = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+    return true;
+}
+
+int sh_link_pad_budget(sh_link *l, sh_pad_budget *b, uint32_t flags,
+                       sh_pad_interval *intervals, uint32_t cap_intervals,
+                       sh_pad_group_budget *groups, uint32_t cap_groups) {
+    if (!b) return SH_PAD_BUDGET_UNAVAILABLE;
+    memset(b, 0, sizeof *b);
+    b->version = SH_PAD_BUDGET_VERSION;
+    b->card = -1;
+    b->status = SH_PAD_BUDGET_UNAVAILABLE;
+    b->reader_status = SH_PAD_BUDGET_UNAVAILABLE;
+    b->cap_intervals = cap_intervals;
+    b->cap_groups = cap_groups;
+    b->mono_valid = budget_mono_ns(&b->mono_start_ns);
+    if (!l) { if (!budget_mono_ns(&b->mono_end_ns)) b->mono_valid = false; return b->status; }
+
+    if (pthread_mutex_trylock(&l->pool_mu) != 0) {
+        b->status = b->reader_status = SH_PAD_BUDGET_BUSY;
+        if (!budget_mono_ns(&b->mono_end_ns)) b->mono_valid = false;
+        return b->status;
+    }
+    b->link_observed = true;      /* pool_mu is held: the link fields below are READ, not defaults */
+    b->dealt = l->dealt;
+    b->threads_running = l->threads_running;
+    b->stop = l->stop;
+    b->pad_integrity_failed = __atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE);
+    b->pad_window = l->pad_window;
+    b->win_lo = l->win_lo;
+    b->win_hi = l->win_hi;
+    b->n_groups = (uint32_t)l->n_groups;
+
+    const bool counters = (flags & SH_PAD_BUDGET_F_REQUEST_PATH_EXCLUDED) != 0;
+    b->counters_valid = counters;
+    if (counters) {
+        b->link_pads_used = l->pads_used;
+        b->link_pads_missed = l->pads_missed;
+        b->pads_waited = l->pads_waited;
+    }
+
+    int status = SH_PAD_BUDGET_OK;
+    if (!l->dealt) {
+        status = SH_PAD_BUDGET_UNAVAILABLE;       /* a generated-pad link has no shipments at all */
+    } else {
+        /* Refill threads not running: the rings are not being served, so ready
+         * counts are not a live supply. Say UNSTARTED and keep the metadata;
+         * this is never to be read as an empty ring. */
+        if (!l->threads_running) status = SH_PAD_BUDGET_UNSTARTED;
+        uint32_t written = 0;
+        for (size_t i = 0; i < l->n_groups; i++) {
+            if (!groups || written == cap_groups) {
+                if (status == SH_PAD_BUDGET_OK || status == SH_PAD_BUDGET_UNSTARTED)
+                    status = SH_PAD_BUDGET_INCOMPLETE;
+                break;
+            }
+            const sh_group *g = &l->groups[i];
+            sh_pad_group_budget *o = &groups[written++];
+            memset(o, 0, sizeof *o);
+            o->group = (uint32_t)i;
+            if (g->n_nodes > 0 && g->nodes[0] >= 0 && (size_t)g->nodes[0] < l->n_nodes)
+                snprintf(o->name, sizeof o->name, "%.*s",
+                         (int)sizeof o->name - 1, l->nodes[g->nodes[0]].name);
+            o->K = g->K; o->u_len = g->u_len;
+            o->depth = g->depth; o->ready = g->count;
+            o->generating = g->generating; o->held = g->held;
+            o->cursor = g->cursor;
+            if (counters) { o->pads_used = g->pads_used; o->pads_missed = g->pads_missed; }
+        }
+        b->written_groups = written;
+
+        if (!l->pads) {
+            b->reader_status = SH_PAD_BUDGET_NO_READER;
+            if (status == SH_PAD_BUDGET_OK) status = SH_PAD_BUDGET_NO_READER;
+        } else {
+            uint32_t n_iv = 0, n_bound = 0;
+            uint64_t n_files = 0;
+            bool bound_table = false;
+            b->reader_status = sh_pads_reader_coverage(l->pads, intervals, cap_intervals,
+                                                       &n_iv, &n_files, &n_bound, &bound_table);
+            b->n_intervals = n_iv;
+            b->reader_files = n_files;
+            b->reader_bound_groups = n_bound;
+            /* BUSY means the reader mutex was never taken, so `n_files` and
+             * `n_bound` were never read: report them as unknown rather than
+             * publishing the zeroed out-parameters as observations. */
+            const bool read_reader = b->reader_status != SH_PAD_BUDGET_BUSY &&
+                                     b->reader_status != SH_PAD_BUDGET_UNAVAILABLE;
+            b->reader_bound_table_present = read_reader && bound_table;
+            if (!read_reader) { b->reader_files = 0; b->reader_bound_groups = 0; }
+            /* No bind epoch. Tracking one would mean a field in the private
+             * reader struct, which three RTLD_GLOBAL libraries each define;
+             * always unknown, and the value is not interpretable. */
+            b->bind_epoch = 0;
+            b->bind_epoch_known = false;
+            b->intervals_are_bound_coverage = b->reader_status == SH_PAD_BUDGET_OK;
+            if (b->reader_status != SH_PAD_BUDGET_OK && status == SH_PAD_BUDGET_OK)
+                status = b->reader_status;
+        }
+    }
+    pthread_mutex_unlock(&l->pool_mu);
+
+    b->status = status;
+    if (!budget_mono_ns(&b->mono_end_ns)) b->mono_valid = false;
+    return status;
+}
+
 void sh_link_set_window_provider(sh_link *l, sh_window_fn fn, void *ctx) {
     if (!l) return;
     l->win_fn = fn; l->win_ctx = ctx;
