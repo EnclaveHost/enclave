@@ -19,8 +19,13 @@ final class PadDelivery {
         return begin(vmWriteMax, false);
     }
     static Session begin(int vmWriteMax, boolean directFill) {
+        return begin(vmWriteMax, directFill, false);
+    }
+    /** gateSends arms the cooperative send gate for THIS session only; chosen here, before any
+     *  sender thread exists, so it is immutable for the session. */
+    static Session begin(int vmWriteMax, boolean directFill, boolean gateSends) {
         if (vmWriteMax != 0 && vmWriteMax != 4096 && vmWriteMax != 8192 && vmWriteMax != 65536) throw new IllegalArgumentException("pad VM write cap must be 0, 4096, 8192 or 65536");
-        Session next = new Session(vmWriteMax, directFill); Closeable[] pending;
+        Session next = new Session(vmWriteMax, directFill, gateSends); Closeable[] pending;
         synchronized (PadDelivery.class) {
             pending = current == null ? new Closeable[0] : current.stop();
             current = next;
@@ -30,9 +35,17 @@ final class PadDelivery {
     }
 
     static final class Session implements Closeable {
+        /* Cooperative app->pVM PADS_PORT send gate. Immutable per session, fixed before any
+         * sender thread exists; the older begin() overloads leave it disabled, so the default
+         * path is unchanged. */
+        private final VmSendGate sendGate;
+        VmSendGate sendGate() { return sendGate; }
         private final int vmWriteMax;
         private final boolean directFill;
-        private Session(int vmWriteMax, boolean directFill) { this.vmWriteMax = vmWriteMax; this.directFill = directFill; }
+        private Session(int vmWriteMax, boolean directFill, boolean gateSends) {
+            this.vmWriteMax = vmWriteMax; this.directFill = directFill;
+            this.sendGate = gateSends ? VmSendGate.enabled() : VmSendGate.disabled();
+        }
         private boolean active = true;
         private String base = "", seed = "";
         private PadAckQueue acknowledgments;
@@ -81,6 +94,11 @@ final class PadDelivery {
         synchronized void untrack(Closeable resource) { resources.remove(resource); }
         private synchronized Closeable[] stop() {
             active = false;
+            /* Close the gate inside this lock but before any resource is closed: the gate takes
+             * only its own monitor and calls nothing back, so no inversion is possible, and a
+             * sender parked on a pause is woken to give up rather than wait for a cancelled
+             * session. This closes no socket; the array below still does that, as before. */
+            sendGate.close();
             Closeable[] pending = resources.toArray(new Closeable[0]); resources.clear();
             return pending;
         }

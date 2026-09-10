@@ -40,6 +40,7 @@ import org.json.JSONObject;
 import java.nio.charset.StandardCharsets;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -95,6 +96,8 @@ public class Main extends Activity {
         int artifactsCoalesce = 0;           // --ei artifacts_coalesce 1: fill 1 MiB before each vsock write (A/B option; see ArtifactFeed's timeout note); 0 = forward as received
         int padsDirect = 0;                  // --ei pads_direct 1: stream a NEW sealed shipment from its HTTP body straight into the PADS receiver (no Android file); 0 = cached-file path
         int padsDirectFill = 0;              // --ei pads_direct_fill 1: gather HTTP fragments into bounded VM body writes; requires pads_direct
+        int quietPadsMs = 0;                 // --ei quiet_pads_ms 20000: EXPERIMENT, engine mode only. Total budget per quiet
+                                             // transaction; must equal shenv ANCHOR_QUIET_PADS. 0/unset = off, ordinary path untouched.
         int padCredit = 0;                   // --ei padcredit 8192: EXPERIMENT, engine mode only. The VM's PAD LISTENER receive credit window, set and
                                              // acknowledged (PADWINDOW) before any pads-port sender starts. 0 = default, no command sent, nothing changed.
                                              // Everything that uses the pads port is affected: shipments, prefix assets and artifacts.
@@ -133,9 +136,23 @@ public class Main extends Activity {
             p.padsDirect = i.getIntExtra("pads_direct", 0);
             p.padsDirectFill = i.getIntExtra("pads_direct_fill", 0);
             p.padCredit = i.getIntExtra("padcredit", 0);
+            p.quietPadsMs = i.getIntExtra("quiet_pads_ms", 0);
             if (i.getStringExtra("model_cache") != null) p.modelCache = i.getStringExtra("model_cache");
             if (i.getStringExtra("shenv") != null) p.shenv = i.getStringExtra("shenv");   // read BEFORE the validation chain: prepare mode judges its ANCHOR_ARTIFACT_PROFILE request here
-            if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
+            final long quietShenv = quietIntentMs(p.shenv);
+            if (quietShenv < 0) p.configError = "shenv ANCHOR_QUIET_PADS must appear at most once as canonical decimal 0 or 3000..45000";
+            else if (p.quietPadsMs != 0 && (p.quietPadsMs < 3000 || p.quietPadsMs > 45000)) p.configError = "quiet_pads_ms must be 0 or 3000..45000";
+            else if (p.quietPadsMs != quietShenv) p.configError = "quiet_pads_ms " + p.quietPadsMs + " and shenv ANCHOR_QUIET_PADS " + quietShenv + " must agree: the app arms the gate and the engine drives it, so one intent";
+            else if (p.quietPadsMs != 0 && !p.mode.equals("engine")) p.configError = "quiet_pads_ms is engine mode only: nothing else has a measured trial to quieten";
+            // The gate covers the two PADS_PORT senders that hold a Session. streamFiles,
+            // streamArtifacts and feedArtifacts open the same port WITHOUT one, so with any of
+            // them a drained interval would be quiet for pad shipments only. Refuse rather than
+            // word the claim that way; the current bench provisions neither.
+            else if (p.quietPadsMs != 0 && !p.artifacts.isEmpty()) p.configError = "quiet_pads_ms with artifacts: the artifact feeder is not gated, so the interval would not be quiet";
+            else if (p.quietPadsMs != 0 && !p.artifactsUrl.isEmpty()) p.configError = "quiet_pads_ms with artifacts_url: the artifact feeder is not gated, so the interval would not be quiet";
+            else if (p.quietPadsMs != 0 && (!p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.prefixDigest.isEmpty())) p.configError = "quiet_pads_ms with a shared prefix: the prefix streamer is not gated, and a remote fetch can populate it later";
+            else if (p.quietPadsMs != 0 && p.padsDirect != 0) p.configError = "quiet_pads_ms needs pads_direct 0: the direct path would park its HTTP fetch thread on the gate, and HTTP fetching must stay normal";
+            else if (!p.artifacts.isEmpty() && !p.artifactsUrl.isEmpty()) p.configError = "artifacts (directory) and artifacts_url (feed) are both set: choose one";
             else if (!p.artifactsUrl.isEmpty() && !ArtifactFeed.validBase(p.artifactsUrl)) p.configError = "artifacts_url must be http://127.0.0.1:<port>/v1/artifacts (the host feed through adb reverse)";
             else if (p.artifactsDeadlineS < 1 || p.artifactsDeadlineS > 600) p.configError = "artifacts_deadline must be 1..600 seconds";
             else if (p.artifactsCoalesce != 0 && p.artifactsCoalesce != 1) p.configError = "artifacts_coalesce must be 0 or 1";
@@ -337,7 +354,9 @@ public class Main extends Activity {
     static boolean ended() { return sEnded; }
     static void control(Object vm, Plan plan) {
         sEnded = false;
-        final PadDelivery.Session padSession = PadDelivery.begin(plan.padWriteMax, plan.padsDirectFill != 0);
+        // gateSends arms the send gate; it is the ONLY way to arm one, and it stays false for
+        // every ordinary run, so the default path is untouched.
+        final PadDelivery.Session padSession = PadDelivery.begin(plan.padWriteMax, plan.padsDirectFill != 0, plan.quietPadsMs > 0);
         say("PADS send cap: guest=" + plan.padWriteMax + " cache=0");
         say("PADS direct fill: enabled=" + plan.padsDirectFill);
         ParcelFileDescriptor pfd = connect(vm, CTRL_PORT, 50);
@@ -348,6 +367,23 @@ public class Main extends Activity {
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
+            // Created ONLY for a quiet plan: an ordinary run allocates no queue and takes on none
+            // of this object's output-close semantics. Tracked on the session, so a session stop
+            // closes it exactly as it closes every other resource - marked closed, worker
+            // interrupted, gate and output closed. If the session will not own it there is no one
+            // to stop the worker, so the run is refused here rather than measured ungated.
+            final QuietPadsControl quietControl;
+            if (plan.quietPadsMs > 0) {
+                final QuietPadsControl qc = new QuietPadsControl(padSession, out);
+                boolean owned = false;
+                try { owned = padSession.track(qc); } catch (Exception e) { say("QUIETPADS not tracked: " + e); }
+                if (!owned) {
+                    qc.close();
+                    throw new IllegalStateException("quiet pads requested but the pad session would not own the control helper; "
+                                                    + "refusing the run rather than leaving an unowned worker");
+                }
+                quietControl = qc;
+            } else quietControl = null;
             // 1. the VM's transport key is the first thing it says
             String first = r.readLine();
             byte[] spki = first != null && first.startsWith("SPKI ") ? RelayAttach.unhex(first.substring(5).trim()) : null;
@@ -477,13 +513,14 @@ public class Main extends Activity {
                 if (line.startsWith("PADWIN ")) PadsClient.onWindow(padSession, line, plan.name, out);   // the engine asks for a ledger window
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
+                if (line.startsWith("QUIETPADS v1 ") && quietControl != null) quietControl.offer(line);   // hand it to the worker and keep reading
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");
         } catch (Exception e) {
             say("CONTROL error " + e);
         } finally {
-            padSession.close();
+            padSession.close();        // closes the tracked QuietPadsControl with everything else
             sEnded = true; cancelNativeBridge();
             if (feedThread != null) {   /* the guest may end first (its own deadline): the feed's terminal line must be in the capture, or its absence said explicitly */
                 try { feedThread.join(5000); } catch (InterruptedException ignored) { }
@@ -538,6 +575,201 @@ public class Main extends Activity {
             byte[] buf = new byte[1 << 20]; int r; while ((r = in.read(buf)) > 0) md.update(buf, 0, r);
             return md.digest();
         } catch (Exception e) { say("MODEL sha256 failed: " + e); return new byte[32]; }
+    }
+
+    /** The engine's ANCHOR_QUIET_PADS intent as the app sees it, read from the run plan's shenv.
+     *  0 = off, -1 = present but not a canonical decimal in range. The engine parses the same
+     *  variable itself; this is the app's independent read of the same intent, so a plan that
+     *  asks for quiet trials cannot start senders that the app could not gate. */
+    static long quietIntentMs(String shenv) {
+        if (shenv == null || shenv.isEmpty()) return 0;
+        long found = 0; int seen = 0;
+        for (String kv : shenv.split(",")) {
+            final int eq = kv.indexOf('=');
+            if (eq < 0 || !kv.substring(0, eq).equals("ANCHOR_QUIET_PADS")) continue;
+            seen++;
+            final String v = kv.substring(eq + 1);
+            if (!v.matches("0|[1-9][0-9]{0,4}")) return -1;          // canonical decimal only
+            found = Long.parseLong(v);
+        }
+        if (seen > 1) return -1;                                      // said twice: ambiguous intent
+        if (found != 0 && (found < 3000 || found > 45000)) return -1;
+        return found;
+    }
+
+    /** The engine's opt-in quiet-pads gate: ONE session-owned serial worker.
+     *
+     *  The control reader only OFFERS a command to a bounded queue and goes straight back to
+     *  readLine. That matters because it is the single consumer of PADWIN, RECEIPT and PADACK, and
+     *  the pVM's pads receiver writes PADACK through a writer that holds the payload's output lock
+     *  across a BLOCKING write: if this thread stopped reading, the control socket would fill, that
+     *  write would pin the lock, and every engine line behind it - the resume included - would
+     *  block.
+     *
+     *  ONE WORKER OWNS EVERYTHING ELSE. Pause, drain, answer, resume and the paused-trial state all
+     *  happen on that one thread, in the order the commands arrived, so there are no competing
+     *  generations to reconcile: a pause cannot be acknowledged after a resume because the same
+     *  thread did the resume first. `paused` needs no lock at all, being touched only there.
+     *
+     *  CLOSE NEVER WAITS ON PUBLICATION. close() takes no monitor the worker uses to answer: it
+     *  flips an atomic, interrupts the worker, closes the gate and closes the output - and closing
+     *  the output is what releases a worker stuck on a full control buffer. It is tracked on the
+     *  session, so a session stop performs exactly that.
+     *
+     *  Bounded and refusing rather than growing: a fixed queue, one worker started lazily and only
+     *  for a session whose gate is armed, no per-command thread and no retry. Queue overflow or a
+     *  worker that will not start ENDS the experimental session rather than answering inline.
+     *
+     *  It gates ONLY app-to-pVM sending on the pads port. HTTP fetching is untouched and no pad,
+     *  seed, ledger window, grant or acknowledgment behaviour changes: refusing is always safe.
+     *  No claim is made that the worker thread has exited when close() returns; the session's own
+     *  end is the bound. */
+    static final class QuietPadsControl implements Closeable {
+        private static final int QUEUE_MAX = 8;
+        private final PadDelivery.Session session;
+        private final OutputStream out;
+        private final java.util.concurrent.BlockingQueue<String> queue =
+            new java.util.concurrent.ArrayBlockingQueue<>(QUEUE_MAX);
+        private final java.util.concurrent.atomic.AtomicBoolean closed =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+        private volatile Thread worker = null;      // started at most once, lazily
+        private String paused = null;               // WORKER THREAD ONLY: no lock, no sharing
+
+        QuietPadsControl(PadDelivery.Session session, OutputStream out) {
+            this.session = session; this.out = out;
+        }
+
+        /** Control reader thread: offer and return. Never blocks, never answers inline. */
+        void offer(String line) {
+            if (closed.get()) return;
+            if (!start()) { endExperiment("worker unavailable"); return; }
+            if (!queue.offer(line)) endExperiment("command queue overflow");
+        }
+
+        private synchronized boolean start() {
+            if (closed.get()) return false;
+            if (worker != null) return true;
+            final VmSendGate gate = session.sendGate();
+            if (gate == null || !gate.isEnabled()) return false;      // not an armed quiet session
+            final Thread w = new Thread(this::run, "quiet-pads");
+            w.setDaemon(true);
+            try { w.start(); } catch (Throwable t) { say("QUIETPADS worker not started: " + t); return false; }
+            worker = w;
+            return true;
+        }
+
+        /** No inline reply: an experiment that cannot be driven correctly is ended, not guessed at. */
+        private void endExperiment(String why) {
+            say("QUIETPADS " + why + ": ending the quiet session rather than answering out of order");
+            close();
+        }
+
+        private void run() {
+            try {
+                while (!closed.get()) {
+                    final String line = queue.poll(250, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (line != null) handle(line);
+                }
+            } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            catch (Throwable t) { say("QUIETPADS worker error " + t); }
+            finally {
+                if (paused != null) {                                  // never leave sending gated
+                    paused = null;
+                    try { final VmSendGate g = session.sendGate(); if (g != null) g.resume(); } catch (Throwable ignored) { }
+                }
+                // Whatever ended this loop - a close, an interrupt or a Throwable - the experiment
+                // is over. Without this a worker that died would leave a stale thread reference and
+                // a queue that still looks live. Idempotent, so the ordinary close path is a no-op.
+                close();
+            }
+        }
+
+        private void handle(String line) {
+            String trial = "";
+            try {
+                // -1 keeps trailing empty fields, so "resume 1 " arrives as five tokens and is
+                // refused by the exact-length checks below instead of passing as four.
+                final String[] f = line.split(" ", -1);                 // QUIETPADS v1 <verb> <trial> [<ms>]
+                if (f.length < 4) { answer("refused", "0", "malformed"); return; }
+                final String verb = f[2];
+                trial = f[3];
+                if (!trial.matches("0|[1-9][0-9]{0,18}")) { answer("refused", "0", "malformed_trial"); return; }
+                if (closed.get() || !session.active()) return;          // nothing left to answer to
+                final VmSendGate gate = session.sendGate();
+                if (gate == null || !gate.isEnabled() || gate.isClosed()) { answer("refused", trial, "gate_unavailable"); return; }
+
+                if (verb.equals("resume")) {
+                    if (f.length != 4) { answer("refused", trial, "malformed"); return; }
+                    if (!trial.equals(paused)) { answer("refused", trial, "wrong_trial"); return; }
+                    gate.resume(); paused = null;
+                    answer("resumed", trial, null);
+                    return;
+                }
+                if (!verb.equals("pause")) { answer("refused", trial, "unknown_verb"); return; }
+                if (f.length != 5 || !f[4].matches("[1-9][0-9]{0,6}")) { answer("refused", trial, "malformed_budget"); return; }
+                final long ms = Long.parseLong(f[4]);
+                if (ms < 1000 || ms > 45000) { answer("refused", trial, "budget_out_of_range"); return; }
+                if (paused != null) { answer("refused", trial, "in_progress"); return; }
+
+                boolean drained = false;
+                try { drained = gate.requestPauseAndDrain(ms); }
+                catch (Throwable t) { say("QUIETPADS drain error " + t); }
+                // Checked again AFTER the drain: a session that stopped meanwhile gets no late
+                // "paused", and anything this call paused is released.
+                if (closed.get() || !session.active()) {
+                    if (drained) { try { gate.resume(); } catch (Throwable ignored) { } }
+                    return;
+                }
+                if (!drained) { gate.resume(); answer("refused", trial, "drain_incomplete"); return; }
+                paused = trial;
+                try { answer("paused", trial, null); }
+                catch (java.io.IOException e) {                        // never stay gated after a lost answer
+                    paused = null;
+                    try { gate.resume(); } catch (Throwable ignored) { }
+                    throw e;
+                }
+            } catch (java.io.IOException io) {
+                say("QUIETPADS answer failed: " + io);
+                close();                                               // the channel is unusable
+            } catch (Throwable t) {
+                say("QUIETPADS error " + t);
+                try { answer("refused", trial.isEmpty() ? "0" : trial, "error"); } catch (Throwable ignored) { }
+            }
+        }
+
+        /** Checked immediately before publication, under the same monitor the write takes, so a
+         *  session that ended cannot be answered. This is not an undo guarantee: bytes already in
+         *  flight when a session closes cannot be recalled, which is exactly why a session
+         *  termination invalidates the experiment rather than trying to reconcile it. */
+        private void answer(String verb, String trial, String reason) throws java.io.IOException {
+            synchronized (out) {                                       // reentrant with quietAnswer's own
+                if (closed.get() || !session.active())
+                    throw new java.io.IOException("quiet session ended before the answer could be published");
+                quietAnswer(out, verb, trial, reason);
+            }
+        }
+
+        /** Holds nothing the worker needs to publish an answer. */
+        @Override public void close() {
+            if (!closed.compareAndSet(false, true)) return;
+            final Thread w = worker;
+            if (w != null) { try { w.interrupt(); } catch (Throwable ignored) { } }
+            try { final VmSendGate g = session.sendGate(); if (g != null) g.close(); } catch (Throwable ignored) { }
+            try { out.close(); } catch (Throwable ignored) { }         // releases a worker stuck writing
+        }
+    }
+
+    /** One whole line to the control channel, serialised on the stream itself.
+     *
+     *  REQUIRED OF EVERY OTHER CONTROL WRITER TOO. Until now every control write except the
+     *  artifact feed's STOP happened on the vsock-control thread, so single-threadedness made a
+     *  lock unnecessary and PadsClient.onWindow writes its PADWIN answer that way. The drain
+     *  helper breaks that assumption, so any writer that can run concurrently must take the same
+     *  monitor - `synchronized (out)`, already the convention the STOP write uses. */
+    static void quietAnswer(OutputStream out, String verb, String trial, String reason) throws java.io.IOException {
+        final String s = "QUIETPADS v1 " + verb + " " + trial + (reason == null ? "" : " " + reason) + "\n";
+        synchronized (out) { out.write(s.getBytes()); out.flush(); }
+        say("QUIETPADS -> " + s.trim());
     }
 
     /* One model stage: a streamer for this line, "MODEL <bytes> <cache tag>" on the control channel, then the
