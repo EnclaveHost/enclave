@@ -31,6 +31,7 @@
 #ifndef SHIELDED_TEE_H
 #define SHIELDED_TEE_H
 
+#include "shielded-pad-budget.h"
 #include <stdbool.h>
 #include "shielded-pads.h"
 #include <stddef.h>
@@ -117,6 +118,28 @@ const char *sh_link_last_error(const sh_link *l);
  * `w_fixed` is (N,K) int8 -- THE encoding, one row per output, borrowed for the
  * life of the link. `share_x_with` is an earlier node fed by the SAME
  * activation, or -1. Returns the node index, or negative on error. */
+/* Diagnostic only (SHIELDED_PAD_BUDGET), read-only, allocation-free, and it
+ * starts nothing: a dealt link that has not been started reports UNSTARTED rather
+ * than being brought up. Fills `b` and as much of the caller's interval and
+ * group arrays as they hold, taking pool_mu and then the reader mutex, which
+ * is the order dealt_advanced already uses. Performs no cell read, no window
+ * reserve, no directory scan, no bind and no prune.
+ *
+ * The caller must exclude a concurrent sh_link_start: the reader pointer and
+ * the group array are replaced by start_pools without pool_mu. In the backend
+ * that exclusion is sh_state::mu, which sh_card_compute already holds around
+ * sh_link_start.
+ *
+ * Every lock is a TRY-lock: SH_PAD_BUDGET_BUSY means not observed, never an
+ * empty ring or bank. Pass SH_PAD_BUDGET_F_REQUEST_PATH_EXCLUDED only when the
+ * caller also excludes the request path, which writes pads_used/pads_missed
+ * without pool_mu; without the flag those stay zero with counters_valid false.
+ * INCOMPLETE means a caller array was too small; the record then claims
+ * nothing about coverage. */
+int sh_link_pad_budget(sh_link *l, sh_pad_budget *b, uint32_t flags,
+                       sh_pad_interval *intervals, uint32_t cap_intervals,
+                       sh_pad_group_budget *groups, uint32_t cap_groups);
+
 int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
                        int64_t K, int64_t N, int32_t max_m, int share_x_with);
 

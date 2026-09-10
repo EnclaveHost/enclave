@@ -653,6 +653,87 @@ int sh_pads_reader_prune_below(sh_pads_reader *r, uint64_t floor, bool unlink_fi
     return dropped;
 }
 
+/* Insert [lo,hi) into a sorted, disjoint, non-adjacent list, merging everything
+ * it touches. Adjacency merges (a[j].hi == lo and a[k].lo == hi both count as
+ * touching), nesting collapses, and a new interval is only appended when it
+ * touches nothing. Returns -1 rather than truncating when a genuinely new
+ * interval does not fit. */
+static int sh_iv_insert(sh_pad_interval *a, uint32_t *n, uint32_t cap, uint64_t lo, uint64_t hi) {
+    uint32_t j = 0;
+    while (j < *n && a[j].hi < lo) j++;          /* first interval that can touch [lo,hi) */
+    uint32_t k = j;
+    while (k < *n && a[k].lo <= hi) {            /* absorb every interval it touches */
+        if (a[k].lo < lo) lo = a[k].lo;
+        if (a[k].hi > hi) hi = a[k].hi;
+        k++;
+    }
+    if (k > j) {
+        a[j].lo = lo; a[j].hi = hi;
+        if (k > j + 1) {
+            memmove(&a[j + 1], &a[k], (size_t)(*n - k) * sizeof *a);
+            *n -= (k - j - 1);
+        }
+        return 0;
+    }
+    if (*n >= cap) return -1;                    /* never claim coverage we could not represent */
+    memmove(&a[j + 1], &a[j], (size_t)(*n - j) * sizeof *a);
+    a[j].lo = lo; a[j].hi = hi; (*n)++;
+    return 0;
+}
+
+int sh_pads_reader_coverage(sh_pads_reader *r, sh_pad_interval *out, uint32_t cap,
+                            uint32_t *n_out, uint64_t *n_files, uint32_t *n_bound,
+                            bool *bound_table) {
+    if (n_out) *n_out = 0;
+    if (n_files) *n_files = 0;
+    if (n_bound) *n_bound = 0;
+    if (bound_table) *bound_table = false;
+    if (!r) return SH_PAD_BUDGET_UNAVAILABLE;
+    if (!out && cap) return SH_PAD_BUDGET_UNAVAILABLE;
+    uint32_t n = 0;
+    int status = SH_PAD_BUDGET_OK;
+    /* Try-lock only: this mutex is held across directory scans and header
+     * authentication, and a diagnostic must never wait behind them. BUSY means
+     * NOT OBSERVED; it must never be read as "no files" or "no coverage", and
+     * nothing else in this call may be treated as having been read. */
+    if (pthread_mutex_trylock(&r->mu) != 0) return SH_PAD_BUDGET_BUSY;
+    if (n_files) *n_files = (uint64_t)r->n_files;
+    if (n_bound) *n_bound = r->n_bound;
+    /* Read the table POINTER as well as the count. sh_pads_reader_bind frees
+     * the old table first and can then fail its calloc while n_bound still
+     * holds the previous value, so a positive count does not by itself mean a
+     * group set is bound. Nothing is repaired here and no binding behaviour
+     * changes; the diagnostic simply refuses to call that state bound. */
+    const bool have_table = r->bound != NULL;
+    if (bound_table) *bound_table = have_table;
+    if (r->n_files > (size_t)SH_PAD_BUDGET_MAX_FILES) {
+        /* Conservative: refuse BEFORE scanning any of them, even though the
+         * merged union might have fitted. The point of the cap is a finite
+         * bound on work done under this mutex, not a bound on the answer. */
+        status = SH_PAD_BUDGET_INCOMPLETE;
+    } else {
+        for (size_t i = 0; i < r->n_files; i++) {
+            const uint64_t lo = r->files[i].hdr.index0, cnt = r->files[i].hdr.index_count;
+            if (!cnt) continue;                   /* an empty extent covers nothing */
+            if (lo > UINT64_MAX - cnt) { status = SH_PAD_BUDGET_INVALID; n = 0; break; }
+            if (sh_iv_insert(out, &n, cap, lo, lo + cnt) != 0) { status = SH_PAD_BUDGET_INCOMPLETE; break; }
+        }
+        /* A reader with no bound group set has not had file_bind's guarantee
+         * applied, so its extents are not coverage for any registered group.
+         * The intervals are still real and are kept, explicitly labelled.
+         * A count without a table is worse than unbound: it is a state a failed
+         * rebind can leave behind, so it gets its own conservative status. */
+        if (status == SH_PAD_BUDGET_OK) {
+            if (r->n_bound > 0 && !have_table)      status = SH_PAD_BUDGET_BIND_INVALID;
+            else if (r->n_bound == 0 || !have_table) status = SH_PAD_BUDGET_UNBOUND;
+        }
+    }
+    pthread_mutex_unlock(&r->mu);
+    if (n_out) *n_out = (status == SH_PAD_BUDGET_OK || status == SH_PAD_BUDGET_UNBOUND ||
+                         status == SH_PAD_BUDGET_BIND_INVALID) ? n : 0;
+    return status;
+}
+
 uint64_t sh_pads_reader_extent(const sh_pads_reader *r) {
     uint64_t hi = 0;
     if (!r) return 0;

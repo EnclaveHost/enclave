@@ -93,6 +93,8 @@ extern "C" {
 #include <sys/stat.h>
 #include <sys/vfs.h>
 #include "ggml-shielded.h"
+#include "shielded-pad-budget.h"
+#include "anchor_pad_budget_report.h"
 #include "anchor_mtp.h"
 #include <atomic>
 #include <thread>
@@ -263,6 +265,50 @@ static int weight_verify(void *, const char *name, uint32_t type, const int64_t 
  * the shielded module by name; printed after prefill and after decode so steady-state I/O is a delta, not a guess. */
 static void (*g_cache_stats)(uint64_t *, uint64_t *) = nullptr;
 static void (*g_source_stats)(uint64_t *, uint64_t *) = nullptr;   /* streamed-source reader invocations (Astra), distinct from cache reads */
+/* Pad-budget diagnostic (SHIELDED_PAD_BUDGET=1, default OFF). Side channel:
+ * the records go to STDERR through anchor_pad_budget_report.h and nowhere else,
+ * because outf() writes stdout, the Android log and the control socket but never
+ * stderr, and the parser consumes the exported engine.stderr. The frozen bench
+ * JSON schema is untouched, existing outf behaviour is untouched, and when the
+ * knob is off nothing here is called at all. This is not a speed measurement. */
+typedef int (*pad_budget_cards_fn)(void);
+typedef int (*pad_budget_fn)(int, sh_pad_budget *, sh_pad_interval *, uint32_t,
+                             sh_pad_group_budget *, uint32_t);
+static pad_budget_cards_fn g_pad_budget_cards = nullptr;
+static pad_budget_fn       g_pad_budget = nullptr;
+
+#define ENGINE_PAD_BUDGET_INTERVALS SH_PAD_BUDGET_MAX_INTERVALS_PER_LINE   /* 64 */
+#define ENGINE_PAD_BUDGET_GROUPS   512u
+#define ENGINE_PAD_BUDGET_MAX_CARDS  8u
+
+static void pad_budget_lines(const char *phase) {
+    if (!anchor_pad_budget_enabled()) return;
+    if (!g_pad_budget || !g_pad_budget_cards) {
+        anchor_pad_budget_note(stderr, phase, "unavailable", "symbol_absent", nullptr);
+        return;
+    }
+    static std::vector<sh_pad_interval>     ivs(ENGINE_PAD_BUDGET_INTERVALS);
+    static std::vector<sh_pad_group_budget> gbs(ENGINE_PAD_BUDGET_GROUPS);
+    const int cards = g_pad_budget_cards();
+    if (cards < 0)  { anchor_pad_budget_note(stderr, phase, "busy", "pool_busy", nullptr); return; }
+    if (cards == 0) { anchor_pad_budget_note(stderr, phase, "unavailable", "no_pool", nullptr); return; }
+    int scan = cards;
+    if ((unsigned)cards > ENGINE_PAD_BUDGET_MAX_CARDS) {
+        scan = (int)ENGINE_PAD_BUDGET_MAX_CARDS;
+        char extra[64];
+        snprintf(extra, sizeof extra, "cards=%d cap=%u", cards, ENGINE_PAD_BUDGET_MAX_CARDS);
+        anchor_pad_budget_note(stderr, phase, "incomplete", "card_cap", extra);
+    }
+    for (int card = 0; card < scan; card++) {
+        sh_pad_budget b;
+        const int rc = g_pad_budget(card, &b, ivs.data(), ENGINE_PAD_BUDGET_INTERVALS,
+                                    gbs.data(), ENGINE_PAD_BUDGET_GROUPS);
+        /* Formatted with every lock already dropped. */
+        anchor_pad_budget_report(stderr, phase, card, cards, rc, &b, ivs.data(), gbs.data());
+    }
+    fflush(stderr);   /* one flush per snapshot */
+}
+
 static void cache_stats_line(const char *when) {
     if (g_cache_stats) { uint64_t calls = 0, bytes = 0; g_cache_stats(&calls, &bytes); outf("CACHE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes); }
     if (g_source_stats) { uint64_t calls = 0, bytes = 0; g_source_stats(&calls, &bytes); outf("SOURCE %s: reads=%llu bytes=%llu", when, (unsigned long long)calls, (unsigned long long)bytes); }
@@ -604,6 +650,10 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
       g_cache_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_cache_stats") : nullptr;
       g_weight_source = sh_h ? (weight_source_fn)dlsym(sh_h, "ggml_backend_shielded_weight_source") : nullptr;
       g_source_stats = sh_h ? (void (*)(uint64_t *, uint64_t *))dlsym(sh_h, "ggml_backend_shielded_weight_source_stats") : nullptr;
+      if (anchor_pad_budget_enabled()) {   /* default OFF; nothing is bound when off */
+          g_pad_budget_cards = sh_h ? (pad_budget_cards_fn)dlsym(sh_h, "ggml_backend_shielded_pad_budget_cards") : nullptr;
+          g_pad_budget       = sh_h ? (pad_budget_fn)dlsym(sh_h, "ggml_backend_shielded_pad_budget") : nullptr;
+      }
       if (!set_ver) { outf("ENGINE refused: the shielded module has no weight verifier hook"); return 2; }
       if (set_ver(weight_verify, nullptr) != 0) { outf("ENGINE refused: the backend did not take the weight verifier"); return 2; } }
     { /* opt-in encoded artifacts (default OFF): only after the verifier, only with an admitted encoded catalog */
@@ -910,6 +960,7 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         anchor_bench_counters c = {stats != nullptr, pads_used != nullptr, 0, 0, 0, 0, 0, 0};
         if (stats) { fprintf(stderr, "[shielded] snapshot begin: phase=%s\n", phase); stats(&c.offloaded, &c.local, &c.macs, &c.verify_fail); fprintf(stderr, "[shielded] snapshot end: phase=%s\n", phase); }
         if (pads_used) pads_used(&c.pads_used, &c.pads_missed);
+        pad_budget_lines(phase);   /* side channel, default off; the JSON schema below is unchanged */
         return anchor_bench_counters_json(c); };
     if (bench) {
         const long ts0 = ggml_time_us();

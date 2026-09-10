@@ -15,6 +15,7 @@
  */
 #ifndef SHIELDED_PADS_H
 #define SHIELDED_PADS_H
+#include "shielded-pad-budget.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -145,6 +146,32 @@ void sh_pads_reader_require_digest(sh_pads_reader *r, const uint8_t model_digest
 int  sh_pads_reader_prune_below(sh_pads_reader *r, uint64_t floor, bool unlink_files);
 /* The highest index any shipment on disk covers, plus one (0 = none). */
 uint64_t sh_pads_reader_extent(const sh_pads_reader *r);
+
+/* Diagnostic only (SHIELDED_PAD_BUDGET). The UNION of the extents of the files
+ * this reader currently holds, as half-open [lo,hi) intervals, sorted, disjoint
+ * and non-adjacent. Takes `mu`; performs no scan, no bind, no prune and no
+ * decrypt, so it neither consumes nor authorises anything.
+ *
+ * Takes `mu` with a TRY-lock and returns SH_PAD_BUDGET_BUSY on contention,
+ * because this mutex is held across scans and header authentication; BUSY is
+ * missing evidence and never an empty bank.
+ *
+ * Otherwise returns SH_PAD_BUDGET_OK, SH_PAD_BUDGET_INCOMPLETE when `cap` intervals were
+ * not enough, or SH_PAD_BUDGET_INVALID when a held header's index0+index_count
+ * would overflow uint64. Under either failure NOTHING about coverage is
+ * claimed and the partial list must not be read as coverage. `n_out`,
+ * `n_files` and `n_bound` are written when non-NULL and the mutex was taken.
+ *
+ * A pure ACCESSOR: it adds no field to sh_pads_reader and changes no existing
+ * reader function. libanchor, libengine and libggml-shielded each carry a copy
+ * of these symbols and anchor_payload.c dlopens with RTLD_NOW|RTLD_GLOBAL, so
+ * growing the private reader struct on one side could let an older definition
+ * allocate or bind a reader that a newer accessor then reads past the end of.
+ * That is why no bind epoch is tracked here; an epoch would need a separately
+ * reviewed whole-library ABI change, never a field added on one side. */
+int sh_pads_reader_coverage(sh_pads_reader *r, sh_pad_interval *out, uint32_t cap,
+                            uint32_t *n_out, uint64_t *n_files, uint32_t *n_bound,
+                            bool *bound_table);
 void sh_pads_reader_close(sh_pads_reader *r);
 
 /* --- ledger window ---------------------------------------------------------

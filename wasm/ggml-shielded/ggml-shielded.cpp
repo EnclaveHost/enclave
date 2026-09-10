@@ -390,6 +390,69 @@ extern "C" int ggml_backend_shielded_set_rcvbuf(int bytes, uint64_t *actual_byte
     return sh_link_set_rcvbuf(s.link, bytes, actual_bytes);
 }
 
+/* Pad-budget diagnostic. Same lock ORDER as every other exported query,
+ * sh_pool::mu then sh_state::mu, but TRY-locked at both levels: graph_compute
+ * holds p.mu for a whole graph and sh_card_compute holds s.mu across a link
+ * start, so a diagnostic that waited would stall decode rather than observe it.
+ * A failed try-lock is SH_PAD_BUDGET_BUSY, which means NOT OBSERVED and must
+ * never be read as an empty bank.
+ *
+ * It deliberately does NOT call sh_pool_init: asking for a diagnostic must
+ * never bring a backend up. Holding sh_state::mu is what makes this link's
+ * reader, group array and request counters safe to read, because
+ * sh_card_compute holds the same mutex around sh_link_start (the only caller of
+ * start_pools) and around the gemm that writes pads_used without pool_mu; that
+ * is why the flag below is passed. Nothing is formatted here: the caller owns
+ * the arrays and prints after this returns with every lock dropped.
+ *
+ * Decode does not proceed on other cards meanwhile - graph_compute needs the
+ * same p.mu - but each card's refill threads resume as soon as its pool_mu is
+ * released, so reading several cards is a sequence of observations rather than
+ * one atomic inventory. */
+static void sh_pad_budget_unavailable(sh_pad_budget *out, int card, int status,
+                                      uint32_t cap_intervals, uint32_t cap_groups) {
+    memset(out, 0, sizeof *out);
+    out->version = SH_PAD_BUDGET_VERSION;
+    out->card = card;
+    out->status = out->reader_status = status;
+    out->cap_intervals = cap_intervals;
+    out->cap_groups = cap_groups;
+}
+
+extern "C" int ggml_backend_shielded_pad_budget_cards(void) {
+    sh_pool &p = sh_pool_get();
+    std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
+    if (!lock.owns_lock()) return -SH_PAD_BUDGET_BUSY;   /* negative: busy, not "no cards" */
+    if (!p.initialized) return 0;
+    return (int)p.cards.size();
+}
+
+extern "C" int ggml_backend_shielded_pad_budget(int card, sh_pad_budget *out,
+                                                sh_pad_interval *intervals, uint32_t cap_intervals,
+                                                sh_pad_group_budget *groups, uint32_t cap_groups) {
+    if (!out) return SH_PAD_BUDGET_UNAVAILABLE;
+    sh_pool &p = sh_pool_get();
+    std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        sh_pad_budget_unavailable(out, card, SH_PAD_BUDGET_BUSY, cap_intervals, cap_groups);
+        return SH_PAD_BUDGET_BUSY;
+    }
+    if (!p.initialized || card < 0 || (size_t)card >= p.cards.size()) {
+        sh_pad_budget_unavailable(out, card, SH_PAD_BUDGET_UNAVAILABLE, cap_intervals, cap_groups);
+        return SH_PAD_BUDGET_UNAVAILABLE;
+    }
+    sh_state &s = *p.cards[card];
+    std::unique_lock<std::mutex> state_lock(s.mu, std::try_to_lock);
+    if (!state_lock.owns_lock()) {
+        sh_pad_budget_unavailable(out, card, SH_PAD_BUDGET_BUSY, cap_intervals, cap_groups);
+        return SH_PAD_BUDGET_BUSY;
+    }
+    const int rc = sh_link_pad_budget(s.link, out, SH_PAD_BUDGET_F_REQUEST_PATH_EXCLUDED,
+                                      intervals, cap_intervals, groups, cap_groups);
+    out->card = card;
+    return rc;
+}
+
 void ggml_backend_shielded_weight_cache_stats(uint64_t *calls, uint64_t *bytes) {
     sh_pool &p = sh_pool_get();
     std::lock_guard<std::mutex> lock(p.mu);
