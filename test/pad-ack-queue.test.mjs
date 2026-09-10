@@ -12,6 +12,7 @@ test('PADACK queue retries without blocking control, prioritizes gaps, and cance
     const cc=spawnSync('javac',['--release','17','-d',dir,
       join(root,'shielded/anchor/avf/host/app/PadAckQueue.java'),
       join(root,'shielded/anchor/avf/host/app/PadDelivery.java'),
+      join(root,'shielded/anchor/avf/host/app/VmSendGate.java'),
       join(root,'test/fixtures/PadAckQueueTest.java')],{encoding:'utf8',timeout:60_000});
     assert.equal(cc.status,0,cc.stdout+cc.stderr);
     const r=spawnSync('java',['-cp',dir,'host.enclave.anchor.avf.PadAckQueueTest'],{encoding:'utf8',timeout:30_000});

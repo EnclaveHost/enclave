@@ -112,6 +112,57 @@ __attribute__((visibility("default"))) int anchor_ctl_write(const char *p, size_
     pthread_mutex_unlock(&g_out_mu);
     return rc;
 }
+/* A BOUNDED sibling of anchor_ctl_write, for the opt-in quiet handshake only.
+ * Same descriptor, SAME writers' lock - it does not bypass serialisation - but it
+ * gives up instead of blocking: the ordinary writer holds g_out_mu across a
+ * blocking write, so once the control buffer fills it pins the lock and every
+ * later line, including a resume, blocks behind it.
+ *
+ * 0 = the whole line went out. -1 = NOTHING was written (the lock or the socket
+ * was not ready in time), which the caller can recover from. -2 = a PARTIAL
+ * write: a fragment is on the wire, the peer will parse it as a line, and the
+ * channel is marked dead because nothing after it can be trusted. Nothing else
+ * in the payload calls this, so the ordinary path is untouched. */
+__attribute__((visibility("default"))) int anchor_ctl_write_timed(const char *p, size_t n, uint64_t deadline_ns) {
+    if (!p || !n) return -1;
+    for (;;) {
+        if (pthread_mutex_trylock(&g_out_mu) == 0) break;
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return -1;
+        const uint64_t now = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+        if (now >= deadline_ns) return -1;
+        struct timespec nap = { 0, 200000 }; nanosleep(&nap, NULL);
+    }
+    size_t done = 0;
+    if (g_ctl >= 0 && !g_ctl_dead) {
+        while (done < n) {
+            struct timespec ts;
+            if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) break;
+            const uint64_t now = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+            if (now >= deadline_ns) break;
+            uint64_t left_ms = (deadline_ns - now) / 1000000ull;
+            if (left_ms > 100) left_ms = 100;
+            struct pollfd pf; pf.fd = g_ctl; pf.events = POLLOUT; pf.revents = 0;
+            const int pr = poll(&pf, 1, (int)left_ms);
+            if (pr < 0) { if (errno == EINTR) continue; g_ctl_dead = 1; break; }
+            if (pr == 0) continue;
+            /* Writable, but the deadline may have passed while poll returned: check
+             * BEFORE the send, not after it, so a transaction that has run out of
+             * time never puts more bytes on the wire. */
+            if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) break;
+            if ((uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec >= deadline_ns) break;
+            const ssize_t w = send(g_ctl, p + done, n - done, MSG_DONTWAIT | MSG_NOSIGNAL);
+            if (w > 0) { done += (size_t)w; continue; }
+            if (w < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+            g_ctl_dead = 1; break;
+        }
+    }
+    const int rc = done == n ? 0 : (done ? -2 : -1);
+    if (rc == -2) g_ctl_dead = 1;   /* a fragment is on the wire: refuse every later write */
+    pthread_mutex_unlock(&g_out_mu);
+    return rc;
+}
+
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
     if (n < 0) return; if ((size_t)n > sizeof line - 2) n = sizeof line - 2;
@@ -944,6 +995,12 @@ static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt,
     engine_main_fn em = (engine_main_fn)dlsym(h, "engine_main");
     { void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_set_ctl_writer");
       if (setw) setw(anchor_ctl_write); else OUT("ENGINE has no engine_set_ctl_writer: its lines bypass the writers' lock"); }
+    { /* Optional, and only the quiet opt-in uses it: the BOUNDED writer. An engine
+       * without the setter simply never gets one, and its quiet opt-in refuses to
+       * enable rather than falling back to the blocking writer. */
+      void (*setwt)(int (*)(const char *, size_t, uint64_t)) =
+          (void (*)(int (*)(const char *, size_t, uint64_t)))dlsym(h, "engine_set_ctl_writer_timed");
+      if (setwt) setwt(anchor_ctl_write_timed); }
     if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { OUT("ENGINE refused: no staged model table"); close(worker_fd); close(model_fd); return; }
     if (g_auth_mode == ANCHOR_MODEL_AUTH_CATALOG_V1) {   /* the engine must take the versioned capability or it does not run this model */
       int (*seta)(const anchor_model_auth_v1 *) = (int (*)(const anchor_model_auth_v1 *))dlsym(h, "engine_set_model_auth_v1");
@@ -1297,7 +1354,7 @@ int AVmPayload_main(void) {
                      * (calibration, pad checks, model digest, prefix key, zero pads, the link itself) */
                     static const char *const env_ok[] = { "SHIELDED_LOCAL_SITES", "SHIELDED_MAX_M", "SHIELDED_OVERLAP_VERIFY", "SHIELDED_FUSE_LOCAL",
                         "ANCHOR_MTP_K", "ANCHOR_MTP_PMIN", "ANCHOR_DRAFT_AHEAD", "ANCHOR_HEAD_THREADS", "ANCHOR_HEAD_OWN_POOL", "ANCHOR_FINE_PLACEMENT", "ANCHOR_PREFILL_THREADS", "ANCHOR_BOOST_THREADS", "ANCHOR_LINK_ECHO",
-                        "ANCHOR_PAD_RX_PROFILE", "ANCHOR_CPU_IDLE_PARK", "ANCHOR_BENCH_IDLE_PARK", "ANCHOR_BENCH_RCVLOWAT", "SHIELDED_RCVLOWAT", "ANCHOR_BENCH_RCVBUF", "SHIELDED_RCVBUF", "SHIELDED_SOURCE_PROFILE", "SHIELDED_WIRE_PROFILE", "SHIELDED_RECV_PROFILE", "SHIELDED_WIRE_SCHED", "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "ANCHOR_ARTIFACT_PROFILE", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_PAD_PREPARE_THREADS", "SHIELDED_PAD_PREPARE_PROFILE", "SHIELDED_PAD_BUDGET", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY", "SHIELDED_SOURCE_PREFETCH", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "SHIELDED_PAD_R4", "ANCHOR_CPU_POLL", "ANCHOR_SOURCE_READ_THREADS", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
+                        "ANCHOR_PAD_RX_PROFILE", "ANCHOR_CPU_IDLE_PARK", "ANCHOR_BENCH_IDLE_PARK", "ANCHOR_BENCH_RCVLOWAT", "SHIELDED_RCVLOWAT", "ANCHOR_BENCH_RCVBUF", "SHIELDED_RCVBUF", "SHIELDED_SOURCE_PROFILE", "SHIELDED_WIRE_PROFILE", "SHIELDED_RECV_PROFILE", "SHIELDED_WIRE_SCHED", "SHIELDED_PROFILE", "SHIELDED_SPIN_US", "SHIELDED_REFILL_THREADS", "SHIELDED_VERBOSE", "ENGINE_LOG_INFO", "ENGINE_EXPORT_STDERR", "ENGINE_EXPORT_STDERR_MAX", "ANCHOR_WEIGHT_CACHE", "ANCHOR_STREAM_WEIGHTS", "ANCHOR_ENCODED_ARTIFACTS", "ANCHOR_ARTIFACT_WAIT_S", "ANCHOR_ARTIFACT_PROFILE", "SHIELDED_PAD_PREPARE_TILED", "SHIELDED_PAD_PREPARE_THREADS", "SHIELDED_PAD_PREPARE_PROFILE", "SHIELDED_PAD_BUDGET", "ANCHOR_QUIET_PADS", "SHIELDED_WEIGHT_CACHE_SHA256", "SHIELDED_UPLOAD_PREFETCH", "SHIELDED_PUBLIC_WEIGHT_CACHE", "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY", "SHIELDED_SOURCE_PREFETCH", "SHIELDED_PAD_CHECK_TILED", "SHIELDED_ARM_TUNED", "SHIELDED_PAD_ACK_STREAM", "SHIELDED_PAD_R4", "ANCHOR_CPU_POLL", "ANCHOR_SOURCE_READ_THREADS", "ANCHOR_STREAM_MIN_BYTES", "ANCHOR_BENCH_TRIALS", NULL };
                     for (char *tok = strtok(ev, ","); tok; tok = strtok(NULL, ",")) {
                         char *eq = strchr(tok, '='); if (!eq) continue; *eq = 0;
                         int ok = 0; for (int i = 0; env_ok[i]; i++) if (!strcmp(tok, env_ok[i])) ok = 1;

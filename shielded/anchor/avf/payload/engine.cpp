@@ -42,6 +42,21 @@ static int g_ctl = -1;
  * it (an older payload) lines go straight to the descriptor. */
 static int (*g_ctl_writer)(const char *, size_t) = nullptr;
 extern "C" void engine_set_ctl_writer(int (*fn)(const char *, size_t)) { g_ctl_writer = fn; }
+/* OPTIONAL, and only the quiet handshake uses it: a BOUNDED writer that shares
+ * the payload's writers' lock but gives up instead of blocking. Without it the
+ * quiet opt-in refuses to enable - it must never fall back to the blocking
+ * writer, because that is the deadlock this exists to avoid. */
+static int (*g_ctl_writer_timed)(const char *, size_t, uint64_t) = nullptr;
+/* The opt-in is FIRST ENTRY ONLY (see the guard at the top of engine_main), and
+ * this flag is declared here because the setter below has to consult it. */
+static bool g_quiet_ever_armed = false;
+/* Once quiet has been armed, refill threads from that entry may be READING this
+ * pointer through pads_window, so a later entry does not store to it AT ALL -
+ * not even the same value, which would still be a data race. */
+extern "C" void engine_set_ctl_writer_timed(int (*fn)(const char *, size_t, uint64_t)) {
+    if (g_quiet_ever_armed) return;
+    g_ctl_writer_timed = fn;
+}
 static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void outf(const char *fmt, ...) {
     char line[4096]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
@@ -95,6 +110,7 @@ extern "C" {
 #include "ggml-shielded.h"
 #include "shielded-pad-budget.h"
 #include "anchor_pad_budget_report.h"
+#include "anchor_ctl_txn.h"   /* opt-in quiet-pads control transactions, default off */
 #include "anchor_mtp.h"
 #include <atomic>
 #include <thread>
@@ -115,6 +131,75 @@ static int ctl_read_line(char *buf, size_t cap) {
     buf[n] = 0;
     return (int)n;
 }
+/* ---- opt-in quiet pads (ANCHOR_QUIET_PADS, default OFF) -------------------
+ * A gate on when the OWNER APP may push already-encrypted shipments over the
+ * pads port, so a measured trial is not sharing the phone with a 200 MB stream.
+ * It signs nothing, verifies nothing, reserves nothing and touches no pad,
+ * ledger window, epoch or receipt: refusing or failing it changes timing only,
+ * and every existing strict pad check still decides every pad. HTTP fetching by
+ * the app is deliberately NOT gated; only the app-to-pVM pads port is. */
+/* The mutex has PROCESS lifetime and is never re-initialised: the shielded pool
+ * and any refill thread in it outlive engine_main, so a thread from an earlier
+ * entry can still reach pads_window, and re-initialising a live mutex is
+ * undefined. Only the opt-in fields are reset per entry. */
+static pthread_mutex_t g_quiet_mu = PTHREAD_MUTEX_INITIALIZER;
+static anchor_ctl_txn g_quiet_txn;
+static bool g_quiet_on = false;          /* assigned on EVERY engine_main entry */
+static unsigned g_quiet_drain_ms = 0;    /* what the app is asked to spend draining */
+static int quiet_write(void *, const char *line, size_t len, uint64_t deadline_ns) {
+    return g_ctl_writer_timed ? g_ctl_writer_timed(line, len, deadline_ns) : -1;
+}
+/* Every NEW quiet line goes to STDERR, never through the control writer.
+ * Two reasons, both load bearing: the control writer BLOCKS while holding the
+ * payload's output lock, so logging a timed-writer failure through it is exactly
+ * the hang being reported; and the parser reads engine.stderr, which no outf line
+ * ever reaches. The text is byte-for-byte what it would have been, so the
+ * grammar the parser sees is unchanged. */
+static void quiet_say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void quiet_say(const char *fmt, ...) {
+    char line[512]; va_list ap; va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap); va_end(ap);
+    fprintf(stderr, "%s\n", line);
+}
+static void quiet_log(void *, const char *msg) { quiet_say("ENGINE quiet: %s", msg); }
+
+/* Under a timed transaction the ordinary control writer would BLOCK, so every
+ * diagnostic on that path goes to stderr instead. Off the opt-in path this is
+ * the unchanged outf line. */
+static void win_say(uint64_t deadline, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+static void win_say(uint64_t deadline, const char *fmt, ...) {
+    char line[512]; va_list ap; va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap); va_end(ap);
+    if (deadline) fprintf(stderr, "[shielded] %s\n", line);
+    else outf("%s", line);
+}
+
+/* Ask, and say plainly what happened. The caller FAILS THE LEG on false: a run
+ * that asked for quiet trials must not quietly produce an ordinary one, so there
+ * is no "measure anyway" path. The request is made before the trial's clock is
+ * taken, so measurement of a quiet trial begins only after the ack. */
+static bool quiet_pause_for(unsigned long long trial) {
+    char reason[ANCHOR_CTL_TXN_REASON_MAX];
+    const int rc = anchor_ctl_txn_pause(&g_quiet_txn, trial, g_quiet_drain_ms, reason, sizeof reason);
+    if (rc == ANCHOR_CTL_TXN_OK) { quiet_say("ENGINE quiet trial=%llu state=quiet", trial); return true; }
+    quiet_say("ENGINE quiet trial=%llu state=NOT_QUIET reason=%s%s%s", trial, anchor_ctl_txn_str(rc),
+              reason[0] ? " detail=" : "", reason[0] ? reason : "");
+    return false;
+}
+
+/* Best effort by design: the app's own session cleanup owns the sending state,
+ * so a lost or unanswered resume must never wedge the engine, and nothing here
+ * claims the pVM can restore a flag in an app that has gone away. */
+static bool quiet_resume_for(unsigned long long trial, bool *paused) {
+    if (!*paused) return true;
+    *paused = false;
+    const int rc = anchor_ctl_txn_resume(&g_quiet_txn, trial);
+    /* "resumed" is claimed only on an acknowledgement; anything else says so. */
+    if (rc == ANCHOR_CTL_TXN_OK) quiet_say("ENGINE quiet trial=%llu state=resumed", trial);
+    else quiet_say("ENGINE quiet trial=%llu state=resume_failed reason=%s", trial, anchor_ctl_txn_str(rc));
+    return rc == ANCHOR_CTL_TXN_OK;
+}
+
 /* The usage receipt the operator is paid on: pads consumed and tokens served,
  * signed by the transport key, relayed by the owner app to the platform
  * (PADS receipt). Nothing here is secret; the signature is what makes it
@@ -131,7 +216,7 @@ static void pads_receipt(const anchor_pads *p, uint64_t pads_used, uint64_t toke
     outf("RECEIPT %s %s %s %s %s %s", p->name, p->seed_id_hex, used, toks, nonce, sig_hex);
 }
 
-static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
+static int pads_window_locked(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi, uint64_t deadline) {
     const anchor_pads *p = (const anchor_pads *)ctx;
     uint8_t nb[16]; if (getrandom(nb, sizeof nb, 0) != (ssize_t)sizeof nb) return -1;
     char nonce[33], wants[24], sig_hex[129]; uint8_t sig[64];
@@ -140,29 +225,75 @@ static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
     const char *fields[3] = { p->name, p->seed_id_hex, wants };
     if (sh_pads_request_sign(p->transport_sk, "reserve", fields, 3, nonce, sig) != 0) return -1;
     sh_pads_bin2hex(sig, 64, sig_hex);
-    outf("PADWIN %s %s %s", wants, nonce, sig_hex);
+    if (deadline) {
+        char req[600];
+        const int rn = snprintf(req, sizeof req, "PADWIN %s %s %s\n", wants, nonce, sig_hex);
+        if (rn <= 0 || (size_t)rn >= sizeof req) return -1;
+        const int w = quiet_write(nullptr, req, (size_t)rn, deadline);
+        if (w != 0) {
+            fprintf(stderr, "[shielded] quiet: the PADWIN request was %s; refusing this window\n",
+                    w == -2 ? "written in part, so the control channel is unusable" : "not written in time");
+            return -1;
+        }
+    } else outf("PADWIN %s %s %s", wants, nonce, sig_hex);
     /* the app answers PADWIN <lo> <hi> <iat> <sig> (or PADWIN fail <why>); other lines are the app's chatter */
     for (int tries = 0; tries < 64; tries++) {
         char line[512];
-        if (ctl_read_line(line, sizeof line) < 0) return -1;
+        if (deadline) {
+            /* Opt-in only: bounded, so the global transaction cannot be held for
+             * ever by a peer that never answers. The 64-try budget below is the
+             * legacy one and is deliberately unchanged. */
+            if (anchor_ctl_txn_read_line(&g_quiet_txn, line, sizeof line, deadline) != ANCHOR_CTL_TXN_OK) return -1;
+            if (!strncmp(line, ANCHOR_CTL_TXN_TAG, sizeof ANCHOR_CTL_TXN_TAG - 1)) {
+                win_say(deadline, "ENGINE pads: a quiet-handshake line arrived inside a window transaction; refusing this window");
+                return -1;                                   /* recognised, not ours: refuse, never skip */
+            }
+        } else if (ctl_read_line(line, sizeof line) < 0) return -1;
         if (strncmp(line, "PADWIN ", 7)) continue;
         unsigned long long l = 0, h = 0, iat = 0; char sh[129] = "", sh2[129] = "";
         const int nf = sscanf(line + 7, "%llu %llu %llu %128s %128s", &l, &h, &iat, sh, sh2);
-        if (nf < 4) { outf("ENGINE pads: window refused: %s", line + 7); return -1; }
+        if (nf < 4) { win_say(deadline, "ENGINE pads: window refused: %s", line + 7); return -1; }
         uint8_t wsig[64];
-        if (!sh_pads_hex2bin(sh, wsig, 64) || !sh_pads_window_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, wsig)) { outf("ENGINE pads: window signature REJECTED"); return -1; }
+        if (!sh_pads_hex2bin(sh, wsig, 64) || !sh_pads_window_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, wsig)) { win_say(deadline, "ENGINE pads: window signature REJECTED"); return -1; }
         /* The legacy signature binds seed/lo/hi/iat only, so a window signed earlier could be replayed
          * after a reconnect and rewind the cursor into pad reuse. sig_v2 also covers the nonce THIS
          * request drew above; a pinned build takes nothing less. */
         if (nf == 5) {
             uint8_t wsig2[64];
-            if (!sh_pads_hex2bin(sh2, wsig2, 64) || !sh_pad_window_v2_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, nonce, wsig2)) { outf("ENGINE pads: window sig_v2 REJECTED (not over this request's nonce)"); return -1; }
-        } else if (p->require_window_v2) { outf("ENGINE pads: window has no sig_v2; this build requires fresh-nonce windows"); return -1; }
-        else outf("ENGINE pads: window %llu..%llu accepted on the legacy signature (dev build)", l, h);
+            if (!sh_pads_hex2bin(sh2, wsig2, 64) || !sh_pad_window_v2_verify(p->ledger_pk, p->seed_id_hex, l, h, iat, nonce, wsig2)) { win_say(deadline, "ENGINE pads: window sig_v2 REJECTED (not over this request's nonce)"); return -1; }
+        } else if (p->require_window_v2) { win_say(deadline, "ENGINE pads: window has no sig_v2; this build requires fresh-nonce windows"); return -1; }
+        else win_say(deadline, "ENGINE pads: window %llu..%llu accepted on the legacy signature (dev build)", l, h);
         *lo = l; *hi = h;
         return 0;
     }
     return -1;
+}
+
+/* The window request and its reply are ONE transaction. Without the opt-in this
+ * is a direct call and the old path, including its own timeouts, is unchanged;
+ * with it, this excludes the main thread's quiet handshake, because the two
+ * would otherwise both read the control socket a byte at a time and split each
+ * other's lines. Called from the refill worker with pool_mu held, so the order
+ * is pool_mu -> txn here and txn alone on the main thread: no cycle. */
+static int pads_window(void *ctx, uint64_t want, uint64_t *lo, uint64_t *hi) {
+    if (!g_quiet_on) return pads_window_locked(ctx, want, lo, hi, 0);   /* unchanged legacy path */
+    uint64_t start;
+    if (!anchor_ctl_txn_now(&start)) { outf("ENGINE pads: monotonic clock unavailable; refusing this window"); return -1; }
+    const uint64_t deadline = start + g_quiet_txn.total_ns;
+    uint64_t acq = start + g_quiet_txn.acquire_ns;
+    if (acq > deadline) acq = deadline;
+    const int got = anchor_ctl_txn_begin_until(&g_quiet_txn, acq);
+    if (got != ANCHOR_CTL_TXN_OK) {
+        /* Refuse rather than race the other reader. The caller treats a refused
+         * window exactly as it already treats one: it stops, it never proceeds
+         * without a reserved window, and no index is consumed. */
+        quiet_say("ENGINE quiet: window transaction not acquired (%s); refusing this window rather than "
+                  "reading the control channel beside the quiet handshake", anchor_ctl_txn_str(got));
+        return -1;
+    }
+    const int rc = pads_window_locked(ctx, want, lo, hi, deadline);
+    anchor_ctl_txn_end(&g_quiet_txn);
+    return rc;
 }
 
 /* A plain host buffer type that is NOT ggml_backend_cpu_buffer_type() by pointer.
@@ -371,6 +502,30 @@ static std::string calib_digest_hex(const char *path) {
 
 extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *lib_dir, const char *calib_path,
                            const char *prompt, int n_predict, int n_threads, const anchor_pads *pads) {
+    /* The quiet opt-in is FIRST ENTRY ONLY, and that is decided HERE - before
+     * g_ctl, the writer pointers or anything else this process shares is
+     * reassigned. The shielded pool and its refill threads are process-static and
+     * outlive engine_main, so a refill thread from an earlier entry can still
+     * call pads_window and read the transaction context; mutating that context
+     * under it is unsafe, and a comment is not a proof that the thread is gone.
+     * A rejected entry therefore resets and memsets NOTHING. */
+    {
+        static unsigned entries = 0;
+        const unsigned entry = ++entries;
+        const char *qe = getenv("ANCHOR_QUIET_PADS");
+        const bool wants_quiet = qe && qe[0] && strcmp(qe, "0") != 0;
+        if (g_quiet_ever_armed) {
+            fprintf(stderr, "ENGINE config: this process armed ANCHOR_QUIET_PADS on an earlier entry; refill "
+                            "threads from it may still hold that context, so entry %u does not run and nothing "
+                            "has been reset\n", entry);
+            return 4;
+        }
+        if (wants_quiet && entry > 1) {
+            fprintf(stderr, "ENGINE config: ANCHOR_QUIET_PADS is first-entry only and this is entry %u; nothing "
+                            "has been reset\n", entry);
+            return 4;
+        }
+    }
     g_ctl = ctl_fd;
     setvbuf(stdout, NULL, _IONBF, 0);
     /* The backend's own diagnostics ("[shielded] ...") go to stderr, which
@@ -434,6 +589,43 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         if (bench_trials >= 2 && !getenv("ANCHOR_BENCH_IDLE_PARK") && !getenv("ANCHOR_BENCH_RCVLOWAT") && !getenv("ANCHOR_BENCH_RCVBUF")) outf("ENGINE config: bench %llu trials from one in-RAM prompt-state snapshot (identical settings)", (unsigned long long)bench_trials);
     }
     const bool bench = bench_trials >= 2;
+    /* ANCHOR_QUIET_PADS: canonical decimal MILLISECONDS of drain budget, 0 or unset = OFF.
+     * Read once, here, so nothing later can turn it on or off mid-run. Every
+     * unsupported combination is refused BEFORE the engine or any sender starts. */
+    {
+        /* Assigned on EVERY engine_main entry, never left over from a previous
+         * one, and latched here - before set_win installs pads_window and long
+         * before start_pools creates a refill thread - so every possible
+         * contender sees one immutable value and nothing calls getenv again. */
+        /* No reset here on purpose: only the first entry can reach this with the
+         * opt-in wanted, and a later entry is refused at the top of engine_main
+         * rather than mutating state an old refill thread may still be using. */
+        uint64_t quiet_ms = 0;
+        if (const char *e = getenv("ANCHOR_QUIET_PADS")) {
+            if (!anchor_stderr_cap_parse(e, 0, 45000, &quiet_ms)) {
+                outf("ENGINE config: ANCHOR_QUIET_PADS must be canonical decimal milliseconds in [0, 45000] (0 = off)"); return 4; }
+            if (quiet_ms && quiet_ms < 3000) {
+                outf("ENGINE config: ANCHOR_QUIET_PADS must be 0 or at least 3000 ms; the budget covers acquisition, the write and the reply"); return 4; }
+        }
+        if (quiet_ms) {
+            if (!bench) { outf("ENGINE config: ANCHOR_QUIET_PADS needs ANCHOR_BENCH_TRIALS >= 2; the pause belongs before a trial's own clock"); return 4; }
+            if (!pads)  { outf("ENGINE config: ANCHOR_QUIET_PADS without dealt pads: there is no pads-port traffic to quieten"); return 4; }
+            if (!g_ctl_writer_timed) {
+                outf("ENGINE config: ANCHOR_QUIET_PADS needs a bounded control writer (engine_set_ctl_writer_timed); "
+                     "this payload has none and falling back to the blocking writer is exactly the deadlock this avoids"); return 4; }
+            /* ONE budget covers the whole transaction. Acquisition may use 2 s of
+             * it, the write and the reply share the rest, and what the app is asked
+             * to spend draining is the remainder, so nothing can exceed the knob. */
+            const uint64_t acquire_ms = 2000;
+            g_quiet_drain_ms = (unsigned)(quiet_ms - acquire_ms);
+            g_quiet_on = true; g_quiet_ever_armed = true;
+            anchor_ctl_txn_init(&g_quiet_txn, ctl_fd, 1, &g_quiet_mu, quiet_write, nullptr, quiet_log, nullptr,
+                                acquire_ms * 1000000ull, quiet_ms * 1000000ull, 32u);
+            quiet_say("ENGINE quiet pads: opt-in ON, %llu ms total per transaction (%u ms of it offered to the app for draining); "
+                      "app-to-pVM pads port only, HTTP fetching unchanged, no pad/ledger/epoch behaviour changed",
+                      (unsigned long long)quiet_ms, g_quiet_drain_ms);
+        }
+    }
     int idle_park = 0;
     if (!anchor_stderr_flag_parse(getenv("ANCHOR_CPU_IDLE_PARK"), &idle_park)) { outf("ENGINE config: ANCHOR_CPU_IDLE_PARK must be 0 or 1"); return 4; }
     anchor_idle_order idle_order;
@@ -986,6 +1178,8 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         outf("%s", line.c_str());
     }
     std::string bench_text0; int bench_mtp0[4] = {0, 0, 0, 0}; const char *bench_reason = "complete"; bool any_failed = false; uint64_t bench_done = 0, n_gen_total = 0;
+    bool quiet_paused = false;        /* survives a break so the catch-all below can resume */
+    uint64_t quiet_trial = 0;         /* WHICH trial is paused: a resume must name it or the app refuses */
     for (uint64_t trial = 1; trial <= (bench ? bench_trials : 1); trial++) {
     long t_restore_us = 0;
     if (trial > 1) {   /* replay the prompt state: llama's state_read removes the sequence first, so no seq_rm is needed here */
@@ -1021,6 +1215,22 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const bool enabled = anchor_idle_trial_enabled(idle_order, trial);
         if (!idle_pool.select(enabled)) { outf("ENGINE idle park experiment: trial selection failed"); bench_reason = "park_selection_failed"; break; }
         outf("ENGINE idle park trial: trial=%llu enabled=%d", (unsigned long long)trial, enabled ? 1 : 0);
+    }
+    /* Quiet the app's pads-port sending BEFORE this trial's counters, its BENCH
+     * begin record and its clock. pool_mu is NOT held here. */
+    if (g_quiet_on) {
+        if (!quiet_pause_for((unsigned long long)trial)) {
+            /* The experiment asked for a quiet trial. Measuring an ordinary one
+             * and labelling it would put a non-quiet number in a quiet run, so the
+             * leg FAILS here, before the clock. Cancel unconditionally: the app may
+             * have paused and be about to answer late, and nothing may be left
+             * gated. A late ack cannot be mistaken for a later trial because every
+             * reply must name the trial that asked. */
+            (void)anchor_ctl_txn_resume(&g_quiet_txn, (unsigned long long)trial);
+            bench_reason = "quiet_pause_failed";
+            break;
+        }
+        quiet_paused = true; quiet_trial = trial;
     }
     if (bench) { char ph[32]; snprintf(ph, sizeof ph, "trial%llu.before", (unsigned long long)trial);
         const std::string line = anchor_bench_begin_json(trial, t_restore_us, bench_counters(ph));
@@ -1130,6 +1340,10 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
         const std::string line = anchor_bench_result_json(res);
         if (!anchor_bench_fits(line)) { outf("ENGINE bench trial %llu: result record %zu bytes exceeds the %u-byte line bound (shorter n_predict); terminal failure", (unsigned long long)trial, line.size(), ANCHOR_BENCH_LINE_MAX); bench_reason = "record_too_long"; break; }
         outf("%s", line.c_str());
+        /* A resume that is not acknowledged leaves the app's state unknown, so the
+         * run is invalid rather than merely noted. */
+        if (g_quiet_on && !quiet_resume_for((unsigned long long)quiet_trial, &quiet_paused)) {
+            bench_reason = "quiet_resume_failed"; break; }
         bench_done++;
         if (failed) { bench_reason = "trial_failed"; outf("ENGINE bench trial %llu failed (%s); terminal failure", (unsigned long long)trial, status); break; }
         if (mtp_fallback[0] || (mtp_k > 0 && !mtp)) { bench_reason = "head_lost"; outf("ENGINE bench trial %llu: MTP fell back (%s); terminal failure", (unsigned long long)trial, mtp_fallback); break; }   /* sticky fallback in ANY trial, the last included */
@@ -1153,6 +1367,11 @@ extern "C" int engine_main(int ctl_fd, int worker_fd, int model_fd, const char *
          mtp ? mtp_k : 0, mtp_rounds, mtp_drafted, mtp_accepted, mtp_emitted, decode_ms, steady_ms, steady_tokens,
          model_hex.c_str(), calib_hex_at_start.c_str(), auth_mode_name(), source_catalog_hex().c_str(), encoded_catalog_hex().c_str());
     }   /* trial loop */
+    /* ANY other way out of the loop - a refused record, a failed trial, a text or
+     * MTP mismatch - still lets the app send again. Idempotent: a trial that
+     * already resumed does nothing here. */
+    if (g_quiet_on && !quiet_resume_for((unsigned long long)quiet_trial, &quiet_paused)
+        && !strcmp(bench_reason, "complete")) bench_reason = "quiet_resume_failed";
     if (bench) {
         if (mtp) anchor_mtp_free(mtp);
         if (!strcmp(bench_reason, "complete") && bench_done < bench_trials) bench_reason = "incomplete";

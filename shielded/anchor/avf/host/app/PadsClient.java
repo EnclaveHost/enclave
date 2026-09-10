@@ -137,15 +137,17 @@ final class PadsClient {
         final String base = session.base(), seedId = session.seed();
         try {
             String[] f = line.trim().split(" ");
-            if (f.length != 4) { out.write("PADWIN fail malformed\n".getBytes()); out.flush(); return; }
+            if (f.length != 4) { synchronized (out) { out.write("PADWIN fail malformed\n".getBytes()); out.flush(); } return; }
             JSONObject res = http(session, "POST", base + "/v1/pads/reserve", new JSONObject().put("name", name).put("seed_id", seedId)
                 .put("want", Long.parseLong(f[1])).put("nonce", f[2]).put("sig", f[3]));
-            if (res.optInt("_status") == 200)
-                out.write(("PADWIN " + res.getLong("lo") + " " + res.getLong("hi") + " " + res.getLong("iat") + " " + res.getString("sig") + (res.has("sig_v2") ? " " + res.getString("sig_v2") : "") + "\n").getBytes());   // sig_v2: over the VM's request nonce (PAD-BOOTSTRAP.md)
-            else out.write(("PADWIN fail " + res.optString("error", "http " + res.optInt("_status")) + "\n").getBytes());
-            out.flush();
+            synchronized (out) {
+                if (res.optInt("_status") == 200)
+                    out.write(("PADWIN " + res.getLong("lo") + " " + res.getLong("hi") + " " + res.getLong("iat") + " " + res.getString("sig") + (res.has("sig_v2") ? " " + res.getString("sig_v2") : "") + "\n").getBytes());   // sig_v2: over the VM's request nonce (PAD-BOOTSTRAP.md)
+                else out.write(("PADWIN fail " + res.optString("error", "http " + res.optInt("_status")) + "\n").getBytes());
+                out.flush();
+            }
             Main.say("PADS window " + (res.optInt("_status") == 200 ? res.getLong("lo") + ".." + res.getLong("hi") + (res.has("sig_v2") ? " sig_v2" : " LEGACY-ONLY (relay without window v2)") : "refused " + res));
-        } catch (Exception e) { Main.say("PADS window error " + e); try { out.write("PADWIN fail error\n".getBytes()); out.flush(); } catch (Exception ignored) { } }
+        } catch (Exception e) { Main.say("PADS window error " + e); try { synchronized (out) { out.write("PADWIN fail error\n".getBytes()); out.flush(); } } catch (Exception ignored) { } }
     }
 
     /** The engine's usage receipt (RECEIPT name seed_id pads tokens nonce sig): relay it as signed.
@@ -234,6 +236,7 @@ final class PadsClient {
     static boolean streamDirect(PadDelivery.Session session, Object vm, String base, String seed, String name, long bytes) {
         HttpURLConnection c = null; ParcelFileDescriptor pfd = null; java.io.Closeable connection = null;
         PadDirectStream.Outcome outcome = PadDirectStream.Outcome.IO_ERROR;
+        VmSendGate.Lease lease = null;
         try {
             c = (HttpURLConnection) new URL(base + "/v1/pads/shipments/" + seed + "/" + name).openConnection();
             connection = c::disconnect;
@@ -241,6 +244,12 @@ final class PadsClient {
             c.setConnectTimeout(20000); c.setReadTimeout(120000);
             final int code = c.getResponseCode();
             if (code != 200) { Main.say("PADS direct " + name + " http " + code); return false; }
+            /* This IS a PADS_PORT send, so it is gated identically. acquire() waits out a pause
+             * instead of returning an error, so a pause can never be recorded as a direct-stream
+             * failure and can never push this name onto the cached-file fallback. The fetch
+             * thread touches the gate ONLY here, i.e. only when direct streaming is enabled. */
+            lease = session.sendGate().acquire();
+            if (lease == null) { Main.say("PADS direct " + name + ": send gate closed"); return false; }
             pfd = Main.connect(vm, PADS_PORT, 50);
             if (pfd == null) { Main.say("PADS direct " + name + ": connect failed"); return false; }
             if (!session.track(pfd)) return false;
@@ -250,6 +259,7 @@ final class PadsClient {
         } catch (Exception e) { if (session.active()) Main.say("PADS direct " + name + " error " + e); }
         finally {
             if (pfd != null) { session.untrack(pfd); try { pfd.close(); } catch (Exception ignored) { } }   /* EOF to the receiver first */
+            if (lease != null) lease.release();   /* after close; idempotent token, never double-counts */
             if (connection != null) session.untrack(connection);
             if (c != null) c.disconnect();
         }
@@ -395,6 +405,12 @@ final class PadsClient {
                     for (java.io.File f : files) {
                         if (!session.active()) return;
                         if (session.accepted(f.getName())) continue;
+                        /* Lease BEFORE connect. acquire() WAITS while paused, so a pause never
+                         * surfaces as a failure and never mutates fallback state; null means the
+                         * gate closed or this thread was interrupted, both terminal here. */
+                        VmSendGate.Lease lease = session.sendGate().acquire();
+                        if (lease == null) return;
+                        try {
                         ParcelFileDescriptor pfd = Main.connect(vm, PADS_PORT, 50);
                         if (pfd == null) { Main.say("PADS connect failed"); return; }
                         try {
@@ -415,6 +431,7 @@ final class PadsClient {
                             }
                         } catch (Exception e) { if (session.active()) Main.say("PADS stream error " + e); }
                         finally { session.untrack(pfd); try { pfd.close(); } catch (Exception ignored) { } }
+                        } finally { lease.release(); }   /* after pfd.close(), every branch */
                     }
                 }
                 try { Thread.sleep(1000); } catch (InterruptedException e) { return; }

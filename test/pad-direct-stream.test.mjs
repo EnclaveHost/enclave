@@ -11,7 +11,7 @@ test('a sealed shipment streams from its HTTP body into the PADS receiver with n
   const dir = mkdtempSync(join(tmpdir(), 'pad-direct-'));
   try {
     const app = join(root, 'shielded/anchor/avf/host/app');
-    const cc = spawnSync('javac', ['--release', '17', '-Xlint:all', '-Werror', '-d', dir, join(app, 'PadDelivery.java'), join(app, 'PadAckQueue.java'),
+    const cc = spawnSync('javac', ['--release', '17', '-Xlint:all', '-Werror', '-d', dir, join(app, 'PadDelivery.java'), join(app, 'VmSendGate.java'), join(app, 'PadAckQueue.java'),
       join(app, 'PadDirectStream.java'), join(root, 'test/fixtures/PadDirectStreamTest.java')], {encoding:'utf8', timeout:60_000});
     assert.equal(cc.status, 0, cc.stdout + cc.stderr);
     const run = spawnSync('java', ['-cp', dir, 'host.enclave.anchor.avf.PadDirectStreamTest'], {encoding:'utf8', timeout:60_000});
