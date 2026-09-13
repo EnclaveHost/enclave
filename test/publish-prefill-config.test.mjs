@@ -46,9 +46,23 @@ function loadPrefill(fetchConfigCid) {
   const body = SRC.slice(start, end);
   // everything it closes over, stubbed to identity/known values so the
   // assertions are about the config path and nothing else
+  // cpuFallbackOfConfig is the REAL one, lifted out of catalog.js the same way
+  // (that module can't be imported here - it touches `document` at load). It
+  // reads the same config this test is about, so stubbing it would hide the
+  // one thing worth checking: which config the coreless sizing comes from.
   return new Function("fetchConfigCid", "mediaOf", "nextFreeVersion", "prettyConfig", "stripMedia",
+    "cpuFallbackOfConfig",
     body + "; return publishPrefillOf;")(
-      fetchConfigCid, () => ({}), () => "9.9.9", (s) => s, (s) => s);
+      fetchConfigCid, () => ({}), () => "9.9.9", (s) => s, (s) => s, loadCpuFallbackOfConfig());
+}
+
+const CATALOG_SRC = fs.readFileSync(path.join(REPO, "site/js/core/catalog.js"), "utf8");
+function loadCpuFallbackOfConfig() {
+  const start = CATALOG_SRC.indexOf("export function cpuFallbackOfConfig(");
+  assert.ok(start > 0, "catalog.js no longer defines cpuFallbackOfConfig");
+  const end = CATALOG_SRC.indexOf("\n}\n", start) + 3;
+  return new Function(CATALOG_SRC.slice(start, end).replace("export ", "")
+    + "; return cpuFallbackOfConfig;")();
 }
 
 const appWith = (v) => ({ slug: "eyesoff-ai", name: "EyesOff AI", description: "", active: true, versions: [v] });
@@ -97,4 +111,26 @@ test("gpuOptional is read from the resolved config, not the stale inline field",
     config: MANIFEST, configCid: "bafkreiektgu" }), 0);
   assert.equal(s.gpuOptional, false,
     "the switch must reflect the config the publisher will actually ship");
+});
+
+test("cpuFallback comes from the resolved config too, and survives an add-version", async () => {
+  // The coreless sizing has the same hazard as gpuOptional one key over: it is
+  // a ROUTING key, so it lives in the on-chain manifest AND in the real config,
+  // and the two disagree the moment a publisher edits one. Reading the stale
+  // manifest would re-publish a node floor the publisher had already changed —
+  // and silently, since nothing downstream can tell the figures apart.
+  const prefill = loadPrefill(async () => JSON.stringify({
+    tools: {}, gpuOptional: true, cpuFallback: { memMb: 40960, cpuGflops: 400 } }));
+  const s = await prefill(appWith({ version: "1.0.12", cid: "ipfs://x",
+    config: JSON.stringify({ wasi: "0.2", gpuOptional: true, cpuFallback: { memMb: 8192 } }),
+    configCid: "bafkreiektgu" }), 0);
+  assert.deepEqual(s.cpuFallback, { memMb: 40960, cpuGflops: 400 },
+    "the figures the publisher will actually ship, not the manifest's stale copy");
+
+  // a version that declares none prefills none — the fields come up at 0 and
+  // the next publish carries no key, exactly like every version before this
+  const bare = loadPrefill(async () => JSON.stringify({ tools: {}, gpuOptional: true }));
+  const b = await bare(appWith({ version: "1.0.12", cid: "ipfs://x",
+    config: MANIFEST, configCid: "bafkreiektgu" }), 0);
+  assert.equal(b.cpuFallback, null);
 });

@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
+  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, cpuFloorFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
   hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV,
   enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../site/js/core/pricing.js";
 
@@ -29,14 +29,21 @@ import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, encl
 // card" when no share it could sell was enough.
 function runnerMins(v, hw, volGb = 0) {
   const pc = (x) => Math.max(1, Math.ceil(x * 100 - 1e-9));
-  const cpuOf = (mb) => pc(Math.max(mb / (hw.nodeRamGb * 1024), (v.cpuGflops || 0) / hw.nodeGflops));
+  const cpuOf = (mb, gf) => pc(Math.max(mb / (hw.nodeRamGb * 1024),
+                                        (gf != null ? gf : (v.cpuGflops || 0)) / hw.nodeGflops));
   const cpu = (v.memMb || v.cpuGflops) ? cpuOf(v.memMb || 0) : 0;
+  // the node floor WITHOUT a card, for a version that sized that case: on a
+  // card the weights sit in the tenant's VRAM slice, on cores they are in node
+  // RAM beside the guest and the matmuls are the node's work. Clamped up, so
+  // the key can only ever raise a coreless floor.
+  const fb = v.cpuFallback;
+  const cpuNoGpu = fb ? Math.max(cpu, cpuOf(fb.memMb || 0, fb.cpuGflops || 0)) : cpu;
   // each axis floors on its OWN hardware — no cross-lift since ledger rev 13.
   // Volumes correct a declared card figure; they never create one.
   const vramGb = (v.vramMb || 0) > 0 ? Math.max(v.vramMb / 1024, volGb) : 0;
   const need = (vramGb > 0 || v.gpuGflops)
     ? pc(Math.max(vramGb / hw.cardVramGb, (v.gpuGflops || 0) / 1000 / hw.cardTflops)) : 0;
-  return { gpuPct: v.gpuOptional ? 0 : need, gpuNeedPct: need, cpuPct: cpu };
+  return { gpuPct: v.gpuOptional ? 0 : need, gpuNeedPct: need, cpuPct: cpu, cpuPctNoGpu: cpuNoGpu };
 }
 
 // image-generator 1.0.2 — the version that produced the stuck deployment
@@ -50,7 +57,7 @@ test("fallback floors already match the live H200 (the 0xf3d976a0 regression)", 
   const m = minPctsOf(IMAGE_GEN);
   // the old 141 constant said 91 — unclaimable. No volumes here, so the
   // on-cores floor equals the plain one and the need equals the floor.
-  assert.deepEqual(m, { gpuPct: 92, gpuNeedPct: 92, cpuPct: 8 });
+  assert.deepEqual(m, { gpuPct: 92, gpuNeedPct: 92, cpuPct: 8, cpuPctNoGpu: 8 });
   assert.deepEqual(m, runnerMins(IMAGE_GEN, H200));
 });
 
@@ -841,4 +848,94 @@ test("a pooled GPU uses aggregate capacity and its pool lease fraction", () => {
     shieldedCards: [{ id: 0, gpuShareFree: .8, vramGb: 6.5 }] } });
   assert.equal(p.total, 68.5); assert.equal(p.frac, .1);
   assert.ok(Math.abs(p.leasableGb - 6.85) < 1e-9);
+});
+
+/* ---- cpuFallback: the console's half of the two node floors ---------------
+
+   The catalog holds ONE set of four axes, so a soft-GPU version can only
+   declare one of the two cases it has. A version config's
+   `cpuFallback: {memMb, cpuGflops}` declares the other: what the app needs
+   from a node when no card is available, where the weights it would have kept
+   in a VRAM slice live in node RAM beside the guest (inside the linear memory
+   the cpuShare caps) and the matmuls are the node's work.
+
+   This mirror must never sit BELOW the runner's, for the usual reason: a
+   console floor under the runner's sells a deployment nobody will claim. The
+   parity here is against runnerMins, the same independent re-derivation the
+   sweep above uses. */
+
+// eyesoff-shaped: 4 GB of node beside its card, 40 GB without one
+const SOFT_FB = { ...EYESOFF, cpuFallback: { memMb: 40960 } };
+
+test("cpuFallback gives the console two node floors, and the runner agrees on both", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  const m = minPctsOf(SOFT_FB, H200);
+  assert.equal(m.cpuPct, 7, "4096 MB of a 64 GB node - the on-chain axes, for the card case");
+  assert.equal(m.cpuPctNoGpu, 63, "40960 MB of the same node, once the weights leave the card");
+  assert.deepEqual(m, runnerMins(SOFT_FB, H200), "console and runner derive both floors identically");
+  // and which one binds is decided by what the dial buys
+  assert.equal(cpuFloorFor(m, 36), 7, "a card was bought: the card-case floor");
+  assert.equal(cpuFloorFor(m, 0), 63, "no card: the weights are in node RAM");
+});
+
+test("cpuFallback only ever RAISES a coreless floor", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  // a declaration below the card case describes something no app does, and
+  // honouring it would under-size the very placement the key exists for
+  const smaller = minPctsOf({ ...EYESOFF, cpuFallback: { memMb: 64 } }, H200);
+  assert.equal(smaller.cpuPctNoGpu, smaller.cpuPct, "clamped up to the on-chain axes");
+  // a version that declares none keeps exactly one floor
+  const none = minPctsOf(EYESOFF, H200);
+  assert.equal(none.cpuPctNoGpu, none.cpuPct);
+  assert.equal(cpuFloorFor(none, 0), none.cpuPct, "nothing changes for every version published so far");
+});
+
+test("boundary sweep: the coreless floor never under-sells the runner either", () => {
+  // same shape as the sweep above, on the axis this adds: every whole-percent
+  // boundary +/-1 MB of the fallback figure, where ceil math can split
+  for (const ramGb of [3, 29, 64, 128]) {
+    const hw = { ...H200, nodeRamGb: ramGb };
+    adoptServerSpec(hw);
+    for (let n = 1; n <= 100; n++) {
+      const edge = (n / 100) * ramGb * 1024;
+      for (const memMb of [Math.floor(edge) - 1, Math.floor(edge), Math.floor(edge) + 1]) {
+        if (memMb <= 0) continue;
+        const v = { ...EYESOFF, cpuFallback: { memMb } };
+        const site = minPctsOf(v, hw), runner = runnerMins(v, hw);
+        assert.equal(site.cpuPctNoGpu, runner.cpuPctNoGpu,
+          `coreless floor drift at ram=${ramGb} memMb=${memMb}`);
+        assert.ok(site.cpuPctNoGpu >= runner.cpuPct, "and never below the card-case floor");
+      }
+    }
+  }
+});
+
+test("the deploy dials start at the floor for the box they're headed to", () => {
+  adoptServerSpec({ gpu: true, ...H200 });
+  // a GPU target buys the small node slice - paying for 63% of a node whose
+  // RAM the weights never touch is exactly the waste this split avoids
+  assert.deepEqual(startSharesFor(SOFT_FB, H200), { gpuPct: 36, cpuPct: 7 },
+    "the declared card beside the card-case node floor");
+  // a target that would serve it on cores buys the slice that fits there
+  assert.deepEqual(startSharesFor(SOFT_FB, H200, 0, true), { gpuPct: 36, cpuPct: 63 },
+    "no card to hold the weights: the node has to");
+  // unchanged for a version that declares no fallback
+  assert.deepEqual(startSharesFor(EYESOFF, H200, 0, true), startSharesFor(EYESOFF, H200),
+    "one floor, one start slice");
+});
+
+test("ranking prices and orders a CPU target by the floor it will actually demand", () => {
+  const gpuBox = row("kryptos", GPU_BOX, { id: ID_A });
+  const cpuBox = row("metal0", CPU_BOX, { id: ID_B });
+  const ranked = rankEnclavesFor(SOFT_FB, [gpuBox, cpuBox]);
+  const [card, cores] = [ranked.find(t => t.name === "kryptos"), ranked.find(t => t.name === "metal0")];
+  assert.equal(card.cpuFloor, 7, "the box whose card holds the weights charges for the small slice");
+  assert.equal(cores.cpuFloor, 63, "the box that holds them in node RAM charges for the big one");
+  assert.ok(cores.minRate > card.minRate,
+    "and the money ranking sees it: the same app costs more on the box that must hold the weights in node RAM");
+  // a CPU box with less free node than the coreless floor needs is QUEUED, not
+  // offered as ready: it would refuse the claim at that share
+  const tight = row("metal0", { ...CPU_BOX, cpuShareFree: 0.2 }, { id: ID_B });
+  const t = rankEnclavesFor(SOFT_FB, [gpuBox, tight]).find(x => x.name === "metal0");
+  assert.equal(t.queued, true, "20% free against a 63% floor cannot take it now");
 });
