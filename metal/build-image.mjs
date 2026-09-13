@@ -289,6 +289,63 @@ let shieldedBuild = null;
 
 // Compile wasm/ggml-shielded into the wasm chroot. Returns the build record for
 // the manifest, or throws with a reason a human can act on.
+// Will this .so actually dlopen INSIDE the guest?
+//
+// The backend is compiled HERE, by this host's toolchain, and runs THERE, in
+// the wasm chroot, against the glibc/libstdc++ the engine image ships. When the
+// builder's libraries are newer, the linker happily binds a symbol to a version
+// node the guest has never heard of and nothing complains until the enclave
+// tries to load it - at which point the failure is silent in every direction
+// that matters: the wasm-manager's shielded probe (`_shielded_pool_available`)
+// runs the dlopen in a subprocess with stderr to /dev/null, reports
+// `shieldedPool: false`, and the supervisor dutifully advertises 0% of a card.
+// A box with two healthy GPUs then sells nothing, with no error anywhere.
+//
+// So compare what the .so REQUIRES against what the guest root PROVIDES, and
+// fail the build. Cheap, exact, and it names the symbol.
+function assertLoadableInGuest(so, libDir) {
+  const wantByLib = new Map();                       // lib -> Set(version nodes)
+  let cur = null;
+  for (const line of out('objdump', ['-p', so]).split('\n')) {
+    const from = line.match(/^\s*required from (\S+):/);
+    if (from) { cur = from[1]; wantByLib.set(cur, new Set()); continue; }
+    if (!cur) continue;
+    const v = line.match(/^\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+\d+\s+(\S+)/);
+    if (v) wantByLib.get(cur).add(v[1]);
+    else if (line.trim() === '') cur = null;
+  }
+  // Where the guest's loader would find each one: the engine's own lib dir
+  // (the .so's RUNPATH) and the chroot's system paths.
+  const roots = [libDir, ...['lib/x86_64-linux-gnu', 'usr/lib/x86_64-linux-gnu', 'lib64', 'usr/lib']
+    .map((d) => path.join(WASM_ROOT, d))];
+  const missing = [];
+  for (const [lib, want] of wantByLib) {
+    const dir = roots.find((r) => fs.existsSync(path.join(r, lib)));
+    if (!dir) {                                      // not shipped: the loader would fail outright
+      missing.push(`${lib}: not present anywhere in the guest root`);
+      continue;
+    }
+    const have = new Set();
+    let inDefs = false;
+    for (const line of out('objdump', ['-p', path.join(dir, lib)]).split('\n')) {
+      if (/^Version definitions:/.test(line)) { inDefs = true; continue; }
+      if (inDefs) {
+        if (line.trim() === '') { inDefs = false; continue; }
+        const d = line.match(/^\d+\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\S+)/);
+        if (d) have.add(d[1]);
+        const parent = line.match(/^\s+(\S+)\s*$/);   // inherited node on its own line
+        if (parent) have.add(parent[1]);
+      }
+    }
+    for (const v of want)
+      if (!have.has(v)) missing.push(`${lib}: needs ${v}, guest provides only ${[...have].sort().join(' ') || '(none)'}`);
+  }
+  if (missing.length)
+    throw new Error('shielded: the backend would not load inside the guest - this builder\'s '
+      + 'libraries are newer than the engine image\'s:\n  ' + missing.join('\n  ')
+      + '\nBuild the offending call out (see -fno-math-errno above) or rebuild on the guest\'s glibc.');
+}
+
 function buildShieldedBackend(dstRoot) {
   const vendorDir = path.join(SHIELDED_CODE, 'vendor', 'ggml');
   const libDir = path.join(WASM_ROOT, 'usr/local/lib');
@@ -313,14 +370,24 @@ function buildShieldedBackend(dstRoot) {
   fs.rmSync(objDir, { recursive: true, force: true });
   fs.mkdirSync(objDir, { recursive: true });
   const inc = ['-I' + vendorDir, '-I' + SHIELDED_CODE];
-  const base = ['-O2', '-Wall', '-Wextra', '-fPIC'];
-  // Flags mirror wasm/ggml-shielded/Makefile. Two are load-bearing rather than
-  // taste: -ffp-contract=off on the field encoder, because the worker runs the
-  // same source and an FMA would round differently on one side, making the
-  // unmasking subtraction return noise; and the SIMD file compiled TWICE, since
+  const base = ['-O2', '-Wall', '-Wextra', '-fPIC', '-fno-math-errno'];
+  // Flags mirror wasm/ggml-shielded/Makefile. THREE are load-bearing rather
+  // than taste: -ffp-contract=off on the field encoder, because the worker runs
+  // the same source and an FMA would round differently on one side, making the
+  // unmasking subtraction return noise; the SIMD file compiled TWICE, since
   // the .so must load on any x86-64 (a SIGILL inside the engine is not a
   // degraded mode) and picks its kernels at run time after checking the two
-  // builds agree.
+  // builds agree; and -fno-math-errno, which is an ABI guard, not an
+  // optimisation. THIS BUILDER'S GLIBC IS NEWER THAN THE GUEST'S. Without the
+  // flag, gcc emits a real call to libm's sqrtf for `1/sqrt(mean+eps)` in
+  // shielded-fusion.h, and on a glibc-2.43 builder that call binds to
+  // sqrtf@GLIBC_2.43 — a version node the guest's libm does not define, so the
+  // .so fails to dlopen INSIDE the enclave with `version GLIBC_2.43 not
+  // found`. With it, sqrtf is the sqrtss instruction and no symbol is
+  // referenced at all; results are unchanged (IEEE-754 requires a correctly
+  // rounded square root either way, which the byte-exact field encoder
+  // depends on). Diagnosed 2026-09-13: it cost metal0 its whole GPU market —
+  // see the ABI check after the link, which now fails the BUILD instead.
   const units = [
     { src: 'shielded-field.c', obj: 'shielded-field.o', cc: 'cc',  flags: [...base, '-ffp-contract=off'] },
     { src: 'shielded-wire.c',  obj: 'shielded-wire.o',  cc: 'cc',  flags: base },
@@ -363,6 +430,7 @@ function buildShieldedBackend(dstRoot) {
              '-Wl,--no-undefined',            // a missing unit fails HERE, not at dlopen inside the enclave
              '-Wl,-rpath,/usr/local/lib']);
   fs.chmodSync(so, 0o755);
+  assertLoadableInGuest(so, libDir);
   const ompProfileSrc = path.join(SHIELDED_CODE, 'shielded-omp-profile.c');
   const ompProfileSo = path.join(dstRoot, 'libenclave-omp-profile.so');
   sh('cc', [...base, '-std=c11', '-shared', ompProfileSrc, '-ldl', '-lpthread', '-o', ompProfileSo]);

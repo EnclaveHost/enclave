@@ -32,3 +32,26 @@ test("the image build refuses undefined symbols in the shielded library", () => 
   // the dealer-only path stays out of the image: no SHIELDED_DEALER_MODE flag in any unit
   assert.doesNotMatch(builder, /SHIELDED_DEALER_MODE/, "the image must never carry the zero-pad mint path");
 });
+
+// The builder's glibc is NEWER than the engine image's. gcc turns
+// `1/sqrt(mean+eps)` (shielded-fusion.h) into a call to libm's sqrtf, and on a
+// glibc-2.43 host that call binds to sqrtf@GLIBC_2.43 — a version node the
+// guest's libm does not define. The .so then fails to dlopen inside the
+// enclave, the wasm-manager's shielded probe reports shieldedPool:false with
+// its stderr on /dev/null, and the supervisor advertises 0% of a card: two
+// healthy GPUs, no market, no error. -fno-math-errno makes sqrtf the sqrtss
+// instruction, referencing nothing. (metal0, 2026-09-13.)
+test("both shielded build paths keep the glibc-skew flag", () => {
+  assert.match(builder, /-fno-math-errno/, "metal/build-image.mjs base flags");
+  assert.match(makefile, /^CFLAGS\s+\?=.*-fno-math-errno/m, "Makefile CFLAGS");
+  assert.match(makefile, /^CXXFLAGS\s+\?=.*-fno-math-errno/m, "Makefile CXXFLAGS");
+});
+
+test("the image build proves the shielded library would load inside the guest", () => {
+  assert.match(builder, /function assertLoadableInGuest\(/, "the guard exists");
+  // called on the linked .so, before anything ships it
+  assert.match(builder, /assertLoadableInGuest\(so, libDir\)/, "the guard runs on the linked .so");
+  // it compares REQUIRED version nodes against what the guest root PROVIDES
+  assert.match(builder, /required from/, "parses the .so's version references");
+  assert.match(builder, /Version definitions:/, "parses what the guest libraries define");
+});

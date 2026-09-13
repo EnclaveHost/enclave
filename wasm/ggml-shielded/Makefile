@@ -5,7 +5,14 @@
 # engine; the backend object is what gets linked into the ELL build.
 
 CC      ?= cc
-CFLAGS  ?= -O2 -Wall -Wextra -fPIC
+# -fno-math-errno is an ABI guard, not an optimisation: without it gcc emits a
+# call to libm's sqrtf for 1/sqrt(mean+eps) in shielded-fusion.h, and a builder
+# on glibc >= 2.43 binds it to sqrtf@GLIBC_2.43 - a version node older guests
+# (the metal engine image) do not define, so the .so fails to dlopen there.
+# Inlined as sqrtss it references nothing and rounds identically, which the
+# byte-exact field encoder needs. metal/build-image.mjs mirrors this and
+# fails the build if the result would not load in the guest.
+CFLAGS  ?= -O2 -Wall -Wextra -fPIC -fno-math-errno
 LDLIBS  += -lm
 
 CORE_SRC := shielded-field.c shielded-wire.c shielded-tee.c shielded-pads.c shielded-bank.c shielded-http.c prefix-kv.c tweetnacl.c poly1305-donna.c
@@ -32,7 +39,7 @@ GGML_SRC ?= $(HOME)/Projects/llama.cpp
 GGML_LIB ?= $(HOME)/Projects/llamacpp-lib
 GGML_INC := -I$(GGML_SRC)/ggml/include -I$(GGML_SRC)/ggml/src
 CXX      ?= c++
-CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC
+CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno
 
 all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest
 
