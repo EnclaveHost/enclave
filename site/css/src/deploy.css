@@ -12,6 +12,10 @@
   transition:border-color .15s var(--ease),box-shadow .15s var(--ease);}
 .field textarea{resize:vertical;min-height:66px;line-height:1.5;}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+/* the publish form's "Without a card" pair: two sized fields side by side
+   inside one full-width field, collapsing to a column on narrow screens */
+.pub-nogpu{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media (max-width:620px){.pub-nogpu{grid-template-columns:1fr;}}
 .seg{display:flex;gap:6px;}
 .seg button{flex:1;font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);background:var(--well);border:1px solid var(--line);border-radius:8px;padding:.55em;cursor:pointer;transition:border-color .15s var(--ease),color .15s var(--ease);position:relative;}
 .seg button:hover{border-color:var(--line-hover);color:var(--text);}

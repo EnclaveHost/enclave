@@ -197,7 +197,7 @@ const VERSION_TUPLE_V3 = [...VERSION_TUPLE, { name: "config", type: "string" }];
 // lives at a CID: what a runner reads off the record to PLACE the deployment,
 // plus the catalog grid's tile art. Mirrors ROUTING_KEYS in
 // site/js/core/chain.js and cli/enclave.mjs — keep the three in lockstep.
-const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "volumes", "_media"];
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "cpuFallback", "volumes", "_media"];
 const publishInputsFor = (rev) => [
   { name: "slug", type: "string" }, { name: "name", type: "string" },
   { name: "description", type: "string" }, { name: "version", type: "string" },
@@ -1460,7 +1460,7 @@ const TOOLS = [
       vramMb: { type: "number" }, gpuGflops: { type: "number" },
       memMb: { type: "number", description: "default 256" }, cpuGflops: { type: "number", description: "default 10" },
       ports: { type: "string", description: "CSV, e.g. \"http:8080,tcp:25565\"" },
-      config: { type: "string", description: "Default/template ENCLAVE_CONFIG JSON (≤4096 bytes, immutable per version). With configCid set this is instead the small ROUTING MANIFEST kept on-chain (wasi/threads/set/gpuOptional), not the app's config." },
+      config: { type: "string", description: "Default/template ENCLAVE_CONFIG JSON (≤4096 bytes, immutable per version). With configCid set this is instead the small ROUTING MANIFEST kept on-chain (wasi/threads/set/gpuOptional/cpuFallback), not the app's config. Two keys here change how the app is PLACED AND SIZED: gpuOptional:true says the declared card is preferred rather than required, and cpuFallback:{memMb,cpuGflops} says what the app needs from a node when it runs without one (the four on-chain axes describe it beside the card - an LLM holding its weights in a VRAM slice needs far more node RAM once they move into it)." },
       configCid: { type: "string", description: "Catalog rev 7: the IPFS CID of a config too large to store inline (up to 1 MB). Pin it yourself first (POST /add-json, wallet-signed) — this server holds no keys and cannot pin for you. The CID becomes part of the immutable, approval-covered version record, and enclaves re-fetch and hash-verify it." },
       feeUsdPerHour: { type: "number", description: "Publisher fee in USD per hour (0 = free; platform-capped)" },
     }, ["publisher", "slug", "cid"]),
@@ -1479,7 +1479,8 @@ const TOOLS = [
       if (a.configCid && rev < 7) throw new Error("configCid needs the rev-7 catalog; inline configs cap at 4096 bytes");
       // With the config behind a CID, `config` is the on-chain routing manifest
       // and it is NOT optional bookkeeping: runners place a deployment on
-      // wasi/threads/set/volumes/gpuOptional before they fetch anything. This
+      // wasi/threads/set/volumes/gpuOptional before they fetch anything, and
+      // SIZE it on cpuFallback in the same pass. This
       // server signs nothing and never sees the wasm, so it cannot derive the
       // manifest the way `enclave publish` does — say so rather than encode a
       // tx that strands a p3/threaded/volume-mounting app on the wrong box.
@@ -1493,7 +1494,7 @@ const TOOLS = [
           `with configCid set, config is the on-chain routing manifest and may only carry ${ROUTING_KEYS.join("/")} — `
           + `move ${extra.join(", ")} into the pinned config (the guest receives that, not this)`);
         if (!carried.length) throw new Error(
-          "config is empty of routing keys; if the app targets wasip3, uses threads/set, mounts volumes, or is gpuOptional, "
+          "config is empty of routing keys; if the app targets wasip3, uses threads/set, mounts volumes, is gpuOptional, or declares a cpuFallback, "
           + "those keys must ride the record or runners will place it on a box that cannot run it");
       }
       const feeUsdHr = Number(a.feeUsdPerHour) || 0;

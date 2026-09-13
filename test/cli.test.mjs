@@ -413,6 +413,54 @@ test("upgrade honors the publisher's optional GPU requirement", async () => {
   } finally { S.depRev = 3n; S.versionCount = 1; S.v2 = null; }
 });
 
+/* A soft-GPU version that also sized the CORELESS case. The four on-chain axes
+   describe this app beside its card (256 MB of node - the guest's own memory,
+   weights resident in a VRAM slice); `cpuFallback` in the version config says
+   what it needs once those weights move into node RAM. The CLI has to size the
+   deployment by the placement its DIAL buys, exactly as the runner does: a
+   floor below the runner's mints a record that box will refuse to claim. */
+test("a 0% GPU dial is sized by the version's cpuFallback, not its card-case axes", async () => {
+  S.txs.length = 0; S.versionCount = 2;
+  // 16 GB of the stub's 32 GB node = a 50% cpu share; the card case is 256 MB = 1%
+  S.v2 = { vramMb: 131072, gpuGflops: 100000, memMb: 256, cpuGflops: 1,
+           config: JSON.stringify({ gpuOptional: true, cpuFallback: { memMb: 16384 } }) };
+  try {
+    // no --gpu/--cpu: the defaults follow the dial, and a soft card floors at 0
+    const r = await run(["deploy", "hello-world:2", "--fund", "1", "--no-wait"]);
+    assert.equal(r.code, 0, r.err);
+    const [, gpuMilli, cpuMilli] = S.txs.find((t) => t.functionName === "create").args;
+    assert.equal(gpuMilli, 0, "a soft card sets no floor, so the default dial buys none");
+    assert.equal(cpuMilli, 500,
+      "16384 MB of the stub's 32 GB node - the CORELESS floor, not the 1% the card case needs");
+  } finally { S.versionCount = 1; S.v2 = null; }
+});
+
+test("buying a card keeps the small node slice - the point of the split", async () => {
+  S.txs.length = 0; S.versionCount = 2;
+  S.v2 = { vramMb: 131072, gpuGflops: 100000, memMb: 256, cpuGflops: 1,
+           config: JSON.stringify({ gpuOptional: true, cpuFallback: { memMb: 16384 } }) };
+  try {
+    const r = await run(["deploy", "hello-world:2", "--gpu", "0.5", "--fund", "1", "--no-wait"]);
+    assert.equal(r.code, 0, r.err);
+    const [, gpuMilli, cpuMilli] = S.txs.find((t) => t.functionName === "create").args;
+    assert.equal(gpuMilli, 500);
+    assert.equal(cpuMilli, 10,
+      "weights in a VRAM slice: the node dial stays at the card-case floor, unbilled for 16 GB it never holds");
+  } finally { S.versionCount = 1; S.v2 = null; }
+});
+
+test("upgrade refuses a coreless dial below the version's cpuFallback, and says why", async () => {
+  S.txs.length = 0; S.depRev = 6n; S.versionCount = 2;
+  S.v2 = { vramMb: 131072, gpuGflops: 100000, memMb: 256, cpuGflops: 1,
+           config: JSON.stringify({ gpuOptional: true, cpuFallback: { memMb: 16384 } }) };
+  try {
+    const r = await run(["upgrade", ID, "2", "--gpu", "0", "--cpu", "0.05"]);
+    assert.notEqual(r.code, 0, "must refuse before any signature");
+    assert.ok(!S.txs.length, "no tx sent");
+    assert.match(r.err, /without a card/, "the message has to name the reason, not just the number");
+  } finally { S.depRev = 3n; S.versionCount = 1; S.v2 = null; }
+});
+
 test("whoami: address + balances from chain, SIWE login verified server-side", async () => {
   const r = await run(["whoami", "--json"]);
   assert.equal(r.code, 0, r.err);

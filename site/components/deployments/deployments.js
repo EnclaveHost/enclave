@@ -25,7 +25,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, cpuFloorFor, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
 function deploymentTitle(d) {
@@ -1189,11 +1189,29 @@ class Deployments extends EnclaveElement {
     // record is re-priced at whichever box claims it next.
     const freeHere = rev >= 12 && !!hw && hostChargeWaived(hw.row, d.owner);
     const bought = { gpuMilli: Number(d.gpuMilli) || 0, cpuMilli: Number(d.cpuMilli) || 0 };
+    /* WHICH node floor a candidate version has to clear here. On a cpuFallback
+       version the card case and the coreless case are different numbers, and
+       the lease holder decides which applies: this tenant's weights are in a
+       VRAM slice only if it bought a card, the box HAS one, and that card can
+       hold the version being switched to. Anything else and they are in node
+       RAM, where the fallback figure is the floor - the runner's version-change
+       gate sizes against where the tenant is ACTUALLY running for exactly this
+       reason, and a console floor below the runner's would offer a switch that
+       gets the deployment EVICTED rather than merely refused.
+       `gpuMilli` is a parameter because the dials can change the answer while
+       you type: dial the card to 0 and this becomes a coreless placement.
+       Same `gpuNeedPct <= 100` predicate rankEnclavesFor uses, with the same
+       blind spot for a shielded card (it serves any size, so the runner would
+       keep the card floor) - which errs toward the LARGER floor here, i.e.
+       toward disabling a switch rather than toward an eviction. */
+    const hostGpu = !!(hw && hw.row && hw.row.availability && hw.row.availability.gpu === true);
+    const cpuNeedOf = (r, gpuMilli) => cpuFloorFor(r.mins,
+      (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && hostGpu && r.mins.gpuNeedPct <= 100 ? 1 : 0);
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
       .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)
       .map(r => ({ ...r,
-        shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && r.mins.cpuPct * 10 <= bought.cpuMilli,
+        shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && cpuNeedOf(r) * 10 <= bought.cpuMilli,
         feeFit: (verFees[r.i] || 0n) <= snapFee }))
       .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
       .reverse();
@@ -1209,7 +1227,7 @@ class Deployments extends EnclaveElement {
       +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
       +       esc(app.slug + ":" + r.v.version)
       +       (r.i === cr.index ? " · current" : "")
-      +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + r.mins.cpuPct + "% CPU"
+      +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + cpuNeedOf(r) + "% CPU"
                                                  + (hw ? " on " + hw.name : "") : "")
       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
@@ -1284,8 +1302,10 @@ class Deployments extends EnclaveElement {
       const ver = app.slug + ":" + r.v.version;
       if (t.gpuMilli < r.mins.gpuPct * 10)
         return "// " + ver + " needs at least " + r.mins.gpuPct + "% GPU" + (hw ? " on " + hw.name : "");
-      if (t.cpuMilli < Math.max(10, r.mins.cpuPct * 10))
-        return "// " + ver + " needs at least " + Math.max(1, r.mins.cpuPct) + "% CPU" + (hw ? " on " + hw.name : "");
+      const cNeed = cpuNeedOf(r, t.gpuMilli);
+      if (t.cpuMilli < Math.max(10, cNeed * 10))
+        return "// " + ver + " needs at least " + Math.max(1, cNeed) + "% CPU" + (hw ? " on " + hw.name : "")
+             + (cNeed > r.mins.cpuPct ? " without a card (its weights live in node RAM there)" : "");
       if (t.cpuMilli > 1000) return "// the CPU share can’t be more than 100% of the node";
       if (t.gpuMilli > maxGpu) return "// GPU over the platform’s per-deployment cap of " + (maxGpu / 10) + "%";
       // The two dials are independent from ledger rev 13 on. Older ledgers
@@ -1316,14 +1336,18 @@ class Deployments extends EnclaveElement {
         // the floors ride the spinner and the a11y contract, not the keystroke:
         // min/max steer the arrows and announce the range without touching what
         // you typed (browsers don't refuse out-of-range typing outside a form)
-        gIn.min = r.mins.gpuPct; cIn.min = Math.max(1, r.mins.cpuPct);
+        gIn.min = r.mins.gpuPct;
+        // the GPU dial first, because it decides which node floor applies: the
+        // CPU minimum shown beside a card is not the one shown without it
+        if (prefill && Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
+        const cNeed = cpuNeedOf(r, dials().gpuMilli);
+        cIn.min = Math.max(1, cNeed);
         if (prefill){
           // pick a version that needs more than this deployment bought and the
           // dials come up already holding its minimums - the convenience the
           // old per-keystroke version was after, at the one moment it can't
           // land in the middle of a number being typed
-          if (Math.round(Number(gIn.value || 0)) < r.mins.gpuPct) gIn.value = r.mins.gpuPct;
-          if (Math.round(Number(cIn.value || 0)) < Math.max(1, r.mins.cpuPct)) cIn.value = Math.max(1, r.mins.cpuPct);
+          if (Math.round(Number(cIn.value || 0)) < Math.max(1, cNeed)) cIn.value = Math.max(1, cNeed);
           // pre-13 ledgers refuse a GPU dial under the CPU one; on 13+ the
           // prefill leaves both exactly where the app's floors put them
           const p = dials();

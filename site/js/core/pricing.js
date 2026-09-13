@@ -160,8 +160,16 @@ export function minPctsOf(v, spec, opts){
   const volGb = Math.max(0, Number(opts && opts.volGb) || 0);
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
-  const cpuOf = (mb) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), cpuGf / s.nodeGflops));
+  const cpuOf = (mb, gf) => pctCeil(Math.max(mb / (s.nodeRamGb * 1024), (gf != null ? gf : cpuGf) / s.nodeGflops));
   const cpu = (memMb > 0 || cpuGf > 0) ? cpuOf(memMb) : 1;
+  // The same app WITHOUT a card, where its publisher sized that case. On a
+  // card the weights are resident in the tenant's VRAM slice and the node
+  // holds only the guest; on cores they are in node RAM beside it and the
+  // matmuls are the node's work too, so this is a different - larger - floor.
+  // Clamped UP against the card case, exactly as the runner's minSharesOf
+  // does: the key may only ever RAISE a coreless floor, never lower one.
+  const fb = v && v.cpuFallback;
+  const cpuNoGpu = fb ? Math.max(cpu, cpuOf(Number(fb.memMb) || 0, Number(fb.cpuGflops) || 0)) : cpu;
   // A version whose publisher marked the card OPTIONAL sets no GPU floor: the
   // app starts without one. Mirrors the runner's minSharesOf exactly — this
   // floor may never sit below the runner's or the deployment is unclaimable.
@@ -176,9 +184,17 @@ export function minPctsOf(v, spec, opts){
   return {
     gpuPct: (v && v.gpuOptional) ? 0 : need,   // the enforceable floor (optional = none)
     gpuNeedPct: need,                          // the TRUE ask on this card; may exceed 100
-    cpuPct: cpu,
+    cpuPct: cpu,                               // node floor ON A CARD (weights in the VRAM slice)
+    cpuPctNoGpu: cpuNoGpu,                     // ...and on cores. Equal unless the version
+                                               // declares cpuFallback; never lower.
   };
 }
+/* WHICH of the two node floors a dial has to clear, given what it buys. Mirrors
+   the runner's cpuFloorFor: a 0% GPU dial IS the coreless placement, and a
+   GPU-dialled deployment that FALLS BACK to cores is judged there by the same
+   coreless floor - so a soft-GPU app dialled for the card case runs on GPU
+   boxes and is refused by CPU ones, which is exactly what it asked for. */
+export const cpuFloorFor = (mins, gpuPct) => Number(gpuPct) > 0 ? mins.cpuPct : mins.cpuPctNoGpu;
 /* THE LEDGER REV THAT FREED THE TWO DIALS. Revs <= 12 reverted create() and
    setShares() whenever a non-zero gpuMilli sat below cpuMilli, so every client
    that builds one of those transactions had to lift the GPU dial to match — a
@@ -221,11 +237,20 @@ export function wantedGpuPct(v, spec){
    app starts at its small declared card slice beside its large node slice. On a
    pre-13 ledger the caller runs the result through liftSharesForLedger, which
    is the only thing that will still round the card up to clear create(). */
-export function startSharesFor(v, spec, cap){
+export function startSharesFor(v, spec, cap, onCores){
   const mins = minPctsOf(v, spec);
+  // The node dial starts at the floor for the placement this is actually
+  // headed for, which on a version with a cpuFallback are two different
+  // numbers. Deliberately NOT the larger of them: a deployment landing on a
+  // card holds its weights in VRAM and would pay for node RAM it never
+  // touches. The cost of that choice is that such a deployment cannot ALSO
+  // fall back to cores at this dial - it stays on GPU boxes - and the modal
+  // says so rather than quietly buying the bigger slice for it.
+  const cpuPct = cpuFloorFor(mins, onCores ? 0 : 1);
   let want = wantedGpuPct(v, spec);
   if (Number(cap) > 0) want = Math.min(want, Math.floor(Number(cap)));
-  return want > mins.gpuPct ? { gpuPct: want, cpuPct: mins.cpuPct } : mins;
+  return want > mins.gpuPct || cpuPct !== mins.cpuPct
+    ? { gpuPct: Math.max(want, mins.gpuPct), cpuPct } : mins;
 }
 // What the two dials buy on this server spec, and cost per second. `price`
 // pins a specific enclave's posted rates ({full, node} USDC/sec, e.g. from
@@ -440,19 +465,28 @@ export function rankEnclavesFor(v, rows){
     const mins = minPctsOf(v, spec, { volGb: volGbOf(a, wantVols) });
     // Whether this box would serve the model on CORES rather than its card —
     // a card too small for the app cannot hold it at any share, so the runner
-    // falls back (gpuRouting). Only the LABEL depends on this: the floors do
-    // not, because the weights are node-charged either way.
+    // falls back (gpuRouting). This used to drive the LABEL only, on the
+    // reasoning that "the weights are node-charged either way". That holds for
+    // the mmap'd page cache it was written about, and not for the rest: the KV
+    // cache, the compute buffers and a wasm64 guest's own linear memory are the
+    // tenant's, and on cores they carry what the card was carrying. A version
+    // that says so (cpuFallback) is sized HERE, off the same predicate that
+    // picks the label, so the floor and the badge can never disagree.
     const cardCanHold = gpu && mins.gpuNeedPct <= 100;
     const weightsOnCores = hardGpu ? false : (softGpu ? !cardCanHold : true);
+    const cpuFloor = cpuFloorFor(mins, weightsOnCores ? 0 : 1);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
-    const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= mins.cpuPct;
+    const now = fits && (!needsGpu || free.gpuPct >= mins.gpuPct) && free.cpuPct >= cpuFloor;
     const name = nameOf(row);
     // what running THIS app on THIS box costs per second at its minimum
     // shares: the box's own posted price times the share its hardware forces.
-    // Big-and-dear can beat small-and-cheap, so the ranking compares money.
+    // Big-and-dear can beat small-and-cheap, so the ranking compares money —
+    // and on a box that would serve this app on cores, the share its hardware
+    // forces is the coreless one. Ranking a CPU box by a card-case floor it
+    // will not accept priced a target the deployment cannot actually land on.
     const price = enclavePriceOf(row);
-    const minRate = shareRates(mins.gpuPct, mins.cpuPct, spec, price).rate;
-    return { row, name, spec, mins, free, gpu, fits, now, price, minRate, weightsOnCores };
+    const minRate = shareRates(mins.gpuPct, cpuFloor, spec, price).rate;
+    return { row, name, spec, mins, cpuFloor, free, gpu, fits, now, price, minRate, weightsOnCores };
   }).filter((c) => c.fits && (needsGpu ? c.gpu : true));
   // A GPU box CAN serve model-volume work with no GPU share — the tenant gets
   // the ggml CPU backend on the cores it bought, same as on a CPU box — but it
@@ -468,7 +502,7 @@ export function rankEnclavesFor(v, rows){
   // CPU boxes before GPU leftovers for CPU work, most free pool)
   const order = (list) => list.slice().sort((x, y) => (demoted(x) - demoted(y)) || (x.minRate - y.minRate) || (needsGpu
     ? (x.mins.gpuPct - y.mins.gpuPct) || (y.free.gpuPct - x.free.gpuPct)
-    : (x.mins.cpuPct - y.mins.cpuPct) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct)));
+    : (x.cpuFloor - y.cpuFloor) || ((x.gpu === true) - (y.gpu === true)) || (y.free.cpuPct - x.free.cpuPct)));
   // cpuNn: on this box the app's model volumes run on CPU cores, not a card.
   // TWO ways to land there and the flag covers both: a GPU box hosting a
   // 0-GPU tenant (it has a card, this deployment did not buy it), and a

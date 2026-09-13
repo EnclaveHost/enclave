@@ -178,3 +178,88 @@ test("a CPU-only enclave reaches the same verdict by the same route", async () =
   assert.equal(r.needCpu, 0.07);
   assert.equal(r.below, false);
 });
+
+/* ---- cpuFallback: the node floor a coreless placement actually needs -------
+
+   The test above ("the CPU floor is the same whether the card or the cores
+   carry the model") states the DEFAULT, and it is right for the app it was
+   written about: ggml mmaps its GGUF, the weights are file-backed page cache
+   charged to the node, and the share never sees them.
+
+   It is not the whole story, and the rest is what these cover. A tenant's own
+   allocations DO move when the card goes away - the KV cache, the compute
+   buffers, and for a wasm64 guest the model itself inside the linear memory
+   `-W max-memory-size` caps at cpuShare x node RAM - and every matmul the card
+   was doing becomes the node's work. The catalog carries ONE set of four axes,
+   so a soft-GPU app can only declare one of the two cases; a publisher who
+   sizes the coreless one says so in the version config as
+   `cpuFallback: {memMb, cpuGflops}`, and a runner uses it where it applies. */
+
+// the same app, now declaring what it needs once the weights leave the card:
+// 40 GB of node RAM instead of 4, because they land in it
+const EYESOFF_FB = { ...EYESOFF, cpuFallback: { memMb: 40960 } };
+
+test("cpuFallback sizes the CORELESS placement and leaves the card case alone", async () => {
+  // on a card: unchanged, and that is the point - a GPU deployment must not pay
+  // for node RAM it never touches
+  const onCard = await size({ ...H200, isGpu: true, min: EYESOFF_FB, gpuMilli: 360, cpuMilli: 120 });
+  assert.equal(onCard.onGpu, true);
+  assert.equal(onCard.needCpu, 0.07, "4096 MB of a 64 GB node - the on-chain axes, untouched");
+  assert.equal(onCard.below, false);
+
+  // on cores: the fallback figure, and the deployment that only bought the card
+  // case is now told so instead of being served a slice too small to start
+  const onCores = await size({ ...METAL0, isGpu: false, min: EYESOFF_FB, gpuMilli: 360, cpuMilli: 120 });
+  assert.equal(onCores.asCpuFallback, true);
+  assert.equal(onCores.needCpu, 0.63, "40960 MB of a 64 GB node");
+  assert.equal(onCores.below, true, "12% was enough beside a card and is not enough here");
+  assert.equal(onCores.refusal, null, "not a refusal - a floor. Buy the slice and this box takes it");
+
+  // ...and at the dial that does cover it, the same box claims the work
+  const bought = await size({ ...METAL0, isGpu: false, min: EYESOFF_FB, gpuMilli: 360, cpuMilli: 630 });
+  assert.equal(bought.below, false);
+  assert.equal(bought.asCpuFallback, true);
+});
+
+test("a GPU box that falls back to cores is judged by the CORELESS floor too", async () => {
+  // metal0's 6.5 GB local card cannot hold a 50 GB app at any share, so the
+  // runner serves it on cores (gpuRouting). It is running exactly as it would
+  // on a card-less box, so it is sized exactly as it would be there - the
+  // routing verdict, not the box's hardware, picks the floor.
+  const r = await size({ ...METAL0, isGpu: true, min: EYESOFF_FB, gpuMilli: 360, cpuMilli: 120 });
+  assert.equal(r.onGpu, false);
+  assert.equal(r.asCpuFallback, true);
+  assert.equal(r.needCpu, 0.63, "the card is unusable here, so the weights are in node RAM");
+  assert.equal(r.below, true);
+});
+
+test("a 0% GPU dial is a coreless placement, whatever the box has", async () => {
+  // buying no card IS the case cpuFallback describes, and the commonest way to
+  // reach it: a deployer who took the soft-GPU app's 0 GPU floor at its word.
+  // Before this, that deployment was sized for weights-in-VRAM it would never
+  // have - a 7% node slice for a model about to load into node RAM.
+  const r = await size({ ...H200, isGpu: true, min: EYESOFF_FB, gpuMilli: 0, cpuMilli: 120 });
+  assert.equal(r.onGpu, false);
+  assert.equal(r.needCpu, 0.63);
+  assert.equal(r.below, true);
+});
+
+test("cpuFallback only ever RAISES a floor, and only a coreless one", async () => {
+  // a figure below the card case is something no app has (cores need more, not
+  // less), and honouring it would under-size the very placement the key is for
+  const smaller = await size({ ...METAL0, isGpu: false, min: { ...EYESOFF, cpuFallback: { memMb: 64 } },
+                               gpuMilli: 360, cpuMilli: 120 });
+  assert.equal(smaller.needCpu, 0.07, "clamped up to the on-chain axes");
+
+  // and a version that declares none is exactly as it was
+  const none = await size({ ...METAL0, isGpu: false, min: EYESOFF, gpuMilli: 360, cpuMilli: 120 });
+  assert.equal(none.cpuShareNoGpu, none.cpuShare, "no declaration, one floor");
+  assert.equal(none.needCpu, 0.07);
+});
+
+test("the GPU floor is untouched: this key sizes the node and nothing else", async () => {
+  const r = await size({ ...H200, isGpu: true, min: EYESOFF_FB, gpuMilli: 360, cpuMilli: 630 });
+  assert.equal(r.gpuShare, 0.36, "the card ask is the app's declared axes, as before");
+  assert.equal(r.gpuFloor, 0, "still soft - the publisher said cores are acceptable");
+  assert.equal(r.needGpu, 0);
+});

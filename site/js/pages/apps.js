@@ -19,7 +19,7 @@ import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featu
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
-import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig } from "../core/catalog.js";
+import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig, cpuFallbackOfConfig } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
@@ -367,7 +367,12 @@ function quickDeploy(app, v, idx){
   // offer a pair the live create() would revert on. It is the identity on 13+,
   // where a CPU-heavy app buys the small card slice it actually declared.
   let ledgerRev = 0;
-  const startBuy = (hw, cap) => liftSharesForLedger(startSharesFor(vspec, hw, cap), ledgerRev);
+  // `t` is the ranked target this would deploy to, and it decides WHICH node
+  // floor the dial starts at: a box that serves this app on cores holds its
+  // weights in node RAM, which on a cpuFallback version is a larger slice than
+  // the same app needs beside a card.
+  const startBuy = (hw, cap, t) => liftSharesForLedger(
+    startSharesFor(vspec, hw, cap, t && t.weightsOnCores), ledgerRev);
   let buy = startBuy();
   let target = null;
   // constants first paint; the CONTRACT's live prices (incl. its ceil-to-a-
@@ -467,13 +472,13 @@ function quickDeploy(app, v, idx){
   };
   depMaxGpuMilli().then(cap => {
     gpuCap = cap;
-    buy = startBuy(target && !target.none ? target.spec : undefined, cap / 10);
+    buy = startBuy(target && !target.none ? target.spec : undefined, cap / 10, target);
     capCheck(); recalc(); est();
   }).catch(() => {});
   // whether this ledger takes the two dials independently (rev 13+)
   depSchemaRev().then(r => {
     ledgerRev = r;
-    buy = startBuy(target && !target.none ? target.spec : undefined, gpuCap != null ? gpuCap / 10 : 0);
+    buy = startBuy(target && !target.none ? target.spec : undefined, gpuCap != null ? gpuCap / 10 : 0, target);
     recalc(); est();
   }).catch(() => {});
   // the short-on-funds "Add credit" link: boot's interceptor does the SPA
@@ -553,7 +558,7 @@ function quickDeploy(app, v, idx){
     }
     capTarget = null;
     mins = t.mins;
-    buy = startBuy(t.spec, gpuCap != null ? gpuCap / 10 : 0);
+    buy = startBuy(t.spec, gpuCap != null ? gpuCap / 10 : 0, t);
     if (tEl){
       const ranked = t.ranked || [t];
       // one row per enclave; the ranking head IS the auto row (value "" =
@@ -1253,16 +1258,58 @@ function syncPubGpuNeed(){
     : pubGpuOptional
       ? "Desired: the app starts without a card. Runners set NO GPU floor, so a deployment may buy 0% GPU and any enclave — including CPU-only ones — can serve it. The figures above become the slice a deployer buys to actually get the card."
       : "Required: the figures above are a hard minimum. Only a GPU enclave can run this app, and every deployment must buy at least the share they imply.";
+  syncPubNoGpu();   // the coreless sizing exists only under "Desired" - and is reset when it doesn't
+}
+/* The coreless sizing, beside the GPU-need switch and for the same reason: the
+   record holds ONE set of four axes, and on a soft-GPU app they describe this
+   app beside the card it asked for - its own memory, with the weights resident
+   in a VRAM slice. Serve it on cores and those weights move into node RAM next
+   to the guest and every matmul becomes the node's work, which is a different
+   node slice by a long way. Nothing on-chain can say that, so it rides in the
+   config as `cpuFallback` and runners size a coreless placement from it.
+
+   Offered only where "Desired" is: a Required card means there IS no coreless
+   placement to size, and hiding the field RESETS it so a version switched back
+   to Required can't ship a stale figure. Zeros mean "not declared" and the
+   on-chain axes hold both ways - today's behaviour, unchanged. */
+function syncPubNoGpu(){
+  const f = $("#pubNoGpuField"); if (f) f.hidden = !pubGpuOptional;
+  if (!pubGpuOptional){
+    const m = $("#pubNoGpuMem"), c = $("#pubNoGpuCpuG");
+    if (m) m.value = "0"; if (c) c.value = "0";
+  }
+  const n = $("#pubNoGpuNote");
+  if (!n) return;
+  const mem = Math.round(parseFloat(($("#pubNoGpuMem") || {}).value) || 0);
+  const gf = Math.round(parseFloat(($("#pubNoGpuCpuG") || {}).value) || 0);
+  n.textContent = !pubGpuOptional ? ""
+    : (mem > 0 || gf > 0)
+      ? "On an enclave with no card this app is sized at " + (mem > 0 ? mem + " MB RAM" : "")
+        + (mem > 0 && gf > 0 ? " / " : "") + (gf > 0 ? gf + " GFLOPS CPU" : "")
+        + " instead of the two fields above. A deployment dialled for the card case is refused by CPU-only enclaves rather than served too small - it keeps running wherever a card is."
+      : "Left at 0, a coreless placement is sized by Memory and CPU compute above - the figures that describe this app WITH its card. If the weights it would hold on the card live in node RAM instead, say so here, or such a deployment lands on a node slice too small to start.";
 }
 function readPubConfig(){
   const raw = ($("#pubConfig") && $("#pubConfig").value || "").trim();
-  if (!raw && !pubGpuOptional) return { val: "" };
+  if (!raw && !pubGpuOptional) return { val: "" };   // nothing to carry: no editor text, and no GPU-need/cpuFallback keys to stamp
   let o;
   try {
     o = raw ? JSON.parse(raw) : {};
     if (!o || Array.isArray(o) || typeof o !== "object") return { err: "app config must be a JSON object, e.g. {\"api_key\":\"…\"}" };
   } catch(e){ return { err: "app config isn't valid JSON (" + e.message + ")" }; }
   if (pubGpuOptional) o.gpuOptional = true; else delete o.gpuOptional;
+  // ...and the node figures for the placement gpuOptional opens. Written only
+  // when declared and only alongside it: `cpuFallback` on a Required-card
+  // version sizes a placement that can never happen.
+  const fbMem = Math.round(parseFloat(($("#pubNoGpuMem") || {}).value) || 0);
+  const fbGf = Math.round(parseFloat(($("#pubNoGpuCpuG") || {}).value) || 0);
+  if (pubGpuOptional && (fbMem > 0 || fbGf > 0)){
+    if (fbMem < 0 || fbMem > 1048576) return { err: "\"without a card\" memory must be 0..1048576 MB" };
+    if (fbGf < 0 || fbGf > 10000000) return { err: "\"without a card\" CPU compute must be 0..10000000 GFLOPS" };
+    o.cpuFallback = {};
+    if (fbMem > 0) o.cpuFallback.memMb = fbMem;
+    if (fbGf > 0) o.cpuFallback.cpuGflops = fbGf;
+  } else delete o.cpuFallback;
   // measure the minified form - withMedia re-serializes before publishing, so
   // pretty-printed whitespace in the editor never counts against the ceiling
   const val = JSON.stringify(o);
@@ -1371,7 +1418,9 @@ function resetPublish(){
   clearPubImage("thumb"); clearPubImage("banner");
   $("#pubVersion").value = "1.0.0"; $("#pubVram").value = "0"; $("#pubGpuT").value = "0";
   $("#pubMem").value = "128"; $("#pubCpuG").value = "1"; pubStatus("");
-  pubGpuOptional = false; syncPubGpuNeed();
+  const nm = $("#pubNoGpuMem"), nc = $("#pubNoGpuCpuG");
+  if (nm) nm.value = "0"; if (nc) nc.value = "0";
+  pubGpuOptional = false; syncPubGpuNeed();   // hides and clears the coreless sizing too
 }
 // "1.0.0" -> "1.0.1", "v2" -> "v3", "2.1.0-beta" -> "2.1.1-beta": bump the last
 // number in the label; it's a suggestion, the field stays editable.
@@ -1423,6 +1472,7 @@ async function publishPrefillOf(app, vi){
     mem: String(Number(v.memMb) || 128), cpuG: String(Math.max(1, Number(v.cpuGflops) || 1)),
     ports: v.ports || "", config: prettyConfig(stripMedia(config)),
     gpuOptional: (() => { try { return JSON.parse(config || "{}").gpuOptional === true; } catch { return false; } })(),
+    cpuFallback: cpuFallbackOfConfig(config),
     thumb: media.thumbnail || "", banner: media.banner || "",
     thumbSvg: !!media.thumbnailSvg, bannerSvg: !!media.bannerSvg,
     note: "pre-filled from " + app.slug + " " + (v.version || "") + " - fix specs/ports and publish (same bytes), or pick a new .wasm if the code changed"
@@ -1477,7 +1527,10 @@ async function applyPrefillPublish(){
   $("#pubVram").value = s.vram || "0"; $("#pubGpuT").value = s.gpuT || "0";
   $("#pubMem").value = s.mem || "128"; $("#pubCpuG").value = s.cpuG || "1"; $("#pubPorts").value = s.ports || "";
   const pc = $("#pubConfig"); if (pc) pc.value = s.config || "";
-  pubGpuOptional = !!s.gpuOptional; syncPubGpuNeed();
+  const nm = $("#pubNoGpuMem"), nc = $("#pubNoGpuCpuG");
+  if (nm) nm.value = String((s.cpuFallback && s.cpuFallback.memMb) || 0);
+  if (nc) nc.value = String((s.cpuFallback && s.cpuFallback.cpuGflops) || 0);
+  pubGpuOptional = !!s.gpuOptional; syncPubGpuNeed();   // also syncs the coreless fields
   setPubImage("thumb", s.thumb || "", !!s.thumbSvg); setPubImage("banner", s.banner || "", !!s.bannerSvg);
   pubStatus(s.note || "");
 }
@@ -1632,6 +1685,8 @@ function initStore(){
     pubGpuOptional = b.dataset.gpuneed === "1"; syncPubGpuNeed();
   });
   ["#pubVram", "#pubGpuT"].forEach((sel) => { const el = $(sel); if (el) el.addEventListener("input", syncPubGpuNeed); });
+  // the coreless sizing repaints its own note; the switch above owns whether it shows at all
+  ["#pubNoGpuMem", "#pubNoGpuCpuG"].forEach((sel) => { const el = $(sel); if (el) el.addEventListener("input", syncPubNoGpu); });
   const row = $("#pubFileRow");
   if (row && !IPFS_UPLOAD_URL){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
   const tf = $("#pubThumbFile"); if (tf) tf.addEventListener("change", (e) => onPubImage(e, "thumb"));

@@ -299,7 +299,8 @@ export const SPECS_CACHE = {};  // friendly "slug:version" -> the version's RAW 
 export const specOf = (v) => ({ vramMb: Number(v && v.vramMb) || 0, gpuGflops: Number(v && v.gpuGflops) || 0,
                                 memMb: Number(v && v.memMb) || 0, cpuGflops: Number(v && v.cpuGflops) || 0,
                                 volumes: volumesOfConfig(v && v.config),
-                                gpuOptional: gpuOptionalOfConfig(v && v.config) });
+                                gpuOptional: gpuOptionalOfConfig(v && v.config),
+                                cpuFallback: cpuFallbackOfConfig(v && v.config) });
 /* The publisher's declaration that this version's GPU axes are DESIRED, not
    required: the app starts without a card and would use one if given it. Read
    from the version config, like `volumes` — immutable per version, approved
@@ -313,6 +314,27 @@ export function gpuOptionalOfConfig(cfg){
     const o = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
     return !!(o && o.gpuOptional === true);
   } catch { return false; }
+}
+/* What the app needs from a NODE when it runs WITHOUT a card, for a version
+   whose publisher sized that case: {memMb, cpuGflops}, from the version config
+   beside `gpuOptional`. The four on-chain axes are ONE set and on a soft-GPU
+   app they describe the card case - the guest's own memory, with the weights
+   resident in its VRAM slice. On cores those weights move into node RAM beside
+   it and the matmuls become the node's work, so the CPU floor is a different
+   number; nothing in the record can say that, which is why this key exists.
+   Mirrors the runner's cpuFallbackOfConfig exactly, bounds included: a console
+   floor BELOW the runner's sells a deployment that box will not claim. */
+export function cpuFallbackOfConfig(cfg){
+  if (!cfg) return null;
+  let f;
+  try {
+    const o = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
+    f = o && o.cpuFallback;
+  } catch { return null; }       // unparseable declares nothing; the on-chain axes hold, as they do today
+  if (!f || Array.isArray(f) || typeof f !== "object") return null;
+  const num = (x, max) => { const n = Number(x); return Number.isFinite(n) && n >= 0 && n <= max ? n : 0; };
+  const memMb = num(f.memMb, 1048576), cpuGflops = num(f.cpuGflops, 10000000);
+  return (memMb || cpuGflops) ? { memMb, cpuGflops } : null;
 }
 export function volumesOfConfig(cfg){
   if (!cfg) return [];

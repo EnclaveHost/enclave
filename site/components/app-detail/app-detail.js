@@ -97,10 +97,21 @@ class AppDetail extends EnclaveElement {
           ? (Math.round(Number(v.vramMb) / 102.4) / 10) + ' GB VRAM' + (Number(v.gpuGflops) > 0 ? ' / ' + (Number(v.gpuGflops) / 1000) + ' TFLOPS GPU' : '') + ', '
           : 'CPU-only, ')
         + Number(v.memMb) + ' MB RAM' + (Number(v.cpuGflops) > 0 ? ' / ' + Number(v.cpuGflops) + ' GFLOPS CPU' : '')
+        + (m.cpuPctNoGpu > m.cpuPct
+           ? '; without a card it needs ' + Number(vspec.cpuFallback.memMb) + ' MB RAM'
+             + (Number(vspec.cpuFallback.cpuGflops) > 0 ? ' / ' + Number(vspec.cpuFallback.cpuGflops) + ' GFLOPS CPU' : '')
+             + ', because the weights it would hold on the card live in node RAM there'
+           : '')
         + ') set the minimum deploy shares">'
         + (m.gpuPct > 0 ? 'min ' + m.gpuPct + '% GPU · '
            : wantGpu > 0 ? 'prefers ' + wantGpu + '% GPU · min '
-           : 'CPU-only · min ') + m.cpuPct + '% CPU</span>'
+           : 'CPU-only · min ') + m.cpuPct + '% CPU'
+        // A soft-GPU version sized for both placements has TWO node floors, and
+        // which one a deployment must buy depends on where it lands. Showing
+        // only the card-case number told a deployer their app fits a CPU box at
+        // a share that box will refuse.
+        + (m.cpuPctNoGpu > m.cpuPct ? ' (' + m.cpuPctNoGpu + '% without a card)' : '')
+        + '</span>'
       + (v.ports ? '<span class="vlbl" title="open ports: ports this version may bind">⛨ ' + esc(v.ports) + '</span>' : '')
       + '<span class="vlbl appd-fee" hidden></span>'
       + (v.yanked ? '<span class="vyank">yanked</span>' : '');

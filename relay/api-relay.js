@@ -1407,6 +1407,17 @@ function aggregateAvailability() {
     // strand the deployment unclaimable on that box. So the console must not
     // offer the control until every live runner knows the word.
     gpuOptional: serving.length > 0 && serving.every((e) => e.availability?.gpuOptional === true),
+    // A version config's `cpuFallback` ({memMb, cpuGflops}): the node floor a
+    // runner demands of a CORELESS placement, instead of the on-chain axes
+    // that describe the same app beside its card. Fleet-AND like the rest, but
+    // ADVISORY rather than gating, and that difference is the whole point: this
+    // key rides in the VERSION config, not the fail-closed options envelope, so
+    // a runner predating it does not refuse anything - it sizes the fallback
+    // off the card-case figure exactly as it does today. Nothing here should be
+    // hidden behind this flag; it exists so a publisher can be told how much of
+    // the live fleet honours the second figure, and so a deployer can see why
+    // one box takes a claim another refuses.
+    cpuFallback: serving.length > 0 && serving.every((e) => e.availability?.cpuFallback === true),
     // per-deployment relay choice (the envelope's `network` namespace). Nothing
     // in a CVM acts on it — DNS does — but the ENVELOPE is fail-closed, so a
     // deployment carrying {"network":…} that lands on a runner predating it is

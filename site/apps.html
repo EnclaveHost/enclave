@@ -143,6 +143,20 @@
           <label for="pubCpuG">CPU compute <span class="dim">(min GFLOPS · at least 1 - everything computes · a whole node ≈ 1000)</span></label>
           <input type="number" id="pubCpuG" value="1" min="1" step="1" />
         </div>
+        <div class="field full" id="pubNoGpuField" hidden>
+          <label>Without a card <span class="dim">(what this app needs from a node when no GPU is available · leave at 0 to use the two fields above)</span></label>
+          <div class="pub-nogpu">
+            <div>
+              <label for="pubNoGpuMem">Memory <span class="dim">(min MB of RAM)</span></label>
+              <input type="number" id="pubNoGpuMem" value="0" min="0" step="1" />
+            </div>
+            <div>
+              <label for="pubNoGpuCpuG">CPU compute <span class="dim">(min GFLOPS)</span></label>
+              <input type="number" id="pubNoGpuCpuG" value="0" min="0" step="1" />
+            </div>
+          </div>
+          <div class="dim" id="pubNoGpuNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
+        </div>
         <div>
           <label for="pubFee">Hourly fee <span class="dim">(optional · USD per hour, paid straight to your wallet while the app runs · 0 = free · capped on-chain · immutable per version, like ports)</span></label>
           <input type="number" id="pubFee" value="0" min="0" step="0.01" />

@@ -1829,6 +1829,43 @@ const WAF_SCANNER_PATHS = [
 function gpuOptionalOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").gpuOptional === true; } catch { return false; }
 }
+// Sanity bounds, mirrored from EnclaveAppCatalog (MAX_MB / MAX_GFLOPS): the
+// on-chain axes are checked there at publish, and a fallback figure that rides
+// in the config instead must not be able to claim a size the same publisher
+// could not have written into the record beside it.
+const CATALOG_MAX_MB = 1048576;       // 1 TB
+const CATALOG_MAX_GFLOPS = 10000000;  // 10,000 TFLOPS
+// The publisher's CPU-fallback sizing: what this app needs from a NODE when it
+// runs without a card. Read from the version config, like `gpuOptional` beside
+// it, and immutable per version for the same reason.
+//
+// The catalog carries ONE set of four axes, and on a soft-GPU app they describe
+// the CARD case: an LLM whose weights are resident in its VRAM slice declares
+// the few hundred MB of node RAM its guest actually holds. Fall that same app
+// back to cores and the weights move into node RAM beside the guest - KV cache,
+// compute buffers, and for a wasm64 guest the model itself inside the linear
+// memory `-W max-memory-size` caps at cpuShare x node RAM - while every matmul
+// that was the card's work becomes the node's. Sizing the CPU placement from
+// the card-case figure is how a 27B lands on a 1% node slice and dies at
+// weight-load, with nothing on either side having said no. That is what this
+// key exists to say, and nothing else can say it: the four axes are one set,
+// and raising memMb to cover cores would over-charge every GPU deployment of
+// the same version for RAM it never touches.
+//
+// ONE-DIRECTIONAL by construction (see minSharesOf): it may only RAISE the CPU
+// floor, and only on a CPU placement. A publisher who declares a fallback
+// smaller than the card case is describing something no app does, and taking
+// the smaller number would silently under-size the very placement this key is
+// for - so the larger of the two stands. Absent or unparseable declares
+// nothing and the on-chain axes hold both ways, exactly as they do today.
+function cpuFallbackOfConfig(cfg) {
+  let f;
+  try { f = JSON.parse(String(cfg || "{}") || "{}").cpuFallback; } catch { return null; }
+  if (!f || Array.isArray(f) || typeof f !== "object") return null;
+  const num = (x, max) => { const n = Number(x); return Number.isFinite(n) && n >= 0 && n <= max ? n : 0; };
+  const memMb = num(f.memMb, CATALOG_MAX_MB), cpuGflops = num(f.cpuGflops, CATALOG_MAX_GFLOPS);
+  return (memMb || cpuGflops) ? { memMb, cpuGflops } : null;
+}
 // The version's declared wasi world contract ("0.2" | "0.3"), stamped into the
 // config by the publish path from the component's own export section. Claim
 // ROUTING only — the manager re-classifies the actual bytes at launch, so a
@@ -2333,6 +2370,15 @@ function minSharesOf(min, opts = {}) {
   const volGb = Math.max(0, Number(opts.volGb) || 0);
   const memMb = min.memMb || 0, cpuGflops = min.cpuGflops || 0;
   const cpu = (memMb || cpuGflops) ? cpuShareOf(memMb, cpuGflops) : 0;
+  // ...and the same app WITHOUT a card, when its publisher sized that case
+  // (cpuFallbackOfConfig). The card case cannot describe both: on a card the
+  // weights are in the tenant's VRAM slice and the node holds only the guest;
+  // on cores they are in node RAM beside it, and the matmuls are the node's
+  // work too. Clamped UP against the card case so the key can only ever raise
+  // this floor - a fallback that came out smaller would under-size exactly the
+  // placement it exists to size.
+  const fb = min.cpuFallback;
+  const cpuNoGpu = fb ? Math.max(cpu, cpuShareOf(fb.memMb || 0, fb.cpuGflops || 0)) : cpu;
   // What the same work costs on cores, where the weights land in node RAM
   // beside the guest's own linear memory instead of on a card.
   // The volumes CORRECT a declared VRAM figure, they never create one. A
@@ -2345,10 +2391,18 @@ function minSharesOf(min, opts = {}) {
   return {
     gpuShare: gpu,                              // the TRUE ask, in whole cards of THIS box (may exceed 1)
     gpuFloor: min.gpuOptional ? 0 : gpu,        // what a dial must actually meet (optional = none)
-    cpuShare: cpu,
+    cpuShare: cpu,                              // node floor ON A CARD (weights in the VRAM slice)
+    cpuShareNoGpu: cpuNoGpu,                    // ...and on cores (weights in node RAM). Equal unless
+                                                // the version declares cpuFallback; never lower.
     gpuOptional: !!min.gpuOptional,
   };
 }
+// WHICH of the two node floors a placement must clear. The card case is the
+// on-chain axes; the coreless case is those or the publisher's cpuFallback,
+// whichever is larger. Every caller that gates a dial goes through here so the
+// three of them cannot drift, and so a CPU-only enclave and a CPU-fallback
+// tenant on a GPU box are judged by the same number - they run the same way.
+const cpuFloorFor = (mins, onGpu) => onGpu ? mins.cpuShare : mins.cpuShareNoGpu;
 
 // Can this box serve a GPU-dialled deployment's CARD ask, and if not, may the
 // work run on cores instead? Pure, so the claim gate and the SIZING_SELFTEST
@@ -2832,11 +2886,12 @@ if (process.env.SIZING_SELFTEST) {
     : { onGpu: false, unmet: null, refusal: null };
   const onGpu = gpuShare > 0 && r.onGpu;
   const needGpu = onGpu ? mins.gpuFloor : 0;
-  const needCpu = mins.cpuShare;
+  const needCpu = cpuFloorFor(mins, onGpu);
   const below = !r.refusal && (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9);
   console.log(JSON.stringify({
     gpuShare: round3(mins.gpuShare), gpuFloor: round3(mins.gpuFloor),
     cpuShare: round3(mins.cpuShare),
+    cpuShareNoGpu: round3(mins.cpuShareNoGpu),
     gpuOptional: mins.gpuOptional,
     onGpu, asCpuFallback: gpuShare > 0 && !r.onGpu && !r.refusal,
     unmet: r.unmet, refusal: r.refusal,
@@ -4907,6 +4962,7 @@ app.get("/availability", async (_req, res) => {
     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
+    cpuFallback: true,   // this build reads a version config's `cpuFallback` ({memMb, cpuGflops}) and sizes a CORELESS placement from it instead of the on-chain axes. NOT under the fleet-AND rule the flags around it obey, and for the opposite reason: this one rides in the VERSION config, which is not the fail-closed envelope, so a runner predating it does not refuse the deployment - it sizes the CPU fallback exactly as it does today, off the card-case axes. The flag is therefore advisory: it lets the console tell a publisher how much of the live fleet honours the fallback figure, and lets a deployer see why the same app clears a floor on one box and not another
     gpuOptional: true,   // this build understands {"gpu":{"optional":true}}: a GPU-dialled deployment may fall back to a CPU-only enclave instead of queueing. Same fleet-AND rule — against an older fleet the envelope would be REFUSED outright (unknown namespace), so the console must not offer the control until every live runner knows it
     secrets: SECRETS_CAPABLE,   // this build pulls relay-staged per-deployment secrets into the guest env at every launch; fleet-AND'd with the relay's own secretsEnabled() before clients see it. The fetch authenticates with a key DERIVED FROM THE FLEET SECRET, so a box running its own minted SECRET (a metal enclave without cfg.fleetSecret) sets SECRETS_CAPABLE=0 and reports false — honest, and the fleet-AND then hides the feature rather than stranding secret-bearing deploys on it
     secretsInConfig: SECRETS_CAPABLE,   // this build also resolves $NAME/${NAME} placeholders in config STRING values from those secrets at launch (wasm-manager _subst_secrets); same fleet-AND rule
@@ -5520,7 +5576,15 @@ async function gateAppReference(reference, opts = {}) {
                   // lives, and immutable per version like everything else in
                   // it. On-chain the axes are just numbers; only the app knows
                   // whether it degrades to CPU or cannot start without a card.
-                  gpuOptional: gpuOptionalOfConfig(v.config) } };
+                  gpuOptional: gpuOptionalOfConfig(v.config),
+                  // ...and, for one that does degrade, what the node owes it
+                  // once the card is gone. Same place, same immutability, and
+                  // the only place it CAN live: the four on-chain axes are one
+                  // set, so a version that needs 4 GB beside a card and 40 GB
+                  // without one has no way to say so in the record itself.
+                  // Read unconditionally; minSharesOf only consults it on a
+                  // coreless placement, which gpuOptional is what permits.
+                  cpuFallback: cpuFallbackOfConfig(v.config) } };
 }
 
 // A paid app is servable only if the DEPLOYMENT snapshotted the version's
@@ -5772,13 +5836,19 @@ app.post("/v1/deployments", authed, async (req, res) => {
     return fail(res, 422, "invalid_spec", "resources.gpuShare must be in [0, 1].");
   if (gpuShare0 > 0 && !IS_GPU)
     return fail(res, 422, "invalid_spec", "This is a CPU-only enclave: GPU shares are not served here. Set resources.gpuShare to 0 (CPU-only), or deploy to a GPU enclave.");
-  const needCpu0 = mins.cpuShare;
+  // A 0% GPU dial IS the coreless placement, and on a version that sized it
+  // (cpuFallback) that is a different node floor: the weights land in RAM
+  // here. An HTTP deploy is direct-to-this-box, so unlike the claim gate there
+  // is no fallback to discover - the dial says which case this is.
+  const needCpu0 = cpuFloorFor(mins, gpuShare0 > 0);
   const cpuShare0 = r0.cpuShare != null ? Number(r0.cpuShare)
     : Math.max(needCpu0, gpuShare0 > 0 ? Math.min(0.05, gpuShare0) : 0.05);
   if (!(cpuShare0 > 0 && cpuShare0 <= 1))
     return fail(res, 422, "invalid_spec", "resources.cpuShare must be in (0, 1].");
   if (gpuShare0 < mins.gpuFloor - 1e-9 || cpuShare0 < needCpu0 - 1e-9)
-    return fail(res, 422, "invalid_spec", `Below this app's minimum shares: its declared specs need at least gpuShare ${round3(mins.gpuFloor)} and cpuShare ${round3(needCpu0)} on this hardware.`);
+    return fail(res, 422, "invalid_spec", `Below this app's minimum shares: its declared specs need at least gpuShare ${round3(mins.gpuFloor)} and cpuShare ${round3(needCpu0)} on this hardware.`
+      + (!(gpuShare0 > 0) && needCpu0 > mins.cpuShare + 1e-9
+         ? ` Without a card this app holds its weights in node RAM: ${round3(mins.cpuShare)} would be enough beside a GPU share, but not here.` : ""));
 
   let slice, gpu, rate;
   if (!(gpuShare0 > 0)) {
@@ -8109,7 +8179,7 @@ async function switchTenantVersion(rec, d) {
     { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
   const needGpu = onGpu ? mins.gpuFloor : 0;
-  const needCpu = mins.cpuShare;
+  const needCpu = cpuFloorFor(mins, onGpu);
   if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
     return refuse(`the new version needs more than this deployment's shares on this hardware `
                 + `(needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
@@ -8798,14 +8868,25 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   }
   // the app's catalog specs set its MINIMUM shares on our hardware, gating
   // claims exactly like HTTP deploys: a deployment that bought less than
-  // the app needs is nobody's work item. The CPU floor is the same either way:
-  // the weights are charged to the node, never to the share (see minSharesOf).
+  // the app needs is nobody's work item.
+  //
+  // WHICH node floor applies depends on where this lands, and that is the
+  // whole point of cpuFallback: an app that keeps its weights in a VRAM slice
+  // on a card keeps them in NODE RAM here, inside the linear memory its
+  // cpuShare caps. A soft-GPU deployment dialled for the card case is
+  // therefore refused BY A CPU BOX and stays claimable by GPU ones - the
+  // fallback simply isn't available at that dial, which is the honest answer
+  // and the one the owner can act on. Before this it was accepted and the
+  // tenant died at weight-load instead.
   const onGpu = gpuShare > 0 && !asCpuFallback;
   const needGpu = onGpu ? mins.gpuFloor : 0;
-  const needCpu = mins.cpuShare;
+  const needCpu = cpuFloorFor(mins, onGpu);
   if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
     return `below the app's minimum shares on this hardware (needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
-         + (asCpuFallback ? ", serving on cores" : "") + ")";
+         + (asCpuFallback ? ", serving on cores" : "")
+         + (!onGpu && needCpu > mins.cpuShare + 1e-9
+            ? ` - without a card this app's weights live in node RAM, so it needs cpuShare ${round3(needCpu)} here against ${round3(mins.cpuShare)} on a GPU enclave`
+            : "") + ")";
   // WASIp3 is a RUNTIME capability, gated like the card and the volumes: the
   // version's config declares `wasi: "0.3"` (stamped from the binary by the
   // publish path) and a box whose wasmtime cannot serve p3 could only

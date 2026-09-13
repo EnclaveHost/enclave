@@ -79,13 +79,14 @@ const CONFIG_INLINE_MAX = 4096;
 const CONFIG_MAX_BYTES  = 1024 * 1024;
 // The keys read straight off the CHAIN RECORD by readers with no CID to fetch
 // yet. When the config moves to a CID these stay behind in the inline field:
-// wasi/threads/set/gpuOptional place the deployment (a runner picks a box
-// before it fetches anything), and _media is the catalog grid's tile art. They
+// wasi/threads/set/gpuOptional/cpuFallback place the deployment AND size it (a
+// runner picks a box, and the share floor it must clear, before it fetches
+// anything), and _media is the catalog grid's tile art. They
 // stay in the PINNED config too, so the delivered ENCLAVE_CONFIG remains the
 // whole document — the manifest is a projection, not a split. Derived, never
 // hand-written: publish stamps wasi/threads/set from the binary's own exports.
 // Mirrors ROUTING_KEYS in site/js/core/chain.js — keep them in lockstep.
-const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "volumes", "_media"];
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "cpuFallback", "volumes", "_media"];
 
 // Minimal ABIs — mirror contracts/*.abi.json (checked in, re-emitted by the
 // deploy scripts); embedded so the installed binary is self-contained.
@@ -774,15 +775,34 @@ async function catalogApps() {
 function minShares(ver, pricing) {
   const node = pricing?.node || {}, card = pricing?.card || {};
   const axis = (need, have) => need > 0 && have > 0 ? need / have : 0;
-  const cpu = Math.max(axis(Number(ver.memMb), (node.ramGb || 0) * 1024),
-                       axis(Number(ver.cpuGflops), node.gflops || 0));
+  const cpuOf = (mb, gf) => Math.max(axis(Number(mb), (node.ramGb || 0) * 1024),
+                                     axis(Number(gf), node.gflops || 0));
+  const cpu = cpuOf(ver.memMb, ver.cpuGflops);
   const gpu = Math.max(axis(Number(ver.vramMb), (card.vramGb || 0) * 1024),
                        axis(Number(ver.gpuGflops), (card.tflops || 0) * 1000));
-  let gpuOptional = false;
-  try { gpuOptional = JSON.parse(ver.config || "{}").gpuOptional === true; } catch {}
+  let gpuOptional = false, fb = null;
+  try {
+    const o = JSON.parse(ver.config || "{}");
+    gpuOptional = o.gpuOptional === true;
+    if (o.cpuFallback && !Array.isArray(o.cpuFallback) && typeof o.cpuFallback === "object") fb = o.cpuFallback;
+  } catch {}
   const grain = (x) => Math.min(1000, Math.ceil(x * 100) * 10); // whole percents, in milli
-  return { gpuMilli: gpuOptional ? 0 : grain(gpu), cpuMilli: Math.max(10, grain(cpu)) };
+  // TWO node floors on a version that sized both placements: beside a card the
+  // weights are in the tenant's VRAM slice, on cores they are in node RAM and
+  // every matmul is the node's work. Which one applies is decided by the DIAL,
+  // by the caller - the runner does the same (cpuFloorFor), and a CLI floor
+  // below the runner's creates a deployment that box refuses to claim.
+  // Clamped up, like the runner's: this key may only ever raise a coreless
+  // floor. Absent = the two are equal and nothing changes.
+  const cpuNoGpu = fb ? Math.max(cpu, cpuOf(fb.memMb || 0, fb.cpuGflops || 0)) : cpu;
+  return { gpuMilli: gpuOptional ? 0 : grain(gpu),
+           cpuMilli: Math.max(10, grain(cpu)),
+           cpuMilliNoGpu: Math.max(10, grain(cpuNoGpu)) };
 }
+// The node floor for what this deployment BUYS: a 0% card dial is the coreless
+// placement, and a bought card can still fall back to cores, so the dial is
+// the only thing that distinguishes them ahead of a claim.
+const cpuFloorOf = (mins, gpuMilli) => gpuMilli > 0 ? mins.cpuMilli : mins.cpuMilliNoGpu;
 // Changing the version or shares of a LEASED deployment is judged by ONE box:
 // the enclave holding the lease restarts the app in place and checks the new
 // version against its own card and node (supervisor minSharesOf). /v1/pricing
@@ -1627,11 +1647,13 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   // pre-13 setShares reverts on a GPU share under the CPU one, so round the
   // card up there; rev 13+ buys exactly the two shares that were asked for
   if (rev < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
-  if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
-    const dial = `--gpu ${mins.gpuMilli / 1000} --cpu ${mins.cpuMilli / 1000}`;
+  const needCpu = cpuFloorOf(mins, gpuMilli);
+  if (gpuMilli < mins.gpuMilli || cpuMilli < needCpu) {
+    const dial = `--gpu ${mins.gpuMilli / 1000} --cpu ${needCpu / 1000}`;
     if (wantShares)
-      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums ${where} - it needs at least ${dial}`);
-    throw new Error(`${app.slug}:${ver.version} needs at least gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% ${where}, `
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums ${where} - it needs at least ${dial}`
+        + (needCpu > mins.cpuMilli ? ` (without a card its weights live in node RAM: ${mins.cpuMilli / 10}% CPU would do beside one)` : ""));
+    throw new Error(`${app.slug}:${ver.version} needs at least gpu ${mins.gpuMilli / 10}% / cpu ${needCpu / 10}% ${where}, `
                   + `but ${short(id)} bought gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}% - `
                   + (rev >= 6
                      ? `resize it in place (the rate is recalculated at current prices): enclave upgrade ${rest[0]}${rest[1] !== undefined ? " " + rest[1] : ""} ${dial}`
@@ -1777,9 +1799,12 @@ async function cmdDeploy(rest) {
   // runners enforce) so `enclave deploy hello-world:1 --fund 2` just works.
   let pricing = null;
   try { pricing = await api("GET", "/v1/pricing"); } catch {}
-  const mins = ver ? minShares(ver, pricing) : { gpuMilli: 0, cpuMilli: 50 };
+  const mins = ver ? minShares(ver, pricing) : { gpuMilli: 0, cpuMilli: 50, cpuMilliNoGpu: 50 };
   let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : mins.gpuMilli;
-  let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Math.max(mins.cpuMilli, 10);
+  // the node default follows the card dial: buy no card and this is a coreless
+  // placement, which on a cpuFallback version is the larger floor
+  let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000)
+                                     : Math.max(cpuFloorOf(mins, gpuMilli), 10);
   if (gpuMilli > 1000 || cpuMilli > 1000) throw new Error("--gpu/--cpu are fractions of one card/node (0..1)");
   if (cpuMilli < 1) cpuMilli = 10;
   // ditto on create: the lift survives only as pre-13 ledger compatibility, so
@@ -1853,6 +1878,14 @@ async function cmdDeploy(rest) {
       say("! couldn't read fleet availability to confirm gpu.optional support; if a runner predates it, this deployment will sit Queued unclaimed");
     }
     say("gpu: PREFERRED, not required — a GPU enclave claims it first; if every card is busy a CPU-only enclave runs it on cores and the ledger bills only the CPU share there");
+    // ...but only if it bought enough NODE to hold the app there. On a version
+    // that sized the coreless case, a CPU dial that clears the card-case floor
+    // and not that one leaves --gpu-optional inert: every CPU box refuses the
+    // claim, and the record queues for a card exactly as it would without the
+    // flag. Say it here, where it can still be changed, rather than leaving it
+    // to be discovered as a deployment that never leaves the queue.
+    if (mins.cpuMilliNoGpu > cpuMilli)
+      say(`! --gpu-optional will not fire at --cpu ${cpuMilli / 1000}: without a card this app's weights live in node RAM, so a CPU-only enclave needs --cpu ${mins.cpuMilliNoGpu / 1000} (${mins.cpuMilliNoGpu / 10}% of a node) and will refuse the claim below that. Raise --cpu to buy the fallback, or leave it and this stays GPU-only.`);
   }
   let envelope = Object.keys(envParts).length ? JSON.stringify(envParts) : "";
   if (Buffer.byteLength(envelope) > 4096 && envParts.config) {
@@ -2182,10 +2215,11 @@ const pinJson = (account, buf) =>
 async function cmdPublish(rest) {
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
-                                "--vram", "--gpu-gflops", "--ports", "--config", "--fee"],
+                                "--vram", "--gpu-gflops", "--ports", "--config", "--fee",
+                                "--nogpu-mem", "--nogpu-cpu-gflops"],
                        bool: ["--gpu-optional"] });
   const file = f._[0];
-  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV --config JSON --fee $/hr]");
+  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --nogpu-mem MB --nogpu-cpu-gflops N --ports CSV --config JSON --fee $/hr]");
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(f.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
   // --config = the app's default/template ENCLAVE_CONFIG (deploy consoles pre-fill from it)
   // --gpu-optional rides IN that config as `gpuOptional: true`: the publisher
@@ -2196,7 +2230,8 @@ async function cmdPublish(rest) {
   // rather than a new on-chain column because config is already immutable per
   // version, approved with it, and already the place platform-meaningful keys
   // live (`volumes`) - no catalog redeploy, and it ships the day it is pushed.
-  if (f.config || f["gpu-optional"]){
+  const nogpuMem = Number(f["nogpu-mem"] || 0), nogpuGflops = Number(f["nogpu-cpu-gflops"] || 0);
+  if (f.config || f["gpu-optional"] || nogpuMem > 0 || nogpuGflops > 0){
     const raw = f.config || "{}";
     if (Buffer.byteLength(raw) > CONFIG_MAX_BYTES)
       throw new Error(`--config too long (≤ ${CONFIG_MAX_BYTES} bytes)`);
@@ -2208,6 +2243,28 @@ async function cmdPublish(rest) {
       o.gpuOptional = true;
       f.config = JSON.stringify(o);
       say("gpu-optional: --vram/--gpu-gflops publish as DESIRED - runners set no GPU floor, CPU-only enclaves may serve it, and the declared slice is what a deployer buys to get the card");
+    }
+    // --nogpu-mem / --nogpu-cpu-gflops ride in the same config as
+    // `cpuFallback`, and they answer the question --gpu-optional opens: the
+    // four on-chain axes are ONE set, so --mem/--cpu-gflops describe this app
+    // beside the card it asked for - the guest's own memory, with the weights
+    // resident in its VRAM slice. Serve the same app on cores and those
+    // weights are in node RAM beside the guest and every matmul is the node's
+    // work, which is a bigger node slice by a long way. Without this the
+    // coreless placement is sized off the card-case figure and the app dies at
+    // weight-load on a share nobody could have known was too small.
+    if (nogpuMem > 0 || nogpuGflops > 0){
+      if (!f["gpu-optional"] && !(o.gpuOptional === true))
+        throw new Error("--nogpu-mem/--nogpu-cpu-gflops size this app for a box with NO card, which only happens when the card is optional - publish with --gpu-optional too (or drop them: a CPU-only app's --mem/--cpu-gflops already describe that case)");
+      if (nogpuMem < 0 || nogpuMem > 1048576) throw new Error("--nogpu-mem must be 0..1048576 MB");
+      if (nogpuGflops < 0 || nogpuGflops > 10000000) throw new Error("--nogpu-cpu-gflops must be 0..10000000");
+      o.cpuFallback = {};
+      if (nogpuMem > 0) o.cpuFallback.memMb = Math.round(nogpuMem);
+      if (nogpuGflops > 0) o.cpuFallback.cpuGflops = Math.round(nogpuGflops);
+      f.config = JSON.stringify(o);
+      say(`cpu-fallback: on an enclave with no card this app is sized at ${nogpuMem > 0 ? nogpuMem + " MB RAM" : ""}`
+        + `${nogpuMem > 0 && nogpuGflops > 0 ? " / " : ""}${nogpuGflops > 0 ? nogpuGflops + " GFLOPS CPU" : ""}`
+        + ` instead of --mem/--cpu-gflops. A deployment dialled for the card case is refused by CPU-only boxes rather than served too small - it keeps running wherever a card is.`);
     }
   }
   const bytes = fs.readFileSync(file);
