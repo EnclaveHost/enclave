@@ -55,3 +55,22 @@ test("the image build proves the shielded library would load inside the guest", 
   assert.match(builder, /required from/, "parses the .so's version references");
   assert.match(builder, /Version definitions:/, "parses what the guest libraries define");
 });
+
+// The per-app firewall (wasm_manager._audit_rec) polices every bind <=
+// PORT_MAX_DECL (49999). Linux's default ephemeral range is 32768-60999, which
+// straddles that line, so a tenant's DNS lookup binds an unconnected UDP socket
+// that the audit reads as an unassigned port and kills the app — about three
+// times in five, at random. The guest pins the range clear of it at boot, the
+// same thing relay/deploy.sh does on the relay host. (metal0, 2026-09-13.)
+test("the guest pins its ephemeral ports clear of the policed range", () => {
+  const init = fs.readFileSync(path.join(root, "metal/guest/init"), "utf8");
+  const mgr = fs.readFileSync(path.join(root, "wasm/wasm_manager.py"), "utf8");
+  const decl = mgr.match(/^PORT_MAX_DECL\s*=\s*(\d+)/m);
+  assert.ok(decl, "PORT_MAX_DECL in the manager");
+  const pin = init.match(/ip_local_port_range[^\n]*\n?/);
+  assert.ok(/ip_local_port_range/.test(init), "the guest init pins ip_local_port_range");
+  const lo = Number((init.match(/echo "(\d+) (\d+)" > \/proc\/sys\/net\/ipv4\/ip_local_port_range/) || [])[1]);
+  assert.ok(Number.isInteger(lo), "the pinned range is a literal the test can read: " + pin);
+  assert.ok(lo > Number(decl[1]),
+    `ephemeral ports must start above PORT_MAX_DECL (${decl[1]}), got ${lo}`);
+});
