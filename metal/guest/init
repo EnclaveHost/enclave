@@ -25,6 +25,23 @@ mount -t tmpfs    -o mode=1777 tmpfs /tmp   2>/dev/null
 mount -t tmpfs    -o mode=0755 tmpfs /mnt/ramdisk 2>/dev/null
 mount -t configfs configfs /sys/kernel/config 2>/dev/null
 
+# --- ephemeral ports OUT of the policed range -------------------------------
+# The per-app firewall (wasm_manager._audit_rec) kills any tenant that binds a
+# port it was not assigned, and it polices everything <= PORT_MAX_DECL (49999)
+# because that is the range a deployment may declare. The kernel's default
+# ephemeral range is 32768-60999, which straddles that line: an app resolving a
+# hostname binds an unconnected UDP socket on a random ephemeral port, and when
+# the kernel happens to pick one below 50000 the audit sees an "unassigned"
+# bind and kills a perfectly well-behaved app. It is a coin flip per lookup -
+# roughly three in five - so the same deployment provisions or dies at random.
+# (Seen on metal0, 2026-09-13: both claimed deployments killed on ports 34752
+# and 40087.) Pin the range above the policed space, exactly as the relay host
+# does for the same reason (relay/deploy.sh). Set before networking comes up
+# and before any tenant exists, so no socket is ever drawn from the old range.
+echo "58000 65535" > /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null \
+  && log "ephemeral ports 58000-65535 (clear of the policed range)" \
+  || log "WARNING: could not pin ip_local_port_range; tenants may be killed for ephemeral binds"
+
 # --- kernel modules (insmod by explicit path, dependency order from the build)
 # modules.list holds relative paths (kernel/...) in load order: failover +
 # net_failover + virtio_net for networking, then tsm_report + sev-guest/
