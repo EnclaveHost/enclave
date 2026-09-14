@@ -2382,8 +2382,15 @@ def _shielded_profile_tail(rec: dict) -> None:
     stdout, i.e. the guest console, i.e. the host's journal. The tenant's log is
     a file the owner reads through /logs; the operator tuning the tier needs the
     same few lines without a wallet. Counters and timings only -- the backend
-    prints nothing else under that prefix -- polled every 2 s, until the tenant
-    exits."""
+    prints nothing else under these prefixes -- polled every 2 s, until the
+    tenant exits.
+
+    THREE lines, not one. `profile:` says where a round's time went; `widths:`
+    says how many ROWS each exchange carried, which is the question that decides
+    GPU utilization on this tier (a card doing 1-row GEMVs is latency-bound and
+    idle however fast it is), and `wire phases:` splits the transport cost that
+    dominates a narrow exchange. Tuning rows-per-exchange without the histogram
+    is guessing, and the histogram was previously owner-only."""
     path = rec.get("_log")
     if not path:
         return
@@ -2403,7 +2410,8 @@ def _shielded_profile_tail(rec: dict) -> None:
                 buf += chunk
                 *lines, buf = buf.split(b"\n")
                 for ln in lines:
-                    if ln.startswith(b"[shielded] profile:"):
+                    if any(ln.startswith(p) for p in
+                           (b"[shielded] profile:", b"[shielded] widths:", b"[shielded] wire phases:")):
                         print(f"[shielded] {rec['id']} {ln.decode('utf-8', 'replace')}", flush=True)
             proc = rec.get("_proc")
             if proc is not None and proc.poll() is not None:

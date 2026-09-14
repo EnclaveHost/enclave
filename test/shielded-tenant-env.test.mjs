@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -240,4 +241,21 @@ print(json.dumps({"shielded": e.get("ENCLAVE_GGML_EXTRA_BUFTS"),
 `);
   assert.equal(env.shielded, "0");
   assert.equal(env.plain, null, "a tenant with a real card must keep the CPU backend's repacked kernels");
+});
+
+// The operator's view of the tier. `profile:` says where a round's time went;
+// `widths:` says how many ROWS each exchange carried, which is what decides
+// whether the card is busy or merely latency-bound; `wire phases:` splits the
+// transport cost that dominates a narrow exchange. All three are counters and
+// timings, so all three may be echoed to the console - and tuning
+// rows-per-exchange without the histogram is guessing.
+test("the console echo carries the row histogram, not just the round timings", () => {
+  const src = readFileSync(join(repo, "wasm", "wasm_manager.py"), "utf8");
+  const fn = src.slice(src.indexOf("def _shielded_profile_tail"),
+                       src.indexOf("def _pads_model_digest"));
+  for (const prefix of ["[shielded] profile:", "[shielded] widths:", "[shielded] wire phases:"])
+    assert.ok(fn.includes(prefix), `the profile tail must echo ${prefix}`);
+  // Whatever else the backend prints stays in the owner's log: the echo is an
+  // allow-list, never a pass-through.
+  assert.ok(/startswith\(p\) for p in/.test(fn), "the echo must remain an explicit prefix allow-list");
 });
