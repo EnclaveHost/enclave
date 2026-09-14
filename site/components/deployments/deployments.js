@@ -1219,7 +1219,25 @@ class Deployments extends EnclaveElement {
       .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
       .reverse();
     const others = rows.filter(r => r.i !== cr.index);
-    const pick = others.find(r => r.fits);                  // newest servable release = the natural upgrade
+    /* What this panel OPENS on. A newer approved release is the natural
+       upgrade and preselects (rows are newest-first). On the newest version
+       there is nothing to upgrade TO, and the honest default is the current
+       one: the dials then mean "resize in place", which is the other half of
+       what this panel does.
+
+       It used to preselect the newest release OTHER than the current, which on
+       the newest version is necessarily an OLDER one - so opening the panel to
+       change a share silently armed a downgrade, and showed that older
+       version's floors while doing it. Live 2026-09-14: an owner resizing a
+       1.0.63 deployment (which declares 1 GB beside its card) was shown
+       1.0.62's 60% floor, 1.0.62 being a release from before that version
+       split its node sizing, and read it as the panel refusing the dial.
+
+       A current version that does NOT fit keeps the old escape hatch: there
+       the newest fitting release, older or not, is the only way out. */
+    const newer = others.find(r => r.fits && r.i > cr.index);
+    const cur = rows.find(r => r.i === cr.index);
+    const pick = newer || ((cur && cur.fits) ? null : others.find(r => r.fits)) || null;
     if (!others.length && !resizable)
       return fail("// " + app.slug + " has no other approved version yet - new releases appear here once the catalog owner approves them");
     const selId = "euSel" + appLabel(id);
