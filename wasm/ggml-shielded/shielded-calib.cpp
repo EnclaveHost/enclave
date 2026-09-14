@@ -326,6 +326,13 @@ int main(int argc, char **argv) {
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;            /* the rows must be host memory we can read */
     mp.load_mtp = use_mtp;
+    /* No repacked weights: the CPU backend's extra buffer types rewrite q4_K
+     * and iq4_nl rows into interleaved blocks at load, and this tool encodes
+     * the rows the way the RUNTIME will (sh_prepare_rows_any reads the file's
+     * own layout). Calibrating against interleaved bytes would describe a
+     * weight nobody computes with. The runtime refuses such a buffer outright
+     * (sh_register), so the two agree: the file's layout or nothing. */
+    mp.use_extra_bufts = false;
     llama_model *model = llama_model_load_from_file(model_path.c_str(), mp);
     if (!model) { fprintf(stderr, "[calib] model load failed\n"); return 2; }
     const llama_vocab *vocab = llama_model_get_vocab(model);

@@ -206,6 +206,18 @@ void *ell_load_model(const char *path, int32_t n_gpu_layers) {
      * degrades loudly to plain decode via ell_mtp_available()=0. */
     const char *lm = getenv("ENCLAVE_GGML_LOAD_MTP");
     p.load_mtp = !(lm && lm[0] == '0' && lm[1] == '\0');
+    /* ENCLAVE_GGML_EXTRA_BUFTS=0 loads the weights in the file's own layout.
+     *
+     * The CPU backend's extra buffer types repack some quantizations at load
+     * time for its own kernels (x86/AVX2: q4_K, iq4_nl, q2_K; ARM: q8_0),
+     * keeping the tensor's type tag while changing its bytes. That is a win for
+     * CPU matmuls and a wall for the shielded tier, which has to read the rows
+     * to encode them for the card and therefore declines a repacked weight -
+     * on a k-quant model that is most of the file staying in the enclave beside
+     * an idle card. The wasm-manager sets this for tenants with a shielded
+     * card; everyone else keeps the repacked kernels. */
+    const char *xb = getenv("ENCLAVE_GGML_EXTRA_BUFTS");
+    p.use_extra_bufts = !(xb && xb[0] == '0' && xb[1] == '\0');
     return llama_model_load_from_file(path, p);
 }
 

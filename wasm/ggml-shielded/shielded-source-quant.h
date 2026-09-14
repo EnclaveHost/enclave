@@ -29,6 +29,7 @@
  * runtime does not offload (or worse, the reverse).
  */
 #include "ggml.h"
+#include "ggml-backend.h"
 
 extern "C" {
 #include "shielded-field.h"
@@ -43,6 +44,23 @@ extern "C" {
 /* q8_0, as ggml stores it: one fp16 scale then 32 quants, per block, per row. */
 struct sh_block_q8_0 { uint16_t d; int8_t qs[32]; };
 static_assert(sizeof(sh_block_q8_0) == 34, "unexpected q8_0 block layout");
+
+/* REPACKED ROWS ARE NOT THIS TENSOR'S ROWS. The CPU backend's extra buffer
+ * types rewrite a weight into interleaved blocks at load time (ARM: q8_0 ->
+ * q8_0_4x8 with dotprod/i8mm; x86/AVX2: q4_K -> q4_K_8x8, iq4_nl, q2_K and
+ * friends) while keeping the tensor's TYPE tag. Reading them as the type says
+ * would encode a weight nobody computes with -- and that is not a loud failure:
+ * the card is verified against OUR encoding, so wrong-but-consistent products
+ * would pass Freivalds and the model would just be quietly wrong. So the tier
+ * declines such a tensor everywhere it could touch it.
+ *
+ * Two ways out, both at model load: llama's `use_extra_bufts = false` (what
+ * shielded-calib does), or a ggml-cpu built with GGML_CPU_REPACK=OFF. */
+static inline bool sh_is_repacked(const ggml_tensor *t) {
+    if (!t || !t->buffer) return false;
+    const char *bn = ggml_backend_buft_name(ggml_backend_buffer_get_type(t->buffer));
+    return bn && strstr(bn, "REPACK");
+}
 
 static inline bool sh_source_type_ok(ggml_type t) {
     if (t == GGML_TYPE_Q8_0) return true;
