@@ -704,6 +704,11 @@ static int ring_spin_us(void) {
 }
 
 int sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out) {
+    return sh_pipe_ring_exchange_work(p, f, want, out, NULL, NULL);
+}
+
+int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
+                               sh_pipe_work_fn work, void *ctx) {
     if (!p || !p->ring) return SH_ERR_IO;
     memset(out, 0, sizeof *out);
     const size_t total = f->len + f->len2;
@@ -719,6 +724,16 @@ int sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *
     put_u64(r + SH_RING_OFF_RQH + 1, total);
     const uint64_t seq = ++p->seq;
     st_rel(r + SH_RING_OFF_REQ, seq);
+
+    /* The request is now visible to the peer, so the spin below is dead time on
+     * the caller's thread -- the one thread a decode round is serialized on.
+     * Trusted local work that depends only on the REQUEST (the Freivalds RHS)
+     * belongs in that window rather than after the reply, which is what the
+     * socket path has always done (sh_pipe_exchange_work). Identical contract:
+     * exactly once, after a successful publish, never touching this pipe or
+     * `out`, and it runs even when the reply never arrives -- the caller then
+     * resends on the socket, where the work must NOT be repeated. */
+    if (work) work(ctx);
 
     const int budget = ring_spin_us();
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
