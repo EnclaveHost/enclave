@@ -10,6 +10,7 @@ extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
 }
+#include "shielded-source-quant.h"
 
 #include <chrono>
 #include <cmath>
@@ -110,10 +111,6 @@ static int sh_encoded_reader(void *ctx, uint64_t offset, uint8_t *out, size_t by
  * ----------------------------------------------------------------------- */
 static int64_t sh_min_macs() { static int64_t v = -1; if (v < 0) v = sh_env_int("SHIELDED_MIN_MACS", 2000000); return v; }
 static int     sh_max_m()    { static int v = -1;     if (v < 0) v = sh_env_int("SHIELDED_MAX_M", 8); return v; }
-
-/* q8_0, as ggml stores it: one fp16 scale then 32 quants, per block, per row. */
-struct sh_block_q8_0 { uint16_t d; int8_t qs[32]; };
-static_assert(sizeof(sh_block_q8_0) == 34, "unexpected q8_0 block layout");
 
 /* --------------------------------------------------------------------------
  * Calibration.
@@ -743,18 +740,27 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
 }
 
 /* --------------------------------------------------------------------------
- * Weight registration: straight from ggml's q8_0 rows into THE encoding, one
- * row per output, which is also what the worker wants. No transpose anywhere.
+ * Weight registration: from ggml's rows into THE encoding, one row per output,
+ * which is also what the worker wants. No transpose anywhere. A q8_0 source
+ * goes straight in; any other quantization converts a row at a time on the way
+ * (shielded-source-quant.h), which is why the type travels with the pointer.
  * ----------------------------------------------------------------------- */
-static int sh_prepare_rows_threaded(const void *blocks, int64_t K, int64_t N, int8_t *w_out, int *f_out) {
+static int sh_prepare_rows_threaded(const void *blocks, ggml_type type, int64_t K, int64_t N, int8_t *w_out, int *f_out) {
+    const bool convert = type != GGML_TYPE_Q8_0;
     unsigned hw = std::thread::hardware_concurrency();
     int nt = (int)std::min<unsigned>(hw ? hw : 1, 16);
     if (N < 256 || (int64_t)nt * 16 > N) nt = 1;
-    if (nt == 1) return sh_prepare_weight_rows(blocks, K, N, w_out, f_out);
+    if (nt == 1)
+        return convert ? sh_prepare_rows_any(blocks, type, K, N, 0, N, w_out, f_out)
+                       : sh_prepare_weight_rows(blocks, K, N, w_out, f_out);
     std::vector<int> rc((size_t)nt, 0);
     std::vector<std::thread> th;
     for (int t = 0; t < nt; t++)
-        th.emplace_back([&, t]() { rc[t] = sh_prepare_weight_rows_range(blocks, K, N, N * t / nt, N * (t + 1) / nt, w_out, f_out); });
+        th.emplace_back([&, t]() {
+            const int64_t j0 = N * t / nt, j1 = N * (t + 1) / nt;
+            rc[t] = convert ? sh_prepare_rows_any(blocks, type, K, N, j0, j1, w_out, f_out)
+                            : sh_prepare_weight_rows_range(blocks, K, N, j0, j1, w_out, f_out);
+        });
     for (auto &x : th) x.join();
     for (int r : rc) if (r < 0) return r;
     return 0;
@@ -795,20 +801,32 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     if (K <= 0 || N <= 0 || (__int128)K*N + (__int128)sh_max_m()*(3*(__int128)K + 4*(__int128)N) > INT64_MAX)
         return false;
     if (K % SH_QK != 0) return false;
-#if defined(__aarch64__)
-    /* The ARM CPU backend repacks q8_0 rows into q8_0_4x8 at load time (its
-     * CPU_REPACK buffer type) when built with dotprod/i8mm kernels. The bytes
-     * are then not q8_0 rows, and the encoder below finds no exponent that fits
-     * for every row of every weight -- which is the symptom, not the cause. Say
-     * the cause. (x86 never repacks q8_0; this is arm-only so the x86 object
-     * stays byte-identical.) */
+    /* Same pair of gates supports_op applied; registration re-checks them
+     * because it is also reached through paths that never asked it. */
+    if (!sh_source_type_ok(w->type) || !sh_source_geometry_ok(w->type, K)) return false;
+    /* REPACKED ROWS ARE NOT THIS TENSOR'S ROWS. The CPU backend's extra buffer
+     * types rewrite a weight into interleaved blocks at load time (ARM: q8_0 ->
+     * q8_0_4x8 with dotprod/i8mm; x86/AVX2: q4_K -> q4_K_8x8, iq4_nl, q2_K and
+     * friends), keeping the tensor's TYPE tag while changing its bytes. Reading
+     * them as the type says would encode a weight nobody computes with -- and
+     * that is not a loud failure: the card is verified against OUR encoding, so
+     * wrong-but-consistent products would pass Freivalds and the model would
+     * just be quietly wrong. On ARM it showed up as "no exponent fits", which is
+     * the symptom; this is the cause, and it is checked on every architecture
+     * because the x86 types that repack are exactly the ones a k-quant model is
+     * made of.
+     *
+     * Two ways out, both at model load, neither of them here: llama's
+     * `use_extra_bufts = false` (what shielded-calib does), or a ggml-cpu built
+     * with GGML_CPU_REPACK=OFF. Until then such a weight stays in the enclave,
+     * which is correct and merely slow. */
     if (w->buffer && strstr(ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), "REPACK")) {
-        SH_LOG("%s: lives in a %s buffer: the CPU backend repacked its q8_0 rows; build ggml-cpu with GGML_CPU_REPACK=OFF\n",
-               name.c_str(), ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)));
+        SH_LOG("%s: lives in a %s buffer - the CPU backend repacked its %s rows, so its bytes are no longer that type; "
+               "staying in the enclave (load the model with use_extra_bufts=false, or build ggml-cpu with GGML_CPU_REPACK=OFF)\n",
+               name.c_str(), ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), ggml_type_name(w->type));
         s.refused.insert(name);
         return false;
     }
-#endif
 
     /* Reservation budget: place calibrated weights until this tenant's slice of
      * the card is full, then leave the rest on CPU. `dev_add` is the device
@@ -868,11 +886,16 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     if (g_weight_verifier) {
         // Hashing the mapping and encoding it afterwards would race hostile
         // page replacements. Copy first; authenticate and encode this copy.
-        bool valid = w->type == GGML_TYPE_Q8_0 && K > 0 && N > 0 &&
+        /* The authenticated copy covers the tensor's OWN bytes, whatever its
+         * quantization: the verifier is told w->type and w->ne and checks the
+         * digest of what the host supplied. Conversion happens after, on this
+         * private copy, so a hostile page replacement still cannot reach it. */
+        const size_t nbytes = ggml_nbytes(w);
+        bool valid = sh_source_type_ok(w->type) && sh_source_geometry_ok(w->type, K) && K > 0 && N > 0 &&
                      w->ne[2] == 1 && w->ne[3] == 1 && ggml_is_contiguous(w) && source &&
-                     (uint64_t)(K / SH_QK) <= SIZE_MAX / sizeof(sh_block_q8_0) / (uint64_t)N;
+                     nbytes == (size_t)ggml_row_size(w->type, K) * (size_t)N;
         if (valid) {
-            const size_t bytes = (size_t)(K / SH_QK) * (size_t)N * sizeof(sh_block_q8_0);
+            const size_t bytes = nbytes;
             double tr = profile_registration ? sh_now_ms() : 0;
             auto ready = prefetch ? prefetch->take(w) : nullptr;
             const bool prefetched = ready && ready->status != 0;
@@ -916,11 +939,13 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
      * runs inside the engine's context creation (ggml_backend_sched reserve
      * asks supports_op with the data present), serially per weight, and was
      * 3.4 s of the 0.5B's and 32 s of the 4B's start-up before this. */
-    if (sh_prepare_rows_threaded(source, K, N, e.w.data(), e.f_w.data()) < 0) {
+    if (sh_prepare_rows_threaded(source, w->type, K, N, e.w.data(), e.f_w.data()) < 0) {
         SH_LOG("%s: no weight exponent fits the int8 lane; staying on CPU\n", name.c_str());
         s.refused.insert(name);
         return false;
     }
+    if (w->type != GGML_TYPE_Q8_0)
+        SH_LOG("%s: %s source converted to the tier's encoding\n", name.c_str(), ggml_type_name(w->type));
     // Encoding has consumed every authenticated source byte. Release this
     // potentially GiB-sized copy before cache writeback and worker upload;
     // all remaining registration work reads the encoded rows in e.w.
@@ -1166,13 +1191,15 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
     const ggml_tensor *src0 = op->src[0];
     const ggml_tensor *src1 = op->src[1];
     if (!src0 || !src1) return false;
-    if (src0->type != GGML_TYPE_Q8_0) return false;      /* the tier's weight format */
+    if (!sh_source_type_ok(src0->type)) return false;    /* q8_0, or a quantization we can convert */
     if (src1->type != GGML_TYPE_F32) return false;
     if (op->type != GGML_TYPE_F32) return false;
     if (!ggml_is_contiguous(src0) || !ggml_is_contiguous(src1)) return false;
     if (src0->ne[2] != 1 || src0->ne[3] != 1) return false;
     if (src1->ne[2] != 1 || src1->ne[3] != 1) return false;
     if (src0->ne[0] % SH_QK != 0 || src0->ne[0] % 16 != 0) return false;
+    if (!sh_source_geometry_ok(src0->type, src0->ne[0])) return false;
+    if (sh_is_repacked(src0)) return false;   /* not this type's bytes any more; sh_register says why */
     /* A weight tensor has a name and calibration; an activation-activation
      * product (attention) has neither, and must never come here -- TwinShield's
      * OutAttnMult is broken at the group sizes real GQA uses. */
@@ -1318,6 +1345,39 @@ static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHI
 static void sh_plain_mul_mat(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst) {
     const int64_t K = w->ne[0], N = w->ne[1], m = a->ne[1];
     const int64_t nb = K / SH_QK;
+    /* Repacked rows cannot be read as their type here either. The CPU backend
+     * owns the traits that understand them, so hand the node to it rather than
+     * produce a plausible wrong answer. Claiming refuses these weights up front,
+     * so this only catches a tensor whose buffer we could not see then. */
+    if (sh_is_repacked(w)) {
+        if (dst->src[0] == w && dst->src[1] == a && sh_cpu_compute(dst)) return;
+        fprintf(stderr, "[shielded] %s: repacked weight and no CPU backend to compute it with; zeroing\n",
+                ggml_get_name(w));
+        memset(dst->data, 0, ggml_nbytes(dst));
+        return;
+    }
+    /* A source that is not q8_0 is dequantized a row at a time and multiplied in
+     * the same double accumulation. The hatch is rare (a weight we claimed and
+     * then could not register), so a row of scratch beats a second encoding. */
+    if (w->type != GGML_TYPE_Q8_0) {
+        const ggml_type_traits *tr = ggml_get_type_traits(w->type);
+        if (!tr || !tr->to_float) { memset(dst->data, 0, ggml_nbytes(dst)); return; }
+        const size_t row_bytes = (size_t)ggml_row_size(w->type, K);
+        const uint8_t *wb = (const uint8_t *)w->data;
+        const float *src = (const float *)a->data;
+        float *out = (float *)dst->data;
+        std::vector<float> wrow((size_t)K);
+        for (int64_t i = 0; i < N; i++) {
+            tr->to_float(wb + (size_t)i * row_bytes, wrow.data(), K);
+            for (int64_t r = 0; r < m; r++) {
+                const float *xr = src + r * K;
+                double acc = 0.0;
+                for (int64_t t = 0; t < K; t++) acc += (double)xr[t] * (double)wrow[t];
+                out[r * N + i] = (float)acc;
+            }
+        }
+        return;
+    }
     const sh_block_q8_0 *blocks = (const sh_block_q8_0 *)w->data;
     const float *src = (const float *)a->data;
     float *out = (float *)dst->data;
@@ -1737,7 +1797,8 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         const auto *w = node->src[0];
         const std::string name = ggml_get_name(w);
         int owner = sh_owner(p, w);
-        if (!p.invalid && w->type == GGML_TYPE_Q8_0 && sh_site_for(*p.cards[0], name.c_str()) &&
+        if (!p.invalid && sh_source_type_ok(w->type) && sh_source_geometry_ok(w->type, w->ne[0]) &&
+            sh_site_for(*p.cards[0], name.c_str()) &&
             !p.owners.count(sh_group_key(name))) p.pending[name] = *w;
         else if (!p.invalid && owner >= 0 && !p.cards[owner]->weights.count(name) && !p.cards[owner]->refused.count(name))
             p.pending[name] = *w;

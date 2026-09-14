@@ -225,3 +225,19 @@ with tempfile.TemporaryDirectory() as d:
 `);
   assert.equal(r.ready, true);
 });
+
+// A repacked weight is not its type's bytes any more, and the shielded backend
+// declines one rather than encode something nobody computes with. On a k-quant
+// model the CPU backend repacks most of the file (x86: q4_K, iq4_nl, q2_K), so
+// without this a shielded tenant would sit next to an idle card. CPU-only
+// tenants keep the repacked kernels - this is set on the shielded path only.
+test("a shielded tenant loads the weights in the file's own layout", () => {
+  const env = py(`
+e = wm._shielded_tenant_env({"endpoint": "10.0.2.2:9500"}, "")
+n = wm._nn_tenant_env(0.5, False)
+print(json.dumps({"shielded": e.get("ENCLAVE_GGML_EXTRA_BUFTS"),
+                  "plain": n.get("ENCLAVE_GGML_EXTRA_BUFTS")}))
+`);
+  assert.equal(env.shielded, "0");
+  assert.equal(env.plain, null, "a tenant with a real card must keep the CPU backend's repacked kernels");
+});

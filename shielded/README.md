@@ -29,8 +29,10 @@ pack.py                       GGUF -> shielded pack (host-side, offline, public)
 calibrate.py                  per-site activation exponent + outlier set (public, offline), qwen2 only
 export-calib.py               that .npz -> the flat text the engine backend reads
 ../wasm/ggml-shielded/shielded-calib.cpp
-                              THE CALIBRATOR for the engine backend: any q8_0 GGUF libllama runs,
-                              observed through the real graph, weights encoded exactly as the runtime does
+                              THE CALIBRATOR for the engine backend: any GGUF libllama runs
+                              (q8_0 or a k-quant mix; loaded with use_extra_bufts=false, because the
+                              tier reads the file's own rows), observed through the real graph,
+                              weights encoded exactly as the runtime does
 e2e.py                        the end-to-end run, and the equivalence test
 kernels/fused_field_gemm.py   GPU field-GEMM kernel (fused CRT, in-kernel dequant)
 bench/field_gemm_bench.py     GPU field-GEMM kernel ladder (needs a CUDA torch)
