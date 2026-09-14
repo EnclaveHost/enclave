@@ -1,5 +1,5 @@
 /*
- * shielded-calib -- calibrate ANY q8_0 GGUF the engine can run, for the C backend.
+ * shielded-calib -- calibrate ANY GGUF the engine can run, for the C backend.
  *
  * calibrate.py does the same job through shielded/model.py, a numpy
  * re-implementation of ONE architecture (qwen2). That is why, until this tool,
