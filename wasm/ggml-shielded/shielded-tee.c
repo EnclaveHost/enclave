@@ -2063,9 +2063,19 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         size_t want = 0;
         for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * yw;
         sh_verify_work work = { l, nodes, n_nodes, x_field, m, 0 };
-        rc = via_ring ? sh_pipe_ring_exchange(l->pipe, &f, want, &rep) : SH_ERR_IO;
+        /* The RHS runs in whichever path published the request first, and
+         * EXACTLY once: the ring runs it inside its spin window (it publishes
+         * before spinning, so the work happens even when no reply arrives),
+         * and a fallback to the socket must then not ask for it again. */
+        bool rhs_done = false;
+        if (via_ring) {
+            rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep, overlap ? sh_verify_rhs : NULL, &work);
+            rhs_done = overlap;
+        } else {
+            rc = SH_ERR_IO;
+        }
         if (rc == SH_ERR_IO)
-            rc = sh_pipe_exchange_work(l->pipe, &f, 1, &rep, overlap ? sh_verify_rhs : NULL, &work);
+            rc = sh_pipe_exchange_work(l->pipe, &f, 1, &rep, (overlap && !rhs_done) ? sh_verify_rhs : NULL, &work);
         /* Do not double-count RHS work in the phase totals. The contention
          * detector still sees the full send-to-receive wall time. */
         double t2 = now_ms(); l->profile.wire_ms += t2 - t1 - work.elapsed_ms; l->last_wire_us = (t2 - t1) * 1000.0;

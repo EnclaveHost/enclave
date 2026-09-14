@@ -190,6 +190,14 @@ int  sh_pipe_ring_stream_load(const sh_pipe *p);
  * SH_ERR_IO = the ring did not carry it (busy, timed out, not live): send the
  * same frame on the socket. After 3 consecutive misses the ring is disabled. */
 int  sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out);
+/* Same ring exchange, with caller-thread work run after the request is
+ * PUBLISHED to the peer and before the reply is observed -- the window the spin
+ * would otherwise burn on the one thread a decode round is serialized on. Same
+ * contract as sh_pipe_exchange_work: exactly once on a successful publish, and
+ * it also runs when no reply arrives, so a caller that then resends on the
+ * socket must not ask for the work twice. NULL work is the plain exchange. */
+int  sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
+                                sh_pipe_work_fn work, void *ctx);
 
 /* Payload builders. Each writes little-endian into `dst` and returns the length.
  * Buffers are caller-provided so the hot path allocates nothing. */
