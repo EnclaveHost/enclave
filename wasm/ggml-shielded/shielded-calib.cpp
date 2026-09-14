@@ -62,6 +62,7 @@
 #include "llama.h"
 #include "ggml-backend.h"
 #include "ggml.h"
+#include "../llama-shim/enclave_llama.h"
 
 extern "C" {
 #include "shielded-field.h"
@@ -74,10 +75,15 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <limits>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
+
+// Staging API of the pinned llama.cpp build, also used by the engine's shim.
+void llama_set_embeddings_nextn(llama_context *, bool, bool);
+float *llama_get_embeddings_nextn_ith(llama_context *, int32_t);
 
 /* calibrate.py's CALIB_TEXTS, verbatim. Deliberately mixed -- prose, chat
  * framing, code, digits -- because which outlier channels light up is mildly
@@ -217,8 +223,8 @@ static bool eval_cb(struct ggml_tensor *t, bool ask, void *ud) {
  * in order. Threads split N. */
 static void peak_for_weight(const std::vector<int32_t> &xq, int64_t m, int64_t K,
                             const int8_t *w, int64_t N, const std::vector<int64_t> &order,
-                            int64_t peaks[]) {
-    const int nth = std::max(1u, std::min(std::thread::hardware_concurrency(), 32u));
+                            int64_t peaks[], int threads) {
+    const int nth = std::max(1, std::min(threads, 32));
     std::vector<std::vector<int64_t>> local(nth, std::vector<int64_t>(N_K, 0));
     std::vector<std::thread> th;
     for (int ti = 0; ti < nth; ti++) {
@@ -254,7 +260,7 @@ static void peak_for_weight(const std::vector<int32_t> &xq, int64_t m, int64_t K
 
 static void usage() {
     fprintf(stderr,
-        "usage: shielded-calib [--threads N] [--verbose] [--omit-tight] [--backend path.so ...] [--lib-dir DIR] <model.gguf> <out.calib>\n"
+        "usage: shielded-calib [--threads N] [--verbose] [--omit-tight] [--mtp] [--mmproj P --image I ...] [--backend path.so ...] [--lib-dir DIR] <model.gguf> <out.calib>\n"
         "  --max-k-div D allow at most K/D outlier channels per site (default 64): every held-back channel is\n"
         "                a TEE-side multiply per output per row, so on a K=896 x N=151936 lm_head 32 channels\n"
         "                cost 4.9 M MACs per token for one bit of exponent; 0 = no bound\n"
@@ -263,6 +269,8 @@ static void usage() {
         "                otherwise wrap the field there and abort the request)\n"
         "  --backend  ggml backend module to load (the CPU one, when ggml is a shared build); repeatable\n"
         "  --lib-dir  directory to load every ggml backend module from (GGML_LIB in the Makefile)\n"
+        "  --mtp      require and calibrate the native MTP head, including four recursive draft steps\n"
+        "  --mmproj P --image I  also observe public image inputs (repeat --image); F16 projector stays on CPU\n"
         "  env GGML_CPU_SO is honoured as one --backend\n");
     exit(2);
 }
@@ -272,12 +280,18 @@ int main(int argc, char **argv) {
     capture cap;
     std::vector<std::string> backends;
     std::string lib_dir, model_path, out_path;
+    std::string mmproj;
+    std::vector<std::string> images;
+    bool use_mtp = false;
     bool omit_tight = true;
     int  max_k_div = 64;                            /* outliers per site <= K / max_k_div; see --max-k-div */                        /* a site below TARGET stays in the enclave unless --keep-tight */
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--threads" && i + 1 < argc) threads = atoi(argv[++i]);
         else if (a == "--verbose") cap.verbose = true;
+        else if (a == "--mtp") use_mtp = true;
+        else if (a == "--mmproj" && i + 1 < argc) mmproj = argv[++i];
+        else if (a == "--image" && i + 1 < argc) images.push_back(argv[++i]);
         else if (a == "--omit-tight") omit_tight = true;
         else if (a == "--keep-tight") omit_tight = false;
         else if (a == "--max-k-div" && i + 1 < argc) max_k_div = std::max(1, atoi(argv[++i]));
@@ -288,7 +302,7 @@ int main(int argc, char **argv) {
         else if (out_path.empty()) out_path = a;
         else usage();
     }
-    if (model_path.empty() || out_path.empty()) usage();
+    if (model_path.empty() || out_path.empty() || threads < 1 || (mmproj.empty() != images.empty())) usage();
     if (const char *e = getenv("GGML_CPU_SO")) if (*e) backends.push_back(e);
 
     for (const auto &b : backends)
@@ -308,9 +322,13 @@ int main(int argc, char **argv) {
 
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;            /* the rows must be host memory we can read */
+    mp.load_mtp = use_mtp;
     llama_model *model = llama_model_load_from_file(model_path.c_str(), mp);
     if (!model) { fprintf(stderr, "[calib] model load failed\n"); return 2; }
     const llama_vocab *vocab = llama_model_get_vocab(model);
+    if (use_mtp && llama_model_n_layer_nextn(model) != 1) {
+        fprintf(stderr, "[calib] --mtp requires exactly one native MTP layer\n"); return 2;
+    }
 
     /* Tokenise everything first: the context is sized to hold the longest text
      * as one ubatch, so each text is one graph and one prefill. */
@@ -326,12 +344,61 @@ int main(int argc, char **argv) {
     }
 
     llama_context_params cp = llama_context_default_params();
-    cp.n_ctx = cp.n_batch = cp.n_ubatch = std::max(512u, (longest + 63) / 64 * 64);
+    cp.n_ctx = cp.n_batch = cp.n_ubatch = std::max(images.empty() ? 512u : 2048u, (longest + 63) / 64 * 64);
     cp.n_threads = cp.n_threads_batch = threads;
     cp.cb_eval = eval_cb;
     cp.cb_eval_user_data = &cap;
     llama_context *ctx = llama_init_from_model(model, cp);
     if (!ctx) { fprintf(stderr, "[calib] context failed\n"); return 2; }
+    llama_context *head = nullptr;
+    if (use_mtp) {
+        auto hp = cp;
+        hp.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+        head = llama_init_from_model(model, hp);
+        if (!head) { fprintf(stderr, "[calib] MTP context failed\n"); return 2; }
+        llama_set_embeddings_nextn(ctx, true, false);
+        llama_set_embeddings_nextn(head, true, true);
+    }
+
+    int64_t mtp_rows = 0;
+    auto capture_mtp = [&](const std::vector<llama_token> &tokens, int pos0) {
+        if (!head) return;
+        llama_memory_clear(llama_get_memory(head), true);
+        const int dim = llama_model_n_embd(model);
+        auto b = llama_batch_init((int)tokens.size(), dim, 1);
+        b.token = (llama_token *)calloc(tokens.size(), sizeof(llama_token));
+        b.n_tokens = (int)tokens.size();
+        for (int j = 0; j < b.n_tokens; j++) {
+            b.token[j] = tokens[j]; b.pos[j] = pos0 + j;
+            b.n_seq_id[j] = 1; b.seq_id[j][0] = 0; b.logits[j] = 1;
+            float *dst = b.embd + (size_t)j * dim;
+            if (j == 0) memset(dst, 0, dim * sizeof(float));
+            else {
+                const float *h = llama_get_embeddings_nextn_ith(ctx, j - 1);
+                if (!h) { fprintf(stderr, "[calib] missing target hidden row\n"); exit(2); }
+                memcpy(dst, h, dim * sizeof(float));
+            }
+        }
+        cap.decode_id++; cap.ptr_group.clear();
+        if (llama_decode(head, b)) { fprintf(stderr, "[calib] MTP observe failed\n"); exit(2); }
+        mtp_rows += tokens.size();
+        const float *h = llama_get_embeddings_nextn_ith(ctx, (int)tokens.size() - 1);
+        const float *lg = llama_get_logits_ith(ctx, (int)tokens.size() - 1);
+        const int nv = llama_vocab_n_tokens(vocab);
+        for (int step = 0; step < 4; step++) {
+            if (!h || !lg) { fprintf(stderr, "[calib] missing draft seed\n"); exit(2); }
+            b.token[0] = (llama_token)(std::max_element(lg, lg + nv) - lg);
+            b.pos[0] = pos0 + (int)tokens.size() + step;
+            b.n_tokens = 1; b.logits[0] = 1;
+            memcpy(b.embd, h, dim * sizeof(float));
+            cap.decode_id++; cap.ptr_group.clear();
+            if (llama_decode(head, b)) { fprintf(stderr, "[calib] MTP draft failed\n"); exit(2); }
+            mtp_rows++;
+            h = llama_get_embeddings_nextn_ith(head, 0);
+            lg = llama_get_logits_ith(head, 0);
+        }
+        llama_batch_free(b);
+    };
 
     for (int i = 0; i < n_texts; i++) {
         llama_memory_clear(llama_get_memory(ctx), true);
@@ -346,7 +413,43 @@ int main(int argc, char **argv) {
         const int rc = llama_decode(ctx, b);
         llama_batch_free(b);
         if (rc != 0) { fprintf(stderr, "[calib] llama_decode failed on text %d (rc %d)\n", i, rc); return 2; }
+        capture_mtp(ids[i], 0);
     }
+    if (!images.empty()) {
+        void *vision = ell_mtmd_new(model, mmproj.c_str(), threads, 0, 256);
+        if (!vision) { fprintf(stderr, "[calib] projector load failed\n"); return 2; }
+        for (const auto &path : images) {
+            FILE *image = fopen(path.c_str(), "rb");
+            if (!image) { fprintf(stderr, "[calib] cannot read image %s\n", path.c_str()); return 2; }
+            fseek(image, 0, SEEK_END); long size = ftell(image); rewind(image);
+            if (size <= 0 || size > 64 * 1024 * 1024) { fclose(image); return 2; }
+            std::vector<uint8_t> bytes((size_t)size);
+            const bool read_ok = fread(bytes.data(), 1, bytes.size(), image) == bytes.size();
+            fclose(image);
+            if (!read_ok) return 2;
+            llama_memory_clear(llama_get_memory(ctx), true);
+            cap.decode_id++; cap.ptr_group.clear();
+            int32_t positions = 0;
+            if (ell_mtmd_eval_image(vision, ctx, 0, 0, bytes.data(), (uint32_t)bytes.size(), cp.n_batch, &positions)) {
+                fprintf(stderr, "[calib] image encode/decode failed\n"); return 2;
+            }
+            // Text after the image also exercises language activations conditioned on vision.
+            auto b = llama_batch_init((int)ids[0].size(), 0, 1);
+            b.n_tokens = (int)ids[0].size();
+            for (int j = 0; j < b.n_tokens; j++) {
+                b.token[j] = ids[0][j]; b.pos[j] = positions + j;
+                b.n_seq_id[j] = 1; b.seq_id[j][0] = 0; b.logits[j] = 1;
+            }
+            cap.decode_id++; cap.ptr_group.clear();
+            const int rc = llama_decode(ctx, b);
+            llama_batch_free(b);
+            if (rc) return 2;
+            capture_mtp(ids[0], positions);
+            fprintf(stderr, "[calib] image %s: %d positions plus %zu text tokens\n", path.c_str(), positions, ids[0].size());
+        }
+        ell_mtmd_free(vision);
+    }
+    fprintf(stderr, "[calib] MTP rows: %lld, public images: %zu\n", (long long)mtp_rows, images.size());
     fprintf(stderr, "[calib] %d texts, %lld tokens, %zu sites captured", n_texts, (long long)n_tokens, cap.sites.size());
     if (!cap.skipped.empty()) fprintf(stderr, ", %zu q8_0 matmuls not claimable", cap.skipped.size());
     fprintf(stderr, "\n");
@@ -382,7 +485,17 @@ int main(int argc, char **argv) {
 
         /* x_field at the reference exponent: rint(x * 2^REF_AF) */
         std::vector<int32_t> xq((size_t)m * K);
-        for (size_t i = 0; i < xq.size(); i++) xq[i] = (int32_t)llrint((double)s.rows[i] * (double)(1 << REF_AF));
+        const double max_ref = std::min((double)std::numeric_limits<int32_t>::max(),
+            (double)std::numeric_limits<int64_t>::max() / (127.0 * K)) - 1.0;
+        for (size_t i = 0; i < xq.size(); i++) {
+            const double x = (double)s.rows[i] * (double)(1 << REF_AF);
+            if (!std::isfinite(x) || fabs(x) > max_ref) {
+                // Bound both the int32 conversion and the int64 dot product.
+                fprintf(stderr, "[calib] %s: activation outside the reference arithmetic bound\n", g.c_str());
+                return 2;
+            }
+            xq[i] = (int32_t)llrint(x);
+        }
 
         /* pass B: peak per candidate k, max over the group's members */
         int64_t peaks[N_K] = { 0 };
@@ -396,7 +509,7 @@ int main(int argc, char **argv) {
                 refused.insert(wn.first); ok = false; break;
             }
             int64_t p[N_K];
-            peak_for_weight(xq, m, K, wbuf.data(), N, order, p);
+            peak_for_weight(xq, m, K, wbuf.data(), N, order, p, threads);
             for (int ki = 0; ki < N_K; ki++) peaks[ki] = std::max(peaks[ki], p[ki]);
         }
         if (!ok) continue;
@@ -477,10 +590,12 @@ int main(int argc, char **argv) {
     /* ---- export-calib.py's format, byte for byte ------------------------ */
     FILE *f = fopen(out_path.c_str(), "w");
     if (!f) { fprintf(stderr, "[calib] cannot write %s\n", out_path.c_str()); return 2; }
+    const std::string model_name = model_path.substr(model_path.find_last_of("/\\") + 1);
     fprintf(f, "# shielded-calib 2\n");             /* 2 = per-column exponents, SHIELDED_AF_DELTA=0 */
-    fprintf(f, "# from %s: %zu sites, reference exponent %d\n", model_path.c_str(), chosen.size(), REF_AF);
+    fprintf(f, "# from %s: %zu sites, reference exponent %d\n", model_name.c_str(), chosen.size(), REF_AF);
     fprintf(f, "# shielded-calib (C, engine-observed): %d texts, %lld tokens, per-column weight encoding -> SHIELDED_AF_DELTA=0\n",
             n_texts, (long long)n_tokens);
+    fprintf(f, "# MTP rows: %lld; public images: %zu\n", (long long)mtp_rows, images.size());
     for (const auto &kv : chosen) {
         fprintf(f, "site %s %d %zu", kv.first.c_str(), kv.second.af, kv.second.outliers.size());
         for (int64_t o : kv.second.outliers) fprintf(f, " %lld", (long long)o);
@@ -513,6 +628,7 @@ int main(int argc, char **argv) {
     }
     for (const auto &r : refused) fprintf(stderr, "  refused: %s\n", r.c_str());
 
+    if (head) llama_free(head);
     llama_free(ctx); llama_model_free(model);
     return 0;
 }

@@ -58,6 +58,9 @@ run: shielded-run
 # point the include and lib variables at it:
 #   make calib GGML_LIB=$ELL/lib LLAMA_INC=-I$ELL_HDR/include GGML_INC=-I$ELL_HDR/ggml-include
 #   ./shielded-calib --backend $ELL/lib/libggml-cpu.so model.gguf model.calib
+# Use the pinned engine's headers and libenclave_llama/libmtmd as well. For an
+# MTP vision bundle, pass --mtp --mmproj mmproj-F16.gguf --image public.png.
+# Set LD_LIBRARY_PATH=$ELL/lib when its libraries are outside the system path.
 calib: shielded-calib
 LLAMA_INC ?= -I$(GGML_SRC)/include
 
@@ -134,9 +137,9 @@ prefix-kv-mint: prefix-kv-mint.cpp prefix-kv.o shielded-pads.o tweetnacl.o poly1
 # shielded-field.o is the SAME object the backend links, -ffp-contract=off and
 # all: the calibrator's w_fixed must be the runtime's, byte for byte, or the
 # exponent it picks is for a product the runtime never forms.
-shielded-calib: shielded-calib.cpp shielded-field.o shielded-field.h
+shielded-calib: shielded-calib.cpp shielded-field.o shielded-field.h ../llama-shim/enclave_llama.h
 	$(CXX) $(CXXFLAGS) $(LLAMA_INC) $(GGML_INC) -o $@ shielded-calib.cpp shielded-field.o \
-	  -L$(GGML_LIB) -lllama -lggml -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
+	  -L$(GGML_LIB) -lenclave_llama -lllama -lggml -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
 # Exchange-count amortiser benches (`make bench`): the same link line as
 # shielded-run, backend modules loaded by path at run time (BACKENDS env), so
