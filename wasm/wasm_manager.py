@@ -2554,6 +2554,16 @@ def _shielded_tenant_env(spec: dict, model_volume: str = "") -> dict:
     if vport > 0:
         env["SHIELDED_VSOCK_PORT"] = str(vport)
     env["GGML_BACKEND_PATH"] = SHIELDED_BACKEND_SO
+    # Load the weights in the FILE'S layout, not the CPU backend's. Its extra
+    # buffer types repack some quantizations at load time (x86: q4_K, iq4_nl,
+    # q2_K; ARM: q8_0) for its own kernels, keeping the type tag while changing
+    # the bytes - and the shielded backend, which has to read those rows to
+    # encode them for the card, declines a repacked weight rather than encode
+    # something nobody computes with. On a k-quant model that is most of the
+    # file sitting in the enclave next to an idle card, so a shielded tenant
+    # turns repacking off and keeps the card instead. CPU-only tenants are
+    # untouched. Inert on engines predating the env read, like every knob here.
+    env["ENCLAVE_GGML_EXTRA_BUFTS"] = "0"
     # The tenant's slice of the card, RESERVED at HELLO (protocol 1.3): the
     # backend packs it into the handshake and the worker holds that much device
     # memory for the connection until it closes, refusing the HELLO when the

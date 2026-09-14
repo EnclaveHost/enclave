@@ -740,8 +740,10 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
 }
 
 /* --------------------------------------------------------------------------
- * Weight registration: straight from ggml's q8_0 rows into THE encoding, one
- * row per output, which is also what the worker wants. No transpose anywhere.
+ * Weight registration: from ggml's rows into THE encoding, one row per output,
+ * which is also what the worker wants. No transpose anywhere. A q8_0 source
+ * goes straight in; any other quantization converts a row at a time on the way
+ * (shielded-source-quant.h), which is why the type travels with the pointer.
  * ----------------------------------------------------------------------- */
 static int sh_prepare_rows_threaded(const void *blocks, ggml_type type, int64_t K, int64_t N, int8_t *w_out, int *f_out) {
     const bool convert = type != GGML_TYPE_Q8_0;
@@ -802,20 +804,29 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     /* Same pair of gates supports_op applied; registration re-checks them
      * because it is also reached through paths that never asked it. */
     if (!sh_source_type_ok(w->type) || !sh_source_geometry_ok(w->type, K)) return false;
-#if defined(__aarch64__)
-    /* The ARM CPU backend repacks q8_0 rows into q8_0_4x8 at load time (its
-     * CPU_REPACK buffer type) when built with dotprod/i8mm kernels. The bytes
-     * are then not q8_0 rows, and the encoder below finds no exponent that fits
-     * for every row of every weight -- which is the symptom, not the cause. Say
-     * the cause. (x86 never repacks q8_0; this is arm-only so the x86 object
-     * stays byte-identical.) */
+    /* REPACKED ROWS ARE NOT THIS TENSOR'S ROWS. The CPU backend's extra buffer
+     * types rewrite a weight into interleaved blocks at load time (ARM: q8_0 ->
+     * q8_0_4x8 with dotprod/i8mm; x86/AVX2: q4_K -> q4_K_8x8, iq4_nl, q2_K and
+     * friends), keeping the tensor's TYPE tag while changing its bytes. Reading
+     * them as the type says would encode a weight nobody computes with -- and
+     * that is not a loud failure: the card is verified against OUR encoding, so
+     * wrong-but-consistent products would pass Freivalds and the model would
+     * just be quietly wrong. On ARM it showed up as "no exponent fits", which is
+     * the symptom; this is the cause, and it is checked on every architecture
+     * because the x86 types that repack are exactly the ones a k-quant model is
+     * made of.
+     *
+     * Two ways out, both at model load, neither of them here: llama's
+     * `use_extra_bufts = false` (what shielded-calib does), or a ggml-cpu built
+     * with GGML_CPU_REPACK=OFF. Until then such a weight stays in the enclave,
+     * which is correct and merely slow. */
     if (w->buffer && strstr(ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), "REPACK")) {
-        SH_LOG("%s: lives in a %s buffer: the CPU backend repacked its q8_0 rows; build ggml-cpu with GGML_CPU_REPACK=OFF\n",
-               name.c_str(), ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)));
+        SH_LOG("%s: lives in a %s buffer - the CPU backend repacked its %s rows, so its bytes are no longer that type; "
+               "staying in the enclave (load the model with use_extra_bufts=false, or build ggml-cpu with GGML_CPU_REPACK=OFF)\n",
+               name.c_str(), ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), ggml_type_name(w->type));
         s.refused.insert(name);
         return false;
     }
-#endif
 
     /* Reservation budget: place calibrated weights until this tenant's slice of
      * the card is full, then leave the rest on CPU. `dev_add` is the device
@@ -1188,6 +1199,7 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
     if (src1->ne[2] != 1 || src1->ne[3] != 1) return false;
     if (src0->ne[0] % SH_QK != 0 || src0->ne[0] % 16 != 0) return false;
     if (!sh_source_geometry_ok(src0->type, src0->ne[0])) return false;
+    if (sh_is_repacked(src0)) return false;   /* not this type's bytes any more; sh_register says why */
     /* A weight tensor has a name and calibration; an activation-activation
      * product (attention) has neither, and must never come here -- TwinShield's
      * OutAttnMult is broken at the group sizes real GQA uses. */
@@ -1333,6 +1345,17 @@ static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHI
 static void sh_plain_mul_mat(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst) {
     const int64_t K = w->ne[0], N = w->ne[1], m = a->ne[1];
     const int64_t nb = K / SH_QK;
+    /* Repacked rows cannot be read as their type here either. The CPU backend
+     * owns the traits that understand them, so hand the node to it rather than
+     * produce a plausible wrong answer. Claiming refuses these weights up front,
+     * so this only catches a tensor whose buffer we could not see then. */
+    if (sh_is_repacked(w)) {
+        if (dst->src[0] == w && dst->src[1] == a && sh_cpu_compute(dst)) return;
+        fprintf(stderr, "[shielded] %s: repacked weight and no CPU backend to compute it with; zeroing\n",
+                ggml_get_name(w));
+        memset(dst->data, 0, ggml_nbytes(dst));
+        return;
+    }
     /* A source that is not q8_0 is dequantized a row at a time and multiplied in
      * the same double accumulation. The hatch is rare (a weight we claimed and
      * then could not register), so a row of scratch beats a second encoding. */
