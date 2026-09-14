@@ -22,12 +22,33 @@
 #include <random>
 #include <vector>
 
+/* The weight's quantization ON DISK, which the tier converts at registration.
+ * Running the same comparison over a k-quant is the test that the conversion is
+ * a conversion and not a reinterpretation: the CPU reference below reads the
+ * very same k-quant bytes, so what the tolerance has to absorb is exactly the
+ * step this backend adds (dequantize, requantize to q8_0, encode). */
+static ggml_type wtype_of(const char *name) {
+    for (int t = 0; t < GGML_TYPE_COUNT; t++) {
+        const char *n = ggml_type_name((ggml_type)t);
+        if (n && !strcmp(n, name)) return (ggml_type)t;
+    }
+    fprintf(stderr, "unknown --wtype %s\n", name);
+    exit(2);
+}
+
 int main(int argc, char **argv) {
     int64_t K = 512, N = 256, M = 4;
+    ggml_type wtype = GGML_TYPE_Q8_0;
     for (int i = 1; i < argc - 1; i++) {
         if (!strcmp(argv[i], "--k")) K = atoll(argv[++i]);
         else if (!strcmp(argv[i], "--n")) N = atoll(argv[++i]);
         else if (!strcmp(argv[i], "--m")) M = atoll(argv[++i]);
+        else if (!strcmp(argv[i], "--wtype")) wtype = wtype_of(argv[++i]);
+    }
+    if (K % ggml_blck_size(wtype) || N % ggml_blck_size(wtype)) {
+        fprintf(stderr, "--k and --n must be whole %s blocks (%d)\n",
+                ggml_type_name(wtype), (int)ggml_blck_size(wtype));
+        return 2;
     }
 
     std::mt19937 rng(1234);
@@ -39,18 +60,18 @@ int main(int argc, char **argv) {
     std::vector<float> a_f32((size_t)K * M);
     for (auto &v : a_f32) v = na(rng);
 
-    std::vector<uint8_t> w_q8(ggml_row_size(GGML_TYPE_Q8_0, K) * N);
-    ggml_quantize_chunk(GGML_TYPE_Q8_0, w_f32.data(), w_q8.data(), 0, N, K, nullptr);
+    std::vector<uint8_t> w_q8(ggml_row_size(wtype, K) * N);
+    ggml_quantize_chunk(wtype, w_f32.data(), w_q8.data(), 0, N, K, nullptr);
 
     std::vector<float> w2_f32((size_t)N * K);
     for (auto &v : w2_f32) v = nd(rng);
-    std::vector<uint8_t> w2_q8(ggml_row_size(GGML_TYPE_Q8_0, N) * K);
-    ggml_quantize_chunk(GGML_TYPE_Q8_0, w2_f32.data(), w2_q8.data(), 0, K, N, nullptr);
+    std::vector<uint8_t> w2_q8(ggml_row_size(wtype, N) * K);
+    ggml_quantize_chunk(wtype, w2_f32.data(), w2_q8.data(), 0, K, N, nullptr);
 
     auto run = [&](ggml_backend_t backend, std::vector<float> &out) -> bool {
         ggml_init_params ip = { ggml_tensor_overhead() * 8 + ggml_graph_overhead(), nullptr, true };
         ggml_context *ctx = ggml_init(ip);
-        ggml_tensor *w = ggml_new_tensor_2d(ctx, GGML_TYPE_Q8_0, K, N);
+        ggml_tensor *w = ggml_new_tensor_2d(ctx, wtype, K, N);
         ggml_set_name(w, "blk.0.ffn_gate.weight");
         ggml_tensor *a = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, K, M);
         ggml_set_name(a, "act");
@@ -91,9 +112,9 @@ int main(int argc, char **argv) {
 
         ggml_init_params ip = { ggml_tensor_overhead() * 16 + ggml_graph_overhead(), nullptr, true };
         ggml_context *ctx = ggml_init(ip);
-        ggml_tensor *w1 = ggml_new_tensor_2d(ctx, GGML_TYPE_Q8_0, K, N);
+        ggml_tensor *w1 = ggml_new_tensor_2d(ctx, wtype, K, N);
         ggml_set_name(w1, "blk.0.ffn_gate.weight");
-        ggml_tensor *w2 = ggml_new_tensor_2d(ctx, GGML_TYPE_Q8_0, N, K);
+        ggml_tensor *w2 = ggml_new_tensor_2d(ctx, wtype, N, K);
         ggml_set_name(w2, "blk.0.ffn_down.weight");
         ggml_tensor *a = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, K, M);
         ggml_set_name(a, "act");
@@ -158,10 +179,10 @@ int main(int argc, char **argv) {
     uint64_t off = 0, loc = 0, macs = 0, vf = 0;
     ggml_backend_shielded_stats(&off, &loc, &macs, &vf);
 
-    printf("{\"K\":%lld,\"N\":%lld,\"M\":%lld,\"max_abs_err\":%.6g,\"rms_err\":%.6g,"
+    printf("{\"K\":%lld,\"N\":%lld,\"M\":%lld,\"wtype\":\"%s\",\"max_abs_err\":%.6g,\"rms_err\":%.6g,"
            "\"ref_max\":%.6g,\"rel\":%.6g,\"offloaded_nodes\":%llu,\"local_nodes\":%llu,"
            "\"verify_fail\":%llu,\"sched_ok\":%s,\"sched_shielded_nodes\":%d}\n",
-           (long long)K, (long long)N, (long long)M, worst,
+           (long long)K, (long long)N, (long long)M, ggml_type_name(wtype), worst,
            sqrt(sum2 / (double)ref.size()), refmax, refmax > 0 ? worst / refmax : 0.0,
            (unsigned long long)off, (unsigned long long)loc, (unsigned long long)vf,
            sched_ok ? "true" : "false", n_shielded);

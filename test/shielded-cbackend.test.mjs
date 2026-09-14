@@ -279,3 +279,49 @@ test("ggml_backend_sched offloads the matmuls and keeps the rest in the enclave"
   // the weight quantum dominates, and this stays far inside it.
   assert.ok(v.rel < 0.05, `shielded result drifted ${v.rel} from the CPU backend`);
 });
+
+// The tier's weight format is the int8 field encoding, not q8_0: q8_0 is only
+// the layout the encoder reads. A GGUF quantized any other way is converted row
+// by row at registration, so the same graph must offload and verify whatever the
+// file says -- which is what lets a k-quant model (a UD mix is several types in
+// ONE file) run on the card instead of every matmul staying in the enclave.
+test("a k-quant weight offloads and verifies like a q8_0 one", async (t) => {
+  const ggmlSrc = process.env.GGML_SRC || join(process.env.HOME || "", "Projects", "llama.cpp");
+  const ggmlLib = process.env.GGML_LIB || join(process.env.HOME || "", "Projects", "llamacpp-lib");
+  if (!existsSync(join(ggmlSrc, "ggml", "include", "ggml.h")) || !existsSync(ggmlLib))
+    return t.skip("no ggml checkout to build the backend against");
+
+  const mk = spawnSync("make", ["-s", "ggml"], {
+    cwd: dir, encoding: "utf8", timeout: 600_000,
+    env: { ...process.env, GGML_SRC: ggmlSrc, GGML_LIB: ggmlLib } });
+  if (mk.status !== 0) return t.skip(`ggml backend did not build: ${(mk.stderr || "").slice(0, 300)}`);
+
+  const host = process.env.SHIELDED_HOST || "127.0.0.1";
+  const port = Number(process.env.SHIELDED_PORT || 9500);
+  const live = await reachable(host, port);
+
+  const calib = join(repo, "wasm", "ggml-shielded", "test.calib");
+  writeFileSync(calib,
+    "# shielded-calib 1\nsite blk.0.ffn_gate.weight 8 0\nsite blk.0.ffn_down.weight 8 0\n");
+
+  // One per shape of quantization the real files carry: k-quants with their
+  // 256-wide super-blocks, an IQ type with a codebook, and q8_0 as the control
+  // that must come out byte-identical to the path that existed before.
+  for (const wtype of ["q8_0", "q4_K", "q5_K", "q6_K", "iq4_xs"]) {
+    const out = execFileSync(join(dir, "ggml-test"), ["--wtype", wtype], {
+      encoding: "utf8", timeout: 900_000,
+      env: { ...process.env, SHIELDED_CALIB: calib, SHIELDED_HOST: host, SHIELDED_PORT: String(port),
+             SHIELDED_MIN_MACS: "0" },
+    }).trim().split("\n").pop();
+    const v = JSON.parse(out);
+    assert.equal(v.wtype, wtype);
+    assert.equal(v.sched_ok, true, `${wtype}: a non-matmul landed on the shielded backend`);
+    assert.equal(v.sched_shielded_nodes, 2, `${wtype}: sched did not place both matmuls on the shielded backend`);
+    assert.equal(v.verify_fail, 0, `${wtype}: a product failed verification`);
+    if (live) assert.ok(v.offloaded_nodes > 0, `${wtype}: a worker was reachable but nothing was offloaded`);
+    else assert.ok(v.local_nodes > 0, `${wtype}: no worker, so the nodes should have run locally`);
+    // The conversion adds one requantization ahead of the encoding, and the
+    // reference reads the same quantized weights, so the bound does not move.
+    assert.ok(v.rel < 0.05, `${wtype}: shielded result drifted ${v.rel} from the CPU backend`);
+  }
+});

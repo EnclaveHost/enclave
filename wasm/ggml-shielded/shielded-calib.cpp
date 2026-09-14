@@ -1,5 +1,5 @@
 /*
- * shielded-calib -- calibrate ANY q8_0 GGUF the engine can run, for the C backend.
+ * shielded-calib -- calibrate ANY GGUF the engine can run, for the C backend.
  *
  * calibrate.py does the same job through shielded/model.py, a numpy
  * re-implementation of ONE architecture (qwen2). That is why, until this tool,
@@ -67,6 +67,7 @@
 extern "C" {
 #include "shielded-field.h"
 }
+#include "shielded-source-quant.h"
 
 #include <algorithm>
 #include <atomic>
@@ -162,7 +163,8 @@ static bool claimable(const ggml_tensor *op) {
     if (op->op != GGML_OP_MUL_MAT) return false;
     const ggml_tensor *src0 = op->src[0], *src1 = op->src[1];
     if (!src0 || !src1) return false;
-    if (src0->type != GGML_TYPE_Q8_0) return false;
+    if (!sh_source_type_ok(src0->type)) return false;
+    if (!sh_source_geometry_ok(src0->type, src0->ne[0])) return false;
     if (src1->type != GGML_TYPE_F32) return false;
     if (op->type != GGML_TYPE_F32) return false;
     if (!ggml_is_contiguous(src0) || !ggml_is_contiguous(src1)) return false;
@@ -186,11 +188,12 @@ static std::string strip_blk(const std::string &name) {
 static bool eval_cb(struct ggml_tensor *t, bool ask, void *ud) {
     capture *c = (capture *)ud;
     if (ask) {
-        if (t->op == GGML_OP_MUL_MAT && t->src[0] && t->src[0]->type == GGML_TYPE_Q8_0) {
+        if (t->op == GGML_OP_MUL_MAT && t->src[0] && sh_source_type_ok(t->src[0]->type)) {
             if (claimable(t)) return true;
             const char *nm = ggml_get_name(t->src[0]);
             if (nm && *nm && c->skipped.insert(nm).second && c->verbose)
-                fprintf(stderr, "[calib] %s: q8_0 matmul the backend would not claim (shape/layout); skipped\n", nm);
+                fprintf(stderr, "[calib] %s: %s matmul the backend would not claim (shape/layout); skipped\n",
+                        nm, ggml_type_name(t->src[0]->type));
         }
         return false;
     }
@@ -323,6 +326,13 @@ int main(int argc, char **argv) {
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;            /* the rows must be host memory we can read */
     mp.load_mtp = use_mtp;
+    /* No repacked weights: the CPU backend's extra buffer types rewrite q4_K
+     * and iq4_nl rows into interleaved blocks at load, and this tool encodes
+     * the rows the way the RUNTIME will (sh_prepare_rows_any reads the file's
+     * own layout). Calibrating against interleaved bytes would describe a
+     * weight nobody computes with. The runtime refuses such a buffer outright
+     * (sh_register), so the two agree: the file's layout or nothing. */
+    mp.use_extra_bufts = false;
     llama_model *model = llama_model_load_from_file(model_path.c_str(), mp);
     if (!model) { fprintf(stderr, "[calib] model load failed\n"); return 2; }
     const llama_vocab *vocab = llama_model_get_vocab(model);
@@ -504,7 +514,10 @@ int main(int argc, char **argv) {
             const ggml_tensor *w = wn.second;
             const int64_t N = w->ne[1];
             wbuf.resize((size_t)K * N); fw.resize((size_t)N);
-            if (sh_prepare_weight_rows(w->data, K, N, wbuf.data(), fw.data()) < 0) {
+            /* whatever this weight is quantized as, encoded the way the runtime
+             * will encode it -- the exponent measured here has to be the one the
+             * backend can use (sh_prepare_rows_any). */
+            if (sh_prepare_rows_any(w->data, w->type, K, N, 0, N, wbuf.data(), fw.data()) < 0) {
                 fprintf(stderr, "[calib] %s: no weight exponent fits the int8 lane; the backend would refuse it too\n", wn.first.c_str());
                 refused.insert(wn.first); ok = false; break;
             }
