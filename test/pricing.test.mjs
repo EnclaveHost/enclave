@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
-  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, cpuFloorFor, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
+  moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, cpuFloorFor, cardServesApp, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
   hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV,
   enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../site/js/core/pricing.js";
 
@@ -938,4 +938,55 @@ test("ranking prices and orders a CPU target by the floor it will actually deman
   const tight = row("metal0", { ...CPU_BOX, cpuShareFree: 0.2 }, { id: ID_B });
   const t = rankEnclavesFor(SOFT_FB, [gpuBox, tight]).find(x => x.name === "metal0");
   assert.equal(t.queued, true, "20% free against a 63% floor cannot take it now");
+});
+
+/* ---- the shielded card and the two node floors ----------------------------
+
+   LIVE REGRESSION, 2026-09-13, eyesoff-ai on metal0. The version panel refused
+   every CPU dial the owner typed: it demanded 61% of the node for a deployment
+   the runner serves at 7%, so the app could not be moved to the cheaper share
+   the cpuFallback split exists to make possible.
+
+   metal0's shielded card posts 214.7 TFLOPS and eyesoff-ai declares 320, so
+   the plain ratio is 150% and the card reads as too small to hold the app.
+   For a LOCAL card that conclusion is right and load-bearing (the weights are
+   resident in the VRAM slice; too big is fatal at weight-load). For a SHIELDED
+   one it is exactly wrong, and gpuRouting already says so: offload is
+   per-matmul, the reservation is a budget not residency, too big is merely
+   slower. The runner therefore keeps the work on the card - and with it the
+   card-case node floor - while the console had routed it to cores. */
+test("a shielded card serves any size, so it keeps the CARD-case node floor", () => {
+  const V = { vramMb: 51200, gpuGflops: 320000, memMb: 4096, cpuGflops: 10,
+              gpuOptional: true, cpuFallback: { memMb: 39322 } };
+  const HW = { cardVramGb: 62, cardTflops: 214.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000 };
+  const m = minPctsOf(V, HW);
+  assert.equal(m.gpuNeedPct, 150, "320 TFLOPS asked of a 214.7 TFLOPS card");
+  assert.equal(m.cpuPct, 7);
+  assert.equal(m.cpuPctNoGpu, 61);
+
+  // metal0 exactly as /enclaves reports it: a card, and the shielded block
+  const shielded = row("metal0", { gpu: true, claimEnabled: true, ...HW,
+    shielded: { vramGb: 62, vramFreeGb: 40, vramBudgetGb: 62 },
+    gpuShareFree: 0.85, cpuShareFree: 0.62 }, { id: ID_A });
+  const [t] = rankEnclavesFor(V, [shielded]);
+  assert.equal(t.weightsOnCores, false, "150% is not a reason to leave a shielded card");
+  assert.equal(t.cpuFloor, 7, "so the node floor is the card-case one, as the runner charges");
+
+  // the same ratio on a LOCAL card of that size keeps the old, correct verdict
+  const local = row("metal0", { gpu: true, claimEnabled: true, ...HW,
+    gpuShareFree: 0.85, cpuShareFree: 0.62 }, { id: ID_A });
+  const [l] = rankEnclavesFor(V, [local]);
+  assert.equal(l.weightsOnCores, true, "a local card that cannot hold it routes to cores");
+  assert.equal(l.cpuFloor, 61, "and there the weights really are in node RAM");
+});
+
+test("cardServesApp is the console's copy of gpuRouting, shielded rule included", () => {
+  const big = { gpuNeedPct: 150 }, small = { gpuNeedPct: 36 };
+  assert.equal(cardServesApp({ gpu: true, shielded: { vramGb: 62 } }, big), true,
+    "shielded: any size, offloaded per matmul");
+  assert.equal(cardServesApp({ gpu: true }, big), false, "local: weights must fit or it dies at load");
+  assert.equal(cardServesApp({ gpu: true }, small), true);
+  assert.equal(cardServesApp({ gpu: false, shielded: { vramGb: 62 } }, small), false,
+    "no card advertised is no card, whatever the block says");
+  assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
 });

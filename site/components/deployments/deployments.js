@@ -25,7 +25,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, cpuFloorFor, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
 function deploymentTitle(d) {
@@ -1200,13 +1200,16 @@ class Deployments extends EnclaveElement {
        gets the deployment EVICTED rather than merely refused.
        `gpuMilli` is a parameter because the dials can change the answer while
        you type: dial the card to 0 and this becomes a coreless placement.
-       Same `gpuNeedPct <= 100` predicate rankEnclavesFor uses, with the same
-       blind spot for a shielded card (it serves any size, so the runner would
-       keep the card floor) - which errs toward the LARGER floor here, i.e.
-       toward disabling a switch rather than toward an eviction. */
-    const hostGpu = !!(hw && hw.row && hw.row.availability && hw.row.availability.gpu === true);
+       `cardServesApp` is the shared mirror of the runner's gpuRouting, shielded
+       card and all - a card too small for the app routes the work to cores,
+       unless it is shielded, where offload is per-matmul and too-big is merely
+       slower. Reading that wrong locks the panel: metal0 posts 214.7 TFLOPS
+       against eyesoff-ai's declared 320, so a plain ratio calls its shielded
+       card unusable and demands the coreless floor for a deployment the runner
+       serves on that very card at the card-case one. */
+    const hostAvail = (hw && hw.row && hw.row.availability) || null;
     const cpuNeedOf = (r, gpuMilli) => cpuFloorFor(r.mins,
-      (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && hostGpu && r.mins.gpuNeedPct <= 100 ? 1 : 0);
+      (gpuMilli != null ? gpuMilli : bought.gpuMilli) > 0 && cardServesApp(hostAvail, r.mins) ? 1 : 0);
     const rows = app.versions
       .map((v, i) => ({ v, i, mins: minPctsOf(specOf(v), hw && hw.spec) }))
       .filter(r => !r.v.yanked && r.v.approval === APPROVAL.approved)

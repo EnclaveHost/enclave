@@ -195,6 +195,26 @@ export function minPctsOf(v, spec, opts){
    coreless floor - so a soft-GPU app dialled for the card case runs on GPU
    boxes and is refused by CPU ones, which is exactly what it asked for. */
 export const cpuFloorFor = (mins, gpuPct) => Number(gpuPct) > 0 ? mins.cpuPct : mins.cpuPctNoGpu;
+/* Will this box serve the app's model work ON ITS CARD? Mirrors the runner's
+   gpuRouting, and must, because it now decides which of the two node floors
+   applies as well as which badge to draw.
+
+   A card too small for the app is a card it cannot use - a LOCAL one, where
+   the weights are resident in the tenant's VRAM slice and a model that exceeds
+   it dies at weight-load. A SHIELDED card is the opposite and this is exactly
+   the line gpuRouting draws: offload is per-matmul over the masked protocol,
+   the reservation is a budget rather than weight residency, and a model bigger
+   than the card is merely SLOWER, never fatal. So it serves any size, and
+   "too small" stops being a reason to call the placement coreless.
+
+   Getting this wrong is not cosmetic. metal0's shielded card advertises 214.7
+   TFLOPS against eyesoff-ai's declared 320, so the plain ratio says 150% and
+   the card looks unusable - while the runner, which knows the card is
+   shielded, serves the work on it and charges the card-case node floor. The
+   console then demanded 61% of the node for a deployment the runner would take
+   at 7%, and no dial the owner could type was accepted. */
+export const cardServesApp = (a, mins) =>
+  !!(a && a.gpu === true && (a.shielded || Number(mins && mins.gpuNeedPct) <= 100));
 /* THE LEDGER REV THAT FREED THE TWO DIALS. Revs <= 12 reverted create() and
    setShares() whenever a non-zero gpuMilli sat below cpuMilli, so every client
    that builds one of those transactions had to lift the GPU dial to match — a
@@ -472,7 +492,7 @@ export function rankEnclavesFor(v, rows){
     // tenant's, and on cores they carry what the card was carrying. A version
     // that says so (cpuFallback) is sized HERE, off the same predicate that
     // picks the label, so the floor and the badge can never disagree.
-    const cardCanHold = gpu && mins.gpuNeedPct <= 100;
+    const cardCanHold = cardServesApp(a, mins);
     const weightsOnCores = hardGpu ? false : (softGpu ? !cardCanHold : true);
     const cpuFloor = cpuFloorFor(mins, weightsOnCores ? 0 : 1);
     const free = { gpuPct: Math.floor((a.gpuShareFree || 0) * 100), cpuPct: Math.floor((a.cpuShareFree || 0) * 100) };
