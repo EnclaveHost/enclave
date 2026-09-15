@@ -1,0 +1,47 @@
+{
+ "logits_english": {
+  "prompts": 200,
+  "positions": 65211,
+  "max_abs_diff_fp16_logits": 3.576171875,
+  "max_abs_diff_last_hidden": 5.53515625,
+  "max_abs_diff_fp32_head": 3.572514295578003,
+  "argmax_agreement": 0.9977804145216942,
+  "prompts_under_1e-3": 11
+ },
+ "logits_code": {
+  "prompts": 200,
+  "positions": 60635,
+  "max_abs_diff_fp16_logits": 3.70703125,
+  "max_abs_diff_last_hidden": 10.6875,
+  "max_abs_diff_fp32_head": 3.708326578140259,
+  "argmax_agreement": 0.998788340985775,
+  "prompts_under_1e-3": 5
+ },
+ "logits_skipped_prompts_with_dropped_tokens": 11,
+ "greedy_identical": 46,
+ "greedy_total": 50,
+ "ppl_english_original": {
+  "token_ppl": 38.20913772915667,
+  "bits_per_byte": 1.1633783457894358,
+  "tokens": 77011,
+  "bytes": 347916
+ },
+ "ppl_english_trimmed": {
+  "token_ppl": 38.51488012759237,
+  "bits_per_byte": 1.18566612098732,
+  "tokens": 78069,
+  "bytes": 346823
+ },
+ "ppl_code_original": {
+  "token_ppl": 7.965417100762477,
+  "bits_per_byte": 0.8170739244264018,
+  "tokens": 65730,
+  "bytes": 240834
+ },
+ "ppl_code_trimmed": {
+  "token_ppl": 7.971540420157728,
+  "bits_per_byte": 0.8174635461724156,
+  "tokens": 65737,
+  "bytes": 240834
+ }
+}

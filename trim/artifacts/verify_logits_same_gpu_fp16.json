@@ -1,0 +1,20 @@
+{
+ "english": {
+  "prompts": 200,
+  "positions": 62942,
+  "max_abs_diff_logits": 0.0234375,
+  "max_abs_diff_last_hidden": 0.0,
+  "argmax_agreement": 1.0,
+  "prompts_under_1e-3": 199,
+  "prompts_exact_zero": 199
+ },
+ "code": {
+  "prompts": 200,
+  "positions": 59145,
+  "max_abs_diff_logits": 0.0,
+  "max_abs_diff_last_hidden": 0.0,
+  "argmax_agreement": 1.0,
+  "prompts_under_1e-3": 200,
+  "prompts_exact_zero": 200
+ }
+}

@@ -1,0 +1,11 @@
+{
+ "vocab_before": 262144,
+ "vocab_after": 166810,
+ "params_total_before": 5104297504,
+ "params_total_after": 4103671840,
+ "params_embedding_before": 2751463424,
+ "params_embedding_after": 1750837760,
+ "tied": true,
+ "disk_before_bytes": 10278848001,
+ "disk_after_bytes": 8227736865
+}
