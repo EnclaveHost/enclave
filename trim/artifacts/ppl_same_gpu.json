@@ -1,0 +1,50 @@
+{
+ "english": {
+  "docs": 120,
+  "docs_clean": 114,
+  "all_original": {
+   "token_ppl": 38.2098,
+   "bits_per_byte": 1.16338,
+   "tokens": 77011
+  },
+  "all_trimmed": {
+   "token_ppl": 38.5149,
+   "bits_per_byte": 1.18194,
+   "tokens": 78069
+  },
+  "clean_original": {
+   "token_ppl": 38.1572,
+   "bits_per_byte": 1.17308,
+   "tokens": 75041
+  },
+  "clean_trimmed": {
+   "token_ppl": 38.1478,
+   "bits_per_byte": 1.173,
+   "tokens": 75041
+  }
+ },
+ "code": {
+  "docs": 120,
+  "docs_clean": 119,
+  "all_original": {
+   "token_ppl": 7.9656,
+   "bits_per_byte": 0.81708,
+   "tokens": 65730
+  },
+  "all_trimmed": {
+   "token_ppl": 7.9715,
+   "bits_per_byte": 0.81746,
+   "tokens": 65737
+  },
+  "clean_original": {
+   "token_ppl": 7.953,
+   "bits_per_byte": 0.81597,
+   "tokens": 65298
+  },
+  "clean_trimmed": {
+   "token_ppl": 7.9514,
+   "bits_per_byte": 0.81589,
+   "tokens": 65298
+  }
+ }
+}

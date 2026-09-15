@@ -1,0 +1,302 @@
+[
+ {
+  "prompt": "Explain what a hash map is.",
+  "identical": true,
+  "original": "## What is a Hash Map?\n\nA **hash map** (also known as a **hash table**, **dictionary**, or **associative array**) is a fundamental and extremely useful data structure used to store and retrieve data based on a **key-value pair**.\n\nThink of it like a real-world dictionary",
+  "trimmed": "## What is a Hash Map?\n\nA **hash map** (also known as a **hash table**, **dictionary**, or **associative array**) is a fundamental and extremely useful data structure used to store and retrieve data based on a **key-value pair**.\n\nThink of it like a real-world dictionary"
+ },
+ {
+  "prompt": "Write a Python function to check if a number is prime.",
+  "identical": true,
+  "original": "Here are a few ways to write a Python function to check if a number is prime, ranging from a basic implementation to a more optimized one.\n\n## Method 1: Basic and Easy to Understand\n\nThis is the most straightforward approach. A prime number is a natural number greater than 1 that has no positive divisors",
+  "trimmed": "Here are a few ways to write a Python function to check if a number is prime, ranging from a basic implementation to a more optimized one.\n\n## Method 1: Basic and Easy to Understand\n\nThis is the most straightforward approach. A prime number is a natural number greater than 1 that has no positive divisors"
+ },
+ {
+  "prompt": "What is the capital of Australia?",
+  "identical": true,
+  "original": "The capital of Australia is **Canberra**.",
+  "trimmed": "The capital of Australia is **Canberra**."
+ },
+ {
+  "prompt": "Write a bash one-liner to count lines in all .py files.",
+  "identical": true,
+  "original": "Here are a few ways to write a bash one-liner to count lines in all `.py` files, depending on exactly what you want to count:\n\n### Option 1: Total number of lines across all files (Most common)\n\nThis uses `grep` or `cat` piped to `wc -l",
+  "trimmed": "Here are a few ways to write a bash one-liner to count lines in all `.py` files, depending on exactly what you want to count:\n\n### Option 1: Total number of lines across all files (Most common)\n\nThis uses `grep` or `cat` piped to `wc -l"
+ },
+ {
+  "prompt": "Summarize the plot of Romeo and Juliet in two sentences.",
+  "identical": true,
+  "original": "In Verona, two young lovers from feuding families fall in love despite their parents' opposition, leading to a secret marriage. Their passionate romance is tragically cut short when misunderstandings and conflict result in the deaths of both Romeo and Juliet.",
+  "trimmed": "In Verona, two young lovers from feuding families fall in love despite their parents' opposition, leading to a secret marriage. Their passionate romance is tragically cut short when misunderstandings and conflict result in the deaths of both Romeo and Juliet."
+ },
+ {
+  "prompt": "Write a Rust function that sums a slice of i32.",
+  "identical": true,
+  "original": "Here are a few ways to write a Rust function that sums a slice of `i32`, ranging from the most idiomatic (using iterators) to a more traditional loop-based approach.\n\n### 1. Idiomatic Solution (Using `iter().sum()`)\n\nThis is the most concise, readable",
+  "trimmed": "Here are a few ways to write a Rust function that sums a slice of `i32`, ranging from the most idiomatic (using iterators) to a more traditional loop-based approach.\n\n### 1. Idiomatic Solution (Using `iter().sum()`)\n\nThis is the most concise, readable"
+ },
+ {
+  "prompt": "How do I center a div in CSS?",
+  "identical": true,
+  "original": "There are several ways to center a `div` in CSS, depending on **what you want to center** (horizontally, vertically, or both) and **what kind of layout you are using**.\n\nHere is a breakdown of the most common and modern techniques.\n\n---\n\n## 1. Centering Hor",
+  "trimmed": "There are several ways to center a `div` in CSS, depending on **what you want to center** (horizontally, vertically, or both) and **what kind of layout you are using**.\n\nHere is a breakdown of the most common and modern techniques.\n\n---\n\n## 1. Centering Hor"
+ },
+ {
+  "prompt": "Give me a JSON object describing a book.",
+  "identical": false,
+  "original": "Here are a few options for a JSON object describing a book, depending on how much detail you want to include.\n\n### Option 1: Basic Book Description (Concise)\n\n```json\n{\n  \"title\": \"The Hitchhiker's Guide to the Galaxy\",\n  \"author\": \"",
+  "trimmed": "Here are a few options for a JSON object describing a book, depending on how much detail you need.\n\n### Option 1: Basic Book Description (Concise)\n\n```json\n{\n  \"title\": \"The Hitchhiker's Guide to the Galaxy\",\n  \"author\": \"Douglas Adams"
+ },
+ {
+  "prompt": "What does the 'static' keyword do in C?",
+  "identical": true,
+  "original": "The `static` keyword in C is a powerful and versatile specifier that has **different meanings depending on the context** in which it is used. Its primary function is to control the **scope** and **lifetime** of variables, functions, and variables within a program.\n\nHere is a breakdown of what `static",
+  "trimmed": "The `static` keyword in C is a powerful and versatile specifier that has **different meanings depending on the context** in which it is used. Its primary function is to control the **scope** and **lifetime** of variables, functions, and variables within a program.\n\nHere is a breakdown of what `static"
+ },
+ {
+  "prompt": "Write a haiku about autumn.",
+  "identical": true,
+  "original": "Golden leaves descend,\nCrisp air whispers through the trees,\nWinter waits its turn.",
+  "trimmed": "Golden leaves descend,\nCrisp air whispers through the trees,\nWinter waits its turn."
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: Provide a comprehensive analysis that examines the si",
+  "identical": true,
+  "original": "## Continuing the Analysis:\n\n...support your **comprehensive analysis.**\n\n**Philosophical and Cultural Underpinnings:**\n\nThe divergence between Eastern and Western medicine is deeply rooted in contrasting worldviews. Western medicine, largely stemming from the Enlightenment and the scientific revolution, is fundamentally **reductionist and mechanistic**. It operates",
+  "trimmed": "## Continuing the Analysis:\n\n...support your **comprehensive analysis.**\n\n**Philosophical and Cultural Underpinnings:**\n\nThe divergence between Eastern and Western medicine is deeply rooted in contrasting worldviews. Western medicine, largely stemming from the Enlightenment and the scientific revolution, is fundamentally **reductionist and mechanistic**. It operates"
+ },
+ {
+  "prompt": "Explain this code:\n\n{\n  \"$id\": \"http://schema.org/FollowAction\",\n  \"$schema\": \"h",
+  "identical": true,
+  "original": "This code snippet is a **JSON Schema** definition, likely used for validating data that conforms to a specific structure, probably for **structured data on the web** (like in Schema.org vocabulary).\n\nHere is a detailed breakdown of each part:\n\n### 1. `$id`\n```json\n\"$id",
+  "trimmed": "This code snippet is a **JSON Schema** definition, likely used for validating data that conforms to a specific structure, probably for **structured data on the web** (like in Schema.org vocabulary).\n\nHere is a detailed breakdown of each part:\n\n### 1. `$id`\n```json\n\"$id"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: I am using Jinja2 as the template engine for a static",
+  "identical": true,
+  "original": "This error, `TemplateAssertionError: block 'title' defined twice`, occurs because **Jinja2 templates are designed to define a block only once** within a template that uses `{% block ... %}`.\n\nWhen you use `{% block title %}{% endblock %}` in the layout, you are",
+  "trimmed": "This error, `TemplateAssertionError: block 'title' defined twice`, occurs because **Jinja2 templates are designed to define a block only once** within a template that uses `{% block ... %}`.\n\nWhen you use `{% block title %}{% endblock %}` in the layout, you are"
+ },
+ {
+  "prompt": "Explain this code:\n\n# Template Parameters:\n#\n# KIND=ClickHouseInstallationTempla",
+  "identical": true,
+  "original": "This code snippet is a **Kubernetes Custom Resource Definition (CRD)**.\n\nIn simple terms, a CRD is a way to extend the Kubernetes API by allowing you to define your own custom resources (like a \"ClickHouse Installation Template\") and have Kubernetes understand how to manage them.\n\nHere is a detailed",
+  "trimmed": "This code snippet is a **Kubernetes Custom Resource Definition (CRD)**.\n\nIn simple terms, a CRD is a way to extend the Kubernetes API by allowing you to define your own custom resources (like a \"ClickHouse Installation Template\") and have Kubernetes understand how to manage them.\n\nHere is a detailed"
+ },
+ {
+  "prompt": "Continue this text:\n\nThis is an abbreviated version of the complete article.*\nAn",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the desired focus and level of detail:\n\n**Option 1: Focusing on the Mechanism (More Technical)**\n\n> During an atherectomy, a physician clears a clogged artery by **using a specialized instrument, often a rotating burr or a rotational abrasive",
+  "trimmed": "Here are a few ways to continue the text, depending on the desired focus and level of detail:\n\n**Option 1: Focusing on the Mechanism (More Technical)**\n\n> During an atherectomy, a physician clears a clogged artery by **using a specialized instrument, often a rotating burr or a rotational abrasive"
+ },
+ {
+  "prompt": "Explain this code:\n\n---\n# Source: aws-ebs-csi-driver/templates/node.yaml\n# Node ",
+  "identical": true,
+  "original": "This code snippet is a **Kubernetes resource definition**, specifically a **`DaemonSet`**.\n\nA `DaemonSet` is a Kubernetes workload resource that ensures a copy of a Pod runs on **every (or a selected subset of) Node** in the cluster. This is commonly used for cluster-level services like",
+  "trimmed": "This code snippet is a **Kubernetes resource definition**, specifically a **`DaemonSet`**.\n\nA `DaemonSet` is a Kubernetes workload resource that ensures a copy of a Pod runs on **every (or a selected subset of) Node** in the cluster. This is commonly used for cluster-level services like"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: Could you please provide some bibliography for the st",
+  "identical": true,
+  "original": "Here are some recommendations for bibliography and resources on trade in the Holy Roman Empire during the 15th century:\n\n- The book 'Trade and Finance in the Medieval Mediterranean: The Travels of Francesco di Marco Datini' by Iris Origo provides a detailed study of one of the era's most prominent merchants and",
+  "trimmed": "Here are some recommendations for bibliography and resources on trade in the Holy Roman Empire during the 15th century:\n\n- The book 'Trade and Finance in the Medieval Mediterranean: The Travels of Francesco di Marco Datini' by Iris Origo provides a detailed study of one of the era's most prominent merchants and"
+ },
+ {
+  "prompt": "Explain this code:\n\n#ifndef FBO_HPP\n#define FBO_HPP\n\n#include <string>\n#include ",
+  "identical": false,
+  "original": "This code snippet is the **header file** (`.hpp`) for a C++ class named `FBO` (Frame Buffer Object), likely part of a graphics or rendering library.\n\nHere is a detailed breakdown of what each part of the code does:\n\n---\n\n### 1. Header Guards\n\n```cpp",
+  "trimmed": "This code snippet is the **header file** (`FBO.hpp`) for a C++ class named `FBO` (likely standing for **Frame Buffer Object**), which is a fundamental concept in OpenGL (or similar graphics APIs).\n\nHere is a detailed breakdown of what each part of the code does:\n\n"
+ },
+ {
+  "prompt": "Continue this text:\n\n Chapter Title: Environmental Epidemiology: How Our Surroun",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the specific angle you want to take in your chapter.\n\n**Option 1: Focusing on a Specific Health Outcome (Classic Epidemiological Approach)**\n\n> Imagine you move to a new neighborhood with beautiful parks and friendly neighbors. You soon notice there are many factories",
+  "trimmed": "Here are a few ways to continue the text, depending on the specific angle you want to take in your chapter.\n\n**Option 1: Focusing on a Specific Health Outcome (Classic Epidemiological Approach)**\n\n> Imagine you move to a new neighborhood with beautiful parks and friendly neighbors. You soon notice there are many factories"
+ },
+ {
+  "prompt": "Explain this code:\n\napiVersion: v1\ndata:\n  ca.crt: XXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "identical": true,
+  "original": "This snippet of code is a fragment of a **Kubernetes resource definition**, specifically a part of a **`ConfigMap`** or a **`Secret`** definition.\n\nHere is a detailed breakdown of what each part means:\n\n### 1. `apiVersion: v1`\n\n* **What it is",
+  "trimmed": "This snippet of code is a fragment of a **Kubernetes resource definition**, specifically a part of a **`ConfigMap`** or a **`Secret`** definition.\n\nHere is a detailed breakdown of what each part means:\n\n### 1. `apiVersion: v1`\n\n* **What it is"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: A village has 100 residents. They all go to a town ha",
+  "identical": true,
+  "original": "Here is the continuation of the text:\n\n**Calculation for Married Couples Voting:**\n\nSince there are 50 married couples, and we assume that every married couple consists of two eligible voters (as the children are excluded), the number of married couples who will be voting is **50**.\n\n**Explanation:**\n\n",
+  "trimmed": "Here is the continuation of the text:\n\n**Calculation for Married Couples Voting:**\n\nSince there are 50 married couples, and we assume that every married couple consists of two eligible voters (as the children are excluded), the number of married couples who will be voting is **50**.\n\n**Explanation:**\n\n"
+ },
+ {
+  "prompt": "Explain this code:\n\nfrom __future__ import unicode_literals\n\nfrom .common import",
+  "identical": true,
+  "original": "This code defines a Python class called `HentaiStigmaIE` which inherits from another class called `InfoExtractor`. This structure strongly suggests that this code is part of a larger system designed to **extract information (metadata) from URLs**, likely for a specific type of content (implied by the class name \"",
+  "trimmed": "This code defines a Python class called `HentaiStigmaIE` which inherits from another class called `InfoExtractor`. This structure strongly suggests that this code is part of a larger system designed to **extract information (metadata) from URLs**, likely for a specific type of content (implied by the class name \""
+ },
+ {
+  "prompt": "Continue this text:\n\nSure. The human sensory system is a part of the nervous sys",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the direction you want to take the explanation:\n\n**Option 1: Focusing on the pathway (Most direct continuation)**\n\n> ...the brain through **sensory neurons, which then transmit the information to the appropriate processing centers in the central nervous system for interpretation",
+  "trimmed": "Here are a few ways to continue the text, depending on the direction you want to take the explanation:\n\n**Option 1: Focusing on the pathway (Most direct continuation)**\n\n> ...the brain through **sensory neurons, which then transmit the information to the appropriate processing centers in the central nervous system for interpretation"
+ },
+ {
+  "prompt": "Explain this code:\n\nfunc (p *ProcessProvider) executeCredentialProcess() ([]byte",
+  "identical": true,
+  "original": "This Go function, `executeCredentialProcess`, is part of a `ProcessProvider` struct and is designed to **execute an external process (likely a credential-related one, perhaps for Multi-Factor Authentication or some other secure operation) and capture its output.**\n\nHere is a detailed breakdown of the code, line by",
+  "trimmed": "This Go function, `executeCredentialProcess`, is part of a `ProcessProvider` struct and is designed to **execute an external process (likely a credential-related one, perhaps for Multi-Factor Authentication or some other secure operation) and capture its output.**\n\nHere is a detailed breakdown of the code, line by"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: How does the Season Pass provide players with new con",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the desired tone and focus:\n\n**Option 1: Focusing on the Breadth of Content (More Informative)**\n\n> Shadow of the Tomb Raider 'The Grand Caiman' will release on Friday 29th March 2019.",
+  "trimmed": "Here are a few ways to continue the text, depending on the desired tone and focus:\n\n**Option 1: Focusing on the Breadth of Content (More Informative)**\n\n> Shadow of the Tomb Raider 'The Grand Caiman' will release on Friday 29th March 2019."
+ },
+ {
+  "prompt": "Explain this code:\n\npackage br.univali.portugol.nucleo.analise.semantica.erros;\n",
+  "identical": true,
+  "original": "This is a Java class named `ErroInicializacaoErrada` (which translates to \"Incorrect Initialization Error\" in English). It appears to be part of a larger system, likely a compiler, interpreter, or static analysis tool for a programming language (given the package names like `br.univali.portug",
+  "trimmed": "This is a Java class named `ErroInicializacaoErrada` (which translates to \"Incorrect Initialization Error\" in English). It appears to be part of a larger system, likely a compiler, interpreter, or static analysis tool for a programming language (given the package names like `br.univali.portug"
+ },
+ {
+  "prompt": "Continue this text:\n\n08 Aug 2020 Stock ownership by institutional investors caus",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the desired focus and tone:\n\n**Option 1: Focusing on the Mechanism and Implications (More Academic)**\n\n> A study by four financial institutions **analyzed decades of market data and concluded that the sheer scale and concentrated nature of institutional ownership create systemic risks",
+  "trimmed": "Here are a few ways to continue the text, depending on the desired focus and tone:\n\n**Option 1: Focusing on the Mechanism and Implications (More Academic)**\n\n> A study by four financial institutions **analyzed decades of market data and concluded that the sheer scale and concentrated nature of institutional ownership create systemic risks"
+ },
+ {
+  "prompt": "Explain this code:\n\n/**\n * The MIT License\n *\n * Copyright (C) 2015 Asterios Rap",
+  "identical": true,
+  "original": "The code snippet you provided is **not actual executable code** in a programming language like Python, Java, or C++.\n\nInstead, it is a **standard legal document known as a License**, specifically the **MIT License**.\n\nHere is a detailed explanation of what this text means and what its purpose is:\n\n---",
+  "trimmed": "The code snippet you provided is **not actual executable code** in a programming language like Python, Java, or C++.\n\nInstead, it is a **standard legal document known as a License**, specifically the **MIT License**.\n\nHere is a detailed explanation of what this text means and what its purpose is:\n\n---"
+ },
+ {
+  "prompt": "Continue this text:\n\nOk, i understand, and do such question have a valid solutio",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the desired tone and direction of the conversation:\n\n**Option 1: Seeking Clarification (More inquisitive)**\n\n> Ok, i understand, and do such questions have valid solutions or it just depends on the situation ones facing. **Could you give me an",
+  "trimmed": "Here are a few ways to continue the text, depending on the desired tone and direction of the conversation:\n\n**Option 1: Seeking Clarification (More inquisitive)**\n\n> Ok, i understand, and do such questions have valid solutions or it just depends on the situation ones facing. **Could you give me an"
+ },
+ {
+  "prompt": "Explain this code:\n\nCreate multiple classes in Java with the provided input.\n\ncl",
+  "identical": true,
+  "original": "The provided code snippet is the beginning of a Java program designed to model a simple system involving **Players** and **Clubs**.\n\nHere is a detailed explanation of the existing code and what the rest of the code is likely intended to do.\n\n---\n\n## Explanation of the Provided Code\n\nThe code defines two classes",
+  "trimmed": "The provided code snippet is the beginning of a Java program designed to model a simple system involving **Players** and **Clubs**.\n\nHere is a detailed explanation of the existing code and what the rest of the code is likely intended to do.\n\n---\n\n## Explanation of the Provided Code\n\nThe code defines two classes"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: Please write a PostgreSQL script that creates a datab",
+  "identical": true,
+  "original": "```sql\n    created_at TIMESTAMP NOT NULL DEFAULT NOW()\n);\n\nCREATE TABLE music_streaming.albums (\n    album_id SERIAL PRIMARY KEY,\n    title VARCHAR(255) NOT NULL,\n    artist_id INTEGER NOT NULL REFERENCES music_streaming.artists(artist_id),",
+  "trimmed": "```sql\n    created_at TIMESTAMP NOT NULL DEFAULT NOW()\n);\n\nCREATE TABLE music_streaming.albums (\n    album_id SERIAL PRIMARY KEY,\n    title VARCHAR(255) NOT NULL,\n    artist_id INTEGER NOT NULL REFERENCES music_streaming.artists(artist_id),"
+ },
+ {
+  "prompt": "Explain this code:\n\nfunc (s *CreateStackInput) SetConfigurationManager(v *StackC",
+  "identical": true,
+  "original": "This Go code defines a method named `SetConfigurationManager` on a pointer to a struct named `CreateStackInput`.\n\nHere is a detailed breakdown of what the code does:\n\n### Code Snippet\n\n```go\nfunc (s *CreateStackInput) SetConfigurationManager(v *StackConfigurationManager) *",
+  "trimmed": "This Go code defines a method named `SetConfigurationManager` on a pointer to a struct named `CreateStackInput`.\n\nHere is a detailed breakdown of what the code does:\n\n### Code Snippet\n\n```go\nfunc (s *CreateStackInput) SetConfigurationManager(v *StackConfigurationManager) *"
+ },
+ {
+  "prompt": "Continue this text:\n\nAre electric air taxis really a thing? They seem really dan",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the tone you want to take:\n\n**Option 1: Balanced and Informative (Addressing the pros and cons)**\n\n> Are electric air taxis really a thing? They seem really dangerous to me, and they would be super loud. **However, proponents",
+  "trimmed": "Here are a few ways to continue the text, depending on the tone you want to take:\n\n**Option 1: Balanced and Informative (Addressing the pros and cons)**\n\n> Are electric air taxis really a thing? They seem really dangerous to me, and they would be super loud. **However, proponents"
+ },
+ {
+  "prompt": "Explain this code:\n\nSYSTEM: You are a helpful assistant with access to the follo",
+  "identical": true,
+  "original": "Please provide the code you would like me to explain.\n\nThe text you provided is only the **system prompt or context** defining the capabilities of an assistant, specifically listing one available tool:\n\n```json\nSYSTEM: You are a helpful assistant with access to the following functions. Use them if required -\n{\n",
+  "trimmed": "Please provide the code you would like me to explain.\n\nThe text you provided is only the **system prompt or context** defining the capabilities of an assistant, specifically listing one available tool:\n\n```json\nSYSTEM: You are a helpful assistant with access to the following functions. Use them if required -\n{\n"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: I love helping people and I have been considering get",
+  "identical": true,
+  "original": "Here are a few ways to continue the assistant's response, depending on the angle you want to take next. I'll offer a few options, and you can tell me which direction you'd like to go in for the next set of questions!\n\n---\n\n**Option 1: Focusing on Education and",
+  "trimmed": "Here are a few ways to continue the assistant's response, depending on the angle you want to take next. I'll offer a few options, and you can tell me which direction you'd like to go in for the next set of questions!\n\n---\n\n**Option 1: Focusing on Education and"
+ },
+ {
+  "prompt": "Explain this code:\n\nSYSTEM: You are a helpful assistant, with no access to exter",
+  "identical": false,
+  "original": "It looks like you've started a request asking for modifications to a Scala code snippet to generate a complex password, but **you haven't provided the complete Scala code.**\n\nThe code snippet you provided is incomplete:\n\n```scala\nimport scala.util.Random\nobject PasswordGenerator {\n val lower = \"",
+  "trimmed": "It looks like you've started providing a Scala code snippet for a password generator, but the code is **incomplete**. You've defined the sets of lowercase and uppercase characters, but the rest of the logic to generate the password based on your complex criteria is missing.\n\nSince I don't have the full code"
+ },
+ {
+  "prompt": "Continue this text:\n\nWe've been practicing eye blinks and eye darts in class rec",
+  "identical": true,
+  "original": "Also, we usually learn to draw in arcs when animating movements. When **you're doing a subtle head turn or a slow, deliberate gaze shift, using an arc helps to give the motion a sense of flow and naturalness rather than a jarring, linear movement.**\n\n**It\u2019s like drawing a gentle curve",
+  "trimmed": "Also, we usually learn to draw in arcs when animating movements. When **you're doing a subtle head turn or a slow, deliberate gaze shift, using an arc helps to give the motion a sense of flow and naturalness rather than a jarring, linear movement.**\n\n**It\u2019s like drawing a gentle curve"
+ },
+ {
+  "prompt": "Explain this code:\n\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: newrelic-al",
+  "identical": true,
+  "original": "This code snippet is a **Kubernetes resource definition**, specifically a **YAML manifest**. It's used to instruct a Kubernetes cluster to create a new **Namespace**.\n\nHere is a detailed breakdown of each part:\n\n### 1. `apiVersion: v1`\n\n* **What it is:** This field specifies",
+  "trimmed": "This code snippet is a **Kubernetes resource definition**, specifically a **YAML manifest**. It's used to instruct a Kubernetes cluster to create a new **Namespace**.\n\nHere is a detailed breakdown of each part:\n\n### 1. `apiVersion: v1`\n\n* **What it is:** This field specifies"
+ },
+ {
+  "prompt": "Continue this text:\n\n Chapter 9: English Renaissance Drama - A Literary Explorat",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the specific focus you want for the chapter.\n\n## Option 1: Focusing on Key Themes and Characteristics (Broad Overview)\n\n**...exploring its historiography, thematic concerns, dramatic conventions, and the socio-cultural context that fueled its creation.**\n\n",
+  "trimmed": "Here are a few ways to continue the text, depending on the specific focus you want for the chapter.\n\n## Option 1: Focusing on Key Themes and Characteristics (Broad Overview)\n\n**...exploring its historiography, thematic concerns, dramatic conventions, and the socio-cultural context that fueled its creation.**\n\n"
+ },
+ {
+  "prompt": "Explain this code:\n\n[{\"type\": \"function\", \"function\": {\"name\": \"ExpertQAExtracto",
+  "identical": true,
+  "original": "This code snippet is a **JSON (JavaScript Object Notation) representation of a tool or function definition**, likely used in a system that orchestrates AI or language model tasks (like an agent framework or a function-calling API).\n\nHere is a detailed breakdown of what each part means:\n\n### Overall Structure\n\nThe entire",
+  "trimmed": "This code snippet is a **JSON (JavaScript Object Notation) representation of a tool or function definition**, likely used in a system that orchestrates AI or language model tasks (like an agent framework or a function-calling API).\n\nHere is a detailed breakdown of what each part means:\n\n### Overall Structure\n\nThe entire"
+ },
+ {
+  "prompt": "Continue this text:\n\n11 months. I can\u2019t believe I\u2019ve been in Italy for so long. ",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the tone you want to take:\n\n**Option 1: Enthusiastic and Adventurous (Focus on the excitement of the plans)**\n\n> About two weeks ago, I suddenly felt the urge to go somewhere. Anywhere. So I decided to make a sort",
+  "trimmed": "Here are a few ways to continue the text, depending on the tone you want to take:\n\n**Option 1: Enthusiastic and Adventurous (Focus on the excitement of the plans)**\n\n> About two weeks ago, I suddenly felt the urge to go somewhere. Anywhere. So I decided to make a sort"
+ },
+ {
+  "prompt": "Explain this code:\n\n---\ntitle: \"Classroom called life\"\ndate: 2012-04-30T09:21:36",
+  "identical": false,
+  "original": "This is a very short piece of writing, structured like a **blog post, an essay excerpt, or a personal reflection**.\n\nHere is a breakdown of what the code/text represents and what the content means:\n\n---\n\n### 1. The YAML Front Matter (The \"Code\" at the Top)\n\n",
+  "trimmed": "This is a very short piece of **blog content or a personal reflection**, structured in a simple, list-like format.\n\nHere is a breakdown of what each part means:\n\n### 1. Front Matter (YAML Metadata)\n\n```yaml\n---\ntitle: \"Classroom called life\"\ndate:"
+ },
+ {
+  "prompt": "Continue this text:\n\nuser: Premise: \"A curly-haired woman in a plaid outfit taki",
+  "identical": true,
+  "original": "user: Premise: \"All cats are mammals.\"\nHypothesis: \"Some mammals are cats.\"\nIs the hypothesis entailed by the premise?\nOptions:\n- yes\n- it is not possible to tell\n- no A step-by-step solution is:\n\nassistant: no A step-by",
+  "trimmed": "user: Premise: \"All cats are mammals.\"\nHypothesis: \"Some mammals are cats.\"\nIs the hypothesis entailed by the premise?\nOptions:\n- yes\n- it is not possible to tell\n- no A step-by-step solution is:\n\nassistant: no A step-by"
+ },
+ {
+  "prompt": "Explain this code:\n\nI am trying to create a program that can handle complex numb",
+  "identical": true,
+  "original": "Please provide the code you are referring to! I need the actual code snippet to explain it for you. \ud83d\ude0a\n\nOnce you provide the code, I will be happy to give you a detailed explanation covering:\n\n1. **Overall Goal:** What the code is trying to achieve.\n2. **`make_from",
+  "trimmed": "Please provide the code you are referring to! I need the actual code snippet to explain it for you. \ud83d\ude0a\n\nOnce you provide the code, I will be happy to give you a detailed explanation covering:\n\n1. **Overall Goal:** What the code is trying to achieve.\n2. **`make_from"
+ },
+ {
+  "prompt": "Continue this text:\n\nContact us now to get immediate help: 1-877-882-9275\nDrugs ",
+  "identical": true,
+  "original": "Here are a few ways to continue the text, depending on the desired tone and focus:\n\n**Option 1: Focusing on the progression of addiction (More serious/Informative)**\n\n> relying on drugs and alcohol to have fun, forget problems, or cope with difficult emotions. **Other warning signs include:**\n",
+  "trimmed": "Here are a few ways to continue the text, depending on the desired tone and focus:\n\n**Option 1: Focusing on the progression of addiction (More serious/Informative)**\n\n> relying on drugs and alcohol to have fun, forget problems, or cope with difficult emotions. **Other warning signs include:**\n"
+ },
+ {
+  "prompt": "Explain this code:\n\nCreate a new View subclass of UIView named \"MainView\". This ",
+  "identical": true,
+  "original": "This code snippet is a foundational example of creating a custom `UIView` in iOS development using Swift, focusing on **custom drawing** and **touch event handling**.\n\nHere is a detailed explanation of each part of the code and what it achieves:\n\n---\n\n### 1. `import UIKit`\n\n* **Purpose",
+  "trimmed": "This code snippet is a foundational example of creating a custom `UIView` in iOS development using Swift, focusing on **custom drawing** and **touch event handling**.\n\nHere is a detailed explanation of each part of the code and what it achieves:\n\n---\n\n### 1. `import UIKit`\n\n* **Purpose"
+ },
+ {
+  "prompt": "Continue this text:\n\n# 4.3. Thermo-optic phase shifter (Heater)\u00b6\n\nA thermo-optic",
+  "identical": true,
+  "original": "```python\nfrom si_fab import all as pdk\nfrom ipkiss3 import all as i3\n\n# Heater\n\nht = pdk.HeatedWaveguide(contact_pitch=0.6,\nheater_width=0.6,\nheater_length=1.0,  #",
+  "trimmed": "```python\nfrom si_fab import all as pdk\nfrom ipkiss3 import all as i3\n\n# Heater\n\nht = pdk.HeatedWaveguide(contact_pitch=0.6,\nheater_width=0.6,\nheater_length=1.0,  #"
+ },
+ {
+  "prompt": "Explain this code:\n\nfunc (s *RestoreDBClusterFromS3Output) SetDBCluster(v *DBClu",
+  "identical": true,
+  "original": "This Go code defines a method named `SetDBCluster` on a struct named `RestoreDBClusterFromS3Output`.\n\nHere is a detailed breakdown of what the code does:\n\n### Code Snippet\n\n```go\nfunc (s *RestoreDBClusterFromS3Output) SetDBCluster(v *",
+  "trimmed": "This Go code defines a method named `SetDBCluster` on a struct named `RestoreDBClusterFromS3Output`.\n\nHere is a detailed breakdown of what the code does:\n\n### Code Snippet\n\n```go\nfunc (s *RestoreDBClusterFromS3Output) SetDBCluster(v *"
+ },
+ {
+  "prompt": "Continue this text:\n\n# Induction Proof: $\\sum_{i=1}^{n+1} i \\cdot 2^i = n \\cdot ",
+  "identical": true,
+  "original": "Here is the continuation of the induction proof:\n\n$$\\sum_{i=1}^{k+2} i \\cdot 2^i = (k+1)\\cdot 2^{k+3}+2$$\n\n$\\big[RHS\\big]$\n$$ (k+1)\\cdot 2^{",
+  "trimmed": "Here is the continuation of the induction proof:\n\n$$\\sum_{i=1}^{k+2} i \\cdot 2^i = (k+1)\\cdot 2^{k+3}+2$$\n\n$\\big[RHS\\big]$\n$$ (k+1)\\cdot 2^{"
+ },
+ {
+  "prompt": "Explain this code:\n\nCalculate the number of unique combinations for the given se",
+  "identical": true,
+  "original": "This Python code snippet is designed to **calculate all possible unique combinations (subsets) of a given set, without repetition, for every possible size (length) from 1 up to the size of the set itself.**\n\nHere is a detailed breakdown of the code and its purpose:\n\n### 1. Goal of",
+  "trimmed": "This Python code snippet is designed to **calculate all possible unique combinations (subsets) of a given set, without repetition, for every possible size (length) from 1 up to the size of the set itself.**\n\nHere is a detailed breakdown of the code and its purpose:\n\n### 1. Goal of"
+ }
+]

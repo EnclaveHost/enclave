@@ -71,3 +71,16 @@ e2e/playwright-report/
 metal/shielded-overlay/*.so
 wasm/ggml-shielded/*.so
 metal/.update-state.json
+
+# gemma vocab trim (2026-09-14): corpus, venv and the trimmed model are not repo content
+/trim/corpus/
+/trim/.venv/
+/trim/logs/
+/trim/download.log
+/trim/artifacts/*.npy
+/trim/artifacts/token_frequency.tsv
+/trim/artifacts/keep_reasons.tsv
+/trim/artifacts/tokenizer.model.candidate
+/gemma-4-E2B-it-en-code/
+/trim/artifacts/id_map_old_to_new.json
+/trim/artifacts/*.tsv.gz

@@ -1,0 +1,21 @@
+{
+ "tokens": {
+  "english": 263836740,
+  "code": 371216387
+ },
+ "bytes": {
+  "english": 1147016580,
+  "code": 1256852544
+ },
+ "docs_kept": {
+  "english": 372864,
+  "code": 390773
+ },
+ "docs_dropped_nonlatin_gt2pct": {
+  "english": 6671,
+  "code": 4232
+ },
+ "seconds": 48.37230372428894,
+ "distinct_tokens_seen": 170248,
+ "tokens_ge5": 147758
+}
