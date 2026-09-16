@@ -385,7 +385,7 @@ containers:
       # ggml (GGUF) context window for EVERY GPU tenant on this node (the manager
       # inherits this into each -S nn-graph wasmtime process; there is no
       # per-deployment override). 180224 = 176K tokens, down from the 262144 =
-      # 256K that was Qwen3.5-122B's NATIVE context (max_position_embeddings);
+      # 256K that was the Qwen3.5 family's NATIVE context (max_position_embeddings);
       # going past native needs static YaRN, which Qwen warns degrades shorter
       # requests, so 256K was the ceiling and 176K is now the chosen floor
       # under it - see the sizing note below. The KV cache is allocated up
@@ -394,18 +394,21 @@ containers:
       # full-attention (the other 36 carry a constant-size linear/recurrent state
       # that does NOT grow with context). So KV = 12 layers x 2 KV heads x 256
       # head-dim x (K+V) x 2 bytes = 24 KB/token: 176K f16 = ~4.4 GB on top of the
-      # ~60 GB weights (~66 GB total), so a 122B deployment MUST buy a >=~47% GPU
+      # ~60 GB weights (~66 GB total), so the 122B this window was sized against
+      # (retired 2026-09-15, no longer carried) MUST have bought a >=~47% GPU
       # share or context allocation fails loudly ("n_ctx too large for the share").
       # (The q8_0 KV cache set below more than halves it to ~2.4 GB, easing the
       # floor to ~46%.) Small models (qwen2.5-0.5b-gguf) pay only a few hundred
       # MB. Lower this further if the node should not carry the big-context cost
       # by default.
       # 2026-07-28: 262144 -> 180224. The window is the dominant VRAM term and
-      # nothing we run can reach 256K: the largest app config is the 122b's
-      # max_prompt_tokens 98304 + max_new_cap 81920 = 180224 exactly, so this
-      # costs no usable context. It reclaims ~3.2 GB on a 27b-class model
-      # (17 KV-bearing layers: 9.70 -> 6.67 GB pool) plus 0.57 -> 0.39 GB for
-      # the MTP head context, which llama.cpp sizes from this SAME value.
+      # nothing we run can reach 256K: the largest app config is the
+      # qwen3.8-27b-mtp's max_prompt_tokens 131072 + max_new_cap 49152 =
+      # 180224 exactly (the retired 122b spent the same total as 98304 +
+      # 81920), so this costs no usable context. It reclaims ~3.2 GB on a
+      # 27b-class model (17 KV-bearing layers: 9.70 -> 6.67 GB pool) plus
+      # 0.57 -> 0.39 GB for the MTP head context, which llama.cpp sizes from
+      # this SAME value.
       # That margin is what lets fable-fusion-27b-mtp-q4-gguf serve with
       # speculative decoding inside a 32 GB share: at 262144 the pool
       # allocated, generation started, and the run froze a few tokens in when
@@ -418,7 +421,7 @@ containers:
       # halves the up-front KV the window costs (176K: ~4.4 GB f16 -> ~2.4 GB) at
       # negligible quality cost. A quantized V cache REQUIRES Flash Attention (the
       # backend auto-enables it for a q8 V, but we set it explicitly). FA on this
-      # H200 UNDER MPS is the one unvalidated piece: if a 122B ever fails context
+      # H200 UNDER MPS is the one unvalidated piece: if a large model fails context
       # allocation after this release, fall back to a q8 K-only cache with
       #   ENCLAVE_GGML_KV_CACHE_TYPE_V: "f16"  +  ENCLAVE_GGML_FLASH_ATTN: "auto"
       # (K-quant needs no FA) - a config-only re-measure, no toolchain rebuild.
@@ -620,7 +623,7 @@ models:
   # 6f5d3066..., verified 2026-07-18) PLUS the official Qwen3.5 tokenizer.json
   # (byte-identical to the other Qwen3.5-family copies), so it's self-contained -
   # provenance + per-file sha256 in the repo README. SINGLE-file gguf: no
-  # MODEL_VOLUMES third field and, unlike the 122b split family, no toolchain
+  # MODEL_VOLUMES third field and, unlike a split GGUF family, no toolchain
   # dependency - arch qwen35 is in the pinned LLAMA_COMMIT bec4772f (= the
   # live ELL enclave-llamacpp-bec4772f-sd19; CPU e2e smoke-tested on that
   # exact commit 2026-07-18). llm-chat catalog entry: the app repo's
@@ -651,7 +654,7 @@ models:
   # volume - attach next to qwen3.6-27b-gguf and the
   # llm-chat template's "draft" wiring turns speculation on (output stays
   # byte-identical to the big model's own; exact-match verification, see
-  # wasm/llama-shim). tokenizer.json byte-identical to the 9b/27b/122b copies
+  # wasm/llama-shim). tokenizer.json byte-identical to the 9b/27b copies
   # (sha256 5f9e4d49..., vocab 248320) - the compat gate's requirement. Q8_0
   # not 4-bit: a draft's whole job is predicting the target's picks, the
   # acceptance rate is worth 0.4 GB. VRAM at the 176K node window: 0.81
@@ -674,7 +677,7 @@ models:
   # ~1.18 KV(q8_0) + ~0.2 head KV + ~0.15 RS + buffers).
   #
   # It does NOT replace qwen3.5-0.8b-gguf above, and the two are not
-  # interchangeable: that one is the DRAFT for the 9b/27b/122b, and a draft
+  # interchangeable: that one is the DRAFT for the 9b/27b, and a draft
   # model's own MTP head is never consulted (the target does the verifying),
   # so pointing a `draft` at this volume pays for the head and never uses it.
   # tokenizer.json byte-identical to the family copies (sha256 5f9e4d49...,
