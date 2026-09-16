@@ -1,0 +1,237 @@
+{
+  "status": "COMPARABLE",
+  "mode": "same_apk_credit_descriptive",
+  "blocking": [],
+  "interpretation": "DESCRIPTIVE. Same v50 APK by re-hashed member contents, pad write cap 0 on both sides, pad listener credit window 0 vs 8192. Two runs are not a replication, so no rate difference is attributed to the credit window and none is called noise.",
+  "runs": {
+    "b27-pad-credit0-1": {
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-credit0-1",
+      "version_code": 50,
+      "apk_sha256": "944475b39c92e4e3c6cb0d8fb5d1357a5ca27c39c45cf0c2a1854d7104f932aa",
+      "pad_write_max": 0,
+      "pad_credit_requested": 0,
+      "pad_window": {
+        "requested": 0,
+        "listener_buffer_actual": null,
+        "child_buffer_actual": null,
+        "child_lowat_actual": null,
+        "scope": "Whole-line markers from the completed capture. The payload proves the first accepted pads child publicly and every later child silently, so exactly one child line is expected. Refusals abort the run; nothing falls back to the default window."
+      },
+      "pad_credit_validated_marker": null,
+      "capture_pad_window_lines": [],
+      "capture_bytes": 7901999,
+      "whole_cycle_seconds": 560.583215126011,
+      "route_command_seconds": 530.2980979210115,
+      "link_pads_waited": [
+        0.0,
+        0.0
+      ],
+      "rates": {
+        "per_trial": [
+          {
+            "trial": 1,
+            "tokens_per_second": 0.7273015879221025,
+            "steady_tokens_per_second": 0.7083351927132142,
+            "generated": 16,
+            "decode_seconds": 21.999127,
+            "steady_tokens": 13,
+            "steady_seconds": 18.352893,
+            "decode_us": 21999127,
+            "steady_us": 18352893
+          },
+          {
+            "trial": 2,
+            "tokens_per_second": 0.6444963935391653,
+            "steady_tokens_per_second": 0.7025326897917731,
+            "generated": 16,
+            "decode_seconds": 24.825585,
+            "steady_tokens": 13,
+            "steady_seconds": 18.504477,
+            "decode_us": 24825585,
+            "steady_us": 18504477
+          }
+        ],
+        "combined_all": {
+          "total_generated": 32,
+          "sum_decode_seconds": 46.824712,
+          "tokens_per_second": 0.6833998252888347
+        },
+        "combined_steady": {
+          "total_steady_tokens": 26,
+          "sum_steady_seconds": 36.85737,
+          "tokens_per_second": 0.7054220092209509
+        }
+      },
+      "vhost_lock": {
+        "available": true,
+        "capture_requests_sched_blocked_reason": true,
+        "observed_D_blocked_functions": [
+          "lock_sock_nested",
+          "trace_buffer_unlock_commit_regs"
+        ],
+        "trials": [
+          {
+            "trial": 1,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 2121090167,
+              "trace_buffer_unlock_commit_regs": 73893
+            },
+            "unknown_reason_ns": 81669587,
+            "D_total_clipped_ns": 2202833647,
+            "complete_state_ns": 21686431709,
+            "uncovered_ns": 965414,
+            "window_trace_ns": [
+              620388331591677,
+              620410018988800
+            ],
+            "window_length_ns": 21687397123,
+            "app_begin_trace_ts": 620387901988800,
+            "truncated_head_ns": 429602877
+          },
+          {
+            "trial": 2,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 1102113736
+            },
+            "unknown_reason_ns": 52305828,
+            "D_total_clipped_ns": 1154419564,
+            "complete_state_ns": 22640824741,
+            "uncovered_ns": 10993327,
+            "window_trace_ns": [
+              620410108988800,
+              620432760806868
+            ],
+            "window_length_ns": 22651818068,
+            "app_begin_trace_ts": 620410108988800,
+            "truncated_head_ns": 0
+          }
+        ]
+      }
+    },
+    "b27-pad-credit8-5": {
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-credit8-5",
+      "version_code": 50,
+      "apk_sha256": "944475b39c92e4e3c6cb0d8fb5d1357a5ca27c39c45cf0c2a1854d7104f932aa",
+      "pad_write_max": 0,
+      "pad_credit_requested": 8192,
+      "pad_window": {
+        "requested": 8192,
+        "listener_buffer_actual": 8192,
+        "child_buffer_actual": 8192,
+        "child_lowat_actual": 1,
+        "scope": "Whole-line markers from the completed capture. The payload proves the first accepted pads child publicly and every later child silently, so exactly one child line is expected. Refusals abort the run; nothing falls back to the default window."
+      },
+      "pad_credit_validated_marker": "VSOCK PADWINDOW ok listener=8192",
+      "capture_pad_window_lines": [
+        "VSOCK PADWINDOW ok listener=8192",
+        "VSOCK PADWINDOW child buf=8192 lowat=1"
+      ],
+      "capture_bytes": 7935380,
+      "whole_cycle_seconds": 518.8991865430144,
+      "route_command_seconds": 518.0348136079847,
+      "link_pads_waited": [
+        0.0,
+        0.0
+      ],
+      "rates": {
+        "per_trial": [
+          {
+            "trial": 1,
+            "tokens_per_second": 0.7005599619560913,
+            "steady_tokens_per_second": 0.6611836907141379,
+            "generated": 16,
+            "decode_seconds": 22.838873,
+            "steady_tokens": 13,
+            "steady_seconds": 19.661707,
+            "decode_us": 22838873,
+            "steady_us": 19661707
+          },
+          {
+            "trial": 2,
+            "tokens_per_second": 0.5126088973526314,
+            "steady_tokens_per_second": 0.5385046570711213,
+            "generated": 16,
+            "decode_seconds": 31.21288,
+            "steady_tokens": 13,
+            "steady_seconds": 24.140924,
+            "decode_us": 31212880,
+            "steady_us": 24140924
+          }
+        ],
+        "combined_all": {
+          "total_generated": 32,
+          "sum_decode_seconds": 54.051753,
+          "tokens_per_second": 0.5920252022168458
+        },
+        "combined_steady": {
+          "total_steady_tokens": 26,
+          "sum_steady_seconds": 43.802631,
+          "tokens_per_second": 0.5935716509814216
+        }
+      },
+      "vhost_lock": {
+        "available": true,
+        "capture_requests_sched_blocked_reason": true,
+        "observed_D_blocked_functions": [
+          "lock_sock_nested",
+          "trace_buffer_unlock_commit_regs"
+        ],
+        "trials": [
+          {
+            "trial": 1,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 1420877002,
+              "trace_buffer_unlock_commit_regs": 495403
+            },
+            "unknown_reason_ns": 35475630,
+            "D_total_clipped_ns": 1456848035,
+            "complete_state_ns": 22708471371,
+            "uncovered_ns": 190267,
+            "window_trace_ns": [
+              619659605327161,
+              619682313988799
+            ],
+            "window_length_ns": 22708661638,
+            "app_begin_trace_ts": 619659222988799,
+            "truncated_head_ns": 382338362
+          },
+          {
+            "trial": 2,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 982297842
+            },
+            "unknown_reason_ns": 30146158,
+            "D_total_clipped_ns": 1012444000,
+            "complete_state_ns": 31317000000,
+            "uncovered_ns": 0,
+            "window_trace_ns": [
+              619682314988799,
+              619713631988799
+            ],
+            "window_length_ns": 31317000000,
+            "app_begin_trace_ts": 619682314988799,
+            "truncated_head_ns": 0
+          }
+        ]
+      }
+    }
+  },
+  "comparator_sha256": "a187f9e4d2f7faf10331ef4888e09026727c168612b30b9d00f49ad6161e1e65",
+  "limits": [
+    "Descriptive only. No causal attribution, no run called faster, and no claim about noise.",
+    "One control and one candidate run are a single pair. A single pair cannot separate a treatment effect from run-to-run variation, so no speed claim of any size follows from this output.",
+    "pad_credit_requested is what the launcher asked for. pad_window carries what the run proved from its own completed capture: listener_buffer_actual, child_buffer_actual and child_lowat_actual. At the default those three are null, meaning unknown rather than any particular value, because no PADWINDOW line is sent at all and nothing about the shipped window is measured.",
+    "The proved child figures come from the first accepted pads connection; the payload proves every later child silently, so this is one verified child, not a census of all of them.",
+    "link.pads_waited is an OUTCOME of the run, not an input condition. A smaller listener credit may slow pad arrival, so a positive wait on the candidate is reported as part of the treatment rather than excluded; only two ordered finite non-negative trial values are required. A difference in pad wait is described, never attributed.",
+    "The PADWINDOW lines are re-derived here from the completed capture.log, whose size and sha256 are tied to capture.log.json, rather than trusted from the receipt fields.",
+    "vhost lock figures are per run over every window the lock analyzer covered, with complete_state_ns, uncovered_ns and truncated_head_ns shown so coverage and head clipping are visible rather than assumed. longest_D_intervals is a head-limited list, not the full set.",
+    "No within-run variability is treated as a noise estimate. The two trials of a run differ in receive credit window (4 MiB then 256 KiB) and are different conditions, not repeats of one condition.",
+    "Whole-cycle controller seconds and route command seconds are separate and never merged.",
+    "Overall and steady rates are separate; combined figures are total tokens over summed seconds, never a mean of per-trial rates, and per-trial microsecond counters are emitted alongside so the derivation is checkable rather than rounded.",
+    "vhost lock numbers are per run and are never differenced. D fractions are omitted because trial 1 windows are clipped to recorder start by different amounts; truncated_head_ns is shown instead.",
+    "unknown_reason time is unknown, reported separately, never zero and never folded into a named routine.",
+    "An absent vhost-lock-time.json is reported unavailable, never as zero.",
+    "A named routine observed at 0 ns with a valid trace and the tracepoint requested is an observation, not proof the routine never ran or that a cause is absent.",
+    "Launch environment is compared key by key; only differing key names are reported, never values."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "runtimeRelease": "v0.5.565-cpu",
+  "runningDeployments": 6,
+  "health": "ok; watcher fresh",
+  "runtimeImage": "sha256:4ec28b07006d22359185255bf469db0197016a8bf580c7ebd2488bd9c4bcb0b4",
+  "browser": "Chromium with user profile",
+  "browserChecks": [
+    "RISC Box 0.6.53 fresh post-runtime-update boot",
+    "fresh POST_FLEET_CHECK marker echoed",
+    "uname -m: riscv64",
+    "uptime: 3 minutes",
+    "free -h: 20.8G total",
+    "Freedoom rendered live gameplay",
+    "dashboard search by name, version and ID returned app; unmatched query excluded it"
+  ],
+  "repaired": "Restored missing artifact to fallback Kubo and pinned exact catalog CID; runner CAR verification passed and app resumed",
+  "threadedProbe": "Exact published runtime image in local container: 5 GiB shared heap, 4 threads, zero bad pages, high byte 0xab. Not a live tenant threaded test."
+}

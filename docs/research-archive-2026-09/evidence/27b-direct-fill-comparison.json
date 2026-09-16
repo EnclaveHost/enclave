@@ -1,0 +1,420 @@
+{
+  "baseline": {
+    "label": "b27-direct-control-1",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "combined_overall_tps": 0.7195925325274377,
+    "combined_steady_tps": 0.7279784896915867,
+    "trials": [
+      {
+        "trial": 1,
+        "overall_tps": 0.8877664561661428,
+        "steady_tps": 0.8991421215853176,
+        "decode_seconds": 18.022758,
+        "wire_ms": 12067.014719,
+        "phases": {
+          "overlap_work": {
+            "wall_ms": 3.125829,
+            "cpu_ms": 3.12852
+          },
+          "write_request": {
+            "wall_ms": 914.456552,
+            "cpu_ms": 280.277419
+          },
+          "reply_reserve": {
+            "wall_ms": 10.35668,
+            "cpu_ms": 9.870519
+          },
+          "read_header": {
+            "wall_ms": 5986.484757,
+            "cpu_ms": 190.175445
+          },
+          "read_body": {
+            "wall_ms": 4903.934893,
+            "cpu_ms": 701.732459
+          }
+        },
+        "guest_phase_wall_ns": 11573039853,
+        "guest_phase_cpu_ns": 987782070,
+        "guest_runqueue_ns_bounds": [
+          77466473,
+          115720872
+        ],
+        "observer_ns": 505525956,
+        "vm_send": {
+          "count": 31546,
+          "bytes": 355289430,
+          "mean": 11262.582577822863,
+          "p50": 4913,
+          "p90": 20272,
+          "under_4096": 11317,
+          "at_most_8192": 21594
+        },
+        "tcp_read": {
+          "count": 36435,
+          "bytes": 355289430,
+          "mean": 9751.32235487855,
+          "p50": 4344,
+          "p90": 18824,
+          "under_4096": 14204,
+          "at_most_8192": 26050
+        },
+        "vm_send_negative_attempts": 5508,
+        "body_voluntary_switches": 20904,
+        "bridge_cpu_seconds": 2.872435512,
+        "bridge_vm_send_cpu_seconds": 1.053047697,
+        "bridge_cpu_samples": 293,
+        "compaction_samples": 72,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "overall_tps": 0.6049869147002103,
+        "steady_tps": 0.6115599412243854,
+        "decode_seconds": 26.446853,
+        "wire_ms": 18144.001919,
+        "phases": {
+          "overlap_work": {
+            "wall_ms": 4.44269,
+            "cpu_ms": 5.204776
+          },
+          "write_request": {
+            "wall_ms": 1788.648596,
+            "cpu_ms": 507.443675
+          },
+          "reply_reserve": {
+            "wall_ms": 4.677275,
+            "cpu_ms": 4.553018
+          },
+          "read_header": {
+            "wall_ms": 8631.612025,
+            "cpu_ms": 385.837527
+          },
+          "read_body": {
+            "wall_ms": 7350.698287,
+            "cpu_ms": 1071.236667
+          }
+        },
+        "guest_phase_wall_ns": 17447389447,
+        "guest_phase_cpu_ns": 1754538346,
+        "guest_runqueue_ns_bounds": [
+          67932051,
+          123083886
+        ],
+        "observer_ns": 680267398,
+        "vm_send": {
+          "count": 21760,
+          "bytes": 355289430,
+          "mean": 16327.63924632353,
+          "p50": 7240,
+          "p90": 31856,
+          "under_4096": 3208,
+          "at_most_8192": 12383
+        },
+        "tcp_read": {
+          "count": 27556,
+          "bytes": 355289430,
+          "mean": 12893.360066773117,
+          "p50": 5792,
+          "p90": 23168,
+          "under_4096": 5043,
+          "at_most_8192": 17566
+        },
+        "vm_send_negative_attempts": 6837,
+        "body_voluntary_switches": 13778,
+        "bridge_cpu_seconds": 4.148333157,
+        "bridge_vm_send_cpu_seconds": 1.97655045,
+        "bridge_cpu_samples": 455,
+        "compaction_samples": 162,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "label": "b27-direct-fill-1",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "combined_overall_tps": 0.6081887830146253,
+    "combined_steady_tps": 0.6478785702127312,
+    "trials": [
+      {
+        "trial": 1,
+        "overall_tps": 0.6870434891228778,
+        "steady_tps": 0.655489891715591,
+        "decode_seconds": 23.288191,
+        "wire_ms": 15904.445382,
+        "phases": {
+          "reply_reserve": {
+            "wall_ms": 9.969577,
+            "cpu_ms": 8.254871
+          },
+          "read_body": {
+            "wall_ms": 5859.975385,
+            "cpu_ms": 810.565589
+          },
+          "write_request": {
+            "wall_ms": 2154.251566,
+            "cpu_ms": 276.349128
+          },
+          "overlap_work": {
+            "wall_ms": 3.515763,
+            "cpu_ms": 3.297665
+          },
+          "read_header": {
+            "wall_ms": 7575.792265,
+            "cpu_ms": 305.50791
+          }
+        },
+        "guest_phase_wall_ns": 15304023234,
+        "guest_phase_cpu_ns": 1190557865,
+        "guest_runqueue_ns_bounds": [
+          93298567,
+          129109226
+        ],
+        "observer_ns": 578175759,
+        "vm_send": {
+          "count": 37238,
+          "bytes": 355289430,
+          "mean": 9541.044900370589,
+          "p50": 4344,
+          "p90": 15928,
+          "under_4096": 15007,
+          "at_most_8192": 28118
+        },
+        "tcp_read": {
+          "count": 45220,
+          "bytes": 355289430,
+          "mean": 7856.9091110128265,
+          "p50": 4344,
+          "p90": 13814,
+          "under_4096": 20056,
+          "at_most_8192": 35744
+        },
+        "vm_send_negative_attempts": 8719,
+        "body_voluntary_switches": 69066,
+        "bridge_cpu_seconds": 3.53622125,
+        "bridge_vm_send_cpu_seconds": 1.371223721,
+        "bridge_cpu_samples": 385,
+        "compaction_samples": 95,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "overall_tps": 0.5455713907272846,
+        "steady_tps": 0.6404419798485423,
+        "decode_seconds": 29.327051,
+        "wire_ms": 21435.582149,
+        "phases": {
+          "reply_reserve": {
+            "wall_ms": 4.866424,
+            "cpu_ms": 4.637376
+          },
+          "read_body": {
+            "wall_ms": 10070.016865,
+            "cpu_ms": 1022.185288
+          },
+          "write_request": {
+            "wall_ms": 1493.594077,
+            "cpu_ms": 351.29116
+          },
+          "overlap_work": {
+            "wall_ms": 4.103249,
+            "cpu_ms": 5.802578
+          },
+          "read_header": {
+            "wall_ms": 9535.889797,
+            "cpu_ms": 337.256037
+          }
+        },
+        "guest_phase_wall_ns": 20770959705,
+        "guest_phase_cpu_ns": 1516395334,
+        "guest_runqueue_ns_bounds": [
+          86559015,
+          126526600
+        ],
+        "observer_ns": 596784203,
+        "vm_send": {
+          "count": 26157,
+          "bytes": 355289430,
+          "mean": 13582.957908016975,
+          "p50": 5792,
+          "p90": 24616,
+          "under_4096": 4949,
+          "at_most_8192": 16642
+        },
+        "tcp_read": {
+          "count": 34607,
+          "bytes": 355289430,
+          "mean": 10266.403617765192,
+          "p50": 5792,
+          "p90": 18824,
+          "under_4096": 8208,
+          "at_most_8192": 24508
+        },
+        "vm_send_negative_attempts": 9376,
+        "body_voluntary_switches": 22880,
+        "bridge_cpu_seconds": 5.926496313,
+        "bridge_vm_send_cpu_seconds": 3.686024784,
+        "bridge_cpu_samples": 600,
+        "compaction_samples": 321,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ]
+  },
+  "dealer_recipes": [
+    {
+      "ahead": 128,
+      "chunk": 16,
+      "interval_seconds": 15,
+      "mint_batch": 0,
+      "mtp": 1,
+      "threads": 16
+    },
+    {
+      "ahead": 128,
+      "chunk": 16,
+      "interval_seconds": 15,
+      "mint_batch": 0,
+      "mtp": 1,
+      "threads": 16
+    }
+  ],
+  "same_apk": true,
+  "same_launch_env": true,
+  "same_work": true,
+  "same_output_mtp": true,
+  "baseline_delivery": "cached",
+  "candidate_delivery": "direct gathered",
+  "combined_overall_ratio": 0.8451849561007435,
+  "limitations": [
+    "This compares the complete gathered-direct path with cached delivery, not the isolated effect of write gathering.",
+    "One run contains two short trials, not evidence of sustained production speed.",
+    "CPU scheduling/frequency and pad-transfer overlap vary across runs; a repeat is needed to establish consistency.",
+    "Candidate capture was revalidated offline after a banner-parser failure; original failure retained. Control capture passed, but cleanup ADB query timed out; immediate read-only follow-up confirmed no phone processes. These follow-up operations are outside the original controller elapsed times."
+  ],
+  "controller_receipts": {
+    "b27-direct-control-1": {
+      "status": "CLEANUP_FAILED",
+      "max_seconds": 600,
+      "cleanup_reserve_seconds": 50,
+      "includes_preflight": true,
+      "command_started": true,
+      "phone_cleanup": true,
+      "root_pid": 3916782,
+      "phone_cleanup_query_timeouts": 1,
+      "phone_stopped": false,
+      "cleanup_error": "TimeoutExpired: Command '['/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb', '-s', '3B130DLJG0018K', 'shell', 'pidof', 'host.enclave.anchor.avf', 'crosvm', 'cro",
+      "bank_cleanup": {
+        "status": "CLEAR",
+        "bank_clear": true,
+        "exclusive_bank_lock": true,
+        "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+        "elapsed_seconds": 0.028084221994504333
+      },
+      "command_rc": 0,
+      "remaining_owned_pids": [],
+      "cleanup_seconds": 25.221030735003296,
+      "elapsed_seconds": 547.1301615060074,
+      "prior_status": "COMMAND_COMPLETE"
+    },
+    "b27-direct-fill-1": {
+      "status": "COMMAND_FAILED",
+      "max_seconds": 600,
+      "cleanup_reserve_seconds": 50,
+      "includes_preflight": true,
+      "command_started": true,
+      "phone_cleanup": true,
+      "root_pid": 3870293,
+      "phone_stopped": true,
+      "bank_cleanup": {
+        "status": "CLEAR",
+        "bank_clear": true,
+        "exclusive_bank_lock": true,
+        "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+        "elapsed_seconds": 0.024184519017580897
+      },
+      "command_rc": 2,
+      "remaining_owned_pids": [],
+      "cleanup_seconds": 21.389263702963945,
+      "elapsed_seconds": 546.677819896955
+    }
+  },
+  "control_cleanup_followup": {
+    "at": "2026-09-09T16:45:02.861335+00:00",
+    "command": "timeout 6 adb -s 3B130DLJG0018K shell pidof host.enclave.anchor.avf crosvm crosvm_helper",
+    "rc": 1,
+    "stdout": "",
+    "stderr": "",
+    "phone_processes_absent": true,
+    "scope": "Read-only follow-up after original controller CLEANUP_FAILED; original receipt retained. Not included in original controller elapsed time."
+  },
+  "candidate_recovery": {
+    "status": "PASS_REVALIDATED_CAPTURE",
+    "original_runner_status": "FAIL",
+    "original_controller_status": "COMMAND_FAILED",
+    "reason": "ValueError: direct pad attempt failed or used cached-file fallback",
+    "validator_change": {
+      "old_sha256": "f52c40ef3b57b1bec5c099cd0f3a1f212e12d2f3b4c8ae6f0b95c11940436024",
+      "new_sha256": "ce26c324f7651c1e9172359fe915d452779fd07edc3100314fa137857ff1626b",
+      "only_change": "Skip the exact already-validated direct-fill configuration banner when parsing transfer outcomes",
+      "inserted_line": "if line==('PADS direct fill: enabled='+a.pads_direct_fill).encode():continue",
+      "execution_scope": "Post-capture validation only; no measured runtime path changed"
+    },
+    "source_inputs_verified": true,
+    "recovered_after_cleanup": true,
+    "additional_app_read": "Completed uniquely named bridge metadata retrieved and validated after the controller finished; no inference rerun",
+    "runtime_unchanged": true,
+    "original_receipt_sha256": "1200861691c3426c4855a89aa66c5c220f72de71695aded6dba48f2493e1ff29",
+    "time_utc": 1788971640.5704224
+  }
+}

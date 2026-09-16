@@ -1,0 +1,432 @@
+{
+  "label": "b27-direct-control-1",
+  "model": "Qwen3.8 27B Q8_0",
+  "apk": 41,
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 18022758,
+      "tokens_per_second": 0.8877664561661428,
+      "steady_tokens": 13,
+      "steady_us": 14458226,
+      "steady_tokens_per_second": 0.8991421215853176,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 23847,
+      "generated": 16,
+      "decode_us": 26446853,
+      "tokens_per_second": 0.6049869147002103,
+      "steady_tokens": 13,
+      "steady_us": 21257115,
+      "steady_tokens_per_second": 0.6115599412243854,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "regions": [
+    {
+      "name": "Wait for reply header",
+      "tag": "read_header",
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "line": 324,
+      "wall_ms": [
+        5986.484757,
+        8631.612025
+      ],
+      "cpu_ms": [
+        190.175445,
+        385.837527
+      ],
+      "detail": "read_all(fd, h, 9): waits until the response header arrives through GPU host, TCP, Android bridge and vsock. The timer cannot assign all this wait to GPU compute.",
+      "kind": "Source span including instrumentation",
+      "mean_ms_per_16_tokens": 7309.048391,
+      "source_sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "source_line": "if ((rc = read_all(p->fd, h, SH_HDR)) != SH_OK) {"
+    },
+    {
+      "name": "Read reply payload",
+      "tag": "read_body",
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "line": 342,
+      "wall_ms": [
+        4903.934893,
+        7350.698287
+      ],
+      "cpu_ms": [
+        701.732459,
+        1071.236667
+      ],
+      "detail": "read_all(fd, rbuf + used, size): receives the remaining packed result. Includes transfer and guest wakeup delays.",
+      "kind": "Source span including instrumentation",
+      "mean_ms_per_16_tokens": 6127.31659,
+      "source_sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "source_line": "if (size && (rc = read_all(p->fd, p->rbuf + used, (size_t)size)) != SH_OK) {"
+    },
+    {
+      "name": "Send masked request",
+      "tag": "write_request",
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "line": 304,
+      "wall_ms": [
+        914.456552,
+        1788.648596
+      ],
+      "cpu_ms": [
+        280.277419,
+        507.443675
+      ],
+      "detail": "write_all(fd, iov, iovcnt): sends the masked CRT planes and header. Can block on transport/backpressure.",
+      "kind": "Source span including instrumentation",
+      "mean_ms_per_16_tokens": 1351.552574,
+      "source_sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "source_line": "int rc = write_all(p->fd, iov, iovcnt);"
+    },
+    {
+      "name": "Restore outliers and output scale",
+      "tag": "post_ms",
+      "file": "wasm/ggml-shielded/ggml-shielded.cpp",
+      "line": 1606,
+      "end": 1624,
+      "wall_ms": [
+        589.4,
+        869.3000000000001
+      ],
+      "cpu_ms": null,
+      "detail": "Timed block calls outlier_add at1616 and descale at1620. Their individual times are not separated.",
+      "kind": "Production block timer, rounded to0.1ms; not a separate CPU clock",
+      "mean_ms_per_16_tokens": 729.35,
+      "source_sha256": "27664e210190b3177b26328e5f99a1149ddd239fea3161ffe89343f286a39a2c",
+      "source_line": "const double tp0 = sh_now_ms();"
+    },
+    {
+      "name": "Acquire pads and mask input",
+      "tag": "mask_ms",
+      "file": "wasm/ggml-shielded/shielded-tee.c",
+      "line": 1830,
+      "end": 1873,
+      "wall_ms": [
+        643.8,
+        740.8
+      ],
+      "cpu_ms": null,
+      "detail": "Includes dealt_wait/take_pads and mask_planes at1870 plus request packing. Actual pad-wait counter is0 in both trials, so this is not evidence of waiting for pad generation.",
+      "kind": "Production block timer, rounded to0.1ms; not a separate CPU clock",
+      "mean_ms_per_16_tokens": 692.3,
+      "source_sha256": "e900befc3150ec676c8401f0e3e5d18822b30671a74a39272bd41393bef8ef97",
+      "source_line": "double t0 = now_ms();"
+    },
+    {
+      "name": "Unmask and verify output side",
+      "tag": "unmask_lhs_ms",
+      "file": "wasm/ggml-shielded/shielded-tee.c",
+      "line": 1935,
+      "end": 1942,
+      "wall_ms": [
+        359.5,
+        587.5
+      ],
+      "cpu_ms": null,
+      "detail": "Packed path calls unmask24_fv at1937: subtracts pads and computes Freivalds left-hand dot products in one pass.",
+      "kind": "Production block timer, rounded to0.1ms; not a separate CPU clock",
+      "mean_ms_per_16_tokens": 473.5,
+      "source_sha256": "e900befc3150ec676c8401f0e3e5d18822b30671a74a39272bd41393bef8ef97",
+      "source_line": "double t3 = now_ms();"
+    },
+    {
+      "name": "Encode activations and separate outliers",
+      "tag": "encode_ms",
+      "file": "wasm/ggml-shielded/ggml-shielded.cpp",
+      "line": 1445,
+      "end": 1462,
+      "wall_ms": [
+        293.1,
+        589.2
+      ],
+      "cpu_ms": null,
+      "detail": "encode_checked at1448 converts the private activation to field integers; the same timed block copies outlier channels.",
+      "kind": "Production block timer, rounded to0.1ms; not a separate CPU clock",
+      "mean_ms_per_16_tokens": 441.15000000000003,
+      "source_sha256": "27664e210190b3177b26328e5f99a1149ddd239fea3161ffe89343f286a39a2c",
+      "source_line": "const double te0 = sh_now_ms();"
+    },
+    {
+      "name": "Verify input side",
+      "tag": "rhs_ms",
+      "file": "wasm/ggml-shielded/shielded-tee.c",
+      "line": 1943,
+      "end": 1945,
+      "wall_ms": [
+        193.39999999999998,
+        314.79999999999995
+      ],
+      "cpu_ms": null,
+      "detail": "fv_dots_x at1944 computes private-input Freivalds terms. The cumulative counter also admits the overlap callback at1756\u20131767, if enabled.",
+      "kind": "Production block timer, rounded to0.1ms; not a separate CPU clock",
+      "mean_ms_per_16_tokens": 254.09999999999997,
+      "source_sha256": "e900befc3150ec676c8401f0e3e5d18822b30671a74a39272bd41393bef8ef97",
+      "source_line": "if (!overlap) {"
+    },
+    {
+      "name": "Reserve response buffer",
+      "tag": "reply_reserve",
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "line": 336,
+      "wall_ms": [
+        10.35668,
+        4.677275
+      ],
+      "cpu_ms": [
+        9.870519,
+        4.553018
+      ],
+      "detail": "reply_reserve(): capacity check/reallocation. This measured region is small; its duration does not explain the large read waits.",
+      "kind": "Source span including instrumentation",
+      "mean_ms_per_16_tokens": 7.5169775,
+      "source_sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "source_line": "if (size && (rc = reply_reserve(p, used + (size_t)size)) != SH_OK) goto fail;"
+    },
+    {
+      "name": "Optional overlap callback",
+      "tag": "overlap_work",
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "line": 312,
+      "wall_ms": [
+        3.125829,
+        4.44269
+      ],
+      "cpu_ms": [
+        3.12852,
+        5.204776
+      ],
+      "detail": "if (work && n) work(ctx): mostly the callback boundary in this recipe. Do not add to RHS time when the callback performs RHS verification.",
+      "kind": "Source span including instrumentation",
+      "mean_ms_per_16_tokens": 3.7842595,
+      "source_sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "source_line": "if (work && n) work(ctx);"
+    }
+  ],
+  "longest_individual_socket_phases": [
+    {
+      "trial": 2,
+      "tag": "write_request",
+      "tid": 132,
+      "call": 2814,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 496449140704,
+      "wall_ns": 356912272,
+      "cpu_ns": 158620117,
+      "runqueue_ns": 692952,
+      "observer_before_ns": 76701,
+      "observer_after_ns": 222900,
+      "voluntary": 1,
+      "involuntary": 1,
+      "source_line": 308,
+      "callsite_line": 304
+    },
+    {
+      "trial": 2,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 2487,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 490041973627,
+      "wall_ns": 154751302,
+      "cpu_ns": 13836588,
+      "runqueue_ns": 0,
+      "observer_before_ns": 136068,
+      "observer_after_ns": 402140,
+      "voluntary": 111,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 2,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 2793,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 495923168739,
+      "wall_ns": 129817505,
+      "cpu_ns": 7096924,
+      "runqueue_ns": 4536499,
+      "observer_before_ns": 20834,
+      "observer_after_ns": 159505,
+      "voluntary": 342,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 2,
+      "tag": "read_header",
+      "tid": 132,
+      "call": 2514,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 490589231033,
+      "wall_ns": 126721150,
+      "cpu_ns": 124919,
+      "runqueue_ns": 0,
+      "observer_before_ns": 78532,
+      "observer_after_ns": 393352,
+      "voluntary": 2,
+      "involuntary": 0,
+      "source_line": 328,
+      "callsite_line": 324
+    },
+    {
+      "trial": 1,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 1569,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 476524424955,
+      "wall_ns": 114566894,
+      "cpu_ns": 16458993,
+      "runqueue_ns": 2373779,
+      "observer_before_ns": 34546,
+      "observer_after_ns": 113282,
+      "voluntary": 2482,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 2,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 2946,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 499111810912,
+      "wall_ns": 105190633,
+      "cpu_ns": 201660,
+      "runqueue_ns": 0,
+      "observer_before_ns": 13184,
+      "observer_after_ns": 250407,
+      "voluntary": 1,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 1,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 1459,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 474343061184,
+      "wall_ns": 103828369,
+      "cpu_ns": 5909544,
+      "runqueue_ns": 0,
+      "observer_before_ns": 42155,
+      "observer_after_ns": 172486,
+      "voluntary": 5,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 1,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 1494,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 475226579699,
+      "wall_ns": 102629638,
+      "cpu_ns": 127076,
+      "runqueue_ns": 0,
+      "observer_before_ns": 13021,
+      "observer_after_ns": 180339,
+      "voluntary": 1,
+      "involuntary": 0,
+      "source_line": 346,
+      "callsite_line": 342
+    },
+    {
+      "trial": 2,
+      "tag": "read_header",
+      "tid": 132,
+      "call": 2672,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 492934781774,
+      "wall_ns": 98385702,
+      "cpu_ns": 72673,
+      "runqueue_ns": 0,
+      "observer_before_ns": 25024,
+      "observer_after_ns": 150350,
+      "voluntary": 2,
+      "involuntary": 0,
+      "source_line": 328,
+      "callsite_line": 324
+    },
+    {
+      "trial": 2,
+      "tag": "read_body",
+      "tid": 132,
+      "call": 2815,
+      "minor_faults": 0,
+      "major_faults": 0,
+      "start_ns": 496832482582,
+      "wall_ns": 92364502,
+      "cpu_ns": 27850224,
+      "runqueue_ns": 4702718,
+      "observer_before_ns": 53263,
+      "observer_after_ns": 118652,
+      "voluntary": 71,
+      "involuntary": 1,
+      "source_line": 346,
+      "callsite_line": 342
+    }
+  ],
+  "limitations": [
+    "Ten instrumented regions, ranked by accumulated elapsed time; this is not an exhaustive ranking of every source line in the process.",
+    "Timers surround blocks and their callees, not isolated instructions. Background MTP activity and nested overlap mean rows should not be summed into an exact wall-time budget.",
+    "Only socket source spans have separate thread-CPU measurements here. For the other five blocks, elapsed time must not be called CPU time.",
+    "Kernel samples expose allocator/compaction call chains but do not provide exact per-line blocked wall time. Guest kernel stack attribution is unavailable in this capture.",
+    "Startup/model registration, pad delivery, GPU kernels and Android bridge have additional nested or concurrent costs; the table isolates instrumented token-generation regions."
+  ],
+  "source_capture_sha256": "36df35934db8fb6282e45c9ace07f29dc9c4d4f5ab1f72857224071436ba3fa4",
+  "source_identity_checks": [
+    {
+      "file": "wasm/ggml-shielded/shielded-wire.c",
+      "sha256": "8fedac9306845de087d6542643234849831e4e4be331e30fb25703d24fe6d74d",
+      "matches_v40_backend_source": true
+    },
+    {
+      "file": "wasm/ggml-shielded/shielded-tee.c",
+      "sha256": "e900befc3150ec676c8401f0e3e5d18822b30671a74a39272bd41393bef8ef97",
+      "matches_v40_backend_source": true
+    },
+    {
+      "file": "wasm/ggml-shielded/ggml-shielded.cpp",
+      "sha256": "27664e210190b3177b26328e5f99a1149ddd239fea3161ffe89343f286a39a2c",
+      "matches_v40_backend_source": true
+    }
+  ]
+}

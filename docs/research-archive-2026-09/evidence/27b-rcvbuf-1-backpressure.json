@@ -1,0 +1,91 @@
+[
+  {
+    "label": "route-b27-rcvbuf-1",
+    "trials": [
+      {
+        "trial": 1,
+        "decode_seconds": 16.620988,
+        "groups": [
+          {
+            "reply_size": "at_most_256KiB",
+            "frames": 1075,
+            "affected_frames": 0,
+            "episodes": 0,
+            "attempts": 0,
+            "elapsed_ms": 0.0,
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "states_ms": {},
+            "uncovered_ms": 0.0,
+            "before_256KiB_sent_episodes": 0,
+            "before_256KiB_sent_elapsed_ms": 0.0
+          },
+          {
+            "reply_size": "over_256KiB",
+            "frames": 499,
+            "affected_frames": 335,
+            "episodes": 481,
+            "attempts": 9560,
+            "elapsed_ms": 1098.80075,
+            "p50_ms": 1.143514,
+            "p95_ms": 7.038615,
+            "states_ms": {
+              "Running": 213.127254,
+              "S": 732.688039,
+              "R": 111.379339,
+              "R+": 34.574662,
+              "D": 1.659142
+            },
+            "uncovered_ms": 5.372314,
+            "before_256KiB_sent_episodes": 0,
+            "before_256KiB_sent_elapsed_ms": 0.0
+          }
+        ]
+      },
+      {
+        "trial": 2,
+        "decode_seconds": 15.287393,
+        "groups": [
+          {
+            "reply_size": "at_most_256KiB",
+            "frames": 1075,
+            "affected_frames": 0,
+            "episodes": 0,
+            "attempts": 0,
+            "elapsed_ms": 0.0,
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "states_ms": {},
+            "uncovered_ms": 0.0,
+            "before_256KiB_sent_episodes": 0,
+            "before_256KiB_sent_elapsed_ms": 0.0
+          },
+          {
+            "reply_size": "over_256KiB",
+            "frames": 499,
+            "affected_frames": 0,
+            "episodes": 0,
+            "attempts": 0,
+            "elapsed_ms": 0.0,
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "states_ms": {},
+            "uncovered_ms": 0.0,
+            "before_256KiB_sent_episodes": 0,
+            "before_256KiB_sent_elapsed_ms": 0.0
+          }
+        ]
+      }
+    ],
+    "all_stream_negative_results": {
+      "-11": 10633
+    },
+    "clock_spread_ns": 41,
+    "limits": [
+      "Windows start at the first EAGAIN attempt and end at the next successful VM send; repeated failures at one offset count once in elapsed time.",
+      "Pending bytes are known to exist in the app, but these windows include polling, TCP reads, CPU work and scheduling, not just credit wait.",
+      "EAGAIN cannot distinguish credit exhaustion from a transport queue limit. No guest-consumption counter is available.",
+      "Frame sizes and stream offsets are exact. Scheduler coverage gaps are explicit. Timing gaps are not estimates of removable decode time."
+    ]
+  }
+]

@@ -1,0 +1,177 @@
+{
+  "probe": {
+    "status": "PASS_DIAGNOSTIC",
+    "label": "bridge-isolate-guest-sched-1",
+    "profile": 1,
+    "sizes": [
+      65536,
+      262144,
+      1048576
+    ],
+    "scope": "No-model sequential framed bridge diagnostic; no inference/pad traffic/burners; 1400-byte ICMP stimulus every 5 ms changes network and CPU activity",
+    "children": {
+      "server": 3262430,
+      "collector": 3262436,
+      "bridge": 3262437,
+      "ping": 3262441
+    },
+    "apk": {
+      "status": "PASS",
+      "manifest_sha256": "c7264bd497e933c111be58327986e5be329a4174c61d7c8e83fb2e47e8147021",
+      "apk_sha256": "2e955b80716cd126631a6c0db8719b1fda1dff93f78762bfa3538591f608d121",
+      "installed_path": "/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/base.apk",
+      "version_code": 35,
+      "calibration_bytes": 13006,
+      "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+      "serial": "3B130DLJG0018K",
+      "commands": [
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "pm",
+            "path",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 317008.313998744,
+          "end_mono": 317008.380974933,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "package:/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "sha256sum",
+            "/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/base.apk"
+          ],
+          "start_mono": 317008.383423372,
+          "end_mono": 317008.481209539,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "2e955b80716cd126631a6c0db8719b1fda1dff93f78762bfa3538591f608d121  /data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "dumpsys",
+            "package",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 317008.482948654,
+          "end_mono": 317008.55738306,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "Activity Resolver Table:\n  Non-Data Actions:\n      android.intent.action.MAIN:\n        c09cea5 host.enclave.anchor.avf/.Main filter 5c1727a\n          Action: \"android.intent.action.MAIN\"\n          Category: \"android.intent.category.LAUNCHER\"\n\nDomain verification status:\n\nKey Set Manager:\n  [host.enclave.anchor.avf]\n      Signing KeySets: 128\n\nPackages:\n  Package [host.enclave.anchor.avf] (7788e1e):\n    appId=10312\n    pccId=-1\n    pkg=Package{41aaa3b host.enclave.anchor.avf}\n    codePath=/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==\n    resourcePath=/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==\n    legacyNativeLibraryDir=/data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/lib\n    extractNativeLibs=false\n    primaryCpuAbi=arm64-v8a\n    secondaryCpuAbi=null\n    cpuAbiOverride=null\n    versionCode=35 minSdk=34 targetSdk=35\n    minExtensionVersions=[]\n    versionName=0.1\n    hiddenApiEnforcementPolicy=2\n    usesNonSdkApi=false\n    splits=[base]\n    apkSigningVersion=3\n    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    forceQueryable=false\n    pageSizeCompat=4\n    scannedAsStoppedSystemApp=false\n    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]\n    timeStamp=2026-09-09 05:55:59\n    lastUpdateTime=2026-09-09 05:56:02\n    installerPackageName=null\n    installerPackageUid=-1\n    initiatingPackageName=com.android.shell\n    originatingPackageName=null\n    packageSource=1\n    appMetadataFilePath=null\n    appMetadataSource=0\n    signatures=PackageSignatures{8edc1dd version:3, signatures:[53644764], past signatures:[]}\n    installPermissionsFixed=false\n    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    apexModuleName=null\n    requested permissions:\n      android.permission.POST_NOTIFICATIONS\n      android.permission.FOREGROUND_SERVICE\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE\n      android.permission.INTERNET\n      android.permission.MANAGE_VIRTUAL_MACHINE\n    install permissions:\n      android.permission.FOREGROUND_SERVICE: granted=true\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE: granted=true\n      android.permission.INTERNET: granted=true\n      android.permission.MANAGE_VIRTUAL_MACHINE: granted=true\n    User 0: ceDataInode=26398 deDataInode=26560 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=true notLaunched=false enabled=0 instant=false virtual=false quarantined=false\n      installReason=0\n      dataDir=/data/user/0/host.enclave.anchor.avf\n      firstInstallTime=2026-09-02 13:22:36\n      uninstallReason=0\n      overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n        /data/resource-cache/com.android.systemui-neutral-gAAy.frro\n        /data/resource-cache/com.android.systemui-accent-SWs6.frro\n        /data/resource-cache/com.android.systemui-dynamic-jwfR.frro\n      legacy overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n      gids=[3003, 3013]\n      runtime permissions:\n        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]\n\nQueries:\n  system apps queryable: false\n  queries via forceQueryable:\n  queries via package name:\n  queries via component:\n    com.google.android.apps.camera.services:\n      host.enclave.anchor.avf\n    com.google.android.apps.diagnosticstool:\n      host.enclave.anchor.avf\n    com.google.android.as:\n      host.enclave.anchor.avf\n    com.google.android.settings.intelligence:\n      host.enclave.anchor.avf\n    com.google.android.as.oss:\n      host.enclave.anchor.avf\n    com.google.android.apps.accessibility.voiceaccess:\n      host.enclave.anchor.avf\n    com.verizon.mips.services:\n      host.enclave.anchor.avf\n    com.fitbit.FitbitMobile:\n      host.enclave.anchor.avf\n  queryable via interaction:\n    User 0:\n  queryable via uses-library:\n\nDexopt state:\n  [host.enclave.anchor.avf]\n    path: /data/app/~~WxOKZTq-8pyFY0JR76lMzQ==/host.enclave.anchor.avf-4d5aXLG_viamoc1XkY938A==/base.apk\n      arm64: [status=run-from-apk] [reason=unknown] [primary-abi]\n        [location is error]\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "source_hashes": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/bridge-isolate-guest-sched.py": "d5e60c9643e5a10afd30c49935eaa586e270dad5b0965c5248ea4e3980e11309",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/echo-server.py": "5227c33dedf1a93db0d885cb6ff61849f3995f27cb7604255ca9a430d5316fa8",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/bridgebench-gate.py": "25bfad51256857c354bbf48e8cfaca29b86f6e08209a15ed436b67a534f09363",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/v35/phone-apk-v35-identity.json": "c7264bd497e933c111be58327986e5be329a4174c61d7c8e83fb2e47e8147021"
+    },
+    "ping_start_mono": 317008.765948333,
+    "launch_mono": 317008.766849446,
+    "cpu_profile_bins": 110,
+    "gate": {
+      "functional": "PASS",
+      "reasons": [],
+      "mode": "native",
+      "kind": "diag",
+      "sizes": [
+        65536,
+        262144,
+        1048576
+      ],
+      "bench": {
+        "65536": {
+          "p50_us": 9183.0,
+          "p90_us": 13194.0,
+          "min_us": 4219.0,
+          "n": 200
+        },
+        "262144": {
+          "p50_us": 22040.0,
+          "p90_us": 29919.0,
+          "min_us": 13344.0,
+          "n": 200
+        },
+        "1048576": {
+          "p50_us": 55103.0,
+          "p90_us": 74918.0,
+          "min_us": 23483.0,
+          "n": 200
+        }
+      },
+      "bridge": {
+        "expected_bytes": 289016288,
+        "rc": 0,
+        "up": 289016288,
+        "down": 289016288
+      },
+      "perf": {
+        "verdict": null,
+        "verdict_lines": 0,
+        "watchdog_rc": -1,
+        "ok": false
+      },
+      "phase": {
+        "conn": "c1",
+        "records": 5053,
+        "expected": 5053,
+        "matched": true,
+        "failures": []
+      },
+      "payload_exit": "0"
+    },
+    "ping_check_mono": 317047.369052721,
+    "ping_alive_at_check": true,
+    "ping_brackets_frame_window": true,
+    "guest_sched_probe": [
+      "VSOCK SCHED_PROBE stage=before path=0 err=0 bytes=21 parsed=3 a=129936352 b=2469402 c=63",
+      "VSOCK SCHED_PROBE stage=before path=1 err=0 bytes=21 parsed=3 a=129936352 b=2469402 c=63",
+      "VSOCK SCHED_PROBE stage=before path=2 err=13 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=before path=3 err=2 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=before path=4 err=2 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=before tid=132 usage_rc=0 usage_err=0 user_us=59787 sys_us=73016 voluntary=57 involuntary=7",
+      "VSOCK SCHED_PROBE stage=after path=0 err=0 bytes=28 parsed=3 a=13357553219 b=226934266 c=17759",
+      "VSOCK SCHED_PROBE stage=after path=1 err=0 bytes=28 parsed=3 a=13357553219 b=226934266 c=17759",
+      "VSOCK SCHED_PROBE stage=after path=2 err=13 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=after path=3 err=2 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=after path=4 err=2 bytes=-1 parsed=0 a=0 b=0 c=0",
+      "VSOCK SCHED_PROBE stage=after tid=132 usage_rc=0 usage_err=0 user_us=7537171 sys_us=5825857 voluntary=16830 involuntary=931"
+    ],
+    "protected_unchanged": true,
+    "phone_lock_unchanged": true,
+    "elapsed_seconds": 42.23064945999067
+  },
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 300,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 3262335,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.3533861550386064,
+    "elapsed_seconds": 42.81867569597671
+  },
+  "interpretation": "Guest /proc/thread-self/schedstat readable; runqueue wait increased from2469402 to226934266ns. getrusage(RUSAGE_THREAD) available. sysctl read EACCES and tracefs paths absent; no permission or kernel setting change.",
+  "source": "https://www.kernel.org/doc/html/v6.12/scheduler/sched-stats.html"
+}

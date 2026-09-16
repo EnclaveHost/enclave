@@ -1,0 +1,232 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "50",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 16637059,
+      "tokens_per_second": 0.9617084365692278,
+      "steady_tokens": 13,
+      "steady_us": 13373347,
+      "steady_tokens_per_second": 0.9720827553491284,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 21573,
+      "generated": 16,
+      "decode_us": 17616660,
+      "tokens_per_second": 0.9082311857071659,
+      "steady_tokens": 13,
+      "steady_us": 13407541,
+      "steady_tokens_per_second": 0.9696035984525425,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-bridge-cpu-2",
+  "capture_sha256": "915fe92fd56823213dd01e97691a44ea818ba3c6d79ea01355963c6dc25e004e",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "mtp_results": [
+    {
+      "trial": 1,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    },
+    {
+      "trial": 2,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    }
+  ],
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "idle_park": {
+    "enabled": 0,
+    "calls": 0
+  },
+  "pad_receiver_profile": true,
+  "bridge_profile": true,
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-bridge-cpu-2/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247126,
+    "from": 0,
+    "total": 247126,
+    "chunks": 172,
+    "sha256": "88dd54a0844a8345cded88e3850cd42deb64a3122ad385bd24177bf72314208d",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 2677909,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 1939,
+    "peak_device_memory_mib": 25847.0,
+    "second_device_peak_memory_mib": 383.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "combined_overall_tok_s": 0.934205129667818,
+  "combined_steady_tok_s": 0.970841594199565,
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 2677904,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.3254607920534909,
+    "elapsed_seconds": 493.8139475019998
+  },
+  "bridge_cpu_profile": {
+    "scope": "Whole bridge lifetime and bins wholly within app receipt of BENCH begin/result markers. Statistical/diagnostic timing, not precise guest decode windows.",
+    "label": "b27-bridge-cpu-2",
+    "trials": [
+      {
+        "trial": 1,
+        "decode_us": 16637059,
+        "generated": 16,
+        "app_begin_epoch_ns": 1788948667117000000,
+        "app_result_epoch_ns": 1788948683752000000,
+        "app_marker_span_seconds": 16.635,
+        "app_span_minus_guest_decode_seconds": -0.002058999999999145,
+        "bins": 64,
+        "seconds": {
+          "dt": 16.363567106,
+          "cpu": 3.04261563,
+          "cpu_user": 0.069579,
+          "cpu_system": 2.973037,
+          "poll_empty": 12.168084953,
+          "poll_up": 0.0,
+          "poll_down": 0.770013244,
+          "poll_both": 0.0,
+          "read_guest": 0.157102562,
+          "read_host": 0.771399293,
+          "write_host": 0.723322209,
+          "write_guest": 1.623328115,
+          "cpu_poll": 0.335660078,
+          "cpu_read_guest": 0.136292602,
+          "cpu_read_host": 0.663106188,
+          "cpu_write_host": 0.573707294,
+          "cpu_write_guest": 1.256873851
+        },
+        "up_bytes": 170172262,
+        "down_bytes": 352324626,
+        "system_fraction": 0.97713184969776,
+        "cpu_outside_call_brackets_seconds": 0.076975617
+      },
+      {
+        "trial": 2,
+        "decode_us": 17616660,
+        "generated": 16,
+        "app_begin_epoch_ns": 1788948683773000000,
+        "app_result_epoch_ns": 1788948701408000000,
+        "app_marker_span_seconds": 17.635,
+        "app_span_minus_guest_decode_seconds": 0.01834000000000202,
+        "bins": 67,
+        "seconds": {
+          "dt": 17.506126677,
+          "cpu": 2.484768372,
+          "cpu_user": 0.09455,
+          "cpu_system": 2.390219,
+          "poll_empty": 13.682328076,
+          "poll_up": 0.0,
+          "poll_down": 1.007751108,
+          "poll_both": 0.0,
+          "read_guest": 0.164956661,
+          "read_host": 0.847630248,
+          "write_host": 0.800327645,
+          "write_guest": 0.84720457,
+          "cpu_poll": 0.336306034,
+          "cpu_read_guest": 0.143482722,
+          "cpu_read_host": 0.677722583,
+          "cpu_write_host": 0.625201687,
+          "cpu_write_guest": 0.621662437
+        },
+        "up_bytes": 170645772,
+        "down_bytes": 353190212,
+        "system_fraction": 0.9619481730494868,
+        "cpu_outside_call_brackets_seconds": 0.08039290899999996
+      }
+    ],
+    "whole_bridge": {
+      "bins": 162,
+      "seconds": {
+        "dt": 480.686338695,
+        "cpu": 6.220173976,
+        "cpu_user": 0.177216,
+        "cpu_system": 6.042957,
+        "poll_empty": 471.971675601,
+        "poll_up": 0.0,
+        "poll_down": 1.853427527,
+        "poll_both": 0.0,
+        "read_guest": 0.377899992,
+        "read_host": 1.796306164,
+        "write_host": 1.755897779,
+        "write_guest": 2.580899869,
+        "cpu_poll": 0.831801556,
+        "cpu_read_guest": 0.331161569,
+        "cpu_read_host": 1.498001956,
+        "cpu_write_host": 1.398537556,
+        "cpu_write_guest": 1.976399658
+      },
+      "up_bytes": 375485097,
+      "down_bytes": 773769060,
+      "system_fraction": 0.9715094740934055,
+      "cpu_outside_call_brackets_seconds": 0.18427168100000024
+    },
+    "realtime_minus_monotonic_spread_us": 42.887,
+    "limits": [
+      "App receives markers after guest emission; control transport and scheduling latency are not bounded by this capture.",
+      "A small difference between app marker span and guest decode duration does not bound common marker delay.",
+      "Boundary bins are excluded. CPU percentages refer only to this bridge thread, not whole model/phone CPU.",
+      "Per-call CPU includes kernel execution charged to this thread and instrumentation overhead; no kernel PC sampling.",
+      "RUSAGE_THREAD user/system counters have coarser resolution than the thread clock.",
+      "GPU and guest computation overlap bridge waiting; do not add nested intervals as serial wall time."
+    ]
+  },
+  "interpretation": "Highest completed short live-refill diagnostic steady measurement so far. No proven isolated optimization gain; same-APK bridge-profile-off control follows. Short 2x16-token run, not long-term sustained capacity."
+}

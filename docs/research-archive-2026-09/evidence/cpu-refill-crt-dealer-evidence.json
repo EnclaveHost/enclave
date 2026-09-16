@@ -1,0 +1,2522 @@
+{
+  "status": "PASS",
+  "scope": "actual27B CPU pad production, not inference or confidential host deployment",
+  "runs": [
+    {
+      "label": "earlier separate-object candidate",
+      "medians": {
+        "A": {
+          "wall_s": 3.3913905,
+          "cpu_s": 45.536277999999996,
+          "rows_s": 18.871315467800006
+        },
+        "B": {
+          "wall_s": 2.6287705,
+          "cpu_s": 33.0267065,
+          "rows_s": 24.345982275744497
+        }
+      },
+      "wins": 6,
+      "result": {
+        "status": "PASS",
+        "scope": "full27B CPU v2 dealer, six matched refill pairs; not inference; host dealer is development or separately trusted service",
+        "records": [
+          {
+            "event": "registered",
+            "groups": 262,
+            "members": 409,
+            "seconds": 19.712809,
+            "manifest": "e86ef34f17881dc7726535c2d52915cc1924be90ee97fe61ab8dc352b2068598"
+          },
+          {
+            "event": "plan",
+            "scope": "complete27B CPU v2 mint, balanced refill A/B; not inference",
+            "threads": 16,
+            "pairs": 6,
+            "warm_pairs": 1,
+            "rows": 64,
+            "cells_per_pair": 16768
+          },
+          {
+            "event": "warm_mint",
+            "pair": -1,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 960,
+            "rows": 64,
+            "wall_s": 3.092969,
+            "cpu_s": 44.833304,
+            "bytes": 809039872
+          },
+          {
+            "event": "warm_mint",
+            "pair": -1,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 960,
+            "rows": 64,
+            "wall_s": 2.773941,
+            "cpu_s": 33.641301,
+            "bytes": 809039872
+          },
+          {
+            "event": "warm_verify",
+            "pair": -1,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.724866
+          },
+          {
+            "event": "mint",
+            "pair": 0,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1024,
+            "rows": 64,
+            "wall_s": 3.15192,
+            "cpu_s": 45.43767,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 0,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1024,
+            "rows": 64,
+            "wall_s": 2.68841,
+            "cpu_s": 34.014611,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 0,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.709107
+          },
+          {
+            "event": "mint",
+            "pair": 1,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1088,
+            "rows": 64,
+            "wall_s": 2.192899,
+            "cpu_s": 31.607073,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 1,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1088,
+            "rows": 64,
+            "wall_s": 3.044049,
+            "cpu_s": 44.439473,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 1,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.724438
+          },
+          {
+            "event": "mint",
+            "pair": 2,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1152,
+            "rows": 64,
+            "wall_s": 3.65885,
+            "cpu_s": 45.709886,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 2,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1152,
+            "rows": 64,
+            "wall_s": 2.789563,
+            "cpu_s": 33.108138,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 2,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.740223
+          },
+          {
+            "event": "mint",
+            "pair": 3,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1216,
+            "rows": 64,
+            "wall_s": 2.287745,
+            "cpu_s": 31.811689,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 3,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1216,
+            "rows": 64,
+            "wall_s": 3.630861,
+            "cpu_s": 45.634886,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 3,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.666478
+          },
+          {
+            "event": "mint",
+            "pair": 4,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1280,
+            "rows": 64,
+            "wall_s": 3.741427,
+            "cpu_s": 45.916532,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 4,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1280,
+            "rows": 64,
+            "wall_s": 2.569131,
+            "cpu_s": 32.945275,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 4,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.66266
+          },
+          {
+            "event": "mint",
+            "pair": 5,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1344,
+            "rows": 64,
+            "wall_s": 2.976184,
+            "cpu_s": 33.474336,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 5,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1344,
+            "rows": 64,
+            "wall_s": 3.00641,
+            "cpu_s": 43.941621,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 5,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.704707
+          },
+          {
+            "event": "complete",
+            "status": "PASS"
+          }
+        ],
+        "inputs": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/refill-selftest.c": [
+            "14851633add89772ded1245cfc442acf3b03b0efe7903a4580be4dfb7d9843cf",
+            [
+              64768,
+              74580872,
+              3204,
+              1788849746418279560,
+              1788900138414463576
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv.c": [
+            "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c",
+            [
+              64768,
+              74580873,
+              13129,
+              1788869968898393116,
+              1788900138414609175
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/switch-selftest.c": [
+            "d1de25185944c40f84060550fe3f312adb8bb2d78eb270fddd838a7b58df6977",
+            [
+              64768,
+              74580938,
+              2513,
+              1788900308200327442,
+              1788900308200327442
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-mint-v3.h": [
+            "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d",
+            [
+              64768,
+              74580874,
+              2548,
+              1788895854334403716,
+              1788900138414715785
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-mint-v3.inc": [
+            "cf7ee976b96a781341c144a8c6934f03659cbccee0447c32ac859e096da3dc5f",
+            [
+              64768,
+              74580875,
+              10424,
+              1788895854334403716,
+              1788900138414786714
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-selftest.c": [
+            "ad88ecba5718b138e85c5a4dd48e6ad4943dc41becc5e5b7906febe3e40c406b",
+            [
+              64768,
+              74580876,
+              14461,
+              1788869968898393116,
+              1788900138414844124
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-spec.cpp": [
+            "7b4c8aff5d347927a1c0a2a8b689ae2808e119ae17b37357ab22109a4ff091d1",
+            [
+              64768,
+              74580877,
+              14436,
+              1788849746418279560,
+              1788900138414900674
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-mtp.h": [
+            "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156",
+            [
+              64768,
+              74580878,
+              7546,
+              1788870630208004730,
+              1788900138414948924
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-sparse-plan.h": [
+            "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2",
+            [
+              64768,
+              74580879,
+              5758,
+              1788884858762563477,
+              1788900138414995023
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-wire.h": [
+            "2fc8f5aa0d35bd941e266b7b9eb004a6c483776b3112c9d7f86b77099965dc47",
+            [
+              64768,
+              74580880,
+              10808,
+              1788884474673505750,
+              1788900138415063263
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/test-records.py": [
+            "88feb7fb2f10a07653460474b795ad5c6cd4a2bc1a67aba1db5bbac4ea7619d5",
+            [
+              64768,
+              74580986,
+              2494,
+              1788900887115675008,
+              1788900887115675008
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-run.cpp": [
+            "7e85538c733bcb618a0dd9f22e7e2ba7c37f2484bba598ae9ca9cb411bb59624",
+            [
+              64768,
+              74580881,
+              12902,
+              1788872444284250448,
+              1788900138415114233
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-weight-source.h": [
+            "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca",
+            [
+              64768,
+              74580882,
+              7193,
+              1788869090914834837,
+              1788900138415160673
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-fusion.h": [
+            "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637",
+            [
+              64768,
+              74580883,
+              8811,
+              1788852076439276838,
+              1788900138415208492
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-latency.h": [
+            "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d",
+            [
+              64768,
+              74580884,
+              2355,
+              1788849746418279560,
+              1788900138415250802
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-tee.h": [
+            "bc42c0ff3308d3fda3d379e57a43ae92d52a289a39e2642757977e763c067f38",
+            [
+              64768,
+              74580885,
+              14340,
+              1788891423110396471,
+              1788900138415295282
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-bank.c": [
+            "5f8aab36ea98805bee847e76b87d536f386f2331c781966d470b40776de4a185",
+            [
+              64768,
+              74580886,
+              8309,
+              1788849746418279560,
+              1788900138415339262
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads-v3.h": [
+            "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d",
+            [
+              64768,
+              74580887,
+              4432,
+              1788893254014490488,
+              1788900138415381652
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-llama.h": [
+            "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc",
+            [
+              64768,
+              74580888,
+              4136,
+              1788870213129906236,
+              1788900138415422361
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-crt.cpp": [
+            "8b0f2750973b7a988b89c211d5a579ea789d5530d72d9b049c23324f6e42fc48",
+            [
+              64768,
+              74580936,
+              9972,
+              1788900484814302694,
+              1788900484814302694
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv.h": [
+            "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29",
+            [
+              64768,
+              74580889,
+              5153,
+              1788869968898393116,
+              1788900138415464781
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna.h": [
+            "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e",
+            [
+              64768,
+              74580890,
+              658,
+              1788849746418279560,
+              1788900138415502771
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-simd.h": [
+            "5bb93117fc713fd32cf76c4b95a3457b32f45d557f8ae9dc7e99a92b6cbb38d2",
+            [
+              64768,
+              74580891,
+              5630,
+              1788898234933536313,
+              1788900138415541111
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-manifest.h": [
+            "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1",
+            [
+              64768,
+              74580892,
+              8624,
+              1788879869774170744,
+              1788900138415580901
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-weight-cache.h": [
+            "12aef5b9dc3459bff8c0f41cf8fa28583ef5be3b6cd475ca7d0b46f8aecf86ea",
+            [
+              64768,
+              74580893,
+              5594,
+              1788872444291341310,
+              1788900138415621530
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-simd.c": [
+            "666153b64352752336ca394ce70c9e5f5a48b6464ad5c5d8f65f3eaf4626cf88",
+            [
+              64768,
+              74580894,
+              37837,
+              1788898234933536313,
+              1788900138415659560
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-http.c": [
+            "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e",
+            [
+              64768,
+              74580895,
+              8772,
+              1788849746418279560,
+              1788900138415709240
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/field-selftest.c": [
+            "8e06b91e5b08d9371c1ff837617d9029f6f83bbf76b99d2636b885a3b308851b",
+            [
+              64768,
+              74580896,
+              1026,
+              1788849746418279560,
+              1788900138415748850
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-field.c": [
+            "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+            [
+              64768,
+              74580897,
+              12588,
+              1788849746418279560,
+              1788900138415790760
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-check.h": [
+            "7d7d0e1782c034050d82c7f12774696f59cdefc727faa8046a6b363d46d99372",
+            [
+              64768,
+              74580898,
+              2826,
+              1788876203386495577,
+              1788900138415838609
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/build.py": [
+            "fc5b12acb5f9371b807d4fe0684bbb488b2dea35500ec5743b4977ca690c2937",
+            [
+              64768,
+              74580939,
+              2730,
+              1788900214240812737,
+              1788900214240812737
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-field.h": [
+            "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+            [
+              64768,
+              74580899,
+              6122,
+              1788849746418279560,
+              1788900138415873909
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna.c": [
+            "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999",
+            [
+              64768,
+              74580900,
+              5823,
+              1788849746418279560,
+              1788900138415919849
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-sha256.h": [
+            "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+            [
+              64768,
+              74580901,
+              6096,
+              1788869652956867157,
+              1788900138415960299
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-batch.cpp": [
+            "821482b3522e5c936ed895e6934c7f42310789093faa7f7191e1632af8c659bd",
+            [
+              64768,
+              74580902,
+              7478,
+              1788849746418279560,
+              1788900138415999649
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-test.cpp": [
+            "d01591a4ae93f7d7589b0b9b2a8a7428dd4e3c4b84a6ef3152927ac2ac879e46",
+            [
+              64768,
+              74580903,
+              8174,
+              1788849746418279560,
+              1788900138416048089
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-mint-balance.h": [
+            "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd",
+            [
+              64768,
+              74580904,
+              2956,
+              1788888728701397391,
+              1788900138416087238
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads-v3.inc": [
+            "13fc10cfd77755d9058dc058b666efdf37cd08a3ca277ba7267fa3b826970a96",
+            [
+              64768,
+              74580905,
+              15889,
+              1788893254014490488,
+              1788900138416124928
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-shielded.cpp": [
+            "8b7dd4243bb851ba2078eb47aa7405aafb0a78b5d0895982d5ae0dab09d78ac3",
+            [
+              64768,
+              74580906,
+              92089,
+              1788900138417597262,
+              1788900138417597262
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-mint.cpp": [
+            "72924128a102c89668db158219e4b9d6800f76e7e9393ea9553e34653307580a",
+            [
+              64768,
+              74580907,
+              9434,
+              1788871944737989575,
+              1788900138416243438
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-sparse-table.h": [
+            "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc",
+            [
+              64768,
+              74580908,
+              5227,
+              1788881955642063666,
+              1788900138416282027
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/tweetnacl.h": [
+            "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287",
+            [
+              64768,
+              74580909,
+              20014,
+              1788849746418279560,
+              1788900138416324957
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-bank.h": [
+            "c6e63ad858aa76344feee213e1245893a7737a71aac9fdee975d128844cf6c5f",
+            [
+              64768,
+              74580910,
+              1883,
+              1788849746418279560,
+              1788900138416373547
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-tee.c": [
+            "44206ad9724bd577388d430fcf4daff0606334b9e29048190f60e915ac7cdeea",
+            [
+              64768,
+              74580911,
+              121170,
+              1788900214212824195,
+              1788900214212824195
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-grant.h": [
+            "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5",
+            [
+              64768,
+              74580912,
+              5703,
+              1788856373797884714,
+              1788900138416502727
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-wire.c": [
+            "2a768ff8a335eea47d91f9534f2e5e1236985146bd523df96a3fc86da4947a97",
+            [
+              64768,
+              74580913,
+              26815,
+              1788884474673505750,
+              1788900138416549636
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/tweetnacl.c": [
+            "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749",
+            [
+              64768,
+              74580914,
+              16734,
+              1788855893777082178,
+              1788900138416599996
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-dealer.cpp": [
+            "d062baefe5a5913161342dce0d08ccc72915c086e261e38548eff424028b0b4b",
+            [
+              64768,
+              74580915,
+              15474,
+              1788886664181637938,
+              1788900138416642466
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads.c": [
+            "a502ff2b0269de4b0371d05fc14d1d8dae2190b0cfc4e3b87d14eebbde0232ba",
+            [
+              64768,
+              74580916,
+              43309,
+              1788893254015389801,
+              1788900138416685986
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prepare-selftest.c": [
+            "4961c0e1e185c503bf21d5734b4013430dd77dcbbd07c63653fa513e6c60bd56",
+            [
+              64768,
+              74580917,
+              1231,
+              1788849746418279560,
+              1788900138416734025
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-http.h": [
+            "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052",
+            [
+              64768,
+              74580918,
+              2033,
+              1788849746418279560,
+              1788900138416773575
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-shielded.h": [
+            "a0b1c5748443f21cc18c387db585c1a8aa7d74beedfb888ffa8da969fa68ba62",
+            [
+              64768,
+              74580919,
+              7464,
+              1788869090914834837,
+              1788900138416816525
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-probe.c": [
+            "f4f0830b1ec8fef2a58419a1d36c8f038222ebc09342755b995ed788bf6fc78b",
+            [
+              64768,
+              74580920,
+              8917,
+              1788849746418279560,
+              1788900138416855515
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna-64.h": [
+            "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df",
+            [
+              64768,
+              74580921,
+              6225,
+              1788849746418279560,
+              1788900138416901385
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna-32.h": [
+            "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6",
+            [
+              64768,
+              74580922,
+              6515,
+              1788849746418279560,
+              1788900138416939475
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bank-probe.c": [
+            "494f6bdcd026f784192ee48434c65a50d18d35c9bbe3bf0e9185a389e649a1a8",
+            [
+              64768,
+              74580923,
+              2953,
+              1788849746418279560,
+              1788900138416982154
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads.h": [
+            "83c8cd8f01d7eb225d6ceb02363b8686e61aa9cedf2d00fc4c122b661d9be2f5",
+            [
+              64768,
+              74580924,
+              11475,
+              1788882528678736287,
+              1788900138417017874
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/dealt-selftest.c": [
+            "54c50bca339a4f6dcf2accef0230ff82bd3f5d5cec343c9953447b7778d0b88b",
+            [
+              64768,
+              74580925,
+              20234,
+              1788861041793276389,
+              1788900138417073074
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/run.py": [
+            "674e6ffc1484ea3648f9c4af8f833fd2e99738347db95da370e93a1bff65b1ad",
+            [
+              64768,
+              74580985,
+              9558,
+              1788900887115675008,
+              1788900887115675008
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-dealer-stream.h": [
+            "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3",
+            [
+              64768,
+              74580926,
+              6990,
+              1788886664181637938,
+              1788900138417116864
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/simd-B.c": [
+            "cc83b29f6c6f62371913f2bf555895587de860df0057ae10d2670d1a0c8dd073",
+            [
+              64768,
+              74580935,
+              38075,
+              1788900138417938340,
+              1788900138417938340
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/pads-unbox.c": [
+            "d5e3103c13128affaaf07815e082a8c24aed006930c778adeaac0637444940bb",
+            [
+              64768,
+              74580927,
+              4056,
+              1788861551734138930,
+              1788900138417159044
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-omp-profile.c": [
+            "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee",
+            [
+              64768,
+              74580928,
+              4757,
+              1788849746418279560,
+              1788900138417194063
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-avf-binding.h": [
+            "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46",
+            [
+              64768,
+              74580929,
+              1952,
+              1788855262423796754,
+              1788900138417233553
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-layout.h": [
+            "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd",
+            [
+              64768,
+              74580930,
+              4344,
+              1788877672519944581,
+              1788900138417270663
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/Makefile": [
+            "d67336cd758ad8cacc3124b8cc74a0e0d244a2820b60f69ddde3a60d6f5d0e65",
+            [
+              64768,
+              74580931,
+              8388,
+              1788893820685051194,
+              1788900138417312653
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-calib.cpp": [
+            "2190aa61b3ac210161996fe0a2febfc082a2e89c7813c271003647dd9f829c0f",
+            [
+              64768,
+              74580932,
+              27407,
+              1788849746418279560,
+              1788900138417352473
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/half-selftest.c": [
+            "4f436386f4ceaae7da7ca20ccf1a858890456e2e9a65ecb2f38b99e8f3ba23c5",
+            [
+              64768,
+              74580933,
+              269,
+              1788849746418279560,
+              1788900138417402213
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/pads-keygen.c": [
+            "d839f11c89e179fb8bd344382641d6d9d7e9646b04f8e2d13ad2ba880307eee6",
+            [
+              64768,
+              74580934,
+              446,
+              1788849746418279560,
+              1788900138417437262
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/libggml-shielded.so": [
+            "1bc5f2d1f718371c9025f634699f92a396502d62a260dac0fe0638eacf442ada",
+            [
+              64768,
+              74580953,
+              557552,
+              1788900890458540313,
+              1788900890458549413
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-crt": [
+            "574d3cdd72ce55fdf811e89fa2cdfc893bb8255ae15a949bfa9bc3b5004adc07",
+            [
+              64768,
+              74580959,
+              45816,
+              1788900891161575719,
+              1788900891161584629
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/switch-selftest": [
+            "441993c7485ab978556a702809adf0263ca7c24405a86c88cd7ca357ed4fa328",
+            [
+              64768,
+              74580961,
+              17208,
+              1788900891301163669,
+              1788900891301171579
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/build-proof.json": [
+            "c56ad777a64d872885a2550249bcc99466a954a12a4e83f3f3ec46e9889c33b2",
+            [
+              64768,
+              74580999,
+              15093,
+              1788900891334651976,
+              1788900891334651976
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/geometry-27b-nodes.json": [
+            "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+            [
+              64768,
+              74580306,
+              72942,
+              1788892327656117620,
+              1788896257927353225
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libllama.so": [
+            "a2b56dfea6beb99f611a579f2f5e0a5b0bbcbd525eba8ca747f0954bdfe0d41b",
+            [
+              64768,
+              58065136,
+              4062184,
+              0,
+              1788705571987026065
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml.so": [
+            "1c7fe4010cd22e7b0ea83db547ad382c5e00f7d6aee4b2948578676add777501",
+            [
+              64768,
+              58065133,
+              54936,
+              0,
+              1788705571974026192
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-base.so": [
+            "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+            [
+              64768,
+              58065129,
+              910680,
+              0,
+              1788705571970026231
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-cpu.so": [
+            "fd33ae41aff4ec212e8620812e91f70e5c9919a5c85d65abdecfbe82625d545f",
+            [
+              64768,
+              58065130,
+              1145280,
+              0,
+              1788705571974026192
+            ]
+          ]
+        },
+        "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+        "model_stat": [
+          64768,
+          57541182,
+          29047086048,
+          1788651357987938941,
+          1788651357991938888
+        ],
+        "calib_stat": [
+          64768,
+          44957702,
+          13006,
+          1788651621135511145,
+          1788652065685298819
+        ],
+        "encoding_profile": {
+          "scope": "scratch encoding/build identity, not signed deployment",
+          "backend_sha256": "1bc5f2d1f718371c9025f634699f92a396502d62a260dac0fe0638eacf442ada",
+          "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+          "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93"
+        },
+        "encoding_sha256": "5f838f7dc025dcc6eef2e5ca9b21d45bc77b714bd48eaa11ead21997574fa519",
+        "expected_values_per_pair": 269582336,
+        "identity_seconds": 16.354776271997252,
+        "pid": 269536,
+        "returncode": 0,
+        "child_reaped": true,
+        "owned_pads_removed": true,
+        "elapsed_s": 105.69536998300464
+      },
+      "build": {
+        "status": "PASS",
+        "scope": "CPU build and tiny switch/scalar probes, not performance",
+        "elapsed_s": 4.095477544993628,
+        "commands": [
+          [
+            "make",
+            "-j4",
+            "libggml-shielded.so",
+            "GGML_SRC=/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source",
+            "GGML_LIB=/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib"
+          ],
+          [
+            "cc",
+            "-O3",
+            "-fPIC",
+            "-ffp-contract=off",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-c",
+            "shielded-simd.c",
+            "-o",
+            "shielded-simd-avx512.o"
+          ],
+          [
+            "cc",
+            "-O3",
+            "-fPIC",
+            "-ffp-contract=off",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-c",
+            "simd-B.c",
+            "-o",
+            "simd-B.o"
+          ],
+          [
+            "g++",
+            "-shared",
+            "-o",
+            "libggml-shielded.so",
+            "ggml-shielded-dl.o",
+            "shielded-field.o",
+            "shielded-wire.o",
+            "shielded-tee.o",
+            "shielded-pads.o",
+            "shielded-bank.o",
+            "shielded-http.o",
+            "prefix-kv.o",
+            "tweetnacl.o",
+            "poly1305-donna.o",
+            "shielded-simd-avx512.o",
+            "shielded-simd-generic.o",
+            "simd-B.o",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lggml-base",
+            "-lm",
+            "-lpthread",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib"
+          ],
+          [
+            "g++",
+            "-O2",
+            "-std=c++17",
+            "-I/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source/include",
+            "-I/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source/ggml/include",
+            "bench-crt.cpp",
+            "-L/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer",
+            "-lggml-shielded",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-ldl",
+            "-lpthread",
+            "-lm",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-o",
+            "bench-crt"
+          ],
+          [
+            "cc",
+            "-O2",
+            "switch-selftest.c",
+            "-L/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer",
+            "-lggml-shielded",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-ldl",
+            "-lpthread",
+            "-lm",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-o",
+            "switch-selftest"
+          ],
+          [
+            "./switch-selftest"
+          ],
+          [
+            "./switch-selftest",
+            "generic"
+          ],
+          [
+            "./bench-crt"
+          ]
+        ],
+        "source_hashes": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/refill-selftest.c": "14851633add89772ded1245cfc442acf3b03b0efe7903a4580be4dfb7d9843cf",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv.c": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/switch-selftest.c": "d1de25185944c40f84060550fe3f312adb8bb2d78eb270fddd838a7b58df6977",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-mint-v3.h": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-mint-v3.inc": "cf7ee976b96a781341c144a8c6934f03659cbccee0447c32ac859e096da3dc5f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-selftest.c": "ad88ecba5718b138e85c5a4dd48e6ad4943dc41becc5e5b7906febe3e40c406b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-spec.cpp": "7b4c8aff5d347927a1c0a2a8b689ae2808e119ae17b37357ab22109a4ff091d1",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-mtp.h": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-sparse-plan.h": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-wire.h": "2fc8f5aa0d35bd941e266b7b9eb004a6c483776b3112c9d7f86b77099965dc47",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/test-records.py": "88feb7fb2f10a07653460474b795ad5c6cd4a2bc1a67aba1db5bbac4ea7619d5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-run.cpp": "7e85538c733bcb618a0dd9f22e7e2ba7c37f2484bba598ae9ca9cb411bb59624",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-weight-source.h": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-fusion.h": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-latency.h": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-tee.h": "bc42c0ff3308d3fda3d379e57a43ae92d52a289a39e2642757977e763c067f38",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-bank.c": "5f8aab36ea98805bee847e76b87d536f386f2331c781966d470b40776de4a185",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads-v3.h": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-llama.h": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-crt.cpp": "8b0f2750973b7a988b89c211d5a579ea789d5530d72d9b049c23324f6e42fc48",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv.h": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna.h": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-simd.h": "5bb93117fc713fd32cf76c4b95a3457b32f45d557f8ae9dc7e99a92b6cbb38d2",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-manifest.h": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-weight-cache.h": "12aef5b9dc3459bff8c0f41cf8fa28583ef5be3b6cd475ca7d0b46f8aecf86ea",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-simd.c": "666153b64352752336ca394ce70c9e5f5a48b6464ad5c5d8f65f3eaf4626cf88",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-http.c": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/field-selftest.c": "8e06b91e5b08d9371c1ff837617d9029f6f83bbf76b99d2636b885a3b308851b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-check.h": "7d7d0e1782c034050d82c7f12774696f59cdefc727faa8046a6b363d46d99372",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/build.py": "fc5b12acb5f9371b807d4fe0684bbb488b2dea35500ec5743b4977ca690c2937",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna.c": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-sha256.h": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-batch.cpp": "821482b3522e5c936ed895e6934c7f42310789093faa7f7191e1632af8c659bd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-test.cpp": "d01591a4ae93f7d7589b0b9b2a8a7428dd4e3c4b84a6ef3152927ac2ac879e46",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-mint-balance.h": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads-v3.inc": "13fc10cfd77755d9058dc058b666efdf37cd08a3ca277ba7267fa3b826970a96",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-shielded.cpp": "8b7dd4243bb851ba2078eb47aa7405aafb0a78b5d0895982d5ae0dab09d78ac3",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prefix-kv-mint.cpp": "72924128a102c89668db158219e4b9d6800f76e7e9393ea9553e34653307580a",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-sparse-table.h": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/tweetnacl.h": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-bank.h": "c6e63ad858aa76344feee213e1245893a7737a71aac9fdee975d128844cf6c5f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-tee.c": "44206ad9724bd577388d430fcf4daff0606334b9e29048190f60e915ac7cdeea",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-grant.h": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-wire.c": "2a768ff8a335eea47d91f9534f2e5e1236985146bd523df96a3fc86da4947a97",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/tweetnacl.c": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-dealer.cpp": "d062baefe5a5913161342dce0d08ccc72915c086e261e38548eff424028b0b4b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads.c": "a502ff2b0269de4b0371d05fc14d1d8dae2190b0cfc4e3b87d14eebbde0232ba",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/prepare-selftest.c": "4961c0e1e185c503bf21d5734b4013430dd77dcbbd07c63653fa513e6c60bd56",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-http.h": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/ggml-shielded.h": "a0b1c5748443f21cc18c387db585c1a8aa7d74beedfb888ffa8da969fa68ba62",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-probe.c": "f4f0830b1ec8fef2a58419a1d36c8f038222ebc09342755b995ed788bf6fc78b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna-64.h": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/poly1305-donna-32.h": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bank-probe.c": "494f6bdcd026f784192ee48434c65a50d18d35c9bbe3bf0e9185a389e649a1a8",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pads.h": "83c8cd8f01d7eb225d6ceb02363b8686e61aa9cedf2d00fc4c122b661d9be2f5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/dealt-selftest.c": "54c50bca339a4f6dcf2accef0230ff82bd3f5d5cec343c9953447b7778d0b88b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/run.py": "674e6ffc1484ea3648f9c4af8f833fd2e99738347db95da370e93a1bff65b1ad",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-dealer-stream.h": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/simd-B.c": "cc83b29f6c6f62371913f2bf555895587de860df0057ae10d2670d1a0c8dd073",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/pads-unbox.c": "d5e3103c13128affaaf07815e082a8c24aed006930c778adeaac0637444940bb",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-omp-profile.c": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-avf-binding.h": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-pad-layout.h": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/Makefile": "d67336cd758ad8cacc3124b8cc74a0e0d244a2820b60f69ddde3a60d6f5d0e65",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/shielded-calib.cpp": "2190aa61b3ac210161996fe0a2febfc082a2e89c7813c271003647dd9f829c0f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/half-selftest.c": "4f436386f4ceaae7da7ca20ccf1a858890456e2e9a65ecb2f38b99e8f3ba23c5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/pads-keygen.c": "d839f11c89e179fb8bd344382641d6d9d7e9646b04f8e2d13ad2ba880307eee6"
+        },
+        "binaries": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/libggml-shielded.so": "1bc5f2d1f718371c9025f634699f92a396502d62a260dac0fe0638eacf442ada",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/bench-crt": "574d3cdd72ce55fdf811e89fa2cdfc893bb8255ae15a949bfa9bc3b5004adc07",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-dealer/switch-selftest": "441993c7485ab978556a702809adf0263ca7c24405a86c88cd7ca357ed4fa328"
+        }
+      }
+    },
+    {
+      "label": "final production entrypoints",
+      "medians": {
+        "A": {
+          "wall_s": 3.05228,
+          "cpu_s": 44.3352585,
+          "rows_s": 20.967932168739434
+        },
+        "B": {
+          "wall_s": 2.2107064999999997,
+          "cpu_s": 31.807363000000002,
+          "rows_s": 28.950021181011596
+        }
+      },
+      "wins": 6,
+      "result": {
+        "status": "PASS",
+        "scope": "full27B CPU v2 dealer, six matched refill pairs; not inference; host dealer is development or separately trusted service",
+        "records": [
+          {
+            "event": "registered",
+            "groups": 262,
+            "members": 409,
+            "seconds": 18.591982,
+            "manifest": "a8561178be97d268ae4f3f41310fab5ff9a389880d594ae46caad6c2639025ac"
+          },
+          {
+            "event": "plan",
+            "scope": "complete27B CPU v2 mint, balanced refill A/B; not inference",
+            "threads": 16,
+            "pairs": 6,
+            "warm_pairs": 1,
+            "rows": 64,
+            "cells_per_pair": 16768
+          },
+          {
+            "event": "warm_mint",
+            "pair": -1,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 960,
+            "rows": 64,
+            "wall_s": 3.128624,
+            "cpu_s": 45.007296,
+            "bytes": 809039872
+          },
+          {
+            "event": "warm_mint",
+            "pair": -1,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 960,
+            "rows": 64,
+            "wall_s": 2.271781,
+            "cpu_s": 31.700291,
+            "bytes": 809039872
+          },
+          {
+            "event": "warm_verify",
+            "pair": -1,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.702149
+          },
+          {
+            "event": "mint",
+            "pair": 0,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1024,
+            "rows": 64,
+            "wall_s": 2.95873,
+            "cpu_s": 43.479853,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 0,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1024,
+            "rows": 64,
+            "wall_s": 2.176551,
+            "cpu_s": 31.67866,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 0,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.719651
+          },
+          {
+            "event": "mint",
+            "pair": 1,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1088,
+            "rows": 64,
+            "wall_s": 2.807431,
+            "cpu_s": 33.562503,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 1,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1088,
+            "rows": 64,
+            "wall_s": 3.020269,
+            "cpu_s": 44.408706,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 1,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.734334
+          },
+          {
+            "event": "mint",
+            "pair": 2,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1152,
+            "rows": 64,
+            "wall_s": 3.053722,
+            "cpu_s": 44.261811,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 2,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1152,
+            "rows": 64,
+            "wall_s": 2.729868,
+            "cpu_s": 34.261182,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 2,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.74856
+          },
+          {
+            "event": "mint",
+            "pair": 3,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1216,
+            "rows": 64,
+            "wall_s": 2.21812,
+            "cpu_s": 31.936066,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 3,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1216,
+            "rows": 64,
+            "wall_s": 3.627556,
+            "cpu_s": 46.632542,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 3,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.745439
+          },
+          {
+            "event": "mint",
+            "pair": 4,
+            "position": 0,
+            "order": "AB",
+            "variant": "A",
+            "index0": 1280,
+            "rows": 64,
+            "wall_s": 3.2351,
+            "cpu_s": 44.499005,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 4,
+            "position": 1,
+            "order": "AB",
+            "variant": "B",
+            "index0": 1280,
+            "rows": 64,
+            "wall_s": 2.16166,
+            "cpu_s": 31.488626,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 4,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.705032
+          },
+          {
+            "event": "mint",
+            "pair": 5,
+            "position": 0,
+            "order": "BA",
+            "variant": "B",
+            "index0": 1344,
+            "rows": 64,
+            "wall_s": 2.203293,
+            "cpu_s": 31.354453,
+            "bytes": 809039872
+          },
+          {
+            "event": "mint",
+            "pair": 5,
+            "position": 1,
+            "order": "BA",
+            "variant": "A",
+            "index0": 1344,
+            "rows": 64,
+            "wall_s": 3.050838,
+            "cpu_s": 43.978374,
+            "bytes": 809039872
+          },
+          {
+            "event": "verify",
+            "pair": 5,
+            "status": "PASS",
+            "cells": 16768,
+            "field_values": 269582336,
+            "wall_s": 3.687211
+          },
+          {
+            "event": "complete",
+            "status": "PASS"
+          }
+        ],
+        "inputs": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/refill-selftest.c": [
+            "14851633add89772ded1245cfc442acf3b03b0efe7903a4580be4dfb7d9843cf",
+            [
+              64768,
+              74581005,
+              3204,
+              1788849746418279560,
+              1788901169259423952
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv.c": [
+            "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c",
+            [
+              64768,
+              74581006,
+              13129,
+              1788869968898393116,
+              1788901169259561481
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/switch-selftest.c": [
+            "d1de25185944c40f84060550fe3f312adb8bb2d78eb270fddd838a7b58df6977",
+            [
+              64768,
+              74581069,
+              2513,
+              1788900308200327442,
+              1788901169262460960
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-mint-v3.h": [
+            "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d",
+            [
+              64768,
+              74581007,
+              2548,
+              1788895854334403716,
+              1788901169259664170
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-mint-v3.inc": [
+            "cf7ee976b96a781341c144a8c6934f03659cbccee0447c32ac859e096da3dc5f",
+            [
+              64768,
+              74581008,
+              10424,
+              1788895854334403716,
+              1788901169259729750
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-selftest.c": [
+            "ad88ecba5718b138e85c5a4dd48e6ad4943dc41becc5e5b7906febe3e40c406b",
+            [
+              64768,
+              74581009,
+              14461,
+              1788869968898393116,
+              1788901169259790660
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-spec.cpp": [
+            "7b4c8aff5d347927a1c0a2a8b689ae2808e119ae17b37357ab22109a4ff091d1",
+            [
+              64768,
+              74581010,
+              14436,
+              1788849746418279560,
+              1788901169259843739
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-mtp.h": [
+            "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156",
+            [
+              64768,
+              74581011,
+              7546,
+              1788870630208004730,
+              1788901169259890599
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-sparse-plan.h": [
+            "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2",
+            [
+              64768,
+              74581012,
+              5758,
+              1788884858762563477,
+              1788901169259936929
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-wire.h": [
+            "2fc8f5aa0d35bd941e266b7b9eb004a6c483776b3112c9d7f86b77099965dc47",
+            [
+              64768,
+              74581013,
+              10808,
+              1788884474673505750,
+              1788901169259998528
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/test-records.py": [
+            "88feb7fb2f10a07653460474b795ad5c6cd4a2bc1a67aba1db5bbac4ea7619d5",
+            [
+              64768,
+              74581072,
+              2494,
+              1788900887115675008,
+              1788901169262569999
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-run.cpp": [
+            "7e85538c733bcb618a0dd9f22e7e2ba7c37f2484bba598ae9ca9cb411bb59624",
+            [
+              64768,
+              74581014,
+              12902,
+              1788872444284250448,
+              1788901169260051208
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-weight-source.h": [
+            "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca",
+            [
+              64768,
+              74581015,
+              7193,
+              1788869090914834837,
+              1788901169260099417
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-fusion.h": [
+            "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637",
+            [
+              64768,
+              74581016,
+              8811,
+              1788852076439276838,
+              1788901169260141727
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-latency.h": [
+            "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d",
+            [
+              64768,
+              74581017,
+              2355,
+              1788849746418279560,
+              1788901169260183317
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-tee.h": [
+            "bc42c0ff3308d3fda3d379e57a43ae92d52a289a39e2642757977e763c067f38",
+            [
+              64768,
+              74581018,
+              14340,
+              1788891423110396471,
+              1788901169260227756
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-bank.c": [
+            "5f8aab36ea98805bee847e76b87d536f386f2331c781966d470b40776de4a185",
+            [
+              64768,
+              74581019,
+              8309,
+              1788849746418279560,
+              1788901169260271466
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads-v3.h": [
+            "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d",
+            [
+              64768,
+              74581020,
+              4432,
+              1788893254014490488,
+              1788901169260311176
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-llama.h": [
+            "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc",
+            [
+              64768,
+              74581021,
+              4136,
+              1788870213129906236,
+              1788901169260349276
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-crt.cpp": [
+            "8b0f2750973b7a988b89c211d5a579ea789d5530d72d9b049c23324f6e42fc48",
+            [
+              64768,
+              74581068,
+              9972,
+              1788900484814302694,
+              1788901169262419081
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv.h": [
+            "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29",
+            [
+              64768,
+              74581022,
+              5153,
+              1788869968898393116,
+              1788901169260387375
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna.h": [
+            "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e",
+            [
+              64768,
+              74581023,
+              658,
+              1788849746418279560,
+              1788901169260426665
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-simd.h": [
+            "29b9e499b4b2703a2e554619efed5c11dfaafb7d75d6695944a5840ac906792a",
+            [
+              64768,
+              74581024,
+              5903,
+              1788901097353553042,
+              1788901169260464105
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-manifest.h": [
+            "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1",
+            [
+              64768,
+              74581025,
+              8624,
+              1788879869774170744,
+              1788901169260508394
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-weight-cache.h": [
+            "12aef5b9dc3459bff8c0f41cf8fa28583ef5be3b6cd475ca7d0b46f8aecf86ea",
+            [
+              64768,
+              74581026,
+              5594,
+              1788872444291341310,
+              1788901169260558904
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-simd.c": [
+            "ad7af0114280ed7d996f2b64bfc0dd571c6377473a15782d9e1b07f670a98227",
+            [
+              64768,
+              74581027,
+              39326,
+              1788901097353440742,
+              1788901169260597824
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-http.c": [
+            "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e",
+            [
+              64768,
+              74581028,
+              8772,
+              1788849746418279560,
+              1788901169260646363
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/field-selftest.c": [
+            "8e06b91e5b08d9371c1ff837617d9029f6f83bbf76b99d2636b885a3b308851b",
+            [
+              64768,
+              74581029,
+              1026,
+              1788849746418279560,
+              1788901169260687023
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-field.c": [
+            "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+            [
+              64768,
+              74581030,
+              12588,
+              1788849746418279560,
+              1788901169260722543
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-check.h": [
+            "7d7d0e1782c034050d82c7f12774696f59cdefc727faa8046a6b363d46d99372",
+            [
+              64768,
+              74581031,
+              2826,
+              1788876203386495577,
+              1788901169260770032
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/build.py": [
+            "5f34cc4f923080cfe1f2d9ca2ccfbcfc079302ae0489c22463ff3937beae4978",
+            [
+              64768,
+              74581070,
+              2648,
+              1788901169262984596,
+              1788901169262984596
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-field.h": [
+            "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+            [
+              64768,
+              74581032,
+              6122,
+              1788849746418279560,
+              1788901169260805792
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna.c": [
+            "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999",
+            [
+              64768,
+              74581033,
+              5823,
+              1788849746418279560,
+              1788901169260857662
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-sha256.h": [
+            "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+            [
+              64768,
+              74581034,
+              6096,
+              1788869652956867157,
+              1788901169260931791
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-batch.cpp": [
+            "821482b3522e5c936ed895e6934c7f42310789093faa7f7191e1632af8c659bd",
+            [
+              64768,
+              74581035,
+              7478,
+              1788849746418279560,
+              1788901169260982291
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-test.cpp": [
+            "d01591a4ae93f7d7589b0b9b2a8a7428dd4e3c4b84a6ef3152927ac2ac879e46",
+            [
+              64768,
+              74581036,
+              8174,
+              1788849746418279560,
+              1788901169261028691
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-mint-balance.h": [
+            "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd",
+            [
+              64768,
+              74581037,
+              2956,
+              1788888728701397391,
+              1788901169261076810
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads-v3.inc": [
+            "13fc10cfd77755d9058dc058b666efdf37cd08a3ca277ba7267fa3b826970a96",
+            [
+              64768,
+              74581038,
+              15889,
+              1788893254014490488,
+              1788901169261114600
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-shielded.cpp": [
+            "8b7dd4243bb851ba2078eb47aa7405aafb0a78b5d0895982d5ae0dab09d78ac3",
+            [
+              64768,
+              74581039,
+              92089,
+              1788901169262894107,
+              1788901169262894107
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-mint.cpp": [
+            "72924128a102c89668db158219e4b9d6800f76e7e9393ea9553e34653307580a",
+            [
+              64768,
+              74581040,
+              9434,
+              1788871944737989575,
+              1788901169261221279
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-sparse-table.h": [
+            "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc",
+            [
+              64768,
+              74581041,
+              5227,
+              1788881955642063666,
+              1788901169261265749
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/tweetnacl.h": [
+            "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287",
+            [
+              64768,
+              74581042,
+              20014,
+              1788849746418279560,
+              1788901169261305539
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-bank.h": [
+            "c6e63ad858aa76344feee213e1245893a7737a71aac9fdee975d128844cf6c5f",
+            [
+              64768,
+              74581043,
+              1883,
+              1788849746418279560,
+              1788901169261355708
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-tee.c": [
+            "da1dbbac1ff4fd235c322064604dda989bd8b4ff32ae3aa67b6d43236583ce47",
+            [
+              64768,
+              74581044,
+              121193,
+              1788901169262734438,
+              1788901169262734438
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-grant.h": [
+            "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5",
+            [
+              64768,
+              74581045,
+              5703,
+              1788856373797884714,
+              1788901169261479657
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-wire.c": [
+            "2a768ff8a335eea47d91f9534f2e5e1236985146bd523df96a3fc86da4947a97",
+            [
+              64768,
+              74581046,
+              26815,
+              1788884474673505750,
+              1788901169261520127
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/tweetnacl.c": [
+            "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749",
+            [
+              64768,
+              74581047,
+              16734,
+              1788855893777082178,
+              1788901169261570007
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-dealer.cpp": [
+            "d062baefe5a5913161342dce0d08ccc72915c086e261e38548eff424028b0b4b",
+            [
+              64768,
+              74581048,
+              15474,
+              1788886664181637938,
+              1788901169261614696
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads.c": [
+            "a502ff2b0269de4b0371d05fc14d1d8dae2190b0cfc4e3b87d14eebbde0232ba",
+            [
+              64768,
+              74581049,
+              43309,
+              1788893254015389801,
+              1788901169261659246
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prepare-selftest.c": [
+            "4961c0e1e185c503bf21d5734b4013430dd77dcbbd07c63653fa513e6c60bd56",
+            [
+              64768,
+              74581050,
+              1231,
+              1788849746418279560,
+              1788901169261704056
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-http.h": [
+            "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052",
+            [
+              64768,
+              74581051,
+              2033,
+              1788849746418279560,
+              1788901169261740165
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-shielded.h": [
+            "a0b1c5748443f21cc18c387db585c1a8aa7d74beedfb888ffa8da969fa68ba62",
+            [
+              64768,
+              74581052,
+              7464,
+              1788869090914834837,
+              1788901169261774785
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-probe.c": [
+            "f4f0830b1ec8fef2a58419a1d36c8f038222ebc09342755b995ed788bf6fc78b",
+            [
+              64768,
+              74581053,
+              8917,
+              1788849746418279560,
+              1788901169261811695
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna-64.h": [
+            "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df",
+            [
+              64768,
+              74581054,
+              6225,
+              1788849746418279560,
+              1788901169261851765
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna-32.h": [
+            "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6",
+            [
+              64768,
+              74581055,
+              6515,
+              1788849746418279560,
+              1788901169261887784
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bank-probe.c": [
+            "494f6bdcd026f784192ee48434c65a50d18d35c9bbe3bf0e9185a389e649a1a8",
+            [
+              64768,
+              74581056,
+              2953,
+              1788849746418279560,
+              1788901169261928484
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads.h": [
+            "83c8cd8f01d7eb225d6ceb02363b8686e61aa9cedf2d00fc4c122b661d9be2f5",
+            [
+              64768,
+              74581057,
+              11475,
+              1788882528678736287,
+              1788901169261965244
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/dealt-selftest.c": [
+            "54c50bca339a4f6dcf2accef0230ff82bd3f5d5cec343c9953447b7778d0b88b",
+            [
+              64768,
+              74581058,
+              20234,
+              1788861041793276389,
+              1788901169262007743
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/run.py": [
+            "f6c5027d90c3d0126551e6e859312d287cf6698869910b81545b72d09e29091b",
+            [
+              64768,
+              74581071,
+              9565,
+              1788901169263049576,
+              1788901169263049576
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-dealer-stream.h": [
+            "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3",
+            [
+              64768,
+              74581059,
+              6990,
+              1788886664181637938,
+              1788901169262053863
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/pads-unbox.c": [
+            "d5e3103c13128affaaf07815e082a8c24aed006930c778adeaac0637444940bb",
+            [
+              64768,
+              74581060,
+              4056,
+              1788861551734138930,
+              1788901169262096933
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-omp-profile.c": [
+            "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee",
+            [
+              64768,
+              74581061,
+              4757,
+              1788849746418279560,
+              1788901169262134353
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-avf-binding.h": [
+            "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46",
+            [
+              64768,
+              74581062,
+              1952,
+              1788855262423796754,
+              1788901169262172102
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-layout.h": [
+            "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd",
+            [
+              64768,
+              74581063,
+              4344,
+              1788877672519944581,
+              1788901169262207622
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/Makefile": [
+            "d67336cd758ad8cacc3124b8cc74a0e0d244a2820b60f69ddde3a60d6f5d0e65",
+            [
+              64768,
+              74581064,
+              8388,
+              1788893820685051194,
+              1788901169262246352
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-calib.cpp": [
+            "2190aa61b3ac210161996fe0a2febfc082a2e89c7813c271003647dd9f829c0f",
+            [
+              64768,
+              74581065,
+              27407,
+              1788849746418279560,
+              1788901169262285341
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/half-selftest.c": [
+            "4f436386f4ceaae7da7ca20ccf1a858890456e2e9a65ecb2f38b99e8f3ba23c5",
+            [
+              64768,
+              74581066,
+              269,
+              1788849746418279560,
+              1788901169262331851
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/pads-keygen.c": [
+            "d839f11c89e179fb8bd344382641d6d9d7e9646b04f8e2d13ad2ba880307eee6",
+            [
+              64768,
+              74581067,
+              446,
+              1788849746418279560,
+              1788901169262374841
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/libggml-shielded.so": [
+            "f83459d58636fb9d5338a68ab1b01bf5f6784e1d24f6e60520d957633411d53c",
+            [
+              64768,
+              74581088,
+              499208,
+              1788901174995626399,
+              1788901174996283804
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-crt": [
+            "78af89be1999c9179ad7b239bd3db65c2c4dd35bd9cef7e21b1e79edded175ad",
+            [
+              64768,
+              74581092,
+              45816,
+              1788901175718293442,
+              1788901175718303411
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/switch-selftest": [
+            "8ec653328463d73778ff8911387df1a92dbfa893891f61e5ed4f357101ebd1c9",
+            [
+              64768,
+              74581094,
+              17208,
+              1788901175838727777,
+              1788901175838737227
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/build-proof.json": [
+            "f46310193e9140746928a8df9e3c6b3f26f73ec53462a21b53af814c6dee21c1",
+            [
+              64768,
+              74581098,
+              15104,
+              1788901175872224284,
+              1788901175872224284
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/geometry-27b-nodes.json": [
+            "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+            [
+              64768,
+              74580306,
+              72942,
+              1788892327656117620,
+              1788896257927353225
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libllama.so": [
+            "a2b56dfea6beb99f611a579f2f5e0a5b0bbcbd525eba8ca747f0954bdfe0d41b",
+            [
+              64768,
+              58065136,
+              4062184,
+              0,
+              1788705571987026065
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml.so": [
+            "1c7fe4010cd22e7b0ea83db547ad382c5e00f7d6aee4b2948578676add777501",
+            [
+              64768,
+              58065133,
+              54936,
+              0,
+              1788705571974026192
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-base.so": [
+            "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+            [
+              64768,
+              58065129,
+              910680,
+              0,
+              1788705571970026231
+            ]
+          ],
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-cpu.so": [
+            "fd33ae41aff4ec212e8620812e91f70e5c9919a5c85d65abdecfbe82625d545f",
+            [
+              64768,
+              58065130,
+              1145280,
+              0,
+              1788705571974026192
+            ]
+          ]
+        },
+        "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+        "model_stat": [
+          64768,
+          57541182,
+          29047086048,
+          1788651357987938941,
+          1788651357991938888
+        ],
+        "calib_stat": [
+          64768,
+          44957702,
+          13006,
+          1788651621135511145,
+          1788652065685298819
+        ],
+        "encoding_profile": {
+          "scope": "scratch encoding/build identity, not signed deployment",
+          "backend_sha256": "f83459d58636fb9d5338a68ab1b01bf5f6784e1d24f6e60520d957633411d53c",
+          "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+          "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93"
+        },
+        "encoding_sha256": "1de87650de8068f65eccebb3a67234fe214ea5a1fbc1edfff58d72051ae39b78",
+        "expected_values_per_pair": 269582336,
+        "identity_seconds": 16.358368964021793,
+        "pid": 297605,
+        "returncode": 0,
+        "child_reaped": true,
+        "owned_pads_removed": true,
+        "elapsed_s": 101.69845515102497
+      },
+      "build": {
+        "status": "PASS",
+        "scope": "CPU build and tiny switch/scalar probes, not performance",
+        "elapsed_s": 6.548107781010913,
+        "commands": [
+          [
+            "make",
+            "-j4",
+            "libggml-shielded.so",
+            "GGML_SRC=/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source",
+            "GGML_LIB=/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib"
+          ],
+          [
+            "cc",
+            "-O3",
+            "-fPIC",
+            "-ffp-contract=off",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-c",
+            "shielded-simd.c",
+            "-o",
+            "shielded-simd-avx512.o"
+          ],
+          [
+            "g++",
+            "-shared",
+            "-o",
+            "libggml-shielded.so",
+            "ggml-shielded-dl.o",
+            "shielded-field.o",
+            "shielded-wire.o",
+            "shielded-tee.o",
+            "shielded-pads.o",
+            "shielded-bank.o",
+            "shielded-http.o",
+            "prefix-kv.o",
+            "tweetnacl.o",
+            "poly1305-donna.o",
+            "shielded-simd-avx512.o",
+            "shielded-simd-generic.o",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lggml-base",
+            "-lm",
+            "-lpthread",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib"
+          ],
+          [
+            "g++",
+            "-O2",
+            "-std=c++17",
+            "-I/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source/include",
+            "-I/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/parallel-copy-source/ggml/include",
+            "bench-crt.cpp",
+            "-L/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer",
+            "-lggml-shielded",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-ldl",
+            "-lpthread",
+            "-lm",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-o",
+            "bench-crt"
+          ],
+          [
+            "cc",
+            "-O2",
+            "switch-selftest.c",
+            "-L/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer",
+            "-lggml-shielded",
+            "-L/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-ldl",
+            "-lpthread",
+            "-lm",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer",
+            "-Wl,-rpath,/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib",
+            "-o",
+            "switch-selftest"
+          ],
+          [
+            "./switch-selftest"
+          ],
+          [
+            "./switch-selftest",
+            "generic"
+          ],
+          [
+            "./bench-crt"
+          ]
+        ],
+        "source_hashes": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/refill-selftest.c": "14851633add89772ded1245cfc442acf3b03b0efe7903a4580be4dfb7d9843cf",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv.c": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/switch-selftest.c": "d1de25185944c40f84060550fe3f312adb8bb2d78eb270fddd838a7b58df6977",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-mint-v3.h": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-mint-v3.inc": "cf7ee976b96a781341c144a8c6934f03659cbccee0447c32ac859e096da3dc5f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-selftest.c": "ad88ecba5718b138e85c5a4dd48e6ad4943dc41becc5e5b7906febe3e40c406b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-spec.cpp": "7b4c8aff5d347927a1c0a2a8b689ae2808e119ae17b37357ab22109a4ff091d1",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-mtp.h": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-sparse-plan.h": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-wire.h": "2fc8f5aa0d35bd941e266b7b9eb004a6c483776b3112c9d7f86b77099965dc47",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/test-records.py": "88feb7fb2f10a07653460474b795ad5c6cd4a2bc1a67aba1db5bbac4ea7619d5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-run.cpp": "7e85538c733bcb618a0dd9f22e7e2ba7c37f2484bba598ae9ca9cb411bb59624",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-weight-source.h": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-fusion.h": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-latency.h": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-tee.h": "bc42c0ff3308d3fda3d379e57a43ae92d52a289a39e2642757977e763c067f38",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-bank.c": "5f8aab36ea98805bee847e76b87d536f386f2331c781966d470b40776de4a185",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads-v3.h": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-llama.h": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-crt.cpp": "8b0f2750973b7a988b89c211d5a579ea789d5530d72d9b049c23324f6e42fc48",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv.h": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna.h": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-simd.h": "29b9e499b4b2703a2e554619efed5c11dfaafb7d75d6695944a5840ac906792a",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-manifest.h": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-weight-cache.h": "12aef5b9dc3459bff8c0f41cf8fa28583ef5be3b6cd475ca7d0b46f8aecf86ea",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-simd.c": "ad7af0114280ed7d996f2b64bfc0dd571c6377473a15782d9e1b07f670a98227",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-http.c": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/field-selftest.c": "8e06b91e5b08d9371c1ff837617d9029f6f83bbf76b99d2636b885a3b308851b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-check.h": "7d7d0e1782c034050d82c7f12774696f59cdefc727faa8046a6b363d46d99372",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/build.py": "5f34cc4f923080cfe1f2d9ca2ccfbcfc079302ae0489c22463ff3937beae4978",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna.c": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-sha256.h": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-batch.cpp": "821482b3522e5c936ed895e6934c7f42310789093faa7f7191e1632af8c659bd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-test.cpp": "d01591a4ae93f7d7589b0b9b2a8a7428dd4e3c4b84a6ef3152927ac2ac879e46",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-mint-balance.h": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads-v3.inc": "13fc10cfd77755d9058dc058b666efdf37cd08a3ca277ba7267fa3b826970a96",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-shielded.cpp": "8b7dd4243bb851ba2078eb47aa7405aafb0a78b5d0895982d5ae0dab09d78ac3",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prefix-kv-mint.cpp": "72924128a102c89668db158219e4b9d6800f76e7e9393ea9553e34653307580a",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-sparse-table.h": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/tweetnacl.h": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-bank.h": "c6e63ad858aa76344feee213e1245893a7737a71aac9fdee975d128844cf6c5f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-tee.c": "da1dbbac1ff4fd235c322064604dda989bd8b4ff32ae3aa67b6d43236583ce47",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-grant.h": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-wire.c": "2a768ff8a335eea47d91f9534f2e5e1236985146bd523df96a3fc86da4947a97",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/tweetnacl.c": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-dealer.cpp": "d062baefe5a5913161342dce0d08ccc72915c086e261e38548eff424028b0b4b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads.c": "a502ff2b0269de4b0371d05fc14d1d8dae2190b0cfc4e3b87d14eebbde0232ba",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/prepare-selftest.c": "4961c0e1e185c503bf21d5734b4013430dd77dcbbd07c63653fa513e6c60bd56",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-http.h": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/ggml-shielded.h": "a0b1c5748443f21cc18c387db585c1a8aa7d74beedfb888ffa8da969fa68ba62",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-probe.c": "f4f0830b1ec8fef2a58419a1d36c8f038222ebc09342755b995ed788bf6fc78b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna-64.h": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/poly1305-donna-32.h": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bank-probe.c": "494f6bdcd026f784192ee48434c65a50d18d35c9bbe3bf0e9185a389e649a1a8",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pads.h": "83c8cd8f01d7eb225d6ceb02363b8686e61aa9cedf2d00fc4c122b661d9be2f5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/dealt-selftest.c": "54c50bca339a4f6dcf2accef0230ff82bd3f5d5cec343c9953447b7778d0b88b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/run.py": "f6c5027d90c3d0126551e6e859312d287cf6698869910b81545b72d09e29091b",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-dealer-stream.h": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/pads-unbox.c": "d5e3103c13128affaaf07815e082a8c24aed006930c778adeaac0637444940bb",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-omp-profile.c": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-avf-binding.h": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-pad-layout.h": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/Makefile": "d67336cd758ad8cacc3124b8cc74a0e0d244a2820b60f69ddde3a60d6f5d0e65",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/shielded-calib.cpp": "2190aa61b3ac210161996fe0a2febfc082a2e89c7813c271003647dd9f829c0f",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/half-selftest.c": "4f436386f4ceaae7da7ca20ccf1a858890456e2e9a65ecb2f38b99e8f3ba23c5",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/pads-keygen.c": "d839f11c89e179fb8bd344382641d6d9d7e9646b04f8e2d13ad2ba880307eee6"
+        },
+        "binaries": {
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/libggml-shielded.so": "f83459d58636fb9d5338a68ab1b01bf5f6784e1d24f6e60520d957633411d53c",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/bench-crt": "78af89be1999c9179ad7b239bd3db65c2c4dd35bd9cef7e21b1e79edded175ad",
+          "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt-optin-dealer/switch-selftest": "8ec653328463d73778ff8911387df1a92dbfa893891f61e5ed4f357101ebd1c9"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "label": "b27-write8k-control-1",
+  "rows": [
+    {
+      "trial": 1,
+      "trace_seconds": 13.989053141,
+      "guest_decode_seconds": 14.277586,
+      "states_seconds": {
+        "S": 10.36625871,
+        "Running": 2.518582562,
+        "R": 0.834540324,
+        "R+": 0.23198607,
+        "D": 0.033818165
+      },
+      "runnable_seconds": 1.066526394
+    },
+    {
+      "trial": 2,
+      "trace_seconds": 21.117,
+      "guest_decode_seconds": 20.986223,
+      "states_seconds": {
+        "S": 16.00148422,
+        "Running": 3.492705686,
+        "R": 1.03601755,
+        "R+": 0.553832755,
+        "D": 0.032959789
+      },
+      "runnable_seconds": 1.589850305
+    }
+  ],
+  "limits": [
+    "Android bridge state durations in app-marker trace windows, not exact guest decode boundaries or removable latency.",
+    "Increasing bridge priority may take CPU time from guest/vhost or pad delivery.",
+    "Existing pumpprio option already reaches the native bridge; adding a duplicate option is unnecessary.",
+    "The idle small-frame probe has a different scheduling/workload mix and its fractions do not transfer directly to 27B inference."
+  ]
+}

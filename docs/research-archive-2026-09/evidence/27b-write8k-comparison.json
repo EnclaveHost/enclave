@@ -1,0 +1,434 @@
+{
+  "baseline": {
+    "label": "b27-write8k-control-1",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "combined_overall_tps": 0.9074459313229607,
+    "combined_steady_tps": 0.9043708836124413,
+    "trials": [
+      {
+        "trial": 1,
+        "overall_tps": 1.1206376203932513,
+        "steady_tps": 1.1349757713229862,
+        "decode_seconds": 14.277586,
+        "wire_ms": 9871.180585,
+        "phases": {
+          "overlap_work": {
+            "wall_ms": 3.904829,
+            "cpu_ms": 3.748362
+          },
+          "read_body": {
+            "wall_ms": 3672.708509,
+            "cpu_ms": 641.274413
+          },
+          "write_request": {
+            "wall_ms": 790.448457,
+            "cpu_ms": 219.685007
+          },
+          "read_header": {
+            "wall_ms": 5163.185803,
+            "cpu_ms": 176.041284
+          },
+          "reply_reserve": {
+            "wall_ms": 13.304195,
+            "cpu_ms": 6.484739
+          }
+        },
+        "guest_phase_wall_ns": 9369010968,
+        "guest_phase_cpu_ns": 890619605,
+        "guest_runqueue_ns_bounds": [
+          58513338,
+          103793506
+        ],
+        "observer_ns": 450027359,
+        "vm_send": {
+          "count": 41478,
+          "bytes": 355289430,
+          "mean": 8565.73195428902,
+          "p50": 4344,
+          "p90": 15928,
+          "under_4096": 18084,
+          "at_most_8192": 31117
+        },
+        "tcp_read": {
+          "count": 45673,
+          "bytes": 355289430,
+          "mean": 7778.981674074398,
+          "p50": 4344,
+          "p90": 14480,
+          "under_4096": 20832,
+          "at_most_8192": 34962
+        },
+        "vm_send_negative_attempts": 4570,
+        "body_voluntary_switches": 59798,
+        "bridge_cpu_seconds": 2.324515168,
+        "bridge_vm_send_cpu_seconds": 0.462243776,
+        "bridge_cpu_samples": 251,
+        "compaction_samples": 1,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "overall_tps": 0.7624049358476749,
+        "steady_tps": 0.7516502481197469,
+        "decode_seconds": 20.986223,
+        "wire_ms": 14316.763463,
+        "phases": {
+          "overlap_work": {
+            "wall_ms": 6.112754,
+            "cpu_ms": 5.751855
+          },
+          "read_body": {
+            "wall_ms": 5626.207391,
+            "cpu_ms": 867.032368
+          },
+          "write_request": {
+            "wall_ms": 1250.262022,
+            "cpu_ms": 347.069228
+          },
+          "read_header": {
+            "wall_ms": 7124.757281,
+            "cpu_ms": 316.755385
+          },
+          "reply_reserve": {
+            "wall_ms": 4.353025,
+            "cpu_ms": 4.392039
+          }
+        },
+        "guest_phase_wall_ns": 13621313770,
+        "guest_phase_cpu_ns": 1292684803,
+        "guest_runqueue_ns_bounds": [
+          73061311,
+          122420972
+        ],
+        "observer_ns": 646667375,
+        "vm_send": {
+          "count": 22996,
+          "bytes": 355289430,
+          "mean": 15450.053487563055,
+          "p50": 7240,
+          "p90": 29409,
+          "under_4096": 4040,
+          "at_most_8192": 12675
+        },
+        "tcp_read": {
+          "count": 28457,
+          "bytes": 355289430,
+          "mean": 12485.133007695822,
+          "p50": 5792,
+          "p90": 23544,
+          "under_4096": 5885,
+          "at_most_8192": 17412
+        },
+        "vm_send_negative_attempts": 6291,
+        "body_voluntary_switches": 8067,
+        "bridge_cpu_seconds": 3.21797578,
+        "bridge_vm_send_cpu_seconds": 1.184145879,
+        "bridge_cpu_samples": 344,
+        "compaction_samples": 79,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "label": "b27-pad8k-1",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "combined_overall_tps": 0.7793165491278717,
+    "combined_steady_tps": 0.8057691584168817,
+    "trials": [
+      {
+        "trial": 1,
+        "overall_tps": 0.9772283799825516,
+        "steady_tps": 1.0056118556377656,
+        "decode_seconds": 16.372836,
+        "wire_ms": 11319.169797,
+        "phases": {
+          "read_body": {
+            "wall_ms": 4515.481904,
+            "cpu_ms": 728.607028
+          },
+          "overlap_work": {
+            "wall_ms": 3.933344,
+            "cpu_ms": 3.240049
+          },
+          "read_header": {
+            "wall_ms": 5628.337112,
+            "cpu_ms": 191.248035
+          },
+          "reply_reserve": {
+            "wall_ms": 6.606965,
+            "cpu_ms": 6.551276
+          },
+          "write_request": {
+            "wall_ms": 948.377267,
+            "cpu_ms": 255.17819
+          }
+        },
+        "guest_phase_wall_ns": 10849558028,
+        "guest_phase_cpu_ns": 1032321121,
+        "guest_runqueue_ns_bounds": [
+          61055345,
+          109740071
+        ],
+        "observer_ns": 447098351,
+        "vm_send": {
+          "count": 36333,
+          "bytes": 355289430,
+          "mean": 9778.697877962182,
+          "p50": 4344,
+          "p90": 17376,
+          "under_4096": 15187,
+          "at_most_8192": 26497
+        },
+        "tcp_read": {
+          "count": 41085,
+          "bytes": 355289430,
+          "mean": 8647.667761956918,
+          "p50": 4344,
+          "p90": 15928,
+          "under_4096": 18645,
+          "at_most_8192": 31024
+        },
+        "vm_send_negative_attempts": 5363,
+        "body_voluntary_switches": 32507,
+        "bridge_cpu_seconds": 2.793869414,
+        "bridge_vm_send_cpu_seconds": 0.978517854,
+        "bridge_cpu_samples": 295,
+        "compaction_samples": 54,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "overall_tps": 0.6480675597469685,
+        "steady_tps": 0.672187115382935,
+        "decode_seconds": 24.688784,
+        "wire_ms": 17470.5065,
+        "phases": {
+          "read_body": {
+            "wall_ms": 8160.742625,
+            "cpu_ms": 994.659076
+          },
+          "overlap_work": {
+            "wall_ms": 7.290852,
+            "cpu_ms": 4.424383
+          },
+          "read_header": {
+            "wall_ms": 7581.666216,
+            "cpu_ms": 369.306424
+          },
+          "reply_reserve": {
+            "wall_ms": 6.975885,
+            "cpu_ms": 6.964743
+          },
+          "write_request": {
+            "wall_ms": 1357.317861,
+            "cpu_ms": 353.131328
+          }
+        },
+        "guest_phase_wall_ns": 16716681310,
+        "guest_phase_cpu_ns": 1502467203,
+        "guest_runqueue_ns_bounds": [
+          87519402,
+          130392522
+        ],
+        "observer_ns": 648089249,
+        "vm_send": {
+          "count": 20731,
+          "bytes": 355289430,
+          "mean": 17138.074863730646,
+          "p50": 7240,
+          "p90": 33304,
+          "under_4096": 3729,
+          "at_most_8192": 10957
+        },
+        "tcp_read": {
+          "count": 25922,
+          "bytes": 355289430,
+          "mean": 13706.09636602114,
+          "p50": 5792,
+          "p90": 25238,
+          "under_4096": 5470,
+          "at_most_8192": 15524
+        },
+        "vm_send_negative_attempts": 6161,
+        "body_voluntary_switches": 21676,
+        "bridge_cpu_seconds": 5.310033977,
+        "bridge_vm_send_cpu_seconds": 3.376464744,
+        "bridge_cpu_samples": 576,
+        "compaction_samples": 313,
+        "pad_wait_ms": 0.0,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ]
+  },
+  "candidate_cap": {
+    "pad": 8192,
+    "bridge": 0
+  },
+  "combined_overall_ratio": 0.8588021855932619,
+  "pad_kernel": [
+    [
+      {
+        "trial": 1,
+        "thread": "vsock-pads",
+        "cpu_samples": 22,
+        "samples": {
+          "virtio_transport_alloc_pkt": 4,
+          "__kmalloc_large_node": 2
+        }
+      },
+      {
+        "trial": 1,
+        "thread": "pads-fetch",
+        "cpu_samples": 270,
+        "samples": {}
+      },
+      {
+        "trial": 2,
+        "thread": "vsock-pads",
+        "cpu_samples": 358,
+        "samples": {
+          "virtio_transport_alloc_pkt": 237,
+          "__kmalloc_large_node": 212,
+          "try_to_compact_pages": 205,
+          "migrate_pages": 196
+        }
+      },
+      {
+        "trial": 2,
+        "thread": "pads-fetch",
+        "cpu_samples": 1006,
+        "samples": {}
+      }
+    ],
+    [
+      {
+        "trial": 1,
+        "thread": "vsock-pads",
+        "cpu_samples": 100,
+        "samples": {
+          "virtio_transport_alloc_pkt": 6
+        }
+      },
+      {
+        "trial": 1,
+        "thread": "pads-fetch",
+        "cpu_samples": 509,
+        "samples": {}
+      },
+      {
+        "trial": 2,
+        "thread": "vsock-pads",
+        "cpu_samples": 464,
+        "samples": {
+          "virtio_transport_alloc_pkt": 25
+        }
+      },
+      {
+        "trial": 2,
+        "thread": "pads-fetch",
+        "cpu_samples": 1362,
+        "samples": {}
+      }
+    ]
+  ],
+  "limits": [
+    "Exact same APK, workload, source inputs and one changed write cap required.",
+    "Two sequential short runs cannot isolate changing phone state or prove sustained throughput.",
+    "Stack sample counts indicate executed paths, not packet counts or blocked wall time."
+  ],
+  "controllers": {
+    "b27-write8k-control-1": {
+      "status": "COMMAND_COMPLETE",
+      "max_seconds": 600,
+      "cleanup_reserve_seconds": 50,
+      "includes_preflight": true,
+      "command_started": true,
+      "phone_cleanup": true,
+      "root_pid": 4047272,
+      "phone_stopped": true,
+      "bank_cleanup": {
+        "status": "CLEAR",
+        "bank_clear": true,
+        "exclusive_bank_lock": true,
+        "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+        "elapsed_seconds": 0.055593463010154665
+      },
+      "command_rc": 0,
+      "remaining_owned_pids": [],
+      "cleanup_seconds": 18.29830372997094,
+      "elapsed_seconds": 540.3382460590219
+    },
+    "b27-pad8k-1": {
+      "status": "COMMAND_COMPLETE",
+      "max_seconds": 600,
+      "cleanup_reserve_seconds": 50,
+      "includes_preflight": true,
+      "command_started": true,
+      "phone_cleanup": true,
+      "root_pid": 4002430,
+      "phone_stopped": true,
+      "bank_cleanup": {
+        "status": "CLEAR",
+        "bank_clear": true,
+        "exclusive_bank_lock": true,
+        "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+        "elapsed_seconds": 0.02769066602922976
+      },
+      "command_rc": 0,
+      "remaining_owned_pids": [],
+      "cleanup_seconds": 23.501877227972727,
+      "elapsed_seconds": 545.7356191570289
+    }
+  }
+}

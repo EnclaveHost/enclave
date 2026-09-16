@@ -1,0 +1,98 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 3,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "unset",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 30457706,
+      "tokens_per_second": 0.5253186172326963,
+      "steady_tokens": 13,
+      "steady_us": 27280493,
+      "steady_tokens_per_second": 0.4765309776476547,
+      "counter_delta": {
+        "offloaded_nodes": 2751,
+        "local_nodes": 0,
+        "macs": 574307696640,
+        "verify_fail": 0,
+        "pads_used": 5413,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 43540,
+      "generated": 16,
+      "decode_us": 24643025,
+      "tokens_per_second": 0.6492709397486712,
+      "steady_tokens": 13,
+      "steady_us": 19167873,
+      "steady_tokens_per_second": 0.6782181831025279,
+      "counter_delta": {
+        "offloaded_nodes": 2751,
+        "local_nodes": 0,
+        "macs": 574307696640,
+        "verify_fail": 0,
+        "pads_used": 5413,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-prefetch-1",
+  "capture_sha256": "ae9d9b026c9447305db2d7a016eeebeb00e1d8e41eef5977c17278b97cb0f8a9",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-prefetch-1/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 239945,
+    "from": 0,
+    "total": 239945,
+    "chunks": 167,
+    "sha256": "4dfb012e6c408ff93c16e02305c041f7dd9d2f8cb6de90db25787122d61d4a9b",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 1914338,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 2077,
+    "peak_device_memory_mib": 25863.0,
+    "second_device_peak_memory_mib": 351.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 1914333,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.5402290970087051,
+    "elapsed_seconds": 526.9638309659786
+  }
+}

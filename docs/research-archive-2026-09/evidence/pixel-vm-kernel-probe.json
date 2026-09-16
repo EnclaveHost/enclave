@@ -1,0 +1,6030 @@
+{
+  "receipt": {
+    "status": "PASS_DIAGNOSTIC",
+    "label": "bridge-isolate-vm-kernel-1",
+    "profile": 1,
+    "sizes": [
+      65536,
+      262144,
+      1048576
+    ],
+    "scope": "No-model sequential framed bridge diagnostic; no inference/pad traffic/burners; 1400-byte ICMP stimulus every 5 ms changes network and CPU activity",
+    "children": {
+      "server": 3160628,
+      "collector": 3161172,
+      "bridge": 3161174,
+      "ping": 3161444,
+      "perfetto": 3161524
+    },
+    "apk": {
+      "status": "PASS",
+      "manifest_sha256": "9b92007133fcb5569e9a0306fe234b408fc73f2124a8f6ec67df5e94daa6f7e4",
+      "apk_sha256": "d72dcee1227484b97c1028a27aee82681be4aaa3b39b1bab61c8c26f53b4462d",
+      "installed_path": "/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/base.apk",
+      "version_code": 34,
+      "calibration_bytes": 13006,
+      "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+      "serial": "3B130DLJG0018K",
+      "commands": [
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "pm",
+            "path",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 315158.640110472,
+          "end_mono": 315158.830635916,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "package:/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "sha256sum",
+            "/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/base.apk"
+          ],
+          "start_mono": 315158.832861998,
+          "end_mono": 315159.016783375,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "d72dcee1227484b97c1028a27aee82681be4aaa3b39b1bab61c8c26f53b4462d  /data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "dumpsys",
+            "package",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 315159.01863316,
+          "end_mono": 315159.199170104,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "Activity Resolver Table:\n  Non-Data Actions:\n      android.intent.action.MAIN:\n        d876e02 host.enclave.anchor.avf/.Main filter dbaa313\n          Action: \"android.intent.action.MAIN\"\n          Category: \"android.intent.category.LAUNCHER\"\n\nDomain verification status:\n\nKey Set Manager:\n  [host.enclave.anchor.avf]\n      Signing KeySets: 128\n\nPackages:\n  Package [host.enclave.anchor.avf] (b11ee32):\n    appId=10312\n    pccId=-1\n    pkg=Package{80e5eda host.enclave.anchor.avf}\n    codePath=/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==\n    resourcePath=/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==\n    legacyNativeLibraryDir=/data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/lib\n    extractNativeLibs=false\n    primaryCpuAbi=arm64-v8a\n    secondaryCpuAbi=null\n    cpuAbiOverride=null\n    versionCode=34 minSdk=34 targetSdk=35\n    minExtensionVersions=[]\n    versionName=0.1\n    hiddenApiEnforcementPolicy=2\n    usesNonSdkApi=false\n    splits=[base]\n    apkSigningVersion=3\n    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    forceQueryable=false\n    pageSizeCompat=4\n    scannedAsStoppedSystemApp=false\n    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]\n    timeStamp=2026-09-09 05:15:42\n    lastUpdateTime=2026-09-09 05:15:44\n    installerPackageName=null\n    installerPackageUid=-1\n    initiatingPackageName=com.android.shell\n    originatingPackageName=null\n    packageSource=1\n    appMetadataFilePath=null\n    appMetadataSource=0\n    signatures=PackageSignatures{8edc1dd version:3, signatures:[53644764], past signatures:[]}\n    installPermissionsFixed=false\n    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    apexModuleName=null\n    requested permissions:\n      android.permission.POST_NOTIFICATIONS\n      android.permission.FOREGROUND_SERVICE\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE\n      android.permission.INTERNET\n      android.permission.MANAGE_VIRTUAL_MACHINE\n    install permissions:\n      android.permission.FOREGROUND_SERVICE: granted=true\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE: granted=true\n      android.permission.INTERNET: granted=true\n      android.permission.MANAGE_VIRTUAL_MACHINE: granted=true\n    User 0: ceDataInode=26398 deDataInode=26560 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=true notLaunched=false enabled=0 instant=false virtual=false quarantined=false\n      installReason=0\n      dataDir=/data/user/0/host.enclave.anchor.avf\n      firstInstallTime=2026-09-02 13:22:36\n      uninstallReason=0\n      overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n        /data/resource-cache/com.android.systemui-neutral-gAAy.frro\n        /data/resource-cache/com.android.systemui-accent-SWs6.frro\n        /data/resource-cache/com.android.systemui-dynamic-jwfR.frro\n      legacy overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n      gids=[3003, 3013]\n      runtime permissions:\n        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]\n\nQueries:\n  system apps queryable: false\n  queries via forceQueryable:\n  queries via package name:\n  queries via component:\n    com.google.android.apps.camera.services:\n      host.enclave.anchor.avf\n    com.google.android.apps.diagnosticstool:\n      host.enclave.anchor.avf\n    com.google.android.as:\n      host.enclave.anchor.avf\n    com.google.android.settings.intelligence:\n      host.enclave.anchor.avf\n    com.google.android.as.oss:\n      host.enclave.anchor.avf\n    com.google.android.apps.accessibility.voiceaccess:\n      host.enclave.anchor.avf\n    com.verizon.mips.services:\n      host.enclave.anchor.avf\n    com.fitbit.FitbitMobile:\n      host.enclave.anchor.avf\n  queryable via interaction:\n    User 0:\n      [com.android.localtransport,com.android.settings,android,com.android.keychain,com.google.SSRestartDetector,com.google.android.repairmode,com.android.DeviceAsWebcam,com.android.dynsystem,com.android.providers.settings,com.android.qns,com.google.android.iwlan,com.google.pixel.camera.services,com.android.server.telecom,com.android.location.fused,com.google.android.settings.future.biometrics.faceenroll,com.android.inputdevices]:\n        host.enclave.anchor.avf\n      com.google.android.as:\n        host.enclave.anchor.avf\n      com.android.systemui:\n        host.enclave.anchor.avf\n      com.google.android.apps.nexuslauncher:\n        host.enclave.anchor.avf\n      host.enclave.anchor.avf:\n        com.android.shell\n  queryable via uses-library:\n\nDexopt state:\n  [host.enclave.anchor.avf]\n    path: /data/app/~~hQBY5R7SRIg25IWNodVE4w==/host.enclave.anchor.avf-8vZ5VXXib6VHykYUYKONSg==/base.apk\n      arm64: [status=run-from-apk] [reason=unknown] [primary-abi]\n        [location is error]\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "source_hashes": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/bridge-isolate-vm-kernel.py": "ddcb1a64d617953da346669c353416aa2d5a67aff5298a7fc8fc76206a1f8301",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/echo-server.py": "5227c33dedf1a93db0d885cb6ff61849f3995f27cb7604255ca9a430d5316fa8",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/bridgebench-gate.py": "25bfad51256857c354bbf48e8cfaca29b86f6e08209a15ed436b67a534f09363",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/v34/phone-apk-v34-identity.json": "9b92007133fcb5569e9a0306fe234b408fc73f2124a8f6ec67df5e94daa6f7e4"
+    },
+    "ping_start_mono": 315159.519979155,
+    "launch_mono": 315159.522252196,
+    "kernel_targets": {
+      "app_pid": 28854,
+      "vm_pid": 28895,
+      "vhost": {
+        "pid": 28899,
+        "tid": 28899,
+        "name": "vhost-28895"
+      },
+      "threads": [
+        {
+          "pid": 28854,
+          "tid": 28854,
+          "name": "lave.anchor.avf"
+        },
+        {
+          "pid": 28854,
+          "tid": 28856,
+          "name": "perfetto_hprof_"
+        },
+        {
+          "pid": 28854,
+          "tid": 28859,
+          "name": "HeapTaskDaemon"
+        },
+        {
+          "pid": 28854,
+          "tid": 28860,
+          "name": "ReferenceQueueD"
+        },
+        {
+          "pid": 28854,
+          "tid": 28861,
+          "name": "FinalizerDaemon"
+        },
+        {
+          "pid": 28854,
+          "tid": 28862,
+          "name": "FinalizerWatchd"
+        },
+        {
+          "pid": 28854,
+          "tid": 28863,
+          "name": "binder:28854_1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28864,
+          "name": "binder:28854_2"
+        },
+        {
+          "pid": 28854,
+          "tid": 28865,
+          "name": "binder:28854_3"
+        },
+        {
+          "pid": 28854,
+          "tid": 28868,
+          "name": "binder:28854_4"
+        },
+        {
+          "pid": 28854,
+          "tid": 28871,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28883,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28885,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28886,
+          "name": "pool-6-thread-1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28948,
+          "name": "pool-5-thread-1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28949,
+          "name": "vsock-control"
+        },
+        {
+          "pid": 28854,
+          "tid": 28950,
+          "name": "vsock-bridge"
+        },
+        {
+          "pid": 28895,
+          "tid": 28895,
+          "name": "crosvm_anchor64"
+        },
+        {
+          "pid": 28895,
+          "tid": 28900,
+          "name": "device_control"
+        },
+        {
+          "pid": 28895,
+          "tid": 28901,
+          "name": "crosvm_vcpu0"
+        },
+        {
+          "pid": 28895,
+          "tid": 28903,
+          "name": "crosvm_vcpu1"
+        },
+        {
+          "pid": 28895,
+          "tid": 28904,
+          "name": "crosvm_vcpu2"
+        },
+        {
+          "pid": 28895,
+          "tid": 28905,
+          "name": "crosvm_vcpu3"
+        },
+        {
+          "pid": 28895,
+          "tid": 28906,
+          "name": "crosvm_vcpu4"
+        },
+        {
+          "pid": 28895,
+          "tid": 28907,
+          "name": "crosvm_vcpu5"
+        },
+        {
+          "pid": 28895,
+          "tid": 28908,
+          "name": "crosvm_vcpu6"
+        },
+        {
+          "pid": 28895,
+          "tid": 28909,
+          "name": "crosvm_vcpu7"
+        },
+        {
+          "pid": 28895,
+          "tid": 28910,
+          "name": "crosvm_vcpu8"
+        },
+        {
+          "pid": 28895,
+          "tid": 28911,
+          "name": "irq_handler_thr"
+        },
+        {
+          "pid": 28895,
+          "tid": 28922,
+          "name": "vm_memory_handl"
+        },
+        {
+          "pid": 28895,
+          "tid": 28923,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28925,
+          "name": "v_balloon"
+        },
+        {
+          "pid": 28895,
+          "tid": 28926,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28929,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28930,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28931,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28932,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28933,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28934,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28935,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28936,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28938,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28940,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28941,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28943,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28944,
+          "name": "vhost_vsock"
+        },
+        {
+          "pid": 28899,
+          "tid": 28899,
+          "name": "vhost-28895"
+        }
+      ]
+    },
+    "perfetto_config_sha256": "50310766161fdccee1602e85eec09780e65a70299d7366abc5871017591fd1e0",
+    "perfetto_start_host_mono": 315169.572409898,
+    "cpu_profile_bins": 108,
+    "gate": {
+      "functional": "PASS",
+      "reasons": [],
+      "mode": "native",
+      "kind": "diag",
+      "sizes": [
+        65536,
+        262144,
+        1048576
+      ],
+      "bench": {
+        "65536": {
+          "p50_us": 7540.0,
+          "p90_us": 11324.0,
+          "min_us": 5129.0,
+          "n": 200
+        },
+        "262144": {
+          "p50_us": 21635.0,
+          "p90_us": 28573.0,
+          "min_us": 12510.0,
+          "n": 200
+        },
+        "1048576": {
+          "p50_us": 55283.0,
+          "p90_us": 75605.0,
+          "min_us": 31393.0,
+          "n": 200
+        }
+      },
+      "bridge": {
+        "expected_bytes": 289016288,
+        "rc": -125,
+        "up": 289016288,
+        "down": 289016288
+      },
+      "perf": {
+        "verdict": null,
+        "verdict_lines": 0,
+        "watchdog_rc": -1,
+        "ok": false
+      },
+      "phase": {
+        "conn": "c1",
+        "records": 5053,
+        "expected": 5053,
+        "matched": true,
+        "failures": []
+      },
+      "payload_exit": "0"
+    },
+    "ping_check_mono": 315200.706211762,
+    "ping_alive_at_check": true,
+    "ping_brackets_frame_window": true,
+    "perfetto": {
+      "status": "RECORDED_REQUIRES_PC_ANALYSIS",
+      "bytes": 989987,
+      "sha256": "6167fb91b157ad6442c816207389d2c3466c96b6e3d3a7858afc1e549a8a87ea"
+    },
+    "protected_unchanged": true,
+    "phone_lock_unchanged": true,
+    "elapsed_seconds": 42.36583189404337
+  },
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 300,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 3160445,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.3346757550025359,
+    "elapsed_seconds": 42.94804057799047
+  },
+  "analysis": {
+    "status": "HOST_KERNEL_PROFILE_WITH_GUEST_STACK_GAP",
+    "targets": {
+      "app_pid": 28854,
+      "vm_pid": 28895,
+      "vhost": {
+        "pid": 28899,
+        "tid": 28899,
+        "name": "vhost-28895"
+      },
+      "threads": [
+        {
+          "pid": 28854,
+          "tid": 28854,
+          "name": "lave.anchor.avf"
+        },
+        {
+          "pid": 28854,
+          "tid": 28856,
+          "name": "perfetto_hprof_"
+        },
+        {
+          "pid": 28854,
+          "tid": 28859,
+          "name": "HeapTaskDaemon"
+        },
+        {
+          "pid": 28854,
+          "tid": 28860,
+          "name": "ReferenceQueueD"
+        },
+        {
+          "pid": 28854,
+          "tid": 28861,
+          "name": "FinalizerDaemon"
+        },
+        {
+          "pid": 28854,
+          "tid": 28862,
+          "name": "FinalizerWatchd"
+        },
+        {
+          "pid": 28854,
+          "tid": 28863,
+          "name": "binder:28854_1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28864,
+          "name": "binder:28854_2"
+        },
+        {
+          "pid": 28854,
+          "tid": 28865,
+          "name": "binder:28854_3"
+        },
+        {
+          "pid": 28854,
+          "tid": 28868,
+          "name": "binder:28854_4"
+        },
+        {
+          "pid": 28854,
+          "tid": 28871,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28883,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28885,
+          "name": "anchor-service"
+        },
+        {
+          "pid": 28854,
+          "tid": 28886,
+          "name": "pool-6-thread-1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28948,
+          "name": "pool-5-thread-1"
+        },
+        {
+          "pid": 28854,
+          "tid": 28949,
+          "name": "vsock-control"
+        },
+        {
+          "pid": 28854,
+          "tid": 28950,
+          "name": "vsock-bridge"
+        },
+        {
+          "pid": 28895,
+          "tid": 28895,
+          "name": "crosvm_anchor64"
+        },
+        {
+          "pid": 28895,
+          "tid": 28900,
+          "name": "device_control"
+        },
+        {
+          "pid": 28895,
+          "tid": 28901,
+          "name": "crosvm_vcpu0"
+        },
+        {
+          "pid": 28895,
+          "tid": 28903,
+          "name": "crosvm_vcpu1"
+        },
+        {
+          "pid": 28895,
+          "tid": 28904,
+          "name": "crosvm_vcpu2"
+        },
+        {
+          "pid": 28895,
+          "tid": 28905,
+          "name": "crosvm_vcpu3"
+        },
+        {
+          "pid": 28895,
+          "tid": 28906,
+          "name": "crosvm_vcpu4"
+        },
+        {
+          "pid": 28895,
+          "tid": 28907,
+          "name": "crosvm_vcpu5"
+        },
+        {
+          "pid": 28895,
+          "tid": 28908,
+          "name": "crosvm_vcpu6"
+        },
+        {
+          "pid": 28895,
+          "tid": 28909,
+          "name": "crosvm_vcpu7"
+        },
+        {
+          "pid": 28895,
+          "tid": 28910,
+          "name": "crosvm_vcpu8"
+        },
+        {
+          "pid": 28895,
+          "tid": 28911,
+          "name": "irq_handler_thr"
+        },
+        {
+          "pid": 28895,
+          "tid": 28922,
+          "name": "vm_memory_handl"
+        },
+        {
+          "pid": 28895,
+          "tid": 28923,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28925,
+          "name": "v_balloon"
+        },
+        {
+          "pid": 28895,
+          "tid": 28926,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28929,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28930,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28931,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28932,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28933,
+          "name": "v_console"
+        },
+        {
+          "pid": 28895,
+          "tid": 28934,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28935,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28936,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28938,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28940,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28941,
+          "name": "virtio_blk"
+        },
+        {
+          "pid": 28895,
+          "tid": 28943,
+          "name": "crosvm_resample"
+        },
+        {
+          "pid": 28895,
+          "tid": 28944,
+          "name": "vhost_vsock"
+        },
+        {
+          "pid": 28899,
+          "tid": 28899,
+          "name": "vhost-28895"
+        }
+      ]
+    },
+    "all_trace_modes": [
+      {
+        "pid": "28854",
+        "cpu_mode": "kernel",
+        "samples": "689",
+        "stacks": "689"
+      },
+      {
+        "pid": "28854",
+        "cpu_mode": "user",
+        "samples": "29",
+        "stacks": "0"
+      },
+      {
+        "pid": "28895",
+        "cpu_mode": "guest_kernel",
+        "samples": "2182",
+        "stacks": "0"
+      },
+      {
+        "pid": "28895",
+        "cpu_mode": "kernel",
+        "samples": "250",
+        "stacks": "250"
+      },
+      {
+        "pid": "28895",
+        "cpu_mode": "user",
+        "samples": "14",
+        "stacks": "0"
+      },
+      {
+        "pid": "28899",
+        "cpu_mode": "kernel",
+        "samples": "300",
+        "stacks": "300"
+      }
+    ],
+    "stack_counts": {
+      "28854": 689,
+      "28895": 250,
+      "28899": 300
+    },
+    "raw_trace_errors": [
+      {
+        "name": "stackprofile_empty_callstack",
+        "idx": "[NULL]",
+        "severity": "error",
+        "value": "2182"
+      }
+    ],
+    "guest_missing_stack_samples": 2182,
+    "empty_stack_reports": 2182,
+    "empty_count_matches_guest_gap": true,
+    "other_trace_errors": [],
+    "trials": [
+      {
+        "trial": "whole_probe",
+        "trace_window_seconds": null,
+        "guest_decode_seconds": null,
+        "threads": [
+          {
+            "pid": 28854,
+            "tid": 28858,
+            "name": "not_in_start_snapshot",
+            "role": "app",
+            "samples": 6,
+            "stack_samples": 0,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28858",
+                "cpu_mode": "user",
+                "samples": "6",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": []
+          },
+          {
+            "pid": 28854,
+            "tid": 28859,
+            "name": "HeapTaskDaemon",
+            "role": "app",
+            "samples": 6,
+            "stack_samples": 2,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "cpu_mode": "kernel",
+                "samples": "2",
+                "stacks": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "cpu_mode": "user",
+                "samples": "4",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "el0t_64_sync",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "unix_dgram_sendmsg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "sock_write_iter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "sock_def_readable",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "mtree_range_walk",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "lock_vma_under_rcu",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "invoke_syscall",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "el0_svc_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "el0_da",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_writev",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_translation_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_page_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_mem_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_iter_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "do_el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "__wake_up_sync_key",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28859",
+                "name": "__arm64_sys_writev",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28854,
+            "tid": 28860,
+            "name": "ReferenceQueueD",
+            "role": "app",
+            "samples": 1,
+            "stack_samples": 0,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28860",
+                "cpu_mode": "user",
+                "samples": "1",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": []
+          },
+          {
+            "pid": 28854,
+            "tid": 28862,
+            "name": "FinalizerWatchd",
+            "role": "app",
+            "samples": 1,
+            "stack_samples": 1,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "cpu_mode": "kernel",
+                "samples": "1",
+                "stacks": "1"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "invoke_syscall",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "el0t_64_sync",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "el0_svc_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "do_el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "_raw_spin_unlock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28862",
+                "name": "__arm64_sys_rt_sigprocmask",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28854,
+            "tid": 28867,
+            "name": "not_in_start_snapshot",
+            "role": "app",
+            "samples": 1,
+            "stack_samples": 0,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28867",
+                "cpu_mode": "user",
+                "samples": "1",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": []
+          },
+          {
+            "pid": 28854,
+            "tid": 28949,
+            "name": "vsock-control",
+            "role": "app",
+            "samples": 2,
+            "stack_samples": 0,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28949",
+                "cpu_mode": "user",
+                "samples": "2",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": []
+          },
+          {
+            "pid": 28854,
+            "tid": 28950,
+            "name": "vsock-bridge",
+            "role": "app",
+            "samples": 701,
+            "stack_samples": 686,
+            "modes": [
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "cpu_mode": "kernel",
+                "samples": "686",
+                "stacks": "686"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "cpu_mode": "user",
+                "samples": "15",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "684"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0t_64_sync",
+                "samples_containing": "684"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0_svc",
+                "samples_containing": "683"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_el0_svc",
+                "samples_containing": "681"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0_svc_common",
+                "samples_containing": "680"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "invoke_syscall",
+                "samples_containing": "669"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arm64_sys_sendto",
+                "samples_containing": "474"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sys_sendto",
+                "samples_containing": "473"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_sendmsg",
+                "samples_containing": "420"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "inet6_sendmsg",
+                "samples_containing": "420"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_sendmsg_locked",
+                "samples_containing": "395"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__tcp_transmit_skb",
+                "samples_containing": "395"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_queue_xmit",
+                "samples_containing": "390"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__ip_queue_xmit",
+                "samples_containing": "390"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_write_xmit",
+                "samples_containing": "360"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_output",
+                "samples_containing": "358"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_finish_output",
+                "samples_containing": "338"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__ip_finish_output",
+                "samples_containing": "320"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_finish_output2",
+                "samples_containing": "319"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__dev_queue_xmit",
+                "samples_containing": "314"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_push_one",
+                "samples_containing": "312"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sch_direct_xmit",
+                "samples_containing": "251"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "201"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "dev_hard_start_xmit",
+                "samples_containing": "144"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "eth_start_xmit",
+                "samples_containing": "137"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vfs_read",
+                "samples_containing": "127"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ksys_read",
+                "samples_containing": "127"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arm64_sys_read",
+                "samples_containing": "127"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sock_read_iter",
+                "samples_containing": "121"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "validate_xmit_skb_list",
+                "samples_containing": "104"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "validate_xmit_skb",
+                "samples_containing": "104"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_mac_gso_segment",
+                "samples_containing": "99"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__skb_gso_segment",
+                "samples_containing": "99"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "inet_gso_segment",
+                "samples_containing": "97"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp4_gso_segment",
+                "samples_containing": "96"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_gso_segment",
+                "samples_containing": "95"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_segment",
+                "samples_containing": "91"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "inet6_recvmsg",
+                "samples_containing": "75"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_recvmsg",
+                "samples_containing": "74"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "handle_softirqs",
+                "samples_containing": "72"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_softirq_own_stack",
+                "samples_containing": "72"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "call_on_irq_stack",
+                "samples_containing": "72"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__do_softirq",
+                "samples_containing": "72"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "____do_softirq",
+                "samples_containing": "72"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_send_pkt_info",
+                "samples_containing": "67"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_recvmsg_locked",
+                "samples_containing": "67"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__local_bh_enable_ip",
+                "samples_containing": "63"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "local_bh_enable",
+                "samples_containing": "62"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_softirq",
+                "samples_containing": "59"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__alloc_skb",
+                "samples_containing": "58"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vsock_connectible_sendmsg",
+                "samples_containing": "49"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_stream_enqueue",
+                "samples_containing": "49"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__tcp_push_pending_frames",
+                "samples_containing": "48"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "nf_hook_slow",
+                "samples_containing": "46"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arm64_sys_ppoll",
+                "samples_containing": "46"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vsock_connectible_recvmsg",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vhost_transport_send_pkt",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "usb_ep_queue",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_push",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "dwc3_gadget_ep_queue",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "wake_up_process",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vhost_work_queue",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "try_to_wake_up",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_send_ack",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__tcp_send_ack",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__tcp_cleanup_rbuf",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_stream_dequeue",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "net_tx_action",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_sys_poll",
+                "samples_containing": "41"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kfree_skb_defer",
+                "samples_containing": "40"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kmalloc_node_track_caller",
+                "samples_containing": "35"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kmem_cache_alloc_node",
+                "samples_containing": "33"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_release_data",
+                "samples_containing": "32"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_copy_to_iter",
+                "samples_containing": "32"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arch_copy_to_user",
+                "samples_containing": "32"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "release_sock",
+                "samples_containing": "31"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__release_sock",
+                "samples_containing": "29"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_v4_do_rcv",
+                "samples_containing": "28"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ipt_do_table",
+                "samples_containing": "28"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__ip_local_out",
+                "samples_containing": "28"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_rcv_established",
+                "samples_containing": "27"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arch_copy_from_user",
+                "samples_containing": "25"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_copy_from_iter",
+                "samples_containing": "24"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kfree",
+                "samples_containing": "23"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "finish_task_switch",
+                "samples_containing": "23"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__schedule",
+                "samples_containing": "23"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_copy_datagram_iter",
+                "samples_containing": "22"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__skb_datagram_iter.2",
+                "samples_containing": "22"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_alloc_pkt",
+                "samples_containing": "21"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_copy_and_csum_bits",
+                "samples_containing": "21"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "iptable_mangle_hook",
+                "samples_containing": "21"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "schedule",
+                "samples_containing": "20"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arm64_sys_clock_gettime",
+                "samples_containing": "20"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "thread_cpu_clock_get",
+                "samples_containing": "19"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "schedule_hrtimeout_range_clock",
+                "samples_containing": "18"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "schedule_hrtimeout_range",
+                "samples_containing": "18"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__memcpy___memmove___pi_memcpy___pi_memmove",
+                "samples_containing": "18"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "task_sched_runtime",
+                "samples_containing": "17"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_ack",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sock_poll",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "irq_exit_rcu",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1h_64_irq_handler",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1h_64_irq",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1_interrupt",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_csum",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bpf_prog_d79ed1e505afb967_cgroupskb_egress_stats_5_10_25q2",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kmem_cache_free",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__irq_exit_rcu",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__slab_alloc",
+                "samples_containing": "15"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__cgroup_bpf_run_filter_skb",
+                "samples_containing": "15"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__alloc_pages",
+                "samples_containing": "14"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kmem_cache_alloc_node",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__memset___pi_memset",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "___slab_alloc",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "get_page_from_freelist",
+                "samples_containing": "12"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ipv4_conntrack_local",
+                "samples_containing": "11"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "free_unref_page",
+                "samples_containing": "11"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__slab_free",
+                "samples_containing": "11"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kfree_skb",
+                "samples_containing": "11"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_rtx_queue_unlink_and_free",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "free_unref_page_prepare",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "nf_conntrack_in",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ncm_tx_timeout",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kmem_cache_free_bulk",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "hrtimer_run_softirq",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__hrtimer_run_queues",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__folio_put",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "vsock_poll",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_stream_alloc_skb",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "destroy_large_folio",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kmalloc_large_node",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__kmalloc",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__check_object_size",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "slab_post_alloc_hook",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_page_frag_refill",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sk_page_frag_refill",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "run_rebalance_domains",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "put_cpu_partial",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_release_head_state",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "prep_new_page",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "post_alloc_hook",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "free_compound_page",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__free_pages",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__fdget",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "rebalance_domains",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "lock_sock_nested",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "load_balance",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kvfree",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_neigh_gw4",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "free_large_kmalloc",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "clear_page___pi_clear_page",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bpf_mt_v1",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_lock_bh",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__traceiter_net_dev_xmit",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__htab_map_lookup_elem",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__fget_files",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "slab_pre_alloc_hook",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "nf_conntrack_tcp_packet",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ktime_get",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "cmpxchg_double_slab",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bpf_prog_ac07339589cf4481_skfilter_egress_xtbpf_",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__unfreeze_partials",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sk_mem_schedule",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sk_mem_reduce_allocated",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sk_mem_raise_allocated",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "trace_event_buffer_reserve",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "trace_event_buffer_lock_reserve",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_trim_head",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_poll",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_mstamp_refresh",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sk_reset_timer",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "security_file_permission",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "mod_timer",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "memblock_is_map_memory",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "mem_cgroup_uncharge_skmem",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kmalloc_trace",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "htab_map_hash",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_lock_irqsave",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__nf_conntrack_find_get",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__mod_timer",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__list_del_entry_valid",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "update_blocked_averages",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "try_charge_memcg",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "trace_event_raw_event_net_dev_xmit",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_wfree",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_schedule_loss_probe",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_rearm_rto",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_event_new_data_sent",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_data_queue",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "syscall_trace_enter",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sock_rfree",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sk_free",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "selinux_file_permission",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "pskb_expand_head",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "preempt_schedule_irq",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "preempt_schedule_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "preempt_schedule",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "pfn_is_map_memory",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "mem_cgroup_charge_skmem",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "hook_softirq_end",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "fput",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "fpsimd_restore_current_state",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0t_64_irq_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0t_64_irq",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el0_interrupt",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_notify_resume",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "csum_partial",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bpf_skb_load_bytes_relative",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "arch_counter_get_cntpct",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_unlock_bh",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_lock",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sk_mem_reclaim",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__siphash_unaligned",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__secure_computing",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__seccomp_filter",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__rcu_read_unlock",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__pskb_trim_head",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__pskb_pull_tail",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__nf_ct_refresh_acct",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__free_slab",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__el0_irq_handler_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__copy_skb_header",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_notify_poll_out",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "virtio_transport_notify_poll_in",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "trace_event_raw_event_net_dev_template",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_stream_memory_free",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_skb_entail",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_grow_window",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_data_ready",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "tcp_ack_update_rtt",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "sock_wfree",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_network_protocol",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "skb_clone",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "set_user_sigmask",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "selinux_socket_sendmsg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "security_socket_sendmsg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "run_timer_softirq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ring_buffer_lock_reserve",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "rcu_core",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "page_counter_try_charge",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "nf_nat_ipv4_local_fn",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "netif_skb_features",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "netdev_core_pick_tx",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "lru_cache_add_inactive_or_unevictable",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kmem_cache_free",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kmalloc_size_roundup",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kfree_skbmem",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "kernel_init_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ipv4_dst_check",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ipv4_confirm",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "ip_send_check",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "hook_softirq_begin",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "handle_mm_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "gfp_zone",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "getrusage",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "free_unref_page_commit",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "fpsimd_load_state",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "fpsimd_bind_task_to_cpu",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "folio_add_lru_vma",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "folio_add_lru",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1h_64_sync_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1h_64_sync",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "el1_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_translation_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_page_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "do_mem_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "cpu_overutilized",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "check_new_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bpf_get_socket_cookie",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "bcmp",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "add_wait_queue",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_unlock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_unlock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "_raw_spin_trylock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__zone_watermark_ok",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__wake_up",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__traceiter_sched_overutilized_tp",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__traceiter_net_dev_queue",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__traceiter_android_rvh_cpu_overutilized",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__tcp_select_window",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sock_wfree",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__skb_clone",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__sk_dst_check",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__run_timers",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__pollwait",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__pi_strlen",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__pi_memcmp",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__page_cache_release",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__mem_cgroup_uncharge",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__list_add_valid",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__build_skb_around",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28854",
+                "tid": "28950",
+                "name": "__arm64_sys_getrusage",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28901,
+            "name": "crosvm_vcpu0",
+            "role": "vm",
+            "samples": 784,
+            "stack_samples": 45,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "cpu_mode": "guest_kernel",
+                "samples": "735",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "cpu_mode": "kernel",
+                "samples": "45",
+                "stacks": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "cpu_mode": "user",
+                "samples": "4",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el0t_64_sync",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el0_svc_common",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el0_svc",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "do_el0_svc",
+                "samples_containing": "45"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "invoke_syscall",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "38"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "37"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "finish_task_switch",
+                "samples_containing": "37"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__schedule",
+                "samples_containing": "37"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "handle_exit",
+                "samples_containing": "30"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "schedule",
+                "samples_containing": "26"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "26"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "26"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "26"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "26"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "preempt_schedule_common",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "preempt_schedule",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "perform_access",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_handle_sys_reg",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "emulate_sys_reg",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "access_gic_sgi",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "wake_up_process",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "vgic_v3_dispatch_sgi",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "vgic_queue_irq_unlock",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "try_to_wake_up",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "rcuwait_wake_up",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_vcpu_kick",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__fdget",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el1h_64_irq_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el1h_64_irq",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "el1_interrupt",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "xa_find_after",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "usb_ep_queue",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "syscall_trace_enter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "preempt_schedule_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "ncm_tx_timeout",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "mutex_lock_killable",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "kvm_handle_mmio_return",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "irq_exit_rcu",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "hrtimer_run_softirq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "handle_softirqs",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "eth_start_xmit",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "dwc3_gadget_ep_queue",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "do_softirq_own_stack",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "call_on_irq_stack",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__secure_computing",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__irq_exit_rcu",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__hrtimer_run_queues",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "__do_softirq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28901",
+                "name": "____do_softirq",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28903,
+            "name": "crosvm_vcpu1",
+            "role": "vm",
+            "samples": 433,
+            "stack_samples": 13,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "cpu_mode": "guest_kernel",
+                "samples": "420",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "cpu_mode": "kernel",
+                "samples": "13",
+                "stacks": "13"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "invoke_syscall",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "finish_task_switch",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el0t_64_sync",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el0_svc_common",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el0_svc",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "do_el0_svc",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "__schedule",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "13"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "handle_exit",
+                "samples_containing": "12"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "schedule",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "preempt_schedule_common",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "preempt_schedule",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "wake_up_process",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "vgic_v3_dispatch_sgi",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "vgic_queue_irq_unlock",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "try_to_wake_up",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "rcuwait_wake_up",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "perform_access",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_vcpu_kick",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_handle_sys_reg",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "emulate_sys_reg",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "access_gic_sgi",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "preempt_schedule_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_io_bus_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_handle_guest_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "kvm_cpu_has_pending_timer",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "ioeventfd_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "io_mem_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "eventfd_signal",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el1h_64_irq_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el1h_64_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "el1_interrupt",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28903",
+                "name": "__kvm_io_bus_write",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28904,
+            "name": "crosvm_vcpu2",
+            "role": "vm",
+            "samples": 372,
+            "stack_samples": 9,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "cpu_mode": "guest_kernel",
+                "samples": "363",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "cpu_mode": "kernel",
+                "samples": "9",
+                "stacks": "9"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "invoke_syscall",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "el0t_64_sync",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "el0_svc_common",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "el0_svc",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "do_el0_svc",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "__schedule",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "finish_task_switch",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "handle_exit",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "schedule",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "preempt_schedule_common",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "preempt_schedule",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_io_bus_write",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_handle_guest_abort",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "ioeventfd_write",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "io_mem_abort",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "eventfd_signal",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "__kvm_io_bus_write",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28904",
+                "name": "kvm_sched_in",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28905,
+            "name": "crosvm_vcpu3",
+            "role": "vm",
+            "samples": 284,
+            "stack_samples": 8,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "cpu_mode": "guest_kernel",
+                "samples": "276",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "cpu_mode": "kernel",
+                "samples": "8",
+                "stacks": "8"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "invoke_syscall",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "el0t_64_sync",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "el0_svc_common",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "el0_svc",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "do_el0_svc",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "finish_task_switch",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "__schedule",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "schedule",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "handle_exit",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "vfs_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "seq_read_iter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "seq_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "preempt_schedule_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "preempt_schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "ksys_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "__check_object_size",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28905",
+                "name": "__arm64_sys_read",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28906,
+            "name": "crosvm_vcpu4",
+            "role": "vm",
+            "samples": 213,
+            "stack_samples": 6,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "cpu_mode": "guest_kernel",
+                "samples": "207",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "cpu_mode": "kernel",
+                "samples": "6",
+                "stacks": "6"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "invoke_syscall",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "finish_task_switch",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "el0t_64_sync",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "el0_svc_common",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "el0_svc",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "do_el0_svc",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "__schedule",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "preempt_schedule_common",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "preempt_schedule",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "handle_exit",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "schedule",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "wake_up_process",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "vgic_v3_dispatch_sgi",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "vgic_queue_irq_unlock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "try_to_wake_up",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "rcuwait_wake_up",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "perform_access",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_vcpu_kick",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_io_bus_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_handle_sys_reg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "kvm_handle_guest_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "ioeventfd_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "io_mem_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "eventfd_signal",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "emulate_sys_reg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "access_gic_sgi",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28906",
+                "name": "__kvm_io_bus_write",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28907,
+            "name": "crosvm_vcpu5",
+            "role": "vm",
+            "samples": 67,
+            "stack_samples": 2,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "cpu_mode": "guest_kernel",
+                "samples": "65",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "cpu_mode": "kernel",
+                "samples": "2",
+                "stacks": "2"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "invoke_syscall",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "finish_task_switch",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el0t_64_sync",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el0_svc_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "do_el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__schedule",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "shmem_get_folio_gfp",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "shmem_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "shmem_alloc_and_acct_folio",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "prep_new_page",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "preempt_schedule_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "preempt_schedule_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "preempt_schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "post_alloc_hook",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "pkvm_mem_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "pin_user_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "kvm_handle_guest_abort",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "handle_mm_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "handle_exit",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "get_page_from_freelist",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el1h_64_irq_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el1h_64_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "el1_interrupt",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "clear_page___pi_clear_page",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__gup_longterm_locked",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__get_user_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__folio_alloc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__do_fault",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28907",
+                "name": "__alloc_pages",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28908,
+            "name": "crosvm_vcpu6",
+            "role": "vm",
+            "samples": 46,
+            "stack_samples": 1,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "cpu_mode": "guest_kernel",
+                "samples": "45",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "cpu_mode": "kernel",
+                "samples": "1",
+                "stacks": "1"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "preempt_schedule_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "preempt_schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "invoke_syscall",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "finish_task_switch",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "el0t_64_sync",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "el0_svc_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "do_el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "__schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28908",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28909,
+            "name": "crosvm_vcpu7",
+            "role": "vm",
+            "samples": 69,
+            "stack_samples": 2,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "cpu_mode": "guest_kernel",
+                "samples": "67",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "cpu_mode": "kernel",
+                "samples": "2",
+                "stacks": "2"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "schedule",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_vcpu_wfi",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_vcpu_halt",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_vcpu_block",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_handle_wfx",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "invoke_syscall",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "handle_exit",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "finish_task_switch",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "el0t_64_sync",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "el0_svc_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "do_el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "__schedule",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28909",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "2"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28910,
+            "name": "crosvm_vcpu8",
+            "role": "vm",
+            "samples": 5,
+            "stack_samples": 1,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "cpu_mode": "guest_kernel",
+                "samples": "4",
+                "stacks": "0"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "cpu_mode": "kernel",
+                "samples": "1",
+                "stacks": "1"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "preempt_schedule_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "preempt_schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "kvm_vcpu_ioctl",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "kvm_arch_vcpu_ioctl_run",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "invoke_syscall",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "finish_task_switch",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "el0t_64_sync",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "el0_svc_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "do_el0_svc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "__schedule",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28910",
+                "name": "__arm64_sys_ioctl",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28922,
+            "name": "vm_memory_handl",
+            "role": "vm",
+            "samples": 3,
+            "stack_samples": 2,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "cpu_mode": "kernel",
+                "samples": "2",
+                "stacks": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "cpu_mode": "user",
+                "samples": "1",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "invoke_syscall",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "el0t_64_sync",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "el0_svc_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "do_el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "vfs_fallocate",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "unix_dgram_poll",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "uncharge_folio",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "sock_poll",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "shmem_undo_range",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "shmem_fallocate",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "release_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "do_epoll_wait",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "__pagevec_release",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "__mem_cgroup_uncharge_list",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "__arm64_sys_fallocate",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28922",
+                "name": "__arm64_sys_epoll_pwait",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28925,
+            "name": "v_balloon",
+            "role": "vm",
+            "samples": 3,
+            "stack_samples": 3,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "cpu_mode": "kernel",
+                "samples": "3",
+                "stacks": "3"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "invoke_syscall",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "el0t_64_sync",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "el0_svc_common",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "el0_svc",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "do_el0_svc",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "wake_nocb_gp_defer",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "vfs_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "unix_seqpacket_recvmsg",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "mutex_unlock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "ksys_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "eventfd_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "ep_remove_safe",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "do_epoll_ctl",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "call_rcu",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "_raw_spin_unlock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__sys_recvfrom",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__ep_remove",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__call_rcu_nocb_wake",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__call_rcu_common",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__arm64_sys_write",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__arm64_sys_recvfrom",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28925",
+                "name": "__arm64_sys_epoll_ctl",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28938,
+            "name": "virtio_blk",
+            "role": "vm",
+            "samples": 4,
+            "stack_samples": 2,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "cpu_mode": "kernel",
+                "samples": "2",
+                "stacks": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "cpu_mode": "user",
+                "samples": "2",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "invoke_syscall",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "el0t_64_sync",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "el0_svc_common",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "do_el0_svc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "security_file_permission",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "kmem_cache_alloc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "ep_insert",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "do_preadv",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "do_iter_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "do_epoll_ctl",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "__arm64_sys_preadv",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28938",
+                "name": "__arm64_sys_epoll_ctl",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28943,
+            "name": "crosvm_resample",
+            "role": "vm",
+            "samples": 46,
+            "stack_samples": 44,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "cpu_mode": "kernel",
+                "samples": "44",
+                "stacks": "44"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "cpu_mode": "user",
+                "samples": "2",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "el0t_64_sync",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "el0_svc",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "el0_svc_common",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "do_el0_svc",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "invoke_syscall",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "__arm64_sys_epoll_pwait",
+                "samples_containing": "41"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "do_epoll_wait",
+                "samples_containing": "40"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "schedule_hrtimeout_range_clock",
+                "samples_containing": "38"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "schedule_hrtimeout_range",
+                "samples_containing": "38"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "__schedule",
+                "samples_containing": "38"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "schedule",
+                "samples_containing": "37"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "finish_task_switch",
+                "samples_containing": "36"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "vfs_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "syscall_trace_enter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "ksys_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "eventfd_read",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "ep_done_scan",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "do_notify_resume",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "_raw_write_unlock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "_raw_write_lock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "_raw_spin_unlock_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "__secure_computing",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "__seccomp_filter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28943",
+                "name": "__arm64_sys_read",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28895,
+            "tid": 28944,
+            "name": "vhost_vsock",
+            "role": "vm",
+            "samples": 117,
+            "stack_samples": 112,
+            "modes": [
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "cpu_mode": "kernel",
+                "samples": "112",
+                "stacks": "112"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "cpu_mode": "user",
+                "samples": "5",
+                "stacks": "0"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "el0t_64_sync_handler",
+                "samples_containing": "112"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "el0t_64_sync",
+                "samples_containing": "112"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "el0_svc",
+                "samples_containing": "112"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "el0_svc_common",
+                "samples_containing": "111"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "do_el0_svc",
+                "samples_containing": "111"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "invoke_syscall",
+                "samples_containing": "105"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "ksys_write",
+                "samples_containing": "48"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__arm64_sys_write",
+                "samples_containing": "48"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__arm64_sys_epoll_pwait",
+                "samples_containing": "48"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "do_epoll_wait",
+                "samples_containing": "47"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "_raw_spin_unlock_irq",
+                "samples_containing": "47"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "vfs_write",
+                "samples_containing": "46"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "eventfd_write",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "schedule_hrtimeout_range_clock",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "schedule_hrtimeout_range",
+                "samples_containing": "43"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__schedule",
+                "samples_containing": "42"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "schedule",
+                "samples_containing": "41"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "finish_task_switch",
+                "samples_containing": "40"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__arm64_sys_read",
+                "samples_containing": "8"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "ksys_read",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "vfs_read",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "eventfd_read",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "ep_done_scan",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "_raw_write_unlock_irq",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__fdget_pos",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__arch_copy_from_user",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "syscall_trace_enter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "security_file_permission",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "mutex_unlock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "hrtimer_try_to_cancel",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "hrtimer_cancel",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "fpsimd_restore_current_state",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "fpsimd_load_state",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "file_has_perm",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "do_notify_resume",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "copyout",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "_copy_to_iter",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28895",
+                "tid": "28944",
+                "name": "__fget_files",
+                "samples_containing": "1"
+              }
+            ]
+          },
+          {
+            "pid": 28899,
+            "tid": 28899,
+            "name": "vhost-28895",
+            "role": "vhost",
+            "samples": 300,
+            "stack_samples": 300,
+            "modes": [
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "cpu_mode": "kernel",
+                "samples": "300",
+                "stacks": "300"
+              }
+            ],
+            "kernel_functions_inclusive": [
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "ret_from_fork",
+                "samples_containing": "300"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "kthread",
+                "samples_containing": "300"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_worker",
+                "samples_containing": "298"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_vsock_handle_tx_kick",
+                "samples_containing": "141"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_raw_spin_unlock_irqrestore",
+                "samples_containing": "117"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_signal",
+                "samples_containing": "85"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "eventfd_signal",
+                "samples_containing": "83"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__schedule",
+                "samples_containing": "81"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_transport_send_pkt_work",
+                "samples_containing": "79"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "finish_task_switch",
+                "samples_containing": "77"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_transport_do_send_pkt",
+                "samples_containing": "76"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "schedule",
+                "samples_containing": "71"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "virtio_transport_recv_pkt",
+                "samples_containing": "44"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__wake_up_sync_key",
+                "samples_containing": "31"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_copy_to_iter",
+                "samples_containing": "27"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__arch_copy_to_user",
+                "samples_containing": "25"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "sock_def_write_space",
+                "samples_containing": "22"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__arch_copy_from_user",
+                "samples_containing": "18"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_copy_from_iter",
+                "samples_containing": "16"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "virtio_transport_recv_connected",
+                "samples_containing": "11"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vsock_data_ready",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_get_vq_desc",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "sock_def_readable",
+                "samples_containing": "10"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "preempt_schedule_common",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "preempt_schedule",
+                "samples_containing": "9"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "kvmalloc_node",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_raw_spin_unlock_bh",
+                "samples_containing": "7"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_add_used_n",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_add_used",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "release_sock",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__local_bh_enable_ip",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__kmalloc_node",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__kmalloc_large_node",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__alloc_pages",
+                "samples_containing": "6"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "el1h_64_irq_handler",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "el1h_64_irq",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "el1_interrupt",
+                "samples_containing": "5"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "usb_ep_queue",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "ncm_tx_timeout",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "irq_exit_rcu",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "hrtimer_run_softirq",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "handle_softirqs",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "get_page_from_freelist",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "eth_start_xmit",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "dwc3_gadget_ep_queue",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "do_softirq_own_stack",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "call_on_irq_stack",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__irq_exit_rcu",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__hrtimer_run_queues",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__do_softirq",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__check_object_size",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "____do_softirq",
+                "samples_containing": "4"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "virtio_transport_free_pkt",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_vsock_handle_rx_kick",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "translate_desc",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "kvfree",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "kfree",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "copyout",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_raw_spin_lock_bh",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__wake_up",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__vhost_add_used_n",
+                "samples_containing": "3"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vsock_find_connected_socket",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_iotlb_itree_first",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "prep_new_page",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "post_alloc_hook",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "kmalloc_trace",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "free_large_kmalloc",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "clear_page___pi_clear_page",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "check_stack_object",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__list_del_entry_valid",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__kmem_cache_alloc_node",
+                "samples_containing": "2"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vsock_deliver_tap",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "virtio_transport_deliver_tap_pkt",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_get_avail_idx",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "vhost_disable_notify",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "preempt_schedule_irq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "mutex_unlock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "memblock_is_map_memory",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "lock_sock_nested",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "llist_reverse_order",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "iov_iter_init",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "hrtimer_try_to_cancel",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "hrtimer_cancel",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "hrtimer_active",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "get_populated_pcp_list",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "free_unref_page_prepare",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "free_unref_page",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "do_softirq",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "copyin",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "_raw_spin_trylock",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__slab_alloc",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__memset___pi_memset",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__list_add_valid",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__kmem_cache_free",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "__free_pages",
+                "samples_containing": "1"
+              },
+              {
+                "pid": "28899",
+                "tid": "28899",
+                "name": "___slab_alloc",
+                "samples_containing": "1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Kernel function samples are statistical CPU attribution, not wall shares or exact source PCs. Inclusive counts overlap within each stack.",
+      "Guest-mode execution lacks callstacks on this protected VM. Matching empty-stack report counts identify a consistent coverage gap; raw errors remain preserved.",
+      "Full-run trial windows use app receipt markers clipped to trace extent. Exact per-exchange guest/phone clock mapping is a separate analysis.",
+      "A no-model probe establishes profiler capability only. No inference speed or storage-causality claim follows from it."
+    ]
+  }
+}

@@ -1,0 +1,568 @@
+{
+  "status": "PASS",
+  "label": "bb-native-p1-1-ncm256-native-2",
+  "functional": "PASS",
+  "watchdog_performance": {
+    "verdict": "INVALID",
+    "verdict_lines": 1,
+    "watchdog_rc": 3,
+    "ok": false
+  },
+  "observation_scope": "instrumented diagnostic; host socket intervals plus whole-machine/interface counter deltas",
+  "marker_start": 265419.565889,
+  "marker_end": 265477.515167,
+  "socket_identity": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+  "ss_summary": {
+    "ticks": 718,
+    "socket_ticks": 611,
+    "error_ticks": 0,
+    "slow_calls": 0,
+    "max_call_ms": 13.009366986807436,
+    "identities": [
+      "10.160.70.152:9599|10.160.70.12:33456|ino:20838813"
+    ],
+    "foreign_or_invalid": [],
+    "truncated": false,
+    "first_socket_ts": 265417.412386786,
+    "last_socket_ts": 265478.45995961,
+    "errors": [],
+    "extremes": {
+      "max_unacked": 183,
+      "max_notsent": 220152,
+      "max_retrans_cur": null,
+      "max_retrans_total": null,
+      "max_rto": 207,
+      "min_cwnd": 10,
+      "min_rcv_wnd": 65160,
+      "min_snd_wnd": 65536,
+      "max_recvq": 8684,
+      "max_sendq": 262148,
+      "last_bytes_acked": 55051084,
+      "last_bytes_received": 55051088
+    },
+    "span_s": 71.856,
+    "stopped_by_signal": true,
+    "bytes_written": 788744,
+    "rc": 0,
+    "complete": true
+  },
+  "maximum_sample_gap_s": 0.09268000000156462,
+  "long_phases": [
+    {
+      "connection": 1,
+      "frame": 11,
+      "phase": "body",
+      "start": 265420.055226,
+      "end": 265433.295176,
+      "seconds": 13.239949999959208,
+      "finish": "done",
+      "sample_count": 132,
+      "first": {
+        "start": 265420.114589,
+        "end": 265420.125477,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 203,
+        "cwnd": 107,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 2621484,
+        "bytes_received": 2879520,
+        "lastsnd": 83,
+        "lastrcv": 54,
+        "lastack": 54,
+        "rtt": 2.941,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "last": {
+        "start": 265433.224988,
+        "end": 265433.235386,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 203,
+        "cwnd": 107,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 2621484,
+        "bytes_received": 2879520,
+        "lastsnd": 13193,
+        "lastrcv": 13164,
+        "lastack": 13164,
+        "rtt": 2.941,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "recvq": {
+        "min": 0,
+        "max": 0,
+        "observations": 132
+      },
+      "sendq": {
+        "min": 0,
+        "max": 0,
+        "observations": 132
+      },
+      "rcv_wnd": {
+        "min": 879616,
+        "max": 879616,
+        "observations": 132
+      },
+      "snd_wnd": {
+        "min": 1047296,
+        "max": 1047296,
+        "observations": 132
+      },
+      "bytes_received": {
+        "min": 2879520,
+        "max": 2879520,
+        "observations": 132
+      },
+      "bytes_acked": {
+        "min": 2621484,
+        "max": 2621484,
+        "observations": 132
+      },
+      "rto": {
+        "min": 203,
+        "max": 203,
+        "observations": 132
+      },
+      "retrans_total": null,
+      "receive_plateaus": [
+        {
+          "seconds": 13.09951099997852,
+          "start": 265420.125477,
+          "end": 265433.224988,
+          "bytes_received": 2879520
+        }
+      ],
+      "outstanding_request_bytes": 4112
+    },
+    {
+      "connection": 1,
+      "frame": 35,
+      "phase": "body",
+      "start": 265434.014946,
+      "end": 265445.362416,
+      "seconds": 11.347469999978784,
+      "finish": "done",
+      "sample_count": 114,
+      "first": {
+        "start": 265434.025577,
+        "end": 265434.036042,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 205,
+        "cwnd": 191,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 8913036,
+        "bytes_received": 9171072,
+        "lastsnd": 39,
+        "lastrcv": 5,
+        "lastack": 5,
+        "rtt": 4.115,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "last": {
+        "start": 265445.334548,
+        "end": 265445.345356,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 205,
+        "cwnd": 191,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 8913036,
+        "bytes_received": 9171072,
+        "lastsnd": 11348,
+        "lastrcv": 11314,
+        "lastack": 11314,
+        "rtt": 4.115,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "recvq": {
+        "min": 0,
+        "max": 0,
+        "observations": 114
+      },
+      "sendq": {
+        "min": 0,
+        "max": 0,
+        "observations": 114
+      },
+      "rcv_wnd": {
+        "min": 879616,
+        "max": 879616,
+        "observations": 114
+      },
+      "snd_wnd": {
+        "min": 1047296,
+        "max": 1047296,
+        "observations": 114
+      },
+      "bytes_received": {
+        "min": 9171072,
+        "max": 9171072,
+        "observations": 114
+      },
+      "bytes_acked": {
+        "min": 8913036,
+        "max": 8913036,
+        "observations": 114
+      },
+      "rto": {
+        "min": 205,
+        "max": 205,
+        "observations": 114
+      },
+      "retrans_total": null,
+      "receive_plateaus": [
+        {
+          "seconds": 11.298506000021007,
+          "start": 265434.036042,
+          "end": 265445.334548,
+          "bytes_received": 9171072
+        }
+      ],
+      "outstanding_request_bytes": 4112
+    },
+    {
+      "connection": 1,
+      "frame": 130,
+      "phase": "body",
+      "start": 265448.162264,
+      "end": 265458.251814,
+      "seconds": 10.089550000033341,
+      "finish": "done",
+      "sample_count": 100,
+      "first": {
+        "start": 265448.236799,
+        "end": 265448.247079,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 205,
+        "cwnd": 191,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 33817096,
+        "bytes_received": 34075132,
+        "lastsnd": 99,
+        "lastrcv": 69,
+        "lastack": 69,
+        "rtt": 4.212,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "last": {
+        "start": 265458.14458,
+        "end": 265458.155634,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 205,
+        "cwnd": 191,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 33817096,
+        "bytes_received": 34075132,
+        "lastsnd": 10007,
+        "lastrcv": 9977,
+        "lastack": 9977,
+        "rtt": 4.212,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "recvq": {
+        "min": 0,
+        "max": 0,
+        "observations": 100
+      },
+      "sendq": {
+        "min": 0,
+        "max": 0,
+        "observations": 100
+      },
+      "rcv_wnd": {
+        "min": 879616,
+        "max": 879616,
+        "observations": 100
+      },
+      "snd_wnd": {
+        "min": 1047296,
+        "max": 1047296,
+        "observations": 100
+      },
+      "bytes_received": {
+        "min": 34075132,
+        "max": 34075132,
+        "observations": 100
+      },
+      "bytes_acked": {
+        "min": 33817096,
+        "max": 33817096,
+        "observations": 100
+      },
+      "rto": {
+        "min": 205,
+        "max": 205,
+        "observations": 100
+      },
+      "retrans_total": null,
+      "receive_plateaus": [
+        {
+          "seconds": 9.89750100002857,
+          "start": 265448.247079,
+          "end": 265458.14458,
+          "bytes_received": 34075132
+        }
+      ],
+      "outstanding_request_bytes": 4112
+    },
+    {
+      "connection": 1,
+      "frame": 160,
+      "phase": "body",
+      "start": 265459.114219,
+      "end": 265475.955596,
+      "seconds": 16.84137700003339,
+      "finish": "done",
+      "sample_count": 168,
+      "first": {
+        "start": 265459.14538,
+        "end": 265459.155737,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 206,
+        "cwnd": 185,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 41681536,
+        "bytes_received": 41939572,
+        "lastsnd": 50,
+        "lastrcv": 26,
+        "lastack": 26,
+        "rtt": 5.277,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "last": {
+        "start": 265475.858011,
+        "end": 265475.867502,
+        "ident": "10.160.70.152:9599|10.160.70.12:33456|ino:20838813",
+        "rto": 206,
+        "cwnd": 185,
+        "unacked": null,
+        "retrans_cur": null,
+        "retrans_total": null,
+        "notsent": null,
+        "rcv_space": 209956,
+        "snd_wnd": 1047296,
+        "rcv_wnd": 879616,
+        "bytes_acked": 41681536,
+        "bytes_received": 41939572,
+        "lastsnd": 16763,
+        "lastrcv": 16739,
+        "lastack": 16739,
+        "rtt": 5.277,
+        "recvq": 0,
+        "sendq": 0
+      },
+      "recvq": {
+        "min": 0,
+        "max": 0,
+        "observations": 168
+      },
+      "sendq": {
+        "min": 0,
+        "max": 0,
+        "observations": 168
+      },
+      "rcv_wnd": {
+        "min": 879616,
+        "max": 879616,
+        "observations": 168
+      },
+      "snd_wnd": {
+        "min": 1047296,
+        "max": 1047296,
+        "observations": 168
+      },
+      "bytes_received": {
+        "min": 41939572,
+        "max": 41939572,
+        "observations": 168
+      },
+      "bytes_acked": {
+        "min": 41681536,
+        "max": 41681536,
+        "observations": 168
+      },
+      "rto": {
+        "min": 206,
+        "max": 206,
+        "observations": 168
+      },
+      "retrans_total": null,
+      "receive_plateaus": [
+        {
+          "seconds": 16.702273999981117,
+          "start": 265459.155737,
+          "end": 265475.858011,
+          "bytes_received": 41939572
+        }
+      ],
+      "outstanding_request_bytes": 4112
+    }
+  ],
+  "counter_delta": {
+    "status": "PASS",
+    "identity": {
+      "host_boot": "d0681fc9-da4a-44ff-8890-e9d53b1bc354",
+      "host_iface": "ens10u1i1",
+      "host_ifindex": 11,
+      "host_driver": "/sys/bus/usb/drivers/cdc_ncm",
+      "phone_serial": "3B130DLJG0018K",
+      "phone_iface": "ncm0"
+    },
+    "scope": "whole-machine TCP and interface-wide counters; not attributable to one socket",
+    "start_bound": 265410.319045658,
+    "end_bound": 265481.953022519,
+    "deltas": {
+      "host": {
+        "Tcp.RetransSegs": 1,
+        "Tcp.InSegs": 48772,
+        "Tcp.OutSegs": 53168,
+        "Tcp.InErrs": 0,
+        "Tcp.OutRsts": 220,
+        "TcpExt.TCPTimeouts": 0,
+        "TcpExt.TCPLostRetransmit": 0,
+        "TcpExt.TCPFastRetrans": 0,
+        "TcpExt.TCPSlowStartRetrans": 0,
+        "TcpExt.TCPLossProbes": 1,
+        "TcpExt.TCPSpuriousRTOs": 0,
+        "TcpExt.TCPRcvCollapsed": 0,
+        "TcpExt.TCPOFOQueue": 1571,
+        "TcpExt.PruneCalled": 0,
+        "TcpExt.TCPRcvQDrop": 0,
+        "TcpExt.TCPBacklogDrop": 0,
+        "TcpExt.TCPToZeroWindowAdv": 0,
+        "TcpExt.TCPFromZeroWindowAdv": 0,
+        "TcpExt.TCPZeroWindowDrop": 0,
+        "TcpExt.TCPAbortOnTimeout": 0,
+        "TcpExt.DelayedACKLost": 31,
+        "interface.rx_bytes": 57136480,
+        "interface.rx_packets": 39219,
+        "interface.rx_errors": 0,
+        "interface.rx_dropped": 0,
+        "interface.rx_fifo": 0,
+        "interface.rx_frame": 0,
+        "interface.rx_compressed": 0,
+        "interface.rx_multicast": 0,
+        "interface.tx_bytes": 58018250,
+        "interface.tx_packets": 44820,
+        "interface.tx_errors": 0,
+        "interface.tx_dropped": 0,
+        "interface.tx_fifo": 0,
+        "interface.tx_colls": 0,
+        "interface.tx_carrier": 0,
+        "interface.tx_compressed": 0
+      },
+      "phone": {
+        "Tcp.RetransSegs": 26,
+        "Tcp.InSegs": 44559,
+        "Tcp.OutSegs": 38951,
+        "Tcp.InErrs": 0,
+        "Tcp.OutRsts": 0,
+        "TcpExt.TCPTimeouts": 22,
+        "TcpExt.TCPLostRetransmit": 18,
+        "TcpExt.TCPFastRetrans": 0,
+        "TcpExt.TCPSlowStartRetrans": 0,
+        "TcpExt.TCPLossProbes": 4,
+        "TcpExt.TCPSpuriousRTOs": 0,
+        "TcpExt.TCPRcvCollapsed": 0,
+        "TcpExt.TCPOFOQueue": 0,
+        "TcpExt.PruneCalled": 0,
+        "TcpExt.TCPRcvQDrop": 0,
+        "TcpExt.TCPBacklogDrop": 0,
+        "TcpExt.TCPToZeroWindowAdv": 0,
+        "TcpExt.TCPFromZeroWindowAdv": 0,
+        "TcpExt.TCPZeroWindowDrop": 0,
+        "TcpExt.TCPAbortOnTimeout": 0,
+        "TcpExt.DelayedACKLost": 0,
+        "interface.rx_bytes": 57390854,
+        "interface.rx_packets": 44821,
+        "interface.rx_errors": 0,
+        "interface.rx_dropped": 0,
+        "interface.rx_fifo": 0,
+        "interface.rx_frame": 0,
+        "interface.rx_compressed": 0,
+        "interface.rx_multicast": 0,
+        "interface.tx_bytes": 58036576,
+        "interface.tx_packets": 4819,
+        "interface.tx_errors": 0,
+        "interface.tx_dropped": 0,
+        "interface.tx_fifo": 0,
+        "interface.tx_colls": 0,
+        "interface.tx_carrier": 0,
+        "interface.tx_compressed": 0
+      }
+    },
+    "unavailable": {
+      "host": [],
+      "phone": []
+    },
+    "input_sha256": [
+      "71ea53668aaf269fafed1aa48ff8150f8583b9833de868e7c7b1ccf0e82605a8",
+      "309d7ba64294d6d6c659577dba0fae8825f1ade5e60e7b849682b8d10d4dfb02"
+    ]
+  },
+  "phase_seconds": {
+    "body": 52.809385000378825,
+    "echo-body": 0.025512000429444015,
+    "echo-hdr": 0.006327000388409942,
+    "end-ack": 8.299999171867967e-05,
+    "hdr": 5.290660000522621,
+    "start-ack": 7.599999662488699e-05
+  },
+  "input_sha256": {
+    "legs.jsonl": "01f01fd59ba329229659660c00ac965681e08d634d745106b742d5496cf20d60",
+    "ss-bb-native-p1-1-ncm256-native-2.summary.json": "c01c3f89132a8d4867376fb2fcea283ce88d14508d44a57dc4f9f7060b030cea",
+    "link-delta-bb-native-p1-1-ncm256-native-2.json": "88a5a9ea603e16d6df7fa6387e4724e653df0d67d8c4348e3efcd811f56d45cd",
+    "link-before-bb-native-p1-1-ncm256-native-2.json": "71ea53668aaf269fafed1aa48ff8150f8583b9833de868e7c7b1ccf0e82605a8",
+    "link-after-bb-native-p1-1-ncm256-native-2.json": "309d7ba64294d6d6c659577dba0fae8825f1ade5e60e7b849682b8d10d4dfb02",
+    "markers-bb-native-p1-1-ncm256-native-2": "8ef7e9330f598ae3d55a48d989aa6b77880a3b59e07053b717ca395a3e3eb353",
+    "phase-bb-native-p1-1-ncm256-native-2.log": "507dd745bf57984c0b38db71c76e62648d2609ad3f3f15ccfc369a19c0342fb7",
+    "ss-bb-native-p1-1-ncm256-native-2.log": "c4e183cd5f5cbc38b0a90dae8cd52afa824f2d3beb0357460c14b989d7c41e53"
+  }
+}

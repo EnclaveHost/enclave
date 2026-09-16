@@ -1,0 +1,190 @@
+{
+  "status": "FAILED_PARTIAL_CAPTURE",
+  "label": "b27-paired-park-1",
+  "controller": {
+    "status": "COMMAND_FAILED",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 3956982,
+    "phone_stopped": true,
+    "bank_cleanup": {
+      "status": "CLEAR",
+      "bank_clear": true,
+      "exclusive_bank_lock": true,
+      "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+      "elapsed_seconds": 0.026151580968871713
+    },
+    "command_rc": 2,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.4325402759714052,
+    "elapsed_seconds": 542.949471445987
+  },
+  "bench_records": [
+    {
+      "record": "session",
+      "trials": 2,
+      "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+      "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+      "model_authentication": "catalog-v1",
+      "source_catalog_sha256": "6fc06dbc01239328c9b0e964b91b039e69187db9d2727105bfe373b06ca670ad",
+      "encoded_catalog_sha256": "",
+      "snapshot_bytes": {
+        "target": 157222544,
+        "head": 20628,
+        "pending": 20480
+      },
+      "snapshot_ms": 6142.367,
+      "prompt_observe_us": 6756069,
+      "n_past": 5,
+      "first_token": 11751,
+      "prompt_tokens": 5,
+      "prefill_ms": 430272.07,
+      "mtp_requested_k": 5,
+      "mtp_fallback": "",
+      "counters_available": {
+        "stats": true,
+        "pads": true
+      },
+      "settings": {
+        "n_predict": 16,
+        "mtp_k": 5,
+        "draft_ahead": 1,
+        "threads": 4,
+        "threads_batch": 4,
+        "head_threads": 2,
+        "cpu_poll": "50",
+        "arm_tuned": "unset",
+        "stream_min_bytes": "1048576"
+      },
+      "not_restored": "pads,seed,spent indices,receipts,verification state"
+    },
+    {
+      "record": "begin",
+      "trial": 1,
+      "restore_us": 0,
+      "counters_before": {
+        "offloaded_nodes": 409,
+        "local_nodes": 0,
+        "macs": 130115174400,
+        "gmac": 130.115,
+        "verify_fail": 0,
+        "pads_used": 1310,
+        "pads_missed": 0
+      }
+    },
+    {
+      "record": "result",
+      "trial": 1,
+      "status": "budget",
+      "mtp_fallback": "",
+      "generated": 16,
+      "decode_us": 24266556,
+      "decode_tokens": 16,
+      "steady_us": 17955546,
+      "steady_tokens": 13,
+      "mtp": {
+        "rounds": 5,
+        "drafted": 20,
+        "accepted": 10,
+        "emitted": 15
+      },
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "completion": " Paris.\nThe capital of Germany is Berlin.\nThe capital of Italy is",
+      "counters_after": {
+        "offloaded_nodes": 2850,
+        "local_nodes": 0,
+        "macs": 851071467520,
+        "gmac": 851.071,
+        "verify_fail": 0,
+        "pads_used": 8074,
+        "pads_missed": 0
+      }
+    },
+    {
+      "record": "begin",
+      "trial": 2,
+      "restore_us": 21138,
+      "counters_before": {
+        "offloaded_nodes": 2850,
+        "local_nodes": 0,
+        "macs": 851071467520,
+        "gmac": 851.071,
+        "verify_fail": 0,
+        "pads_used": 8074,
+        "pads_missed": 0
+      }
+    },
+    {
+      "record": "result",
+      "trial": 2,
+      "status": "decode_failed",
+      "mtp_fallback": "",
+      "generated": 7,
+      "decode_us": 32198000,
+      "decode_tokens": 7,
+      "steady_us": 21955494,
+      "steady_tokens": 4,
+      "mtp": {
+        "rounds": 2,
+        "drafted": 10,
+        "accepted": 4,
+        "emitted": 6
+      },
+      "text_sha256": "9b3aab5df1a8d94fbcc4450af9e665f53800990a11260601dd93bbbb91227aae",
+      "completion": " Paris.\nThe capital of Germany",
+      "counters_after": {
+        "offloaded_nodes": 4329,
+        "local_nodes": 1,
+        "macs": 1349582848000,
+        "gmac": 1349.583,
+        "verify_fail": 1,
+        "pads_used": 12790,
+        "pads_missed": 0
+      }
+    },
+    {
+      "record": "end",
+      "trials": 2,
+      "completed": 2,
+      "reason": "trial_failed",
+      "identical_text": true,
+      "identical_mtp": true,
+      "generated_total": 23,
+      "any_failed": true
+    }
+  ],
+  "diagnostic_lines": [
+    "         1788972870.226 12714 12813 I anchor-host: VSOCK ENGINE idle park trial end: trial=1 calls=0",
+    "         1788972902.370 12714 12814 I anchor-host: BRIDGE #1 native closed rc=-104 up=323596955 down=663859617 bytes, reads=77697 writes=60174 polls=79981 max_read=916696",
+    "         1788972902.499 12714 12813 I anchor-host: VSOCK ENGINE stderr: cplan requested more threads (4) than available (2)",
+    "         1788972902.499 12714 12813 I anchor-host: VSOCK ENGINE stderr: cplan requested more threads (4) than available (2)",
+    "         1788972902.499 12714 12813 I anchor-host: VSOCK ENGINE stderr: cplan requested more threads (4) than available (2)",
+    "         1788972902.500 12714 12813 I anchor-host: VSOCK ENGINE stderr: cplan requested more threads (4) than available (2)",
+    "         1788972902.500 12714 12813 I anchor-host: VSOCK ENGINE stderr: cplan requested more threads (4) than available (2)",
+    "         1788972902.500 12714 12813 I anchor-host: VSOCK ENGINE stderr: [shielded] blk.58.ssm_out.weight: offload failed (exchange: short response header at frame 0); computing in the enclave, retrying the worker in 1 s",
+    "         1788972902.501 12714 12813 I anchor-host: VSOCK ENGINE stderr: [shielded] blk.58.ssm_out.weight: required public worker cache unavailable; no local weight copy retained",
+    "         1788972902.501 12714 12813 I anchor-host: VSOCK ENGINE stderr: [shielded] authenticated weight read failed: blk.58.ssm_out.weight",
+    "         1788972902.501 12714 12813 I anchor-host: VSOCK ENGINE stderr: graph_compute: ggml_backend_sched_graph_compute_async failed with error -1",
+    "         1788972902.501 12714 12813 I anchor-host: VSOCK ENGINE stderr: process_ubatch: failed to compute graph, compute status: -1",
+    "         1788972902.502 12714 12813 I anchor-host: VSOCK ENGINE stderr: decode: removing memory module entries for seq_id = 0, pos = [11, +inf)",
+    "         1788972902.502 12714 12813 I anchor-host: VSOCK ENGINE stderr: llama_decode: failed to decode, ret = -3",
+    "         1788972902.502 12714 12813 I anchor-host: VSOCK ENGINE idle park trial end: trial=2 calls=1054"
+  ],
+  "recovery": {
+    "rc": 0,
+    "bytes": 197387,
+    "sha256": "e92baf4382b98cb8d4e12c340db79e2d0c89bfa2ac1987d66ac9aaf35bdb39e0",
+    "stderr_bytes": 0,
+    "elapsed_seconds": 0.17656892800005153,
+    "scope": "Read-only recovery after failed run cleanup; not a validated complete inference capture."
+  },
+  "interpretation": "OFF trial completed. ON trial did not finish before the540s work deadline. At16:55:02.370Z the bridge reset;6ms later decode failed. Error names a short response header then authenticated fallback weight read failure for blk.58.ssm_out.weight. Verification counter1 therefore does not establish a corrupted GPU result or parking-induced arithmetic error. No valid paired throughput result.",
+  "limitations": [
+    "Full exported backend stderr was truncated by teardown; recovered app capture is partial, not reclassified PASS.",
+    "Partial ON output is not a complete inference throughput measurement.",
+    "The deadline, rather than a proved deadlock, ended the trial; startup consumed430.272s plus setup/snapshot/observe."
+  ]
+}

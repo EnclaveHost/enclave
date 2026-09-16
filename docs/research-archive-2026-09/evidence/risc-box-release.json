@@ -1,0 +1,33 @@
+{
+  "profile_bytes": 881917,
+  "profile_sha256": "15f1d4d674f877797839b87dc67047606e3ba716718ae3096fccdcb1197c93d9",
+  "guest_sha256": "b96ad681efc98357b6987fa857ebf778e6ac21fd3602b32b9a93d47e3f17ca00",
+  "snapshot": "risc-perf-agent/warm960-palette.snap",
+  "resolution": [
+    960,
+    600
+  ],
+  "wasm64": true,
+  "set": true,
+  "subset_alternatives": false,
+  "artifact_bytes": 23677756,
+  "artifact_sha256": "533692386cc170907bad7299f998b1bcf797d00469abb15ed5f02b5686666d18",
+  "application_set": true,
+  "share_everything_threads": true,
+  "queue_optimization": true,
+  "artifact_requirements_verified": [
+    "memory64 shared memory",
+    "shared function types",
+    "SET canonical thread spawn",
+    "SET thread lifecycle export"
+  ],
+  "cid": "bafybeig7dtbv66j5kmv4xaygujynnxodxajdofmc43rhte7ezx5e6hkfty",
+  "version": "0.1.4-set64-queue",
+  "catalog_index": 4,
+  "source_commit": "70fc67e7ff3ac0fd4dc96e98afa35cd49b0e9c8e",
+  "publish_transaction": "0x8f527fe7088b97998971d143d76da55f603c1701738acff421502949811a2615",
+  "deployment": "0xc34499ee0e252ef82a97b219f941b54732113c9d0b7ced1d1503604d3fe152d8",
+  "url": "https://c34499ee.app.enclave.host/",
+  "local_game_fps": 31.46264233307407,
+  "local_stream_updates_per_sec": 31.55
+}

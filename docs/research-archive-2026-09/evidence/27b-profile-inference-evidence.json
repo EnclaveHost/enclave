@@ -1,0 +1,61 @@
+{
+  "status": "RECOVERED_COMPLETE_DIAGNOSTIC",
+  "scope": "Both complete decode results and full checksum-verified profile recovered from app capture after work deadline. Not a clean benchmark pass; original controller/runner receipts remain FAIL.",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "50",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 17146158,
+      "tokens_per_second": 0.9331536545971406,
+      "steady_tokens": 13,
+      "steady_us": 14112841,
+      "steady_tokens_per_second": 0.9211469186112137,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 23874,
+      "generated": 16,
+      "decode_us": 34075314,
+      "tokens_per_second": 0.46954813094312203,
+      "steady_tokens": 13,
+      "steady_us": 29227899,
+      "steady_tokens_per_second": 0.4447805160405132,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-profile-2",
+  "capture_sha256": "65be73ba64337ce0c2ff5725b060848465e3e2eb9c603119330605796b7fcf62",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "cycle_status": "TIMEOUT_AND_INITIAL_ASYNC_PHONE_CLEANUP_CHECK_FAILED"
+}

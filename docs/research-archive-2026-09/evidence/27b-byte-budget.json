@@ -1,0 +1,28 @@
+{
+  "scope": "Conditional sustained demand for the measured v51 27B Q8 MTP5 workload and unchanged current 3-byte pad format. Not an attainable speed prediction or a universal model ceiling.",
+  "generated_tokens": 16,
+  "request_bytes": 171091626,
+  "reply_bytes": 355289430,
+  "consumed_u_elements": 118425088,
+  "pad_value_payload_bytes_minimum": 355275264,
+  "up_bytes_per_generated_token": 10693226.625,
+  "down_reply_bytes_per_generated_token": 22205589.375,
+  "down_consumed_pad_value_bytes_per_generated_token": 22204704.0,
+  "total_down_bytes_per_generated_token_minimum": 44410293.375,
+  "at_20_tps_down_MBps_minimum": 888.2058675,
+  "usb_negotiated_Mbps": 5000,
+  "usb_raw_bytes_per_second_upper_bound": 625000000.0,
+  "limits": [
+    "Pads preloaded before timing can support bursts; this is sustained replenishment demand after stock runs down.",
+    "MTP acceptance and workload changes can change bytes per generated token.",
+    "Padding demand counts only values actually consumed; excludes unconsumed values in whole shipments, tags, headers and transport overhead.",
+    "Only incoming reply plus incoming pad payload is combined. The outgoing request direction is not added.",
+    "A remote pad generator alone leaves this transfer requirement if pads still arrive at the phone over the same connection."
+  ],
+  "source_provenance": {
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/27b-byte-budget-root-2/result.log": "abcaa10f7551018268903c817418512a8aecaf8bb4e4a1b9b87e3dd8b22266e2",
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/27b-byte-budget-root-2/sum_pad_budget.py": "c7eeffa626fb5722d227cd040d6f32a7969506fcfe7c8ccd3c8052272dac3d1f",
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/27b-byte-budget-root-2/phone-usb-speed.json": "2fd578e059735c5fa512aa005201410fba72a3e6cd2448f6d4d0921453fde97e",
+    "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-pads.c": "a1ca4b8f8d3d1acf1cd0d7ad0d980170a07c8c4b7c1f1f1075291d0e4406bfec"
+  }
+}

@@ -1,0 +1,1977 @@
+{
+  "scope": "Actual sampled PCs from original v24 profile2, separated by guest thread. Thread133 is the engine caller; thread141 has persistent ggml pool-worker samples. No kernel PCs, unknown libc lines remain unknown. Statistical shares are not wall-time shares.",
+  "threads": [
+    {
+      "phase": 2,
+      "tid": 133,
+      "samples": 590,
+      "lines": [
+        {
+          "module": "libc.so",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 175,
+          "percent": 29.661016949152543
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_thread_cpu_relax",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 521,
+          "samples": 77,
+          "percent": 13.05084745762712
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_barrier",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 599,
+          "samples": 64,
+          "percent": 10.847457627118644
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_outlier_add",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 938,
+          "samples": 23,
+          "percent": 3.8983050847457625
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 232,
+          "samples": 19,
+          "percent": 3.2203389830508473
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_descale",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 240,
+          "samples": 12,
+          "percent": 2.0338983050847457
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 76,
+          "samples": 10,
+          "percent": 1.694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_cpy_f32(int, float*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 119,
+          "samples": 10,
+          "percent": 1.694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 233,
+          "samples": 7,
+          "percent": 1.1864406779661016
+        },
+        {
+          "module": "[vdso]",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 7,
+          "percent": 1.1864406779661016
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 118,
+          "samples": 6,
+          "percent": 1.0169491525423728
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 73,
+          "samples": 6,
+          "percent": 1.0169491525423728
+        },
+        {
+          "module": "libengine.so",
+          "function": "step",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/payload/anchor_mtp.c",
+          "line": 49,
+          "samples": 6,
+          "percent": 1.0169491525423728
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::size[abi:ne180000]() const",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/string",
+          "line": 1177,
+          "samples": 5,
+          "percent": 0.847457627118644
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 74,
+          "samples": 5,
+          "percent": 0.847457627118644
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 691,
+          "samples": 5,
+          "percent": 0.847457627118644
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "op_add(float, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 10,
+          "samples": 5,
+          "percent": 0.847457627118644
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 75,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 126,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 125,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "ld24",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 768,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2060,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 422,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 10871,
+          "samples": 4,
+          "percent": 0.6779661016949152
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_values_within",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 1649,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 230,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 690,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 888,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 890,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 114,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 116,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1141,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2069,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 752,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 10856,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 419,
+          "samples": 3,
+          "percent": 0.5084745762711864
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::char_traits<char>::compare[abi:ne180000](char const*, char const*, unsigned long)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__string/char_traits.h",
+          "line": 222,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 116,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 121,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 231,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 689,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "ld24",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 767,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 886,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 887,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 891,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_outlier_add",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 941,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libengine.so",
+          "function": "engine_main::$_6::operator()(float const*) const",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/payload/engine.cpp",
+          "line": 812,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 111,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_swiglu_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 438,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 747,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 750,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 418,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "",
+          "file": "",
+          "line": 0,
+          "samples": 2,
+          "percent": 0.3389830508474576
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_pool_init(sh_pool&)",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/ggml-shielded.cpp",
+          "line": 521,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_card_compute(sh_state&, ggml_cgraph*)",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/ggml-shielded.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::__tree_iterator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::__tree_node<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, void*>*, long> std::__ndk1::__tree<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::__map_value_compare<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::less<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, true>, std::__ndk1::allocator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>>>::__lower_bound<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>(std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&, std::__ndk1::__tree_node<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, void*>*, std::__ndk1::__tree_end_node<std::__ndk1::__tree_node_base<void*>*>*)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__tree",
+          "line": 2144,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::basic_string(std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/string",
+          "line": 899,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_link_gemm",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 1838,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_link_gemm",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 1937,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_pipe_exchange_work",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-wire.c",
+          "line": 353,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_pipe_exchange_work",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-wire.c",
+          "line": 349,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_sp_end",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-source-profile.h",
+          "line": 35,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 117,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "fv_fold",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 613,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 889,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libllama.so",
+          "function": "llama_vocab::impl::token_get_attr(int) const",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/src/llama-vocab.cpp",
+          "line": 3121,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 1866,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_cpu_fp32_to_fp16",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3467,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_backend_cpu_graph_compute(ggml_backend*, ggml_cgraph*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+          "line": 170,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_backend_cpu_graph_compute(ggml_backend*, ggml_cgraph*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+          "line": 173,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void vec_binary_op_contiguous<&op_add(float, float), float, float, float>(long, float*, float const*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 31,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "op_mul(float, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 18,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void vec_binary_op_contiguous<&op_mul(float, float), float, float, float>(long, float*, float const*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 32,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "op_sigmoid(float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/unary-ops.cpp",
+          "line": 32,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 104,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 113,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 121,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 124,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1135,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1146,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1147,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "memcpy(void*, void const* pass_object_size0, unsigned long)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/bits/fortify/string.h",
+          "line": 53,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_dup_bytes(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 382,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2062,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void ggml_compute_forward_rms_norm_f32<(ggml_rms_norm_fuse_op)1>(ggml_compute_params const*, ggml_tensor*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 3849,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 9595,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 9601,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 9602,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 427,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 10868,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f16(int, unsigned short*, unsigned short const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 567,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f16(int, unsigned short*, unsigned short const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 568,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "quantize_row_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 69,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_q8_0_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 1181,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_q8_0_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 1187,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_q8_0_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 1375,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_new_tensor_impl",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1811,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_nbytes",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1309,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_graph_node",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 7514,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        },
+        {
+          "module": "libm.so",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1694915254237288
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "samples": 915,
+      "lines": [
+        {
+          "module": "libc.so",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 252,
+          "percent": 27.540983606557376
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_thread_cpu_relax",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 521,
+          "samples": 105,
+          "percent": 11.475409836065573
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_barrier",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 599,
+          "samples": 87,
+          "percent": 9.508196721311476
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_outlier_add",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 938,
+          "samples": 46,
+          "percent": 5.027322404371585
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 232,
+          "samples": 37,
+          "percent": 4.043715846994536
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_cpy_f32(int, float*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 119,
+          "samples": 24,
+          "percent": 2.622950819672131
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_descale",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 240,
+          "samples": 14,
+          "percent": 1.530054644808743
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 118,
+          "samples": 11,
+          "percent": 1.2021857923497268
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 691,
+          "samples": 11,
+          "percent": 1.2021857923497268
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 888,
+          "samples": 11,
+          "percent": 1.2021857923497268
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "ld24",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 768,
+          "samples": 10,
+          "percent": 1.092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 233,
+          "samples": 9,
+          "percent": 0.9836065573770492
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 76,
+          "samples": 8,
+          "percent": 0.8743169398907104
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 114,
+          "samples": 8,
+          "percent": 0.8743169398907104
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 422,
+          "samples": 8,
+          "percent": 0.8743169398907104
+        },
+        {
+          "module": "[vdso]",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 8,
+          "percent": 0.8743169398907104
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 74,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 231,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 890,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 889,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libengine.so",
+          "function": "step",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/payload/anchor_mtp.c",
+          "line": 49,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 124,
+          "samples": 7,
+          "percent": 0.7650273224043715
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 116,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 73,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "ld24",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 767,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 891,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 116,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 9601,
+          "samples": 6,
+          "percent": 0.6557377049180327
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_values_within",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 1649,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 117,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "modq",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 75,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 125,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_encode_checked",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 230,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 689,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 121,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2069,
+          "samples": 5,
+          "percent": 0.546448087431694
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 127,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 690,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2064,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_ssm_conv_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 9602,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 752,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "",
+          "file": "",
+          "line": 0,
+          "samples": 4,
+          "percent": 0.4371584699453552
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 120,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 126,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "fv_fold",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 613,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 887,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_outlier_add",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 941,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libengine.so",
+          "function": "engine_main::$_6::operator()(float const*) const",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/payload/engine.cpp",
+          "line": 812,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "op_add(float, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 10,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 111,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 113,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1146,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void ggml_compute_forward_rms_norm_f32<(ggml_rms_norm_fuse_op)1>(ggml_compute_params const*, ggml_tensor*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 3831,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libm.so",
+          "function": "[no symbols]",
+          "file": "",
+          "line": 0,
+          "samples": 3,
+          "percent": 0.32786885245901637
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::size[abi:ne180000]() const",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/string",
+          "line": 1177,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::char_traits<char>::compare[abi:ne180000](char const*, char const*, unsigned long)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__string/char_traits.h",
+          "line": 222,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_fv_dots_x",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 688,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_silu(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1162,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1147,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_swiglu_f32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+          "line": 438,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 0,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2060,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void ggml_compute_forward_rms_norm_f32<(ggml_rms_norm_fuse_op)1>(ggml_compute_params const*, ggml_tensor*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 3849,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 747,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 750,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 10856,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 418,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 419,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 10871,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_q8_0_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 1181,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "neon_compute_fp16_to_fp32",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/simd-mappings.h",
+          "line": 47,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_is_empty",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1555,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_backend_dev_supports_buft",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-backend.cpp",
+          "line": 630,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "unw_getcontext",
+          "file": "UnwindLevel1-gcc-ext.c",
+          "line": 0,
+          "samples": 2,
+          "percent": 0.2185792349726776
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "unsigned long std::__ndk1::__tree<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>, std::__ndk1::__map_value_compare<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>, std::__ndk1::less<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, true>, std::__ndk1::allocator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>>>::__count_unique<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>(std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&) const",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__tree",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_card_compute(sh_state&, ggml_cgraph*)",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/ggml-shielded.cpp",
+          "line": 1515,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::__tree_iterator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::__tree_node<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, void*>*, long> std::__ndk1::__tree<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::__map_value_compare<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>, std::__ndk1::less<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, true>, std::__ndk1::allocator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, int>>>::find<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>(std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__tree",
+          "line": 2087,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::__tree_node_base<void*>*& std::__ndk1::__tree<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>, std::__ndk1::__map_value_compare<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>, std::__ndk1::less<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, true>, std::__ndk1::allocator<std::__ndk1::__value_type<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, sh_state::entry>>>::__find_equal<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>(std::__ndk1::__tree_end_node<std::__ndk1::__tree_node_base<void*>*>*&, std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/__tree",
+          "line": 1688,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::__get_pointer[abi:ne180000]() const",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/string",
+          "line": 1883,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "now_ms",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 31,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_link_gemm",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-tee.c",
+          "line": 1795,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "wire_now_ms",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-wire.c",
+          "line": 127,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_sp_end",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-source-profile.h",
+          "line": 39,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_sp_end",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-source-profile.h",
+          "line": 40,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "read_all",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-wire.c",
+          "line": 248,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 119,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 121,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 124,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_mask_planes",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 109,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "fv_fold",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 614,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "sh_simd_neon_unmask24_fv",
+          "file": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/wt-phone/shielded/anchor/avf/../../../wasm/ggml-shielded/shielded-simd.c",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-shielded.so",
+          "function": "unw_getcontext",
+          "file": "libunwind.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libllama.so",
+          "function": "std::__ndk1::vector<bool, std::__ndk1::allocator<bool>>::__make_ref[abi:ne180000](unsigned long)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector",
+          "line": 2202,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libllama.so",
+          "function": "std::__ndk1::__bit_reference<std::__ndk1::vector<bool, std::__ndk1::allocator<bool>>, true>::operator bool[abi:ne180000]() const",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__bit_reference",
+          "line": 64,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libllama.so",
+          "function": "llama_batch_allocr::init(llama_batch const&, llama_vocab const&, llama_memory_i const*, unsigned int, unsigned int, bool)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/src/llama-batch.cpp",
+          "line": 324,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libllama.so",
+          "function": "llama_context::decode(llama_batch const&)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/src/llama-context.cpp",
+          "line": 2038,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libllama.so",
+          "function": "std::__ndk1::unique_ptr<llama_memory_context_i, std::__ndk1::default_delete<llama_memory_context_i>>::reset[abi:ne180000](llama_memory_context_i*)",
+          "file": "/home/steven/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h",
+          "line": 269,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_backend_cpu_device_supports_op(ggml_backend_device*, ggml_tensor const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+          "line": 427,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void vec_binary_op_contiguous<&op_add(float, float), float, float, float>(long, float*, float const*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+          "line": 32,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_sigmoid",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/unary-ops.cpp",
+          "line": 265,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void vec_unary_op<&op_sigmoid(float), float, float>(long, float*, float const*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/unary-ops.cpp",
+          "line": 106,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1142,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1141,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2059,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_concat_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 2061,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "void ggml_compute_forward_rms_norm_f32<(ggml_rms_norm_fuse_op)1>(ggml_compute_params const*, ggml_tensor*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 3848,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_l2_norm_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_l2_norm_f32(ggml_compute_params const*, ggml_tensor*)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 4201,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_scale_f32(int, float*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 749,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f32(int, float*, float const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 416,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_gated_delta_net_one_chunk(ggml_compute_params const*, ggml_tensor*, long, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_flash_attn_ext_f16_one_chunk(ggml_compute_params const*, ggml_tensor*, int, int, long, long, float*, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 8594,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f16(int, unsigned short*, unsigned short const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 570,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_dot_q8_0_q8_0",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/arch/arm/quants.c",
+          "line": 1184,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_are_same_shape",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1567,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_can_repeat",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1592,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_new_tensor_impl",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 1808,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_visit_parents_graph",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml.c",
+          "line": 7142,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_gallocr_node_needs_realloc",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-alloc.c",
+          "line": 998,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "ggml_gallocr_init_tensor",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-alloc.c",
+          "line": 983,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        },
+        {
+          "module": "libggml-base.so",
+          "function": "std::__ndk1::mutex::lock()",
+          "file": "",
+          "line": 0,
+          "samples": 1,
+          "percent": 0.1092896174863388
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 141,
+      "samples": 301,
+      "lines": [
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3142,
+          "samples": 162,
+          "percent": 53.820598006644516
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3145,
+          "samples": 38,
+          "percent": 12.624584717607974
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_thread_cpu_relax",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 521,
+          "samples": 35,
+          "percent": 11.627906976744185
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3147,
+          "samples": 25,
+          "percent": 8.305647840531561
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3140,
+          "samples": 18,
+          "percent": 5.980066445182724
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_poll_for_work",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3174,
+          "samples": 16,
+          "percent": 5.3156146179401995
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_barrier",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 599,
+          "samples": 6,
+          "percent": 1.9933554817275747
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_compute_forward_flash_attn_ext_f16_one_chunk(ggml_compute_params const*, ggml_tensor*, int, int, long, long, float*, long)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+          "line": 8594,
+          "samples": 1,
+          "percent": 0.33222591362126247
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 141,
+      "samples": 363,
+      "lines": [
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3142,
+          "samples": 180,
+          "percent": 49.586776859504134
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3145,
+          "samples": 65,
+          "percent": 17.90633608815427
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_thread_cpu_relax",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 521,
+          "samples": 42,
+          "percent": 11.570247933884298
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3147,
+          "samples": 26,
+          "percent": 7.162534435261708
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_poll_for_work",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3174,
+          "samples": 26,
+          "percent": 7.162534435261708
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_graph_compute_thread_ready",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 3140,
+          "samples": 18,
+          "percent": 4.958677685950414
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_barrier",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "line": 599,
+          "samples": 3,
+          "percent": 0.8264462809917356
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_op_is_empty",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/./ggml-impl.h",
+          "line": 91,
+          "samples": 1,
+          "percent": 0.27548209366391185
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_v_expf(__Float32x4_t)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 1141,
+          "samples": 1,
+          "percent": 0.27548209366391185
+        },
+        {
+          "module": "libggml-cpu.so",
+          "function": "ggml_vec_mad_f16(int, unsigned short*, unsigned short const*, float)",
+          "file": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/vec.h",
+          "line": 570,
+          "samples": 1,
+          "percent": 0.27548209366391185
+        }
+      ]
+    }
+  ]
+}

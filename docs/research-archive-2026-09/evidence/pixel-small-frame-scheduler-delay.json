@@ -1,0 +1,446 @@
+{
+  "label": "bridge-isolate-small-sched-1",
+  "app_pid": 17030,
+  "bridge_tid": 17311,
+  "monotonic_to_trace_offset_ns": 175942802461297,
+  "clock_map_spread_ns": 82,
+  "trace_bounds": {
+    "start_ts": "599626442977617",
+    "end_ts": "599641340873051"
+  },
+  "trace_stats_nonzero": [],
+  "rows": [
+    {
+      "frame_bytes": 4,
+      "phase": "request_read_complete_to_tcp_send_return",
+      "cycles": 199,
+      "total_ns": 44106559,
+      "trace_covered_ns": 44106559,
+      "states_ns": {
+        "Running": 44013500,
+        "R+": 93059
+      },
+      "wakers_ns": {
+        "[NULL]:[NULL]": 93059
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 221.641,
+      "state_percent_of_total": {
+        "Running": 99.78901323950481,
+        "R+": 0.21098676049519074
+      }
+    },
+    {
+      "frame_bytes": 4,
+      "phase": "tcp_send_return_to_reply_read_entry",
+      "cycles": 199,
+      "total_ns": 793133882,
+      "trace_covered_ns": 793133882,
+      "states_ns": {
+        "Running": 30723693,
+        "S": 410069491,
+        "R": 352340698
+      },
+      "wakers_ns": {
+        "78:ksoftirqd/8": 352340698
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 3985.5973969849247,
+      "state_percent_of_total": {
+        "Running": 3.87370829783817,
+        "S": 51.70243010750611,
+        "R": 44.42386159465572
+      }
+    },
+    {
+      "frame_bytes": 4,
+      "phase": "reply_first_read_entry_to_last_read_return",
+      "cycles": 199,
+      "total_ns": 38872219,
+      "trace_covered_ns": 38872219,
+      "states_ns": {
+        "Running": 38872219
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 195.33778391959797,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 4,
+      "phase": "reply_last_read_return_to_vm_send_return",
+      "cycles": 199,
+      "total_ns": 20509001,
+      "trace_covered_ns": 20509001,
+      "states_ns": {
+        "Running": 20509001
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 103.06030653266332,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 4,
+      "phase": "vm_send_return_to_next_request_read_complete",
+      "cycles": 199,
+      "total_ns": 582251793,
+      "trace_covered_ns": 582251793,
+      "states_ns": {
+        "Running": 51263151,
+        "S": 487402052,
+        "R": 43566205,
+        "D": 20385
+      },
+      "wakers_ns": {
+        "17195:vhost-17191": 43566205
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 2925.8884070351755,
+      "state_percent_of_total": {
+        "Running": 8.804292509924482,
+        "S": 83.70984131945816,
+        "R": 7.482365107976576,
+        "D": 0.00350106264078091
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phase": "request_read_complete_to_tcp_send_return",
+      "cycles": 199,
+      "total_ns": 44735510,
+      "trace_covered_ns": 44735510,
+      "states_ns": {
+        "Running": 44649654,
+        "R+": 85856
+      },
+      "wakers_ns": {
+        "[NULL]:[NULL]": 85856
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 224.8015577889447,
+      "state_percent_of_total": {
+        "Running": 99.80808087356107,
+        "R+": 0.1919191264389296
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phase": "tcp_send_return_to_reply_read_entry",
+      "cycles": 199,
+      "total_ns": 743764850,
+      "trace_covered_ns": 743764850,
+      "states_ns": {
+        "Running": 32150187,
+        "S": 368199985,
+        "R": 343414678
+      },
+      "wakers_ns": {
+        "78:ksoftirqd/8": 343333542,
+        "[NULL]:[NULL]": 81136
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 3737.5118090452265,
+      "state_percent_of_total": {
+        "Running": 4.322627911227587,
+        "S": 49.504891902326385,
+        "R": 46.17248018644602
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phase": "reply_first_read_entry_to_last_read_return",
+      "cycles": 199,
+      "total_ns": 39402477,
+      "trace_covered_ns": 39402477,
+      "states_ns": {
+        "Running": 39402477
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 198.00239698492462,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phase": "reply_last_read_return_to_vm_send_return",
+      "cycles": 199,
+      "total_ns": 20382640,
+      "trace_covered_ns": 20382640,
+      "states_ns": {
+        "Running": 20382640
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 102.42532663316582,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phase": "vm_send_return_to_next_request_read_complete",
+      "cycles": 199,
+      "total_ns": 418932460,
+      "trace_covered_ns": 418932460,
+      "states_ns": {
+        "Running": 50501194,
+        "S": 322337798,
+        "R": 46093468
+      },
+      "wakers_ns": {
+        "17195:vhost-17191": 46093468
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 2105.1882412060304,
+      "state_percent_of_total": {
+        "Running": 12.05473407336352,
+        "S": 76.94266469587961,
+        "R": 11.002601230756863
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phase": "request_read_complete_to_tcp_send_return",
+      "cycles": 199,
+      "total_ns": 50401846,
+      "trace_covered_ns": 50401846,
+      "states_ns": {
+        "Running": 50220694,
+        "R+": 181152
+      },
+      "wakers_ns": {
+        "[NULL]:[NULL]": 181152
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 253.275608040201,
+      "state_percent_of_total": {
+        "Running": 99.64058459287384,
+        "R+": 0.3594154071261596
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phase": "tcp_send_return_to_reply_read_entry",
+      "cycles": 199,
+      "total_ns": 760436977,
+      "trace_covered_ns": 760436977,
+      "states_ns": {
+        "Running": 30815727,
+        "S": 384802732,
+        "R": 344818518
+      },
+      "wakers_ns": {
+        "78:ksoftirqd/8": 344818518
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 3821.291341708543,
+      "state_percent_of_total": {
+        "Running": 4.05237093040519,
+        "S": 50.60284331754688,
+        "R": 45.34478575204793
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phase": "reply_first_read_entry_to_last_read_return",
+      "cycles": 199,
+      "total_ns": 8989987,
+      "trace_covered_ns": 8989987,
+      "states_ns": {
+        "Running": 8989987
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 45.175814070351755,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phase": "reply_last_read_return_to_vm_send_return",
+      "cycles": 199,
+      "total_ns": 20967162,
+      "trace_covered_ns": 20967162,
+      "states_ns": {
+        "Running": 20873615,
+        "R+": 93547
+      },
+      "wakers_ns": {
+        "[NULL]:[NULL]": 93547
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 105.36262311557789,
+      "state_percent_of_total": {
+        "Running": 99.55384042914343,
+        "R+": 0.4461595708565613
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phase": "vm_send_return_to_next_request_read_complete",
+      "cycles": 199,
+      "total_ns": 572516406,
+      "trace_covered_ns": 572516406,
+      "states_ns": {
+        "Running": 52825490,
+        "S": 474265342,
+        "R": 45412065,
+        "D": 13509
+      },
+      "wakers_ns": {
+        "17195:vhost-17191": 45412065
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 2876.966864321608,
+      "state_percent_of_total": {
+        "Running": 9.226895412321163,
+        "S": 82.83873388250117,
+        "R": 7.932011122140664,
+        "D": 0.002359583036996847
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phase": "request_read_complete_to_tcp_send_return",
+      "cycles": 199,
+      "total_ns": 93379074,
+      "trace_covered_ns": 93379074,
+      "states_ns": {
+        "Running": 90658004,
+        "R+": 2721070
+      },
+      "wakers_ns": {
+        "[NULL]:[NULL]": 2721070
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 469.2415778894472,
+      "state_percent_of_total": {
+        "Running": 97.08599594808575,
+        "R+": 2.914004051914244
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phase": "tcp_send_return_to_reply_read_entry",
+      "cycles": 199,
+      "total_ns": 479656443,
+      "trace_covered_ns": 479656443,
+      "states_ns": {
+        "Running": 30507147,
+        "S": 115219280,
+        "R": 333930016
+      },
+      "wakers_ns": {
+        "78:ksoftirqd/8": 333930016
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 2410.3338844221103,
+      "state_percent_of_total": {
+        "Running": 6.360207904056029,
+        "S": 24.021209697375003,
+        "R": 69.61858239856898
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phase": "reply_first_read_entry_to_last_read_return",
+      "cycles": 199,
+      "total_ns": 49293295,
+      "trace_covered_ns": 49293295,
+      "states_ns": {
+        "Running": 47362549,
+        "S": 874797,
+        "R": 945719,
+        "R+": 110230
+      },
+      "wakers_ns": {
+        "78:ksoftirqd/8": 945719,
+        "[NULL]:[NULL]": 110230
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 247.705,
+      "state_percent_of_total": {
+        "Running": 96.08314680526023,
+        "S": 1.7746774688119347,
+        "R": 1.9185550489168963,
+        "R+": 0.22362067701094032
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phase": "reply_last_read_return_to_vm_send_return",
+      "cycles": 199,
+      "total_ns": 23005336,
+      "trace_covered_ns": 23005336,
+      "states_ns": {
+        "Running": 23005336
+      },
+      "wakers_ns": {},
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 115.60470351758794,
+      "state_percent_of_total": {
+        "Running": 100.0
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phase": "vm_send_return_to_next_request_read_complete",
+      "cycles": 199,
+      "total_ns": 839918172,
+      "trace_covered_ns": 839918172,
+      "states_ns": {
+        "Running": 69402265,
+        "S": 707195395,
+        "R": 63304805,
+        "D": 15707
+      },
+      "wakers_ns": {
+        "17195:vhost-17191": 63304805
+      },
+      "state_uncovered_ns": 0,
+      "outside_trace_ns": 0,
+      "mean_phase_us": 4220.694331658292,
+      "state_percent_of_total": {
+        "Running": 8.26297933699189,
+        "S": 84.1981300768904,
+        "R": 7.537020522994471,
+        "D": 0.001870063123244344
+      }
+    }
+  ],
+  "limits": [
+    "Sleeping state does not identify the blocking resource or prove network packets had not arrived.",
+    "Runnable state measures waiting for CPU; it does not prove that a complete reply was available.",
+    "Waker task names can represent the task interrupted by an IRQ; they do not identify an interrupt handler.",
+    "Only the Android bridge thread is classified here. Guest/vCPU and host-network work are outside this attribution.",
+    "Clock mapping uses a constant offset and retains its observed spread. Boundary and state coverage gaps remain explicit.",
+    "Nonzero trace errors or loss must be reviewed before interpreting state percentages."
+  ]
+}

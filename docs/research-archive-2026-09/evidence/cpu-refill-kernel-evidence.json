@@ -1,0 +1,1416 @@
+{
+  "status": "PASS",
+  "plan": {
+    "mode": "full",
+    "cases": [
+      [
+        "0:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "0:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "0:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "0:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "0:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "0:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "0:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "1:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "1:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "1:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "1:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "1:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "1:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ffn_gate_member",
+        [
+          5120,
+          17408,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "2:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ffn_gate_member",
+        [
+          5120,
+          17408,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "2:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ffn_down",
+        [
+          17408,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "2:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ffn_down",
+        [
+          17408,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ],
+      [
+        "2:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ssm_out",
+        [
+          6144,
+          5120,
+          1,
+          16,
+          8
+        ]
+      ],
+      [
+        "2:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          1,
+          8
+        ]
+      ],
+      [
+        "2:ssm_out",
+        [
+          6144,
+          5120,
+          16,
+          16,
+          8
+        ]
+      ]
+    ],
+    "inputs": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-diagnostic/refill-bench": "ec36cb8e2f994399eceb0aa354fa9c170882e0069c09075830be2fad0f39b6a4",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-diagnostic/run-measured.py": "1a9bb3045853944da1b560dee15eb4452d12dd955d27de872ed49a9af3cb832e",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-diagnostic/build-proof.json": "5b55f4fb216eb6eddcd291f78d0c74d1887a8966052a4bbed16261263d48ea4f",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-diagnostic/test-driver.py": "6131ce8621040b434d96862399a4bcf5c3b7bff98516a4f84292349903f436e0",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-diagnostic/refill-bench.cpp": "7d9992b6f757d927dd23d5946e138f180cd6a912f7affc17409f5d61e8169250",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-simd.c": "666153b64352752336ca394ce70c9e5f5a48b6464ad5c5d8f65f3eaf4626cf88",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-simd.h": "5bb93117fc713fd32cf76c4b95a3457b32f45d557f8ae9dc7e99a92b6cbb38d2",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31"
+    },
+    "per_process_timeout_s": 75,
+    "whole_timeout_s": 450,
+    "scope": "same-shape independent lanes; scalar samples; no PRF/AEAD/file; complete output head excluded"
+  },
+  "summary": {
+    "status": "PASS",
+    "scope": "CPU diagnostic, not dealer or model throughput",
+    "elapsed_s": 9.933152702986263,
+    "expected_cases": 36,
+    "completed_cases": 36,
+    "results": [
+      {
+        "index": 0,
+        "case": "0:ffn_gate_member",
+        "pid": 170355,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 90070016,
+          "wall_s": 0.016201804,
+          "process_cpu_s": 0.01614109,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 44.0094,
+          "logical_gmac_per_cpu_s": 44.17494,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 1,
+        "case": "0:ffn_gate_member",
+        "pid": 170357,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1441120256,
+          "wall_s": 0.104340441,
+          "process_cpu_s": 1.61601605,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 109.339263,
+          "logical_gmac_per_cpu_s": 7.059649,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 2,
+        "case": "0:ffn_gate_member",
+        "pid": 170374,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.205730077,
+          "process_cpu_s": 0.20508568,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 55.453763,
+          "logical_gmac_per_cpu_s": 55.628003,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 3,
+        "case": "0:ffn_gate_member",
+        "pid": 170389,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.382448556,
+          "process_cpu_s": 4.75411725,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 477.28278,
+          "logical_gmac_per_cpu_s": 38.395374,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 4,
+        "case": "0:ffn_down",
+        "pid": 170417,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 89517056,
+          "wall_s": 0.035810928,
+          "process_cpu_s": 0.03566968,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 19.911008,
+          "logical_gmac_per_cpu_s": 19.989854,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 5,
+        "case": "0:ffn_down",
+        "pid": 170420,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1432272896,
+          "wall_s": 0.12543193,
+          "process_cpu_s": 1.64902116,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 90.95377,
+          "logical_gmac_per_cpu_s": 6.918351,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 6,
+        "case": "0:ffn_down",
+        "pid": 170441,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.160072129,
+          "process_cpu_s": 0.1594384,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 71.271039,
+          "logical_gmac_per_cpu_s": 71.554324,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 7,
+        "case": "0:ffn_down",
+        "pid": 171066,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.338038586,
+          "process_cpu_s": 4.33473781,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 539.986018,
+          "logical_gmac_per_cpu_s": 42.110069,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 8,
+        "case": "0:ssm_out",
+        "pid": 171395,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 31766528,
+          "wall_s": 0.004588288,
+          "process_cpu_s": 0.00456847,
+          "logical_macs": 251658240,
+          "logical_gmac_per_wall_s": 54.847961,
+          "logical_gmac_per_cpu_s": 55.085891,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 9,
+        "case": "0:ssm_out",
+        "pid": 171397,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 508264448,
+          "wall_s": 0.035928006,
+          "process_cpu_s": 0.537253144,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 112.072232,
+          "logical_gmac_per_cpu_s": 7.494664,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 10,
+        "case": "0:ssm_out",
+        "pid": 171415,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.069984339,
+          "process_cpu_s": 0.06962866,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 57.534756,
+          "logical_gmac_per_cpu_s": 57.828656,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 11,
+        "case": "0:ssm_out",
+        "pid": 171417,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.12771225,
+          "process_cpu_s": 1.52734495,
+          "logical_macs": 64424509440,
+          "logical_gmac_per_wall_s": 504.450508,
+          "logical_gmac_per_cpu_s": 42.18072,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 12,
+        "case": "1:ssm_out",
+        "pid": 171441,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.123542047,
+          "process_cpu_s": 1.47513839,
+          "logical_macs": 64424509440,
+          "logical_gmac_per_wall_s": 521.478404,
+          "logical_gmac_per_cpu_s": 43.673536,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 13,
+        "case": "1:ssm_out",
+        "pid": 171459,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.069795431,
+          "process_cpu_s": 0.06959,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 57.690479,
+          "logical_gmac_per_cpu_s": 57.860782,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 14,
+        "case": "1:ssm_out",
+        "pid": 171461,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 508264448,
+          "wall_s": 0.039894541,
+          "process_cpu_s": 0.54413835,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 100.929394,
+          "logical_gmac_per_cpu_s": 7.399831,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 15,
+        "case": "1:ssm_out",
+        "pid": 171478,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 31766528,
+          "wall_s": 0.004741877,
+          "process_cpu_s": 0.00471763,
+          "logical_macs": 251658240,
+          "logical_gmac_per_wall_s": 53.07144,
+          "logical_gmac_per_cpu_s": 53.344209,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 16,
+        "case": "1:ffn_down",
+        "pid": 171480,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.284092702,
+          "process_cpu_s": 3.36578066,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 642.523052,
+          "logical_gmac_per_cpu_s": 54.232919,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 17,
+        "case": "1:ffn_down",
+        "pid": 171504,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.150817813,
+          "process_cpu_s": 0.15022781,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 75.644293,
+          "logical_gmac_per_cpu_s": 75.941378,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 18,
+        "case": "1:ffn_down",
+        "pid": 171507,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1432272896,
+          "wall_s": 0.10663621,
+          "process_cpu_s": 1.60269652,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 106.9853,
+          "logical_gmac_per_cpu_s": 7.11832,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 19,
+        "case": "1:ffn_down",
+        "pid": 171525,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 89517056,
+          "wall_s": 0.035869677,
+          "process_cpu_s": 0.03578122,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 19.878397,
+          "logical_gmac_per_cpu_s": 19.92754,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 20,
+        "case": "1:ffn_gate_member",
+        "pid": 171529,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.287730429,
+          "process_cpu_s": 4.29340963,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 634.399743,
+          "logical_gmac_per_cpu_s": 42.515419,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 21,
+        "case": "1:ffn_gate_member",
+        "pid": 171546,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.207484252,
+          "process_cpu_s": 0.20662823,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 54.984929,
+          "logical_gmac_per_cpu_s": 55.212721,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 22,
+        "case": "1:ffn_gate_member",
+        "pid": 171549,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1441120256,
+          "wall_s": 0.116946977,
+          "process_cpu_s": 1.61717364,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 97.552816,
+          "logical_gmac_per_cpu_s": 7.054596,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 23,
+        "case": "1:ffn_gate_member",
+        "pid": 171570,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 90070016,
+          "wall_s": 0.018106847,
+          "process_cpu_s": 0.01804547,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 39.379119,
+          "logical_gmac_per_cpu_s": 39.513057,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 24,
+        "case": "2:ffn_gate_member",
+        "pid": 171573,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 90070016,
+          "wall_s": 0.016367473,
+          "process_cpu_s": 0.01631576,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 43.563944,
+          "logical_gmac_per_cpu_s": 43.702021,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 25,
+        "case": "2:ffn_gate_member",
+        "pid": 171575,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1441120256,
+          "wall_s": 0.11773734,
+          "process_cpu_s": 1.61800018,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 96.89795,
+          "logical_gmac_per_cpu_s": 7.050992,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 26,
+        "case": "2:ffn_gate_member",
+        "pid": 171592,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.207307443,
+          "process_cpu_s": 0.20657229,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 55.031825,
+          "logical_gmac_per_cpu_s": 55.227673,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 27,
+        "case": "2:ffn_gate_member",
+        "pid": 171601,
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.374485189,
+          "process_cpu_s": 4.45067153,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 487.432121,
+          "logical_gmac_per_cpu_s": 41.013161,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 28,
+        "case": "2:ffn_down",
+        "pid": 171622,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 89517056,
+          "wall_s": 0.034564399,
+          "process_cpu_s": 0.03445194,
+          "logical_macs": 713031680,
+          "logical_gmac_per_wall_s": 20.629078,
+          "logical_gmac_per_cpu_s": 20.696416,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 29,
+        "case": "2:ffn_down",
+        "pid": 171624,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1432272896,
+          "wall_s": 0.118011998,
+          "process_cpu_s": 1.59900492,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 96.672432,
+          "logical_gmac_per_cpu_s": 7.134754,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 30,
+        "case": "2:ffn_down",
+        "pid": 171641,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.151461407,
+          "process_cpu_s": 0.15099865,
+          "logical_macs": 11408506880,
+          "logical_gmac_per_wall_s": 75.322863,
+          "logical_gmac_per_cpu_s": 75.553701,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 31,
+        "case": "2:ffn_down",
+        "pid": 171647,
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.296352832,
+          "process_cpu_s": 3.45156135,
+          "logical_macs": 182536110080,
+          "logical_gmac_per_wall_s": 615.941845,
+          "logical_gmac_per_cpu_s": 52.885083,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 32,
+        "case": "2:ssm_out",
+        "pid": 171665,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 31766528,
+          "wall_s": 0.006238244,
+          "process_cpu_s": 0.00620156,
+          "logical_macs": 251658240,
+          "logical_gmac_per_wall_s": 40.341199,
+          "logical_gmac_per_cpu_s": 40.579828,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 33,
+        "case": "2:ssm_out",
+        "pid": 171667,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 1,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 508264448,
+          "wall_s": 0.043545838,
+          "process_cpu_s": 0.56186823,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 92.466514,
+          "logical_gmac_per_cpu_s": 7.166328,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 34,
+        "case": "2:ssm_out",
+        "pid": 171690,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.070047159,
+          "process_cpu_s": 0.06972715,
+          "logical_macs": 4026531840,
+          "logical_gmac_per_wall_s": 57.483157,
+          "logical_gmac_per_cpu_s": 57.746973,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      },
+      {
+        "index": 35,
+        "case": "2:ssm_out",
+        "pid": 171692,
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 8,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.123089982,
+          "process_cpu_s": 1.52006049,
+          "logical_macs": 64424509440,
+          "logical_gmac_per_wall_s": 523.393605,
+          "logical_gmac_per_cpu_s": 42.382859,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "reaped": true
+      }
+    ],
+    "error": null
+  },
+  "medians": [
+    {
+      "shape": "ffn_gate_member",
+      "K": 5120,
+      "N": 17408,
+      "b": 1,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 43.563944,
+      "median_logical_gmac_per_cpu_s": 43.702021,
+      "median_wall_s": 0.016367473,
+      "min_wall_gmac_s": 39.379119,
+      "max_wall_gmac_s": 44.0094
+    },
+    {
+      "shape": "ffn_gate_member",
+      "K": 5120,
+      "N": 17408,
+      "b": 1,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 97.552816,
+      "median_logical_gmac_per_cpu_s": 7.054596,
+      "median_wall_s": 0.116946977,
+      "min_wall_gmac_s": 96.89795,
+      "max_wall_gmac_s": 109.339263
+    },
+    {
+      "shape": "ffn_gate_member",
+      "K": 5120,
+      "N": 17408,
+      "b": 16,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 55.031825,
+      "median_logical_gmac_per_cpu_s": 55.227673,
+      "median_wall_s": 0.207307443,
+      "min_wall_gmac_s": 54.984929,
+      "max_wall_gmac_s": 55.453763
+    },
+    {
+      "shape": "ffn_gate_member",
+      "K": 5120,
+      "N": 17408,
+      "b": 16,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 487.432121,
+      "median_logical_gmac_per_cpu_s": 41.013161,
+      "median_wall_s": 0.374485189,
+      "min_wall_gmac_s": 477.28278,
+      "max_wall_gmac_s": 634.399743
+    },
+    {
+      "shape": "ffn_down",
+      "K": 17408,
+      "N": 5120,
+      "b": 1,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 19.911008,
+      "median_logical_gmac_per_cpu_s": 19.989854,
+      "median_wall_s": 0.035810928,
+      "min_wall_gmac_s": 19.878397,
+      "max_wall_gmac_s": 20.629078
+    },
+    {
+      "shape": "ffn_down",
+      "K": 17408,
+      "N": 5120,
+      "b": 1,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 96.672432,
+      "median_logical_gmac_per_cpu_s": 7.11832,
+      "median_wall_s": 0.118011998,
+      "min_wall_gmac_s": 90.95377,
+      "max_wall_gmac_s": 106.9853
+    },
+    {
+      "shape": "ffn_down",
+      "K": 17408,
+      "N": 5120,
+      "b": 16,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 75.322863,
+      "median_logical_gmac_per_cpu_s": 75.553701,
+      "median_wall_s": 0.151461407,
+      "min_wall_gmac_s": 71.271039,
+      "max_wall_gmac_s": 75.644293
+    },
+    {
+      "shape": "ffn_down",
+      "K": 17408,
+      "N": 5120,
+      "b": 16,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 615.941845,
+      "median_logical_gmac_per_cpu_s": 52.885083,
+      "median_wall_s": 0.296352832,
+      "min_wall_gmac_s": 539.986018,
+      "max_wall_gmac_s": 642.523052
+    },
+    {
+      "shape": "ssm_out",
+      "K": 6144,
+      "N": 5120,
+      "b": 1,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 53.07144,
+      "median_logical_gmac_per_cpu_s": 53.344209,
+      "median_wall_s": 0.004741877,
+      "min_wall_gmac_s": 40.341199,
+      "max_wall_gmac_s": 54.847961
+    },
+    {
+      "shape": "ssm_out",
+      "K": 6144,
+      "N": 5120,
+      "b": 1,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 100.929394,
+      "median_logical_gmac_per_cpu_s": 7.399831,
+      "median_wall_s": 0.039894541,
+      "min_wall_gmac_s": 92.466514,
+      "max_wall_gmac_s": 112.072232
+    },
+    {
+      "shape": "ssm_out",
+      "K": 6144,
+      "N": 5120,
+      "b": 16,
+      "threads": 1,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 57.534756,
+      "median_logical_gmac_per_cpu_s": 57.828656,
+      "median_wall_s": 0.069984339,
+      "min_wall_gmac_s": 57.483157,
+      "max_wall_gmac_s": 57.690479
+    },
+    {
+      "shape": "ssm_out",
+      "K": 6144,
+      "N": 5120,
+      "b": 16,
+      "threads": 16,
+      "samples": 3,
+      "median_logical_gmac_per_wall_s": 521.478404,
+      "median_logical_gmac_per_cpu_s": 42.382859,
+      "median_wall_s": 0.123542047,
+      "min_wall_gmac_s": 504.450508,
+      "max_wall_gmac_s": 523.393605
+    }
+  ],
+  "interpretation": "Standalone repeated same-shape kernel lanes. No PRF/AEAD/file, no mixed dealer schedule, no complete output head. One logical MAC is one K*N*b product; residue kernel executes three plane MACs per logical MAC. buffer_bytes is a calculated upper bound for owned buffers and kernel scratch, not measured RSS.",
+  "host_cpu": "AMD EPYC 9115,16physical cores,32logical CPUs; no task-specific affinity"
+}

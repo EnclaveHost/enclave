@@ -1,0 +1,2629 @@
+{
+  "status": "PROFILE_PARSED",
+  "bridge_tid": 22985,
+  "identity": "Unique sampled thread whose stack contains anchor_bridge_run_profile",
+  "trace_errors": [],
+  "windows": [
+    {
+      "trial": "whole_probe",
+      "bridge_cpu_samples": 719,
+      "modes": [
+        {
+          "cpu_mode": "kernel",
+          "unwind_error": "[NULL]",
+          "samples": "704",
+          "with_callstack": "704"
+        },
+        {
+          "cpu_mode": "user",
+          "unwind_error": "[NULL]",
+          "samples": "15",
+          "with_callstack": "15"
+        }
+      ],
+      "leaf_functions": [
+        {
+          "function": "_raw_spin_unlock_irqrestore",
+          "module": "/kernel",
+          "samples": "198",
+          "percent_of_bridge_cpu_samples": 27.538247566063976
+        },
+        {
+          "function": "__arch_copy_to_user",
+          "module": "/kernel",
+          "samples": "34",
+          "percent_of_bridge_cpu_samples": 4.728789986091794
+        },
+        {
+          "function": "finish_task_switch",
+          "module": "/kernel",
+          "samples": "27",
+          "percent_of_bridge_cpu_samples": 3.755215577190542
+        },
+        {
+          "function": "__arch_copy_from_user",
+          "module": "/kernel",
+          "samples": "26",
+          "percent_of_bridge_cpu_samples": 3.6161335187760777
+        },
+        {
+          "function": "__memcpy___memmove___pi_memcpy___pi_memmove",
+          "module": "/kernel",
+          "samples": "22",
+          "percent_of_bridge_cpu_samples": 3.0598052851182196
+        },
+        {
+          "function": "do_csum",
+          "module": "/kernel",
+          "samples": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "__memset___pi_memset",
+          "module": "/kernel",
+          "samples": "14",
+          "percent_of_bridge_cpu_samples": 1.9471488178025034
+        },
+        {
+          "function": "ipt_do_table",
+          "module": "/kernel",
+          "samples": "14",
+          "percent_of_bridge_cpu_samples": 1.9471488178025034
+        },
+        {
+          "function": "skb_copy_and_csum_bits",
+          "module": "/kernel",
+          "samples": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "___slab_alloc",
+          "module": "/kernel",
+          "samples": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "dev_hard_start_xmit",
+          "module": "/kernel",
+          "samples": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "el0_svc_common",
+          "module": "/kernel",
+          "samples": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "skb_release_data",
+          "module": "/kernel",
+          "samples": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "slab_post_alloc_hook",
+          "module": "/kernel",
+          "samples": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "__dev_queue_xmit",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "__kmem_cache_free",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "eth_start_xmit",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "free_unref_page_prepare",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "handle_softirqs",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "tcp_gso_segment",
+          "module": "/kernel",
+          "samples": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "__alloc_skb",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "__check_object_size",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "__htab_map_lookup_elem",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "__kmem_cache_alloc_node",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "clear_page___pi_clear_page",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "kfree",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "kmem_cache_free_bulk",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "load_balance",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "preempt_schedule_irq",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "slab_pre_alloc_hook",
+          "module": "/kernel",
+          "samples": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "__sys_sendto",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "__traceiter_net_dev_xmit",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "inet_gso_segment",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "ip_finish_output2",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "ktime_get",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "memblock_is_map_memory",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "post_alloc_hook",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "skb_segment",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "tcp_poll",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "tcp_sendmsg_locked",
+          "module": "/kernel",
+          "samples": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "__arm64_sys_clock_gettime",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__seccomp_filter",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__slab_free",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__tcp_transmit_skb",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "_raw_spin_lock_bh",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "_raw_spin_lock_irqsave",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "bpf_prog_d79ed1e505afb967_cgroupskb_egress_stats_5_10_25q2",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "cmpxchg_double_slab",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "do_softirq",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "do_sys_poll",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "kmem_cache_alloc_node",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "read",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "trace_event_buffer_lock_reserve",
+          "module": "/kernel",
+          "samples": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__copy_skb_header",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__fget_files",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__kernel_clock_gettime",
+          "module": "/[vdso]",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__sendto",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__traceiter_android_vh_rmqueue",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "_copy_from_iter",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "_raw_spin_trylock",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "arch_counter_get_cntpct",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "bpf_mt_v1",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "cpu_util",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "free_unref_page",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "get_page_from_freelist",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "hook_softirq_end",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "invoke_syscall",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "mem_cgroup_charge_skmem",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "mem_cgroup_uncharge_skmem",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "net_tx_action",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "netdev_core_pick_tx",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_nat_inet_fn",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_nat_ipv4_local_fn",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "put_cpu_partial",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "ring_buffer_lock_reserve",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "selinux_file_permission",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "tcp_stream_alloc_skb",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "tcp_write_xmit",
+          "module": "/kernel",
+          "samples": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "",
+          "module": "/data/app/~~Kk_WWJjJ_Zevos0r9iShIQ==/host.enclave.anchor.avf-Wd-fr_ICcuG-DqMEJnBvTg==/base.apk",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_ZL19__android_log_levelPKcm.__uniq.322530350400203086403630799066394170300.llvm.11813774269532983329",
+          "module": "/system/lib64/liblog.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_ZN16SystemProperties10AreaSerialEv",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__alloc_pages",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__arm64_sys_ppoll",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__build_skb_around",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__check_heap_object",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__ip_queue_xmit",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__kfree_skb_defer",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__kmalloc_large_node",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__kmalloc_node_track_caller",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__list_del_entry_valid",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__next_zones_zonelist",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__nf_conntrack_find_get",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__page_cache_release",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__ppoll",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__release_sock",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__sk_dst_check",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__sk_mem_raise_allocated",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__skb_gso_segment",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__tcp_ack_snd_check",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__tcp_cleanup_rbuf",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__traceiter_sched_cpu_capacity_tp",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_copy_to_iter",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_raw_spin_unlock_bh",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_raw_spin_unlock_irq",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "add_wait_queue",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "anchor_bridge_run_profile",
+          "module": "/data/app/~~Kk_WWJjJ_Zevos0r9iShIQ==/host.enclave.anchor.avf-Wd-fr_ICcuG-DqMEJnBvTg==/base.apk",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "avc_has_perm",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "avc_lookup",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "bpf_get_socket_uid",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "copyout",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "cubictcp_acked",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "do_notify_resume",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "dwc3_gadget_ep_queue",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "fput",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "free_unref_page_commit",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "hook_softirq_begin",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "htab_map_hash",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "idle_cpu",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "inet6_recvmsg",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ip_neigh_gw4",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ip_send_check",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ipv4_confirm",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ipv4_mtu",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kernel_init_pages",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kmalloc_size_roundup",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ksys_read",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "mark_tg",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "migrate_disable",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "netif_skb_features",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "nf_conntrack_tcp_packet",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "nf_ct_get_tuple",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "nf_hook_slow",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "nf_nat_ipv4_out",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ns_to_timespec64",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "page_counter_try_charge",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "policy_mt",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "poll",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "poll_select_finish",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "queued_spin_lock_slowpath",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "rebalance_domains",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "release_sock",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "schedule",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "selinux_ip_output",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "sendto",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_page_frag_refill",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_push",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_release_head_state",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "snprintf",
+          "module": "/apex/com.android.runtime/lib64/bionic/libc.so",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "sock_read_iter",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "syscall_trace_enter",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "syscall_trace_exit",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "task_rq_lock",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_ack",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_check_space",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_ecn_check_ce",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_rate_skb_sent",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_rcv_established",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_schedule_loss_probe",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_skb_entail",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_stream_memory_free",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_try_coalesce",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_v4_do_rcv",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "trace_event_buffer_reserve",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "trace_event_raw_event_net_dev_xmit",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tracing_gen_ctx_irq_test",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "try_charge_memcg",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "try_to_wake_up",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "unix_poll",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "update_blocked_averages",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "vfs_read",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_notify_poll_in",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_send_pkt_info",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_stream_has_data",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "vsock_connectible_sendmsg",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "vsock_poll",
+          "module": "/kernel",
+          "samples": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        }
+      ],
+      "kernel_functions_inclusive": [
+        {
+          "function": "el0t_64_sync_handler",
+          "samples_containing": "703",
+          "percent_of_bridge_cpu_samples": 97.77468706536857
+        },
+        {
+          "function": "el0t_64_sync",
+          "samples_containing": "703",
+          "percent_of_bridge_cpu_samples": 97.77468706536857
+        },
+        {
+          "function": "el0_svc",
+          "samples_containing": "703",
+          "percent_of_bridge_cpu_samples": 97.77468706536857
+        },
+        {
+          "function": "do_el0_svc",
+          "samples_containing": "702",
+          "percent_of_bridge_cpu_samples": 97.63560500695411
+        },
+        {
+          "function": "el0_svc_common",
+          "samples_containing": "700",
+          "percent_of_bridge_cpu_samples": 97.35744089012518
+        },
+        {
+          "function": "invoke_syscall",
+          "samples_containing": "689",
+          "percent_of_bridge_cpu_samples": 95.82753824756607
+        },
+        {
+          "function": "__sys_sendto",
+          "samples_containing": "485",
+          "percent_of_bridge_cpu_samples": 67.4547983310153
+        },
+        {
+          "function": "__arm64_sys_sendto",
+          "samples_containing": "484",
+          "percent_of_bridge_cpu_samples": 67.31571627260084
+        },
+        {
+          "function": "tcp_sendmsg",
+          "samples_containing": "432",
+          "percent_of_bridge_cpu_samples": 60.083449235048676
+        },
+        {
+          "function": "inet6_sendmsg",
+          "samples_containing": "432",
+          "percent_of_bridge_cpu_samples": 60.083449235048676
+        },
+        {
+          "function": "tcp_sendmsg_locked",
+          "samples_containing": "415",
+          "percent_of_bridge_cpu_samples": 57.719054242002784
+        },
+        {
+          "function": "__tcp_transmit_skb",
+          "samples_containing": "398",
+          "percent_of_bridge_cpu_samples": 55.354659248956885
+        },
+        {
+          "function": "ip_queue_xmit",
+          "samples_containing": "395",
+          "percent_of_bridge_cpu_samples": 54.93741307371349
+        },
+        {
+          "function": "__ip_queue_xmit",
+          "samples_containing": "395",
+          "percent_of_bridge_cpu_samples": 54.93741307371349
+        },
+        {
+          "function": "tcp_write_xmit",
+          "samples_containing": "370",
+          "percent_of_bridge_cpu_samples": 51.46036161335188
+        },
+        {
+          "function": "ip_output",
+          "samples_containing": "369",
+          "percent_of_bridge_cpu_samples": 51.32127955493741
+        },
+        {
+          "function": "ip_finish_output",
+          "samples_containing": "352",
+          "percent_of_bridge_cpu_samples": 48.95688456189151
+        },
+        {
+          "function": "__ip_finish_output",
+          "samples_containing": "340",
+          "percent_of_bridge_cpu_samples": 47.28789986091794
+        },
+        {
+          "function": "ip_finish_output2",
+          "samples_containing": "338",
+          "percent_of_bridge_cpu_samples": 47.009735744089014
+        },
+        {
+          "function": "__dev_queue_xmit",
+          "samples_containing": "331",
+          "percent_of_bridge_cpu_samples": 46.036161335187764
+        },
+        {
+          "function": "tcp_push_one",
+          "samples_containing": "307",
+          "percent_of_bridge_cpu_samples": 42.698191933240615
+        },
+        {
+          "function": "sch_direct_xmit",
+          "samples_containing": "273",
+          "percent_of_bridge_cpu_samples": 37.96940194714882
+        },
+        {
+          "function": "_raw_spin_unlock_irqrestore",
+          "samples_containing": "200",
+          "percent_of_bridge_cpu_samples": 27.816411682892905
+        },
+        {
+          "function": "dev_hard_start_xmit",
+          "samples_containing": "149",
+          "percent_of_bridge_cpu_samples": 20.723226703755216
+        },
+        {
+          "function": "eth_start_xmit",
+          "samples_containing": "148",
+          "percent_of_bridge_cpu_samples": 20.58414464534075
+        },
+        {
+          "function": "ksys_read",
+          "samples_containing": "126",
+          "percent_of_bridge_cpu_samples": 17.52433936022253
+        },
+        {
+          "function": "__arm64_sys_read",
+          "samples_containing": "125",
+          "percent_of_bridge_cpu_samples": 17.385257301808068
+        },
+        {
+          "function": "vfs_read",
+          "samples_containing": "124",
+          "percent_of_bridge_cpu_samples": 17.2461752433936
+        },
+        {
+          "function": "validate_xmit_skb_list",
+          "samples_containing": "121",
+          "percent_of_bridge_cpu_samples": 16.82892906815021
+        },
+        {
+          "function": "validate_xmit_skb",
+          "samples_containing": "121",
+          "percent_of_bridge_cpu_samples": 16.82892906815021
+        },
+        {
+          "function": "sock_read_iter",
+          "samples_containing": "119",
+          "percent_of_bridge_cpu_samples": 16.55076495132128
+        },
+        {
+          "function": "__skb_gso_segment",
+          "samples_containing": "118",
+          "percent_of_bridge_cpu_samples": 16.411682892906814
+        },
+        {
+          "function": "skb_mac_gso_segment",
+          "samples_containing": "117",
+          "percent_of_bridge_cpu_samples": 16.27260083449235
+        },
+        {
+          "function": "inet_gso_segment",
+          "samples_containing": "116",
+          "percent_of_bridge_cpu_samples": 16.133518776077885
+        },
+        {
+          "function": "tcp_gso_segment",
+          "samples_containing": "112",
+          "percent_of_bridge_cpu_samples": 15.577190542420027
+        },
+        {
+          "function": "tcp4_gso_segment",
+          "samples_containing": "112",
+          "percent_of_bridge_cpu_samples": 15.577190542420027
+        },
+        {
+          "function": "skb_segment",
+          "samples_containing": "99",
+          "percent_of_bridge_cpu_samples": 13.769123783031988
+        },
+        {
+          "function": "inet6_recvmsg",
+          "samples_containing": "77",
+          "percent_of_bridge_cpu_samples": 10.709318497913769
+        },
+        {
+          "function": "do_softirq_own_stack",
+          "samples_containing": "77",
+          "percent_of_bridge_cpu_samples": 10.709318497913769
+        },
+        {
+          "function": "call_on_irq_stack",
+          "samples_containing": "77",
+          "percent_of_bridge_cpu_samples": 10.709318497913769
+        },
+        {
+          "function": "__do_softirq",
+          "samples_containing": "77",
+          "percent_of_bridge_cpu_samples": 10.709318497913769
+        },
+        {
+          "function": "____do_softirq",
+          "samples_containing": "77",
+          "percent_of_bridge_cpu_samples": 10.709318497913769
+        },
+        {
+          "function": "tcp_recvmsg",
+          "samples_containing": "76",
+          "percent_of_bridge_cpu_samples": 10.570236439499304
+        },
+        {
+          "function": "handle_softirqs",
+          "samples_containing": "76",
+          "percent_of_bridge_cpu_samples": 10.570236439499304
+        },
+        {
+          "function": "tcp_recvmsg_locked",
+          "samples_containing": "67",
+          "percent_of_bridge_cpu_samples": 9.318497913769123
+        },
+        {
+          "function": "__tcp_push_pending_frames",
+          "samples_containing": "63",
+          "percent_of_bridge_cpu_samples": 8.762169680111265
+        },
+        {
+          "function": "virtio_transport_send_pkt_info",
+          "samples_containing": "57",
+          "percent_of_bridge_cpu_samples": 7.927677329624478
+        },
+        {
+          "function": "tcp_push",
+          "samples_containing": "57",
+          "percent_of_bridge_cpu_samples": 7.927677329624478
+        },
+        {
+          "function": "__arm64_sys_ppoll",
+          "samples_containing": "55",
+          "percent_of_bridge_cpu_samples": 7.649513212795549
+        },
+        {
+          "function": "dwc3_gadget_ep_queue",
+          "samples_containing": "54",
+          "percent_of_bridge_cpu_samples": 7.510431154381084
+        },
+        {
+          "function": "usb_ep_queue",
+          "samples_containing": "53",
+          "percent_of_bridge_cpu_samples": 7.37134909596662
+        },
+        {
+          "function": "do_sys_poll",
+          "samples_containing": "52",
+          "percent_of_bridge_cpu_samples": 7.232267037552155
+        },
+        {
+          "function": "do_softirq",
+          "samples_containing": "52",
+          "percent_of_bridge_cpu_samples": 7.232267037552155
+        },
+        {
+          "function": "__local_bh_enable_ip",
+          "samples_containing": "52",
+          "percent_of_bridge_cpu_samples": 7.232267037552155
+        },
+        {
+          "function": "__alloc_skb",
+          "samples_containing": "52",
+          "percent_of_bridge_cpu_samples": 7.232267037552155
+        },
+        {
+          "function": "local_bh_enable",
+          "samples_containing": "50",
+          "percent_of_bridge_cpu_samples": 6.954102920723226
+        },
+        {
+          "function": "vsock_connectible_sendmsg",
+          "samples_containing": "48",
+          "percent_of_bridge_cpu_samples": 6.675938803894297
+        },
+        {
+          "function": "virtio_transport_stream_enqueue",
+          "samples_containing": "45",
+          "percent_of_bridge_cpu_samples": 6.258692628650904
+        },
+        {
+          "function": "vsock_connectible_recvmsg",
+          "samples_containing": "41",
+          "percent_of_bridge_cpu_samples": 5.702364394993046
+        },
+        {
+          "function": "__tcp_cleanup_rbuf",
+          "samples_containing": "40",
+          "percent_of_bridge_cpu_samples": 5.563282336578581
+        },
+        {
+          "function": "tcp_send_ack",
+          "samples_containing": "39",
+          "percent_of_bridge_cpu_samples": 5.4242002781641165
+        },
+        {
+          "function": "__tcp_send_ack",
+          "samples_containing": "39",
+          "percent_of_bridge_cpu_samples": 5.4242002781641165
+        },
+        {
+          "function": "nf_hook_slow",
+          "samples_containing": "38",
+          "percent_of_bridge_cpu_samples": 5.285118219749652
+        },
+        {
+          "function": "virtio_transport_stream_dequeue",
+          "samples_containing": "37",
+          "percent_of_bridge_cpu_samples": 5.1460361613351875
+        },
+        {
+          "function": "_copy_to_iter",
+          "samples_containing": "37",
+          "percent_of_bridge_cpu_samples": 5.1460361613351875
+        },
+        {
+          "function": "__arch_copy_to_user",
+          "samples_containing": "35",
+          "percent_of_bridge_cpu_samples": 4.867872044506258
+        },
+        {
+          "function": "net_tx_action",
+          "samples_containing": "34",
+          "percent_of_bridge_cpu_samples": 4.728789986091794
+        },
+        {
+          "function": "el1h_64_irq_handler",
+          "samples_containing": "33",
+          "percent_of_bridge_cpu_samples": 4.589707927677329
+        },
+        {
+          "function": "el1h_64_irq",
+          "samples_containing": "33",
+          "percent_of_bridge_cpu_samples": 4.589707927677329
+        },
+        {
+          "function": "el1_interrupt",
+          "samples_containing": "33",
+          "percent_of_bridge_cpu_samples": 4.589707927677329
+        },
+        {
+          "function": "vhost_work_queue",
+          "samples_containing": "32",
+          "percent_of_bridge_cpu_samples": 4.450625869262865
+        },
+        {
+          "function": "vhost_transport_send_pkt",
+          "samples_containing": "32",
+          "percent_of_bridge_cpu_samples": 4.450625869262865
+        },
+        {
+          "function": "try_to_wake_up",
+          "samples_containing": "32",
+          "percent_of_bridge_cpu_samples": 4.450625869262865
+        },
+        {
+          "function": "__kfree_skb_defer",
+          "samples_containing": "32",
+          "percent_of_bridge_cpu_samples": 4.450625869262865
+        },
+        {
+          "function": "wake_up_process",
+          "samples_containing": "31",
+          "percent_of_bridge_cpu_samples": 4.3115438108484
+        },
+        {
+          "function": "skb_copy_and_csum_bits",
+          "samples_containing": "31",
+          "percent_of_bridge_cpu_samples": 4.3115438108484
+        },
+        {
+          "function": "schedule",
+          "samples_containing": "31",
+          "percent_of_bridge_cpu_samples": 4.3115438108484
+        },
+        {
+          "function": "finish_task_switch",
+          "samples_containing": "30",
+          "percent_of_bridge_cpu_samples": 4.172461752433936
+        },
+        {
+          "function": "__schedule",
+          "samples_containing": "30",
+          "percent_of_bridge_cpu_samples": 4.172461752433936
+        },
+        {
+          "function": "__kmem_cache_alloc_node",
+          "samples_containing": "30",
+          "percent_of_bridge_cpu_samples": 4.172461752433936
+        },
+        {
+          "function": "__kmalloc_node_track_caller",
+          "samples_containing": "30",
+          "percent_of_bridge_cpu_samples": 4.172461752433936
+        },
+        {
+          "function": "_copy_from_iter",
+          "samples_containing": "29",
+          "percent_of_bridge_cpu_samples": 4.033379694019471
+        },
+        {
+          "function": "schedule_hrtimeout_range_clock",
+          "samples_containing": "28",
+          "percent_of_bridge_cpu_samples": 3.8942976356050067
+        },
+        {
+          "function": "schedule_hrtimeout_range",
+          "samples_containing": "28",
+          "percent_of_bridge_cpu_samples": 3.8942976356050067
+        },
+        {
+          "function": "irq_exit_rcu",
+          "samples_containing": "28",
+          "percent_of_bridge_cpu_samples": 3.8942976356050067
+        },
+        {
+          "function": "__irq_exit_rcu",
+          "samples_containing": "28",
+          "percent_of_bridge_cpu_samples": 3.8942976356050067
+        },
+        {
+          "function": "__arch_copy_from_user",
+          "samples_containing": "27",
+          "percent_of_bridge_cpu_samples": 3.755215577190542
+        },
+        {
+          "function": "release_sock",
+          "samples_containing": "26",
+          "percent_of_bridge_cpu_samples": 3.6161335187760777
+        },
+        {
+          "function": "skb_release_data",
+          "samples_containing": "25",
+          "percent_of_bridge_cpu_samples": 3.477051460361613
+        },
+        {
+          "function": "ipt_do_table",
+          "samples_containing": "25",
+          "percent_of_bridge_cpu_samples": 3.477051460361613
+        },
+        {
+          "function": "virtio_transport_alloc_pkt",
+          "samples_containing": "24",
+          "percent_of_bridge_cpu_samples": 3.3379694019471486
+        },
+        {
+          "function": "skb_copy_datagram_iter",
+          "samples_containing": "24",
+          "percent_of_bridge_cpu_samples": 3.3379694019471486
+        },
+        {
+          "function": "kfree",
+          "samples_containing": "24",
+          "percent_of_bridge_cpu_samples": 3.3379694019471486
+        },
+        {
+          "function": "__ip_local_out",
+          "samples_containing": "23",
+          "percent_of_bridge_cpu_samples": 3.198887343532684
+        },
+        {
+          "function": "tcp_v4_do_rcv",
+          "samples_containing": "22",
+          "percent_of_bridge_cpu_samples": 3.0598052851182196
+        },
+        {
+          "function": "__release_sock",
+          "samples_containing": "22",
+          "percent_of_bridge_cpu_samples": 3.0598052851182196
+        },
+        {
+          "function": "__memcpy___memmove___pi_memcpy___pi_memmove",
+          "samples_containing": "22",
+          "percent_of_bridge_cpu_samples": 3.0598052851182196
+        },
+        {
+          "function": "__alloc_pages",
+          "samples_containing": "22",
+          "percent_of_bridge_cpu_samples": 3.0598052851182196
+        },
+        {
+          "function": "tcp_rcv_established",
+          "samples_containing": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "get_page_from_freelist",
+          "samples_containing": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "do_csum",
+          "samples_containing": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "__skb_datagram_iter.2",
+          "samples_containing": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "__arm64_sys_clock_gettime",
+          "samples_containing": "21",
+          "percent_of_bridge_cpu_samples": 2.920723226703755
+        },
+        {
+          "function": "sock_poll",
+          "samples_containing": "18",
+          "percent_of_bridge_cpu_samples": 2.5034770514603615
+        },
+        {
+          "function": "iptable_mangle_hook",
+          "samples_containing": "18",
+          "percent_of_bridge_cpu_samples": 2.5034770514603615
+        },
+        {
+          "function": "hrtimer_run_softirq",
+          "samples_containing": "18",
+          "percent_of_bridge_cpu_samples": 2.5034770514603615
+        },
+        {
+          "function": "thread_cpu_clock_get",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "task_sched_runtime",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "kmem_cache_alloc_node",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "__slab_alloc",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "__hrtimer_run_queues",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "___slab_alloc",
+          "samples_containing": "16",
+          "percent_of_bridge_cpu_samples": 2.2253129346314324
+        },
+        {
+          "function": "ncm_tx_timeout",
+          "samples_containing": "15",
+          "percent_of_bridge_cpu_samples": 2.086230876216968
+        },
+        {
+          "function": "__memset___pi_memset",
+          "samples_containing": "14",
+          "percent_of_bridge_cpu_samples": 1.9471488178025034
+        },
+        {
+          "function": "post_alloc_hook",
+          "samples_containing": "13",
+          "percent_of_bridge_cpu_samples": 1.8080667593880388
+        },
+        {
+          "function": "bpf_prog_d79ed1e505afb967_cgroupskb_egress_stats_5_10_25q2",
+          "samples_containing": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "__kmem_cache_free",
+          "samples_containing": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "__kmalloc_large_node",
+          "samples_containing": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "__kmalloc",
+          "samples_containing": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "__cgroup_bpf_run_filter_skb",
+          "samples_containing": "12",
+          "percent_of_bridge_cpu_samples": 1.6689847009735743
+        },
+        {
+          "function": "skb_page_frag_refill",
+          "samples_containing": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "sk_page_frag_refill",
+          "samples_containing": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "run_rebalance_domains",
+          "samples_containing": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "prep_new_page",
+          "samples_containing": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "__slab_free",
+          "samples_containing": "11",
+          "percent_of_bridge_cpu_samples": 1.5299026425591098
+        },
+        {
+          "function": "rebalance_domains",
+          "samples_containing": "10",
+          "percent_of_bridge_cpu_samples": 1.3908205841446453
+        },
+        {
+          "function": "__traceiter_net_dev_xmit",
+          "samples_containing": "10",
+          "percent_of_bridge_cpu_samples": 1.3908205841446453
+        },
+        {
+          "function": "vsock_poll",
+          "samples_containing": "9",
+          "percent_of_bridge_cpu_samples": 1.2517385257301807
+        },
+        {
+          "function": "free_unref_page",
+          "samples_containing": "9",
+          "percent_of_bridge_cpu_samples": 1.2517385257301807
+        },
+        {
+          "function": "__check_object_size",
+          "samples_containing": "9",
+          "percent_of_bridge_cpu_samples": 1.2517385257301807
+        },
+        {
+          "function": "tcp_stream_alloc_skb",
+          "samples_containing": "8",
+          "percent_of_bridge_cpu_samples": 1.1126564673157162
+        },
+        {
+          "function": "load_balance",
+          "samples_containing": "8",
+          "percent_of_bridge_cpu_samples": 1.1126564673157162
+        },
+        {
+          "function": "kmem_cache_free_bulk",
+          "samples_containing": "8",
+          "percent_of_bridge_cpu_samples": 1.1126564673157162
+        },
+        {
+          "function": "tcp_ack",
+          "samples_containing": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "slab_post_alloc_hook",
+          "samples_containing": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "clear_page___pi_clear_page",
+          "samples_containing": "7",
+          "percent_of_bridge_cpu_samples": 0.9735744089012517
+        },
+        {
+          "function": "trace_event_raw_event_net_dev_xmit",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "nf_conntrack_in",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "kvfree",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "ktime_get",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "ipv4_conntrack_local",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "free_unref_page_prepare",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "free_large_kmalloc",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "__htab_map_lookup_elem",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "__free_pages",
+          "samples_containing": "6",
+          "percent_of_bridge_cpu_samples": 0.8344923504867872
+        },
+        {
+          "function": "trace_event_buffer_reserve",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "tcp_poll",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "tcp_data_queue",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "slab_pre_alloc_hook",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "selinux_file_permission",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "put_cpu_partial",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "preempt_schedule_irq",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "lock_sock_nested",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "bpf_mt_v1",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "__sk_mem_raise_allocated",
+          "samples_containing": "5",
+          "percent_of_bridge_cpu_samples": 0.6954102920723226
+        },
+        {
+          "function": "trace_event_buffer_lock_reserve",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "tcp_trim_head",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "syscall_trace_enter",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "memblock_is_map_memory",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "mem_cgroup_charge_skmem",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "hook_softirq_end",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "_raw_spin_lock_bh",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "__sk_mem_schedule",
+          "samples_containing": "4",
+          "percent_of_bridge_cpu_samples": 0.5563282336578581
+        },
+        {
+          "function": "security_file_permission",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "nf_nat_ipv4_out",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "kmalloc_trace",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "get_populated_pcp_list",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "cmpxchg_double_slab",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "_raw_spin_unlock_bh",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "_raw_spin_lock_irqsave",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__unfreeze_partials",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__secure_computing",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__seccomp_filter",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "__kfree_skb",
+          "samples_containing": "3",
+          "percent_of_bridge_cpu_samples": 0.4172461752433936
+        },
+        {
+          "function": "virtio_transport_notify_poll_in",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "unix_poll",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "try_charge_memcg",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "trace_event_raw_event_net_dev_template",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "tcp_try_rmem_schedule",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "tcp_rcv_space_adjust",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "tcp_mstamp_refresh",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "sk_reset_timer",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "ring_buffer_lock_reserve",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_nat_ipv4_local_fn",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_nat_inet_fn",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_ct_get_tuple",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "nf_conntrack_tcp_packet",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "new_slab",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "netdev_core_pick_tx",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "mod_timer",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "mem_cgroup_uncharge_skmem",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "htab_map_hash",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "hook_softirq_begin",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "free_compound_page",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "file_has_perm",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "do_notify_resume",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "destroy_large_folio",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "cpu_util",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "cpu_overutilized",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "bpf_prog_ac07339589cf4481_skfilter_egress_xtbpf_",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "avc_has_perm",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "arch_counter_get_cntpct",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "alloc_slab_page",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "add_wait_queue",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "_raw_spin_trylock",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__wake_up",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__traceiter_net_dev_queue",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__traceiter_android_vh_rmqueue",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__traceiter_android_rvh_cpu_overutilized",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__tcp_ack_snd_check",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__sk_mem_reduce_allocated",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__sk_mem_reclaim",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__pskb_trim_head",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__folio_put",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__fget_files",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__fdget",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "__copy_skb_header",
+          "samples_containing": "2",
+          "percent_of_bridge_cpu_samples": 0.27816411682892905
+        },
+        {
+          "function": "vsock_stream_has_space",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "vsock_stream_has_data",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_stream_has_space",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_stream_has_data",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "virtio_transport_notify_poll_out",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "update_group_capacity",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "update_blocked_averages",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tracing_gen_ctx_irq_test",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_try_coalesce",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_stream_memory_free",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_skb_entail",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_send_delayed_ack",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_schedule_loss_probe",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_rtx_queue_unlink_and_free",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_rearm_rto",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_rate_skb_sent",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_event_new_data_sent",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_ecn_check_ce",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "tcp_check_space",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "task_rq_lock",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "syscall_trace_exit",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "sock_rfree",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_release_head_state",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_push",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_csum_hwoffload_help",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_checksum_help",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "skb_checksum",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "sk_forced_mem_schedule",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "selinux_socket_sendmsg",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "selinux_ip_output",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "security_socket_sendmsg",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "run_timer_softirq",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "quota_mt2",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "queued_spin_lock_slowpath",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "poll_select_finish",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "policy_mt",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "page_counter_try_charge",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ns_to_timespec64",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "netif_skb_features",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "migrate_disable",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "mark_tg",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kmem_cache_free",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kmalloc_size_roundup",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kfree_skbmem",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "kernel_init_pages",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ipv4_mtu",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ipv4_confirm",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ip_send_check",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "ip_neigh_gw4",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "idle_cpu",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "free_unref_page_commit",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "fput",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "el0t_64_irq_handler",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "el0t_64_irq",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "el0_interrupt",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "cubictcp_acked",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "csum_partial_ext",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "copyout",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "consume_skb",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "bpf_get_socket_uid",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "avc_lookup",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "_raw_spin_unlock_irq",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__traceiter_sched_cpu_capacity_tp",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__skb_checksum",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__sk_dst_check",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__run_timers",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__qdisc_run",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__pollwait",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__page_cache_release",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__nf_ct_refresh_acct",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__nf_conntrack_find_get",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__next_zones_zonelist",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__mod_timer",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__list_del_entry_valid",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__free_slab",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__el0_irq_handler_common",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__check_heap_object",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        },
+        {
+          "function": "__build_skb_around",
+          "samples_containing": "1",
+          "percent_of_bridge_cpu_samples": 0.13908205841446453
+        }
+      ],
+      "irqrestore_leaf_callers": [
+        {
+          "parent": "eth_start_xmit",
+          "grandparent": "dev_hard_start_xmit",
+          "samples": "86"
+        },
+        {
+          "parent": "dwc3_gadget_ep_queue",
+          "grandparent": "usb_ep_queue",
+          "samples": "53"
+        },
+        {
+          "parent": "try_to_wake_up",
+          "grandparent": "wake_up_process",
+          "samples": "28"
+        },
+        {
+          "parent": "task_sched_runtime",
+          "grandparent": "thread_cpu_clock_get",
+          "samples": "14"
+        },
+        {
+          "parent": "___slab_alloc",
+          "grandparent": "__slab_alloc",
+          "samples": "3"
+        },
+        {
+          "parent": "get_populated_pcp_list",
+          "grandparent": "get_page_from_freelist",
+          "samples": "3"
+        },
+        {
+          "parent": "__unfreeze_partials",
+          "grandparent": "put_cpu_partial",
+          "samples": "2"
+        },
+        {
+          "parent": "__wake_up",
+          "grandparent": "release_sock",
+          "samples": "2"
+        },
+        {
+          "parent": "eth_start_xmit",
+          "grandparent": "ncm_tx_timeout",
+          "samples": "2"
+        },
+        {
+          "parent": "hrtimer_run_softirq",
+          "grandparent": "handle_softirqs",
+          "samples": "2"
+        },
+        {
+          "parent": "__hrtimer_run_queues",
+          "grandparent": "hrtimer_run_softirq",
+          "samples": "1"
+        },
+        {
+          "parent": "__mod_timer",
+          "grandparent": "mod_timer",
+          "samples": "1"
+        },
+        {
+          "parent": "add_wait_queue",
+          "grandparent": "__pollwait",
+          "samples": "1"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "CPU-time samples are statistical, not wall-time fractions. Kernel function names are provided; kernel instruction offsets and exact source lines are not.",
+    "Inclusive counts deduplicate a function within each sampled callstack. Different functions are nested and cannot be summed as separate CPU costs.",
+    "A sample in spin_unlock_irqrestore does not alone prove lock contention; interrupt restoration and caller context matter.",
+    "Bridge-only probes have no model or pad traffic and use ping stimulus; only inference-window captures describe the actual model path.",
+    "User-frames are disabled in the combined inference capture. Bridge identity then comes from the owned Android thread snapshot."
+  ]
+}

@@ -1,0 +1,3961 @@
+{
+  "control": {
+    "label": "route-b27-head-control-1",
+    "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+    "header_bytes": 24576,
+    "shipment_row_bytes": 12640864,
+    "shipment_bytes": {
+      "64": 809039872,
+      "16": 202278400
+    },
+    "trials": [
+      {
+        "trial": 1,
+        "groups": [
+          {
+            "kind": "target",
+            "groups": 256,
+            "consumed_rows_per_group": 25,
+            "calls_per_group": 5,
+            "pad_bytes": 292556800,
+            "reply_bytes": 292465920
+          },
+          {
+            "kind": "head",
+            "groups": 5,
+            "consumed_rows_per_group": 59,
+            "calls_per_group": 49,
+            "pad_bytes": 11423344,
+            "reply_bytes": 11420829
+          },
+          {
+            "kind": "output",
+            "groups": 1,
+            "consumed_rows_per_group": 69,
+            "calls_per_group": 49,
+            "pad_bytes": 51403344,
+            "reply_bytes": 51402681
+          }
+        ],
+        "consumed_pad_cell_bytes": 355383488,
+        "uniform_shipment_cell_bytes_per_repeated_trial": 872219616,
+        "unused_yet_cells_bytes_per_repeated_trial": 516836128,
+        "reply_bytes": 355289430,
+        "combined_incoming_MB_per_s_at_20": {
+          "consumed_cells": 888.3411475,
+          "uniform_shipments": 1534.3863075
+        },
+        "optimistic_raw_5Gb_usb_ceiling_tps": {
+          "consumed_cells": 14.071170782956443,
+          "uniform_shipments": 8.146579475390684
+        }
+      },
+      {
+        "trial": 2,
+        "groups": [
+          {
+            "kind": "target",
+            "groups": 256,
+            "consumed_rows_per_group": 25,
+            "calls_per_group": 5,
+            "pad_bytes": 292556800,
+            "reply_bytes": 292465920
+          },
+          {
+            "kind": "head",
+            "groups": 5,
+            "consumed_rows_per_group": 59,
+            "calls_per_group": 49,
+            "pad_bytes": 11423344,
+            "reply_bytes": 11420829
+          },
+          {
+            "kind": "output",
+            "groups": 1,
+            "consumed_rows_per_group": 69,
+            "calls_per_group": 49,
+            "pad_bytes": 51403344,
+            "reply_bytes": 51402681
+          }
+        ],
+        "consumed_pad_cell_bytes": 355383488,
+        "uniform_shipment_cell_bytes_per_repeated_trial": 872219616,
+        "unused_yet_cells_bytes_per_repeated_trial": 516836128,
+        "reply_bytes": 355289430,
+        "combined_incoming_MB_per_s_at_20": {
+          "consumed_cells": 888.3411475,
+          "uniform_shipments": 1534.3863075
+        },
+        "optimistic_raw_5Gb_usb_ceiling_tps": {
+          "consumed_cells": 14.071170782956443,
+          "uniform_shipments": 8.146579475390684
+        }
+      }
+    ],
+    "limitations": [
+      "Uniform shipment demand is an asymptotic calculation if the observed MTP pattern repeats, not an achieved sustained rate. Startup stock, ring prefetch and file-boundary rounding are excluded.",
+      "All-group shipments follow the fastest-consumed group. Slower groups may retain unused cells for later use; these are not claimed to be immediately discarded.",
+      "Raw USB 5 Gb/s gives a deliberately generous 625 MB/s ceiling before protocol overhead and competing traffic. Both replies and pads travel toward the phone across this physical link.",
+      "Smaller shipments reduce the publication unit but retain all groups and do not remove the underlying per-token traffic requirement.",
+      "No sparse shipment format or partial-file publication has been implemented."
+    ]
+  },
+  "no_ahead": {
+    "label": "route-b27-no-ahead-1",
+    "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+    "header_bytes": 24576,
+    "shipment_row_bytes": 12640864,
+    "shipment_bytes": {
+      "64": 809039872,
+      "16": 202278400
+    },
+    "trials": [
+      {
+        "trial": 1,
+        "groups": [
+          {
+            "kind": "target",
+            "groups": 256,
+            "consumed_rows_per_group": 25,
+            "calls_per_group": 5,
+            "pad_bytes": 292556800,
+            "reply_bytes": 292465920
+          },
+          {
+            "kind": "head",
+            "groups": 5,
+            "consumed_rows_per_group": 35,
+            "calls_per_group": 25,
+            "pad_bytes": 6776560,
+            "reply_bytes": 6774885
+          },
+          {
+            "kind": "output",
+            "groups": 1,
+            "consumed_rows_per_group": 45,
+            "calls_per_group": 25,
+            "pad_bytes": 33523920,
+            "reply_bytes": 33523425
+          }
+        ],
+        "consumed_pad_cell_bytes": 332857280,
+        "uniform_shipment_cell_bytes_per_repeated_trial": 568838880,
+        "unused_yet_cells_bytes_per_repeated_trial": 235981600,
+        "reply_bytes": 332764230,
+        "combined_incoming_MB_per_s_at_20": {
+          "consumed_cells": 832.0268875,
+          "uniform_shipments": 1127.0038875
+        },
+        "optimistic_raw_5Gb_usb_ceiling_tps": {
+          "consumed_cells": 15.02355294978373,
+          "uniform_shipments": 11.091354820193555
+        }
+      },
+      {
+        "trial": 2,
+        "groups": [
+          {
+            "kind": "target",
+            "groups": 256,
+            "consumed_rows_per_group": 25,
+            "calls_per_group": 5,
+            "pad_bytes": 292556800,
+            "reply_bytes": 292465920
+          },
+          {
+            "kind": "head",
+            "groups": 5,
+            "consumed_rows_per_group": 35,
+            "calls_per_group": 25,
+            "pad_bytes": 6776560,
+            "reply_bytes": 6774885
+          },
+          {
+            "kind": "output",
+            "groups": 1,
+            "consumed_rows_per_group": 45,
+            "calls_per_group": 25,
+            "pad_bytes": 33523920,
+            "reply_bytes": 33523425
+          }
+        ],
+        "consumed_pad_cell_bytes": 332857280,
+        "uniform_shipment_cell_bytes_per_repeated_trial": 568838880,
+        "unused_yet_cells_bytes_per_repeated_trial": 235981600,
+        "reply_bytes": 332764230,
+        "combined_incoming_MB_per_s_at_20": {
+          "consumed_cells": 832.0268875,
+          "uniform_shipments": 1127.0038875
+        },
+        "optimistic_raw_5Gb_usb_ceiling_tps": {
+          "consumed_cells": 15.02355294978373,
+          "uniform_shipments": 11.091354820193555
+        }
+      }
+    ],
+    "limitations": [
+      "Uniform shipment demand is an asymptotic calculation if the observed MTP pattern repeats, not an achieved sustained rate. Startup stock, ring prefetch and file-boundary rounding are excluded.",
+      "All-group shipments follow the fastest-consumed group. Slower groups may retain unused cells for later use; these are not claimed to be immediately discarded.",
+      "Raw USB 5 Gb/s gives a deliberately generous 625 MB/s ceiling before protocol overhead and competing traffic. Both replies and pads travel toward the phone across this physical link.",
+      "Smaller shipments reduce the publication unit but retain all groups and do not remove the underlying per-token traffic requirement.",
+      "No sparse shipment format or partial-file publication has been implemented."
+    ]
+  },
+  "stall": {
+    "source_gap": {
+      "call": 2844,
+      "previous_call": 2843,
+      "tid": 131,
+      "gap_ns": 13717061652,
+      "output_projection": true,
+      "output_rows_consumed_before": 128,
+      "rows": 1,
+      "phone_request_read_end_ns": 411271544950975,
+      "request_after_ack_seconds": 0.242294759,
+      "reported_pad_wait_ms": 13715.6
+    },
+    "shipment_128": {
+      "fetch_begin": 411236747881581,
+      "fetch_end": 411243990025180,
+      "stream_begin": 411244269445387,
+      "stream_end": 411270739358038,
+      "ack_end": 411271302656216,
+      "fetch_seconds": 7.242143599,
+      "stream_seconds": 26.469912651,
+      "stream_through_ack_seconds": 27.033210829
+    },
+    "receiver_128": {
+      "mono_us": 503229414,
+      "bytes": 809039872,
+      "total_us": 27035168,
+      "cpu_us": 8158041,
+      "read_us": 20664814,
+      "write_us": 4123266,
+      "sha_us": 1675486,
+      "fsync_us": 501164,
+      "judge_publish_us": 60358
+    },
+    "total_output_rows": 143,
+    "limitations": [
+      "The source gap surrounds pad acquisition and other work before the next wire call; the independent cumulative pad-wait counter accounts for all but 1.462 ms of it.",
+      "Index inference requires the observed initial ledger window starting at zero and unique output-projection frame geometry. Ring cursor advances may precede consumption.",
+      "The shipment is currently published only after complete receipt, fsync and judgment. No partial publication was enabled."
+    ]
+  },
+  "frequencies": {
+    "b27-guest-sched-1": {
+      "label": "route-b27-guest-sched-1",
+      "scope": "Owned Android bridge, pad stream/fetch, and vhost threads only; other app and vCPU threads excluded.",
+      "frequency_intervals": 27974,
+      "schedule_intervals": 105837,
+      "trials": [
+        {
+          "trial": 1,
+          "observed_window_seconds": 18.077718206,
+          "threads_by_cpu": [
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 0,
+              "running_ns": 157653173,
+              "frequency_known_ns": 157653173,
+              "frequency_bins_ns": {
+                "1548000": 116387993,
+                "1704000": 19784343,
+                "1197000": 5596356,
+                "1425000": 3298992,
+                "955000": 1718058,
+                "1098000": 5500122,
+                "1328000": 5367309
+              },
+              "mean_reported_mhz": 1522.891651955524,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 1,
+              "running_ns": 297058194,
+              "frequency_known_ns": 297058194,
+              "frequency_bins_ns": {
+                "1548000": 228221343,
+                "1704000": 37308647,
+                "1328000": 5706912,
+                "1197000": 9487837,
+                "1425000": 9139773,
+                "955000": 865355,
+                "1098000": 6328327
+              },
+              "mean_reported_mhz": 1537.0570356089893,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 2,
+              "running_ns": 153595146,
+              "frequency_known_ns": 153595146,
+              "frequency_bins_ns": {
+                "1548000": 105415793,
+                "1704000": 15364456,
+                "1098000": 9969399,
+                "1328000": 8784870,
+                "1425000": 4686362,
+                "1197000": 5115845,
+                "955000": 3907184,
+                "820000": 351237
+              },
+              "mean_reported_mhz": 1489.6206122620567,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 3,
+              "running_ns": 274418232,
+              "frequency_known_ns": 274164081,
+              "frequency_bins_ns": {
+                "1425000": 4776045,
+                "1328000": 7666252,
+                "1548000": 196858795,
+                "1704000": 41048050,
+                "955000": 6899620,
+                "1098000": 10530229,
+                "1197000": 5739013,
+                "820000": 646077
+              },
+              "mean_reported_mhz": 1521.7917947610358,
+              "frequency_unknown_ns": 254151
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 4,
+              "running_ns": 117078790,
+              "frequency_known_ns": 117060683,
+              "frequency_bins_ns": {
+                "2367000": 80957443,
+                "2130000": 9148813,
+                "2245000": 7648879,
+                "1836000": 9983603,
+                "1945000": 4751712,
+                "1572000": 3858114,
+                "1328000": 146892,
+                "1221000": 377483,
+                "1418000": 187744
+              },
+              "mean_reported_mhz": 2245.3662182459675,
+              "frequency_unknown_ns": 18107
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 5,
+              "running_ns": 109680157,
+              "frequency_known_ns": 109680157,
+              "frequency_bins_ns": {
+                "2367000": 80831688,
+                "2245000": 6550815,
+                "2130000": 8968546,
+                "1836000": 6547122,
+                "1945000": 4148194,
+                "1572000": 1664025,
+                "1328000": 226075,
+                "1418000": 338867,
+                "1065000": 174845,
+                "1221000": 229980
+              },
+              "mean_reported_mhz": 2271.0629898533057,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 6,
+              "running_ns": 108243185,
+              "frequency_known_ns": 108243185,
+              "frequency_bins_ns": {
+                "2367000": 80682601,
+                "2245000": 6259318,
+                "1836000": 3766762,
+                "2130000": 9533656,
+                "1945000": 4676386,
+                "1572000": 2744180,
+                "1221000": 358318,
+                "1065000": 38330,
+                "1328000": 85612,
+                "1418000": 98022
+              },
+              "mean_reported_mhz": 2276.270650932897,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 7,
+              "running_ns": 126421057,
+              "frequency_known_ns": 126421057,
+              "frequency_bins_ns": {
+                "2367000": 96410827,
+                "2130000": 9454227,
+                "2245000": 5515745,
+                "1572000": 1188071,
+                "1065000": 207112,
+                "1836000": 9356299,
+                "1945000": 3431517,
+                "1328000": 282348,
+                "1221000": 280395,
+                "1418000": 294516
+              },
+              "mean_reported_mhz": 2276.5227322217374,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 79438964,
+              "frequency_known_ns": 79438964,
+              "frequency_bins_ns": {
+                "1548000": 49630452,
+                "1704000": 18923462,
+                "1197000": 1767537,
+                "1098000": 3608031,
+                "1425000": 4514770,
+                "955000": 189698,
+                "1328000": 805014
+              },
+              "mean_reported_mhz": 1546.2770411129732,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 204211422,
+              "frequency_known_ns": 204211422,
+              "frequency_bins_ns": {
+                "1704000": 76934447,
+                "1197000": 6379964,
+                "1328000": 3031614,
+                "1548000": 110943320,
+                "1425000": 3931883,
+                "1098000": 2990194
+              },
+              "mean_reported_mhz": 1583.5819586771206,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 223050546,
+              "frequency_known_ns": 223050546,
+              "frequency_bins_ns": {
+                "1548000": 133331503,
+                "1704000": 58147548,
+                "1425000": 14623615,
+                "955000": 493449,
+                "1098000": 6784995,
+                "1197000": 2280600,
+                "1328000": 7388836
+              },
+              "mean_reported_mhz": 1554.726795082582,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 137910726,
+              "frequency_known_ns": 137910726,
+              "frequency_bins_ns": {
+                "1328000": 8779699,
+                "1548000": 94906618,
+                "1704000": 22663862,
+                "1425000": 4378053,
+                "1098000": 3811686,
+                "1197000": 3370808
+              },
+              "mean_reported_mhz": 1534.709633194158,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 960150700,
+              "frequency_known_ns": 958847070,
+              "frequency_bins_ns": {
+                "2367000": 750269902,
+                "2130000": 78949592,
+                "2245000": 46145235,
+                "1945000": 28421793,
+                "1836000": 35028199,
+                "1572000": 13045249,
+                "1418000": 4200195,
+                "1328000": 579508,
+                "1221000": 505126,
+                "1065000": 1702271
+              },
+              "mean_reported_mhz": 2291.191205643461,
+              "frequency_unknown_ns": 1303630
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 627306146,
+              "frequency_known_ns": 627306146,
+              "frequency_bins_ns": {
+                "1836000": 35079554,
+                "2367000": 464942768,
+                "2245000": 31999631,
+                "2130000": 44560958,
+                "1065000": 299886,
+                "1945000": 29478524,
+                "1572000": 12027021,
+                "1418000": 3126668,
+                "1328000": 5791136
+              },
+              "mean_reported_mhz": 2264.2300618380996,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 1049215160,
+              "frequency_known_ns": 1049215160,
+              "frequency_bins_ns": {
+                "2367000": 836013566,
+                "2245000": 77937758,
+                "1945000": 27481852,
+                "2130000": 67611282,
+                "1836000": 27533982,
+                "1572000": 9679445,
+                "1418000": 1588258,
+                "1221000": 1369017
+              },
+              "mean_reported_mhz": 2307.4111970751546,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 923248237,
+              "frequency_known_ns": 923196967,
+              "frequency_bins_ns": {
+                "2367000": 671505970,
+                "1836000": 48303412,
+                "2130000": 72480352,
+                "2245000": 36698404,
+                "1945000": 41912113,
+                "1572000": 14584516,
+                "1418000": 7774537,
+                "1328000": 15748535,
+                "1221000": 13827882,
+                "1065000": 361246
+              },
+              "mean_reported_mhz": 2240.6525085095955,
+              "frequency_unknown_ns": 51270
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 0,
+              "running_ns": 888752,
+              "frequency_known_ns": 888752,
+              "frequency_bins_ns": {
+                "1704000": 726317,
+                "1548000": 162435
+              },
+              "mean_reported_mhz": 1675.4882666930707,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 1,
+              "running_ns": 20721270,
+              "frequency_known_ns": 20721270,
+              "frequency_bins_ns": {
+                "1704000": 11305093,
+                "1548000": 3258344,
+                "1197000": 5380652,
+                "1328000": 590088,
+                "1425000": 187093
+              },
+              "mean_reported_mhz": 1534.591258981713,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 45460853,
+              "frequency_known_ns": 45460853,
+              "frequency_bins_ns": {
+                "1328000": 2344275,
+                "1704000": 43116578
+              },
+              "mean_reported_mhz": 1684.6108477551004,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 113699667,
+              "frequency_known_ns": 113699667,
+              "frequency_bins_ns": {
+                "1548000": 86254639,
+                "1704000": 26488729,
+                "1425000": 956299
+              },
+              "mean_reported_mhz": 1583.3089595856072,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 96088336,
+              "frequency_known_ns": 96088336,
+              "frequency_bins_ns": {
+                "2367000": 54993406,
+                "2130000": 7146403,
+                "1572000": 6561605,
+                "1945000": 9455974,
+                "1836000": 13489093,
+                "2245000": 4441855
+              },
+              "mean_reported_mhz": 2173.3739057048506,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 87080080,
+              "frequency_known_ns": 87080080,
+              "frequency_bins_ns": {
+                "2367000": 57650232,
+                "2130000": 4733523,
+                "1836000": 10890459,
+                "1572000": 2232543,
+                "2245000": 5880415,
+                "1945000": 5692908
+              },
+              "mean_reported_mhz": 2231.4998009762967,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 109886935,
+              "frequency_known_ns": 109886935,
+              "frequency_bins_ns": {
+                "2367000": 69234183,
+                "1836000": 17023681,
+                "2245000": 1187094,
+                "2130000": 2302370,
+                "1945000": 3601644,
+                "1572000": 4645100,
+                "1418000": 11892863
+              },
+              "mean_reported_mhz": 2128.307956910437,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 226834443,
+              "frequency_known_ns": 226834443,
+              "frequency_bins_ns": {
+                "2245000": 23857385,
+                "2367000": 126007322,
+                "1572000": 3775677,
+                "1836000": 23300012,
+                "1945000": 18210859,
+                "2130000": 29934571,
+                "1418000": 1748617
+              },
+              "mean_reported_mhz": 2213.921466353326,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 1426067504,
+              "frequency_known_ns": 1426067504,
+              "frequency_bins_ns": {
+                "1548000": 1175474365,
+                "1704000": 250593139
+              },
+              "mean_reported_mhz": 1575.4128185197046,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 132106381,
+              "frequency_known_ns": 132106381,
+              "frequency_bins_ns": {
+                "1548000": 121921688,
+                "1197000": 96599,
+                "1704000": 9755941,
+                "1425000": 261881,
+                "1328000": 70272
+              },
+              "mean_reported_mhz": 1558.9029505849533,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 35382163,
+              "frequency_known_ns": 35382163,
+              "frequency_bins_ns": {
+                "1548000": 4621542,
+                "1704000": 30760621
+              },
+              "mean_reported_mhz": 1683.6236156619368,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 86301067,
+              "frequency_known_ns": 86301067,
+              "frequency_bins_ns": {
+                "1548000": 79632040,
+                "1704000": 6669027
+              },
+              "mean_reported_mhz": 1560.0551025400416,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 1202245232,
+              "frequency_known_ns": 1202245232,
+              "frequency_bins_ns": {
+                "2367000": 666108760,
+                "2245000": 67516883,
+                "2130000": 131291013,
+                "1836000": 60922327,
+                "1945000": 66973429,
+                "1572000": 74965903,
+                "1418000": 60677003,
+                "1328000": 49798381,
+                "910000": 1194580,
+                "1221000": 22796953
+              },
+              "mean_reported_mhz": 2120.1682701894883,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 812093206,
+              "frequency_known_ns": 812093206,
+              "frequency_bins_ns": {
+                "2367000": 601374096,
+                "1945000": 13462890,
+                "1836000": 40933348,
+                "2130000": 41782347,
+                "1572000": 16451255,
+                "1221000": 2613973,
+                "1328000": 3964477,
+                "1418000": 3984008,
+                "2245000": 87526812
+              },
+              "mean_reported_mhz": 2278.3748149630496,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 885172475,
+              "frequency_known_ns": 885172475,
+              "frequency_bins_ns": {
+                "2367000": 521330758,
+                "1418000": 24635581,
+                "1945000": 46757041,
+                "1328000": 2535035,
+                "1572000": 27361896,
+                "1836000": 47407346,
+                "2245000": 85639329,
+                "1221000": 11501587,
+                "1065000": 2417927,
+                "2130000": 115585975
+              },
+              "mean_reported_mhz": 2201.1098654801713,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 772416598,
+              "frequency_known_ns": 772416598,
+              "frequency_bins_ns": {
+                "2367000": 667654408,
+                "2130000": 47390864,
+                "1418000": 392619,
+                "1836000": 9849361,
+                "1945000": 3448607,
+                "2245000": 43680739
+              },
+              "mean_reported_mhz": 2336.4224551062794,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        },
+        {
+          "trial": 2,
+          "observed_window_seconds": 22.925,
+          "threads_by_cpu": [
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 0,
+              "running_ns": 363136456,
+              "frequency_known_ns": 363136456,
+              "frequency_bins_ns": {
+                "1548000": 270642523,
+                "1328000": 11274779,
+                "1425000": 19740153,
+                "1197000": 5565066,
+                "1098000": 3488689,
+                "1704000": 46663972,
+                "820000": 3362632,
+                "955000": 2398642
+              },
+              "mean_reported_mhz": 1534.16897449426,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 1,
+              "running_ns": 172076704,
+              "frequency_known_ns": 172076704,
+              "frequency_bins_ns": {
+                "1328000": 14541701,
+                "1425000": 11800209,
+                "1548000": 121745581,
+                "1197000": 1820676,
+                "1704000": 12500691,
+                "1098000": 1992433,
+                "955000": 6835855,
+                "820000": 839558
+              },
+              "mean_reported_mhz": 1496.2730416779716,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 2,
+              "running_ns": 344363883,
+              "frequency_known_ns": 344363883,
+              "frequency_bins_ns": {
+                "1328000": 6653685,
+                "1197000": 6412274,
+                "1098000": 8645187,
+                "1425000": 83246742,
+                "1704000": 14365965,
+                "1548000": 216738717,
+                "955000": 7208011,
+                "820000": 1093302
+              },
+              "mean_reported_mhz": 1487.9664507529092,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 3,
+              "running_ns": 430481355,
+              "frequency_known_ns": 430481355,
+              "frequency_bins_ns": {
+                "1548000": 292803693,
+                "1328000": 9578938,
+                "1197000": 7236044,
+                "1425000": 59840495,
+                "1704000": 26592699,
+                "1098000": 12905234,
+                "955000": 8580201,
+                "820000": 12944051
+              },
+              "mean_reported_mhz": 1482.543457135327,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 4,
+              "running_ns": 187685460,
+              "frequency_known_ns": 187685460,
+              "frequency_bins_ns": {
+                "1572000": 7622350,
+                "1945000": 24857914,
+                "1836000": 19806044,
+                "2130000": 52847754,
+                "2245000": 11081747,
+                "2367000": 63979574,
+                "1328000": 2469439,
+                "1418000": 3530931,
+                "1221000": 529990,
+                "1065000": 959717
+              },
+              "mean_reported_mhz": 2107.431523741903,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 5,
+              "running_ns": 166888885,
+              "frequency_known_ns": 166888885,
+              "frequency_bins_ns": {
+                "1572000": 4472705,
+                "1836000": 8871589,
+                "1945000": 28048231,
+                "2130000": 38272281,
+                "1418000": 3120078,
+                "2245000": 6218496,
+                "2367000": 71463183,
+                "1328000": 4857542,
+                "1065000": 44393,
+                "1221000": 1520387
+              },
+              "mean_reported_mhz": 2128.875944146909,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 6,
+              "running_ns": 149826949,
+              "frequency_known_ns": 149826949,
+              "frequency_bins_ns": {
+                "1572000": 10107953,
+                "1836000": 15464474,
+                "1945000": 13372797,
+                "2130000": 39556946,
+                "2245000": 5563188,
+                "2367000": 57143941,
+                "1328000": 1528324,
+                "1418000": 4458383,
+                "1221000": 2404869,
+                "910000": 87362,
+                "1065000": 138712
+              },
+              "mean_reported_mhz": 2094.5037133940436,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31585,
+              "tid": 31585,
+              "name": "vhost-31576",
+              "cpu": 7,
+              "running_ns": 161456176,
+              "frequency_known_ns": 161456176,
+              "frequency_bins_ns": {
+                "1418000": 3375728,
+                "1836000": 13363397,
+                "1572000": 9704805,
+                "2367000": 60837493,
+                "2130000": 39735926,
+                "2245000": 4998579,
+                "1945000": 23537290,
+                "1328000": 4441652,
+                "1221000": 1364341,
+                "910000": 20548,
+                "1065000": 76417
+              },
+              "mean_reported_mhz": 2092.729465325625,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 350368646,
+              "frequency_known_ns": 350368646,
+              "frequency_bins_ns": {
+                "1328000": 4082641,
+                "1548000": 267414795,
+                "1425000": 10887615,
+                "1098000": 1719889,
+                "1197000": 4589600,
+                "1704000": 60384394,
+                "820000": 563639,
+                "955000": 726073
+              },
+              "mean_reported_mhz": 1559.293298396341,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 149395945,
+              "frequency_known_ns": 149395945,
+              "frequency_bins_ns": {
+                "1548000": 113984939,
+                "1704000": 19629352,
+                "1425000": 2941771,
+                "955000": 743245,
+                "1098000": 2019002,
+                "1328000": 7071816,
+                "1197000": 3005820
+              },
+              "mean_reported_mhz": 1539.5673986599836,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 162174126,
+              "frequency_known_ns": 162174126,
+              "frequency_bins_ns": {
+                "1328000": 3129273,
+                "1197000": 313477,
+                "1704000": 3045534,
+                "955000": 1592244,
+                "820000": 5050699,
+                "1425000": 41152185,
+                "1548000": 105672696,
+                "1098000": 2218018
+              },
+              "mean_reported_mhz": 1480.1451339161217,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 160741766,
+              "frequency_known_ns": 160741766,
+              "frequency_bins_ns": {
+                "1197000": 2145588,
+                "1328000": 4251178,
+                "1548000": 90831939,
+                "1704000": 10943685,
+                "955000": 3294758,
+                "1425000": 41565714,
+                "820000": 5354168,
+                "1098000": 2354736
+              },
+              "mean_reported_mhz": 1473.3150826525073,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 792237872,
+              "frequency_known_ns": 792237872,
+              "frequency_bins_ns": {
+                "1572000": 33025063,
+                "2130000": 129775791,
+                "1836000": 100002156,
+                "2367000": 399769528,
+                "2245000": 31201825,
+                "1945000": 71502813,
+                "1418000": 6979860,
+                "1221000": 1732259,
+                "1328000": 16303264,
+                "1065000": 1945313
+              },
+              "mean_reported_mhz": 2149.6729913007744,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 634105871,
+              "frequency_known_ns": 634105871,
+              "frequency_bins_ns": {
+                "1572000": 17692019,
+                "1836000": 58315016,
+                "1945000": 85930988,
+                "2130000": 151999035,
+                "2245000": 48925336,
+                "2367000": 254646111,
+                "1418000": 6241859,
+                "1065000": 1119263,
+                "1328000": 6481565,
+                "1221000": 2481404,
+                "910000": 273275
+              },
+              "mean_reported_mhz": 2145.2027015249005,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 608742863,
+              "frequency_known_ns": 608742863,
+              "frequency_bins_ns": {
+                "1836000": 41806101,
+                "1572000": 28018230,
+                "2367000": 333538806,
+                "2130000": 111872961,
+                "1945000": 38470223,
+                "2245000": 29451991,
+                "1418000": 9517700,
+                "1221000": 4876625,
+                "1328000": 10400350,
+                "910000": 121419,
+                "1065000": 668457
+              },
+              "mean_reported_mhz": 2174.3256869657953,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31634,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 632271914,
+              "frequency_known_ns": 632271914,
+              "frequency_bins_ns": {
+                "2130000": 93895462,
+                "1418000": 14917233,
+                "1945000": 68555334,
+                "1836000": 65513795,
+                "1572000": 29803380,
+                "2367000": 313433832,
+                "2245000": 37210332,
+                "1328000": 4244018,
+                "1221000": 4624798,
+                "1065000": 73730
+              },
+              "mean_reported_mhz": 2148.475740233497,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 0,
+              "running_ns": 401333881,
+              "frequency_known_ns": 401333881,
+              "frequency_bins_ns": {
+                "1425000": 42781330,
+                "1328000": 24093909,
+                "1548000": 263659252,
+                "1704000": 30149574,
+                "955000": 14311198,
+                "820000": 756752,
+                "1098000": 22905515,
+                "1197000": 2676351
+              },
+              "mean_reported_mhz": 1482.8578126973534,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 1,
+              "running_ns": 264888872,
+              "frequency_known_ns": 264888872,
+              "frequency_bins_ns": {
+                "1425000": 6638062,
+                "1197000": 622560,
+                "1548000": 195104161,
+                "1704000": 51526977,
+                "1328000": 2824301,
+                "955000": 6910034,
+                "1098000": 1262777
+              },
+              "mean_reported_mhz": 1554.4780456084995,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 253474772,
+              "frequency_known_ns": 253474772,
+              "frequency_bins_ns": {
+                "1548000": 147279460,
+                "1425000": 46199992,
+                "1328000": 8872761,
+                "1098000": 10055300,
+                "820000": 9189533,
+                "955000": 8451742,
+                "1197000": 8378009,
+                "1704000": 15047975
+              },
+              "mean_reported_mhz": 1451.522739829114,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 308516544,
+              "frequency_known_ns": 308516544,
+              "frequency_bins_ns": {
+                "1704000": 53973629,
+                "1548000": 134956889,
+                "820000": 11575155,
+                "1098000": 6316163,
+                "955000": 12562419,
+                "1328000": 11115070,
+                "1197000": 12914428,
+                "1425000": 65102791
+              },
+              "mean_reported_mhz": 1466.0447922624207,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 777764675,
+              "frequency_known_ns": 777764675,
+              "frequency_bins_ns": {
+                "1836000": 69050781,
+                "1945000": 66971762,
+                "2130000": 146991172,
+                "1572000": 10102414,
+                "2245000": 57178143,
+                "2367000": 412114241,
+                "1328000": 4409425,
+                "1418000": 7338541,
+                "1221000": 2247804,
+                "1065000": 1360392
+              },
+              "mean_reported_mhz": 2198.999325031058,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 514136237,
+              "frequency_known_ns": 514136237,
+              "frequency_bins_ns": {
+                "1572000": 20013106,
+                "1836000": 50105429,
+                "2130000": 67240512,
+                "2245000": 32123005,
+                "1945000": 73471153,
+                "2367000": 263319544,
+                "1418000": 1178915,
+                "1328000": 4392215,
+                "1221000": 2292358
+              },
+              "mean_reported_mhz": 2169.220553115769,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 654199838,
+              "frequency_known_ns": 654199838,
+              "frequency_bins_ns": {
+                "1572000": 30878273,
+                "1836000": 32710211,
+                "1945000": 28542926,
+                "2130000": 128900946,
+                "1418000": 9979575,
+                "2245000": 36987344,
+                "2367000": 382802412,
+                "1328000": 2590535,
+                "1221000": 807616
+              },
+              "mean_reported_mhz": 2210.91290158956,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31648,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 870730551,
+              "frequency_known_ns": 870730551,
+              "frequency_bins_ns": {
+                "1836000": 84315142,
+                "1572000": 35619468,
+                "2367000": 445245483,
+                "2130000": 139011026,
+                "2245000": 40100219,
+                "1945000": 92082031,
+                "1418000": 23733972,
+                "1328000": 8775431,
+                "1221000": 1847779
+              },
+              "mean_reported_mhz": 2156.206843398102,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 2372890256,
+              "frequency_known_ns": 2372890256,
+              "frequency_bins_ns": {
+                "1704000": 85426636,
+                "1548000": 2277981320,
+                "820000": 7282796,
+                "1098000": 2199504
+              },
+              "mean_reported_mhz": 1550.964697971266,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 520811716,
+              "frequency_known_ns": 520811716,
+              "frequency_bins_ns": {
+                "1548000": 460330392,
+                "1328000": 8666220,
+                "1704000": 3236491,
+                "1098000": 28957280,
+                "1197000": 19196447,
+                "1425000": 424886
+              },
+              "mean_reported_mhz": 1507.2507905889736,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 344172763,
+              "frequency_known_ns": 344172763,
+              "frequency_bins_ns": {
+                "1548000": 337065016,
+                "1328000": 263753,
+                "1704000": 6593506,
+                "1425000": 250488
+              },
+              "mean_reported_mhz": 1550.7304637467782,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 162847616,
+              "frequency_known_ns": 162847616,
+              "frequency_bins_ns": {
+                "1548000": 159039958,
+                "820000": 3750123,
+                "1425000": 57535
+              },
+              "mean_reported_mhz": 1531.191854960898,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 1044126500,
+              "frequency_known_ns": 1044126500,
+              "frequency_bins_ns": {
+                "2367000": 342708522,
+                "2130000": 566498141,
+                "2245000": 60828494,
+                "1945000": 37138996,
+                "1836000": 34774857,
+                "1418000": 1159628,
+                "1572000": 1017862
+              },
+              "mean_reported_mhz": 2196.78218795711,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 1985054120,
+              "frequency_known_ns": 1985054120,
+              "frequency_bins_ns": {
+                "2130000": 1033739261,
+                "1572000": 26924761,
+                "1836000": 109477336,
+                "1945000": 36896521,
+                "1418000": 1443156,
+                "2367000": 733548782,
+                "2245000": 43024303
+              },
+              "mean_reported_mhz": 2192.333373207981,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 1906472078,
+              "frequency_known_ns": 1906472078,
+              "frequency_bins_ns": {
+                "1836000": 56810829,
+                "2130000": 1453984321,
+                "1945000": 73276774,
+                "1418000": 3932414,
+                "1572000": 26911745,
+                "2245000": 47233240,
+                "2367000": 244322755
+              },
+              "mean_reported_mhz": 2138.0048883574577,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 31479,
+              "tid": 31649,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 1139986386,
+              "frequency_known_ns": 1139986386,
+              "frequency_bins_ns": {
+                "2130000": 480677209,
+                "2367000": 559769218,
+                "2245000": 33035687,
+                "1572000": 1918701,
+                "1945000": 7725587,
+                "1836000": 15374713,
+                "1418000": 1968018,
+                "1065000": 16878378,
+                "1221000": 2309652,
+                "910000": 18118530,
+                "1328000": 2210693
+              },
+              "mean_reported_mhz": 2203.764579900869,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Frequency transition events report policy frequency, not retired cycles or proof of thermal throttling.",
+        "Weighted only while the identified host thread is scheduled Running; guest execution cannot be assigned to an internal guest thread from host vCPU identity.",
+        "Initial time before the first frequency event is unknown and remains excluded from the mean.",
+        "Observed app marker windows are clipped to the trace and have the boundary limits documented by scheduler-analysis.json."
+      ]
+    },
+    "b27-no-ahead-1": {
+      "label": "route-b27-no-ahead-1",
+      "scope": "Owned Android bridge, pad stream/fetch, and vhost threads only; other app and vCPU threads excluded.",
+      "frequency_intervals": 23373,
+      "schedule_intervals": 100429,
+      "trials": [
+        {
+          "trial": 1,
+          "observed_window_seconds": 21.381863381,
+          "threads_by_cpu": [
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 0,
+              "running_ns": 259318200,
+              "frequency_known_ns": 259318200,
+              "frequency_bins_ns": {
+                "1328000": 6883584,
+                "820000": 3555258,
+                "955000": 1393231,
+                "1098000": 9190425,
+                "1197000": 3948243,
+                "1548000": 214488284,
+                "1425000": 4606282,
+                "1704000": 15252893
+              },
+              "mean_reported_mhz": 1514.6917007444908,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 1,
+              "running_ns": 214289919,
+              "frequency_known_ns": 213911012,
+              "frequency_bins_ns": {
+                "1328000": 5822382,
+                "1425000": 16798875,
+                "1548000": 168234128,
+                "955000": 1321207,
+                "1197000": 2704959,
+                "1704000": 12009889,
+                "1098000": 6091716,
+                "820000": 927856
+              },
+              "mean_reported_mhz": 1517.0370745896898,
+              "frequency_unknown_ns": 378907
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 2,
+              "running_ns": 184636750,
+              "frequency_known_ns": 184636750,
+              "frequency_bins_ns": {
+                "1197000": 4349690,
+                "955000": 13449543,
+                "1098000": 7328862,
+                "1548000": 132509544,
+                "1425000": 4269209,
+                "1704000": 9994669,
+                "1328000": 5651569,
+                "820000": 4990725,
+                "610000": 2092939
+              },
+              "mean_reported_mhz": 1447.2290419215026,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 3,
+              "running_ns": 292523395,
+              "frequency_known_ns": 292523395,
+              "frequency_bins_ns": {
+                "1548000": 229981459,
+                "1098000": 12076206,
+                "1197000": 3171712,
+                "820000": 1030029,
+                "955000": 4384562,
+                "1328000": 5876303,
+                "1704000": 28849032,
+                "1425000": 7154092
+              },
+              "mean_reported_mhz": 1522.1225450566099,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 4,
+              "running_ns": 124644892,
+              "frequency_known_ns": 124644892,
+              "frequency_bins_ns": {
+                "2130000": 11209960,
+                "2245000": 26909585,
+                "1328000": 1357827,
+                "1418000": 1671146,
+                "1572000": 3047162,
+                "1221000": 364707,
+                "1945000": 47147194,
+                "1836000": 18597745,
+                "1065000": 991823,
+                "2367000": 13347743
+              },
+              "mean_reported_mhz": 2023.3056132456675,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 5,
+              "running_ns": 131247516,
+              "frequency_known_ns": 131247516,
+              "frequency_bins_ns": {
+                "2245000": 23483090,
+                "1836000": 13884235,
+                "2130000": 17292755,
+                "1572000": 5451580,
+                "1221000": 1133219,
+                "1328000": 437459,
+                "910000": 77474,
+                "1065000": 629557,
+                "1418000": 5481644,
+                "1945000": 41413086,
+                "2367000": 21963417
+              },
+              "mean_reported_mhz": 2031.4964392697534,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 6,
+              "running_ns": 123982716,
+              "frequency_known_ns": 123982716,
+              "frequency_bins_ns": {
+                "1221000": 954021,
+                "2245000": 6008502,
+                "1945000": 45604562,
+                "2130000": 22275515,
+                "1836000": 12326047,
+                "1418000": 3113439,
+                "1572000": 4312256,
+                "1065000": 2111165,
+                "910000": 21850,
+                "2367000": 26829456,
+                "1328000": 425903
+              },
+              "mean_reported_mhz": 2024.1951116637902,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 7,
+              "running_ns": 137426075,
+              "frequency_known_ns": 137426075,
+              "frequency_bins_ns": {
+                "1328000": 1940306,
+                "1572000": 5475831,
+                "1836000": 15656913,
+                "2130000": 25355505,
+                "1221000": 1528198,
+                "2245000": 19375200,
+                "1945000": 45101121,
+                "2367000": 21303669,
+                "1418000": 1689332
+              },
+              "mean_reported_mhz": 2036.32565377422,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 220243932,
+              "frequency_known_ns": 220243932,
+              "frequency_bins_ns": {
+                "1328000": 2387288,
+                "1197000": 1895223,
+                "955000": 3257894,
+                "1098000": 7369589,
+                "1425000": 3469890,
+                "610000": 51921,
+                "1704000": 50496707,
+                "820000": 57658,
+                "1548000": 151257762
+              },
+              "mean_reported_mhz": 1552.1832710968854,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 227288175,
+              "frequency_known_ns": 227288175,
+              "frequency_bins_ns": {
+                "1328000": 6778562,
+                "1704000": 24115885,
+                "1548000": 185352345,
+                "1098000": 2448445,
+                "1425000": 7608278,
+                "1197000": 984660
+              },
+              "mean_reported_mhz": 1547.5052990152258,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 307962812,
+              "frequency_known_ns": 307962812,
+              "frequency_bins_ns": {
+                "1197000": 4552979,
+                "1425000": 4043579,
+                "1704000": 57150108,
+                "1548000": 230590861,
+                "1098000": 4168986,
+                "1328000": 3838092,
+                "955000": 3590049,
+                "820000": 28158
+              },
+              "mean_reported_mhz": 1554.3323846419482,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 290426399,
+              "frequency_known_ns": 290426399,
+              "frequency_bins_ns": {
+                "820000": 622518,
+                "955000": 932088,
+                "1548000": 231172691,
+                "1328000": 8952474,
+                "1098000": 1173991,
+                "1425000": 1738689,
+                "1197000": 371541,
+                "1704000": 45462407
+              },
+              "mean_reported_mhz": 1559.1701427527598,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 740625329,
+              "frequency_known_ns": 740625329,
+              "frequency_bins_ns": {
+                "1836000": 61312100,
+                "2130000": 102773232,
+                "2245000": 181756709,
+                "1221000": 15275553,
+                "1065000": 4133260,
+                "910000": 81828,
+                "1328000": 23606445,
+                "1418000": 15378332,
+                "1572000": 22902262,
+                "1945000": 226693089,
+                "2367000": 86712519
+              },
+              "mean_reported_mhz": 2022.5779062384727,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 657139957,
+              "frequency_known_ns": 657139957,
+              "frequency_bins_ns": {
+                "2130000": 91265681,
+                "2245000": 146650845,
+                "1572000": 11994712,
+                "1836000": 49757894,
+                "1945000": 209034251,
+                "1328000": 3417156,
+                "1221000": 2676880,
+                "910000": 1042358,
+                "1065000": 5965249,
+                "2367000": 128682872,
+                "1418000": 6652059
+              },
+              "mean_reported_mhz": 2084.0960880681923,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 636913038,
+              "frequency_known_ns": 636913038,
+              "frequency_bins_ns": {
+                "1572000": 15461258,
+                "910000": 98145,
+                "1221000": 10296182,
+                "2245000": 38210127,
+                "2130000": 70936281,
+                "1836000": 67654529,
+                "1418000": 4257818,
+                "1945000": 257059208,
+                "1065000": 2952840,
+                "2367000": 168073404,
+                "1328000": 1913246
+              },
+              "mean_reported_mhz": 2053.009997696106,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 1244987835,
+              "frequency_known_ns": 1244987835,
+              "frequency_bins_ns": {
+                "1418000": 19967735,
+                "1065000": 5968465,
+                "1945000": 183863096,
+                "1328000": 4555500,
+                "1572000": 49541945,
+                "1836000": 75117553,
+                "910000": 4350709,
+                "2245000": 631740707,
+                "2130000": 90769324,
+                "1221000": 10338990,
+                "2367000": 168773811
+              },
+              "mean_reported_mhz": 2121.94608630453,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 0,
+              "running_ns": 297690110,
+              "frequency_known_ns": 297690110,
+              "frequency_bins_ns": {
+                "1704000": 18520019,
+                "1548000": 272851038,
+                "1328000": 2288046,
+                "1098000": 3069582,
+                "955000": 961425
+              },
+              "mean_reported_mhz": 1549.4589531341837,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 1,
+              "running_ns": 181780001,
+              "frequency_known_ns": 181780001,
+              "frequency_bins_ns": {
+                "1548000": 158092827,
+                "1098000": 1364461,
+                "1704000": 4724285,
+                "1197000": 2037883,
+                "1328000": 3499955,
+                "1425000": 12060590
+              },
+              "mean_reported_mhz": 1532.3450402830617,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 165161584,
+              "frequency_known_ns": 165161584,
+              "frequency_bins_ns": {
+                "1548000": 152431321,
+                "1704000": 8508095,
+                "1098000": 1396444,
+                "1328000": 880981,
+                "1197000": 1572917,
+                "1425000": 371826
+              },
+              "mean_reported_mhz": 1547.438239433451,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 166557667,
+              "frequency_known_ns": 166557667,
+              "frequency_bins_ns": {
+                "1704000": 20038453,
+                "1328000": 1009685,
+                "1548000": 140414439,
+                "1197000": 196696,
+                "1098000": 282634,
+                "1425000": 4615760
+              },
+              "mean_reported_mhz": 1560.8478258043804,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 493974235,
+              "frequency_known_ns": 493974235,
+              "frequency_bins_ns": {
+                "2245000": 1674766,
+                "2367000": 5974119,
+                "1836000": 68375450,
+                "1945000": 324951942,
+                "2130000": 80085768,
+                "1572000": 7139200,
+                "1418000": 4826334,
+                "1221000": 158285,
+                "1065000": 512614,
+                "1328000": 275757
+              },
+              "mean_reported_mhz": 1953.9968471756426,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 448989798,
+              "frequency_known_ns": 448989798,
+              "frequency_bins_ns": {
+                "2245000": 4861450,
+                "2367000": 20853153,
+                "2130000": 57263154,
+                "1572000": 4989828,
+                "1836000": 54380694,
+                "1418000": 5483236,
+                "1945000": 298536987,
+                "1221000": 15706,
+                "1328000": 2605590
+              },
+              "mean_reported_mhz": 1964.0533550163204,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 345395575,
+              "frequency_known_ns": 345395575,
+              "frequency_bins_ns": {
+                "2367000": 15750765,
+                "1418000": 6592283,
+                "1572000": 2847292,
+                "1836000": 20593953,
+                "2130000": 27180753,
+                "1945000": 271599718,
+                "2245000": 160686,
+                "1328000": 619425,
+                "1065000": 50700
+              },
+              "mean_reported_mhz": 1958.074147739154,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 342959036,
+              "frequency_known_ns": 342959036,
+              "frequency_bins_ns": {
+                "2130000": 58300091,
+                "1836000": 24425667,
+                "1945000": 212487230,
+                "2367000": 10263263,
+                "1418000": 10613730,
+                "1572000": 15486244,
+                "2245000": 1996867,
+                "1328000": 8198729,
+                "1221000": 1187215
+              },
+              "mean_reported_mhz": 1932.652496326121,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 805822429,
+              "frequency_known_ns": 805822429,
+              "frequency_bins_ns": {
+                "1548000": 595587281,
+                "1704000": 210235148
+              },
+              "mean_reported_mhz": 1588.6996404017939,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 772465827,
+              "frequency_known_ns": 772465827,
+              "frequency_bins_ns": {
+                "1704000": 30950643,
+                "1548000": 741515184
+              },
+              "mean_reported_mhz": 1554.2505034387755,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 802042889,
+              "frequency_known_ns": 802042889,
+              "frequency_bins_ns": {
+                "1098000": 1021403,
+                "1548000": 773514246,
+                "1328000": 122273,
+                "1704000": 27384967
+              },
+              "mean_reported_mhz": 1552.7198516362632,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 104462198,
+              "frequency_known_ns": 104462198,
+              "frequency_bins_ns": {
+                "1548000": 22633952,
+                "1704000": 81828246
+              },
+              "mean_reported_mhz": 1670.1992895075787,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 2226219446,
+              "frequency_known_ns": 2226219446,
+              "frequency_bins_ns": {
+                "2367000": 1050699977,
+                "1945000": 769509335,
+                "2130000": 266533974,
+                "1836000": 84332149,
+                "2245000": 53105600,
+                "1572000": 1295085,
+                "1328000": 743326
+              },
+              "mean_reported_mhz": 2168.9230967511726,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 1356368913,
+              "frequency_known_ns": 1356368913,
+              "frequency_bins_ns": {
+                "2245000": 73826745,
+                "2367000": 385153976,
+                "2130000": 226817830,
+                "1836000": 53347533,
+                "1945000": 611035206,
+                "1572000": 6187623
+              },
+              "mean_reported_mhz": 2106.1076701564007,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 1707864337,
+              "frequency_known_ns": 1707864337,
+              "frequency_bins_ns": {
+                "2367000": 357729244,
+                "2245000": 92857879,
+                "2130000": 583786253,
+                "1945000": 518254469,
+                "1836000": 129236083,
+                "1572000": 24702028,
+                "1418000": 569539,
+                "1328000": 728842
+              },
+              "mean_reported_mhz": 2098.8583151613643,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 1731772932,
+              "frequency_known_ns": 1731772932,
+              "frequency_bins_ns": {
+                "1328000": 1875122,
+                "2245000": 39478804,
+                "2130000": 454129797,
+                "2367000": 398407100,
+                "1945000": 752046739,
+                "1836000": 80351117,
+                "1572000": 5484253
+              },
+              "mean_reported_mhz": 2090.5298190611747,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        },
+        {
+          "trial": 2,
+          "observed_window_seconds": 21.029,
+          "threads_by_cpu": [
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 0,
+              "running_ns": 411921009,
+              "frequency_known_ns": 411921009,
+              "frequency_bins_ns": {
+                "1425000": 332840648,
+                "1098000": 19592697,
+                "1197000": 5124628,
+                "1328000": 4596357,
+                "955000": 46635981,
+                "820000": 3130698
+              },
+              "mean_reported_mhz": 1347.7180541985904,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 1,
+              "running_ns": 306779299,
+              "frequency_known_ns": 306779299,
+              "frequency_bins_ns": {
+                "1425000": 223770971,
+                "1098000": 30571802,
+                "1197000": 7661332,
+                "1328000": 2567181,
+                "955000": 27171426,
+                "820000": 15036587
+              },
+              "mean_reported_mhz": 1314.62591357248,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 2,
+              "running_ns": 372875843,
+              "frequency_known_ns": 372875843,
+              "frequency_bins_ns": {
+                "1098000": 28070116,
+                "1197000": 11560624,
+                "955000": 31987435,
+                "820000": 8991699,
+                "1425000": 283956188,
+                "1328000": 8309781
+              },
+              "mean_reported_mhz": 1336.2442601812636,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 3,
+              "running_ns": 564743580,
+              "frequency_known_ns": 564743580,
+              "frequency_bins_ns": {
+                "1425000": 496733859,
+                "1197000": 9014894,
+                "1328000": 5371750,
+                "1098000": 19996944,
+                "955000": 25906243,
+                "820000": 7719890
+              },
+              "mean_reported_mhz": 1379.0288285703045,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 4,
+              "running_ns": 165814282,
+              "frequency_known_ns": 165814282,
+              "frequency_bins_ns": {
+                "1945000": 30272056,
+                "1418000": 6460168,
+                "1572000": 105248408,
+                "1328000": 7596678,
+                "1836000": 8647251,
+                "1221000": 6793699,
+                "1065000": 796022
+              },
+              "mean_reported_mhz": 1619.8711739981482,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 5,
+              "running_ns": 164239048,
+              "frequency_known_ns": 164239048,
+              "frequency_bins_ns": {
+                "1945000": 39004420,
+                "1328000": 11332112,
+                "1836000": 12868982,
+                "1572000": 87831763,
+                "1418000": 6960201,
+                "910000": 134399,
+                "1221000": 5106601,
+                "1065000": 1000570
+              },
+              "mean_reported_mhz": 1643.3622959322072,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 6,
+              "running_ns": 127412088,
+              "frequency_known_ns": 127412088,
+              "frequency_bins_ns": {
+                "1328000": 7804395,
+                "1572000": 72074452,
+                "1836000": 10036288,
+                "1945000": 26408942,
+                "1418000": 3638060,
+                "1221000": 6639729,
+                "1065000": 716187,
+                "910000": 94035
+              },
+              "mean_reported_mhz": 1629.1349158017094,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3726,
+              "tid": 3726,
+              "name": "vhost-3721",
+              "cpu": 7,
+              "running_ns": 151932836,
+              "frequency_known_ns": 151932836,
+              "frequency_bins_ns": {
+                "1328000": 8238894,
+                "1836000": 7924024,
+                "1945000": 33012773,
+                "1572000": 87520459,
+                "1221000": 6329101,
+                "910000": 69987,
+                "1418000": 7165279,
+                "1065000": 1672319
+              },
+              "mean_reported_mhz": 1625.8149105898347,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 177517016,
+              "frequency_known_ns": 177517016,
+              "frequency_bins_ns": {
+                "1425000": 118555135,
+                "1098000": 13916950,
+                "1197000": 6950847,
+                "1328000": 5993406,
+                "955000": 28198129,
+                "820000": 3902549
+              },
+              "mean_reported_mhz": 1299.2027134852244,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 216554861,
+              "frequency_known_ns": 216554861,
+              "frequency_bins_ns": {
+                "1328000": 1711712,
+                "1098000": 20599572,
+                "1197000": 1460491,
+                "955000": 12773151,
+                "1425000": 168880907,
+                "820000": 11129028
+              },
+              "mean_reported_mhz": 1332.7761132962976,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 174191718,
+              "frequency_known_ns": 174191718,
+              "frequency_bins_ns": {
+                "1098000": 13229979,
+                "1197000": 14698445,
+                "955000": 9425778,
+                "1425000": 130617097,
+                "1328000": 2587483,
+                "820000": 3632936
+              },
+              "mean_reported_mhz": 1341.4341648895156,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 258056487,
+              "frequency_known_ns": 258056487,
+              "frequency_bins_ns": {
+                "955000": 16052411,
+                "1425000": 222556523,
+                "1328000": 1769207,
+                "1098000": 10808558,
+                "820000": 4423461,
+                "1197000": 2446327
+              },
+              "mean_reported_mhz": 1368.870424090521,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 549037664,
+              "frequency_known_ns": 549037664,
+              "frequency_bins_ns": {
+                "1945000": 110350988,
+                "1836000": 36738002,
+                "1418000": 24130531,
+                "1572000": 329501448,
+                "1221000": 14300330,
+                "1328000": 22634000,
+                "1065000": 9475829,
+                "910000": 1906536
+              },
+              "mean_reported_mhz": 1627.615793442178,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 571227302,
+              "frequency_known_ns": 571227302,
+              "frequency_bins_ns": {
+                "1945000": 137242604,
+                "1836000": 41602162,
+                "1572000": 322481289,
+                "1418000": 15504190,
+                "1065000": 4562458,
+                "1221000": 23812099,
+                "1328000": 26022500
+              },
+              "mean_reported_mhz": 1646.8670690201009,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 410391442,
+              "frequency_known_ns": 410391442,
+              "frequency_bins_ns": {
+                "1945000": 98381145,
+                "1836000": 34982909,
+                "1572000": 204895871,
+                "1418000": 20822876,
+                "1328000": 23816901,
+                "1221000": 19676679,
+                "1065000": 7815061
+              },
+              "mean_reported_mhz": 1635.4634531608972,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3766,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 441819944,
+              "frequency_known_ns": 441819944,
+              "frequency_bins_ns": {
+                "1945000": 78367684,
+                "1836000": 19541049,
+                "1572000": 290379269,
+                "1418000": 19221028,
+                "1328000": 19337116,
+                "1221000": 11523358,
+                "1065000": 3106203,
+                "910000": 344237
+              },
+              "mean_reported_mhz": 1619.2234453476822,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 0,
+              "running_ns": 333222981,
+              "frequency_known_ns": 333222981,
+              "frequency_bins_ns": {
+                "1425000": 234369914,
+                "1098000": 34412477,
+                "1197000": 9225139,
+                "955000": 44163247,
+                "820000": 2336101,
+                "1328000": 8716103
+              },
+              "mean_reported_mhz": 1315.8486421079103,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 1,
+              "running_ns": 267973188,
+              "frequency_known_ns": 267973188,
+              "frequency_bins_ns": {
+                "1098000": 7757937,
+                "1197000": 17804646,
+                "1328000": 3602536,
+                "1425000": 202393072,
+                "955000": 31801919,
+                "820000": 4613078
+              },
+              "mean_reported_mhz": 1332.887930941061,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 256889935,
+              "frequency_known_ns": 256889935,
+              "frequency_bins_ns": {
+                "955000": 10751424,
+                "1425000": 195891361,
+                "1197000": 3274252,
+                "1328000": 11075885,
+                "1098000": 9589803,
+                "820000": 26307210
+              },
+              "mean_reported_mhz": 1324.0782289232159,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 381217117,
+              "frequency_known_ns": 381217117,
+              "frequency_bins_ns": {
+                "1098000": 35489380,
+                "1425000": 294179798,
+                "1328000": 3707561,
+                "1197000": 9310099,
+                "955000": 31018804,
+                "820000": 7511475
+              },
+              "mean_reported_mhz": 1337.8826014808772,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 332025615,
+              "frequency_known_ns": 332025615,
+              "frequency_bins_ns": {
+                "1945000": 70053668,
+                "1836000": 13450810,
+                "1328000": 10904088,
+                "1572000": 214731840,
+                "1418000": 10301753,
+                "1221000": 7951865,
+                "1065000": 3774006,
+                "910000": 857585
+              },
+              "mean_reported_mhz": 1632.7233801614975,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 302856999,
+              "frequency_known_ns": 302856999,
+              "frequency_bins_ns": {
+                "1328000": 25262042,
+                "1418000": 11992916,
+                "1221000": 13361818,
+                "1836000": 17584146,
+                "1572000": 164672889,
+                "1945000": 69021153,
+                "1065000": 962035
+              },
+              "mean_reported_mhz": 1628.7875515335209,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 244786354,
+              "frequency_known_ns": 244786354,
+              "frequency_bins_ns": {
+                "1945000": 48241814,
+                "1836000": 18840666,
+                "1572000": 141680316,
+                "1418000": 9024738,
+                "1328000": 18709395,
+                "1221000": 5892983,
+                "1065000": 2396442
+              },
+              "mean_reported_mhz": 1628.0888998207802,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3783,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 253769153,
+              "frequency_known_ns": 253769153,
+              "frequency_bins_ns": {
+                "1836000": 16557903,
+                "1328000": 15732300,
+                "1945000": 38142383,
+                "1572000": 146228656,
+                "1418000": 16244418,
+                "1221000": 16577073,
+                "1065000": 4286420
+              },
+              "mean_reported_mhz": 1588.8117600802332,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 13234991,
+              "frequency_known_ns": 13234991,
+              "frequency_bins_ns": {
+                "1425000": 13234991
+              },
+              "mean_reported_mhz": 1425.0,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 5715861,
+              "frequency_known_ns": 5715861,
+              "frequency_bins_ns": {
+                "1425000": 5715861
+              },
+              "mean_reported_mhz": 1425.0,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 5744629,
+              "frequency_known_ns": 5744629,
+              "frequency_bins_ns": {
+                "820000": 5744629
+              },
+              "mean_reported_mhz": 820.0,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 27064087,
+              "frequency_known_ns": 27064087,
+              "frequency_bins_ns": {
+                "820000": 5196492,
+                "955000": 14075032,
+                "1098000": 5963339,
+                "1425000": 1829224
+              },
+              "mean_reported_mhz": 992.3545332233081,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 34955405,
+              "frequency_known_ns": 34955405,
+              "frequency_bins_ns": {
+                "1945000": 3214316,
+                "1572000": 31741089
+              },
+              "mean_reported_mhz": 1606.2991267874024,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 9680338,
+              "frequency_known_ns": 9680338,
+              "frequency_bins_ns": {
+                "1945000": 1436035,
+                "1572000": 5801840,
+                "1221000": 1480916,
+                "1065000": 394938,
+                "1328000": 566609
+              },
+              "mean_reported_mhz": 1538.6699010922964,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 49686317,
+              "frequency_known_ns": 49686317,
+              "frequency_bins_ns": {
+                "1945000": 2500894,
+                "1836000": 398234,
+                "1572000": 46787189
+              },
+              "mean_reported_mhz": 1592.8904040522866,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 3669,
+              "tid": 3784,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 1130778,
+              "frequency_known_ns": 1130778,
+              "frequency_bins_ns": {
+                "1572000": 1130778
+              },
+              "mean_reported_mhz": 1572.0,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Frequency transition events report policy frequency, not retired cycles or proof of thermal throttling.",
+        "Weighted only while the identified host thread is scheduled Running; guest execution cannot be assigned to an internal guest thread from host vCPU identity.",
+        "Initial time before the first frequency event is unknown and remains excluded from the mean.",
+        "Observed app marker windows are clipped to the trace and have the boundary limits documented by scheduler-analysis.json."
+      ]
+    },
+    "b27-head-control-1": {
+      "label": "route-b27-head-control-1",
+      "scope": "Owned Android bridge, pad stream/fetch, and vhost threads only; other app and vCPU threads excluded.",
+      "frequency_intervals": 29268,
+      "schedule_intervals": 108855,
+      "trials": [
+        {
+          "trial": 1,
+          "observed_window_seconds": 18.171194351,
+          "threads_by_cpu": [
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 0,
+              "running_ns": 274663622,
+              "frequency_known_ns": 274581957,
+              "frequency_bins_ns": {
+                "1548000": 206595672,
+                "1704000": 38035444,
+                "1098000": 8556031,
+                "1197000": 4640786,
+                "1425000": 6144411,
+                "1328000": 5180294,
+                "955000": 5360309,
+                "820000": 69010
+              },
+              "mean_reported_mhz": 1530.992581256896,
+              "frequency_unknown_ns": 81665
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 1,
+              "running_ns": 189848061,
+              "frequency_known_ns": 189848061,
+              "frequency_bins_ns": {
+                "1548000": 121061473,
+                "1704000": 43853850,
+                "1328000": 3561686,
+                "1425000": 1852825,
+                "955000": 9107622,
+                "1098000": 2568482,
+                "1197000": 3590370,
+                "820000": 4251753
+              },
+              "mean_reported_mhz": 1521.2291150711305,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 2,
+              "running_ns": 128727459,
+              "frequency_known_ns": 128531495,
+              "frequency_bins_ns": {
+                "1548000": 63035126,
+                "1704000": 43881261,
+                "1425000": 2833580,
+                "1197000": 2655351,
+                "1098000": 4940307,
+                "955000": 6293819,
+                "1328000": 3273072,
+                "820000": 1618979
+              },
+              "mean_reported_mhz": 1530.1899901343247,
+              "frequency_unknown_ns": 195964
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 3,
+              "running_ns": 260361344,
+              "frequency_known_ns": 260361344,
+              "frequency_bins_ns": {
+                "1548000": 194995535,
+                "1704000": 31950319,
+                "1328000": 7598759,
+                "1098000": 7816404,
+                "955000": 5628090,
+                "1425000": 4685508,
+                "1197000": 5018555,
+                "820000": 2668174
+              },
+              "mean_reported_mhz": 1517.954920239619,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 4,
+              "running_ns": 97163844,
+              "frequency_known_ns": 93326033,
+              "frequency_bins_ns": {
+                "2367000": 14274756,
+                "1945000": 29162264,
+                "2130000": 37813938,
+                "2245000": 1585044,
+                "1836000": 6959070,
+                "1572000": 1546748,
+                "1328000": 598756,
+                "910000": 46916,
+                "1065000": 317017,
+                "1418000": 802573,
+                "1221000": 218951
+              },
+              "mean_reported_mhz": 2061.5925606309656,
+              "frequency_unknown_ns": 3837811
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 5,
+              "running_ns": 91449795,
+              "frequency_known_ns": 86880580,
+              "frequency_bins_ns": {
+                "2245000": 2554080,
+                "2367000": 28232310,
+                "2130000": 27099554,
+                "1945000": 20785168,
+                "1836000": 6110185,
+                "1221000": 167358,
+                "1418000": 376830,
+                "1572000": 1113851,
+                "1328000": 441244
+              },
+              "mean_reported_mhz": 2129.393285265821,
+              "frequency_unknown_ns": 4569215
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 6,
+              "running_ns": 107546681,
+              "frequency_known_ns": 97736459,
+              "frequency_bins_ns": {
+                "2367000": 10292889,
+                "2130000": 46122825,
+                "2245000": 389404,
+                "1945000": 27452831,
+                "1836000": 8251871,
+                "1572000": 2398188,
+                "1418000": 926310,
+                "1328000": 1091919,
+                "1221000": 310587,
+                "1065000": 499635
+              },
+              "mean_reported_mhz": 2040.8981104379893,
+              "frequency_unknown_ns": 9810222
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 7,
+              "running_ns": 106097848,
+              "frequency_known_ns": 94966666,
+              "frequency_bins_ns": {
+                "2367000": 6612826,
+                "2130000": 45769134,
+                "2245000": 1044884,
+                "1836000": 8215463,
+                "1945000": 29464408,
+                "1418000": 1400029,
+                "1572000": 1606856,
+                "1065000": 518188,
+                "1328000": 188109,
+                "1221000": 146769
+              },
+              "mean_reported_mhz": 2036.1938940238251,
+              "frequency_unknown_ns": 11131182
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 183594055,
+              "frequency_known_ns": 183594055,
+              "frequency_bins_ns": {
+                "1548000": 78574148,
+                "1704000": 30918091,
+                "1328000": 17797895,
+                "1425000": 32677820,
+                "1197000": 9523400,
+                "955000": 6224162,
+                "1098000": 7878539
+              },
+              "mean_reported_mhz": 1473.4296628504665,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 230675703,
+              "frequency_known_ns": 230675703,
+              "frequency_bins_ns": {
+                "1548000": 124619548,
+                "1704000": 61605348,
+                "955000": 3694907,
+                "1098000": 16046305,
+                "1197000": 3311238,
+                "820000": 5791668,
+                "1328000": 14017781,
+                "1425000": 1588908
+              },
+              "mean_reported_mhz": 1511.327697503538,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 266237068,
+              "frequency_known_ns": 266237068,
+              "frequency_bins_ns": {
+                "1704000": 76787721,
+                "1548000": 125227626,
+                "1425000": 12681318,
+                "1328000": 31674234,
+                "1197000": 15009400,
+                "955000": 4287270,
+                "820000": 385173,
+                "1098000": 184326
+              },
+              "mean_reported_mhz": 1530.2592236780492,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 210729814,
+              "frequency_known_ns": 210729814,
+              "frequency_bins_ns": {
+                "1548000": 82031333,
+                "1704000": 48152418,
+                "1328000": 11504801,
+                "1425000": 35417973,
+                "820000": 932739,
+                "955000": 3844035,
+                "1098000": 17310750,
+                "1197000": 11535765
+              },
+              "mean_reported_mhz": 1480.7426566560725,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 882243575,
+              "frequency_known_ns": 869638792,
+              "frequency_bins_ns": {
+                "2245000": 2580161,
+                "2367000": 66375934,
+                "1836000": 33320385,
+                "1945000": 365061731,
+                "2130000": 376498656,
+                "1418000": 4181276,
+                "1572000": 7152631,
+                "1065000": 14426514,
+                "1328000": 41504
+              },
+              "mean_reported_mhz": 2033.7869980620644,
+              "frequency_unknown_ns": 12604783
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 685029806,
+              "frequency_known_ns": 680667175,
+              "frequency_bins_ns": {
+                "2367000": 122406315,
+                "1945000": 225482294,
+                "2245000": 4609862,
+                "2130000": 242019978,
+                "1836000": 61094934,
+                "1418000": 6897868,
+                "1572000": 14461223,
+                "1328000": 2215616,
+                "1221000": 1479085
+              },
+              "mean_reported_mhz": 2062.0699416010475,
+              "frequency_unknown_ns": 4362631
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 1029833763,
+              "frequency_known_ns": 990046285,
+              "frequency_bins_ns": {
+                "2367000": 52968137,
+                "1945000": 330803836,
+                "2130000": 461149267,
+                "2245000": 5077151,
+                "1836000": 112030278,
+                "1572000": 14389282,
+                "1328000": 7856199,
+                "1221000": 2276367,
+                "1418000": 3495768
+              },
+              "mean_reported_mhz": 2029.1093775671307,
+              "frequency_unknown_ns": 39787478
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 1293426476,
+              "frequency_known_ns": 1229842084,
+              "frequency_bins_ns": {
+                "2367000": 77089759,
+                "2130000": 850291548,
+                "2245000": 23182937,
+                "1945000": 219507540,
+                "1836000": 45855382,
+                "1572000": 7211102,
+                "1328000": 2844563,
+                "1418000": 2684407,
+                "1221000": 1174846
+              },
+              "mean_reported_mhz": 2095.4927780061234,
+              "frequency_unknown_ns": 63584392
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 1150390,
+              "frequency_known_ns": 1150390,
+              "frequency_bins_ns": {
+                "1548000": 1150390
+              },
+              "mean_reported_mhz": 1548.0,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 2017660,
+              "frequency_known_ns": 2017660,
+              "frequency_bins_ns": {
+                "1098000": 1096639,
+                "1425000": 921021
+              },
+              "mean_reported_mhz": 1247.2688892082908,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 1444457,
+              "frequency_known_ns": 1444457,
+              "frequency_bins_ns": {
+                "2130000": 406005,
+                "1945000": 1038452
+              },
+              "mean_reported_mhz": 1996.999419158895,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 1441283,
+              "frequency_known_ns": 1441283,
+              "frequency_bins_ns": {
+                "2367000": 583902,
+                "2245000": 314128,
+                "1945000": 543253
+              },
+              "mean_reported_mhz": 2181.3484784043108,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 999512,
+              "frequency_known_ns": 999512,
+              "frequency_bins_ns": {
+                "2367000": 308472,
+                "2130000": 333455,
+                "1945000": 357585
+              },
+              "mean_reported_mhz": 2136.9580345208465,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 2146118,
+              "frequency_known_ns": 2146118,
+              "frequency_bins_ns": {
+                "2130000": 906575,
+                "1572000": 385620,
+                "1945000": 853923
+              },
+              "mean_reported_mhz": 1956.1271211555004,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 88695312,
+              "frequency_known_ns": 88695312,
+              "frequency_bins_ns": {
+                "1425000": 17394084,
+                "1548000": 33955933,
+                "1328000": 22348876,
+                "1704000": 14820801,
+                "1197000": 175618
+              },
+              "mean_reported_mhz": 1493.8165047776145,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 1351652251,
+              "frequency_known_ns": 1351652251,
+              "frequency_bins_ns": {
+                "1548000": 1023741734,
+                "1704000": 247659097,
+                "1328000": 23607014,
+                "1098000": 10718546,
+                "1197000": 21748818,
+                "955000": 10026122,
+                "1425000": 14150920
+              },
+              "mean_reported_mhz": 1557.838360212963,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 202449376,
+              "frequency_known_ns": 202449376,
+              "frequency_bins_ns": {
+                "1548000": 79147826,
+                "1425000": 40337158,
+                "955000": 538737,
+                "1098000": 12512043,
+                "1328000": 20776975,
+                "1197000": 9804606,
+                "1704000": 39332031
+              },
+              "mean_reported_mhz": 1484.8340103206838,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 43805706,
+              "frequency_known_ns": 43805706,
+              "frequency_bins_ns": {
+                "1704000": 5569499,
+                "1548000": 36718547,
+                "1328000": 1020874,
+                "1197000": 496786
+              },
+              "mean_reported_mhz": 1558.7264034963846,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 401521701,
+              "frequency_known_ns": 401521701,
+              "frequency_bins_ns": {
+                "2130000": 936117,
+                "1945000": 345629936,
+                "1572000": 10867188,
+                "1836000": 44088460
+              },
+              "mean_reported_mhz": 1923.3674914771295,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 119614033,
+              "frequency_known_ns": 119614033,
+              "frequency_bins_ns": {
+                "2367000": 1480672,
+                "2130000": 3056842,
+                "1836000": 22004817,
+                "1945000": 89850751,
+                "1572000": 3220951
+              },
+              "mean_reported_mhz": 1924.8553701303592,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 327814388,
+              "frequency_known_ns": 327814388,
+              "frequency_bins_ns": {
+                "2367000": 730469,
+                "2130000": 155558,
+                "1836000": 13749675,
+                "1945000": 308235123,
+                "1418000": 1350830,
+                "1572000": 3592733
+              },
+              "mean_reported_mhz": 1935.1967230126581,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 130937102,
+              "frequency_known_ns": 130937102,
+              "frequency_bins_ns": {
+                "2130000": 4990164,
+                "1945000": 92200398,
+                "1836000": 29727863,
+                "1572000": 4018677
+              },
+              "mean_reported_mhz": 1915.8552947200558,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        },
+        {
+          "trial": 2,
+          "observed_window_seconds": 39.502,
+          "threads_by_cpu": [
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 0,
+              "running_ns": 542151715,
+              "frequency_known_ns": 542151715,
+              "frequency_bins_ns": {
+                "1197000": 16338297,
+                "1098000": 61540652,
+                "1328000": 25634654,
+                "1548000": 132009883,
+                "1425000": 59174726,
+                "1704000": 58813301,
+                "955000": 106247006,
+                "820000": 82393196
+              },
+              "mean_reported_mhz": 1252.5882311467003,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 1,
+              "running_ns": 620942245,
+              "frequency_known_ns": 620942245,
+              "frequency_bins_ns": {
+                "1425000": 100008990,
+                "1328000": 18700235,
+                "1197000": 21906214,
+                "1098000": 82519790,
+                "1548000": 171356200,
+                "1704000": 46387285,
+                "955000": 84472047,
+                "820000": 95503186,
+                "610000": 88298
+              },
+              "mean_reported_mhz": 1268.259338407552,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 2,
+              "running_ns": 650914283,
+              "frequency_known_ns": 650914283,
+              "frequency_bins_ns": {
+                "1328000": 29365273,
+                "1425000": 53794386,
+                "1197000": 17850342,
+                "1098000": 55842570,
+                "1548000": 184580840,
+                "1704000": 64611357,
+                "955000": 104024252,
+                "820000": 140845263
+              },
+              "mean_reported_mhz": 1242.8691056945206,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 3,
+              "running_ns": 520821481,
+              "frequency_known_ns": 520821481,
+              "frequency_bins_ns": {
+                "1548000": 113724985,
+                "1328000": 30099813,
+                "1425000": 58148086,
+                "1098000": 76883272,
+                "955000": 119215897,
+                "1197000": 26510750,
+                "820000": 64568354,
+                "1704000": 31670324
+              },
+              "mean_reported_mhz": 1220.7532496360302,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 4,
+              "running_ns": 156396377,
+              "frequency_known_ns": 156396377,
+              "frequency_bins_ns": {
+                "1945000": 19468104,
+                "1572000": 66759728,
+                "1418000": 4811564,
+                "1328000": 5125937,
+                "1836000": 54233442,
+                "1221000": 1080363,
+                "1065000": 3584799,
+                "910000": 1332440
+              },
+              "mean_reported_mhz": 1677.557088512351,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 5,
+              "running_ns": 132350690,
+              "frequency_known_ns": 132350690,
+              "frequency_bins_ns": {
+                "1836000": 49977380,
+                "1945000": 9885373,
+                "1418000": 4302978,
+                "1328000": 3788259,
+                "1221000": 3412716,
+                "1572000": 57277684,
+                "1065000": 1918539,
+                "910000": 1787761
+              },
+              "mean_reported_mhz": 1662.2165169671573,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 6,
+              "running_ns": 179512281,
+              "frequency_known_ns": 179512281,
+              "frequency_bins_ns": {
+                "1065000": 4733439,
+                "1221000": 2427570,
+                "1328000": 1393514,
+                "1418000": 2659791,
+                "1572000": 83196122,
+                "1945000": 24722986,
+                "1836000": 58545484,
+                "910000": 1833375
+              },
+              "mean_reported_mhz": 1680.4183840937324,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4631,
+              "tid": 4631,
+              "name": "vhost-4628",
+              "cpu": 7,
+              "running_ns": 185123213,
+              "frequency_known_ns": 185123213,
+              "frequency_bins_ns": {
+                "1572000": 95027961,
+                "1945000": 16010336,
+                "1418000": 7173703,
+                "1836000": 57779208,
+                "1065000": 1815430,
+                "1221000": 3243937,
+                "1328000": 3269210,
+                "910000": 803428
+              },
+              "mean_reported_mhz": 1662.3842053832548,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 0,
+              "running_ns": 548210980,
+              "frequency_known_ns": 548210980,
+              "frequency_bins_ns": {
+                "1197000": 18769532,
+                "1328000": 20299762,
+                "955000": 27315270,
+                "1098000": 23055219,
+                "1425000": 65897988,
+                "1548000": 345823811,
+                "820000": 7477333,
+                "1704000": 39572065
+              },
+              "mean_reported_mhz": 1465.9101340874274,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 1,
+              "running_ns": 285728042,
+              "frequency_known_ns": 285728042,
+              "frequency_bins_ns": {
+                "1425000": 37832285,
+                "1328000": 7153239,
+                "1098000": 27744268,
+                "1197000": 4261880,
+                "1704000": 62478558,
+                "955000": 18964601,
+                "1548000": 112305213,
+                "820000": 14987998
+              },
+              "mean_reported_mhz": 1433.8406064183227,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 2,
+              "running_ns": 332276083,
+              "frequency_known_ns": 332276083,
+              "frequency_bins_ns": {
+                "1328000": 21787068,
+                "1098000": 48148562,
+                "1548000": 68929766,
+                "1704000": 80697957,
+                "1425000": 30417884,
+                "1197000": 12517862,
+                "955000": 56736579,
+                "820000": 13040405
+              },
+              "mean_reported_mhz": 1351.9446551168114,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 3,
+              "running_ns": 348468422,
+              "frequency_known_ns": 348468422,
+              "frequency_bins_ns": {
+                "1548000": 114667318,
+                "1328000": 18304974,
+                "1098000": 38502724,
+                "1197000": 28420740,
+                "1425000": 51792522,
+                "1704000": 46279414,
+                "820000": 14479286,
+                "955000": 36021444
+              },
+              "mean_reported_mhz": 1368.98369894188,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 4,
+              "running_ns": 917953022,
+              "frequency_known_ns": 917953022,
+              "frequency_bins_ns": {
+                "1572000": 294589970,
+                "1945000": 260653678,
+                "1065000": 5354168,
+                "1221000": 16806880,
+                "1328000": 26696939,
+                "1836000": 283943219,
+                "1418000": 29205368,
+                "910000": 702800
+              },
+              "mean_reported_mhz": 1737.688348554726,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 5,
+              "running_ns": 863997724,
+              "frequency_known_ns": 863997724,
+              "frequency_bins_ns": {
+                "1836000": 409223828,
+                "1572000": 222283611,
+                "1945000": 153361465,
+                "1221000": 15681520,
+                "1328000": 12795124,
+                "1418000": 35711787,
+                "1065000": 14430705,
+                "910000": 509684
+              },
+              "mean_reported_mhz": 1738.0412936689636,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 6,
+              "running_ns": 814283037,
+              "frequency_known_ns": 814283037,
+              "frequency_bins_ns": {
+                "1328000": 4894327,
+                "1418000": 21886146,
+                "1221000": 7787437,
+                "1836000": 336690256,
+                "1945000": 184207857,
+                "1572000": 241012443,
+                "1065000": 13043747,
+                "910000": 4760824
+              },
+              "mean_reported_mhz": 1744.5847573673577,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4683,
+              "name": "vsock-bridge",
+              "cpu": 7,
+              "running_ns": 1035541430,
+              "frequency_known_ns": 1035541430,
+              "frequency_bins_ns": {
+                "1945000": 346336791,
+                "1572000": 245910346,
+                "1836000": 375240785,
+                "1065000": 9487793,
+                "1221000": 19607908,
+                "1418000": 25243571,
+                "1328000": 10393964,
+                "910000": 3320272
+              },
+              "mean_reported_mhz": 1772.7962600878268,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 0,
+              "running_ns": 1240345149,
+              "frequency_known_ns": 1240345149,
+              "frequency_bins_ns": {
+                "1098000": 219588139,
+                "955000": 282811888,
+                "1197000": 56318562,
+                "1328000": 83916464,
+                "1425000": 144161655,
+                "1548000": 229518010,
+                "1704000": 46653482,
+                "820000": 177376949
+              },
+              "mean_reported_mhz": 1189.7643032028338,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 1,
+              "running_ns": 1144754032,
+              "frequency_known_ns": 1144754032,
+              "frequency_bins_ns": {
+                "1548000": 294524252,
+                "955000": 200044635,
+                "1098000": 208926878,
+                "1425000": 94551361,
+                "1197000": 53311237,
+                "1328000": 52023883,
+                "820000": 204613891,
+                "1704000": 36757895
+              },
+              "mean_reported_mhz": 1200.6279450282818,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 2,
+              "running_ns": 1569201017,
+              "frequency_known_ns": 1569201017,
+              "frequency_bins_ns": {
+                "1197000": 125193321,
+                "1548000": 446723348,
+                "1328000": 91797764,
+                "1098000": 225900115,
+                "955000": 254906242,
+                "1425000": 106704180,
+                "1704000": 65090782,
+                "820000": 252885265
+              },
+              "mean_reported_mhz": 1226.8023098286076,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 3,
+              "running_ns": 1131520675,
+              "frequency_known_ns": 1131520675,
+              "frequency_bins_ns": {
+                "1098000": 151703410,
+                "1197000": 47149414,
+                "1328000": 69720257,
+                "1548000": 264601640,
+                "1425000": 177261272,
+                "955000": 232305635,
+                "820000": 150678706,
+                "1704000": 38100341
+              },
+              "mean_reported_mhz": 1226.7816023450034,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 4,
+              "running_ns": 681183432,
+              "frequency_known_ns": 681183432,
+              "frequency_bins_ns": {
+                "1945000": 1017295,
+                "1065000": 9951333,
+                "1836000": 411549733,
+                "1328000": 12049804,
+                "1418000": 18360717,
+                "1572000": 209127928,
+                "1221000": 9317705,
+                "910000": 9808917
+              },
+              "mean_reported_mhz": 1701.8498032362595,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 5,
+              "running_ns": 788070211,
+              "frequency_known_ns": 788070211,
+              "frequency_bins_ns": {
+                "1418000": 16869954,
+                "1572000": 263668077,
+                "1328000": 20734413,
+                "1221000": 14817627,
+                "1065000": 33141849,
+                "910000": 5970093,
+                "1836000": 432868198
+              },
+              "mean_reported_mhz": 1674.3562715251524,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 6,
+              "running_ns": 743405531,
+              "frequency_known_ns": 743405531,
+              "frequency_bins_ns": {
+                "1328000": 28341344,
+                "1418000": 10856567,
+                "1221000": 13921346,
+                "1065000": 9166950,
+                "1836000": 490265399,
+                "1945000": 3273275,
+                "910000": 6412147,
+                "1572000": 181168503
+              },
+              "mean_reported_mhz": 1717.6606330347574,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4699,
+              "name": "vsock-pads",
+              "cpu": 7,
+              "running_ns": 853300499,
+              "frequency_known_ns": 853300499,
+              "frequency_bins_ns": {
+                "1945000": 282511,
+                "1418000": 15126628,
+                "1836000": 461050868,
+                "1221000": 3498290,
+                "1065000": 3692422,
+                "1572000": 357508058,
+                "1328000": 9305419,
+                "910000": 2836303
+              },
+              "mean_reported_mhz": 1703.5423963873718,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 0,
+              "running_ns": 1248613277,
+              "frequency_known_ns": 1248613277,
+              "frequency_bins_ns": {
+                "1548000": 584420036,
+                "1328000": 47245687,
+                "1425000": 50742224,
+                "1704000": 418814656,
+                "1197000": 43353598,
+                "955000": 15204630,
+                "1098000": 88832446
+              },
+              "mean_reported_mhz": 1535.5795670047164,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 1,
+              "running_ns": 1594229568,
+              "frequency_known_ns": 1594229568,
+              "frequency_bins_ns": {
+                "1328000": 55871986,
+                "1548000": 1142832965,
+                "1704000": 60944131,
+                "1197000": 41415282,
+                "1098000": 159138181,
+                "955000": 90718511,
+                "1425000": 43024048,
+                "820000": 284464
+              },
+              "mean_reported_mhz": 1455.0217830541455,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 2,
+              "running_ns": 1407810752,
+              "frequency_known_ns": 1407810752,
+              "frequency_bins_ns": {
+                "1197000": 10005044,
+                "1548000": 534951379,
+                "1704000": 678068768,
+                "1425000": 37392822,
+                "955000": 73250403,
+                "1098000": 56801678,
+                "820000": 6935505,
+                "1328000": 10405153
+              },
+              "mean_reported_mhz": 1563.152047140353,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 3,
+              "running_ns": 1580748500,
+              "frequency_known_ns": 1580748500,
+              "frequency_bins_ns": {
+                "1425000": 49923827,
+                "1548000": 1208221194,
+                "1328000": 56229371,
+                "1098000": 102786423,
+                "1197000": 53404051,
+                "955000": 104395426,
+                "820000": 5788208
+              },
+              "mean_reported_mhz": 1453.3422428463477,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 4,
+              "running_ns": 2256348053,
+              "frequency_known_ns": 2256348053,
+              "frequency_bins_ns": {
+                "1945000": 344107587,
+                "1836000": 835191186,
+                "1572000": 920593221,
+                "1328000": 17919678,
+                "1418000": 19140098,
+                "1221000": 30713789,
+                "910000": 25226969,
+                "1065000": 63455525
+              },
+              "mean_reported_mhz": 1696.92305057468,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 5,
+              "running_ns": 2656864521,
+              "frequency_known_ns": 2656864521,
+              "frequency_bins_ns": {
+                "1945000": 458213740,
+                "1836000": 1089472610,
+                "1418000": 37460245,
+                "1572000": 889829909,
+                "1221000": 29180014,
+                "1328000": 13398517,
+                "910000": 106542970,
+                "1065000": 32766516
+              },
+              "mean_reported_mhz": 1704.5284449895366,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 6,
+              "running_ns": 2803187346,
+              "frequency_known_ns": 2803187346,
+              "frequency_bins_ns": {
+                "1945000": 204769734,
+                "1836000": 1010735796,
+                "1572000": 1102397837,
+                "1328000": 50924277,
+                "1418000": 54206789,
+                "1221000": 60770710,
+                "1065000": 118138918,
+                "910000": 201243285
+              },
+              "mean_reported_mhz": 1610.5239990042392,
+              "frequency_unknown_ns": 0
+            },
+            {
+              "pid": 4561,
+              "tid": 4700,
+              "name": "pads-fetch",
+              "cpu": 7,
+              "running_ns": 2552119935,
+              "frequency_known_ns": 2552119935,
+              "frequency_bins_ns": {
+                "1945000": 639617067,
+                "1836000": 710195701,
+                "1221000": 67243610,
+                "1065000": 43564902,
+                "910000": 25191607,
+                "1572000": 911912520,
+                "1328000": 79015948,
+                "1418000": 75378580
+              },
+              "mean_reported_mhz": 1702.4068345694732,
+              "frequency_unknown_ns": 0
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Frequency transition events report policy frequency, not retired cycles or proof of thermal throttling.",
+        "Weighted only while the identified host thread is scheduled Running; guest execution cannot be assigned to an internal guest thread from host vCPU identity.",
+        "Initial time before the first frequency event is unknown and remains excluded from the mean.",
+        "Observed app marker windows are clipped to the trace and have the boundary limits documented by scheduler-analysis.json."
+      ]
+    }
+  }
+}

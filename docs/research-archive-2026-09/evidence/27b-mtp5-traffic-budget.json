@@ -1,0 +1,16 @@
+{
+  "scope": "Conditional on this measured MTP5 execution mix and both reply and replenishment traffic using the same USB incoming direction. Not a universal limit on other placements, acceptance, routes or protocols.",
+  "label": "b27-mtp5-live-1",
+  "trial_tokens": 16,
+  "field_calls": 1574,
+  "request_wire_bytes": 171091626,
+  "reply_wire_bytes": 355289430,
+  "pad_cells": 6764,
+  "minimum_replacement_pad_bytes": 355383488,
+  "minimum_incoming_bytes_per_token": 44417057.375,
+  "minimum_incoming_MB_per_s_at_20": 888.3411475,
+  "negotiated_usb_Mbit_s": 5000,
+  "raw_signaling_MB_per_s_upper_bound": 625.0,
+  "optimistic_tokens_per_second_raw_upper_bound": 14.071170782956443,
+  "omissions": "Raw signaling bound ignores encoding/framing/other traffic and so is deliberately generous. Pad estimate excludes shipment metadata and any group outputs not returned in the GPU replies."
+}

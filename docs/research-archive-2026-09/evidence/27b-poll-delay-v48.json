@@ -1,0 +1,130 @@
+{
+  "label": "b27-pad-profile-1",
+  "status": "COMPLETE_VALIDATED",
+  "poll_delay_fixed": false,
+  "new_record_claim": false,
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 488716,
+    "phone_stopped": true,
+    "bank_cleanup": {
+      "status": "QUARANTINED_NOT_REUSED",
+      "bank_clear": true,
+      "exclusive_bank_lock": true,
+      "index": 336,
+      "count": 16,
+      "bytes": 202278400,
+      "child_state": "DEAD",
+      "child_pid": 492667,
+      "child_start": 34466731,
+      "identity_matches_run": true,
+      "exact_production_schema_validated": true,
+      "journal_sha256": "4b72a005d90c5eac7bcd16fcce132e9869bcecbb49d3d424ea40e462f6a52759",
+      "quarantine": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/quarantine-b27-pad-profile-1",
+      "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+      "elapsed_seconds": 0.04174118605442345
+    },
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 8.539364912023302,
+    "elapsed_seconds": 521.690479724959
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 19187465,
+      "tokens_per_second": 0.8338777425782926,
+      "steady_tokens": 13,
+      "steady_us": 15053971,
+      "steady_tokens_per_second": 0.8635595219361057,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 24411,
+      "generated": 16,
+      "decode_us": 17407146,
+      "tokens_per_second": 0.9191627392566248,
+      "steady_tokens": 13,
+      "steady_us": 13593946,
+      "steady_tokens_per_second": 0.9563080506572558,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "receive_summary": [
+    {
+      "trial": 1,
+      "poll_wall_seconds": 10.488187582,
+      "read_wall_seconds": 10.982477169,
+      "poll_fraction_of_read": 0.954992887361039
+    },
+    {
+      "trial": 2,
+      "poll_wall_seconds": 10.591846296,
+      "read_wall_seconds": 11.066988146,
+      "poll_fraction_of_read": 0.9570667426646036
+    }
+  ],
+  "pad_prepare_profile": {
+    "weights": 409,
+    "requested": 4,
+    "jobs_histogram": {
+      "4": 409
+    },
+    "created_total": 1636,
+    "inline_total": 0,
+    "create_attempts_total": 1636,
+    "raw_ncpu_values": [
+      9
+    ],
+    "ncpu_unknown_lines": 0,
+    "weights_with_multiple_jobs": 409,
+    "note": "created counts threads pthread_create reported as started. It is not a core count and does not show simultaneous execution; the scheduler may run them consecutively. requested is the launched limit, not an outcome."
+  },
+  "confirmed_stall": {
+    "call": 303,
+    "trial": 1,
+    "kind": "body",
+    "poll_ms": 143.087,
+    "conservative_post_app_send_ms": 120.421,
+    "vhost_D_ms": 117.95577,
+    "blocked_function": "lock_sock_nested",
+    "io_wait": 0,
+    "waker_tid": 27249,
+    "waker_name": "vsock-pads",
+    "limitation": "One observed blocking function and waker; exact caller and socket inferred from host source, not a captured stack. Other stalls differ."
+  },
+  "next_candidate": {
+    "pad_write_bytes": 65536,
+    "status": "source preparation and review",
+    "limitation": "May release the socket lock more frequently, but does not bound allocation latency or guarantee one packet; credit can fragment sends."
+  },
+  "source_hashes": {
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-profile-1/speed-evidence.json": "af977922f53202d8f08437d9c1c140656f740465dfff6771ba8ed4eea9473ce6",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-profile-1/receive-operation-analysis.json": "214349165d9c44d1240a65008e2e80871d4094b806943918e87a844732fb0a9a",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-profile-1/poll-stall-analysis.json": "aab802bd4826f62cfc828872df5270f2511d35250ead73f073b57296494691cd",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-profile-1/receipt.json": "b7c412752f3810c81fc5c47915178de8a94732388030f0e9f5b767404e3d38eb"
+  },
+  "receive_source_binding": "Wire source byte-identical to v46 analyzer source, verified against v48 archive and recorded git revision."
+}

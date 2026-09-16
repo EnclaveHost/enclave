@@ -1,0 +1,2781 @@
+{
+  "label": "b27-sched-1",
+  "status": "COMPLETE_INFERENCE_PARTIAL_SCHEDULER_DIAGNOSTIC",
+  "speed_evidence": {
+    "status": "PASS_REPEAT_CAPTURE",
+    "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+    "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+    "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "trials": [
+      {
+        "trial": 1,
+        "restore_us": 0,
+        "generated": 16,
+        "decode_us": 21565546,
+        "tokens_per_second": 0.7419241785021349,
+        "steady_tokens": 13,
+        "steady_us": 18443478,
+        "steady_tokens_per_second": 0.7048562098753826,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "restore_us": 33719,
+        "generated": 16,
+        "decode_us": 26959503,
+        "tokens_per_second": 0.593482750776229,
+        "steady_tokens": 13,
+        "steady_us": 20586754,
+        "steady_tokens_per_second": 0.6314740050811313,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ],
+    "generated_total": 32,
+    "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+    "label": "b27-sched-1",
+    "capture_sha256": "115b13afabb34aa6f1e79ee6f0661e59652b6ded1f7d6b6c665c125aa65b2565",
+    "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+    "mtp_results": [
+      {
+        "trial": 1,
+        "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+        "rounds": 5,
+        "drafted": 20,
+        "accepted": 10,
+        "emitted": 15
+      },
+      {
+        "trial": 2,
+        "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+        "rounds": 5,
+        "drafted": 20,
+        "accepted": 10,
+        "emitted": 15
+      }
+    ],
+    "source_counters": [
+      "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+      "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+      "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+    ],
+    "idle_park": {
+      "enabled": 0,
+      "calls": 0
+    },
+    "pad_receiver_profile": true,
+    "bridge_profile": true,
+    "registration_snapshot": {
+      "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-sched-1/engine.stderr",
+      "scope": "snapshot-after-engine-main-cleanup",
+      "file_bytes": 247076,
+      "from": 0,
+      "total": 247076,
+      "chunks": 172,
+      "sha256": "78e085d219a8ad6e68dbfe6b4522b344874b3d7d0062e6a89603870e8fb056f7",
+      "truncated": 0
+    },
+    "gpu_execution_evidence": {
+      "worker_pid": 2798113,
+      "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+      "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+      "samples": 1981,
+      "peak_device_memory_mib": 25847.0,
+      "second_device_peak_memory_mib": 383.0,
+      "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+    }
+  },
+  "controller": {
+    "status": "CLEANUP_FAILED",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 2798104,
+    "phone_stopped": false,
+    "cleanup_error": "TimeoutExpired: Command '['/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb', '-s', '3B130DLJG0018K', 'shell', 'pidof', 'host.enclave.anchor.avf', 'crosvm', 'cro",
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 5.288118469004985,
+    "elapsed_seconds": 518.2878889400163,
+    "prior_status": "COMMAND_COMPLETE"
+  },
+  "cleanup_followup": {
+    "phone_pidof_rc": 1,
+    "phone_pids": "",
+    "stderr": "",
+    "scope": "Read-only follow-up after original cleanup PID query timed out; original controller receipt unchanged"
+  },
+  "scheduler": {
+    "label": "b27-sched-1",
+    "scope": "Kernel scheduler events for identified benchmark app threads. Complete state intervals intersected with trace coverage and app BENCH receipt windows.",
+    "clock_offset_spread_ns": 81,
+    "trace_bounds": {
+      "start_ts": "574944781078114",
+      "end_ts": "574982903321419"
+    },
+    "cpu_frequency_events": [
+      {
+        "id": "0",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "4",
+        "samples": "2611",
+        "min_value": "910000.000000",
+        "max_value": "2367000.000000"
+      },
+      {
+        "id": "1",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "5",
+        "samples": "2611",
+        "min_value": "910000.000000",
+        "max_value": "2367000.000000"
+      },
+      {
+        "id": "2",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "6",
+        "samples": "2611",
+        "min_value": "910000.000000",
+        "max_value": "2367000.000000"
+      },
+      {
+        "id": "3",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "7",
+        "samples": "2611",
+        "min_value": "910000.000000",
+        "max_value": "2367000.000000"
+      },
+      {
+        "id": "4",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "0",
+        "samples": "1703",
+        "min_value": "610000.000000",
+        "max_value": "1704000.000000"
+      },
+      {
+        "id": "5",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "1",
+        "samples": "1703",
+        "min_value": "610000.000000",
+        "max_value": "1704000.000000"
+      },
+      {
+        "id": "6",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "2",
+        "samples": "1703",
+        "min_value": "610000.000000",
+        "max_value": "1704000.000000"
+      },
+      {
+        "id": "7",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "3",
+        "samples": "1703",
+        "min_value": "610000.000000",
+        "max_value": "1704000.000000"
+      },
+      {
+        "id": "8",
+        "name": "cpufreq",
+        "type": "cpu_frequency",
+        "cpu": "8",
+        "samples": "246",
+        "min_value": "500000.000000",
+        "max_value": "2556000.000000"
+      }
+    ],
+    "trace_stats_nonzero_errors_or_loss": [
+      {
+        "name": "traced_buf_patches_failed",
+        "idx": "0",
+        "severity": "data_loss",
+        "value": "173"
+      }
+    ],
+    "owned_app_pid": 22367,
+    "threads": [
+      {
+        "utid": "4",
+        "tid": "22472",
+        "name": "burner-2",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "10",
+        "tid": "22465",
+        "name": "vsock-bridge",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "14",
+        "tid": "22470",
+        "name": "burner-0",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "34",
+        "tid": "22474",
+        "name": "burner-4",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "35",
+        "tid": "22471",
+        "name": "burner-1",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "36",
+        "tid": "22473",
+        "name": "burner-3",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "107",
+        "tid": "22475",
+        "name": "vsock-pads",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "111",
+        "tid": "22476",
+        "name": "pads-fetch",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "112",
+        "tid": "22469",
+        "name": "Okio Watchdog",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "113",
+        "tid": "22468",
+        "name": "OkHttp Connecti",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "140",
+        "tid": "22464",
+        "name": "vsock-control",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "190",
+        "tid": "22466",
+        "name": "relay-serve",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "358",
+        "tid": "22376",
+        "name": "Jit thread pool",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      },
+      {
+        "utid": "368",
+        "tid": "22413",
+        "name": "anchor-service",
+        "start_ts": "[NULL]",
+        "end_ts": "[NULL]"
+      }
+    ],
+    "trials": [
+      {
+        "trial": 1,
+        "start": 574944781078114,
+        "end": 574966030988799,
+        "seconds": 21.249910685,
+        "guest_decode_seconds": 21.565546,
+        "app_begin_trace_ts": 574944462988799,
+        "app_end_trace_ts": 574966030988799,
+        "thread_states": [
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "10941118484",
+            "max_ns": "8116397454"
+          },
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "149739",
+            "max_ns": "78776"
+          },
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "55014",
+            "max_ns": "33611"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "6426402824",
+            "max_ns": "6423643059"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "383463",
+            "max_ns": "330200"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "131796",
+            "max_ns": "83374"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "19",
+            "ns": "18392547411",
+            "max_ns": "7262574995"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "35",
+            "ns": "24644292",
+            "max_ns": "2377116"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "30",
+            "ns": "13804878",
+            "max_ns": "4102783"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "6",
+            "ns": "9195189",
+            "max_ns": "6291056"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "7787",
+            "ns": "14241948860",
+            "max_ns": "221090821"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "12971",
+            "ns": "5153902076",
+            "max_ns": "112403239"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "4565",
+            "ns": "939075613",
+            "max_ns": "9425822"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "7033",
+            "ns": "872421714",
+            "max_ns": "6775268"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "544",
+            "ns": "42176354",
+            "max_ns": "2472981"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "16181726559",
+            "max_ns": "16181726559"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "430176",
+            "max_ns": "430176"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "70028",
+            "max_ns": "70028"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "17",
+            "ns": "20129889607",
+            "max_ns": "7113254480"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "17",
+            "ns": "4028930",
+            "max_ns": "972412"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "17",
+            "ns": "1369182",
+            "max_ns": "147868"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "60508",
+            "ns": "16585168986",
+            "max_ns": "2011666708"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "55247",
+            "ns": "2486195310",
+            "max_ns": "7853190"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "61146",
+            "ns": "1051388379",
+            "max_ns": "1612264"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "157",
+            "ns": "14414845",
+            "max_ns": "1445964"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "17924",
+            "ns": "11105391775",
+            "max_ns": "88103800"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "17927",
+            "ns": "10143300364",
+            "max_ns": "51554932"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "319213",
+            "max_ns": "262410"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "15994",
+            "ns": "11369734746",
+            "max_ns": "83297282"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "15997",
+            "ns": "9869057897",
+            "max_ns": "130153320"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "3",
+            "ns": "171956",
+            "max_ns": "65348"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "18398",
+            "ns": "10922090211",
+            "max_ns": "71023804"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "18401",
+            "ns": "10327302000",
+            "max_ns": "67709961"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "319906",
+            "max_ns": "300212"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "15012",
+            "ns": "10760946865",
+            "max_ns": "68819254"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "15017",
+            "ns": "10476267367",
+            "max_ns": "105879070"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "5",
+            "ns": "1116374",
+            "max_ns": "726766"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "15336",
+            "ns": "11045136004",
+            "max_ns": "116416504"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "15339",
+            "ns": "10193667015",
+            "max_ns": "163892456"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "3",
+            "ns": "386962",
+            "max_ns": "204874"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "1780",
+            "ns": "17734170730",
+            "max_ns": "1000047079"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "3551",
+            "ns": "1509651942",
+            "max_ns": "140993693"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "1112",
+            "ns": "450269235",
+            "max_ns": "9070353"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "627",
+            "ns": "403152124",
+            "max_ns": "30484660"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "2119",
+            "ns": "342737617",
+            "max_ns": "12305623"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "183",
+            "ns": "13050704378",
+            "max_ns": "2000035483"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "5346",
+            "ns": "6239522356",
+            "max_ns": "129987345"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "4033",
+            "ns": "495893215",
+            "max_ns": "8147298"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "1138",
+            "ns": "297133193",
+            "max_ns": "10213257"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "190",
+            "ns": "54710032",
+            "max_ns": "4818156"
+          }
+        ],
+        "uncovered_complete_state_seconds": {
+          "22367": 21.249910685,
+          "22373": 21.249910685,
+          "22374": 21.249910685,
+          "22375": 21.249910685,
+          "22376": 10.308587448,
+          "22377": 21.249910685,
+          "22378": 21.249910685,
+          "22379": 21.249910685,
+          "22380": 21.249910685,
+          "22381": 21.249910685,
+          "22382": 21.249910685,
+          "22383": 21.249910685,
+          "22388": 21.249910685,
+          "22392": 21.249910685,
+          "22397": 21.249910685,
+          "22413": 14.822992602,
+          "22414": 21.249910685,
+          "22416": 21.249910685,
+          "22463": 21.249910685,
+          "22464": 2.809718915,
+          "22465": 0.000386068,
+          "22466": 5.067683922,
+          "22468": 1.114622966,
+          "22469": 1.112743165,
+          "22470": 0.000899333,
+          "22471": 0.010946086,
+          "22472": 0.000198568,
+          "22473": 0.011580079,
+          "22474": 0.010720704,
+          "22475": 0.809929037,
+          "22476": 1.111947511
+        },
+        "unfinished_states": [],
+        "cpu_execution": [
+          {
+            "tid": "22376",
+            "cpu": "6",
+            "ns": "149739"
+          },
+          {
+            "tid": "22413",
+            "cpu": "3",
+            "ns": "83374"
+          },
+          {
+            "tid": "22413",
+            "cpu": "6",
+            "ns": "48422"
+          },
+          {
+            "tid": "22464",
+            "cpu": "0",
+            "ns": "9312053"
+          },
+          {
+            "tid": "22464",
+            "cpu": "5",
+            "ns": "4206667"
+          },
+          {
+            "tid": "22464",
+            "cpu": "7",
+            "ns": "3721518"
+          },
+          {
+            "tid": "22464",
+            "cpu": "3",
+            "ns": "3429200"
+          },
+          {
+            "tid": "22464",
+            "cpu": "1",
+            "ns": "2382569"
+          },
+          {
+            "tid": "22464",
+            "cpu": "4",
+            "ns": "1582682"
+          },
+          {
+            "tid": "22464",
+            "cpu": "6",
+            "ns": "9603"
+          },
+          {
+            "tid": "22465",
+            "cpu": "7",
+            "ns": "1307813453"
+          },
+          {
+            "tid": "22465",
+            "cpu": "5",
+            "ns": "1109746682"
+          },
+          {
+            "tid": "22465",
+            "cpu": "6",
+            "ns": "846967668"
+          },
+          {
+            "tid": "22465",
+            "cpu": "4",
+            "ns": "700038755"
+          },
+          {
+            "tid": "22465",
+            "cpu": "0",
+            "ns": "446928504"
+          },
+          {
+            "tid": "22465",
+            "cpu": "2",
+            "ns": "325764482"
+          },
+          {
+            "tid": "22465",
+            "cpu": "3",
+            "ns": "228103306"
+          },
+          {
+            "tid": "22465",
+            "cpu": "1",
+            "ns": "188539226"
+          },
+          {
+            "tid": "22466",
+            "cpu": "4",
+            "ns": "430176"
+          },
+          {
+            "tid": "22468",
+            "cpu": "3",
+            "ns": "349367"
+          },
+          {
+            "tid": "22468",
+            "cpu": "5",
+            "ns": "343138"
+          },
+          {
+            "tid": "22468",
+            "cpu": "4",
+            "ns": "322835"
+          },
+          {
+            "tid": "22468",
+            "cpu": "0",
+            "ns": "251302"
+          },
+          {
+            "tid": "22468",
+            "cpu": "6",
+            "ns": "58106"
+          },
+          {
+            "tid": "22468",
+            "cpu": "7",
+            "ns": "44434"
+          },
+          {
+            "tid": "22469",
+            "cpu": "6",
+            "ns": "215002696"
+          },
+          {
+            "tid": "22469",
+            "cpu": "4",
+            "ns": "183943758"
+          },
+          {
+            "tid": "22469",
+            "cpu": "7",
+            "ns": "164937772"
+          },
+          {
+            "tid": "22469",
+            "cpu": "5",
+            "ns": "120982856"
+          },
+          {
+            "tid": "22469",
+            "cpu": "1",
+            "ns": "111171804"
+          },
+          {
+            "tid": "22469",
+            "cpu": "3",
+            "ns": "110170913"
+          },
+          {
+            "tid": "22469",
+            "cpu": "0",
+            "ns": "105336219"
+          },
+          {
+            "tid": "22469",
+            "cpu": "2",
+            "ns": "39842361"
+          },
+          {
+            "tid": "22470",
+            "cpu": "5",
+            "ns": "1979109400"
+          },
+          {
+            "tid": "22470",
+            "cpu": "7",
+            "ns": "1690956815"
+          },
+          {
+            "tid": "22470",
+            "cpu": "6",
+            "ns": "1475356201"
+          },
+          {
+            "tid": "22470",
+            "cpu": "2",
+            "ns": "1353259635"
+          },
+          {
+            "tid": "22470",
+            "cpu": "4",
+            "ns": "1282732464"
+          },
+          {
+            "tid": "22470",
+            "cpu": "3",
+            "ns": "1195775464"
+          },
+          {
+            "tid": "22470",
+            "cpu": "1",
+            "ns": "623387864"
+          },
+          {
+            "tid": "22470",
+            "cpu": "0",
+            "ns": "542722521"
+          },
+          {
+            "tid": "22471",
+            "cpu": "6",
+            "ns": "2183647291"
+          },
+          {
+            "tid": "22471",
+            "cpu": "5",
+            "ns": "1754317711"
+          },
+          {
+            "tid": "22471",
+            "cpu": "7",
+            "ns": "1469887364"
+          },
+          {
+            "tid": "22471",
+            "cpu": "4",
+            "ns": "1355140912"
+          },
+          {
+            "tid": "22471",
+            "cpu": "3",
+            "ns": "955830592"
+          },
+          {
+            "tid": "22471",
+            "cpu": "2",
+            "ns": "919797567"
+          },
+          {
+            "tid": "22471",
+            "cpu": "0",
+            "ns": "797807185"
+          },
+          {
+            "tid": "22471",
+            "cpu": "1",
+            "ns": "432629275"
+          },
+          {
+            "tid": "22472",
+            "cpu": "2",
+            "ns": "1627073380"
+          },
+          {
+            "tid": "22472",
+            "cpu": "7",
+            "ns": "1580068209"
+          },
+          {
+            "tid": "22472",
+            "cpu": "6",
+            "ns": "1532075038"
+          },
+          {
+            "tid": "22472",
+            "cpu": "3",
+            "ns": "1402550577"
+          },
+          {
+            "tid": "22472",
+            "cpu": "5",
+            "ns": "1354463040"
+          },
+          {
+            "tid": "22472",
+            "cpu": "4",
+            "ns": "1330130682"
+          },
+          {
+            "tid": "22472",
+            "cpu": "1",
+            "ns": "974078757"
+          },
+          {
+            "tid": "22472",
+            "cpu": "0",
+            "ns": "526862317"
+          },
+          {
+            "tid": "22473",
+            "cpu": "3",
+            "ns": "1681238361"
+          },
+          {
+            "tid": "22473",
+            "cpu": "4",
+            "ns": "1600332647"
+          },
+          {
+            "tid": "22473",
+            "cpu": "7",
+            "ns": "1551844647"
+          },
+          {
+            "tid": "22473",
+            "cpu": "6",
+            "ns": "1353522041"
+          },
+          {
+            "tid": "22473",
+            "cpu": "5",
+            "ns": "1332255842"
+          },
+          {
+            "tid": "22473",
+            "cpu": "2",
+            "ns": "1142735894"
+          },
+          {
+            "tid": "22473",
+            "cpu": "0",
+            "ns": "1113528121"
+          },
+          {
+            "tid": "22473",
+            "cpu": "1",
+            "ns": "700809814"
+          },
+          {
+            "tid": "22474",
+            "cpu": "5",
+            "ns": "1834784233"
+          },
+          {
+            "tid": "22474",
+            "cpu": "3",
+            "ns": "1517853221"
+          },
+          {
+            "tid": "22474",
+            "cpu": "7",
+            "ns": "1480803869"
+          },
+          {
+            "tid": "22474",
+            "cpu": "6",
+            "ns": "1403586628"
+          },
+          {
+            "tid": "22474",
+            "cpu": "4",
+            "ns": "1381632933"
+          },
+          {
+            "tid": "22474",
+            "cpu": "2",
+            "ns": "1216056250"
+          },
+          {
+            "tid": "22474",
+            "cpu": "0",
+            "ns": "912727098"
+          },
+          {
+            "tid": "22474",
+            "cpu": "1",
+            "ns": "446222783"
+          },
+          {
+            "tid": "22475",
+            "cpu": "4",
+            "ns": "362284110"
+          },
+          {
+            "tid": "22475",
+            "cpu": "7",
+            "ns": "238096830"
+          },
+          {
+            "tid": "22475",
+            "cpu": "6",
+            "ns": "229648792"
+          },
+          {
+            "tid": "22475",
+            "cpu": "2",
+            "ns": "181835823"
+          },
+          {
+            "tid": "22475",
+            "cpu": "5",
+            "ns": "166590297"
+          },
+          {
+            "tid": "22475",
+            "cpu": "0",
+            "ns": "157900226"
+          },
+          {
+            "tid": "22475",
+            "cpu": "3",
+            "ns": "101728594"
+          },
+          {
+            "tid": "22475",
+            "cpu": "1",
+            "ns": "71567270"
+          },
+          {
+            "tid": "22476",
+            "cpu": "1",
+            "ns": "1398820070"
+          },
+          {
+            "tid": "22476",
+            "cpu": "7",
+            "ns": "1068899005"
+          },
+          {
+            "tid": "22476",
+            "cpu": "4",
+            "ns": "941884901"
+          },
+          {
+            "tid": "22476",
+            "cpu": "3",
+            "ns": "821525379"
+          },
+          {
+            "tid": "22476",
+            "cpu": "6",
+            "ns": "758938479"
+          },
+          {
+            "tid": "22476",
+            "cpu": "5",
+            "ns": "634807547"
+          },
+          {
+            "tid": "22476",
+            "cpu": "2",
+            "ns": "608546877"
+          },
+          {
+            "tid": "22476",
+            "cpu": "0",
+            "ns": "6100098"
+          }
+        ],
+        "longest_runnable_delays": [
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574953892030349",
+            "dur": "116416504",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574956581221024",
+            "dur": "88103800",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574956867601802",
+            "dur": "83297282",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574953555513666",
+            "dur": "77270223",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574953560485020",
+            "dur": "74042440",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574953591517409",
+            "dur": "72512126",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574956131475662",
+            "dur": "71023804",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574956907521765",
+            "dur": "70937459",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574955656098872",
+            "dur": "70400879",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574957178237137",
+            "dur": "69410197",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574964625264648",
+            "dur": "68992838",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574946169188996",
+            "dur": "68992553",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "ts": "574956071690018",
+            "dur": "68819254",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574955114393224",
+            "dur": "64650553",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574955680073400",
+            "dur": "63774048",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574956083504918",
+            "dur": "63713868",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574955117526769",
+            "dur": "63531168",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574955671496292",
+            "dur": "61837972",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574956157004105",
+            "dur": "61480468",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574954242163609",
+            "dur": "61417196",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          }
+        ]
+      },
+      {
+        "trial": 2,
+        "start": 574966062988799,
+        "end": 574982903321419,
+        "seconds": 16.84033262,
+        "guest_decode_seconds": 26.959503,
+        "app_begin_trace_ts": 574966062988799,
+        "app_end_trace_ts": 574993027988799,
+        "thread_states": [
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "11214460669",
+            "max_ns": "7023683893"
+          },
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "322958",
+            "max_ns": "275350"
+          },
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "251953",
+            "max_ns": "156494"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "15544275450",
+            "max_ns": "15539712380"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "105835",
+            "max_ns": "65999"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "105225",
+            "max_ns": "64168"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "21",
+            "ns": "16524057095",
+            "max_ns": "1014754924"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "31",
+            "ns": "23095066",
+            "max_ns": "1838012"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "27",
+            "ns": "5416544",
+            "max_ns": "1907389"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "3",
+            "ns": "3148396",
+            "max_ns": "2751953"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "11027",
+            "max_ns": "5778"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "4786",
+            "ns": "12900196574",
+            "max_ns": "279913738"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "7724",
+            "ns": "2685941949",
+            "max_ns": "51788696"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "4731",
+            "ns": "703222896",
+            "max_ns": "10916219"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "2637",
+            "ns": "530125669",
+            "max_ns": "8139811"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "251",
+            "ns": "18801139",
+            "max_ns": "1696452"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "13787198911",
+            "max_ns": "13787198911"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "460002",
+            "max_ns": "460002"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "1",
+            "ns": "29012",
+            "max_ns": "29012"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "10",
+            "ns": "14556746600",
+            "max_ns": "7288515710"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "10",
+            "ns": "3619142",
+            "max_ns": "1437378"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "10",
+            "ns": "627359",
+            "max_ns": "114258"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "59863",
+            "ns": "11749587319",
+            "max_ns": "2029127157"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "51025",
+            "ns": "3562982103",
+            "max_ns": "10410522"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "61000",
+            "ns": "1477322976",
+            "max_ns": "896809"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "324",
+            "ns": "50233801",
+            "max_ns": "5583781"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "14564",
+            "ns": "8815966835",
+            "max_ns": "55537231"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "14561",
+            "ns": "8004480369",
+            "max_ns": "76403768"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "230672",
+            "max_ns": "128947"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "11400",
+            "ns": "8705611735",
+            "max_ns": "229679606"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "11400",
+            "ns": "8100958800",
+            "max_ns": "68472941"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "13092",
+            "ns": "8846685957",
+            "max_ns": "153096923"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "13088",
+            "ns": "7956751806",
+            "max_ns": "86108195"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "3",
+            "ns": "1133098",
+            "max_ns": "499919"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "14233",
+            "ns": "8695501902",
+            "max_ns": "108998413"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "14230",
+            "ns": "8087619089",
+            "max_ns": "83791911"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "2",
+            "ns": "102132",
+            "max_ns": "74422"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "13075",
+            "ns": "8855950591",
+            "max_ns": "146535686"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "13071",
+            "ns": "7931866159",
+            "max_ns": "68252686"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "3",
+            "ns": "729819",
+            "max_ns": "382528"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "2710",
+            "ns": "9308904899",
+            "max_ns": "1000044556"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "8197",
+            "ns": "3960156513",
+            "max_ns": "195909587"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "743",
+            "ns": "1747433710",
+            "max_ns": "143689250"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "4632",
+            "ns": "1229705653",
+            "max_ns": "13310832"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "3405",
+            "ns": "592264251",
+            "max_ns": "16052450"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "Running",
+            "io_wait": "[NULL]",
+            "intervals": "6869",
+            "ns": "8266296865",
+            "max_ns": "156783081"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "S",
+            "io_wait": "[NULL]",
+            "intervals": "358",
+            "ns": "7297797568",
+            "max_ns": "2000073976"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "R+",
+            "io_wait": "[NULL]",
+            "intervals": "4989",
+            "ns": "725827404",
+            "max_ns": "7573690"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "R",
+            "io_wait": "[NULL]",
+            "intervals": "1668",
+            "ns": "473002577",
+            "max_ns": "7552449"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "state": "D",
+            "io_wait": "[NULL]",
+            "intervals": "164",
+            "ns": "76648400",
+            "max_ns": "5457561"
+          }
+        ],
+        "uncovered_complete_state_seconds": {
+          "22367": 16.84033262,
+          "22373": 16.84033262,
+          "22374": 16.84033262,
+          "22375": 16.84033262,
+          "22376": 5.62529704,
+          "22377": 16.84033262,
+          "22378": 16.84033262,
+          "22379": 16.84033262,
+          "22380": 16.84033262,
+          "22381": 16.84033262,
+          "22382": 16.84033262,
+          "22383": 16.84033262,
+          "22388": 16.84033262,
+          "22392": 16.84033262,
+          "22397": 16.84033262,
+          "22413": 1.29584611,
+          "22414": 16.84033262,
+          "22416": 16.84033262,
+          "22463": 16.84033262,
+          "22464": 0.284604492,
+          "22465": 0.002044393,
+          "22466": 3.052644695,
+          "22468": 2.279339519,
+          "22469": 0.000206421,
+          "22470": 0.019654744,
+          "22471": 0.033762085,
+          "22472": 0.035761759,
+          "22473": 0.057109497,
+          "22474": 0.051786051,
+          "22475": 0.001867594,
+          "22476": 0.000759806
+        },
+        "unfinished_states": [
+          {
+            "tid": "22376",
+            "name": "Jit thread pool",
+            "ts": "574977278024379",
+            "state": "S"
+          },
+          {
+            "tid": "22466",
+            "name": "relay-serve",
+            "ts": "574979850676724",
+            "state": "S"
+          },
+          {
+            "tid": "22468",
+            "name": "OkHttp Connecti",
+            "ts": "574980623981900",
+            "state": "S"
+          },
+          {
+            "tid": "22413",
+            "name": "anchor-service",
+            "ts": "574981607475309",
+            "state": "S"
+          },
+          {
+            "tid": "22464",
+            "name": "vsock-control",
+            "ts": "574982618716927",
+            "state": "S"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "ts": "574982846211922",
+            "state": "R"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574982851535368",
+            "state": "R"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574982867559660",
+            "state": "R"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574982869559334",
+            "state": "R"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574982883666675",
+            "state": "R"
+          },
+          {
+            "tid": "22465",
+            "name": "vsock-bridge",
+            "ts": "574982901277026",
+            "state": "S"
+          },
+          {
+            "tid": "22475",
+            "name": "vsock-pads",
+            "ts": "574982901453825",
+            "state": "S"
+          },
+          {
+            "tid": "22476",
+            "name": "pads-fetch",
+            "ts": "574982902561613",
+            "state": "Running"
+          },
+          {
+            "tid": "22469",
+            "name": "Okio Watchdog",
+            "ts": "574982903114998",
+            "state": "R"
+          }
+        ],
+        "cpu_execution": [
+          {
+            "tid": "22376",
+            "cpu": "0",
+            "ns": "156494"
+          },
+          {
+            "tid": "22376",
+            "cpu": "5",
+            "ns": "95459"
+          },
+          {
+            "tid": "22413",
+            "cpu": "7",
+            "ns": "105835"
+          },
+          {
+            "tid": "22464",
+            "cpu": "3",
+            "ns": "4550295"
+          },
+          {
+            "tid": "22464",
+            "cpu": "6",
+            "ns": "4011921"
+          },
+          {
+            "tid": "22464",
+            "cpu": "2",
+            "ns": "3023437"
+          },
+          {
+            "tid": "22464",
+            "cpu": "0",
+            "ns": "3017090"
+          },
+          {
+            "tid": "22464",
+            "cpu": "1",
+            "ns": "2490734"
+          },
+          {
+            "tid": "22464",
+            "cpu": "4",
+            "ns": "2400270"
+          },
+          {
+            "tid": "22464",
+            "cpu": "5",
+            "ns": "1815878"
+          },
+          {
+            "tid": "22464",
+            "cpu": "7",
+            "ns": "1785441"
+          },
+          {
+            "tid": "22465",
+            "cpu": "4",
+            "ns": "550950172"
+          },
+          {
+            "tid": "22465",
+            "cpu": "6",
+            "ns": "476538793"
+          },
+          {
+            "tid": "22465",
+            "cpu": "7",
+            "ns": "425687146"
+          },
+          {
+            "tid": "22465",
+            "cpu": "1",
+            "ns": "423922734"
+          },
+          {
+            "tid": "22465",
+            "cpu": "5",
+            "ns": "363450865"
+          },
+          {
+            "tid": "22465",
+            "cpu": "2",
+            "ns": "238308705"
+          },
+          {
+            "tid": "22465",
+            "cpu": "0",
+            "ns": "143672240"
+          },
+          {
+            "tid": "22465",
+            "cpu": "3",
+            "ns": "63411294"
+          },
+          {
+            "tid": "22466",
+            "cpu": "4",
+            "ns": "460002"
+          },
+          {
+            "tid": "22468",
+            "cpu": "4",
+            "ns": "264485"
+          },
+          {
+            "tid": "22468",
+            "cpu": "1",
+            "ns": "188843"
+          },
+          {
+            "tid": "22468",
+            "cpu": "7",
+            "ns": "118448"
+          },
+          {
+            "tid": "22468",
+            "cpu": "5",
+            "ns": "55583"
+          },
+          {
+            "tid": "22469",
+            "cpu": "1",
+            "ns": "273198837"
+          },
+          {
+            "tid": "22469",
+            "cpu": "2",
+            "ns": "259812932"
+          },
+          {
+            "tid": "22469",
+            "cpu": "6",
+            "ns": "202989224"
+          },
+          {
+            "tid": "22469",
+            "cpu": "5",
+            "ns": "182013956"
+          },
+          {
+            "tid": "22469",
+            "cpu": "0",
+            "ns": "161888756"
+          },
+          {
+            "tid": "22469",
+            "cpu": "4",
+            "ns": "148530860"
+          },
+          {
+            "tid": "22469",
+            "cpu": "7",
+            "ns": "141912504"
+          },
+          {
+            "tid": "22469",
+            "cpu": "3",
+            "ns": "106975907"
+          },
+          {
+            "tid": "22470",
+            "cpu": "6",
+            "ns": "1871536270"
+          },
+          {
+            "tid": "22470",
+            "cpu": "4",
+            "ns": "1642254816"
+          },
+          {
+            "tid": "22470",
+            "cpu": "5",
+            "ns": "1633105282"
+          },
+          {
+            "tid": "22470",
+            "cpu": "7",
+            "ns": "1010648866"
+          },
+          {
+            "tid": "22470",
+            "cpu": "0",
+            "ns": "993654929"
+          },
+          {
+            "tid": "22470",
+            "cpu": "1",
+            "ns": "818750578"
+          },
+          {
+            "tid": "22470",
+            "cpu": "3",
+            "ns": "447795302"
+          },
+          {
+            "tid": "22470",
+            "cpu": "2",
+            "ns": "398220792"
+          },
+          {
+            "tid": "22471",
+            "cpu": "4",
+            "ns": "2129898087"
+          },
+          {
+            "tid": "22471",
+            "cpu": "5",
+            "ns": "1511627928"
+          },
+          {
+            "tid": "22471",
+            "cpu": "6",
+            "ns": "1426747961"
+          },
+          {
+            "tid": "22471",
+            "cpu": "7",
+            "ns": "1374610420"
+          },
+          {
+            "tid": "22471",
+            "cpu": "1",
+            "ns": "778831357"
+          },
+          {
+            "tid": "22471",
+            "cpu": "0",
+            "ns": "570858345"
+          },
+          {
+            "tid": "22471",
+            "cpu": "3",
+            "ns": "462481043"
+          },
+          {
+            "tid": "22471",
+            "cpu": "2",
+            "ns": "450556594"
+          },
+          {
+            "tid": "22472",
+            "cpu": "5",
+            "ns": "1827946215"
+          },
+          {
+            "tid": "22472",
+            "cpu": "6",
+            "ns": "1472322437"
+          },
+          {
+            "tid": "22472",
+            "cpu": "7",
+            "ns": "1414020041"
+          },
+          {
+            "tid": "22472",
+            "cpu": "4",
+            "ns": "1273593241"
+          },
+          {
+            "tid": "22472",
+            "cpu": "1",
+            "ns": "979246797"
+          },
+          {
+            "tid": "22472",
+            "cpu": "0",
+            "ns": "835361858"
+          },
+          {
+            "tid": "22472",
+            "cpu": "3",
+            "ns": "537093474"
+          },
+          {
+            "tid": "22472",
+            "cpu": "2",
+            "ns": "507101894"
+          },
+          {
+            "tid": "22473",
+            "cpu": "5",
+            "ns": "1558736901"
+          },
+          {
+            "tid": "22473",
+            "cpu": "7",
+            "ns": "1392612259"
+          },
+          {
+            "tid": "22473",
+            "cpu": "6",
+            "ns": "1332430632"
+          },
+          {
+            "tid": "22473",
+            "cpu": "4",
+            "ns": "1278267128"
+          },
+          {
+            "tid": "22473",
+            "cpu": "1",
+            "ns": "1081910694"
+          },
+          {
+            "tid": "22473",
+            "cpu": "2",
+            "ns": "863263645"
+          },
+          {
+            "tid": "22473",
+            "cpu": "0",
+            "ns": "839393680"
+          },
+          {
+            "tid": "22473",
+            "cpu": "3",
+            "ns": "348886963"
+          },
+          {
+            "tid": "22474",
+            "cpu": "6",
+            "ns": "2259921115"
+          },
+          {
+            "tid": "22474",
+            "cpu": "4",
+            "ns": "2081907590"
+          },
+          {
+            "tid": "22474",
+            "cpu": "7",
+            "ns": "1322645209"
+          },
+          {
+            "tid": "22474",
+            "cpu": "5",
+            "ns": "983278455"
+          },
+          {
+            "tid": "22474",
+            "cpu": "3",
+            "ns": "761638991"
+          },
+          {
+            "tid": "22474",
+            "cpu": "1",
+            "ns": "656441635"
+          },
+          {
+            "tid": "22474",
+            "cpu": "2",
+            "ns": "415220634"
+          },
+          {
+            "tid": "22474",
+            "cpu": "0",
+            "ns": "374896962"
+          },
+          {
+            "tid": "22475",
+            "cpu": "0",
+            "ns": "678678601"
+          },
+          {
+            "tid": "22475",
+            "cpu": "4",
+            "ns": "652866718"
+          },
+          {
+            "tid": "22475",
+            "cpu": "6",
+            "ns": "556965808"
+          },
+          {
+            "tid": "22475",
+            "cpu": "5",
+            "ns": "533143516"
+          },
+          {
+            "tid": "22475",
+            "cpu": "1",
+            "ns": "497715318"
+          },
+          {
+            "tid": "22475",
+            "cpu": "7",
+            "ns": "435608442"
+          },
+          {
+            "tid": "22475",
+            "cpu": "2",
+            "ns": "352281310"
+          },
+          {
+            "tid": "22475",
+            "cpu": "3",
+            "ns": "252896800"
+          },
+          {
+            "tid": "22476",
+            "cpu": "7",
+            "ns": "1726041063"
+          },
+          {
+            "tid": "22476",
+            "cpu": "2",
+            "ns": "1563397180"
+          },
+          {
+            "tid": "22476",
+            "cpu": "6",
+            "ns": "1194865325"
+          },
+          {
+            "tid": "22476",
+            "cpu": "4",
+            "ns": "1131221358"
+          },
+          {
+            "tid": "22476",
+            "cpu": "5",
+            "ns": "953589037"
+          },
+          {
+            "tid": "22476",
+            "cpu": "0",
+            "ns": "808942465"
+          },
+          {
+            "tid": "22476",
+            "cpu": "1",
+            "ns": "610137328"
+          },
+          {
+            "tid": "22476",
+            "cpu": "3",
+            "ns": "278103109"
+          }
+        ],
+        "longest_runnable_delays": [
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574981760150317",
+            "dur": "86108195",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "ts": "574974938639856",
+            "dur": "83791911",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574982752180794",
+            "dur": "76403768",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574982751885913",
+            "dur": "74925252",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574982758943693",
+            "dur": "68472941",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574982769198616",
+            "dur": "68252686",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574975148217859",
+            "dur": "63168905",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574973434519657",
+            "dur": "61347249",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574981773739632",
+            "dur": "59816243",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "ts": "574982435528898",
+            "dur": "58637003",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574972806516889",
+            "dur": "58234294",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22470",
+            "name": "burner-0",
+            "ts": "574982459191618",
+            "dur": "49699544",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574975966523605",
+            "dur": "49101481",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574981526541226",
+            "dur": "48027792",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22474",
+            "name": "burner-4",
+            "ts": "574975535588505",
+            "dur": "47445598",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574974549370203",
+            "dur": "45518920",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22473",
+            "name": "burner-3",
+            "ts": "574981821793668",
+            "dur": "44797404",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22472",
+            "name": "burner-2",
+            "ts": "574982519006640",
+            "dur": "44640503",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574981819511319",
+            "dur": "44424357",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          },
+          {
+            "tid": "22471",
+            "name": "burner-1",
+            "ts": "574981775222501",
+            "dur": "43275675",
+            "state": "R",
+            "waker_tid": "[NULL]",
+            "waker_name": "[NULL]"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "App marker receipt delay relative to guest emission is not bounded; these are not exact guest decode boundaries.",
+      "Recorder starts after trial1 begin was received, so the initial part of that trial is excluded. Millisecond logcat timestamps limit boundary precision.",
+      "R/R+ means runnable but not executing; S/D indicates a blocked state, not automatically network IO. Bridge source-call timings provide separate context.",
+      "Only complete state intervals are summed. Unfinished states and uncovered boundary time are explicit; absence is not zero cost.",
+      "App bridge threads are Android host threads. This does not reveal guest-internal scheduling or kernel instruction PCs.",
+      "Scheduling tracing can perturb timing; this is a diagnostic, not an isolated throughput improvement."
+    ]
+  },
+  "bridge": {
+    "scope": "Whole bridge lifetime and bins wholly within app receipt of BENCH begin/result markers. Statistical/diagnostic timing, not precise guest decode windows.",
+    "label": "b27-sched-1",
+    "trials": [
+      {
+        "trial": 1,
+        "decode_us": 21565546,
+        "generated": 16,
+        "app_begin_epoch_ns": 1788950604123000000,
+        "app_result_epoch_ns": 1788950625691000000,
+        "app_marker_span_seconds": 21.568,
+        "app_span_minus_guest_decode_seconds": 0.0024540000000001783,
+        "bins": 79,
+        "seconds": {
+          "dt": 21.144766856,
+          "cpu": 4.879691921,
+          "cpu_user": 0.103538,
+          "cpu_system": 4.776154,
+          "poll_empty": 14.369648713,
+          "poll_up": 0.0,
+          "poll_down": 1.03495895,
+          "poll_both": 0.0,
+          "read_guest": 0.165679027,
+          "read_host": 0.819823294,
+          "write_host": 0.758148048,
+          "write_guest": 3.851176563,
+          "cpu_poll": 0.366200607,
+          "cpu_read_guest": 0.146026344,
+          "cpu_read_host": 0.701169197,
+          "cpu_write_host": 0.608662595,
+          "cpu_write_guest": 2.973999166
+        },
+        "up_bytes": 169600347,
+        "down_bytes": 348717900,
+        "system_fraction": 0.9787818575434678,
+        "cpu_outside_call_brackets_seconds": 0.08363401200000009
+      },
+      {
+        "trial": 2,
+        "decode_us": 26959503,
+        "generated": 16,
+        "app_begin_epoch_ns": 1788950625723000000,
+        "app_result_epoch_ns": 1788950652688000000,
+        "app_marker_span_seconds": 26.965,
+        "app_span_minus_guest_decode_seconds": 0.005496999999998309,
+        "bins": 101,
+        "seconds": {
+          "dt": 26.663332574,
+          "cpu": 3.523219192,
+          "cpu_user": 0.101098,
+          "cpu_system": 3.422122,
+          "poll_empty": 19.217375014,
+          "poll_up": 0.0,
+          "poll_down": 3.245052224,
+          "poll_both": 0.0,
+          "read_guest": 0.195828002,
+          "read_host": 0.838423318,
+          "write_host": 0.935591699,
+          "write_guest": 2.072413547,
+          "cpu_poll": 0.372261671,
+          "cpu_read_guest": 0.164483655,
+          "cpu_read_host": 0.673305696,
+          "cpu_write_host": 0.70916233,
+          "cpu_write_guest": 1.52066149
+        },
+        "up_bytes": 170172266,
+        "down_bytes": 352318482,
+        "system_fraction": 0.9713052264689688,
+        "cpu_outside_call_brackets_seconds": 0.08334434999999996
+      }
+    ],
+    "whole_bridge": {
+      "bins": 209,
+      "seconds": {
+        "dt": 489.247650426,
+        "cpu": 9.088270246,
+        "cpu_user": 0.236597,
+        "cpu_system": 8.851673,
+        "poll_empty": 474.340765393,
+        "poll_up": 0.0,
+        "poll_down": 4.356193432,
+        "poll_both": 0.0,
+        "read_guest": 0.421571831,
+        "read_host": 1.823321755,
+        "write_host": 1.923599037,
+        "write_guest": 6.037446173,
+        "cpu_poll": 0.89649784,
+        "cpu_read_guest": 0.367829809,
+        "cpu_read_host": 1.523095767,
+        "cpu_write_host": 1.516178378,
+        "cpu_write_guest": 4.592496422
+      },
+      "up_bytes": 375485097,
+      "down_bytes": 773769060,
+      "system_fraction": 0.9739667725540725,
+      "cpu_outside_call_brackets_seconds": 0.19217203000000005
+    },
+    "realtime_minus_monotonic_spread_us": 134.237,
+    "limits": [
+      "App receives markers after guest emission; control transport and scheduling latency are not bounded by this capture.",
+      "A small difference between app marker span and guest decode duration does not bound common marker delay.",
+      "Boundary bins are excluded. CPU percentages refer only to this bridge thread, not whole model/phone CPU.",
+      "Per-call CPU includes kernel execution charged to this thread and instrumentation overhead; no kernel PC sampling.",
+      "RUSAGE_THREAD user/system counters have coarser resolution than the thread clock.",
+      "GPU and guest computation overlap bridge waiting; do not add nested intervals as serial wall time."
+    ]
+  },
+  "limitation": "Both decodes and complete captured stderr passed; controller cleanup PID query timed out, later query confirmed phone app/VM gone. Scheduler16MiB buffer filled,173 patches failed and second trial incomplete in trace. Treat scheduler values as preliminary; original receipts preserved."
+}

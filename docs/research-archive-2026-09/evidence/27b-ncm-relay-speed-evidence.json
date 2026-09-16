@@ -1,0 +1,101 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "50",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 27668567,
+      "tokens_per_second": 0.5782735332841776,
+      "steady_tokens": 13,
+      "steady_us": 22822532,
+      "steady_tokens_per_second": 0.5696125215203992,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 35844,
+      "generated": 16,
+      "decode_us": 27238926,
+      "tokens_per_second": 0.5873946718750952,
+      "steady_tokens": 13,
+      "steady_us": 20649647,
+      "steady_tokens_per_second": 0.6295507133850763,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-mtp5-ncm-1",
+  "capture_sha256": "5337c92e020aba9170383ed511e5184d6b43339d57bbada1ce75c0c6722eb424",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "relay_transport": "NCM",
+  "relay_url": "ws://10.160.70.152:19505/v1/fleet-tunnel",
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-mtp5-ncm-1/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247176,
+    "from": 0,
+    "total": 247176,
+    "chunks": 172,
+    "sha256": "4dca053d2f7b8b15d4051240acc6a5125e0a703d0d180834807d4d32acbbbdad",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 2030381,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 2112,
+    "peak_device_memory_mib": 25851.0,
+    "second_device_peak_memory_mib": 351.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 2030376,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.3296775909839198,
+    "elapsed_seconds": 537.4194463109598
+  },
+  "decision": "Rejected as a speed change; ADB relay transport retained."
+}

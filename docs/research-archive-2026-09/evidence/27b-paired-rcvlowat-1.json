@@ -1,0 +1,459 @@
+{
+  "runs": [
+    {
+      "label": "b27-rcvlowat-1",
+      "order": "off-on",
+      "settings": {
+        "n_predict": 16,
+        "mtp_k": 5,
+        "draft_ahead": 1,
+        "threads": 4,
+        "threads_batch": 4,
+        "head_threads": 2,
+        "cpu_poll": "50",
+        "arm_tuned": "unset",
+        "stream_min_bytes": "1048576"
+      },
+      "trials": [
+        {
+          "trial": 1,
+          "overall_tps": 0.8817307537051016,
+          "steady_tps": 0.9669833933991184,
+          "decode_seconds": 18.146129,
+          "wire_ms": 12351.101051,
+          "phases": {
+            "read_body": {
+              "wall_ms": 4439.124159,
+              "cpu_ms": 723.237971
+            },
+            "overlap_work": {
+              "wall_ms": 4.585834,
+              "cpu_ms": 2.890955
+            },
+            "write_request": {
+              "wall_ms": 1223.592087,
+              "cpu_ms": 300.197429
+            },
+            "read_header": {
+              "wall_ms": 6419.59178,
+              "cpu_ms": 252.445534
+            },
+            "reply_reserve": {
+              "wall_ms": 7.882199,
+              "cpu_ms": 7.623244
+            }
+          },
+          "guest_phase_wall_ns": 11821975065,
+          "guest_phase_cpu_ns": 1096343448,
+          "guest_runqueue_ns_bounds": [
+            100344395,
+            136307089
+          ],
+          "observer_ns": 519674215,
+          "vm_send": {
+            "count": 27942,
+            "bytes": 355289430,
+            "mean": 12715.246940090186,
+            "p50": 5792,
+            "p90": 23168,
+            "under_4096": 8279,
+            "at_most_8192": 18012
+          },
+          "tcp_read": {
+            "count": 36166,
+            "bytes": 355289430,
+            "mean": 9823.8519604048,
+            "p50": 4344,
+            "p90": 18824,
+            "under_4096": 12924,
+            "at_most_8192": 25469
+          },
+          "vm_send_negative_attempts": 9013,
+          "body_voluntary_switches": 36752,
+          "bridge_cpu_seconds": 2.222974679,
+          "bridge_vm_send_cpu_seconds": 0.396049696,
+          "bridge_cpu_samples": 226,
+          "compaction_samples": 0,
+          "pad_wait_ms": 0.0,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          },
+          "enabled": false,
+          "rcvlowat_cap": 0,
+          "socket_buffer_bytes": 0,
+          "scheduling_phases": {
+            "read_body": {
+              "wall_ns": 4408266139,
+              "cpu_ns": 693625517,
+              "runq_ns": 41710039,
+              "observer_before_ns": 41647328,
+              "observer_after_ns": 87877216,
+              "voluntary": 36752,
+              "involuntary": 73,
+              "boundary_cpu_over_wall_ns": 685264,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 685264,
+              "runqueue_inside_phase_ns_bounds": [
+                31902827,
+                41710039
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                3673628095,
+                3683423059
+              ],
+              "calls": 1574,
+              "source_lines": [
+                421
+              ]
+            },
+            "read_header": {
+              "wall_ns": 6396929169,
+              "cpu_ns": 231531058,
+              "runq_ns": 38475589,
+              "observer_before_ns": 37726987,
+              "observer_after_ns": 118075102,
+              "voluntary": 3632,
+              "involuntary": 3,
+              "boundary_cpu_over_wall_ns": 774,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 774,
+              "runqueue_inside_phase_ns_bounds": [
+                29546429,
+                38475589
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                6126923296,
+                6135852456
+              ],
+              "calls": 1574,
+              "source_lines": [
+                403
+              ]
+            },
+            "write_request": {
+              "wall_ns": 1016779757,
+              "cpu_ns": 171186873,
+              "runq_ns": 56121461,
+              "observer_before_ns": 155595000,
+              "observer_after_ns": 78752582,
+              "voluntary": 321,
+              "involuntary": 186,
+              "boundary_cpu_over_wall_ns": 2310223,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 2310223,
+              "runqueue_inside_phase_ns_bounds": [
+                38895139,
+                56121461
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                797544952,
+                809007968
+              ],
+              "calls": 1574,
+              "source_lines": [
+                383
+              ]
+            }
+          },
+          "generated": 16,
+          "steady_tokens": 13,
+          "steady_us": 13443871
+        },
+        {
+          "trial": 2,
+          "overall_tps": 0.793769583473876,
+          "steady_tps": 0.8050142230532171,
+          "decode_seconds": 20.156983,
+          "wire_ms": 13413.823468,
+          "phases": {
+            "read_body": {
+              "wall_ms": 3954.275319,
+              "cpu_ms": 621.678342
+            },
+            "overlap_work": {
+              "wall_ms": 3.237804,
+              "cpu_ms": 3.108531
+            },
+            "write_request": {
+              "wall_ms": 1320.624135,
+              "cpu_ms": 327.256276
+            },
+            "read_header": {
+              "wall_ms": 7840.255392,
+              "cpu_ms": 399.474747
+            },
+            "reply_reserve": {
+              "wall_ms": 4.282447,
+              "cpu_ms": 4.164189
+            }
+          },
+          "guest_phase_wall_ns": 12752241283,
+          "guest_phase_cpu_ns": 1135936281,
+          "guest_runqueue_ns_bounds": [
+            49347403,
+            96980419
+          ],
+          "observer_ns": 640466675,
+          "vm_send": {
+            "count": 20636,
+            "bytes": 355289430,
+            "mean": 17216.971796859856,
+            "p50": 7240,
+            "p90": 32777,
+            "under_4096": 3223,
+            "at_most_8192": 11472
+          },
+          "tcp_read": {
+            "count": 27364,
+            "bytes": 355289430,
+            "mean": 12983.826560444379,
+            "p50": 5792,
+            "p90": 26064,
+            "under_4096": 5223,
+            "at_most_8192": 16816
+          },
+          "vm_send_negative_attempts": 7285,
+          "body_voluntary_switches": 2736,
+          "bridge_cpu_seconds": 2.541189191,
+          "bridge_vm_send_cpu_seconds": 0.426741222,
+          "bridge_cpu_samples": 283,
+          "compaction_samples": 0,
+          "pad_wait_ms": 0.0,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          },
+          "enabled": true,
+          "rcvlowat_cap": 131072,
+          "socket_buffer_bytes": 262144,
+          "scheduling_phases": {
+            "read_body": {
+              "wall_ns": 3908989290,
+              "cpu_ns": 580782477,
+              "runq_ns": 16301229,
+              "observer_before_ns": 56509326,
+              "observer_after_ns": 138693593,
+              "voluntary": 2736,
+              "involuntary": 71,
+              "boundary_cpu_over_wall_ns": 2083841,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 2083841,
+              "runqueue_inside_phase_ns_bounds": [
+                9349485,
+                16301229
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                3314022180,
+                3320941169
+              ],
+              "calls": 1574,
+              "source_lines": [
+                421
+              ]
+            },
+            "read_header": {
+              "wall_ns": 7806806255,
+              "cpu_ns": 374548512,
+              "runq_ns": 33492388,
+              "observer_before_ns": 50206640,
+              "observer_after_ns": 131719111,
+              "voluntary": 1920,
+              "involuntary": 9,
+              "boundary_cpu_over_wall_ns": 9073,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 9073,
+              "runqueue_inside_phase_ns_bounds": [
+                18699620,
+                33492388
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                7403062718,
+                7413567196
+              ],
+              "calls": 1574,
+              "source_lines": [
+                403
+              ]
+            },
+            "write_request": {
+              "wall_ns": 1036445738,
+              "cpu_ns": 180605292,
+              "runq_ns": 47186802,
+              "observer_before_ns": 167620385,
+              "observer_after_ns": 95717620,
+              "voluntary": 296,
+              "involuntary": 227,
+              "boundary_cpu_over_wall_ns": 5790918,
+              "boundary_cpu_plus_queue_lower_over_wall_ns": 5790918,
+              "runqueue_inside_phase_ns_bounds": [
+                21298298,
+                47186802
+              ],
+              "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+                824878555,
+                840333066
+              ],
+              "calls": 1574,
+              "source_lines": [
+                383
+              ]
+            }
+          },
+          "generated": 16,
+          "steady_tokens": 13,
+          "steady_us": 16148783
+        }
+      ],
+      "on_over_off_ratio": 0.9002403286245764
+    }
+  ],
+  "conditions": {
+    "off": {
+      "samples": 1,
+      "overall_tps": 0.8817307537051016,
+      "steady_tps": 0.9669833933991184,
+      "decode_seconds": 18.146129,
+      "pad_wait_ms": 0.0
+    },
+    "on": {
+      "samples": 1,
+      "overall_tps": 0.793769583473876,
+      "steady_tps": 0.805014223053217,
+      "decode_seconds": 20.156983,
+      "pad_wait_ms": 0.0
+    }
+  },
+  "mechanism": {
+    "off": {
+      "write_request": {
+        "calls": 1574,
+        "voluntary_switches": 321,
+        "voluntary_per_call": 0.2039390088945362,
+        "involuntary_switches": 186,
+        "wall_ms": 1016.779757,
+        "cpu_ms": 171.186873,
+        "observer_ms": 234.347582,
+        "runqueue_inside_ns_bounds": [
+          38895139,
+          56121461
+        ]
+      },
+      "read_header": {
+        "calls": 1574,
+        "voluntary_switches": 3632,
+        "voluntary_per_call": 2.307496823379924,
+        "involuntary_switches": 3,
+        "wall_ms": 6396.929169,
+        "cpu_ms": 231.531058,
+        "observer_ms": 155.802089,
+        "runqueue_inside_ns_bounds": [
+          29546429,
+          38475589
+        ]
+      },
+      "read_body": {
+        "calls": 1574,
+        "voluntary_switches": 36752,
+        "voluntary_per_call": 23.34942820838628,
+        "involuntary_switches": 73,
+        "wall_ms": 4408.266139,
+        "cpu_ms": 693.625517,
+        "observer_ms": 129.524544,
+        "runqueue_inside_ns_bounds": [
+          31902827,
+          41710039
+        ]
+      }
+    },
+    "on": {
+      "write_request": {
+        "calls": 1574,
+        "voluntary_switches": 296,
+        "voluntary_per_call": 0.1880559085133418,
+        "involuntary_switches": 227,
+        "wall_ms": 1036.445738,
+        "cpu_ms": 180.605292,
+        "observer_ms": 263.338005,
+        "runqueue_inside_ns_bounds": [
+          21298298,
+          47186802
+        ]
+      },
+      "read_header": {
+        "calls": 1574,
+        "voluntary_switches": 1920,
+        "voluntary_per_call": 1.2198221092757306,
+        "involuntary_switches": 9,
+        "wall_ms": 7806.806255,
+        "cpu_ms": 374.548512,
+        "observer_ms": 181.925751,
+        "runqueue_inside_ns_bounds": [
+          18699620,
+          33492388
+        ]
+      },
+      "read_body": {
+        "calls": 1574,
+        "voluntary_switches": 2736,
+        "voluntary_per_call": 1.7382465057179162,
+        "involuntary_switches": 71,
+        "wall_ms": 3908.98929,
+        "cpu_ms": 580.782477,
+        "observer_ms": 195.202919,
+        "runqueue_inside_ns_bounds": [
+          9349485,
+          16301229
+        ]
+      }
+    }
+  },
+  "on_over_off_ratio": 0.9002403286245764,
+  "limits": [
+    "Each mode uses fresh pads and restores the same prompt state; trials share a VM boot.",
+    "One order alone confounds mode with trial position; require the reverse order before a gain claim.",
+    "Short trials and changing pad-transfer overlap cannot establish sustained production throughput.",
+    "Option readback establishes socket acceptance, not the exact running kernel or a speed gain. Switch counts are not packet counts or durations."
+  ],
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 4143640,
+    "phone_stopped": true,
+    "bank_cleanup": {
+      "status": "QUARANTINED_NOT_REUSED",
+      "bank_clear": true,
+      "exclusive_bank_lock": true,
+      "index": 320,
+      "count": 16,
+      "bytes": 202278400,
+      "child_state": "DEAD",
+      "child_pid": 4148368,
+      "child_start": 33444274,
+      "identity_matches_run": true,
+      "exact_production_schema_validated": true,
+      "journal_sha256": "029daf64b6e2a1738f377b5f0ab2f2f0716f66aea128df55f87432b8ba9aed83",
+      "quarantine": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/quarantine-b27-rcvlowat-1",
+      "production_reconciler_sha256": "a410bd2bb9e264f7c78f08f977bd32904357f33ca4a3032c3053753817650b1f",
+      "elapsed_seconds": 0.031126051035244018
+    },
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 27.124090706987772,
+    "elapsed_seconds": 549.0446263219928
+  },
+  "validation": {
+    "standard_analyses": 13,
+    "standard_status": "PASS",
+    "extra_status": "PASS",
+    "extra_invocation_failure": "Initial operation-traffic analysis omitted required geometry argument; corrected invocation passed; original failure log retained.",
+    "trace_limit": "17385 guest samples lack stacks; counts match the known protected-VM gap, other VM-profile errors empty."
+  }
+}

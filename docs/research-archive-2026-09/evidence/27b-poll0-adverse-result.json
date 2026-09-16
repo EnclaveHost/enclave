@@ -1,0 +1,40 @@
+{
+  "status": "INCOMPLETE_RUN_COMPLETED_TRIAL_ONLY",
+  "label": "b27-mtp5-poll0-1",
+  "run_error": "540 second work deadline before completing trial 2",
+  "capture_sha256": "685119077b5755765c04c41f7f338be59e6fbe9d85e8b931ae7a321045228d54",
+  "trial": 1,
+  "generated": 16,
+  "decode_us": 48272125,
+  "overall_tokens_per_second": 0.3314542295372329,
+  "steady_tokens": 13,
+  "steady_us": 38723949,
+  "steady_tokens_per_second": 0.33570956309233857,
+  "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+  "counter_delta": {
+    "offloaded_nodes": 2441,
+    "local_nodes": 0,
+    "macs": 720956293120,
+    "verify_fail": 0,
+    "pads_used": 6764,
+    "pads_missed": 0
+  },
+  "limitations": [
+    "Partial capture; no complete end record or final stderr snapshot.",
+    "One completed trial only; not a successful two-trial benchmark."
+  ],
+  "whole_cycle": {
+    "status": "COMMAND_FAILED",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 1991449,
+    "phone_stopped": true,
+    "command_rc": 2,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.23994518298422918,
+    "elapsed_seconds": 542.1408929529716
+  }
+}
