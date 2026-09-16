@@ -226,12 +226,10 @@ containers:
       # per-deployment RAM answer, reported as nnPreloads/nnSkipped - a volume
       # too big for the tenant's budget is skipped, not fatal. So the small
       # GGUFs genuinely serve here and the big ones simply never load.
-      # TWO honest limits, both per-tenant and loud, neither node-fatal:
+      # ONE honest limit, per-tenant and loud, not node-fatal:
       #   - sd-turbo is the Olive fp16 ONNX export fused for the CUDA EP; the
       #     CPU EP has no kernels for com.microsoft ops, so it cannot serve on
       #     this flavor (sd-turbo-full / the sdcpp path is the CPU-capable one).
-      #   - the 122b (60 GB) exceeds this node's whole RAM; it mounts, and any
-      #     tenant attaching it gets the skip.
       # DISK: these are dm-verity images fetched and measured at CVM boot -
       # ~236 GB of them. Size the CPU box's disk for the FULL list, not for
       # what a 64 GiB node can preload.
@@ -345,7 +343,7 @@ models:
   # "draft":"mtp" self-drafts with no paired draft volume - and its tokenizer is
   # a SUPERSET of the family copy, so the byte-equality draft gate refuses
   # qwen3.5-0.8b-gguf against it anyway. ~34.1 GB to serve at the 176K window:
-  # unlike the 122b that FITS this node's RAM, so a tenant who buys most of the
+  # which FITS this node's RAM, so a tenant who buys most of the
   # box does preload it - on 16 cores, at 16 cores' speed. See the gpu flavor's
   # entry for the sizing arithmetic and provenance.
   - name: "qwen3.8-27b-mtp-gguf"
