@@ -1,0 +1,321 @@
+{
+  "app_only": {
+    "status": "PASS_DIAGNOSTIC",
+    "label": "bridge-app-small-2",
+    "children": {
+      "collector": 4090209
+    },
+    "apk": {
+      "status": "PASS",
+      "manifest_sha256": "e772dc9999979be74065af8a824835598aab60da00781122465567749dca4890",
+      "apk_sha256": "f837ffd24f7ad588bbc3110f23490d7e690eb22d9c1795302be535578a85a952",
+      "installed_path": "/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/base.apk",
+      "version_code": 43,
+      "calibration_bytes": 13006,
+      "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+      "serial": "3B130DLJG0018K",
+      "commands": [
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "pm",
+            "path",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 332966.937098031,
+          "end_mono": 332967.062169867,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "package:/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "sha256sum",
+            "/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/base.apk"
+          ],
+          "start_mono": 332967.06418453,
+          "end_mono": 332967.234234168,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "f837ffd24f7ad588bbc3110f23490d7e690eb22d9c1795302be535578a85a952  /data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "dumpsys",
+            "package",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 332967.236012663,
+          "end_mono": 332967.377938751,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "Activity Resolver Table:\n  Non-Data Actions:\n      android.intent.action.MAIN:\n        2d3572c host.enclave.anchor.avf/.Main filter 93b5f5\n          Action: \"android.intent.action.MAIN\"\n          Category: \"android.intent.category.LAUNCHER\"\n\nDomain verification status:\n\nKey Set Manager:\n  [host.enclave.anchor.avf]\n      Signing KeySets: 128\n\nPackages:\n  Package [host.enclave.anchor.avf] (6f3d556):\n    appId=10312\n    pccId=-1\n    pkg=Package{39961f7 host.enclave.anchor.avf}\n    codePath=/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==\n    resourcePath=/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==\n    legacyNativeLibraryDir=/data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/lib\n    extractNativeLibs=false\n    primaryCpuAbi=arm64-v8a\n    secondaryCpuAbi=null\n    cpuAbiOverride=null\n    versionCode=43 minSdk=34 targetSdk=35\n    minExtensionVersions=[]\n    versionName=0.1\n    hiddenApiEnforcementPolicy=2\n    usesNonSdkApi=false\n    splits=[base]\n    apkSigningVersion=3\n    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    forceQueryable=false\n    pageSizeCompat=4\n    scannedAsStoppedSystemApp=false\n    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]\n    timeStamp=2026-09-09 10:10:01\n    lastUpdateTime=2026-09-09 10:10:03\n    installerPackageName=null\n    installerPackageUid=-1\n    initiatingPackageName=com.android.shell\n    originatingPackageName=null\n    packageSource=1\n    appMetadataFilePath=null\n    appMetadataSource=0\n    signatures=PackageSignatures{8edc1dd version:3, signatures:[53644764], past signatures:[]}\n    installPermissionsFixed=false\n    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    apexModuleName=null\n    requested permissions:\n      android.permission.POST_NOTIFICATIONS\n      android.permission.FOREGROUND_SERVICE\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE\n      android.permission.INTERNET\n      android.permission.MANAGE_VIRTUAL_MACHINE\n    install permissions:\n      android.permission.FOREGROUND_SERVICE: granted=true\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE: granted=true\n      android.permission.INTERNET: granted=true\n      android.permission.MANAGE_VIRTUAL_MACHINE: granted=true\n    User 0: ceDataInode=26398 deDataInode=26560 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=true notLaunched=false enabled=0 instant=false virtual=false quarantined=false\n      installReason=0\n      dataDir=/data/user/0/host.enclave.anchor.avf\n      firstInstallTime=2026-09-02 13:22:36\n      uninstallReason=0\n      overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n        /data/resource-cache/com.android.systemui-neutral-gAAy.frro\n        /data/resource-cache/com.android.systemui-accent-SWs6.frro\n        /data/resource-cache/com.android.systemui-dynamic-jwfR.frro\n      legacy overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n      gids=[3003, 3013]\n      runtime permissions:\n        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]\n\nQueries:\n  system apps queryable: false\n  queries via forceQueryable:\n  queries via package name:\n  queries via component:\n    com.google.android.apps.camera.services:\n      host.enclave.anchor.avf\n    com.google.android.apps.diagnosticstool:\n      host.enclave.anchor.avf\n    com.google.android.as:\n      host.enclave.anchor.avf\n    com.google.android.settings.intelligence:\n      host.enclave.anchor.avf\n    com.google.android.as.oss:\n      host.enclave.anchor.avf\n    com.google.android.apps.accessibility.voiceaccess:\n      host.enclave.anchor.avf\n    com.verizon.mips.services:\n      host.enclave.anchor.avf\n    com.fitbit.FitbitMobile:\n      host.enclave.anchor.avf\n  queryable via interaction:\n    User 0:\n      [com.android.localtransport,com.android.settings,android,com.android.keychain,com.google.SSRestartDetector,com.google.android.repairmode,com.android.DeviceAsWebcam,com.android.dynsystem,com.android.providers.settings,com.android.qns,com.google.android.iwlan,com.google.pixel.camera.services,com.android.server.telecom,com.android.location.fused,com.google.android.settings.future.biometrics.faceenroll,com.android.inputdevices]:\n        host.enclave.anchor.avf\n      com.google.android.as:\n        host.enclave.anchor.avf\n      com.android.systemui:\n        host.enclave.anchor.avf\n      com.google.android.apps.nexuslauncher:\n        host.enclave.anchor.avf\n      host.enclave.anchor.avf:\n        com.android.shell\n  queryable via uses-library:\n\nDexopt state:\n  [host.enclave.anchor.avf]\n    path: /data/app/~~4_rJBJYEKJguOnmPkPMtXg==/host.enclave.anchor.avf-z66Q1JoCAk9VkKMHDPLmkg==/base.apk\n      arm64: [status=run-from-apk] [reason=unknown] [primary-abi]\n        [location is error]\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "source_hashes": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/bridge-app-small-v43.py": "b12652df037d822caafd28c41682c24c9bb92d030032776e2bc8e00c4aa3a34b",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/v43/phone-apk-v43-identity.json": "e772dc9999979be74065af8a824835598aab60da00781122465567749dca4890",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/controller-v6/controller.py": "8268ff958fdda380e28271c879b71fcd0953f40482b7506a77e4d428dd92cb84",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/phone-bench-v9/apk_identity.py": "e35b65d62d717084698e012211c433e6b689bf8e2e7be80637ab88d3ec5e04af",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/phone-bench-v9/collect_session.py": "9524e979b34447506e19c71a77e3c31be5ed6b2dd0cd5f9c5e4d3b352e70e339"
+    },
+    "gate": {
+      "status": "PASS_DIAGNOSTIC",
+      "sizes": [
+        4,
+        64,
+        1024,
+        16384
+      ],
+      "frames": 840,
+      "timings": [
+        {
+          "bytes": 4,
+          "p50_us": 1978.0,
+          "p90_us": 3666.0,
+          "min_us": 1208.0,
+          "n": 200
+        },
+        {
+          "bytes": 64,
+          "p50_us": 1609.0,
+          "p90_us": 1890.0,
+          "min_us": 1288.0,
+          "n": 200
+        },
+        {
+          "bytes": 1024,
+          "p50_us": 1616.0,
+          "p90_us": 1912.0,
+          "min_us": 1329.0,
+          "n": 200
+        },
+        {
+          "bytes": 16384,
+          "p50_us": 2154.0,
+          "p90_us": 3613.0,
+          "min_us": 1487.0,
+          "n": 200
+        }
+      ],
+      "expected_bytes_each_direction": 3673328,
+      "native_echo_return": 3673328,
+      "scope": "pVM -> Android native echo -> pVM; no TCP/NCM. Deterministic full-payload comparisons execute in anchor_frame_bench.",
+      "limits": [
+        "Uses native-echo.c rather than the TCP bridge implementation.",
+        "No server priming hold or host phase logging; ten warmups precede each 200 timed frames.",
+        "Idle diagnostic, not an invariant production latency or inference throughput measurement."
+      ]
+    },
+    "protected_unchanged": true,
+    "phone_lock_unchanged": true,
+    "elapsed_seconds": 11.066588092013262
+  },
+  "app_only_controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 150,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 4090196,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.363012098998297,
+    "elapsed_seconds": 11.685522804968059
+  },
+  "full_chain": {
+    "status": "PASS_DIAGNOSTIC",
+    "label": "bridge-isolate-small-1",
+    "profile": 0,
+    "sizes": [
+      4,
+      64,
+      1024,
+      16384
+    ],
+    "scope": "Small-frame round trip through pVM, Android native bridge and full NCM to owned Python echo. No GPU/model/pad traffic/burners. Measured echo latency is not an invariant production FIELD floor.",
+    "children": {
+      "server": 4043621,
+      "collector": 4043625
+    },
+    "apk": {
+      "status": "PASS",
+      "manifest_sha256": "e772dc9999979be74065af8a824835598aab60da00781122465567749dca4890",
+      "apk_sha256": "f837ffd24f7ad588bbc3110f23490d7e690eb22d9c1795302be535578a85a952",
+      "installed_path": "/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/base.apk",
+      "version_code": 43,
+      "calibration_bytes": 13006,
+      "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+      "serial": "3B130DLJG0018K",
+      "commands": [
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "pm",
+            "path",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 332153.560182627,
+          "end_mono": 332153.725410449,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "package:/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "sha256sum",
+            "/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/base.apk"
+          ],
+          "start_mono": 332153.72766027,
+          "end_mono": 332153.893144649,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "f837ffd24f7ad588bbc3110f23490d7e690eb22d9c1795302be535578a85a952  /data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/base.apk\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/home/steven/Projects/optee-anchor-spike/bin/platform-tools/adb",
+            "-s",
+            "3B130DLJG0018K",
+            "shell",
+            "dumpsys",
+            "package",
+            "host.enclave.anchor.avf"
+          ],
+          "start_mono": 332153.895146213,
+          "end_mono": 332154.003421583,
+          "returncode": 0,
+          "failure": null,
+          "stdout": "Activity Resolver Table:\n  Non-Data Actions:\n      android.intent.action.MAIN:\n        c142b2e host.enclave.anchor.avf/.Main filter d5296cf\n          Action: \"android.intent.action.MAIN\"\n          Category: \"android.intent.category.LAUNCHER\"\n\nDomain verification status:\n\nKey Set Manager:\n  [host.enclave.anchor.avf]\n      Signing KeySets: 128\n\nPackages:\n  Package [host.enclave.anchor.avf] (bbb0b23):\n    appId=10312\n    pccId=-1\n    pkg=Package{4f4616e host.enclave.anchor.avf}\n    codePath=/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==\n    resourcePath=/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==\n    legacyNativeLibraryDir=/data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/lib\n    extractNativeLibs=false\n    primaryCpuAbi=arm64-v8a\n    secondaryCpuAbi=null\n    cpuAbiOverride=null\n    versionCode=43 minSdk=34 targetSdk=35\n    minExtensionVersions=[]\n    versionName=0.1\n    hiddenApiEnforcementPolicy=2\n    usesNonSdkApi=false\n    splits=[base]\n    apkSigningVersion=3\n    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    forceQueryable=false\n    pageSizeCompat=4\n    scannedAsStoppedSystemApp=false\n    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]\n    timeStamp=2026-09-09 09:57:41\n    lastUpdateTime=2026-09-09 09:57:44\n    installerPackageName=null\n    installerPackageUid=-1\n    initiatingPackageName=com.android.shell\n    originatingPackageName=null\n    packageSource=1\n    appMetadataFilePath=null\n    appMetadataSource=0\n    signatures=PackageSignatures{8edc1dd version:3, signatures:[53644764], past signatures:[]}\n    installPermissionsFixed=false\n    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]\n    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\n    apexModuleName=null\n    requested permissions:\n      android.permission.POST_NOTIFICATIONS\n      android.permission.FOREGROUND_SERVICE\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE\n      android.permission.INTERNET\n      android.permission.MANAGE_VIRTUAL_MACHINE\n    install permissions:\n      android.permission.FOREGROUND_SERVICE: granted=true\n      android.permission.FOREGROUND_SERVICE_SPECIAL_USE: granted=true\n      android.permission.INTERNET: granted=true\n      android.permission.MANAGE_VIRTUAL_MACHINE: granted=true\n    User 0: ceDataInode=26398 deDataInode=26560 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=true notLaunched=false enabled=0 instant=false virtual=false quarantined=false\n      installReason=0\n      dataDir=/data/user/0/host.enclave.anchor.avf\n      firstInstallTime=2026-09-02 13:22:36\n      uninstallReason=0\n      overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n        /data/resource-cache/com.android.systemui-neutral-gAAy.frro\n        /data/resource-cache/com.android.systemui-accent-SWs6.frro\n        /data/resource-cache/com.android.systemui-dynamic-jwfR.frro\n      legacy overlay paths:\n        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk\n      gids=[3003, 3013]\n      runtime permissions:\n        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]\n\nQueries:\n  system apps queryable: false\n  queries via forceQueryable:\n  queries via package name:\n  queries via component:\n    com.google.android.apps.camera.services:\n      host.enclave.anchor.avf\n    com.google.android.apps.diagnosticstool:\n      host.enclave.anchor.avf\n    com.google.android.as:\n      host.enclave.anchor.avf\n    com.google.android.settings.intelligence:\n      host.enclave.anchor.avf\n    com.google.android.as.oss:\n      host.enclave.anchor.avf\n    com.google.android.apps.accessibility.voiceaccess:\n      host.enclave.anchor.avf\n    com.verizon.mips.services:\n      host.enclave.anchor.avf\n    com.fitbit.FitbitMobile:\n      host.enclave.anchor.avf\n  queryable via interaction:\n    User 0:\n      [com.android.localtransport,com.android.settings,android,com.android.keychain,com.google.SSRestartDetector,com.google.android.repairmode,com.android.DeviceAsWebcam,com.android.dynsystem,com.android.providers.settings,com.android.qns,com.google.android.iwlan,com.google.pixel.camera.services,com.android.server.telecom,com.android.location.fused,com.google.android.settings.future.biometrics.faceenroll,com.android.inputdevices]:\n        host.enclave.anchor.avf\n      com.google.android.as:\n        host.enclave.anchor.avf\n      com.android.systemui:\n        host.enclave.anchor.avf\n      com.google.android.apps.nexuslauncher:\n        host.enclave.anchor.avf\n      host.enclave.anchor.avf:\n        com.android.shell\n  queryable via uses-library:\n\nDexopt state:\n  [host.enclave.anchor.avf]\n    path: /data/app/~~ha2bAPPSqN-31Zv8wbgQLw==/host.enclave.anchor.avf--oYJWLn7JK0Cv3wWe8BC7A==/base.apk\n      arm64: [status=run-from-apk] [reason=unknown] [primary-abi]\n        [location is error]\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "source_hashes": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/bridge-isolate-small-v43.py": "92a1b4196e9577a4609df30c2c9452e8421579e8f21c059d20a74960a675cbaf",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/echo-server.py": "5227c33dedf1a93db0d885cb6ff61849f3995f27cb7604255ca9a430d5316fa8",
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/bridgebench-gate.py": "25bfad51256857c354bbf48e8cfaca29b86f6e08209a15ed436b67a534f09363",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/v43/phone-apk-v43-identity.json": "e772dc9999979be74065af8a824835598aab60da00781122465567749dca4890",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/controller-v6/controller.py": "8268ff958fdda380e28271c879b71fcd0953f40482b7506a77e4d428dd92cb84",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/phone-bench-v9/apk_identity.py": "e35b65d62d717084698e012211c433e6b689bf8e2e7be80637ab88d3ec5e04af",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/phone-bench-v9/collect_session.py": "9524e979b34447506e19c71a77e3c31be5ed6b2dd0cd5f9c5e4d3b352e70e339"
+    },
+    "launch_mono": 332154.220269531,
+    "gate": {
+      "functional": "PASS",
+      "reasons": [],
+      "mode": "native",
+      "kind": "diag",
+      "sizes": [
+        4,
+        64,
+        1024,
+        16384
+      ],
+      "bench": {
+        "4": {
+          "p50_us": 6000.0,
+          "p90_us": 6730.0,
+          "min_us": 3039.0,
+          "n": 200
+        },
+        "64": {
+          "p50_us": 6007.0,
+          "p90_us": 6701.0,
+          "min_us": 4447.0,
+          "n": 200
+        },
+        "1024": {
+          "p50_us": 5912.0,
+          "p90_us": 6715.0,
+          "min_us": 4280.0,
+          "n": 200
+        },
+        "16384": {
+          "p50_us": 6042.0,
+          "p90_us": 7253.0,
+          "min_us": 3577.0,
+          "n": 200
+        }
+      },
+      "bridge": {
+        "expected_bytes": 3673328,
+        "rc": -125,
+        "up": 3673328,
+        "down": 3673328
+      },
+      "perf": {
+        "verdict": null,
+        "verdict_lines": 0,
+        "watchdog_rc": -1,
+        "ok": false
+      },
+      "phase": {
+        "conn": "c1",
+        "records": 6733,
+        "expected": 6733,
+        "matched": true,
+        "failures": []
+      },
+      "payload_exit": "0"
+    },
+    "protected_unchanged": true,
+    "phone_lock_unchanged": true,
+    "elapsed_seconds": 18.857376812025905
+  },
+  "full_chain_controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 300,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 4043595,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.37679948803270236,
+    "elapsed_seconds": 19.483069089008495
+  },
+  "previous_app_probe_failure": {
+    "original_status": "FAILED",
+    "original_error": "native echo EOF/byte-count mismatch",
+    "reason": "Validator incorrectly required native echo EOF log after BENCH done. The echo reader and control reader are different Android threads; their log receipt order is not guest execution order.",
+    "frozen_runner_sha256": "f2187c73337406ecc40649e827c25ff914422d540defc4915d6c6411007c6f4a",
+    "updated_runner_sha256": "b12652df037d822caafd28c41682c24c9bb92d030032776e2bc8e00c4aa3a34b",
+    "validation": "Both cross-thread receipt orders plus 14 invalid/partial cases pass",
+    "original_receipts_preserved": true,
+    "next": "Fresh same-APK repeat bridge-app-small-2; first run remains failed by original gate"
+  },
+  "limits": [
+    "Idle diagnostic endpoints use different echo implementations and priming; subtracting medians is not an exact path decomposition.",
+    "Neither probe uses a model, GPU, pads or CPU burners. Inference uses five app burners and a separate FIELD framing protocol.",
+    "Current v43 is the same installed APK for both probes; each size uses 10 warmups plus 200 timed deterministic payload comparisons."
+  ]
+}

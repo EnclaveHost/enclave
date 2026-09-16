@@ -1,0 +1,124 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "50",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 23602375,
+      "tokens_per_second": 0.677897881039514,
+      "steady_tokens": 13,
+      "steady_us": 18441753,
+      "steady_tokens_per_second": 0.704922140536206,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 28280,
+      "generated": 16,
+      "decode_us": 22815921,
+      "tokens_per_second": 0.7012647002064918,
+      "steady_tokens": 13,
+      "steady_us": 17670100,
+      "steady_tokens_per_second": 0.7357060797618576,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-pad-rx-1",
+  "capture_sha256": "5bd2819d4e9f04ee404df116828dad73a5e6a02966483e189579a2a053c1d4b0",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "mtp_results": [
+    {
+      "trial": 1,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    },
+    {
+      "trial": 2,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    }
+  ],
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "idle_park": {
+    "enabled": 0,
+    "calls": 0
+  },
+  "pad_receiver_profile": true,
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-rx-1/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247185,
+    "from": 0,
+    "total": 247185,
+    "chunks": 172,
+    "sha256": "9f838815e6e47151d4a053526a2e89ccd77d8d84fb647c1fabbbbfef192eb03c",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 2570097,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 2078,
+    "peak_device_memory_mib": 25847.0,
+    "second_device_peak_memory_mib": 351.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "combined_overall_tok_s": 0.6893833414307151,
+  "combined_steady_tok_s": 0.7199852081808154,
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 2570089,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.5380629200371914,
+    "elapsed_seconds": 527.2308167649899
+  },
+  "interpretation": "Complete diagnostic inference; no pad-wait delta in either trial; stalled import did not reproduce. Receiver progress can affect timing. No new performance record."
+}

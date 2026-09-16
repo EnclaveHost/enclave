@@ -1,0 +1,22 @@
+{
+  "source": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-direct-control-1",
+  "trials": [
+    {
+      "trial": 1,
+      "host_request_complete_to_reply_complete_ms": 942.298291,
+      "phone_tcp_first_to_last_reply_read_ms": 3638.609067,
+      "phone_full_reply_read_to_last_vm_send_ms": 1187.051189
+    },
+    {
+      "trial": 2,
+      "host_request_complete_to_reply_complete_ms": 829.684741,
+      "phone_tcp_first_to_last_reply_read_ms": 4297.92062,
+      "phone_full_reply_read_to_last_vm_send_ms": 2767.74496
+    }
+  ],
+  "limits": [
+    "Endpoint intervals are nested and must not be added into a partition.",
+    "Host request-complete to reply-complete includes forwarding, worker scheduling and GPU work, not just kernels.",
+    "Timing observer overhead is present. These timings do not identify a guest kernel function."
+  ]
+}

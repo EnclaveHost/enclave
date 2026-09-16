@@ -1,0 +1,898 @@
+{
+  "comparison": {
+    "reason": "leg status: quiet_off=INVALID quiet_on=VALID",
+    "status": "NOT_COMPARED"
+  },
+  "leg_status": {
+    "quiet_off": "INVALID",
+    "quiet_on": "VALID"
+  },
+  "legs": {
+    "quiet_off": {
+      "apk_observation": {
+        "commands": 3,
+        "installed_path": "/data/app/~~4GEh_D-34ZhXBaZwkga9dw==/host.enclave.anchor.avf-U0d6akvK8hjrmkVhMo_iag==/base.apk"
+      },
+      "apk_observation_scope": "installed_path is randomised by Android and each verification command carries its own start_mono/end_mono. These are observations; they are never part of identity equality.",
+      "combined": {
+        "combined_tokens_per_second": 0.9639535010520047,
+        "decode_seconds_total": 33.196622,
+        "decode_us_total": 33196622,
+        "generated_total": 32,
+        "scope": "Both trials of a leg summed. The two trials run DIFFERENT receive-window conditions, so this is the rate of one balanced two-condition sequence, not an average of repeats. The steady rate is a different measurement and is kept separate. Neither includes setup, admission or cleanup.",
+        "steady_combined_tokens_per_second": 0.9862809084314803,
+        "steady_tokens_total": 26,
+        "steady_us_total": 26361658,
+        "trials_reported": 2
+      },
+      "controller_dir": "work/full-profile/b27-quiet-off-2",
+      "controller_status": "COMMAND_COMPLETE",
+      "cycle": {
+        "bank_cleanup_status": "QUARANTINED_NOT_REUSED",
+        "child_exits": {
+          "bridge_trace_exit": -15,
+          "collector_exit": 143,
+          "dealer_exit": 0,
+          "forwarder_exit": -15,
+          "gpu_trace_exit": 0,
+          "loader_exit": 0,
+          "scheduler_exit": 0
+        },
+        "cleanup_reserve_seconds": 50,
+        "cleanup_seconds": 8.332329507975373,
+        "command_rc": 0,
+        "max_seconds": 600,
+        "remaining_owned_pids": [],
+        "runner_elapsed_seconds": 521.6694847869803,
+        "whole_cycle_seconds": 530.2988895250019,
+        "worker_cleanup": {
+          "listener_closed": true,
+          "owned_exit_code": -15,
+          "protected_unchanged": true
+        }
+      },
+      "expected_quiet_ms": 0,
+      "files": {
+        "controller/receipt.json": "read",
+        "route/pad-budget.json": "read",
+        "route/receipt.json": "read",
+        "route/speed-evidence.json": "read"
+      },
+      "gpu": {
+        "peak_device_memory_mib": 26136.0,
+        "samples": 1988,
+        "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization.",
+        "second_device_peak_memory_mib": 353.0,
+        "uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+        "worker_pid": 1359843,
+        "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c"
+      },
+      "identity": {
+        "apk": {
+          "apk_sha256": "51004b0b984dc423d4abe11e2c7a7e7cd87891d64b8f1ed8b36f35a45f553d03",
+          "calibration_bytes": 13006,
+          "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+          "manifest_sha256": "b2041bdb683df7917924e126e9b75ea6bf50b54b22ea15ea9a4f89b8271bd9af",
+          "serial": "3B130DLJG0018K",
+          "status": "PASS",
+          "version_code": 52
+        },
+        "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+        "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348"
+      },
+      "label": "b27-quiet-off-2",
+      "launch_shenv_duplicate_keys": [],
+      "launch_shenv_pairs": [
+        [
+          "SHIELDED_MAX_M",
+          "16"
+        ],
+        [
+          "ANCHOR_DRAFT_AHEAD",
+          "1"
+        ],
+        [
+          "ANCHOR_HEAD_THREADS",
+          "2"
+        ],
+        [
+          "ANCHOR_HEAD_OWN_POOL",
+          "1"
+        ],
+        [
+          "ANCHOR_FINE_PLACEMENT",
+          "1"
+        ],
+        [
+          "SHIELDED_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_BUDGET",
+          "1"
+        ],
+        [
+          "ANCHOR_BENCH_TRIALS",
+          "2"
+        ],
+        [
+          "ANCHOR_BENCH_RCVBUF",
+          "on-off"
+        ],
+        [
+          "SHIELDED_RCVBUF",
+          "4194304"
+        ],
+        [
+          "SHIELDED_RCVLOWAT",
+          "131072"
+        ],
+        [
+          "ANCHOR_STREAM_WEIGHTS",
+          "1"
+        ],
+        [
+          "ANCHOR_STREAM_MIN_BYTES",
+          "1048576"
+        ],
+        [
+          "SHIELDED_PUBLIC_WEIGHT_CACHE",
+          "1"
+        ],
+        [
+          "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_TILED",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_CHECK_TILED",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_THREADS",
+          "4"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_PROFILE",
+          "1"
+        ],
+        [
+          "ANCHOR_SOURCE_READ_THREADS",
+          "0"
+        ],
+        [
+          "SHIELDED_SOURCE_PREFETCH",
+          "1"
+        ],
+        [
+          "ANCHOR_CPU_POLL",
+          "50"
+        ],
+        [
+          "ANCHOR_PAD_RX_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_SOURCE_PROFILE",
+          "0"
+        ],
+        [
+          "SHIELDED_WIRE_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_WIRE_SCHED",
+          "1"
+        ],
+        [
+          "SHIELDED_RECV_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_R4",
+          "0"
+        ],
+        [
+          "ANCHOR_CPU_IDLE_PARK",
+          "0"
+        ],
+        [
+          "SHIELDED_PAD_ACK_STREAM",
+          "1"
+        ],
+        [
+          "ENGINE_EXPORT_STDERR",
+          "1"
+        ],
+        [
+          "ENGINE_EXPORT_STDERR_MAX",
+          "8388608"
+        ],
+        [
+          "ANCHOR_QUIET_PADS",
+          "0"
+        ]
+      ],
+      "leg": "quiet_off",
+      "pad_budget_cards": [
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 8074,
+          "n_groups": 262,
+          "pads_waited": 4,
+          "phase": "trial1.after",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 1310,
+          "n_groups": 262,
+          "pads_waited": 4,
+          "phase": "trial1.before",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 14838,
+          "n_groups": 262,
+          "pads_waited": 4,
+          "phase": "trial2.after",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 8074,
+          "n_groups": 262,
+          "pads_waited": 4,
+          "phase": "trial2.before",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        }
+      ],
+      "pad_budget_parser_status": "PASS",
+      "quiet": {
+        "activated": false,
+        "admission_grammar_sha256": "e8e7d1270fc964bf2d48a1ac7b47bb6b6d6b7681cd3673129561d3de9962766a",
+        "admission_quiet_ms": 0,
+        "admission_validator_sha256": "690b427b2db9562c5a976dce30aecbaced0cdd7734d3b363fd037f097081b04e",
+        "app_extra_ms": 0,
+        "body_intervals": null,
+        "engine_event_counts": null,
+        "grammar_preflight": "PASS",
+        "limitations": null,
+        "pause_budget_ms": null,
+        "per_trial": [],
+        "receipt_grammar_sha256": "3d61bcdfe0c6ffb2635ef3807ebf0a9894e7168a4ef46d62ff927d7823776242",
+        "requested_ms": 0,
+        "unterminated_after_last_quiet_window": null
+      },
+      "rcvbuf": {
+        "conditions": [
+          {
+            "buffer_bytes": 4194304,
+            "cap": 131072,
+            "rcvbuf_enabled": true,
+            "trial": 1
+          },
+          {
+            "buffer_bytes": 262144,
+            "cap": 131072,
+            "rcvbuf_enabled": false,
+            "trial": 2
+          }
+        ],
+        "order": "on-off"
+      },
+      "reasons": [
+        "the dealer bank is 'QUARANTINED_NOT_REUSED', not CLEAR"
+      ],
+      "recipe": {
+        "bridge_write_max": 0,
+        "cpu_poll": 50,
+        "dealer_ahead": 256,
+        "dealer_chunk": 16,
+        "idle_park": 0,
+        "mtp": 5,
+        "pad_ack_stream": 1,
+        "pad_budget_requested": 1,
+        "pad_credit_requested": 0,
+        "pad_prepare_threads": 4,
+        "pad_write_max": 0,
+        "pads_direct": 0,
+        "pads_direct_fill": 0,
+        "rcvbuf_order": "on-off",
+        "source_read_threads": 0,
+        "stream_min_bytes": 1048576,
+        "target_threads": 4,
+        "tokens": 16,
+        "trials": 2
+      },
+      "recipe_present": [
+        "pad_prepare_threads",
+        "rcvbuf_order",
+        "idle_park",
+        "cpu_poll",
+        "pads_direct",
+        "pads_direct_fill",
+        "pad_ack_stream",
+        "dealer_chunk",
+        "dealer_ahead",
+        "source_read_threads",
+        "stream_min_bytes",
+        "trials",
+        "tokens",
+        "mtp",
+        "target_threads",
+        "pad_write_max",
+        "pad_credit_requested",
+        "pad_budget_requested",
+        "bridge_write_max"
+      ],
+      "route_dir": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-quiet-off-2",
+      "runner_status": "PASS",
+      "settings": {
+        "arm_tuned": "unset",
+        "cpu_poll": "50",
+        "draft_ahead": 1,
+        "head_threads": 2,
+        "mtp_k": 5,
+        "n_predict": 16,
+        "stream_min_bytes": "1048576",
+        "threads": 4,
+        "threads_batch": 4
+      },
+      "status": "INVALID",
+      "trials": [
+        {
+          "condition": {
+            "buffer_bytes": 4194304,
+            "cap": 131072,
+            "rcvbuf_enabled": true
+          },
+          "decode_us": 12986267,
+          "generated": 16,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "mtp_accepted": 10,
+          "mtp_drafted": 20,
+          "mtp_emitted": 15,
+          "mtp_rounds": 5,
+          "offloaded_nodes": 2441,
+          "overall_tps_agrees": true,
+          "overall_tps_recomputed": 1.2320707713771788,
+          "pads_missed": 0,
+          "pads_used": 6764,
+          "restore_us": 0,
+          "steady_tokens": 13,
+          "steady_tokens_per_second": 1.2728091063421239,
+          "steady_tps_agrees": true,
+          "steady_tps_recomputed": 1.2728091063421239,
+          "steady_us": 10213629,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "tokens_per_second": 1.2320707713771786,
+          "trial": 1,
+          "verify_fail": 0
+        },
+        {
+          "condition": {
+            "buffer_bytes": 262144,
+            "cap": 131072,
+            "rcvbuf_enabled": false
+          },
+          "decode_us": 20210355,
+          "generated": 16,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "mtp_accepted": 10,
+          "mtp_drafted": 20,
+          "mtp_emitted": 15,
+          "mtp_rounds": 5,
+          "offloaded_nodes": 2441,
+          "overall_tps_agrees": true,
+          "overall_tps_recomputed": 0.7916733773355292,
+          "pads_missed": 0,
+          "pads_used": 6764,
+          "restore_us": 24678,
+          "steady_tokens": 13,
+          "steady_tokens_per_second": 0.8050518115864171,
+          "steady_tps_agrees": true,
+          "steady_tps_recomputed": 0.805051811586417,
+          "steady_us": 16148029,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "tokens_per_second": 0.7916733773355292,
+          "trial": 2,
+          "verify_fail": 0
+        }
+      ],
+      "workload": {
+        "accepted_shipments": 20,
+        "dealer_chunk": 16,
+        "receive_operation_records": 6820
+      }
+    },
+    "quiet_on": {
+      "apk_observation": {
+        "commands": 3,
+        "installed_path": "/data/app/~~mU39o4_9iivyWfLHwN8DtQ==/host.enclave.anchor.avf-yHrdi2ykiBNEPsSgmVujVA==/base.apk"
+      },
+      "apk_observation_scope": "installed_path is randomised by Android and each verification command carries its own start_mono/end_mono. These are observations; they are never part of identity equality.",
+      "combined": {
+        "combined_tokens_per_second": 1.0973005925354617,
+        "decode_seconds_total": 29.162474,
+        "decode_us_total": 29162474,
+        "generated_total": 32,
+        "scope": "Both trials of a leg summed. The two trials run DIFFERENT receive-window conditions, so this is the rate of one balanced two-condition sequence, not an average of repeats. The steady rate is a different measurement and is kept separate. Neither includes setup, admission or cleanup.",
+        "steady_combined_tokens_per_second": 1.1322148705188186,
+        "steady_tokens_total": 26,
+        "steady_us_total": 22963839,
+        "trials_reported": 2
+      },
+      "controller_dir": "work/full-profile/b27-quiet-on-2",
+      "controller_status": "COMMAND_COMPLETE",
+      "cycle": {
+        "bank_cleanup_status": "CLEAR",
+        "child_exits": {
+          "bridge_trace_exit": -15,
+          "collector_exit": 143,
+          "dealer_exit": 0,
+          "forwarder_exit": -15,
+          "gpu_trace_exit": 0,
+          "loader_exit": 0,
+          "scheduler_exit": 0
+        },
+        "cleanup_reserve_seconds": 50,
+        "cleanup_seconds": 24.549727014964446,
+        "command_rc": 0,
+        "max_seconds": 600,
+        "remaining_owned_pids": [],
+        "runner_elapsed_seconds": 521.7166374180233,
+        "whole_cycle_seconds": 546.5666573980125,
+        "worker_cleanup": {
+          "listener_closed": true,
+          "owned_exit_code": -15,
+          "protected_unchanged": true
+        }
+      },
+      "expected_quiet_ms": 30000,
+      "files": {
+        "controller/receipt.json": "read",
+        "route/pad-budget.json": "read",
+        "route/receipt.json": "read",
+        "route/speed-evidence.json": "read"
+      },
+      "gpu": {
+        "peak_device_memory_mib": 25856.0,
+        "samples": 2050,
+        "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization.",
+        "second_device_peak_memory_mib": 353.0,
+        "uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+        "worker_pid": 1321023,
+        "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c"
+      },
+      "identity": {
+        "apk": {
+          "apk_sha256": "51004b0b984dc423d4abe11e2c7a7e7cd87891d64b8f1ed8b36f35a45f553d03",
+          "calibration_bytes": 13006,
+          "calibration_sha512_first32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+          "manifest_sha256": "b2041bdb683df7917924e126e9b75ea6bf50b54b22ea15ea9a4f89b8271bd9af",
+          "serial": "3B130DLJG0018K",
+          "status": "PASS",
+          "version_code": 52
+        },
+        "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+        "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348"
+      },
+      "label": "b27-quiet-on-2",
+      "launch_shenv_duplicate_keys": [],
+      "launch_shenv_pairs": [
+        [
+          "SHIELDED_MAX_M",
+          "16"
+        ],
+        [
+          "ANCHOR_DRAFT_AHEAD",
+          "1"
+        ],
+        [
+          "ANCHOR_HEAD_THREADS",
+          "2"
+        ],
+        [
+          "ANCHOR_HEAD_OWN_POOL",
+          "1"
+        ],
+        [
+          "ANCHOR_FINE_PLACEMENT",
+          "1"
+        ],
+        [
+          "SHIELDED_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_BUDGET",
+          "1"
+        ],
+        [
+          "ANCHOR_BENCH_TRIALS",
+          "2"
+        ],
+        [
+          "ANCHOR_BENCH_RCVBUF",
+          "on-off"
+        ],
+        [
+          "SHIELDED_RCVBUF",
+          "4194304"
+        ],
+        [
+          "SHIELDED_RCVLOWAT",
+          "131072"
+        ],
+        [
+          "ANCHOR_STREAM_WEIGHTS",
+          "1"
+        ],
+        [
+          "ANCHOR_STREAM_MIN_BYTES",
+          "1048576"
+        ],
+        [
+          "SHIELDED_PUBLIC_WEIGHT_CACHE",
+          "1"
+        ],
+        [
+          "SHIELDED_PUBLIC_WEIGHT_CACHE_ONLY",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_TILED",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_CHECK_TILED",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_THREADS",
+          "4"
+        ],
+        [
+          "SHIELDED_PAD_PREPARE_PROFILE",
+          "1"
+        ],
+        [
+          "ANCHOR_SOURCE_READ_THREADS",
+          "0"
+        ],
+        [
+          "SHIELDED_SOURCE_PREFETCH",
+          "1"
+        ],
+        [
+          "ANCHOR_CPU_POLL",
+          "50"
+        ],
+        [
+          "ANCHOR_PAD_RX_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_SOURCE_PROFILE",
+          "0"
+        ],
+        [
+          "SHIELDED_WIRE_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_WIRE_SCHED",
+          "1"
+        ],
+        [
+          "SHIELDED_RECV_PROFILE",
+          "1"
+        ],
+        [
+          "SHIELDED_PAD_R4",
+          "0"
+        ],
+        [
+          "ANCHOR_CPU_IDLE_PARK",
+          "0"
+        ],
+        [
+          "SHIELDED_PAD_ACK_STREAM",
+          "1"
+        ],
+        [
+          "ENGINE_EXPORT_STDERR",
+          "1"
+        ],
+        [
+          "ENGINE_EXPORT_STDERR_MAX",
+          "8388608"
+        ],
+        [
+          "ANCHOR_QUIET_PADS",
+          "30000"
+        ]
+      ],
+      "leg": "quiet_on",
+      "pad_budget_cards": [
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 8074,
+          "n_groups": 262,
+          "pads_waited": 2,
+          "phase": "trial1.after",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 1310,
+          "n_groups": 262,
+          "pads_waited": 2,
+          "phase": "trial1.before",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 14838,
+          "n_groups": 262,
+          "pads_waited": 2,
+          "phase": "trial2.after",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        },
+        {
+          "card": 0,
+          "counters_valid": true,
+          "link_pads_missed": 0,
+          "link_pads_used": 8074,
+          "n_groups": 262,
+          "pads_waited": 2,
+          "phase": "trial2.before",
+          "reader_status": "ok",
+          "status": "ok",
+          "written_groups": 262
+        }
+      ],
+      "pad_budget_parser_status": "PASS",
+      "quiet": {
+        "activated": true,
+        "admission_grammar_sha256": "e8e7d1270fc964bf2d48a1ac7b47bb6b6d6b7681cd3673129561d3de9962766a",
+        "admission_quiet_ms": 30000,
+        "admission_validator_sha256": "690b427b2db9562c5a976dce30aecbaced0cdd7734d3b363fd037f097081b04e",
+        "app_extra_ms": 30000,
+        "body_intervals": 19,
+        "engine_event_counts": {
+          "quiet_events": 2,
+          "resumed_events": 2,
+          "startup_banners": 1,
+          "trial_snapshots": 8
+        },
+        "grammar_preflight": "PASS",
+        "limitations": "These markers observe the BODY stream only. An empty window is the absence of stream_begin/stream_end markers, not proof that the pads port was silent; the send gate own source and ACK contract is what establishes that no lease is outstanding. A body left unterminated AFTER every window - ordinary cleanup can leave one - is reported above and is never read as evidence that the windows themselves were clean. Evidence about these trials only: no coverage guarantee, no statement about future runs, no tokens/s claim.",
+        "pause_budget_ms": 28000,
+        "per_trial": [
+          {
+            "body_intervals_in_quiet_window": 0,
+            "pause_budget_ms": 28000,
+            "pause_command_line": 435,
+            "paused_response_line": 453,
+            "quiet_window_lines": 41,
+            "resume_command_line": 494,
+            "resumed_response_line": 495,
+            "trial": 1
+          },
+          {
+            "body_intervals_in_quiet_window": 0,
+            "pause_budget_ms": 28000,
+            "pause_command_line": 499,
+            "paused_response_line": 519,
+            "quiet_window_lines": 45,
+            "resume_command_line": 564,
+            "resumed_response_line": 565,
+            "trial": 2
+          }
+        ],
+        "receipt_grammar_sha256": "3d61bcdfe0c6ffb2635ef3807ebf0a9894e7168a4ef46d62ff927d7823776242",
+        "requested_ms": 30000,
+        "unterminated_after_last_quiet_window": [
+          288
+        ]
+      },
+      "rcvbuf": {
+        "conditions": [
+          {
+            "buffer_bytes": 4194304,
+            "cap": 131072,
+            "rcvbuf_enabled": true,
+            "trial": 1
+          },
+          {
+            "buffer_bytes": 262144,
+            "cap": 131072,
+            "rcvbuf_enabled": false,
+            "trial": 2
+          }
+        ],
+        "order": "on-off"
+      },
+      "reasons": [],
+      "recipe": {
+        "bridge_write_max": 0,
+        "cpu_poll": 50,
+        "dealer_ahead": 256,
+        "dealer_chunk": 16,
+        "idle_park": 0,
+        "mtp": 5,
+        "pad_ack_stream": 1,
+        "pad_budget_requested": 1,
+        "pad_credit_requested": 0,
+        "pad_prepare_threads": 4,
+        "pad_write_max": 0,
+        "pads_direct": 0,
+        "pads_direct_fill": 0,
+        "rcvbuf_order": "on-off",
+        "source_read_threads": 0,
+        "stream_min_bytes": 1048576,
+        "target_threads": 4,
+        "tokens": 16,
+        "trials": 2
+      },
+      "recipe_present": [
+        "pad_prepare_threads",
+        "rcvbuf_order",
+        "idle_park",
+        "cpu_poll",
+        "pads_direct",
+        "pads_direct_fill",
+        "pad_ack_stream",
+        "dealer_chunk",
+        "dealer_ahead",
+        "source_read_threads",
+        "stream_min_bytes",
+        "trials",
+        "tokens",
+        "mtp",
+        "target_threads",
+        "pad_write_max",
+        "pad_credit_requested",
+        "pad_budget_requested",
+        "bridge_write_max"
+      ],
+      "route_dir": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-quiet-on-2",
+      "runner_status": "PASS",
+      "settings": {
+        "arm_tuned": "unset",
+        "cpu_poll": "50",
+        "draft_ahead": 1,
+        "head_threads": 2,
+        "mtp_k": 5,
+        "n_predict": 16,
+        "stream_min_bytes": "1048576",
+        "threads": 4,
+        "threads_batch": 4
+      },
+      "status": "VALID",
+      "trials": [
+        {
+          "condition": {
+            "buffer_bytes": 4194304,
+            "cap": 131072,
+            "rcvbuf_enabled": true
+          },
+          "decode_us": 13961944,
+          "generated": 16,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "mtp_accepted": 10,
+          "mtp_drafted": 20,
+          "mtp_emitted": 15,
+          "mtp_rounds": 5,
+          "offloaded_nodes": 2441,
+          "overall_tps_agrees": true,
+          "overall_tps_recomputed": 1.145972222779292,
+          "pads_missed": 0,
+          "pads_used": 6764,
+          "restore_us": 0,
+          "steady_tokens": 13,
+          "steady_tokens_per_second": 1.1793889622075693,
+          "steady_tps_agrees": true,
+          "steady_tps_recomputed": 1.1793889622075693,
+          "steady_us": 11022657,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "tokens_per_second": 1.1459722227792921,
+          "trial": 1,
+          "verify_fail": 0
+        },
+        {
+          "condition": {
+            "buffer_bytes": 262144,
+            "cap": 131072,
+            "rcvbuf_enabled": false
+          },
+          "decode_us": 15200530,
+          "generated": 16,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "mtp_accepted": 10,
+          "mtp_drafted": 20,
+          "mtp_emitted": 15,
+          "mtp_rounds": 5,
+          "offloaded_nodes": 2441,
+          "overall_tps_agrees": true,
+          "overall_tps_recomputed": 1.0525948766260123,
+          "pads_missed": 0,
+          "pads_used": 6764,
+          "restore_us": 20298,
+          "steady_tokens": 13,
+          "steady_tokens_per_second": 1.0886694466259705,
+          "steady_tps_agrees": true,
+          "steady_tps_recomputed": 1.0886694466259705,
+          "steady_us": 11941182,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "tokens_per_second": 1.0525948766260125,
+          "trial": 2,
+          "verify_fail": 0
+        }
+      ],
+      "workload": {
+        "accepted_shipments": 18,
+        "dealer_chunk": 16,
+        "receive_operation_records": 6820
+      }
+    }
+  },
+  "limits": [
+    "Trial 1 and trial 2 are different receive-window conditions. Their spread is a condition difference, not run-to-run noise, and this report contains no significance test and no error bar.",
+    "One cycle per setting. Repeatability is unknown from this data.",
+    "The overall rate and the steady rate are different measurements and are reported separately; neither is a sustained production rate.",
+    "A NOT_RUN leg is an absent cycle and an INVALID leg is a failed one. Neither is a zero, a baseline or a result.",
+    "The APK installed_path and the verification command timings are observations, never identity; identity is the recorded status, manifest and APK digests, version code, calibration bytes and digest, and serial.",
+    "Quiet admission describes the observed body markers of that run and carries its own limitation text; it is not proof the pads port was silent.",
+    "GPU memory is a device peak across the whole cycle from the verified own worker, not decode-only utilisation."
+  ],
+  "matched": {
+    "checked": [],
+    "differences": [
+      "both legs must be VALID before they can be matched"
+    ],
+    "matched": false
+  },
+  "revision": 3,
+  "schema_source": "derived from the closed v51 route b27-pad-budget-1 receipt (including the actual verify_phone_apk and paired_rcvbuf blocks), speed-evidence, pad-budget and its controller receipt",
+  "status": "REPORT",
+  "tool": "summarize_quiet_pair.py"
+}

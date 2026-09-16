@@ -1,0 +1,177 @@
+{
+  "status": "PASS_PROBE_CAPTURE",
+  "label": "b27-maskbench-4",
+  "phases": {
+    "PRG_SPEED": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 6971,
+        "elements": 35691520,
+        "elapsed_us": 1500069,
+        "checksum": 50514285786,
+        "elements_per_second": 23793252.17706652,
+        "bytes": 285532160,
+        "bytes_per_second": 190346017.41653216
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 1032,
+        "elements": 35930112,
+        "elapsed_us": 1500077,
+        "checksum": 7275690461,
+        "elements_per_second": 23952178.45483932,
+        "bytes": 287440896,
+        "bytes_per_second": 191617427.63871455
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 146,
+        "elements": 36254720,
+        "elapsed_us": 1509408,
+        "checksum": 1074961589,
+        "elements_per_second": 24019165.12964023,
+        "bytes": 290037760,
+        "bytes_per_second": 192153321.03712183
+      }
+    ],
+    "PRG4_SPEED": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 20027,
+        "elements": 102538240,
+        "elapsed_us": 1500009,
+        "checksum": 144149388216,
+        "elements_per_second": 68358416.51616757,
+        "bytes": 820305920,
+        "bytes_per_second": 546867332.1293405
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 2956,
+        "elements": 102916096,
+        "elapsed_us": 1500118,
+        "checksum": 21036281510,
+        "elements_per_second": 68605333.71374786,
+        "bytes": 823328768,
+        "bytes_per_second": 548842669.7099829
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 417,
+        "elements": 103549440,
+        "elapsed_us": 1501807,
+        "checksum": 3062960044,
+        "elements_per_second": 68949898.35578074,
+        "bytes": 828395520,
+        "bytes_per_second": 551599186.8462459
+      }
+    ],
+    "PRG_AGAIN_SPEED": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 7025,
+        "elements": 35968000,
+        "elapsed_us": 1500200,
+        "checksum": 50858813662,
+        "elements_per_second": 23975469.937341686,
+        "bytes": 287744000,
+        "bytes_per_second": 191803759.4987335
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 1031,
+        "elements": 35895296,
+        "elapsed_us": 1500419,
+        "checksum": 7269070915,
+        "elements_per_second": 23923514.69822763,
+        "bytes": 287162368,
+        "bytes_per_second": 191388117.58582103
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 146,
+        "elements": 36254720,
+        "elapsed_us": 1506645,
+        "checksum": 1074961589,
+        "elements_per_second": 24063213.298421327,
+        "bytes": 290037760,
+        "bytes_per_second": 192505706.38737062
+      }
+    ],
+    "CELL_IMPORT": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 26245,
+        "elements": 134374400,
+        "elapsed_us": 1500012,
+        "checksum": 61169617312624,
+        "elements_per_second": 89582216.67559993,
+        "bytes": 403543120,
+        "bytes_per_second": 269026594.453911
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 3373,
+        "elements": 117434368,
+        "elapsed_us": 1500222,
+        "checksum": 7207071967919,
+        "elements_per_second": 78277993.52362517,
+        "bytes": 352357072,
+        "bytes_per_second": 234869953.91348746
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 481,
+        "elements": 119441920,
+        "elapsed_us": 1502922,
+        "checksum": 2064381281890,
+        "elements_per_second": 79473133.0035757,
+        "bytes": 358333456,
+        "bytes_per_second": 238424519.7022866
+      }
+    ]
+  },
+  "scope": "One VM thread, public inputs, baseline/candidate/baseline timing, exact existing input-mask stream. Candidate is benchmark-only at this source commit; no inference tok/s claim.",
+  "mask_elements_per_token_reference": 7401568,
+  "capture_sha256": "d55570aca75334c2924b21b686e2efbf5fe40bee6aac85aa94d1228c505a25a1",
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "elapsed_seconds": 29.127208167978097,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "exact_comparisons_on_phone": 608,
+  "source_commit": "262c13e2a78a98adeb9e2cc31fb92ffd56b1ad36",
+  "comparisons": [
+    {
+      "width": 5120,
+      "candidate_elements_per_second": 68358416.51616757,
+      "speedup_vs_before": 2.8730169380567423,
+      "speedup_vs_after": 2.851181507383079
+    },
+    {
+      "width": 34816,
+      "candidate_elements_per_second": 68605333.71374786,
+      "speedup_vs_before": 2.8642627994401395,
+      "speedup_vs_after": 2.867694591665934
+    },
+    {
+      "width": 248320,
+      "candidate_elements_per_second": 68949898.35578074,
+      "speedup_vs_before": 2.8706201062207155,
+      "speedup_vs_after": 2.8653653816177664
+    }
+  ]
+}

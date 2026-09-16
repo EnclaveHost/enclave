@@ -1,0 +1,1214 @@
+{
+  "conclusion": "No consistent throughput gain; socket-lock contention persists. Same-APK control pending.",
+  "comparison": "DESCRIPTIVE cross-version: v48 vs Java-only v49; all native APK members identical.",
+  "runs": {
+    "b27-pad-profile-1": {
+      "cap": 0,
+      "whole_cycle_seconds": 521.690479724959,
+      "cleanup_seconds": 8.539364912023302,
+      "version": 48,
+      "trials": [
+        {
+          "trial": 1,
+          "restore_us": 0,
+          "generated": 16,
+          "decode_us": 19187465,
+          "tokens_per_second": 0.8338777425782926,
+          "steady_tokens": 13,
+          "steady_us": 15053971,
+          "steady_tokens_per_second": 0.8635595219361057,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          }
+        },
+        {
+          "trial": 2,
+          "restore_us": 24411,
+          "generated": 16,
+          "decode_us": 17407146,
+          "tokens_per_second": 0.9191627392566248,
+          "steady_tokens": 13,
+          "steady_us": 13593946,
+          "steady_tokens_per_second": 0.9563080506572558,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          }
+        }
+      ],
+      "vhost_windows": [
+        {
+          "trial": 1,
+          "window_trace_ns": [
+            610899847606820,
+            610918890988799
+          ],
+          "window_length_ns": 19043381979,
+          "conservative_window_ns": [
+            610899847606901,
+            610918890988718
+          ],
+          "possible_window_ns": [
+            610899847606820,
+            610918890988880
+          ],
+          "app_begin_trace_ts": 610899626988799,
+          "app_end_trace_ts": 610918890988799,
+          "truncated_head_ns": 220618021,
+          "truncated_tail_ns": 0,
+          "guest_decode_seconds": 19.187465,
+          "complete_state_ns": 19037078716,
+          "uncovered_ns": 6303263,
+          "unfinished_rows_started_in_window": 0,
+          "state_ns": {
+            "R": 2229984982,
+            "Running": 2047569576,
+            "S": 13622925562,
+            "D": 909388251,
+            "R+": 227210345
+          },
+          "D_total_clipped_ns": 909388251,
+          "D_fraction_of_window": 0.047754,
+          "D_fraction_of_complete_state": 0.047769,
+          "D_by_observed_blocked_function_ns": {
+            "lock_sock_nested": 826713986,
+            "unknown_reason": 82637440,
+            "trace_buffer_unlock_commit_regs": 36825
+          },
+          "D_by_observed_blocked_function_count": {
+            "lock_sock_nested": 986,
+            "unknown_reason": 1212,
+            "trace_buffer_unlock_commit_regs": 1
+          },
+          "D_wake_context_row_counts": {
+            "contiguous_runnable": 864,
+            "unattributed": 1335
+          },
+          "D_by_wake_context_waker_ns": {
+            "vsock-bridge/27234": 203243038,
+            "vsock-pads/27249": 604332111,
+            "vsock-control/27233": 2471069,
+            "crosvm_vcpu0/27200": 6424559
+          },
+          "longest_D_intervals": [
+            {
+              "raw_ts": 610915466922623,
+              "raw_dur_ns": 151986288,
+              "clipped_ns": 151986288,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27234",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 610900305837858,
+              "raw_dur_ns": 117955770,
+              "clipped_ns": 117955770,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610908367155326,
+              "raw_dur_ns": 41255331,
+              "clipped_ns": 41255331,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610916018247941,
+              "raw_dur_ns": 40162353,
+              "clipped_ns": 40162353,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610915229712011,
+              "raw_dur_ns": 36272909,
+              "clipped_ns": 36272909,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610916205743099,
+              "raw_dur_ns": 34715576,
+              "clipped_ns": 34715576,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610916087121598,
+              "raw_dur_ns": 34095785,
+              "clipped_ns": 34095785,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610900087260669,
+              "raw_dur_ns": 31114624,
+              "clipped_ns": 31114624,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610908415313204,
+              "raw_dur_ns": 25738851,
+              "clipped_ns": 25738851,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610916143322322,
+              "raw_dur_ns": 20287517,
+              "clipped_ns": 20287517,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610915438205948,
+              "raw_dur_ns": 19075399,
+              "clipped_ns": 19075399,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27234",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 610915877621964,
+              "raw_dur_ns": 18687704,
+              "clipped_ns": 18687704,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610915293163509,
+              "raw_dur_ns": 15502644,
+              "clipped_ns": 15502644,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610901228272429,
+              "raw_dur_ns": 15391846,
+              "clipped_ns": 15391846,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610901327263070,
+              "raw_dur_ns": 13895956,
+              "clipped_ns": 13895956,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610906521698294,
+              "raw_dur_ns": 13767538,
+              "clipped_ns": 13767538,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610900118414559,
+              "raw_dur_ns": 12515462,
+              "clipped_ns": 12515462,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610915702898575,
+              "raw_dur_ns": 12408936,
+              "clipped_ns": 12408936,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610912887254531,
+              "raw_dur_ns": 10570923,
+              "clipped_ns": 10570923,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27234",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 610916277292008,
+              "raw_dur_ns": 9545207,
+              "clipped_ns": 9545207,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            }
+          ]
+        },
+        {
+          "trial": 2,
+          "window_trace_ns": [
+            610918906988799,
+            610936475988799
+          ],
+          "window_length_ns": 17569000000,
+          "conservative_window_ns": [
+            610918906988880,
+            610936475988718
+          ],
+          "possible_window_ns": [
+            610918906988718,
+            610936475988880
+          ],
+          "app_begin_trace_ts": 610918906988799,
+          "app_end_trace_ts": 610936475988799,
+          "truncated_head_ns": 0,
+          "truncated_tail_ns": 0,
+          "guest_decode_seconds": 17.407146,
+          "complete_state_ns": 17569000000,
+          "uncovered_ns": 0,
+          "unfinished_rows_started_in_window": 0,
+          "state_ns": {
+            "S": 13098259412,
+            "R": 2354239433,
+            "Running": 1687050889,
+            "R+": 138207021,
+            "D": 291243245
+          },
+          "D_total_clipped_ns": 291243245,
+          "D_fraction_of_window": 0.016577,
+          "D_fraction_of_complete_state": 0.016577,
+          "D_by_observed_blocked_function_ns": {
+            "lock_sock_nested": 261786706,
+            "unknown_reason": 29455929,
+            "trace_buffer_unlock_commit_regs": 610
+          },
+          "D_by_observed_blocked_function_count": {
+            "lock_sock_nested": 382,
+            "unknown_reason": 306,
+            "trace_buffer_unlock_commit_regs": 1
+          },
+          "D_wake_context_row_counts": {
+            "unattributed": 350,
+            "contiguous_runnable": 339
+          },
+          "D_by_wake_context_waker_ns": {
+            "crosvm_vcpu0/27200": 1457195,
+            "vsock-bridge/27234": 17106158,
+            "vsock-pads/27249": 240961061,
+            "vsock-control/27233": 12248
+          },
+          "longest_D_intervals": [
+            {
+              "raw_ts": 610927328328757,
+              "raw_dur_ns": 58957682,
+              "clipped_ns": 58957682,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610934989925685,
+              "raw_dur_ns": 37129638,
+              "clipped_ns": 37129638,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610935476199936,
+              "raw_dur_ns": 16738119,
+              "clipped_ns": 16738119,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610935740244655,
+              "raw_dur_ns": 16023722,
+              "clipped_ns": 16023722,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610934973577784,
+              "raw_dur_ns": 15713989,
+              "clipped_ns": 15713989,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610932441392846,
+              "raw_dur_ns": 11032837,
+              "clipped_ns": 11032837,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610919138131162,
+              "raw_dur_ns": 10803141,
+              "clipped_ns": 10803141,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27234",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 610934965005274,
+              "raw_dur_ns": 8522421,
+              "clipped_ns": 8522421,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610932452506657,
+              "raw_dur_ns": 8428182,
+              "clipped_ns": 8428182,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610925651225240,
+              "raw_dur_ns": 6674154,
+              "clipped_ns": 6674154,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610936011760158,
+              "raw_dur_ns": 6295817,
+              "clipped_ns": 6295817,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610932509194930,
+              "raw_dur_ns": 4494791,
+              "clipped_ns": 4494791,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610922038183247,
+              "raw_dur_ns": 4348144,
+              "clipped_ns": 4348144,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610924796240865,
+              "raw_dur_ns": 4306152,
+              "clipped_ns": 4306152,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610921268125222,
+              "raw_dur_ns": 3541178,
+              "clipped_ns": 3541178,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610925709282410,
+              "raw_dur_ns": 3293579,
+              "clipped_ns": 3293579,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610930246899437,
+              "raw_dur_ns": 3283081,
+              "clipped_ns": 3283081,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610936019331365,
+              "raw_dur_ns": 3110922,
+              "clipped_ns": 3110922,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610936473159979,
+              "raw_dur_ns": 24387003,
+              "clipped_ns": 2828820,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 610921754812641,
+              "raw_dur_ns": 2510864,
+              "clipped_ns": 2510864,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "27249",
+              "wake_context_waker_name": "vsock-pads"
+            }
+          ]
+        }
+      ],
+      "combined_decode_tps": 0.8744456936569157,
+      "source_hashes": {
+        "speed-evidence.json": "af977922f53202d8f08437d9c1c140656f740465dfff6771ba8ed4eea9473ce6",
+        "receive-operation-analysis.json": "214349165d9c44d1240a65008e2e80871d4094b806943918e87a844732fb0a9a",
+        "vhost-lock-time.json": "443c867603053b666efc5990c84ac612e8764678436fbb56400926a02f25859d",
+        "receipt.json": "b7c412752f3810c81fc5c47915178de8a94732388030f0e9f5b767404e3d38eb"
+      }
+    },
+    "b27-pad-lock64-1": {
+      "cap": 65536,
+      "whole_cycle_seconds": 525.4812882060069,
+      "cleanup_seconds": 14.273549233039375,
+      "version": 49,
+      "trials": [
+        {
+          "trial": 1,
+          "restore_us": 0,
+          "generated": 16,
+          "decode_us": 16764988,
+          "tokens_per_second": 0.954369904708551,
+          "steady_tokens": 13,
+          "steady_us": 12795617,
+          "steady_tokens_per_second": 1.0159728913424027,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          }
+        },
+        {
+          "trial": 2,
+          "restore_us": 30808,
+          "generated": 16,
+          "decode_us": 20247281,
+          "tokens_per_second": 0.7902295621817073,
+          "steady_tokens": 13,
+          "steady_us": 16117630,
+          "steady_tokens_per_second": 0.8065701967348797,
+          "counter_delta": {
+            "offloaded_nodes": 2441,
+            "local_nodes": 0,
+            "macs": 720956293120,
+            "verify_fail": 0,
+            "pads_used": 6764,
+            "pads_missed": 0
+          }
+        }
+      ],
+      "vhost_windows": [
+        {
+          "trial": 1,
+          "window_trace_ns": [
+            612518112625432,
+            612534595988719
+          ],
+          "window_length_ns": 16483363287,
+          "conservative_window_ns": [
+            612518112625474,
+            612534595988677
+          ],
+          "possible_window_ns": [
+            612518112625432,
+            612534595988761
+          ],
+          "app_begin_trace_ts": 612517640988719,
+          "app_end_trace_ts": 612534595988719,
+          "truncated_head_ns": 471636713,
+          "truncated_tail_ns": 0,
+          "guest_decode_seconds": 16.764988,
+          "complete_state_ns": 16477642299,
+          "uncovered_ns": 5720988,
+          "unfinished_rows_started_in_window": 1,
+          "state_ns": {
+            "S": 11508481114,
+            "R": 2493650518,
+            "Running": 1742346276,
+            "D": 597455655,
+            "R+": 135708736
+          },
+          "D_total_clipped_ns": 597455655,
+          "D_fraction_of_window": 0.036246,
+          "D_fraction_of_complete_state": 0.036259,
+          "D_by_observed_blocked_function_ns": {
+            "lock_sock_nested": 550371551,
+            "unknown_reason": 47084104
+          },
+          "D_by_observed_blocked_function_count": {
+            "lock_sock_nested": 437,
+            "unknown_reason": 487
+          },
+          "D_wake_context_row_counts": {
+            "contiguous_runnable": 363,
+            "unattributed": 561
+          },
+          "D_by_wake_context_waker_ns": {
+            "vsock-bridge/28744": 161503497,
+            "vsock-pads/28762": 375799731,
+            "crosvm_vcpu0/28673": 4018555,
+            "vsock-control/28742": 7569
+          },
+          "longest_D_intervals": [
+            {
+              "raw_ts": 612532614501497,
+              "raw_dur_ns": 64334432,
+              "clipped_ns": 64334432,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28744",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 612530774229483,
+              "raw_dur_ns": 36234741,
+              "clipped_ns": 36234741,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612519155183701,
+              "raw_dur_ns": 35124430,
+              "clipped_ns": 35124430,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612523776358996,
+              "raw_dur_ns": 30962972,
+              "clipped_ns": 30962972,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612519252003891,
+              "raw_dur_ns": 30781413,
+              "clipped_ns": 30781413,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612519020552638,
+              "raw_dur_ns": 20644409,
+              "clipped_ns": 20644409,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532511303011,
+              "raw_dur_ns": 16418498,
+              "clipped_ns": 16418498,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612531241992952,
+              "raw_dur_ns": 15483235,
+              "clipped_ns": 15483235,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532840751375,
+              "raw_dur_ns": 13921509,
+              "clipped_ns": 13921509,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532425592195,
+              "raw_dur_ns": 13343872,
+              "clipped_ns": 13343872,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612519073799423,
+              "raw_dur_ns": 12541179,
+              "clipped_ns": 12541179,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612527648631988,
+              "raw_dur_ns": 11853963,
+              "clipped_ns": 11853963,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532600561800,
+              "raw_dur_ns": 11765544,
+              "clipped_ns": 11765544,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28744",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 612528505905467,
+              "raw_dur_ns": 10580647,
+              "clipped_ns": 10580647,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532818273755,
+              "raw_dur_ns": 9848592,
+              "clipped_ns": 9848592,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532288161206,
+              "raw_dur_ns": 8932942,
+              "clipped_ns": 8932942,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612527598045399,
+              "raw_dur_ns": 8831543,
+              "clipped_ns": 8831543,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612532591706982,
+              "raw_dur_ns": 8823080,
+              "clipped_ns": 8823080,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28744",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 612527894301991,
+              "raw_dur_ns": 8607381,
+              "clipped_ns": 8607381,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28744",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 612527715054555,
+              "raw_dur_ns": 8458943,
+              "clipped_ns": 8458943,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            }
+          ]
+        },
+        {
+          "trial": 2,
+          "window_trace_ns": [
+            612534619988719,
+            612555235988719
+          ],
+          "window_length_ns": 20616000000,
+          "conservative_window_ns": [
+            612534619988761,
+            612555235988677
+          ],
+          "possible_window_ns": [
+            612534619988677,
+            612555235988761
+          ],
+          "app_begin_trace_ts": 612534619988719,
+          "app_end_trace_ts": 612555235988719,
+          "truncated_head_ns": 0,
+          "truncated_tail_ns": 0,
+          "guest_decode_seconds": 20.247281,
+          "complete_state_ns": 20616000000,
+          "uncovered_ns": 0,
+          "unfinished_rows_started_in_window": 0,
+          "state_ns": {
+            "S": 13996595409,
+            "R": 3518829353,
+            "Running": 2060945536,
+            "R+": 338617927,
+            "D": 701011775
+          },
+          "D_total_clipped_ns": 701011775,
+          "D_fraction_of_window": 0.034003,
+          "D_fraction_of_complete_state": 0.034003,
+          "D_by_observed_blocked_function_ns": {
+            "lock_sock_nested": 659579938,
+            "unknown_reason": 41431023,
+            "ktime_get_boot_fast_ns": 814
+          },
+          "D_by_observed_blocked_function_count": {
+            "lock_sock_nested": 517,
+            "unknown_reason": 369,
+            "ktime_get_boot_fast_ns": 1
+          },
+          "D_wake_context_row_counts": {
+            "unattributed": 414,
+            "contiguous_runnable": 473
+          },
+          "D_by_wake_context_waker_ns": {
+            "vsock-bridge/28744": 79365518,
+            "vsock-pads/28762": 560601830,
+            "crosvm_vcpu0/28673": 16912884,
+            "vsock-control/28742": 1912
+          },
+          "longest_D_intervals": [
+            {
+              "raw_ts": 612541978629309,
+              "raw_dur_ns": 28307455,
+              "clipped_ns": 28307455,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612536214979038,
+              "raw_dur_ns": 26783569,
+              "clipped_ns": 26783569,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612538912384964,
+              "raw_dur_ns": 23360880,
+              "clipped_ns": 23360880,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612554355147300,
+              "raw_dur_ns": 21560914,
+              "clipped_ns": 21560914,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612537521696934,
+              "raw_dur_ns": 19656209,
+              "clipped_ns": 19656209,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612539191245844,
+              "raw_dur_ns": 19010092,
+              "clipped_ns": 19010092,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612535700792148,
+              "raw_dur_ns": 17075277,
+              "clipped_ns": 17075277,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612538874722081,
+              "raw_dur_ns": 16382243,
+              "clipped_ns": 16382243,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612552318783937,
+              "raw_dur_ns": 16145915,
+              "clipped_ns": 16145915,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612553179872438,
+              "raw_dur_ns": 15956380,
+              "clipped_ns": 15956380,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612551561270997,
+              "raw_dur_ns": 15894409,
+              "clipped_ns": 15894409,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28744",
+              "wake_context_waker_name": "vsock-bridge"
+            },
+            {
+              "raw_ts": 612553967174115,
+              "raw_dur_ns": 15655070,
+              "clipped_ns": 15655070,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612537603246780,
+              "raw_dur_ns": 15173746,
+              "clipped_ns": 15173746,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612536981260085,
+              "raw_dur_ns": 14573405,
+              "clipped_ns": 14573405,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612552465918825,
+              "raw_dur_ns": 14036173,
+              "clipped_ns": 14036173,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612535342251580,
+              "raw_dur_ns": 13140706,
+              "clipped_ns": 13140706,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612554593995404,
+              "raw_dur_ns": 13045695,
+              "clipped_ns": 13045695,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612554417813235,
+              "raw_dur_ns": 12123453,
+              "clipped_ns": 12123453,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612537564154657,
+              "raw_dur_ns": 10818563,
+              "clipped_ns": 10818563,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            },
+            {
+              "raw_ts": 612537256981521,
+              "raw_dur_ns": 10199869,
+              "clipped_ns": 10199869,
+              "state": "D",
+              "blocked_function": "lock_sock_nested",
+              "io_wait": 0,
+              "wake_context": "contiguous_runnable",
+              "wake_context_waker_tid": "28762",
+              "wake_context_waker_name": "vsock-pads"
+            }
+          ]
+        }
+      ],
+      "combined_decode_tps": 0.8645781754152926,
+      "source_hashes": {
+        "speed-evidence.json": "4219bcd7aa0c8884d23b0f4c5a3a6976642cafcf60e06d34d244aee4aa00df8c",
+        "receive-operation-analysis.json": "62068a1d598e3d0de17ae254e5eb97650df31c343197f7bf0d648273b408bca8",
+        "vhost-lock-time.json": "c6cc46ce713eda1309e3da038f48aaac87e4d21828ae9cfda82125fe09fc0a12",
+        "receipt.json": "63c6688f82afefe8981ad89c64116825836956022e4ba1e2cb17e72cd538d0ae"
+      }
+    }
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "status": "COMPARABLE",
+  "mode": "same_apk_descriptive",
+  "blocking": [],
+  "interpretation": "DESCRIPTIVE. Same v49 APK, cap 0 vs 65536. Two runs are not a replication, so no rate difference is attributed to the cap.",
+  "runs": {
+    "b27-pad-lock0-2": {
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-lock0-2",
+      "version_code": 49,
+      "apk_sha256": "94f2db7c745992c32126316c9902320bf7c508abfc3d94daa34591d94a06a3c4",
+      "pad_write_max": 0,
+      "whole_cycle_seconds": 531.7475902399747,
+      "route_command_seconds": 516.5054632370011,
+      "link_pads_waited": [
+        0.0,
+        0.0
+      ],
+      "rates": {
+        "per_trial": [
+          {
+            "trial": 1,
+            "tokens_per_second": 0.9240510861642985,
+            "steady_tokens_per_second": 0.8945585859148173,
+            "generated": 16,
+            "decode_seconds": 17.31506,
+            "steady_tokens": 13,
+            "steady_seconds": 14.532307
+          },
+          {
+            "trial": 2,
+            "tokens_per_second": 0.7512565940373703,
+            "steady_tokens_per_second": 0.7426379585682283,
+            "generated": 16,
+            "decode_seconds": 21.29765,
+            "steady_tokens": 13,
+            "steady_seconds": 17.505165
+          }
+        ],
+        "combined_all": {
+          "total_generated": 32,
+          "sum_decode_seconds": 38.61271,
+          "tokens_per_second": 0.8287426601240887
+        },
+        "combined_steady": {
+          "total_steady_tokens": 26,
+          "sum_steady_seconds": 32.037472,
+          "tokens_per_second": 0.8115496753301883
+        }
+      },
+      "vhost_lock": {
+        "available": true,
+        "capture_requests_sched_blocked_reason": true,
+        "observed_D_blocked_functions": [
+          "lock_sock_nested"
+        ],
+        "trials": [
+          {
+            "trial": 1,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 1018486648
+            },
+            "unknown_reason_ns": 24410846,
+            "D_total_clipped_ns": 1042897494,
+            "complete_state_ns": 17047854933,
+            "uncovered_ns": 79590,
+            "window_trace_ns": [
+              613292056054277,
+              613309103988800
+            ],
+            "window_length_ns": 17047934523,
+            "app_begin_trace_ts": 613291675988800,
+            "truncated_head_ns": 380065477
+          },
+          {
+            "trial": 2,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 748329388
+            },
+            "unknown_reason_ns": 60360194,
+            "D_total_clipped_ns": 808689582,
+            "complete_state_ns": 21436000000,
+            "uncovered_ns": 0,
+            "window_trace_ns": [
+              613309122988800,
+              613330558988800
+            ],
+            "window_length_ns": 21436000000,
+            "app_begin_trace_ts": 613309122988800,
+            "truncated_head_ns": 0
+          }
+        ]
+      }
+    },
+    "b27-pad-lock64-2": {
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-lock64-2",
+      "version_code": 49,
+      "apk_sha256": "94f2db7c745992c32126316c9902320bf7c508abfc3d94daa34591d94a06a3c4",
+      "pad_write_max": 65536,
+      "whole_cycle_seconds": 543.3103393549682,
+      "route_command_seconds": 520.1995574529865,
+      "link_pads_waited": [
+        0.0,
+        0.0
+      ],
+      "rates": {
+        "per_trial": [
+          {
+            "trial": 1,
+            "tokens_per_second": 0.7254593098261242,
+            "steady_tokens_per_second": 0.7712938204651067,
+            "generated": 16,
+            "decode_seconds": 22.054993,
+            "steady_tokens": 13,
+            "steady_seconds": 16.854796
+          },
+          {
+            "trial": 2,
+            "tokens_per_second": 0.6692641645472953,
+            "steady_tokens_per_second": 0.7183415019813516,
+            "generated": 16,
+            "decode_seconds": 23.906853,
+            "steady_tokens": 13,
+            "steady_seconds": 18.097242
+          }
+        ],
+        "combined_all": {
+          "total_generated": 32,
+          "sum_decode_seconds": 45.961846,
+          "tokens_per_second": 0.6962296510022683
+        },
+        "combined_steady": {
+          "total_steady_tokens": 26,
+          "sum_steady_seconds": 34.952038,
+          "tokens_per_second": 0.7438765087174601
+        }
+      },
+      "vhost_lock": {
+        "available": true,
+        "capture_requests_sched_blocked_reason": true,
+        "observed_D_blocked_functions": [
+          "lock_sock_nested"
+        ],
+        "trials": [
+          {
+            "trial": 1,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 1757002157
+            },
+            "unknown_reason_ns": 54667804,
+            "D_total_clipped_ns": 1811669961,
+            "complete_state_ns": 21893503793,
+            "uncovered_ns": 21930501,
+            "window_trace_ns": [
+              614010593554343,
+              614032508988637
+            ],
+            "window_length_ns": 21915434294,
+            "app_begin_trace_ts": 614010329988637,
+            "truncated_head_ns": 263565706
+          },
+          {
+            "trial": 2,
+            "named_blocked_function_ns": {
+              "lock_sock_nested": 245142533
+            },
+            "unknown_reason_ns": 57438146,
+            "D_total_clipped_ns": 302580679,
+            "complete_state_ns": 24103000000,
+            "uncovered_ns": 0,
+            "window_trace_ns": [
+              614032541988637,
+              614056644988637
+            ],
+            "window_length_ns": 24103000000,
+            "app_begin_trace_ts": 614032541988637,
+            "truncated_head_ns": 0
+          }
+        ]
+      }
+    }
+  },
+  "declared_source_pairs": [],
+  "comparator_sha256": "2ca7467b18f690191d7c960625c4c7b3e6390474e398aa6fec220b5f249627a3",
+  "limits": [
+    "Descriptive only. No causal attribution, no run called faster, and no claim about noise.",
+    "No within-run variability is treated as a noise estimate. The two trials of a run differ in receive credit window (4 MiB then 256 KiB) and are different conditions, not repeats of one condition.",
+    "Whole-cycle controller seconds and route command seconds are separate and never merged.",
+    "Overall and steady rates are separate; combined figures are total tokens over summed seconds, never a mean of per-trial rates.",
+    "vhost lock numbers are per run and are never differenced. D fractions are omitted because trial 1 windows are clipped to recorder start by different amounts; truncated_head_ns is shown instead.",
+    "unknown_reason time is unknown, reported separately, never zero and never folded into a named routine.",
+    "An absent vhost-lock-time.json is reported unavailable, never as zero.",
+    "A named routine observed at 0 ns with a valid trace and the tracepoint requested is an observation, not proof the routine never ran or that a cause is absent.",
+    "Launch environment is compared key by key; only differing key names are reported, never values."
+  ]
+}

@@ -1,0 +1,3537 @@
+{
+ "label": "b27-paired-park-1",
+ "scope": "Partial-capture reading of one paired-park run; no receipt, no gate, no throughput claim.",
+ "inputs": {
+  "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-paired-park-1",
+  "trace_sha256": "f7838bda497aadd0dff4bbc9480346550f4fa502a9332b745ce415e4c5c815e1",
+  "log_sha256": "708d978b0c5d03a2a0b285e235f93c32616b83a86a11de928db589167c497aab",
+  "receipt_status": "FAIL",
+  "app_pid": 12714,
+  "vm_pid": 12774,
+  "vhost": {
+   "pid": 12777,
+   "tid": 12777,
+   "name": "vhost-12774"
+  },
+  "trace_processor": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/perfetto-tools/trace_processor_shell"
+ },
+ "trace_bounds": {
+  "start_ts": 597186627915553,
+  "end_ts": 597221599514406,
+  "seconds": 34.971598853,
+  "start_realtime_epoch": 1788972846.2879272,
+  "end_realtime_epoch": 1788972881.2595258
+ },
+ "clock_mapping": {
+  "realtime_snapshots": 2,
+  "offset_ns_median": -1788375659660011363,
+  "offset_ns_min": -1788375659660011526,
+  "offset_ns_max": -1788375659660011363,
+  "spread_us": 0.163,
+  "method": "trace_ts = realtime_ns + (ts - clock_value) from clock_snapshot clock_id 1; median used, min/max reported"
+ },
+ "trace_stats_nonzero": [
+  {
+   "name": "stackprofile_empty_callstack",
+   "idx": "[NULL]",
+   "severity": "error",
+   "value": "11452"
+  }
+ ],
+ "bridge_sp_clock_pairs": {
+  "count": 240,
+  "realtime_minus_monotonic_spread_us": 61.197,
+  "note": "app-side monotonic/realtime pairs; reported for the log clock, not used for the trace mapping"
+ },
+ "log_markers": {
+  "park": {
+   "1": {
+    "enabled": 0,
+    "rt_ns": 1788972845957000000,
+    "calls": 0,
+    "end_rt_ns": 1788972870226000000
+   },
+   "2": {
+    "enabled": 1,
+    "rt_ns": 1788972870311000000,
+    "calls": 1054,
+    "end_rt_ns": 1788972902502000000
+   }
+  },
+  "bridge_closed": [
+   {
+    "rc": -104,
+    "rt_ns": 1788972902370000000
+   }
+  ],
+  "rounds": {
+   "1": [
+    {
+     "round": 1,
+     "drafted": 5,
+     "accepted": 1,
+     "emitted": 2,
+     "draft_ms": 838.6,
+     "verify_ms": 5423.0,
+     "end_rt_ns": 1788972852266000000
+    },
+    {
+     "round": 2,
+     "drafted": 5,
+     "accepted": 3,
+     "emitted": 4,
+     "draft_ms": 355.2,
+     "verify_ms": 4111.3,
+     "end_rt_ns": 1788972856814000000
+    },
+    {
+     "round": 3,
+     "drafted": 5,
+     "accepted": 1,
+     "emitted": 2,
+     "draft_ms": 457.2,
+     "verify_ms": 5055.6,
+     "end_rt_ns": 1788972862355000000
+    },
+    {
+     "round": 4,
+     "drafted": 5,
+     "accepted": 5,
+     "emitted": 6,
+     "draft_ms": 326.0,
+     "verify_ms": 5441.8,
+     "end_rt_ns": 1788972868549000000
+    },
+    {
+     "round": 5,
+     "drafted": 0,
+     "accepted": 0,
+     "emitted": 1,
+     "draft_ms": 0.0,
+     "verify_ms": 1644.1,
+     "end_rt_ns": 1788972870226000000
+    }
+   ],
+   "2": [
+    {
+     "round": 1,
+     "drafted": 5,
+     "accepted": 1,
+     "emitted": 2,
+     "draft_ms": 408.0,
+     "verify_ms": 9756.5,
+     "end_rt_ns": 1788972880546000000
+    },
+    {
+     "round": 2,
+     "drafted": 5,
+     "accepted": 3,
+     "emitted": 4,
+     "draft_ms": 483.9,
+     "verify_ms": 10956.0,
+     "end_rt_ns": 1788972892135000000
+    }
+   ]
+  }
+ },
+ "cpu_scope": "observed cpu ids only (the app's established scheduling scope is cpu 0-7); no cluster roll-up is assumed or reported",
+ "frequency_semantics": "cpufreq counter = reported policy frequency at switch time, held until the next event; not retired cycles; unknown before the first event of a cpu",
+ "log_stamp_semantics": "logcat epoch stamps are log-write times (ms resolution) after the event; treat window edges as +-10 ms plus the clock_mapping spread",
+ "windows": [
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "trial",
+   "label": "trial1",
+   "complete": true,
+   "rt_start": 1788972845958000000,
+   "rt_end": 1788972870283000000,
+   "note": null,
+   "trace_ts_start": 597186297988637,
+   "trace_ts_end": 597210622988637,
+   "window_seconds": 24.325,
+   "capture_covered_seconds": 23.995073084,
+   "capture_coverage": 0.986436714655704,
+   "uncovered_before_seconds": 0.329926916,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 23.990468225,
+     "frequency_unknown_seconds": 0.004604859,
+     "time_weighted_mhz": 1513.858975532396
+    },
+    "1": {
+     "frequency_known_seconds": 23.990466964,
+     "frequency_unknown_seconds": 0.00460612,
+     "time_weighted_mhz": 1513.8570184640362
+    },
+    "2": {
+     "frequency_known_seconds": 23.990463302,
+     "frequency_unknown_seconds": 0.004609782,
+     "time_weighted_mhz": 1513.855777537664
+    },
+    "3": {
+     "frequency_known_seconds": 23.990462203,
+     "frequency_unknown_seconds": 0.004610881,
+     "time_weighted_mhz": 1513.854161706957
+    },
+    "4": {
+     "frequency_known_seconds": 23.983314701,
+     "frequency_unknown_seconds": 0.011758383,
+     "time_weighted_mhz": 2001.0662742838017
+    },
+    "5": {
+     "frequency_known_seconds": 23.983313521,
+     "frequency_unknown_seconds": 0.011759563,
+     "time_weighted_mhz": 2001.0653514479402
+    },
+    "6": {
+     "frequency_known_seconds": 23.983312423,
+     "frequency_unknown_seconds": 0.011760661,
+     "time_weighted_mhz": 2001.0648348051168
+    },
+    "7": {
+     "frequency_known_seconds": 23.983311405,
+     "frequency_unknown_seconds": 0.011761679,
+     "time_weighted_mhz": 2001.0645977676659
+    },
+    "8": {
+     "frequency_known_seconds": 23.986029871,
+     "frequency_unknown_seconds": 0.009043213,
+     "time_weighted_mhz": 703.2479029542604
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 63.938758241,
+     "running_fraction_of_window": 2.664661950274892,
+     "frequency_known_seconds": 63.9150637,
+     "frequency_unknown_seconds": 0.023694541,
+     "running_weighted_mhz": 1788.1619407974636,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 5.50313937,
+       "running_weighted_mhz": 1484.708470350443
+      },
+      "1": {
+       "running_seconds": 6.504923025,
+       "running_weighted_mhz": 1493.9751020023793
+      },
+      "2": {
+       "running_seconds": 5.699618476,
+       "running_weighted_mhz": 1515.9085178830487
+      },
+      "3": {
+       "running_seconds": 6.254608741,
+       "running_weighted_mhz": 1529.6663514069471
+      },
+      "4": {
+       "running_seconds": 9.081740826,
+       "running_weighted_mhz": 1965.664333660532
+      },
+      "5": {
+       "running_seconds": 10.907978562,
+       "running_weighted_mhz": 1957.378385470749
+      },
+      "6": {
+       "running_seconds": 8.945453785,
+       "running_weighted_mhz": 1939.8665156012883
+      },
+      "7": {
+       "running_seconds": 11.041295456,
+       "running_weighted_mhz": 1963.8657321908552
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 93.269454524,
+     "running_fraction_of_window": 3.8870252321170216,
+     "frequency_known_seconds": 93.259182102,
+     "frequency_unknown_seconds": 0.010272422,
+     "running_weighted_mhz": 1737.1414690712322,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 13.30511887,
+       "running_weighted_mhz": 1548.4349715216786
+      },
+      "1": {
+       "running_seconds": 13.469429962,
+       "running_weighted_mhz": 1534.60288162416
+      },
+      "2": {
+       "running_seconds": 13.794416114,
+       "running_weighted_mhz": 1522.086253579794
+      },
+      "3": {
+       "running_seconds": 13.6447277,
+       "running_weighted_mhz": 1522.4285794574707
+      },
+      "4": {
+       "running_seconds": 10.061968212,
+       "running_weighted_mhz": 2013.6067932827152
+      },
+      "5": {
+       "running_seconds": 9.037963504,
+       "running_weighted_mhz": 2025.365209063043
+      },
+      "6": {
+       "running_seconds": 10.990861679,
+       "running_weighted_mhz": 2019.8862986726303
+      },
+      "7": {
+       "running_seconds": 8.964968483,
+       "running_weighted_mhz": 2032.0300170673736
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 4.404592492,
+     "running_fraction_of_window": 0.18356237034914463,
+     "frequency_known_seconds": 4.404592492,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1866.0822476035314,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.544852215,
+       "running_weighted_mhz": 1509.0598611680416
+      },
+      "1": {
+       "running_seconds": 0.180484222,
+       "running_weighted_mhz": 1504.298545254554
+      },
+      "2": {
+       "running_seconds": 0.257290297,
+       "running_weighted_mhz": 1577.8344924488156
+      },
+      "3": {
+       "running_seconds": 0.271516034,
+       "running_weighted_mhz": 1494.097756119994
+      },
+      "4": {
+       "running_seconds": 0.779739197,
+       "running_weighted_mhz": 2007.6180012661334
+      },
+      "5": {
+       "running_seconds": 0.797007383,
+       "running_weighted_mhz": 1998.3143281785633
+      },
+      "6": {
+       "running_seconds": 0.586734153,
+       "running_weighted_mhz": 1964.188403924392
+      },
+      "7": {
+       "running_seconds": 0.986968991,
+       "running_weighted_mhz": 2029.8874350217554
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 2.136091252,
+     "running_fraction_of_window": 0.08902207734571782,
+     "frequency_known_seconds": 2.136091252,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1630.3915784895503,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.324002176,
+       "running_weighted_mhz": 1476.0182676952145
+      },
+      "1": {
+       "running_seconds": 0.409952677,
+       "running_weighted_mhz": 1475.4190846422987
+      },
+      "2": {
+       "running_seconds": 0.326505416,
+       "running_weighted_mhz": 1496.2756426496767
+      },
+      "3": {
+       "running_seconds": 0.495545978,
+       "running_weighted_mhz": 1493.4581856680916
+      },
+      "4": {
+       "running_seconds": 0.164276607,
+       "running_weighted_mhz": 2024.0986765388939
+      },
+      "5": {
+       "running_seconds": 0.14735399,
+       "running_weighted_mhz": 2026.462060599784
+      },
+      "6": {
+       "running_seconds": 0.119590353,
+       "running_weighted_mhz": 2031.0192879604595
+      },
+      "7": {
+       "running_seconds": 0.148864055,
+       "running_weighted_mhz": 1994.7804670039386
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 3.704032524,
+     "running_fraction_of_window": 0.15436637809075324,
+     "frequency_known_seconds": 3.704032524,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1813.1981121964359,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.290501143,
+       "running_weighted_mhz": 1476.14523114286
+      },
+      "1": {
+       "running_seconds": 0.293758827,
+       "running_weighted_mhz": 1467.7333575954128
+      },
+      "2": {
+       "running_seconds": 0.571788059,
+       "running_weighted_mhz": 1519.0751697999347
+      },
+      "3": {
+       "running_seconds": 0.411715682,
+       "running_weighted_mhz": 1489.6995365554233
+      },
+      "4": {
+       "running_seconds": 0.626370286,
+       "running_weighted_mhz": 2073.547753818578
+      },
+      "5": {
+       "running_seconds": 0.602856708,
+       "running_weighted_mhz": 2015.8559886937512
+      },
+      "6": {
+       "running_seconds": 0.412330484,
+       "running_weighted_mhz": 2052.654135863018
+      },
+      "7": {
+       "running_seconds": 0.494711335,
+       "running_weighted_mhz": 2049.253009587904
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 6.650480113,
+     "running_fraction_of_window": 0.2771602357583384,
+     "frequency_known_seconds": 6.650480113,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1857.9767375301674,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 1.652944215,
+       "running_weighted_mhz": 1460.582833580382
+      },
+      "1": {
+       "running_seconds": 0.058689088,
+       "running_weighted_mhz": 1519.479478041983
+      },
+      "2": {
+       "running_seconds": 0.781402957,
+       "running_weighted_mhz": 1595.7913040697645
+      },
+      "3": {
+       "running_seconds": 0.345377154,
+       "running_weighted_mhz": 1549.565888596673
+      },
+      "4": {
+       "running_seconds": 0.955429973,
+       "running_weighted_mhz": 1975.2076544598838
+      },
+      "5": {
+       "running_seconds": 0.837759124,
+       "running_weighted_mhz": 2194.3646499444153
+      },
+      "6": {
+       "running_seconds": 1.434189847,
+       "running_weighted_mhz": 2221.9422479177542
+      },
+      "7": {
+       "running_seconds": 0.584687755,
+       "running_weighted_mhz": 1981.6546654769604
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.56779581,
+      "1": 0.755391714,
+      "2": 0.689749758,
+      "3": 0.708630779,
+      "4": 0.31663199,
+      "5": 0.230622928,
+      "6": 0.216069814,
+      "7": 0.227015294,
+      "8": 16.812613223
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.023663016487272474,
+      "1": 0.03148111745088611,
+      "2": 0.028745474355730452,
+      "3": 0.02953234509931614,
+      "4": 0.013195708506140427,
+      "5": 0.009611261744969644,
+      "6": 0.009004757486822414,
+      "7": 0.009460912796776376,
+      "8": 0.700669390092865
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "round",
+   "label": "trial1.round1",
+   "complete": true,
+   "rt_start": 1788972845958000000,
+   "rt_end": 1788972852266000000,
+   "round": 1,
+   "drafted": 5,
+   "accepted": 1,
+   "emitted": 2,
+   "draft_ms": 838.6,
+   "verify_ms": 5423.0,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597186297988637,
+   "trace_ts_end": 597192605988637,
+   "window_seconds": 6.308,
+   "capture_covered_seconds": 5.978073084,
+   "capture_coverage": 0.9476970646797718,
+   "uncovered_before_seconds": 0.329926916,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 5.973468225,
+     "frequency_unknown_seconds": 0.004604859,
+     "time_weighted_mhz": 1564.8286980892076
+    },
+    "1": {
+     "frequency_known_seconds": 5.973466964,
+     "frequency_unknown_seconds": 0.00460612,
+     "time_weighted_mhz": 1564.8262704360375
+    },
+    "2": {
+     "frequency_known_seconds": 5.973463302,
+     "frequency_unknown_seconds": 0.004609782,
+     "time_weighted_mhz": 1564.8238193597592
+    },
+    "3": {
+     "frequency_known_seconds": 5.973462203,
+     "frequency_unknown_seconds": 0.004610881,
+     "time_weighted_mhz": 1564.8221484658486
+    },
+    "4": {
+     "frequency_known_seconds": 5.966314701,
+     "frequency_unknown_seconds": 0.011758383,
+     "time_weighted_mhz": 2264.422280557306
+    },
+    "5": {
+     "frequency_known_seconds": 5.966313521,
+     "frequency_unknown_seconds": 0.011759563,
+     "time_weighted_mhz": 2264.422064433781
+    },
+    "6": {
+     "frequency_known_seconds": 5.966312423,
+     "frequency_unknown_seconds": 0.011760661,
+     "time_weighted_mhz": 2264.420632973782
+    },
+    "7": {
+     "frequency_known_seconds": 5.966311405,
+     "frequency_unknown_seconds": 0.011761679,
+     "time_weighted_mhz": 2264.419003364609
+    },
+    "8": {
+     "frequency_known_seconds": 5.969029871,
+     "frequency_unknown_seconds": 0.009043213,
+     "time_weighted_mhz": 1024.7343609785396
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 14.29143196,
+     "running_fraction_of_window": 2.3906418939993004,
+     "frequency_known_seconds": 14.267737419,
+     "frequency_unknown_seconds": 0.023694541,
+     "running_weighted_mhz": 1924.6417624992737,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 1.118410436,
+       "running_weighted_mhz": 1523.951540444138
+      },
+      "1": {
+       "running_seconds": 2.395128102,
+       "running_weighted_mhz": 1572.1530226770308
+      },
+      "2": {
+       "running_seconds": 1.55930151,
+       "running_weighted_mhz": 1556.2831285644045
+      },
+      "3": {
+       "running_seconds": 1.423889588,
+       "running_weighted_mhz": 1536.7783936227063
+      },
+      "4": {
+       "running_seconds": 1.556256342,
+       "running_weighted_mhz": 2258.5667179051566
+      },
+      "5": {
+       "running_seconds": 1.980690298,
+       "running_weighted_mhz": 2244.6423842286868
+      },
+      "6": {
+       "running_seconds": 1.73872665,
+       "running_weighted_mhz": 2223.6116148701954
+      },
+      "7": {
+       "running_seconds": 2.519029034,
+       "running_weighted_mhz": 2222.890050902049
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 21.585097895,
+     "running_fraction_of_window": 3.610711610865278,
+     "frequency_known_seconds": 21.574825473,
+     "frequency_unknown_seconds": 0.010272422,
+     "running_weighted_mhz": 1877.2207766630586,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.880340992,
+       "running_weighted_mhz": 1583.8209954662666
+      },
+      "1": {
+       "running_seconds": 2.511690602,
+       "running_weighted_mhz": 1571.4478873867283
+      },
+      "2": {
+       "running_seconds": 2.351234912,
+       "running_weighted_mhz": 1570.5158791100837
+      },
+      "3": {
+       "running_seconds": 3.703559245,
+       "running_weighted_mhz": 1595.4144434560005
+      },
+      "4": {
+       "running_seconds": 2.337095337,
+       "running_weighted_mhz": 2284.876687052167
+      },
+      "5": {
+       "running_seconds": 2.370606813,
+       "running_weighted_mhz": 2262.005869241116
+      },
+      "6": {
+       "running_seconds": 2.222152363,
+       "running_weighted_mhz": 2280.8498473633103
+      },
+      "7": {
+       "running_seconds": 2.208417631,
+       "running_weighted_mhz": 2290.9556908913037
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 1.002230684,
+     "running_fraction_of_window": 0.1676511260262806,
+     "frequency_known_seconds": 1.002230684,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 2069.581454873916,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.060999066,
+       "running_weighted_mhz": 1612.9413530856357
+      },
+      "1": {
+       "running_seconds": 0.066464517,
+       "running_weighted_mhz": 1567.4549608928926
+      },
+      "2": {
+       "running_seconds": 0.134185344,
+       "running_weighted_mhz": 1684.8962647440842
+      },
+      "3": {
+       "running_seconds": 0.07315613,
+       "running_weighted_mhz": 1562.4025515565133
+      },
+      "4": {
+       "running_seconds": 0.157514455,
+       "running_weighted_mhz": 2277.085111991785
+      },
+      "5": {
+       "running_seconds": 0.200997027,
+       "running_weighted_mhz": 2291.660402897402
+      },
+      "6": {
+       "running_seconds": 0.136427501,
+       "running_weighted_mhz": 2288.971996965626
+      },
+      "7": {
+       "running_seconds": 0.172486644,
+       "running_weighted_mhz": 2317.1231589270183
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.42048274,
+     "running_fraction_of_window": 0.07033750409064085,
+     "frequency_known_seconds": 0.42048274,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1833.0358728802994,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.023545084,
+       "running_weighted_mhz": 1519.883071387641
+      },
+      "1": {
+       "running_seconds": 0.110353299,
+       "running_weighted_mhz": 1549.2583393270374
+      },
+      "2": {
+       "running_seconds": 0.068994633,
+       "running_weighted_mhz": 1562.798112151709
+      },
+      "3": {
+       "running_seconds": 0.055059394,
+       "running_weighted_mhz": 1547.296573896182
+      },
+      "4": {
+       "running_seconds": 0.047421542,
+       "running_weighted_mhz": 2301.316178141149
+      },
+      "5": {
+       "running_seconds": 0.042663329,
+       "running_weighted_mhz": 2261.270139655534
+      },
+      "6": {
+       "running_seconds": 0.038754062,
+       "running_weighted_mhz": 2274.6472937211074
+      },
+      "7": {
+       "running_seconds": 0.033691397,
+       "running_weighted_mhz": 2292.3778774445
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 0.985341252,
+     "running_fraction_of_window": 0.1648258959291104,
+     "frequency_known_seconds": 0.985341252,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 2037.4537901504605,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.081855714,
+       "running_weighted_mhz": 1589.5112361734455
+      },
+      "1": {
+       "running_seconds": 0.090159346,
+       "running_weighted_mhz": 1537.8589713927163
+      },
+      "2": {
+       "running_seconds": 0.141556237,
+       "running_weighted_mhz": 1604.0377048239845
+      },
+      "3": {
+       "running_seconds": 0.054837847,
+       "running_weighted_mhz": 1590.137972922241
+      },
+      "4": {
+       "running_seconds": 0.207637018,
+       "running_weighted_mhz": 2330.4507954742444
+      },
+      "5": {
+       "running_seconds": 0.132384164,
+       "running_weighted_mhz": 2294.923526404563
+      },
+      "6": {
+       "running_seconds": 0.118809834,
+       "running_weighted_mhz": 2282.624999678057
+      },
+      "7": {
+       "running_seconds": 0.158101092,
+       "running_weighted_mhz": 2312.857929596084
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 3.24035038,
+     "running_fraction_of_window": 0.542039271596165,
+     "frequency_known_seconds": 3.24035038,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 2089.340529593593,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.029549153,
+       "running_weighted_mhz": 1571.456278019204
+      },
+      "1": {
+       "running_seconds": 0.046857829,
+       "running_weighted_mhz": 1548.0
+      },
+      "2": {
+       "running_seconds": 0.77462899,
+       "running_weighted_mhz": 1597.284837971272
+      },
+      "4": {
+       "running_seconds": 0.4647533,
+       "running_weighted_mhz": 2144.138646477604
+      },
+      "5": {
+       "running_seconds": 0.578131673,
+       "running_weighted_mhz": 2313.574219847318
+      },
+      "6": {
+       "running_seconds": 1.184951521,
+       "running_weighted_mhz": 2284.8038785402764
+      },
+      "7": {
+       "running_seconds": 0.161477914,
+       "running_weighted_mhz": 2306.7751541117877
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.091056596,
+      "1": 0.101824135,
+      "2": 0.16189323,
+      "3": 0.116416836,
+      "4": 0.095005364,
+      "5": 0.066322639,
+      "6": 0.067076289,
+      "7": 0.041331701,
+      "8": 3.620177437
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.015231763600165447,
+      "1": 0.01703293579205764,
+      "2": 0.02708117276673963,
+      "3": 0.019473973363019526,
+      "4": 0.015892305541442258,
+      "5": 0.011094317193529981,
+      "6": 0.011220386244444916,
+      "7": 0.006913883523876972,
+      "8": 0.6055759750895678
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "round",
+   "label": "trial1.round2",
+   "complete": true,
+   "rt_start": 1788972852266000000,
+   "rt_end": 1788972856814000000,
+   "round": 2,
+   "drafted": 5,
+   "accepted": 3,
+   "emitted": 4,
+   "draft_ms": 355.2,
+   "verify_ms": 4111.3,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597192605988637,
+   "trace_ts_end": 597197153988637,
+   "window_seconds": 4.548,
+   "capture_covered_seconds": 4.548,
+   "capture_coverage": 1.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1486.0259521233509
+    },
+    "1": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1486.0216636978892
+    },
+    "2": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1486.0212220960861
+    },
+    "3": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1486.01796801781
+    },
+    "4": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1985.9748157673703
+    },
+    "5": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1985.9735364360158
+    },
+    "6": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1985.9737240433158
+    },
+    "7": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1985.9736620914687
+    },
+    "8": {
+     "frequency_known_seconds": 4.548,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 548.9959292291117
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 12.896370546,
+     "running_fraction_of_window": 2.8356135765171504,
+     "frequency_known_seconds": 12.896370546,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1793.8421322015572,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.987415612,
+       "running_weighted_mhz": 1445.0387071042178
+      },
+      "1": {
+       "running_seconds": 0.943925534,
+       "running_weighted_mhz": 1460.5582449981696
+      },
+      "2": {
+       "running_seconds": 0.665808151,
+       "running_weighted_mhz": 1373.1099152990093
+      },
+      "3": {
+       "running_seconds": 1.836237429,
+       "running_weighted_mhz": 1527.895836587372
+      },
+      "4": {
+       "running_seconds": 1.888947388,
+       "running_weighted_mhz": 1963.28409407822
+      },
+      "5": {
+       "running_seconds": 2.213392665,
+       "running_weighted_mhz": 1957.1219155644035
+      },
+      "6": {
+       "running_seconds": 2.080554741,
+       "running_weighted_mhz": 1986.2194965107146
+      },
+      "7": {
+       "running_seconds": 2.280089026,
+       "running_weighted_mhz": 1945.4834640597055
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 18.848832384,
+     "running_fraction_of_window": 4.144422248021108,
+     "frequency_known_seconds": 18.848832384,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1719.3288897206844,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 2.961441372,
+       "running_weighted_mhz": 1532.8825690579972
+      },
+      "1": {
+       "running_seconds": 3.112583119,
+       "running_weighted_mhz": 1525.0174420919616
+      },
+      "2": {
+       "running_seconds": 3.38354444,
+       "running_weighted_mhz": 1523.0887047226133
+      },
+      "3": {
+       "running_seconds": 1.724816482,
+       "running_weighted_mhz": 1465.9212969551156
+      },
+      "4": {
+       "running_seconds": 2.031737295,
+       "running_weighted_mhz": 2016.496568080668
+      },
+      "5": {
+       "running_seconds": 1.864305998,
+       "running_weighted_mhz": 2017.3162881231044
+      },
+      "6": {
+       "running_seconds": 1.942178034,
+       "running_weighted_mhz": 1982.8713205707072
+      },
+      "7": {
+       "running_seconds": 1.828225644,
+       "running_weighted_mhz": 2040.3377823842625
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 0.70013316,
+     "running_fraction_of_window": 0.1539430870712401,
+     "frequency_known_seconds": 0.70013316,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1885.7945961965293,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.034610637,
+       "running_weighted_mhz": 1370.7321530661225
+      },
+      "1": {
+       "running_seconds": 0.041867279,
+       "running_weighted_mhz": 1327.916971055129
+      },
+      "2": {
+       "running_seconds": 0.024876392,
+       "running_weighted_mhz": 1390.193844026899
+      },
+      "3": {
+       "running_seconds": 0.042666384,
+       "running_weighted_mhz": 1480.849669824375
+      },
+      "4": {
+       "running_seconds": 0.163492521,
+       "running_weighted_mhz": 2011.6764226786863
+      },
+      "5": {
+       "running_seconds": 0.142603583,
+       "running_weighted_mhz": 2036.364489362094
+      },
+      "6": {
+       "running_seconds": 0.139797126,
+       "running_weighted_mhz": 2000.7638219543942
+      },
+      "7": {
+       "running_seconds": 0.110219238,
+       "running_weighted_mhz": 2000.7004984556324
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.490993046,
+     "running_fraction_of_window": 0.10795801363236587,
+     "frequency_known_seconds": 0.490993046,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1573.3169143560538,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.071862011,
+       "running_weighted_mhz": 1409.2260555023988
+      },
+      "1": {
+       "running_seconds": 0.063247746,
+       "running_weighted_mhz": 1278.4483332734103
+      },
+      "2": {
+       "running_seconds": 0.056149862,
+       "running_weighted_mhz": 1420.7408786507792
+      },
+      "3": {
+       "running_seconds": 0.179434795,
+       "running_weighted_mhz": 1514.753671750231
+      },
+      "4": {
+       "running_seconds": 0.03664237,
+       "running_weighted_mhz": 1980.097556544514
+      },
+      "5": {
+       "running_seconds": 0.026323699,
+       "running_weighted_mhz": 1985.4943550296634
+      },
+      "6": {
+       "running_seconds": 0.030112193,
+       "running_weighted_mhz": 2004.105073483024
+      },
+      "7": {
+       "running_seconds": 0.02722037,
+       "running_weighted_mhz": 1969.698783227414
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 0.618429291,
+     "running_fraction_of_window": 0.13597829617414248,
+     "frequency_known_seconds": 0.618429291,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1781.7594987071852,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.027353435,
+       "running_weighted_mhz": 1391.3900626740297
+      },
+      "1": {
+       "running_seconds": 0.038025307,
+       "running_weighted_mhz": 1205.6854054853522
+      },
+      "2": {
+       "running_seconds": 0.065078122,
+       "running_weighted_mhz": 1387.5296218289766
+      },
+      "3": {
+       "running_seconds": 0.102602583,
+       "running_weighted_mhz": 1459.1246485383317
+      },
+      "4": {
+       "running_seconds": 0.131760298,
+       "running_weighted_mhz": 2019.6397083816553
+      },
+      "5": {
+       "running_seconds": 0.086032356,
+       "running_weighted_mhz": 2000.3247093105294
+      },
+      "6": {
+       "running_seconds": 0.119005001,
+       "running_weighted_mhz": 2039.1573815204622
+      },
+      "7": {
+       "running_seconds": 0.048572189,
+       "running_weighted_mhz": 1999.2453862847317
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 0.035935874,
+     "running_fraction_of_window": 0.007901467458223396,
+     "frequency_known_seconds": 0.035935874,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1917.4376832187245,
+     "by_cpu": {
+      "1": {
+       "running_seconds": 0.000227661,
+       "running_weighted_mhz": 1548.0
+      },
+      "3": {
+       "running_seconds": 0.015966512,
+       "running_weighted_mhz": 1676.8986879538875
+      },
+      "4": {
+       "running_seconds": 0.002677775,
+       "running_weighted_mhz": 2035.8877463565834
+      },
+      "5": {
+       "running_seconds": 0.000504598,
+       "running_weighted_mhz": 2130.0
+      },
+      "6": {
+       "running_seconds": 0.002274293,
+       "running_weighted_mhz": 2121.3577736026095
+      },
+      "7": {
+       "running_seconds": 0.014285035,
+       "running_weighted_mhz": 2130.0
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.186319004,
+      "1": 0.108162021,
+      "2": 0.126277385,
+      "3": 0.159499435,
+      "4": 0.104288569,
+      "5": 0.050475949,
+      "6": 0.052170656,
+      "7": 0.069473998,
+      "8": 3.345171199
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.040967239226033424,
+      "1": 0.023782326517150395,
+      "2": 0.027765476033421284,
+      "3": 0.03507023636763412,
+      "4": 0.022930644019349165,
+      "5": 0.0110984936235708,
+      "6": 0.011471120492524186,
+      "7": 0.015275725153913807,
+      "8": 0.7355257693491645
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "round",
+   "label": "trial1.round3",
+   "complete": true,
+   "rt_start": 1788972856814000000,
+   "rt_end": 1788972862355000000,
+   "round": 3,
+   "drafted": 5,
+   "accepted": 1,
+   "emitted": 2,
+   "draft_ms": 457.2,
+   "verify_ms": 5055.6,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597197153988637,
+   "trace_ts_end": 597202694988637,
+   "window_seconds": 5.541,
+   "capture_covered_seconds": 5.541,
+   "capture_coverage": 1.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1530.052174226313
+    },
+    "1": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1530.0504941441977
+    },
+    "2": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1530.0486281436563
+    },
+    "3": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1530.046506322505
+    },
+    "4": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1941.3535554271791
+    },
+    "5": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1941.3519779011008
+    },
+    "6": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1941.3515210378991
+    },
+    "7": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1941.3526616451904
+    },
+    "8": {
+     "frequency_known_seconds": 5.541,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 512.0457314152679
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 17.534267888,
+     "running_fraction_of_window": 3.164459102689045,
+     "frequency_known_seconds": 17.534267888,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1763.9128853184657,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 1.179748126,
+       "running_weighted_mhz": 1542.6810052606093
+      },
+      "1": {
+       "running_seconds": 2.102791829,
+       "running_weighted_mhz": 1495.504128486415
+      },
+      "2": {
+       "running_seconds": 2.080259146,
+       "running_weighted_mhz": 1567.0348172818465
+      },
+      "3": {
+       "running_seconds": 1.406658751,
+       "running_weighted_mhz": 1574.132839617901
+      },
+      "4": {
+       "running_seconds": 2.595223408,
+       "running_weighted_mhz": 1936.129507830025
+      },
+      "5": {
+       "running_seconds": 3.378366009,
+       "running_weighted_mhz": 1918.6000834168349
+      },
+      "6": {
+       "running_seconds": 2.005245326,
+       "running_weighted_mhz": 1828.5912459725637
+      },
+      "7": {
+       "running_seconds": 2.785975293,
+       "running_weighted_mhz": 1908.4555303602976
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 20.56876984,
+     "running_fraction_of_window": 3.712104284425194,
+     "frequency_known_seconds": 20.56876984,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1733.725729642371,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.569854697,
+       "running_weighted_mhz": 1545.0401130788657
+      },
+      "1": {
+       "running_seconds": 1.953714336,
+       "running_weighted_mhz": 1561.4762150806064
+      },
+      "2": {
+       "running_seconds": 2.593678594,
+       "running_weighted_mhz": 1518.8524307476316
+      },
+      "3": {
+       "running_seconds": 3.366920175,
+       "running_weighted_mhz": 1529.40035883595
+      },
+      "4": {
+       "running_seconds": 2.433929704,
+       "running_weighted_mhz": 1946.3859140239163
+      },
+      "5": {
+       "running_seconds": 1.546477317,
+       "running_weighted_mhz": 1992.6887784310127
+      },
+      "6": {
+       "running_seconds": 3.248729532,
+       "running_weighted_mhz": 2016.6618734637093
+      },
+      "7": {
+       "running_seconds": 1.855465485,
+       "running_weighted_mhz": 1959.0614452739335
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 1.328830814,
+     "running_fraction_of_window": 0.2398178693376647,
+     "frequency_known_seconds": 1.328830814,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1849.2507261936507,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.211873047,
+       "running_weighted_mhz": 1629.717118794256
+      },
+      "1": {
+       "running_seconds": 0.047594401,
+       "running_weighted_mhz": 1560.125379852979
+      },
+      "2": {
+       "running_seconds": 0.042566897,
+       "running_weighted_mhz": 1421.7900262497405
+      },
+      "3": {
+       "running_seconds": 0.095565266,
+       "running_weighted_mhz": 1467.9337793712623
+      },
+      "4": {
+       "running_seconds": 0.207090133,
+       "running_weighted_mhz": 1966.5388308046524
+      },
+      "5": {
+       "running_seconds": 0.208404946,
+       "running_weighted_mhz": 1906.2266200438448
+      },
+      "6": {
+       "running_seconds": 0.065155067,
+       "running_weighted_mhz": 1760.0222383471726
+      },
+      "7": {
+       "running_seconds": 0.450581057,
+       "running_weighted_mhz": 2036.9211853861846
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.531224494,
+     "running_fraction_of_window": 0.0958715924923299,
+     "frequency_known_seconds": 0.531224494,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1560.742997078369,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.040927811,
+       "running_weighted_mhz": 1369.5071219420945
+      },
+      "1": {
+       "running_seconds": 0.176447495,
+       "running_weighted_mhz": 1516.598154867543
+      },
+      "2": {
+       "running_seconds": 0.109951295,
+       "running_weighted_mhz": 1519.397738043922
+      },
+      "3": {
+       "running_seconds": 0.10850452,
+       "running_weighted_mhz": 1438.0113153534985
+      },
+      "4": {
+       "running_seconds": 0.023871671,
+       "running_weighted_mhz": 1874.7213503822168
+      },
+      "5": {
+       "running_seconds": 0.025600583,
+       "running_weighted_mhz": 1967.3773279303834
+      },
+      "6": {
+       "running_seconds": 0.01053716,
+       "running_weighted_mhz": 1790.4441753755282
+      },
+      "7": {
+       "running_seconds": 0.035383959,
+       "running_weighted_mhz": 1932.4752164674394
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 0.801362727,
+     "running_fraction_of_window": 0.1446242062804548,
+     "frequency_known_seconds": 0.801362727,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1627.337055293314,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.094688036,
+       "running_weighted_mhz": 1370.9345842805315
+      },
+      "1": {
+       "running_seconds": 0.095504962,
+       "running_weighted_mhz": 1488.1265166201522
+      },
+      "2": {
+       "running_seconds": 0.244216886,
+       "running_weighted_mhz": 1501.9048585321818
+      },
+      "3": {
+       "running_seconds": 0.082170486,
+       "running_weighted_mhz": 1359.220229268207
+      },
+      "4": {
+       "running_seconds": 0.054328894,
+       "running_weighted_mhz": 1958.4958383470864
+      },
+      "5": {
+       "running_seconds": 0.064972975,
+       "running_weighted_mhz": 1978.110712138393
+      },
+      "6": {
+       "running_seconds": 0.067022001,
+       "running_weighted_mhz": 1940.8578206431048
+      },
+      "7": {
+       "running_seconds": 0.098458487,
+       "running_weighted_mhz": 1916.2141990258292
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 0.053954346,
+     "running_fraction_of_window": 0.009737293990254466,
+     "frequency_known_seconds": 0.053954346,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 2005.053929594476,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.009269655,
+       "running_weighted_mhz": 1471.2977156107752
+      },
+      "5": {
+       "running_seconds": 0.000930013,
+       "running_weighted_mhz": 2130.0
+      },
+      "7": {
+       "running_seconds": 0.043754678,
+       "running_weighted_mhz": 2115.4771965182786
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.1761497,
+      "1": 0.357215451,
+      "2": 0.141168043,
+      "3": 0.249205234,
+      "4": 0.044102008,
+      "5": 0.068653279,
+      "6": 0.073548541,
+      "7": 0.074580397,
+      "8": 4.404407038
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.031790236419418874,
+      "1": 0.06446768651867894,
+      "2": 0.025476997473380256,
+      "3": 0.044974776033207,
+      "4": 0.007959214582205379,
+      "5": 0.012390052156650424,
+      "6": 0.01327351398664501,
+      "7": 0.013459735968236781,
+      "8": 0.7948758415448475
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "round",
+   "label": "trial1.round4",
+   "complete": true,
+   "rt_start": 1788972862355000000,
+   "rt_end": 1788972868549000000,
+   "round": 4,
+   "drafted": 5,
+   "accepted": 5,
+   "emitted": 6,
+   "draft_ms": 326.0,
+   "verify_ms": 5441.8,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597202694988637,
+   "trace_ts_end": 597208888988637,
+   "window_seconds": 6.194,
+   "capture_covered_seconds": 6.194,
+   "capture_coverage": 1.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1499.4296818440425
+    },
+    "1": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1499.4292451867937
+    },
+    "2": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1499.4289643320956
+    },
+    "3": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1499.4287116654828
+    },
+    "4": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1873.0110448693897
+    },
+    "5": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1873.0103246943816
+    },
+    "6": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1873.0100672546014
+    },
+    "7": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1873.0098642998064
+    },
+    "8": {
+     "frequency_known_seconds": 6.194,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 695.1000846961576
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 14.787391931,
+     "running_fraction_of_window": 2.387373576202777,
+     "frequency_known_seconds": 14.787391931,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1725.833998420651,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 1.987262948,
+       "running_weighted_mhz": 1460.7117681459436
+      },
+      "1": {
+       "running_seconds": 0.493097167,
+       "running_weighted_mhz": 1281.3458951894565
+      },
+      "2": {
+       "running_seconds": 0.771073315,
+       "running_weighted_mhz": 1493.104420385758
+      },
+      "3": {
+       "running_seconds": 1.401408553,
+       "running_weighted_mhz": 1494.5192855477028
+      },
+      "4": {
+       "running_seconds": 2.643765888,
+       "running_weighted_mhz": 1846.6800664715288
+      },
+      "5": {
+       "running_seconds": 2.825387022,
+       "running_weighted_mhz": 1845.3636971735195
+      },
+      "6": {
+       "running_seconds": 2.18507298,
+       "running_weighted_mhz": 1851.0582299782043
+      },
+      "7": {
+       "running_seconds": 2.480324058,
+       "running_weighted_mhz": 1854.3780633848933
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 25.995875705,
+     "running_fraction_of_window": 4.196944737649338,
+     "frequency_known_seconds": 25.995875705,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1671.9489130797872,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 2.679070478,
+       "running_weighted_mhz": 1532.9410991486427
+      },
+      "1": {
+       "running_seconds": 4.975942357,
+       "running_weighted_mhz": 1532.6194064112628
+      },
+      "2": {
+       "running_seconds": 4.623710568,
+       "running_weighted_mhz": 1519.1403430964065
+      },
+      "3": {
+       "running_seconds": 3.405561762,
+       "running_weighted_mhz": 1509.7184766361609
+      },
+      "4": {
+       "running_seconds": 2.325885327,
+       "running_weighted_mhz": 1901.8433128616578
+      },
+      "5": {
+       "running_seconds": 2.191570131,
+       "running_weighted_mhz": 1901.7634314276936
+      },
+      "6": {
+       "running_seconds": 3.044689838,
+       "running_weighted_mhz": 1892.3739897016073
+      },
+      "7": {
+       "running_seconds": 2.749445244,
+       "running_weighted_mhz": 1895.720257660094
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 1.163434486,
+     "running_fraction_of_window": 0.18783249693251533,
+     "frequency_known_seconds": 1.163434486,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1711.3022790438413,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.235949136,
+       "running_weighted_mhz": 1394.6551529987378
+      },
+      "1": {
+       "running_seconds": 0.021671674,
+       "running_weighted_mhz": 1539.311742646184
+      },
+      "2": {
+       "running_seconds": 0.054562055,
+       "running_weighted_mhz": 1524.9055564714342
+      },
+      "3": {
+       "running_seconds": 0.059137695,
+       "running_weighted_mhz": 1462.597479424925
+      },
+      "4": {
+       "running_seconds": 0.239681345,
+       "running_weighted_mhz": 1876.4232500656235
+      },
+      "5": {
+       "running_seconds": 0.229716262,
+       "running_weighted_mhz": 1813.6842122478904
+      },
+      "6": {
+       "running_seconds": 0.207348319,
+       "running_weighted_mhz": 1816.343082844091
+      },
+      "7": {
+       "running_seconds": 0.115368,
+       "running_weighted_mhz": 1871.1621184123849
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.554322959,
+     "running_fraction_of_window": 0.08949353551824346,
+     "frequency_known_seconds": 0.554322959,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1612.8006767946265,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.172758623,
+       "running_weighted_mhz": 1527.459425489864
+      },
+      "1": {
+       "running_seconds": 0.024554604,
+       "running_weighted_mhz": 1436.0019534829394
+      },
+      "2": {
+       "running_seconds": 0.062673297,
+       "running_weighted_mhz": 1483.5324425329022
+      },
+      "3": {
+       "running_seconds": 0.142886094,
+       "running_weighted_mhz": 1493.4152290285156
+      },
+      "4": {
+       "running_seconds": 0.045660597,
+       "running_weighted_mhz": 1900.8082893440924
+      },
+      "5": {
+       "running_seconds": 0.039854349,
+       "running_weighted_mhz": 1913.7278630495257
+      },
+      "6": {
+       "running_seconds": 0.026961097,
+       "running_weighted_mhz": 1910.6731088872239
+      },
+      "7": {
+       "running_seconds": 0.038974298,
+       "running_weighted_mhz": 1896.8345875530588
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 1.131505878,
+     "running_fraction_of_window": 0.1826777329673878,
+     "frequency_known_seconds": 1.131505878,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1782.2020351325123,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.086603958,
+       "running_weighted_mhz": 1510.795832495323
+      },
+      "1": {
+       "running_seconds": 0.038396443,
+       "running_weighted_mhz": 1547.1107685678073
+      },
+      "2": {
+       "running_seconds": 0.104172085,
+       "running_weighted_mhz": 1541.1941967178634
+      },
+      "3": {
+       "running_seconds": 0.172104766,
+       "running_weighted_mhz": 1538.221045668195
+      },
+      "4": {
+       "running_seconds": 0.193047854,
+       "running_weighted_mhz": 1918.2851012474866
+      },
+      "5": {
+       "running_seconds": 0.296115408,
+       "running_weighted_mhz": 1920.1677016313856
+      },
+      "6": {
+       "running_seconds": 0.072398684,
+       "running_weighted_mhz": 1907.7017018707136
+      },
+      "7": {
+       "running_seconds": 0.16866668,
+       "running_weighted_mhz": 1921.0426508424782
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 1.767212944,
+     "running_fraction_of_window": 0.28531045269615757,
+     "frequency_known_seconds": 1.767212944,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1743.2666188087858,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.439509074,
+       "running_weighted_mhz": 1548.0
+      },
+      "1": {
+       "running_seconds": 0.002542277,
+       "running_weighted_mhz": 1328.0
+      },
+      "3": {
+       "running_seconds": 0.317075355,
+       "running_weighted_mhz": 1548.0
+      },
+      "4": {
+       "running_seconds": 0.244327795,
+       "running_weighted_mhz": 1909.0099558750571
+      },
+      "5": {
+       "running_seconds": 0.25819284,
+       "running_weighted_mhz": 1927.7945550852612
+      },
+      "6": {
+       "running_seconds": 0.212081631,
+       "running_weighted_mhz": 1935.276055633503
+      },
+      "7": {
+       "running_seconds": 0.293483972,
+       "running_weighted_mhz": 1811.1757294670933
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.108450807,
+      "1": 0.181352623,
+      "2": 0.2536696,
+      "3": 0.177721427,
+      "4": 0.067072232,
+      "5": 0.041266603,
+      "6": 0.019612667,
+      "7": 0.037935023,
+      "8": 4.241574939
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.017509009848240234,
+      "1": 0.029278757345818533,
+      "2": 0.04095408459799806,
+      "3": 0.028692513238618017,
+      "4": 0.010828581207620277,
+      "5": 0.006662351146270585,
+      "6": 0.0031663976428802066,
+      "7": 0.006124479011947045,
+      "8": 0.6847876879237972
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 1,
+   "park_enabled": 0,
+   "park_calls": 0,
+   "status": "budget",
+   "generated": 16,
+   "expected_tokens": 16,
+   "decode_us": 24266556,
+   "kind": "round",
+   "label": "trial1.round5",
+   "complete": true,
+   "rt_start": 1788972868549000000,
+   "rt_end": 1788972870226000000,
+   "round": 5,
+   "drafted": 0,
+   "accepted": 0,
+   "emitted": 1,
+   "draft_ms": 0.0,
+   "verify_ms": 1644.1,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597208888988637,
+   "trace_ts_end": 597210565988637,
+   "window_seconds": 1.677,
+   "capture_covered_seconds": 1.677,
+   "capture_coverage": 1.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1410.5984299642219
+    },
+    "1": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1410.5979126976745
+    },
+    "2": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1410.5974029737627
+    },
+    "3": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1410.5970416654739
+    },
+    "4": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1780.9244646940967
+    },
+    "5": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1780.9235629612403
+    },
+    "6": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1780.923391059034
+    },
+    "7": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1780.9231076141918
+    },
+    "8": {
+     "frequency_known_seconds": 1.677,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 646.050320777579
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 4.244221744,
+     "running_fraction_of_window": 2.5308418270721527,
+     "frequency_known_seconds": 4.244221744,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1635.9678310073707,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.222033212,
+       "running_weighted_mhz": 1372.42429394752
+      },
+      "1": {
+       "running_seconds": 0.567701217,
+       "running_weighted_mhz": 1399.0056584712236
+      },
+      "2": {
+       "running_seconds": 0.585365366,
+       "running_weighted_mhz": 1425.0
+      },
+      "3": {
+       "running_seconds": 0.145812539,
+       "running_weighted_mhz": 1420.6215708718987
+      },
+      "4": {
+       "running_seconds": 0.381827418,
+       "running_weighted_mhz": 1817.3795555299803
+      },
+      "5": {
+       "running_seconds": 0.510142568,
+       "running_weighted_mhz": 1726.0752500073665
+      },
+      "6": {
+       "running_seconds": 0.893822911,
+       "running_weighted_mhz": 1753.4657978475113
+      },
+      "7": {
+       "running_seconds": 0.937516513,
+       "running_weighted_mhz": 1772.1516755705402
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 6.112148984,
+     "running_fraction_of_window": 3.644692298151461,
+     "frequency_known_seconds": 6.112148984,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1588.9857905083422,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.202208003,
+       "running_weighted_mhz": 1369.818567799218
+      },
+      "1": {
+       "running_seconds": 0.885233466,
+       "running_weighted_mhz": 1419.3522838459883
+      },
+      "2": {
+       "running_seconds": 0.823904778,
+       "running_weighted_mhz": 1408.6363787284652
+      },
+      "3": {
+       "running_seconds": 1.427827385,
+       "running_weighted_mhz": 1416.3456225592704
+      },
+      "4": {
+       "running_seconds": 0.924862009,
+       "running_weighted_mhz": 1783.1437669865406
+      },
+      "5": {
+       "running_seconds": 1.014108266,
+       "running_weighted_mhz": 1813.445368481988
+      },
+      "6": {
+       "running_seconds": 0.528076478,
+       "running_weighted_mhz": 1814.7421457825283
+      },
+      "7": {
+       "running_seconds": 0.305928599,
+       "running_weighted_mhz": 1795.4439468733683
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 0.209963348,
+     "running_fraction_of_window": 0.1252017579010137,
+     "frequency_known_seconds": 0.209963348,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1793.156085523079,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.001420329,
+       "running_weighted_mhz": 1425.0
+      },
+      "1": {
+       "running_seconds": 0.002886351,
+       "running_weighted_mhz": 1425.0
+      },
+      "2": {
+       "running_seconds": 0.001099609,
+       "running_weighted_mhz": 1425.0
+      },
+      "3": {
+       "running_seconds": 0.000990559,
+       "running_weighted_mhz": 1425.0
+      },
+      "4": {
+       "running_seconds": 0.011960743,
+       "running_weighted_mhz": 1743.7162239837442
+      },
+      "5": {
+       "running_seconds": 0.015285565,
+       "running_weighted_mhz": 1816.2010537392632
+      },
+      "6": {
+       "running_seconds": 0.03800614,
+       "running_weighted_mhz": 1820.4060231846747
+      },
+      "7": {
+       "running_seconds": 0.138314052,
+       "running_weighted_mhz": 1804.423600784973
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.134508481,
+     "running_fraction_of_window": 0.08020780023852117,
+     "frequency_known_seconds": 0.134508481,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1555.900650212532,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.014602088,
+       "running_weighted_mhz": 1425.0
+      },
+      "1": {
+       "running_seconds": 0.032820033,
+       "running_weighted_mhz": 1418.7163395600487
+      },
+      "2": {
+       "running_seconds": 0.02828064,
+       "running_weighted_mhz": 1423.4486757018228
+      },
+      "3": {
+       "running_seconds": 0.009661175,
+       "running_weighted_mhz": 1414.4733568121892
+      },
+      "4": {
+       "running_seconds": 0.010511238,
+       "running_weighted_mhz": 1804.6618432576638
+      },
+      "5": {
+       "running_seconds": 0.012565309,
+       "running_weighted_mhz": 1798.239744203664
+      },
+      "6": {
+       "running_seconds": 0.012583301,
+       "running_weighted_mhz": 1814.3688505901591
+      },
+      "7": {
+       "running_seconds": 0.013484697,
+       "running_weighted_mhz": 1749.7322200120625
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 0.159983994,
+     "running_fraction_of_window": 0.09539892307692308,
+     "frequency_known_seconds": 0.159983994,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1702.684605861259,
+     "by_cpu": {
+      "1": {
+       "running_seconds": 0.031672769,
+       "running_weighted_mhz": 1425.0
+      },
+      "2": {
+       "running_seconds": 0.016764729,
+       "running_weighted_mhz": 1425.0
+      },
+      "4": {
+       "running_seconds": 0.038364817,
+       "running_weighted_mhz": 1820.103076733039
+      },
+      "5": {
+       "running_seconds": 0.023351805,
+       "running_weighted_mhz": 1809.4166557146225
+      },
+      "6": {
+       "running_seconds": 0.028916987,
+       "running_weighted_mhz": 1831.643682448659
+      },
+      "7": {
+       "running_seconds": 0.020912887,
+       "running_weighted_mhz": 1832.94473861978
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 1.497542235,
+     "running_fraction_of_window": 0.8929888103756708,
+     "frequency_known_seconds": 1.497542235,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1495.0137709491712,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 1.144730584,
+       "running_weighted_mhz": 1425.0
+      },
+      "1": {
+       "running_seconds": 0.009061321,
+       "running_weighted_mhz": 1425.0
+      },
+      "2": {
+       "running_seconds": 0.006773967,
+       "running_weighted_mhz": 1425.0
+      },
+      "3": {
+       "running_seconds": 0.012335287,
+       "running_weighted_mhz": 1425.0
+      },
+      "4": {
+       "running_seconds": 0.218072518,
+       "running_weighted_mhz": 1704.947708449902
+      },
+      "6": {
+       "running_seconds": 0.034882402,
+       "running_weighted_mhz": 1836.0
+      },
+      "7": {
+       "running_seconds": 0.071686156,
+       "running_weighted_mhz": 1836.0
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.005095134,
+      "1": 0.005780559,
+      "2": 0.0067415,
+      "3": 0.005787847,
+      "4": 0.006066812,
+      "5": 0.003859292,
+      "6": 0.003661661,
+      "7": 0.003694175,
+      "8": 1.163931001
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.003038243291592129,
+      "1": 0.003446964221824687,
+      "2": 0.004019976147883125,
+      "3": 0.0034513100775193798,
+      "4": 0.0036176577221228383,
+      "5": 0.0023013070960047704,
+      "6": 0.0021834591532498508,
+      "7": 0.0022028473464519977,
+      "8": 0.6940554567680381
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 2,
+   "park_enabled": 1,
+   "park_calls": 1054,
+   "status": "decode_failed",
+   "generated": 7,
+   "expected_tokens": 16,
+   "decode_us": 32198000,
+   "kind": "trial",
+   "label": "trial2",
+   "complete": false,
+   "rt_start": 1788972870312000000,
+   "rt_end": 1788972902595000000,
+   "note": "PARTIAL: status=decode_failed generated=7 of 16; includes teardown",
+   "trace_ts_start": 597210651988637,
+   "trace_ts_end": 597242934988637,
+   "window_seconds": 32.283,
+   "capture_covered_seconds": 10.947525769,
+   "capture_coverage": 0.3391111659077533,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 21.335474231,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1191.5386027904767
+    },
+    "1": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1191.5324100775817
+    },
+    "2": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1191.5290063304897
+    },
+    "3": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1191.5272680070182
+    },
+    "4": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1462.1413203824904
+    },
+    "5": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1462.1424837009672
+    },
+    "6": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1462.1428106838923
+    },
+    "7": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1462.1447757957774
+    },
+    "8": {
+     "frequency_known_seconds": 10.947525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 619.2366308192062
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 40.758327762,
+     "running_fraction_of_window": 3.72306296619232,
+     "frequency_known_seconds": 40.758327762,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1358.480480580468,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.372313053,
+       "running_weighted_mhz": 1210.7564437930016
+      },
+      "1": {
+       "running_seconds": 2.432466005,
+       "running_weighted_mhz": 1236.698694299738
+      },
+      "2": {
+       "running_seconds": 2.790704054,
+       "running_weighted_mhz": 1234.483157291461
+      },
+      "3": {
+       "running_seconds": 2.583229678,
+       "running_weighted_mhz": 1208.4198100216315
+      },
+      "4": {
+       "running_seconds": 7.320891962,
+       "running_weighted_mhz": 1410.9917384814155
+      },
+      "5": {
+       "running_seconds": 7.113132742,
+       "running_weighted_mhz": 1427.2604453417634
+      },
+      "6": {
+       "running_seconds": 7.79940401,
+       "running_weighted_mhz": 1403.5571634461337
+      },
+      "7": {
+       "running_seconds": 7.346186258,
+       "running_weighted_mhz": 1399.7047602512614
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 24.990020961,
+     "running_fraction_of_window": 2.2827094896423077,
+     "frequency_known_seconds": 24.990020961,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1310.9551965637907,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.669615347,
+       "running_weighted_mhz": 1174.0907207324256
+      },
+      "1": {
+       "running_seconds": 4.414416752,
+       "running_weighted_mhz": 1184.3047832575821
+      },
+      "2": {
+       "running_seconds": 4.453479774,
+       "running_weighted_mhz": 1173.6622387586035
+      },
+      "3": {
+       "running_seconds": 3.760731718,
+       "running_weighted_mhz": 1175.3353906536229
+      },
+      "4": {
+       "running_seconds": 2.283816168,
+       "running_weighted_mhz": 1546.8022500557058
+      },
+      "5": {
+       "running_seconds": 2.348349475,
+       "running_weighted_mhz": 1532.9737832543003
+      },
+      "6": {
+       "running_seconds": 2.127265695,
+       "running_weighted_mhz": 1612.4068670829574
+      },
+      "7": {
+       "running_seconds": 1.932346032,
+       "running_weighted_mhz": 1560.1406181628445
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 1.314059624,
+     "running_fraction_of_window": 0.12003256733325164,
+     "frequency_known_seconds": 1.314059624,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1362.9996912841757,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.150942406,
+       "running_weighted_mhz": 1209.01269846593
+      },
+      "1": {
+       "running_seconds": 0.103281239,
+       "running_weighted_mhz": 1195.7093597802404
+      },
+      "2": {
+       "running_seconds": 0.182245978,
+       "running_weighted_mhz": 1219.9272422352167
+      },
+      "3": {
+       "running_seconds": 0.220813324,
+       "running_weighted_mhz": 1194.4398923182735
+      },
+      "4": {
+       "running_seconds": 0.146723145,
+       "running_weighted_mhz": 1502.9783069467328
+      },
+      "5": {
+       "running_seconds": 0.202593148,
+       "running_weighted_mhz": 1464.271533551569
+      },
+      "6": {
+       "running_seconds": 0.182992487,
+       "running_weighted_mhz": 1573.4631718295627
+      },
+      "7": {
+       "running_seconds": 0.124467897,
+       "running_weighted_mhz": 1557.8083817869922
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 1.064624381,
+     "running_fraction_of_window": 0.09724794473785905,
+     "frequency_known_seconds": 1.064624381,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1198.6680200356973,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.237352473,
+       "running_weighted_mhz": 1180.0378128522807
+      },
+      "1": {
+       "running_seconds": 0.232183883,
+       "running_weighted_mhz": 1187.1061041863961
+      },
+      "2": {
+       "running_seconds": 0.27888223,
+       "running_weighted_mhz": 1171.82355382055
+      },
+      "3": {
+       "running_seconds": 0.263893297,
+       "running_weighted_mhz": 1164.7427167162946
+      },
+      "4": {
+       "running_seconds": 0.012261028,
+       "running_weighted_mhz": 1660.2558570945275
+      },
+      "5": {
+       "running_seconds": 0.008407063,
+       "running_weighted_mhz": 1661.2001908395357
+      },
+      "6": {
+       "running_seconds": 0.018083252,
+       "running_weighted_mhz": 1648.4698492284463
+      },
+      "7": {
+       "running_seconds": 0.013561155,
+       "running_weighted_mhz": 1631.0473187571413
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 2.120992998,
+     "running_fraction_of_window": 0.19374176802634208,
+     "frequency_known_seconds": 2.120992998,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1316.2869768365922,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.450545461,
+       "running_weighted_mhz": 1170.7195202239536
+      },
+      "1": {
+       "running_seconds": 0.444394692,
+       "running_weighted_mhz": 1176.9688976168059
+      },
+      "2": {
+       "running_seconds": 0.288005216,
+       "running_weighted_mhz": 1179.8664338912529
+      },
+      "3": {
+       "running_seconds": 0.371770065,
+       "running_weighted_mhz": 1233.975569081927
+      },
+      "4": {
+       "running_seconds": 0.133620657,
+       "running_weighted_mhz": 1645.2454053642318
+      },
+      "5": {
+       "running_seconds": 0.102307894,
+       "running_weighted_mhz": 1606.5965237345222
+      },
+      "6": {
+       "running_seconds": 0.155050846,
+       "running_weighted_mhz": 1643.5891692200119
+      },
+      "7": {
+       "running_seconds": 0.175298167,
+       "running_weighted_mhz": 1732.6212536038668
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 3.141015007,
+     "running_fraction_of_window": 0.286915516188542,
+     "frequency_known_seconds": 3.141015007,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1562.4795291625935,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.136765503,
+       "running_weighted_mhz": 1388.9827429874624
+      },
+      "1": {
+       "running_seconds": 0.179151651,
+       "running_weighted_mhz": 1337.061063478561
+      },
+      "2": {
+       "running_seconds": 0.202841956,
+       "running_weighted_mhz": 1362.8391254272858
+      },
+      "3": {
+       "running_seconds": 0.441271081,
+       "running_weighted_mhz": 1380.1369503749556
+      },
+      "4": {
+       "running_seconds": 0.601636458,
+       "running_weighted_mhz": 1725.2625056325958
+      },
+      "5": {
+       "running_seconds": 0.596550916,
+       "running_weighted_mhz": 1562.1324109089123
+      },
+      "6": {
+       "running_seconds": 0.295541907,
+       "running_weighted_mhz": 1649.148205699302
+      },
+      "7": {
+       "running_seconds": 0.687255535,
+       "running_weighted_mhz": 1652.2963347163147
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 1.090729782,
+      "1": 1.248857257,
+      "2": 1.096958454,
+      "3": 1.263936318,
+      "4": 0.175514553,
+      "5": 0.258396646,
+      "6": 0.108681104,
+      "7": 0.16156742,
+      "8": 8.157966026
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.09963253843974579,
+      "1": 0.11407666749105781,
+      "2": 0.10020149549282144,
+      "3": 0.11545406191955043,
+      "4": 0.016032348925544695,
+      "5": 0.023603200526981102,
+      "6": 0.009927458157509087,
+      "7": 0.01475835028016183,
+      "8": 0.7451881089972705
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 2,
+   "park_enabled": 1,
+   "park_calls": 1054,
+   "status": "decode_failed",
+   "generated": 7,
+   "expected_tokens": 16,
+   "decode_us": 32198000,
+   "kind": "round",
+   "label": "trial2.round1",
+   "complete": true,
+   "rt_start": 1788972870312000000,
+   "rt_end": 1788972880546000000,
+   "round": 1,
+   "drafted": 5,
+   "accepted": 1,
+   "emitted": 2,
+   "draft_ms": 408.0,
+   "verify_ms": 9756.5,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597210651988637,
+   "trace_ts_end": 597220885988637,
+   "window_seconds": 10.234,
+   "capture_covered_seconds": 10.234,
+   "capture_coverage": 1.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 0.0,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1203.8787185956614
+    },
+    "1": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1203.8725401545828
+    },
+    "2": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1203.8692563903655
+    },
+    "3": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1203.8676477737931
+    },
+    "4": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1463.8197815554036
+    },
+    "5": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1463.8211951689466
+    },
+    "6": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1463.821674688978
+    },
+    "7": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1463.823903095857
+    },
+    "8": {
+     "frequency_known_seconds": 10.234,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 627.5499402483878
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 38.006241356,
+     "running_fraction_of_window": 3.71372301700215,
+     "frequency_known_seconds": 38.006241356,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1358.746885366593,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.181280096,
+       "running_weighted_mhz": 1224.805557709056
+      },
+      "1": {
+       "running_seconds": 2.41173761,
+       "running_weighted_mhz": 1237.1220470928426
+      },
+      "2": {
+       "running_seconds": 2.529249244,
+       "running_weighted_mhz": 1258.3366789603754
+      },
+      "3": {
+       "running_seconds": 2.422825865,
+       "running_weighted_mhz": 1209.5295603953775
+      },
+      "4": {
+       "running_seconds": 6.690842353,
+       "running_weighted_mhz": 1407.1092318122953
+      },
+      "5": {
+       "running_seconds": 6.780171422,
+       "running_weighted_mhz": 1425.520916592247
+      },
+      "6": {
+       "running_seconds": 7.187734561,
+       "running_weighted_mhz": 1401.2845187802423
+      },
+      "7": {
+       "running_seconds": 6.802400205,
+       "running_weighted_mhz": 1395.9173943024425
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 23.219063372,
+     "running_fraction_of_window": 2.26881604182138,
+     "frequency_known_seconds": 23.219063372,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1322.9944086382848,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 3.423540421,
+       "running_weighted_mhz": 1183.838242559485
+      },
+      "1": {
+       "running_seconds": 4.012795241,
+       "running_weighted_mhz": 1197.0900747631745
+      },
+      "2": {
+       "running_seconds": 4.155179849,
+       "running_weighted_mhz": 1185.1427359051963
+      },
+      "3": {
+       "running_seconds": 3.504855088,
+       "running_weighted_mhz": 1189.113203325398
+      },
+      "4": {
+       "running_seconds": 2.247196822,
+       "running_weighted_mhz": 1552.2657777521545
+      },
+      "5": {
+       "running_seconds": 2.004868888,
+       "running_weighted_mhz": 1550.2159695711732
+      },
+      "6": {
+       "running_seconds": 2.05189843,
+       "running_weighted_mhz": 1617.8654920653164
+      },
+      "7": {
+       "running_seconds": 1.818728633,
+       "running_weighted_mhz": 1569.240569835467
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 1.239815035,
+     "running_fraction_of_window": 0.12114667138948602,
+     "frequency_known_seconds": 1.239815035,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1371.9333897326064,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.136020536,
+       "running_weighted_mhz": 1228.4492430025418
+      },
+      "1": {
+       "running_seconds": 0.100639435,
+       "running_weighted_mhz": 1195.056873967943
+      },
+      "2": {
+       "running_seconds": 0.175945722,
+       "running_weighted_mhz": 1225.7978723006404
+      },
+      "3": {
+       "running_seconds": 0.207356578,
+       "running_weighted_mhz": 1210.3928027689578
+      },
+      "4": {
+       "running_seconds": 0.124910967,
+       "running_weighted_mhz": 1519.0329924433297
+      },
+      "5": {
+       "running_seconds": 0.199198129,
+       "running_weighted_mhz": 1470.3096174462564
+      },
+      "6": {
+       "running_seconds": 0.176162816,
+       "running_weighted_mhz": 1573.699104253647
+      },
+      "7": {
+       "running_seconds": 0.119580852,
+       "running_weighted_mhz": 1564.369174029635
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.9815177,
+     "running_fraction_of_window": 0.09590753371115888,
+     "frequency_known_seconds": 0.9815177,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1212.6827053531485,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.214554706,
+       "running_weighted_mhz": 1191.8784108282389
+      },
+      "1": {
+       "running_seconds": 0.218054123,
+       "running_weighted_mhz": 1197.8033675749393
+      },
+      "2": {
+       "running_seconds": 0.261036854,
+       "running_weighted_mhz": 1175.3139252130275
+      },
+      "3": {
+       "running_seconds": 0.236354481,
+       "running_weighted_mhz": 1190.5739569498578
+      },
+      "4": {
+       "running_seconds": 0.012045412,
+       "running_weighted_mhz": 1666.9569232667177
+      },
+      "5": {
+       "running_seconds": 0.008274983,
+       "running_weighted_mhz": 1662.6239473845444
+      },
+      "6": {
+       "running_seconds": 0.017924641,
+       "running_weighted_mhz": 1649.1465132272383
+      },
+      "7": {
+       "running_seconds": 0.0132725,
+       "running_weighted_mhz": 1639.8559956300621
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 2.021533769,
+     "running_fraction_of_window": 0.19753114803595856,
+     "frequency_known_seconds": 2.021533769,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1330.9463044671008,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.422172377,
+       "running_weighted_mhz": 1178.5752250721036
+      },
+      "1": {
+       "running_seconds": 0.420704384,
+       "running_weighted_mhz": 1188.019869609916
+      },
+      "2": {
+       "running_seconds": 0.259121751,
+       "running_weighted_mhz": 1194.5982266151018
+      },
+      "3": {
+       "running_seconds": 0.353708255,
+       "running_weighted_mhz": 1247.8333262055194
+      },
+      "4": {
+       "running_seconds": 0.133620657,
+       "running_weighted_mhz": 1645.2454053642318
+      },
+      "5": {
+       "running_seconds": 0.101868847,
+       "running_weighted_mhz": 1608.7803913005907
+      },
+      "6": {
+       "running_seconds": 0.155039331,
+       "running_weighted_mhz": 1643.5944862532979
+      },
+      "7": {
+       "running_seconds": 0.175298167,
+       "running_weighted_mhz": 1732.6212536038668
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 3.127516432,
+     "running_fraction_of_window": 0.30560058940785617,
+     "frequency_known_seconds": 3.127516432,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1564.6091923586732,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.127633831,
+       "running_weighted_mhz": 1420.03241086605
+      },
+      "1": {
+       "running_seconds": 0.176929931,
+       "running_weighted_mhz": 1340.0629679214649
+      },
+      "2": {
+       "running_seconds": 0.202149898,
+       "running_weighted_mhz": 1362.6263183422434
+      },
+      "3": {
+       "running_seconds": 0.441271081,
+       "running_weighted_mhz": 1380.1369503749556
+      },
+      "4": {
+       "running_seconds": 0.601636458,
+       "running_weighted_mhz": 1725.2625056325958
+      },
+      "5": {
+       "running_seconds": 0.596550916,
+       "running_weighted_mhz": 1562.1324109089123
+      },
+      "6": {
+       "running_seconds": 0.295541907,
+       "running_weighted_mhz": 1649.148205699302
+      },
+      "7": {
+       "running_seconds": 0.68580241,
+       "running_weighted_mhz": 1652.4664720761189
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.994793907,
+      "1": 1.103104333,
+      "2": 1.062627842,
+      "3": 1.129948206,
+      "4": 0.172186022,
+      "5": 0.245079629,
+      "6": 0.108602735,
+      "7": 0.147855099,
+      "8": 7.548843628
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.09720479841704123,
+      "1": 0.10778818966191128,
+      "2": 0.10383308989642369,
+      "3": 0.11041119855384014,
+      "4": 0.016824899550517882,
+      "5": 0.023947589310142663,
+      "6": 0.010611953781512605,
+      "7": 0.014447439808481533,
+      "8": 0.7376239620871604
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 2,
+   "park_enabled": 1,
+   "park_calls": 1054,
+   "status": "decode_failed",
+   "generated": 7,
+   "expected_tokens": 16,
+   "decode_us": 32198000,
+   "kind": "round",
+   "label": "trial2.round2",
+   "complete": true,
+   "rt_start": 1788972880546000000,
+   "rt_end": 1788972892135000000,
+   "round": 2,
+   "drafted": 5,
+   "accepted": 3,
+   "emitted": 4,
+   "draft_ms": 483.9,
+   "verify_ms": 10956.0,
+   "note": "completed MTP round (engine-reported draft/verify ms)",
+   "trace_ts_start": 597220885988637,
+   "trace_ts_end": 597232474988637,
+   "window_seconds": 11.589,
+   "capture_covered_seconds": 0.713525769,
+   "capture_coverage": 0.06156922676676158,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 10.875474231,
+   "per_cpu_time_weighted": {
+    "0": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1014.5460530648332
+    },
+    "1": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1014.5396556532775
+    },
+    "2": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1014.5345310086481
+    },
+    "3": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1014.5309323173162
+    },
+    "4": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1438.0673872606835
+    },
+    "5": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1438.0649606321365
+    },
+    "6": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1438.0630997967503
+    },
+    "7": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 1438.061288505475
+    },
+    "8": {
+     "frequency_known_seconds": 0.713525769,
+     "frequency_unknown_seconds": 0.0,
+     "time_weighted_mhz": 500.0
+    }
+   },
+   "groups": {
+    "burners": {
+     "threads": [
+      12823,
+      12824,
+      12825,
+      12826,
+      12827
+     ],
+     "running_seconds": 2.752086406,
+     "running_fraction_of_window": 3.857024547070002,
+     "frequency_known_seconds": 2.752086406,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1354.8014374451295,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.191032957,
+       "running_weighted_mhz": 976.795942058312
+      },
+      "1": {
+       "running_seconds": 0.020728395,
+       "running_weighted_mhz": 1187.4418245117386
+      },
+      "2": {
+       "running_seconds": 0.26145481,
+       "running_weighted_mhz": 1003.7300812710234
+      },
+      "3": {
+       "running_seconds": 0.160403813,
+       "running_weighted_mhz": 1191.657540728162
+      },
+      "4": {
+       "running_seconds": 0.630049609,
+       "running_weighted_mhz": 1452.2222061882114
+      },
+      "5": {
+       "running_seconds": 0.33296132,
+       "running_weighted_mhz": 1462.682887549821
+      },
+      "6": {
+       "running_seconds": 0.611669449,
+       "running_weighted_mhz": 1430.2630364247602
+      },
+      "7": {
+       "running_seconds": 0.543786053,
+       "running_weighted_mhz": 1447.0821778303311
+      }
+     }
+    },
+    "vcpus": {
+     "threads": [
+      12780,
+      12781,
+      12782,
+      12783,
+      12784,
+      12785,
+      12786,
+      12787,
+      12788
+     ],
+     "running_seconds": 1.770957589,
+     "running_fraction_of_window": 2.4819812625435818,
+     "frequency_known_seconds": 1.770957589,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1153.1088258528591,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.246074926,
+       "running_weighted_mhz": 1038.477411721339
+      },
+      "1": {
+       "running_seconds": 0.401621511,
+       "running_weighted_mhz": 1056.560736927261
+      },
+      "2": {
+       "running_seconds": 0.298299925,
+       "running_weighted_mhz": 1013.7442287221494
+      },
+      "3": {
+       "running_seconds": 0.25587663,
+       "running_weighted_mhz": 986.6146120339321
+      },
+      "4": {
+       "running_seconds": 0.036619346,
+       "running_weighted_mhz": 1211.5253153893027
+      },
+      "5": {
+       "running_seconds": 0.343480587,
+       "running_weighted_mhz": 1432.3325120554775
+      },
+      "6": {
+       "running_seconds": 0.075367265,
+       "running_weighted_mhz": 1463.7940173097697
+      },
+      "7": {
+       "running_seconds": 0.113617399,
+       "running_weighted_mhz": 1414.4732924576103
+      }
+     }
+    },
+    "bridge": {
+     "threads": [
+      12814
+     ],
+     "running_seconds": 0.074244589,
+     "running_fraction_of_window": 0.10405312915895544,
+     "frequency_known_seconds": 0.074244589,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1213.815302176432,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.01492187,
+       "running_weighted_mhz": 1031.8385771354394
+      },
+      "1": {
+       "running_seconds": 0.002641804,
+       "running_weighted_mhz": 1220.5657849711788
+      },
+      "2": {
+       "running_seconds": 0.006300256,
+       "running_weighted_mhz": 1055.9795795599418
+      },
+      "3": {
+       "running_seconds": 0.013456746,
+       "running_weighted_mhz": 948.6196234215909
+      },
+      "4": {
+       "running_seconds": 0.021812178,
+       "running_weighted_mhz": 1411.0385524545052
+      },
+      "5": {
+       "running_seconds": 0.003395019,
+       "running_weighted_mhz": 1109.9951614409226
+      },
+      "6": {
+       "running_seconds": 0.006829671,
+       "running_weighted_mhz": 1567.3775902235996
+      },
+      "7": {
+       "running_seconds": 0.004887045,
+       "running_weighted_mhz": 1397.2726948493414
+      }
+     }
+    },
+    "vhost": {
+     "threads": [
+      12777
+     ],
+     "running_seconds": 0.083106681,
+     "running_fraction_of_window": 0.1164732720395975,
+     "frequency_known_seconds": 0.083106681,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1033.1498988270268,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.022797767,
+       "running_weighted_mhz": 1068.6033895775845
+      },
+      "1": {
+       "running_seconds": 0.01412976,
+       "running_weighted_mhz": 1022.0231596290383
+      },
+      "2": {
+       "running_seconds": 0.017845376,
+       "running_weighted_mhz": 1120.7674389152685
+      },
+      "3": {
+       "running_seconds": 0.027538816,
+       "running_weighted_mhz": 943.0436654938251
+      },
+      "4": {
+       "running_seconds": 0.000215616,
+       "running_weighted_mhz": 1285.9000445235974
+      },
+      "5": {
+       "running_seconds": 0.00013208,
+       "running_weighted_mhz": 1572.0
+      },
+      "6": {
+       "running_seconds": 0.000158611,
+       "running_weighted_mhz": 1572.0
+      },
+      "7": {
+       "running_seconds": 0.000288655,
+       "running_weighted_mhz": 1226.019989260536
+      }
+     }
+    },
+    "pads_stream": {
+     "threads": [
+      12828
+     ],
+     "running_seconds": 0.099459229,
+     "running_fraction_of_window": 0.13939122218303512,
+     "frequency_known_seconds": 0.099459229,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1018.3324668945504,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.028373084,
+       "running_weighted_mhz": 1053.8319239107036
+      },
+      "1": {
+       "running_seconds": 0.023690308,
+       "running_weighted_mhz": 980.7201884416193
+      },
+      "2": {
+       "running_seconds": 0.028883465,
+       "running_weighted_mhz": 1047.703345910887
+      },
+      "3": {
+       "running_seconds": 0.01806181,
+       "running_weighted_mhz": 962.5961729749122
+      },
+      "5": {
+       "running_seconds": 0.000439047,
+       "running_weighted_mhz": 1099.8897908424383
+      },
+      "6": {
+       "running_seconds": 1.1515e-05,
+       "running_weighted_mhz": 1572.0
+      }
+     }
+    },
+    "pads_fetch": {
+     "threads": [
+      12829
+     ],
+     "running_seconds": 0.013498575,
+     "running_fraction_of_window": 0.018918132443791248,
+     "frequency_known_seconds": 0.013498575,
+     "frequency_unknown_seconds": 0.0,
+     "running_weighted_mhz": 1069.052879285406,
+     "by_cpu": {
+      "0": {
+       "running_seconds": 0.009131672,
+       "running_weighted_mhz": 955.0
+      },
+      "1": {
+       "running_seconds": 0.00222172,
+       "running_weighted_mhz": 1098.0
+      },
+      "2": {
+       "running_seconds": 0.000692058,
+       "running_weighted_mhz": 1425.0
+      },
+      "7": {
+       "running_seconds": 0.001453125,
+       "running_weighted_mhz": 1572.0
+      }
+     }
+    },
+    "idle_swapper": {
+     "proxy": true,
+     "note": "swapper residency per cpu = core idle time (state unknown; cpu_idle events not recorded)",
+     "idle_seconds_by_cpu": {
+      "0": 0.095935875,
+      "1": 0.145752924,
+      "2": 0.034330612,
+      "3": 0.133988112,
+      "4": 0.003328531,
+      "5": 0.013317017,
+      "6": 7.8369e-05,
+      "7": 0.013712321,
+      "8": 0.609122398
+     },
+     "idle_fraction_by_cpu": {
+      "0": 0.13445327298333357,
+      "1": 0.20427142274661142,
+      "2": 0.04811404645989737,
+      "3": 0.18778314368068744,
+      "4": 0.004664906503187553,
+      "5": 0.018663680526442208,
+      "6": 0.00010983345438222007,
+      "7": 0.0192176955559961,
+      "8": 0.8536796069098942
+     }
+    }
+   },
+   "idle": {
+    "recorded": false,
+    "proxy_available": true,
+    "source": "NOT RECORDED in this trace config; swapper residency proxy under groups.idle_swapper when available"
+   }
+  },
+  {
+   "trial": 2,
+   "park_enabled": 1,
+   "park_calls": 1054,
+   "status": "decode_failed",
+   "generated": 7,
+   "expected_tokens": 16,
+   "decode_us": 32198000,
+   "kind": "tail",
+   "label": "trial2.unfinished",
+   "complete": false,
+   "rt_start": 1788972892135000000,
+   "rt_end": 1788972902595000000,
+   "note": "UNFINISHED: after the last completed round up to the result record; contains the transport teardown",
+   "trace_ts_start": 597232474988637,
+   "trace_ts_end": 597242934988637,
+   "window_seconds": 10.46,
+   "capture_covered_seconds": 0.0,
+   "capture_coverage": 0.0,
+   "uncovered_before_seconds": 0.0,
+   "uncovered_after_seconds": 10.46,
+   "result": "NO CAPTURE COVERAGE for this window (trace bounds do not intersect); nothing attributed"
+  }
+ ]
+}

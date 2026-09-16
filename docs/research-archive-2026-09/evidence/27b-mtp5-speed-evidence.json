@@ -1,0 +1,160 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "unset",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 23554447,
+      "tokens_per_second": 0.6792772507034447,
+      "steady_tokens": 13,
+      "steady_us": 17371777,
+      "steady_tokens_per_second": 0.7483402532740318,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 51295,
+      "generated": 16,
+      "decode_us": 21173406,
+      "tokens_per_second": 0.7556649128628621,
+      "steady_tokens": 13,
+      "steady_us": 17285254,
+      "steady_tokens_per_second": 0.7520861423268643,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-mtp5-live-1",
+  "capture_sha256": "6d99cd137e914ce7b9b74e7b7d1e55c4372a8507be6767672dd8ee77ca7a40b1",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-mtp5-live-1/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247212,
+    "from": 0,
+    "total": 247212,
+    "chunks": 172,
+    "sha256": "16a54c6443606dca7fbd4191a76c220d466d18ab0bc018180e7dd9c04a5f993b",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 1952134,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 2100,
+    "peak_device_memory_mib": 25851.0,
+    "second_device_peak_memory_mib": 383.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 1952129,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.41757459903601557,
+    "elapsed_seconds": 533.5878111110069
+  },
+  "comparison": {
+    "b27-prefetch-1": {
+      "overall_tokens_per_second": 0.5807545457064808,
+      "steady_tokens_per_second": 0.5597613487630544,
+      "results": [
+        {
+          "trial": 1,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "mtp": {
+            "rounds": 6,
+            "drafted": 14,
+            "accepted": 9,
+            "emitted": 15
+          },
+          "mtp_fallback": "",
+          "status": "budget"
+        },
+        {
+          "trial": 2,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "mtp": {
+            "rounds": 6,
+            "drafted": 14,
+            "accepted": 9,
+            "emitted": 15
+          },
+          "mtp_fallback": "",
+          "status": "budget"
+        }
+      ]
+    },
+    "b27-mtp5-live-1": {
+      "overall_tokens_per_second": 0.715437872683046,
+      "steady_tokens_per_second": 0.7502085219013712,
+      "results": [
+        {
+          "trial": 1,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "mtp": {
+            "rounds": 5,
+            "drafted": 20,
+            "accepted": 10,
+            "emitted": 15
+          },
+          "mtp_fallback": "",
+          "status": "budget"
+        },
+        {
+          "trial": 2,
+          "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+          "mtp": {
+            "rounds": 5,
+            "drafted": 20,
+            "accepted": 10,
+            "emitted": 15
+          },
+          "mtp_fallback": "",
+          "status": "budget"
+        }
+      ]
+    }
+  }
+}

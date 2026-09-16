@@ -1,0 +1,113 @@
+{
+  "status": "PASS_PROBE_CAPTURE",
+  "label": "b27-maskbench-3",
+  "phases": {
+    "PRG_SPEED": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 6441,
+        "elements": 32977920,
+        "elapsed_us": 1500061,
+        "checksum": 46797940552,
+        "elements_per_second": 21984385.968303956,
+        "bytes": 263823360,
+        "bytes_per_second": 175875087.74643165
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 1031,
+        "elements": 35895296,
+        "elapsed_us": 1501221,
+        "checksum": 7269070915,
+        "elements_per_second": 23910733.995860703,
+        "bytes": 287162368,
+        "bytes_per_second": 191285871.96688563
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 145,
+        "elements": 36006400,
+        "elapsed_us": 1500096,
+        "checksum": 1067569651,
+        "elements_per_second": 24002730.491915185,
+        "bytes": 288051200,
+        "bytes_per_second": 192021843.93532148
+      }
+    ],
+    "CELL_IMPORT": [
+      {
+        "case": 0,
+        "width": 5120,
+        "calls": 26273,
+        "elements": 134517760,
+        "elapsed_us": 1500037,
+        "checksum": 61289824403180,
+        "elements_per_second": 89676294.6513986,
+        "bytes": 403973648,
+        "bytes_per_second": 269309122.3749814
+      },
+      {
+        "case": 1,
+        "width": 34816,
+        "calls": 3270,
+        "elements": 113848320,
+        "elapsed_us": 1500334,
+        "checksum": 7206474661454,
+        "elements_per_second": 75881983.61164914,
+        "bytes": 341597280,
+        "bytes_per_second": 227680823.07006305
+      },
+      {
+        "case": 2,
+        "width": 248320,
+        "calls": 472,
+        "elements": 117207040,
+        "elapsed_us": 1502154,
+        "checksum": 2025737939296,
+        "elements_per_second": 78025981.35743739,
+        "bytes": 351628672,
+        "bytes_per_second": 234082971.51956457
+      }
+    ]
+  },
+  "scope": "One calling thread; existing sampler on public inputs versus warm-file authenticated cell open/unpack. No full inference or new protocol; imported-cell pad Freivalds and live contention excluded.",
+  "mask_elements_per_token_reference": 7401568,
+  "capture_sha256": "cd439f940664f33633d7d1526b161a9c1c55db35b00df0f4a714343ca5fac8c9",
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "elapsed_seconds": 20.35144635598408,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "apk_source_commit": "dd639d17ea454ff028a6796de4423537ce628240",
+  "comparison": [
+    {
+      "width": 5120,
+      "generation_elements_per_second": 21984385.968303956,
+      "import_elements_per_second": 89676294.6513986,
+      "generation_time_over_import_time": 4.079090258908738,
+      "reference_generation_cpu_seconds_per_token": 0.3366738561937199,
+      "reference_import_cpu_seconds_per_token": 0.08253650564814638
+    },
+    {
+      "width": 34816,
+      "generation_elements_per_second": 23910733.995860703,
+      "import_elements_per_second": 75881983.61164914,
+      "generation_time_over_import_time": 3.1735530839323216,
+      "reference_generation_cpu_seconds_per_token": 0.30955001219457834,
+      "reference_import_cpu_seconds_per_token": 0.0975405181535573
+    },
+    {
+      "width": 248320,
+      "generation_elements_per_second": 24002730.491915185,
+      "import_elements_per_second": 78025981.35743739,
+      "generation_time_over_import_time": 3.2507127213597133,
+      "reference_generation_cpu_seconds_per_token": 0.30836358398862423,
+      "reference_import_cpu_seconds_per_token": 0.09486030000819064
+    }
+  ],
+  "interpretation": "Existing generation costs 3.2\u20134.1 times as much per element as warm-file authenticated import in these cases. This excludes pad Freivalds, live delivery contention and transmission. It does not establish model throughput or decide the proposed protocol tradeoff by itself."
+}

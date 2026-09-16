@@ -1,0 +1,373 @@
+{
+  "status": "PASS",
+  "scope": "Actual27B CPU weights; synthetic112/64-row demand, not MTP schedule, inference, phone or production seed admission. Asset stat checks are diagnostic stability checks, not adversarial source admission.",
+  "start_utc": "2026-09-08T19:09:08Z",
+  "records": [
+    {
+      "event": "registered",
+      "groups": 262,
+      "members": 409,
+      "seconds": 20.003714,
+      "manifest": "8658e868ff162e7041f110e846a1ab2ac721f5860cb01562bae709ddf3b4f614"
+    },
+    {
+      "event": "plan",
+      "scope": "actual27B CPU weights, synthetic sparse demand; not inference or live pad consumption",
+      "threads": 16,
+      "sparse_cells": 20992,
+      "sparse_payload_bytes": 1041252352,
+      "v2_payload_bytes": 1415776768
+    },
+    {
+      "event": "mint",
+      "repeat": 0,
+      "kind": "sparse-v3",
+      "wall_s": 4.610783,
+      "cpu_s": 58.686267,
+      "bytes": 1041281024
+    },
+    {
+      "event": "mint",
+      "repeat": 0,
+      "kind": "rectangular-v2",
+      "wall_s": 5.455877,
+      "cpu_s": 78.227677,
+      "bytes": 1415801344
+    },
+    {
+      "event": "verify",
+      "status": "PASS",
+      "cells": 20992,
+      "field_values": 346972160,
+      "wall_s": 5.090667
+    },
+    {
+      "event": "mint",
+      "repeat": 1,
+      "kind": "rectangular-v2",
+      "wall_s": 6.58677,
+      "cpu_s": 80.48015,
+      "bytes": 1415801344
+    },
+    {
+      "event": "mint",
+      "repeat": 1,
+      "kind": "sparse-v3",
+      "wall_s": 4.522207,
+      "cpu_s": 55.606763,
+      "bytes": 1041281024
+    },
+    {
+      "event": "mint",
+      "repeat": 2,
+      "kind": "sparse-v3",
+      "wall_s": 4.188955,
+      "cpu_s": 55.531863,
+      "bytes": 1041281024
+    },
+    {
+      "event": "mint",
+      "repeat": 2,
+      "kind": "rectangular-v2",
+      "wall_s": 5.542761,
+      "cpu_s": 77.700852,
+      "bytes": 1415801344
+    },
+    {
+      "event": "complete",
+      "status": "PASS"
+    }
+  ],
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "model_stat": [
+    64768,
+    57541182,
+    29047086048,
+    1788651357987938941,
+    1788651357991938888
+  ],
+  "calib_sha512_truncated32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "calib_stat": [
+    64768,
+    44957702,
+    13006,
+    1788651621135511145,
+    1788652065685298819
+  ],
+  "binaries": {
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/sparse-mint-27b-build/bench-sparse": [
+      "93f8eb851bf0aa06682056a5c8fafde3968f2d456fc7b39a773cd93f700f8c69",
+      [
+        64768,
+        74580188,
+        46032,
+        1788894535282471220,
+        1788894535282481910
+      ]
+    ],
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/sparse-mint-27b-build/libggml-shielded.so": [
+      "06fdc678e04228c422c365edcb87021ea9bccf2e613d6fcac64a6b77ac632d52",
+      [
+        64768,
+        74580186,
+        494992,
+        1788894029653020946,
+        1788894029653034695
+      ]
+    ],
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libllama.so": [
+      "a2b56dfea6beb99f611a579f2f5e0a5b0bbcbd525eba8ca747f0954bdfe0d41b",
+      [
+        64768,
+        58065136,
+        4062184,
+        0,
+        1788705571987026065
+      ]
+    ],
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml.so": [
+      "1c7fe4010cd22e7b0ea83db547ad382c5e00f7d6aee4b2948578676add777501",
+      [
+        64768,
+        58065133,
+        54936,
+        0,
+        1788705571974026192
+      ]
+    ],
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-base.so": [
+      "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+      [
+        64768,
+        58065129,
+        910680,
+        0,
+        1788705571970026231
+      ]
+    ],
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-cpu.so": [
+      "fd33ae41aff4ec212e8620812e91f70e5c9919a5c85d65abdecfbe82625d545f",
+      [
+        64768,
+        58065130,
+        1145280,
+        0,
+        1788705571974026192
+      ]
+    ]
+  },
+  "encoding_profile": {
+    "scope": "scratch benchmark-only encoding/build identity; not a deployed profile or signed grant",
+    "backend_sha256": "06fdc678e04228c422c365edcb87021ea9bccf2e613d6fcac64a6b77ac632d52",
+    "ggml_base_sha256": "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+    "field_flags": "-O2 -ffp-contract=off",
+    "simd": "runtime-dispatched generic/AVX512"
+  },
+  "encoding_profile_sha256": "c03f382d423b6bbca908746e5fe819903a337c7889341c514ea9ef75b21a1b7a",
+  "identity_check_s": 16.304089890996693,
+  "pid": 4162844,
+  "returncode": 0,
+  "elapsed_s": 74.04373050600407,
+  "evidence_sha256": {
+    "result.json": "c277ff1bff8dc6702cd1c6835b011341e883d24792ae38ecf991bddfbb385676",
+    "stdout.log": "0d01b0d4fd497bd95dc1381b3c93b721cb9f1682917dfedf332f2987a96d8618",
+    "stderr.log": "f9a9843ed6fbd54a3d9751117f603cc71d995835f185dfd619e4ea622aaca64e"
+  },
+  "comparison": {
+    "sparse-v3": {
+      "wall_s": 4.522207,
+      "cpu_s": 55.606763,
+      "bytes": 1041281024
+    },
+    "rectangular-v2": {
+      "wall_s": 5.542761,
+      "cpu_s": 78.227677,
+      "bytes": 1415801344
+    }
+  },
+  "later_per_lane_validation": {
+    "status": "PASS",
+    "scope": "Actual27B CPU weights; synthetic112/64-row demand, not MTP schedule, inference, phone or production seed admission. Asset stat checks are diagnostic stability checks, not adversarial source admission.",
+    "start_utc": "2026-09-08T19:23:45Z",
+    "records": [
+      {
+        "event": "registered",
+        "groups": 262,
+        "members": 409,
+        "seconds": 19.435756,
+        "manifest": "7fae1f0fa13f4c37f08c34dad4002ff8028ac70e008233cc390e1ff9aca7fe52"
+      },
+      {
+        "event": "plan",
+        "scope": "actual27B CPU weights, synthetic sparse demand; not inference or live pad consumption",
+        "threads": 16,
+        "sparse_cells": 20992,
+        "sparse_payload_bytes": 1041252352,
+        "v2_payload_bytes": 1415776768
+      },
+      {
+        "event": "mint",
+        "repeat": 0,
+        "kind": "sparse-v3",
+        "wall_s": 4.361417,
+        "cpu_s": 56.909497,
+        "bytes": 1041281024
+      },
+      {
+        "event": "mint",
+        "repeat": 0,
+        "kind": "rectangular-v2",
+        "wall_s": 5.45023,
+        "cpu_s": 78.523129,
+        "bytes": 1415801344
+      },
+      {
+        "event": "verify",
+        "status": "PASS",
+        "cells": 20992,
+        "field_values": 346972160,
+        "wall_s": 5.09956
+      },
+      {
+        "event": "mint",
+        "repeat": 1,
+        "kind": "rectangular-v2",
+        "wall_s": 5.909623,
+        "cpu_s": 82.156263,
+        "bytes": 1415801344
+      },
+      {
+        "event": "mint",
+        "repeat": 1,
+        "kind": "sparse-v3",
+        "wall_s": 4.393316,
+        "cpu_s": 57.299002,
+        "bytes": 1041281024
+      },
+      {
+        "event": "mint",
+        "repeat": 2,
+        "kind": "sparse-v3",
+        "wall_s": 4.157137,
+        "cpu_s": 56.763746,
+        "bytes": 1041281024
+      },
+      {
+        "event": "mint",
+        "repeat": 2,
+        "kind": "rectangular-v2",
+        "wall_s": 6.448905,
+        "cpu_s": 81.482096,
+        "bytes": 1415801344
+      },
+      {
+        "event": "complete",
+        "status": "PASS"
+      }
+    ],
+    "sparse_scratch_cap_bytes": 134217728,
+    "implementation": "per-lane assigned-shape scratch",
+    "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+    "model_stat": [
+      64768,
+      57541182,
+      29047086048,
+      1788651357987938941,
+      1788651357991938888
+    ],
+    "calib_sha512_truncated32": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+    "calib_stat": [
+      64768,
+      44957702,
+      13006,
+      1788651621135511145,
+      1788652065685298819
+    ],
+    "binaries": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/sparse-mint-27b-lanes-build/bench-sparse": [
+        "44c4ead7642ede68412ea58f8f78e1eb40d60cf97deb08128af2e6864db482cd",
+        [
+          64768,
+          74580280,
+          46032,
+          1788894987832782807,
+          1788894987832793137
+        ]
+      ],
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/sparse-mint-27b-lanes-build/libggml-shielded.so": [
+        "348d1be74ad2168a9e8ca2e162a3e8fe0d47eec9203a9c3acd230f26f71db4a9",
+        [
+          64768,
+          74580279,
+          494992,
+          1788894987180072367,
+          1788894987181224448
+        ]
+      ],
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libllama.so": [
+        "a2b56dfea6beb99f611a579f2f5e0a5b0bbcbd525eba8ca747f0954bdfe0d41b",
+        [
+          64768,
+          58065136,
+          4062184,
+          0,
+          1788705571987026065
+        ]
+      ],
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml.so": [
+        "1c7fe4010cd22e7b0ea83db547ad382c5e00f7d6aee4b2948578676add777501",
+        [
+          64768,
+          58065133,
+          54936,
+          0,
+          1788705571974026192
+        ]
+      ],
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-base.so": [
+        "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+        [
+          64768,
+          58065129,
+          910680,
+          0,
+          1788705571970026231
+        ]
+      ],
+      "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/root-598/opt/roots/wasm/usr/local/lib/libggml-cpu.so": [
+        "fd33ae41aff4ec212e8620812e91f70e5c9919a5c85d65abdecfbe82625d545f",
+        [
+          64768,
+          58065130,
+          1145280,
+          0,
+          1788705571974026192
+        ]
+      ]
+    },
+    "encoding_profile": {
+      "scope": "scratch benchmark-only encoding/build identity; not a deployed profile or signed grant",
+      "backend_sha256": "348d1be74ad2168a9e8ca2e162a3e8fe0d47eec9203a9c3acd230f26f71db4a9",
+      "ggml_base_sha256": "dd719fa79c3948db65082591112cc2d759feb86b6048cbb09c732198678c4e44",
+      "field_flags": "-O2 -ffp-contract=off",
+      "simd": "runtime-dispatched generic/AVX512"
+    },
+    "encoding_profile_sha256": "911f0d0f941e553ef08055ccc40a407656cb5525d1466b209117acfa892418ec",
+    "identity_check_s": 16.335802874993533,
+    "pid": 20115,
+    "returncode": 0,
+    "elapsed_s": 73.27073904799181,
+    "measurement_scope": {
+      "timings_accepted": false,
+      "reason": "Fable started a concurrent CPU-only diagnostic rebuild/test window at2026-09-08T19:23:55Z. Use this run only for correctness, actual128MiB scratch-cap admission and file size; do not derive performance claims.",
+      "sparse_scratch_cap_bytes": 134217728,
+      "other_window_start_utc": "2026-09-08T19:23:55Z"
+    },
+    "evidence_sha256": {
+      "result.json": "09c4e63f9fbf3e181bba0e0483051b3b072158eb3d6edbd3e2acecf28c27de4a",
+      "stdout.log": "b7c4da2d16c4e8b4f06dca46179b50100f0efccebc3903ec3db03ce5e9794373",
+      "stderr.log": "fce850ff967c0f6dcb3b71ed9c78382f067aa471cdaa3ea6d420946a244eda6d",
+      "measurement-scope.json": "d398bba3c59a1958d33e3abd3d2e49d02f34063ab43c7fb92347dd36dc0c2275"
+    }
+  }
+}

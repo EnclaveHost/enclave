@@ -1,0 +1,124 @@
+{
+  "status": "PASS_REPEAT_CAPTURE",
+  "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+  "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+  "settings": {
+    "n_predict": 16,
+    "mtp_k": 5,
+    "draft_ahead": 1,
+    "threads": 4,
+    "threads_batch": 4,
+    "head_threads": 2,
+    "cpu_poll": "50",
+    "arm_tuned": "unset",
+    "stream_min_bytes": "1048576"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 21285666,
+      "tokens_per_second": 0.7516795575012781,
+      "steady_tokens": 13,
+      "steady_us": 17069353,
+      "steady_tokens_per_second": 0.7615988725524628,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 24290,
+      "generated": 16,
+      "decode_us": 20910908,
+      "tokens_per_second": 0.7651508963647107,
+      "steady_tokens": 13,
+      "steady_us": 16593610,
+      "steady_tokens_per_second": 0.7834341050561029,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      }
+    }
+  ],
+  "generated_total": 32,
+  "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+  "label": "b27-mtp5-ack-1",
+  "capture_sha256": "2043ba414d19dcf1ed8599a28295a28548e8efbfec920f07469ee7f3c58062b2",
+  "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim",
+  "mtp_results": [
+    {
+      "trial": 1,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    },
+    {
+      "trial": 2,
+      "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+      "rounds": 5,
+      "drafted": 20,
+      "accepted": 10,
+      "emitted": 15
+    }
+  ],
+  "source_counters": [
+    "VSOCK SOURCE after prefill: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560",
+    "VSOCK SOURCE after trial: reads=409 bytes=27649474560"
+  ],
+  "registration_snapshot": {
+    "path": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-mtp5-ack-1/engine.stderr",
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247239,
+    "from": 0,
+    "total": 247239,
+    "chunks": 172,
+    "sha256": "b685af6287bf126d18febf72f6042c2d016c25e0b1f5c939a64829b1c0b7e1d7",
+    "truncated": 0
+  },
+  "gpu_execution_evidence": {
+    "worker_pid": 2120104,
+    "gpu_uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "worker_sha256": "dcb178bb367c25d5484220fceba02d6ae6c4393f0bde89dabce1a4cd59a23b0c",
+    "samples": 2037,
+    "peak_device_memory_mib": 25851.0,
+    "second_device_peak_memory_mib": 351.0,
+    "scope": "Device samples over the test; verified worker identity and nonzero offload counters required separately. Not decode-only utilization."
+  },
+  "whole_cycle": {
+    "status": "COMMAND_COMPLETE",
+    "elapsed_seconds": 517.033731100033,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "comparison": {
+    "baseline": "b27-mtp5-live-1",
+    "current": {
+      "overall": 0.7583554058203872,
+      "steady": 0.7723621952113959
+    },
+    "baseline_rates": {
+      "overall": 0.715437872683046,
+      "steady": 0.7502085219013712
+    },
+    "observed_relative_gain": {
+      "overall": 0.05998778479030076,
+      "steady": 0.029530020871900042
+    },
+    "limitation": "Separate short live-refill runs; uncontrolled timing variability. Not a precise isolated effect size or sustained throughput proof."
+  }
+}

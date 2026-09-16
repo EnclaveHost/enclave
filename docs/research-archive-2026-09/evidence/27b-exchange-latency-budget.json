@@ -1,0 +1,14 @@
+{
+  "scope": "Arithmetic budget for the measured MTP5 schedule; no claim that the target is achieved or that the same schedule is optimal.",
+  "tokens": 16,
+  "field_calls": 1574,
+  "target_tokens_per_second": 20,
+  "target_decode_seconds": 0.8,
+  "average_total_budget_ms_per_exchange": 0.5082592121982211,
+  "previous_captured_host_field_intervals_max_concurrency": 1,
+  "previous_capture": "b27-profile-2",
+  "limits": [
+    "The per-exchange budget must also accommodate work outside the exchange.",
+    "New architectures or MTP acceptance patterns can change the call count."
+  ]
+}

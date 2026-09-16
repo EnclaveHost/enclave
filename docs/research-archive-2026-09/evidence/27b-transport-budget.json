@@ -1,0 +1,23 @@
+{
+  "status": "MEASURED_COUNTERS_WITH_CONDITIONAL_RATE_PROJECTION",
+  "source_log_sha256": "33e8fffcd8412478f82031ca97e147fad10a32b5325e9705e221b0455098a65d",
+  "model": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+  "generated": 16,
+  "context": 1024,
+  "mtp_k": 3,
+  "mtp_drafted": 14,
+  "mtp_accepted": 9,
+  "decode_field_exchanges": 1775,
+  "request_bytes": 137617659,
+  "reply_bytes": 283719783,
+  "source": "phone-b27-5b.log, exact prefill/final FIELD_GEMM counter difference",
+  "limitation": "Only FIELD_GEMM exchanges; excludes pad delivery, registration, other RPC traffic, packet overhead and local compute. Projection preserves this short run's acceptance and traffic per token, not a throughput prediction.",
+  "bytes_per_generated_token": {
+    "request_bytes": 8601103.6875,
+    "reply_bytes": 17732486.4375
+  },
+  "required_bytes_per_second_at_20_tok_s": {
+    "request_bytes": 172022073.75,
+    "reply_bytes": 354649728.75
+  }
+}

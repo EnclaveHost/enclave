@@ -1,0 +1,37 @@
+{
+  "scope": "48-file public artifact preparation; no inference or pad-generation rate measurement",
+  "comparison": "one fresh-store run per setting; order and thermal effects not isolated",
+  "measurements": [
+    {
+      "coalesced": false,
+      "bytes": 176160768,
+      "feed_seconds": 18.308,
+      "decimal_MB_per_second": 9.622065108149444,
+      "MiB_per_second": 9.17631636443085,
+      "transfer_statistics": {
+        "coalesced": false,
+        "body_reads": 21504,
+        "completed_writes": 21504,
+        "completed_write_bytes": 176160768
+      },
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b08-v13-feed-baseline-1",
+      "evidence_sha256": "83be9065a8db4bbef53818556811815f54f1cc77ac252a62ba3a14ff12217bc3"
+    },
+    {
+      "coalesced": true,
+      "bytes": 176160768,
+      "feed_seconds": 19.234,
+      "decimal_MB_per_second": 9.158821254029322,
+      "MiB_per_second": 8.734532598523447,
+      "transfer_statistics": {
+        "coalesced": true,
+        "body_reads": 21504,
+        "completed_writes": 192,
+        "completed_write_bytes": 176160768
+      },
+      "route": "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b08-v13-feed-coalesced-1",
+      "evidence_sha256": "aedcdf896a5669ce6c39325412e5d4b9de1388c1f7db5ebc2d01c667d3e3e69f"
+    }
+  ],
+  "feed_speed_ratio": 0.9518560881771863
+}

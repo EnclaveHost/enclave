@@ -1,0 +1,578 @@
+{
+  "status": "PARTIAL_DIAGNOSTICS_ENGINE_AND_WIRE_RECONCILED",
+  "label": "b27-native-crt-ping-3",
+  "result": {
+    "engine": "avf-pvm",
+    "status": "budget",
+    "mtp_fallback": "",
+    "requested": 16,
+    "prompt_tokens": 5,
+    "generated": 16,
+    "completion": " Paris.\nThe capital of Germany is Berlin.\nThe capital of Italy is",
+    "prefill_ms": 1503606,
+    "decode_ms_per_tok": 2483.9,
+    "decode_ms_per_tok_steady": 2837.0,
+    "offloaded_nodes": 3160,
+    "local_nodes": 0,
+    "gmac": 704.42,
+    "verify_fail": 0,
+    "threads": 4,
+    "mtp_k": 3,
+    "mtp_rounds": 6,
+    "mtp_drafted": 14,
+    "mtp_accepted": 9,
+    "mtp_emitted": 15,
+    "decode_ms": 39742.942,
+    "decode_ms_steady": 36880.641,
+    "decode_tokens_steady": 13,
+    "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+    "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+    "calib_digest_source": "start-of-run read of the verified APK mount"
+  },
+  "actual_whole_tokens_per_second": 0.40258720655355607,
+  "actual_steady_tokens_per_second": 0.3524884505125602,
+  "counters": {
+    "status": "RECONCILED",
+    "counters": {
+      "first_field": 258,
+      "last_field": 2032,
+      "fields": 1775,
+      "prefill": {
+        "fields": 257,
+        "request_bytes": 32523093,
+        "reply_bytes": 62217993
+      },
+      "total": {
+        "fields": 2032,
+        "request_bytes": 170140752,
+        "reply_bytes": 345937776
+      },
+      "request_bytes": 137617659,
+      "reply_bytes": 283719783
+    },
+    "decode_observation_window": {
+      "status": "VALID_OBSERVATION_WINDOW",
+      "window_kind": "worker_exchange_observations",
+      "clock": "host_monotonic",
+      "start": 273368.631081841,
+      "end": 273408.34619738,
+      "seconds": 39.715115538972896,
+      "connection": 1,
+      "first_field_exchange": 258,
+      "last_field_exchange": 2032,
+      "field_exchange_count": 1775,
+      "request_wire_bytes": 137617659,
+      "reply_wire_bytes": 283719783,
+      "request_complete_to_reply_first_mean_ms": 0.3121751747881128,
+      "request_complete_to_reply_first_max_ms": 2.401050995104015,
+      "trace_sha256": "c13f0d296d2176e5c379d8c3246d57bf486575c630487ad15b57e403d47841bf",
+      "limitations": [
+        "Host receive observations include proxy scheduling and stream chunk boundaries.",
+        "The service interval includes forwarding, worker scheduling and compute; it is not kernel time.",
+        "This window excludes phone work before the first observed request and after the final observed reply.",
+        "Reconcile the supplied FIELD_GEMM ordinals with engine counters before associating it with a decode."
+      ]
+    },
+    "prefill_observation_window": {
+      "status": "VALID_OBSERVATION_WINDOW",
+      "window_kind": "worker_exchange_observations",
+      "clock": "host_monotonic",
+      "start": 273365.024991323,
+      "end": 273368.550202964,
+      "seconds": 3.5252116409828886,
+      "connection": 1,
+      "first_field_exchange": 1,
+      "last_field_exchange": 257,
+      "field_exchange_count": 257,
+      "request_wire_bytes": 32523093,
+      "reply_wire_bytes": 62217993,
+      "request_complete_to_reply_first_mean_ms": 0.5544644716134157,
+      "request_complete_to_reply_first_max_ms": 5.710274039302021,
+      "trace_sha256": "c13f0d296d2176e5c379d8c3246d57bf486575c630487ad15b57e403d47841bf",
+      "limitations": [
+        "Host receive observations include proxy scheduling and stream chunk boundaries.",
+        "The service interval includes forwarding, worker scheduling and compute; it is not kernel time.",
+        "This window excludes phone work before the first observed request and after the final observed reply.",
+        "Reconcile the supplied FIELD_GEMM ordinals with engine counters before associating it with a decode."
+      ]
+    },
+    "total_observation_window": {
+      "status": "VALID_OBSERVATION_WINDOW",
+      "window_kind": "worker_exchange_observations",
+      "clock": "host_monotonic",
+      "start": 273365.024991323,
+      "end": 273408.34619738,
+      "seconds": 43.32120605697855,
+      "connection": 1,
+      "first_field_exchange": 1,
+      "last_field_exchange": 2032,
+      "field_exchange_count": 2032,
+      "request_wire_bytes": 170140752,
+      "reply_wire_bytes": 345937776,
+      "request_complete_to_reply_first_mean_ms": 0.34281904746729724,
+      "request_complete_to_reply_first_max_ms": 5.710274039302021,
+      "trace_sha256": "c13f0d296d2176e5c379d8c3246d57bf486575c630487ad15b57e403d47841bf",
+      "limitations": [
+        "Host receive observations include proxy scheduling and stream chunk boundaries.",
+        "The service interval includes forwarding, worker scheduling and compute; it is not kernel time.",
+        "This window excludes phone work before the first observed request and after the final observed reply.",
+        "Reconcile the supplied FIELD_GEMM ordinals with engine counters before associating it with a decode."
+      ]
+    },
+    "limitation": "Host worker-exchange observations only; excludes phone work outside first request/last reply; no host/VM clock equivalence"
+  },
+  "exchanges": {
+    "window_ms": 39715.115538972896,
+    "serialized_observations": true,
+    "phases": {
+      "request_receive": {
+        "count": 1775,
+        "sum_ms": 1643.7850759830326,
+        "mean_ms": 0.9260760991453705,
+        "median_ms": 0.3359579714015126,
+        "max_ms": 312.6384330098517,
+        "p90_ms": 1.8501660088077188
+      },
+      "worker_response_wait": {
+        "count": 1775,
+        "sum_ms": 554.1109352489002,
+        "mean_ms": 0.3121751747881128,
+        "median_ms": 0.27569796657189727,
+        "max_ms": 2.401050995104015,
+        "p90_ms": 0.3908569924533367
+      },
+      "reply_receive": {
+        "count": 1775,
+        "sum_ms": 199.78606584481895,
+        "mean_ms": 0.11255553005341913,
+        "median_ms": 0.0,
+        "max_ms": 1.7770660342648625,
+        "p90_ms": 0.35681697772815824
+      },
+      "between_exchanges": {
+        "count": 1774,
+        "sum_ms": 37317.433461896144,
+        "mean_ms": 21.03575730659309,
+        "median_ms": 6.507467973278835,
+        "max_ms": 1603.7437390186824,
+        "p90_ms": 30.26519896229729
+      }
+    },
+    "rows_per_call": {
+      "5": 5,
+      "1": 460,
+      "4": 1038,
+      "2": 15,
+      "3": 257
+    },
+    "top_worker_wait_groups": [
+      {
+        "node_ids": [
+          408
+        ],
+        "K": 5120,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 46.57794814556837,
+        "mean_ms": 1.3699396513402462,
+        "median_ms": 1.3714045053347945,
+        "max_ms": 1.5729169826954603,
+        "p90_ms": 1.4368990086950362
+      },
+      {
+        "node_ids": [
+          386,
+          387
+        ],
+        "K": 5120,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 10.666238027624786,
+        "mean_ms": 0.3137128831654349,
+        "median_ms": 0.3117930027656257,
+        "max_ms": 0.44949603034183383,
+        "p90_ms": 0.3690670127980411
+      },
+      {
+        "node_ids": [
+          385
+        ],
+        "K": 17408,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 7.385181030258536,
+        "mean_ms": 0.2172112067723099,
+        "median_ms": 0.221129012061283,
+        "max_ms": 0.2630480448715389,
+        "p90_ms": 0.25425798958167434
+      },
+      {
+        "node_ids": [
+          382,
+          383,
+          384
+        ],
+        "K": 5120,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 6.8379780277609825,
+        "mean_ms": 0.2011170008164995,
+        "median_ms": 0.1958585053216666,
+        "max_ms": 0.36450702464208007,
+        "p90_ms": 0.2506579621694982
+      },
+      {
+        "node_ids": [
+          388
+        ],
+        "K": 10240,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 6.5271572675555944,
+        "mean_ms": 0.19197521375163512,
+        "median_ms": 0.1855835143942386,
+        "max_ms": 0.30705699464306235,
+        "p90_ms": 0.23983803112059832
+      },
+      {
+        "node_ids": [
+          408
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 6.512379040941596,
+        "mean_ms": 1.628094760235399,
+        "median_ms": 1.6241220000665635,
+        "max_ms": 1.6797870048321784,
+        "p90_ms": 1.6797870048321784
+      },
+      {
+        "node_ids": [
+          381
+        ],
+        "K": 6144,
+        "rows": 1,
+        "count": 34,
+        "sum_ms": 5.256270174868405,
+        "mean_ms": 0.1545961816137766,
+        "median_ms": 0.15249403077177703,
+        "max_ms": 0.26266800705343485,
+        "p90_ms": 0.18246902618557215
+      },
+      {
+        "node_ids": [
+          337,
+          338
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 3.17692500539124,
+        "mean_ms": 0.79423125134781,
+        "median_ms": 0.26430797879584134,
+        "max_ms": 2.401050995104015,
+        "p90_ms": 2.401050995104015
+      },
+      {
+        "node_ids": [
+          300,
+          301
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 3.0896959360688925,
+        "mean_ms": 0.7724239840172231,
+        "median_ms": 0.2810829901136458,
+        "max_ms": 2.2606519632972777,
+        "p90_ms": 2.2606519632972777
+      },
+      {
+        "node_ids": [
+          319,
+          320,
+          321
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 2.956376993097365,
+        "mean_ms": 0.7390942482743412,
+        "median_ms": 0.2720780030358583,
+        "max_ms": 2.2101319627836347,
+        "p90_ms": 2.2101319627836347
+      },
+      {
+        "node_ids": [
+          362,
+          363
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 2.8726470773108304,
+        "mean_ms": 0.7181617693277076,
+        "median_ms": 0.27949802461080253,
+        "max_ms": 2.074252988677472,
+        "p90_ms": 2.074252988677472
+      },
+      {
+        "node_ids": [
+          396,
+          397
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 2.749978972133249,
+        "mean_ms": 0.6874947430333123,
+        "median_ms": 0.32456248300150037,
+        "max_ms": 1.8501559970900416,
+        "p90_ms": 1.8501559970900416
+      },
+      {
+        "node_ids": [
+          275,
+          276
+        ],
+        "K": 5120,
+        "rows": 3,
+        "count": 1,
+        "sum_ms": 2.091034024488181,
+        "mean_ms": 2.091034024488181,
+        "median_ms": 2.091034024488181,
+        "max_ms": 2.091034024488181,
+        "p90_ms": 2.091034024488181
+      },
+      {
+        "node_ids": [
+          353,
+          354
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.95936398813501,
+        "mean_ms": 0.4898409970337525,
+        "median_ms": 0.4344664921518415,
+        "max_ms": 0.7278840057551861,
+        "p90_ms": 0.7278840057551861
+      },
+      {
+        "node_ids": [
+          394,
+          395
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.8863040022552013,
+        "mean_ms": 0.47157600056380033,
+        "median_ms": 0.4193464992567897,
+        "max_ms": 0.724733981769532,
+        "p90_ms": 0.724733981769532
+      },
+      {
+        "node_ids": [
+          267,
+          268
+        ],
+        "K": 5120,
+        "rows": 1,
+        "count": 1,
+        "sum_ms": 1.8235850147902966,
+        "mean_ms": 1.8235850147902966,
+        "median_ms": 1.8235850147902966,
+        "max_ms": 1.8235850147902966,
+        "p90_ms": 1.8235850147902966
+      },
+      {
+        "node_ids": [
+          303,
+          304
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.7913159681484103,
+        "mean_ms": 0.4478289920371026,
+        "median_ms": 0.4589164745993912,
+        "max_ms": 0.5405360134318471,
+        "p90_ms": 0.5405360134318471
+      },
+      {
+        "node_ids": [
+          393
+        ],
+        "K": 17408,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.78427598439157,
+        "mean_ms": 0.4460689960978925,
+        "median_ms": 0.3782469721045345,
+        "max_ms": 0.7516940240748227,
+        "p90_ms": 0.7516940240748227
+      },
+      {
+        "node_ids": [
+          166,
+          167
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.731516036670655,
+        "mean_ms": 0.43287900916766375,
+        "median_ms": 0.4281815199647099,
+        "max_ms": 0.4973660106770694,
+        "p90_ms": 0.4973660106770694
+      },
+      {
+        "node_ids": [
+          15,
+          16
+        ],
+        "K": 5120,
+        "rows": 4,
+        "count": 4,
+        "sum_ms": 1.7272270051762462,
+        "mean_ms": 0.43180675129406154,
+        "median_ms": 0.43500150786712766,
+        "max_ms": 0.48962695291265845,
+        "p90_ms": 0.48962695291265845
+      }
+    ],
+    "limitations": [
+      "Worker response wait includes forwarding, scheduling and computation; it is not kernel time.",
+      "Receive spans reflect host reads and stream chunk boundaries, not pure link transfer time.",
+      "Between-exchange gaps include return delivery, phone work, other protocol operations and next-request delivery; they are not isolated phone CPU time.",
+      "Negative gaps indicate overlapping observations; phase sums must not be treated as separate wall-time costs then.",
+      "Node IDs are session-local and are not mapped to model tensor names here."
+    ]
+  },
+  "gpu": {
+    "status": "VALID_OBSERVATIONS",
+    "capture_clean": true,
+    "clock": "recv_mono",
+    "window_start": 273368.631081841,
+    "window_end": 273408.34619738,
+    "window_seconds": 39.715115538972896,
+    "max_allowed_observation_gap_s": 1.0,
+    "gpus": {
+      "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+        "status": "VALID_OBSERVATIONS",
+        "samples_in_window": 155,
+        "window_bracketed": true,
+        "observation_coverage_fraction": 1.0,
+        "largest_observation_gap_s": 0.2771480000228621,
+        "mean_reported_util_pct": 0.7806451612903226,
+        "p50_reported_util_pct": 1.0,
+        "p90_reported_util_pct": 2.0,
+        "max_reported_util_pct": 4.0,
+        "fraction_readings_zero": 0.4774193548387097,
+        "fraction_readings_ge90": 0.0,
+        "memory_used_mib_max": 25565.0,
+        "power_reading_count": 155,
+        "mean_reported_power_w": 37.23903225806452
+      },
+      "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+        "status": "VALID_OBSERVATIONS",
+        "samples_in_window": 155,
+        "window_bracketed": true,
+        "observation_coverage_fraction": 1.0,
+        "largest_observation_gap_s": 0.2801190000027418,
+        "mean_reported_util_pct": 0.0064516129032258064,
+        "p50_reported_util_pct": 0.0,
+        "p90_reported_util_pct": 0.0,
+        "max_reported_util_pct": 1.0,
+        "fraction_readings_zero": 0.9935483870967742,
+        "fraction_readings_ge90": 0.0,
+        "memory_used_mib_max": 351.0,
+        "power_reading_count": 155,
+        "mean_reported_power_w": 34.87548387096774
+      }
+    },
+    "reasons": []
+  },
+  "watchdog": {
+    "status": "COVERED",
+    "start": 273368.631081841,
+    "end": 273408.34619738,
+    "samples": 356,
+    "max_gap_seconds": 1.5,
+    "scope": "reconciled host worker-exchange observation window"
+  },
+  "ping": {
+    "enabled": true,
+    "status": "BRACKETED",
+    "profile": {
+      "interval_seconds": "0.005",
+      "payload_bytes": 1400
+    },
+    "receipt": {
+      "argv": [
+        "/usr/bin/ping",
+        "-n",
+        "-q",
+        "-i",
+        "0.005",
+        "-s",
+        "1400",
+        "-w",
+        "5410",
+        "10.160.70.12"
+      ],
+      "start_mono": 271233.967914345,
+      "log_cap_bytes": 1048576,
+      "cleanup_bound_s": 3.0,
+      "stop_signals": [
+        "SIGINT"
+      ],
+      "health_checks": 8745,
+      "pid": 896961,
+      "last_check_mono": 273420.85175701,
+      "last_check_alive": true,
+      "observed_log_bytes": 59,
+      "stop_start_mono": 273420.851852189,
+      "alive_before_stop": true,
+      "wait_rc": 0,
+      "stop_end_mono": 273420.85295938,
+      "log_truncated": false,
+      "statistics_present": true,
+      "transmitted": 437000,
+      "received": 436633
+    },
+    "log_sha256": "28c077ad130c69431f76a8ea53f314763098f32cd01980f6648988bd2776ad39",
+    "limitation": "Live process and aggregate packet statistics; no per-packet delivery guarantee"
+  },
+  "conditional_demand": {
+    "generated_tokens": 16,
+    "field_calls": 1775,
+    "consumed_pad_cells": 5438,
+    "reply_value_widths": [
+      3
+    ],
+    "reply_output_values": 94567936,
+    "worker_request_wire_bytes": 137617659,
+    "worker_reply_wire_bytes": 283719783,
+    "minimum_replacement_pad_bytes": 283790816,
+    "minimum_phone_incoming_bytes": 567510599,
+    "minimum_phone_incoming_bytes_per_generated_token": 35469412.4375,
+    "target_tokens_per_second": 20,
+    "minimum_phone_incoming_MBps_at_target": 709.38824875,
+    "worker_request_MBps_at_target": 172.02207375
+  },
+  "route_status_unchanged": "FAIL",
+  "gpu_wrapper_status_unchanged": "FAIL",
+  "source_hashes_all_unchanged": true,
+  "worker_identity_unchanged": true,
+  "phone_log_sha256": "1af24818c0a1fd1bb4ade2b08c37c5d5b90f39dd673f05524e6ec7325d50818c",
+  "limits": [
+    "The engine/model gate passed, frame counts and bytes reconcile, and GPU sampler completed cleanly.",
+    "The aggregate route and command capture receipts remain FAIL because stderr chunks 126..211 are absent.",
+    "Backend registration stderr is partial; do not treat it as complete phase attribution.",
+    "Host receive timings are not isolated GPU kernel time, phone CPU time or network bandwidth.",
+    "16 generated tokens, ctx1024, MTP3; this does not establish sustained speed, vision or long-context performance."
+  ]
+}

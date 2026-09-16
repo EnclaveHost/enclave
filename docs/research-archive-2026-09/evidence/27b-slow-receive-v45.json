@@ -1,0 +1,2361 @@
+{
+  "label": "b27-rcvbuf-3",
+  "selection": "Five longest measured body WS spans per trial",
+  "delays": [
+    {
+      "trial": 1,
+      "call": 1039,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 1039,
+        "start_ns": 479735925201,
+        "wall_ns": 416425497,
+        "cpu_ns": 924235,
+        "runq_ns": 570190,
+        "observer_before_ns": 11474,
+        "observer_after_ns": 199707,
+        "voluntary": 5,
+        "involuntary": 1,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          359009,
+          570190
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          414931072,
+          415142253
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        413.558919,
+        413.810588
+      ],
+      "conservative_window_ms": 413.558919,
+      "observed_window_ms": 413.558919,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 412.181192,
+            "S": 0.942912,
+            "R": 0.310669,
+            "R+": 0.124146
+          },
+          "longest_state_ms": {
+            "Running": 410.742106,
+            "S": 0.617717,
+            "R": 0.266113,
+            "R+": 0.124146
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "Running": 5.090245,
+            "R+": 0.060628,
+            "S": 405.253543,
+            "R": 3.154503
+          },
+          "longest_state_ms": {
+            "Running": 0.304199,
+            "R+": 0.060628,
+            "S": 108.521565,
+            "R": 1.459188
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 413.016967,
+            "R": 0.27889,
+            "Running": 0.263062
+          },
+          "longest_state_ms": {
+            "S": 269.427775,
+            "R": 0.23584,
+            "Running": 0.162232
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "S": 412.044921,
+            "R": 0.224935,
+            "Running": 1.289063
+          },
+          "longest_state_ms": {
+            "S": 281.349854,
+            "R": 0.156088,
+            "Running": 1.165405
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 407.07967,
+            "R": 3.053427,
+            "Running": 3.425822
+          },
+          "longest_state_ms": {
+            "S": 266.301474,
+            "R": 1.01945,
+            "Running": 0.777547
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 409.992961,
+            "R": 3.222534,
+            "Running": 0.343424
+          },
+          "longest_state_ms": {
+            "S": 293.364299,
+            "R": 2.157837,
+            "Running": 0.193644
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 413.177083,
+            "R": 0.18339,
+            "Running": 0.198446
+          },
+          "longest_state_ms": {
+            "S": 297.33903,
+            "R": 0.18339,
+            "Running": 0.198446
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 394.646236,
+            "R": 10.88513,
+            "Running": 8.027553
+          },
+          "longest_state_ms": {
+            "S": 3.96643,
+            "R": 3.962606,
+            "Running": 0.292521
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "Running": 0.342448,
+            "S": 413.158406,
+            "R": 0.058065
+          },
+          "longest_state_ms": {
+            "Running": 0.180298,
+            "S": 305.16508,
+            "R": 0.058065
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 413.558919
+          },
+          "longest_state_ms": {
+            "S": 413.558919
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 3.70878,
+            "Running": 1.596314,
+            "R+": 1.680868,
+            "S": 406.572957
+          },
+          "longest_state_ms": {
+            "R": 2.132324,
+            "Running": 0.564494,
+            "R+": 1.548869,
+            "S": 406.17684
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 413.558919
+          },
+          "longest_state_ms": {
+            "S": 413.558919
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.011556,
+            "S": 413.547363
+          },
+          "longest_state_ms": {
+            "Running": 0.011556,
+            "S": 413.547363
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "Running": 3.497071,
+            "R+": 0.042846,
+            "D": 0.118245,
+            "R": 1.252808,
+            "S": 408.647949
+          },
+          "longest_state_ms": {
+            "Running": 1.41451,
+            "R+": 0.042846,
+            "D": 0.109131,
+            "R": 0.92985,
+            "S": 406.463297
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "call": 1527,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 1527,
+        "start_ns": 486307858513,
+        "wall_ns": 59286499,
+        "cpu_ns": 391887,
+        "runq_ns": 0,
+        "observer_before_ns": 63110,
+        "observer_after_ns": 113241,
+        "voluntary": 2,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          58894612,
+          58894612
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        55.213744,
+        55.465413
+      ],
+      "conservative_window_ms": 55.213744,
+      "observed_window_ms": 55.213744,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 53.078368,
+            "R+": 1.002768,
+            "R": 1.067017,
+            "S": 0.065591
+          },
+          "longest_state_ms": {
+            "Running": 11.18038,
+            "R+": 0.637329,
+            "R": 0.715332,
+            "S": 0.065591
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "R+": 4.50383,
+            "Running": 47.928542,
+            "R": 2.781372
+          },
+          "longest_state_ms": {
+            "R+": 0.482788,
+            "Running": 23.806234,
+            "R": 1.007772
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "Running": 49.629313,
+            "S": 5.537231,
+            "R": 0.0472
+          },
+          "longest_state_ms": {
+            "Running": 49.558634,
+            "S": 5.182455,
+            "R": 0.026489
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "R+": 7.979693,
+            "Running": 47.095298,
+            "R": 0.138753
+          },
+          "longest_state_ms": {
+            "R+": 1.833496,
+            "Running": 26.826457,
+            "R": 0.011312
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "Running": 49.800171,
+            "S": 5.382893,
+            "R": 0.03068
+          },
+          "longest_state_ms": {
+            "Running": 49.673828,
+            "S": 5.104452,
+            "R": 0.03068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 54.912637,
+            "R": 0.151733,
+            "Running": 0.149374
+          },
+          "longest_state_ms": {
+            "S": 19.930623,
+            "R": 0.062988,
+            "Running": 0.064779
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "R": 1.965291,
+            "Running": 1.417357,
+            "S": 51.831096
+          },
+          "longest_state_ms": {
+            "R": 0.761637,
+            "Running": 0.362712,
+            "S": 3.967774
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "Running": 49.467855,
+            "S": 5.745889
+          },
+          "longest_state_ms": {
+            "Running": 49.467855,
+            "S": 5.745889
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 55.213744
+          },
+          "longest_state_ms": {
+            "S": 55.213744
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 55.213744
+          },
+          "longest_state_ms": {
+            "S": 55.213744
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 2.736694,
+            "Running": 0.247111,
+            "S": 52.229939
+          },
+          "longest_state_ms": {
+            "R": 2.691406,
+            "Running": 0.127197,
+            "S": 51.724243
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 55.213744
+          },
+          "longest_state_ms": {
+            "S": 55.213744
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.01359,
+            "S": 55.200154
+          },
+          "longest_state_ms": {
+            "Running": 0.01359,
+            "S": 55.200154
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 55.213744
+          },
+          "longest_state_ms": {
+            "S": 55.213744
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "call": 311,
+      "reply_bytes": 744969,
+      "source_line": 478,
+      "guest": {
+        "tid": 7935,
+        "call": 311,
+        "start_ns": 470794610540,
+        "wall_ns": 58537923,
+        "cpu_ns": 416912,
+        "runq_ns": 0,
+        "observer_before_ns": 11759,
+        "observer_after_ns": 84554,
+        "voluntary": 2,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          58121011,
+          58121011
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        0.281046,
+        0.532715
+      ],
+      "conservative_window_ms": 0.281046,
+      "observed_window_ms": 0.281046,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 0.281046
+          },
+          "longest_state_ms": {
+            "Running": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "Running": 0.281046
+          },
+          "longest_state_ms": {
+            "Running": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "R+": 0.281046
+          },
+          "longest_state_ms": {
+            "R+": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "Running": 0.281046
+          },
+          "longest_state_ms": {
+            "Running": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "Running": 0.209594,
+            "R+": 0.071452
+          },
+          "longest_state_ms": {
+            "Running": 0.076253,
+            "R+": 0.036987
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 0.022745,
+            "Running": 0.036987,
+            "S": 0.221314
+          },
+          "longest_state_ms": {
+            "R": 0.016112,
+            "Running": 0.036987,
+            "S": 0.221314
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "D": 0.281046
+          },
+          "longest_state_ms": {
+            "D": 0.281046
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.018718,
+            "S": 0.262328
+          },
+          "longest_state_ms": {
+            "Running": 0.018718,
+            "S": 0.262328
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 0.281046
+          },
+          "longest_state_ms": {
+            "S": 0.281046
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "call": 322,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 322,
+        "start_ns": 470940528061,
+        "wall_ns": 46205933,
+        "cpu_ns": 330566,
+        "runq_ns": 0,
+        "observer_before_ns": 12532,
+        "observer_after_ns": 84798,
+        "voluntary": 3,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          45875367,
+          45875367
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        3.351318,
+        3.602987
+      ],
+      "conservative_window_ms": 3.351318,
+      "observed_window_ms": 3.351318,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "S": 1.354818,
+            "R": 0.959187,
+            "Running": 1.037313
+          },
+          "longest_state_ms": {
+            "S": 0.755453,
+            "R": 0.918538,
+            "Running": 0.571899
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 2.977132,
+            "R": 0.024373,
+            "Running": 0.349813
+          },
+          "longest_state_ms": {
+            "S": 2.895183,
+            "R": 0.024373,
+            "Running": 0.349813
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 3.351318
+          },
+          "longest_state_ms": {
+            "S": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "S": 3.351318
+          },
+          "longest_state_ms": {
+            "S": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 2.334269,
+            "R": 0.503419,
+            "Running": 0.434527,
+            "R+": 0.079103
+          },
+          "longest_state_ms": {
+            "S": 1.348511,
+            "R": 0.465048,
+            "Running": 0.267822,
+            "R+": 0.049317
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "Running": 2.448161,
+            "R+": 0.903157
+          },
+          "longest_state_ms": {
+            "Running": 1.386882,
+            "R+": 0.471395
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 3.351318
+          },
+          "longest_state_ms": {
+            "S": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 3.351318
+          },
+          "longest_state_ms": {
+            "S": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 3.351318
+          },
+          "longest_state_ms": {
+            "S": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "Running": 3.351318
+          },
+          "longest_state_ms": {
+            "Running": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "D": 0.972087,
+            "R": 0.940879,
+            "Running": 0.291177,
+            "S": 1.147175
+          },
+          "longest_state_ms": {
+            "D": 0.972087,
+            "R": 0.812907,
+            "Running": 0.166788,
+            "S": 0.54895
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "D": 3.351318
+          },
+          "longest_state_ms": {
+            "D": 3.351318
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.047486,
+            "S": 3.303832
+          },
+          "longest_state_ms": {
+            "Running": 0.047486,
+            "S": 3.303832
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "Running": 1.077678,
+            "R+": 0.241699,
+            "S": 2.01827,
+            "R": 0.013671
+          },
+          "longest_state_ms": {
+            "Running": 0.99817,
+            "R+": 0.215983,
+            "S": 2.01827,
+            "R": 0.013671
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "call": 913,
+      "reply_bytes": 4469769,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 913,
+        "start_ns": 478102076974,
+        "wall_ns": 37461752,
+        "cpu_ns": 2858721,
+        "runq_ns": 0,
+        "observer_before_ns": 11556,
+        "observer_after_ns": 112467,
+        "voluntary": 58,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          34603031,
+          34603031
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        0.851806,
+        1.103475
+      ],
+      "conservative_window_ms": 0.851806,
+      "observed_window_ms": 0.851806,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "S": 0.538085,
+            "R": 0.067749,
+            "Running": 0.245972
+          },
+          "longest_state_ms": {
+            "S": 0.30249,
+            "R": 0.032634,
+            "Running": 0.130127
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 0.851806
+          },
+          "longest_state_ms": {
+            "S": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 0.785522,
+            "R": 0.01416,
+            "Running": 0.052124
+          },
+          "longest_state_ms": {
+            "S": 0.785522,
+            "R": 0.01416,
+            "Running": 0.052124
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "Running": 0.851806
+          },
+          "longest_state_ms": {
+            "Running": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "Running": 0.103108,
+            "S": 0.67574,
+            "R": 0.072958
+          },
+          "longest_state_ms": {
+            "Running": 0.093384,
+            "S": 0.67574,
+            "R": 0.072958
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 0.851806
+          },
+          "longest_state_ms": {
+            "S": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 0.851806
+          },
+          "longest_state_ms": {
+            "S": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "Running": 0.851806
+          },
+          "longest_state_ms": {
+            "Running": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "Running": 0.851806
+          },
+          "longest_state_ms": {
+            "Running": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 0.851806
+          },
+          "longest_state_ms": {
+            "S": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R+": 0.315919,
+            "Running": 0.460367,
+            "S": 0.07552
+          },
+          "longest_state_ms": {
+            "R+": 0.217326,
+            "Running": 0.214599,
+            "S": 0.07552
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 0.851806
+          },
+          "longest_state_ms": {
+            "S": 0.851806
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.009806,
+            "S": 0.842
+          },
+          "longest_state_ms": {
+            "Running": 0.009806,
+            "S": 0.842
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "R": 0.093384,
+            "Running": 0.123942,
+            "S": 0.63448
+          },
+          "longest_state_ms": {
+            "R": 0.093384,
+            "Running": 0.123942,
+            "S": 0.63448
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "call": 2832,
+      "reply_bytes": 744969,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 2832,
+        "start_ns": 503838597169,
+        "wall_ns": 435663331,
+        "cpu_ns": 351306925,
+        "runq_ns": 14486,
+        "observer_before_ns": 50049,
+        "observer_after_ns": 123779,
+        "voluntary": 6,
+        "involuntary": 1,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          14486
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          84341920,
+          84356406
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        3.006266,
+        3.257935
+      ],
+      "conservative_window_ms": 3.006266,
+      "observed_window_ms": 3.006266,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "S": 0.602621,
+            "Running": 2.023843,
+            "R+": 0.379802
+          },
+          "longest_state_ms": {
+            "S": 0.543783,
+            "Running": 0.480916,
+            "R+": 0.050293
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 2.351033,
+            "R": 0.577759,
+            "Running": 0.077474
+          },
+          "longest_state_ms": {
+            "S": 1.441487,
+            "R": 0.577759,
+            "Running": 0.077474
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 2.716715,
+            "R": 0.077189,
+            "Running": 0.212362
+          },
+          "longest_state_ms": {
+            "S": 1.621826,
+            "R": 0.05957,
+            "Running": 0.16626
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "S": 3.006266
+          },
+          "longest_state_ms": {
+            "S": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 1.772745,
+            "R": 0.050944,
+            "Running": 1.182577
+          },
+          "longest_state_ms": {
+            "S": 0.829834,
+            "R": 0.050944,
+            "Running": 0.606527
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 2.006266,
+            "R": 0.919515,
+            "Running": 0.080485
+          },
+          "longest_state_ms": {
+            "S": 1.145304,
+            "R": 0.919515,
+            "Running": 0.080485
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 3.006266
+          },
+          "longest_state_ms": {
+            "S": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 3.006266
+          },
+          "longest_state_ms": {
+            "S": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "Running": 3.006266
+          },
+          "longest_state_ms": {
+            "Running": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "Running": 3.006266
+          },
+          "longest_state_ms": {
+            "Running": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 0.778525,
+            "Running": 0.299437,
+            "S": 1.928304
+          },
+          "longest_state_ms": {
+            "R": 0.477824,
+            "Running": 0.079712,
+            "S": 0.975626
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 3.006266
+          },
+          "longest_state_ms": {
+            "S": 3.006266
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.031617,
+            "S": 2.974649
+          },
+          "longest_state_ms": {
+            "Running": 0.031617,
+            "S": 2.974649
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 2.491455,
+            "R": 0.080932,
+            "Running": 0.433879
+          },
+          "longest_state_ms": {
+            "S": 1.577596,
+            "R": 0.041137,
+            "Running": 0.351725
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "call": 2159,
+      "reply_bytes": 4469769,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 2159,
+        "start_ns": 493475158443,
+        "wall_ns": 126287313,
+        "cpu_ns": 7300335,
+        "runq_ns": 0,
+        "observer_before_ns": 14648,
+        "observer_after_ns": 173177,
+        "voluntary": 46,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          118986978,
+          118986978
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        1.254068,
+        1.505737
+      ],
+      "conservative_window_ms": 1.254068,
+      "observed_window_ms": 1.254068,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 1.010374,
+            "R+": 0.175579,
+            "S": 0.068115
+          },
+          "longest_state_ms": {
+            "Running": 0.436646,
+            "R+": 0.056111,
+            "S": 0.068115
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "R+": 0.433146,
+            "Running": 0.417398,
+            "S": 0.185425,
+            "R": 0.218099
+          },
+          "longest_state_ms": {
+            "R+": 0.332275,
+            "Running": 0.27299,
+            "S": 0.185425,
+            "R": 0.218099
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 0.890624,
+            "R": 0.103801,
+            "Running": 0.259643
+          },
+          "longest_state_ms": {
+            "S": 0.542643,
+            "R": 0.056641,
+            "Running": 0.223836
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "Running": 0.479126,
+            "S": 0.502359,
+            "R": 0.272583
+          },
+          "longest_state_ms": {
+            "Running": 0.114461,
+            "S": 0.201782,
+            "R": 0.071208
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 1.254068
+          },
+          "longest_state_ms": {
+            "S": 1.254068
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.057739,
+            "S": 1.196329
+          },
+          "longest_state_ms": {
+            "Running": 0.057739,
+            "S": 1.196329
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 0.245279,
+            "Running": 0.357544,
+            "R+": 0.651245
+          },
+          "longest_state_ms": {
+            "S": 0.172851,
+            "Running": 0.116171,
+            "R+": 0.479004
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "call": 1993,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 1993,
+        "start_ns": 490730650304,
+        "wall_ns": 102644450,
+        "cpu_ns": 6374186,
+        "runq_ns": 0,
+        "observer_before_ns": 11800,
+        "observer_after_ns": 103516,
+        "voluntary": 6,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          96270264,
+          96270264
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        0.42871,
+        0.680379
+      ],
+      "conservative_window_ms": 0.42871,
+      "observed_window_ms": 0.42871,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "S": 0.209839,
+            "R": 0.027181,
+            "Running": 0.19169
+          },
+          "longest_state_ms": {
+            "S": 0.110596,
+            "R": 0.014526,
+            "Running": 0.183716
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "Running": 0.42871
+          },
+          "longest_state_ms": {
+            "Running": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "Running": 0.42871
+          },
+          "longest_state_ms": {
+            "Running": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 0.2406,
+            "R": 0.047608,
+            "Running": 0.140502
+          },
+          "longest_state_ms": {
+            "S": 0.2406,
+            "R": 0.047608,
+            "Running": 0.140502
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "Running": 0.42871
+          },
+          "longest_state_ms": {
+            "Running": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 0.110392,
+            "Running": 0.116252,
+            "S": 0.202066
+          },
+          "longest_state_ms": {
+            "R": 0.107381,
+            "Running": 0.068319,
+            "S": 0.171061
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 0.42871
+          },
+          "longest_state_ms": {
+            "S": 0.42871
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.116862,
+            "S": 0.311848
+          },
+          "longest_state_ms": {
+            "Running": 0.116862,
+            "S": 0.311848
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "Running": 0.288208,
+            "R+": 0.140502
+          },
+          "longest_state_ms": {
+            "Running": 0.288208,
+            "R+": 0.140502
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "call": 3121,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 3121,
+        "start_ns": 508655128218,
+        "wall_ns": 48244263,
+        "cpu_ns": 373249,
+        "runq_ns": 0,
+        "observer_before_ns": 32267,
+        "observer_after_ns": 81421,
+        "voluntary": 5,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          0
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          47871014,
+          47871014
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        0.274577,
+        0.526246
+      ],
+      "conservative_window_ms": 0.274577,
+      "observed_window_ms": 0.274577,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 0.274577
+          },
+          "longest_state_ms": {
+            "Running": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "S": 0.19873,
+            "R": 0.035808,
+            "Running": 0.040039
+          },
+          "longest_state_ms": {
+            "S": 0.169434,
+            "R": 0.035808,
+            "Running": 0.040039
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "R+": 0.062419,
+            "Running": 0.212158
+          },
+          "longest_state_ms": {
+            "R+": 0.03894,
+            "Running": 0.124227
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "Running": 0.274577
+          },
+          "longest_state_ms": {
+            "Running": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.023479,
+            "S": 0.251098
+          },
+          "longest_state_ms": {
+            "Running": 0.023479,
+            "S": 0.251098
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 0.274577
+          },
+          "longest_state_ms": {
+            "S": 0.274577
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "call": 2125,
+      "reply_bytes": 626697,
+      "source_line": 478,
+      "guest": {
+        "tid": 133,
+        "call": 2125,
+        "start_ns": 492963119666,
+        "wall_ns": 47577677,
+        "cpu_ns": 388590,
+        "runq_ns": 13509,
+        "observer_before_ns": 34384,
+        "observer_after_ns": 97697,
+        "voluntary": 3,
+        "involuntary": 0,
+        "sched_error": 0,
+        "usage_error": 0,
+        "tag": "read_body",
+        "source_line": 478,
+        "runqueue_inside_phase_ns_bounds": [
+          0,
+          13509
+        ],
+        "off_cpu_not_explained_by_guest_runqueue_ns_bounds": [
+          47175578,
+          47189087
+        ],
+        "boundary_cpu_over_wall_ns": 0,
+        "boundary_cpu_plus_queue_lower_over_wall_ns": 0
+      },
+      "phone_send_return_to_guest_read_end_ms_bounds": [
+        0.263753,
+        0.515422
+      ],
+      "conservative_window_ms": 0.263753,
+      "observed_window_ms": 0.263753,
+      "coverage_fraction": 1.0,
+      "threads": [
+        {
+          "pid": 20589,
+          "tid": 20597,
+          "name": "crosvm_vcpu0",
+          "states_ms": {
+            "Running": 0.156453,
+            "S": 0.068685,
+            "R": 0.010661,
+            "R+": 0.027954
+          },
+          "longest_state_ms": {
+            "Running": 0.105346,
+            "S": 0.059123,
+            "R": 0.010661,
+            "R+": 0.016073
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20598,
+          "name": "crosvm_vcpu1",
+          "states_ms": {
+            "R+": 0.263753
+          },
+          "longest_state_ms": {
+            "R+": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20599,
+          "name": "crosvm_vcpu2",
+          "states_ms": {
+            "Running": 0.263753
+          },
+          "longest_state_ms": {
+            "Running": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20600,
+          "name": "crosvm_vcpu3",
+          "states_ms": {
+            "R": 0.263753
+          },
+          "longest_state_ms": {
+            "R": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20601,
+          "name": "crosvm_vcpu4",
+          "states_ms": {
+            "S": 0.263753
+          },
+          "longest_state_ms": {
+            "S": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20602,
+          "name": "crosvm_vcpu5",
+          "states_ms": {
+            "Running": 0.263753
+          },
+          "longest_state_ms": {
+            "Running": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20603,
+          "name": "crosvm_vcpu6",
+          "states_ms": {
+            "Running": 0.263753
+          },
+          "longest_state_ms": {
+            "Running": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20604,
+          "name": "crosvm_vcpu7",
+          "states_ms": {
+            "Running": 0.263753
+          },
+          "longest_state_ms": {
+            "Running": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20605,
+          "name": "crosvm_vcpu8",
+          "states_ms": {
+            "S": 0.15092,
+            "R": 0.103271,
+            "Running": 0.009562
+          },
+          "longest_state_ms": {
+            "S": 0.15092,
+            "R": 0.103271,
+            "Running": 0.009562
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20678,
+          "name": "pads-fetch",
+          "states_ms": {
+            "S": 0.263753
+          },
+          "longest_state_ms": {
+            "S": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20594,
+          "tid": 20594,
+          "name": "vhost-20589",
+          "states_ms": {
+            "R": 0.023356,
+            "Running": 0.03475,
+            "S": 0.205647
+          },
+          "longest_state_ms": {
+            "R": 0.023356,
+            "Running": 0.03475,
+            "S": 0.205647
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20589,
+          "tid": 20619,
+          "name": "virtio_blk",
+          "states_ms": {
+            "S": 0.263753
+          },
+          "longest_state_ms": {
+            "S": 0.263753
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20631,
+          "name": "vsock-bridge",
+          "states_ms": {
+            "Running": 0.042726,
+            "R+": 0.026936,
+            "R": 0.016642,
+            "S": 0.177449
+          },
+          "longest_state_ms": {
+            "Running": 0.008627,
+            "R+": 0.009074,
+            "R": 0.008667,
+            "S": 0.177449
+          },
+          "uncovered_ms": 0.0
+        },
+        {
+          "pid": 20525,
+          "tid": 20677,
+          "name": "vsock-pads",
+          "states_ms": {
+            "S": 0.263753
+          },
+          "longest_state_ms": {
+            "S": 0.263753
+          },
+          "uncovered_ms": 0.0
+        }
+      ]
+    }
+  ],
+  "state_rows": 2355,
+  "source_hashes": {
+    "guest-wire-frames.json": "3c8192ff0715d797d904b46ba5ea3c2a9dd993a882e9b3dc46319ef8bf3224fa",
+    "guest-scheduler-frames.json": "bfe857f308c01341a194ae2574148a91903fd74833daffcbc3d0e8b9b89c7536",
+    "bridge-io-scheduler.json": "33f46f0fdccf7da53719fe03b473b9a4f3325da5b9e3a634db2c92a0010eb1c1"
+  },
+  "limits": [
+    "Phone send return establishes host acceptance, not packet arrival at the guest. Windows use latest start and earliest possible guest read completion.",
+    "Host vCPU Running does not identify the guest thread or prove useful receive work. Host S/D states do not identify a particular blocking resource.",
+    "State times are exclusive within one host thread; concurrent threads must not be added to infer elapsed latency.",
+    "Incomplete or absent thread-state intervals remain uncovered. Trace clipping and clock bounds are reported; uncovered time is not treated as idle.",
+    "The capture has no VSOCK packet-queue occupancy or guest kernel callstacks. Scheduling association cannot prove head-of-line blocking or a kernel source-line cause."
+  ]
+}

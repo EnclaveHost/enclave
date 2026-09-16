@@ -1,0 +1,1052 @@
+{
+  "scope": "Current-v27 no-model native bridge profiles; no pad traffic, GPU work or CPU burners. Ping is a diagnostic intervention. Failed baseline retained.",
+  "legs": [
+    {
+      "label": "bridge-isolate-profile-1",
+      "controller": {
+        "status": "COMMAND_FAILED",
+        "max_seconds": 300,
+        "cleanup_reserve_seconds": 50,
+        "includes_preflight": true,
+        "command_started": true,
+        "phone_cleanup": true,
+        "root_pid": 2630856,
+        "phone_stopped": true,
+        "command_rc": 2,
+        "remaining_owned_pids": [],
+        "cleanup_seconds": 0.31213327299337834,
+        "elapsed_seconds": 64.24371392204193
+      },
+      "analysis": {
+        "label": "bridge-isolate-profile-1",
+        "status": "FAILED",
+        "functional": "FAIL",
+        "gate": {
+          "functional": "FAIL",
+          "reasons": [
+            "VM payload exit=4",
+            "BENCH 262144 row is not a complete framed result: 'FAILED (timeout) at iter 35 phase=read_len moved=0/4 (which direction stalled an'",
+            "BENCH size 1048576 rows: 0 (need exactly 1)",
+            "BENCH done lines: 0 (need exactly 1)",
+            "bench error line(s): ['BENCH RUN FAILED', 'timeout']",
+            "native bridge bytes up=23200732 down=22938584 != expected 289016288 each (byte-count mismatch)",
+            "native bridge close line does not follow the single BENCH done",
+            "diag: phase sequence diverges at record 1968 of 5053: expected 'f246 body done 262144', observed 'f246 body STALL 258032/262144 (absolute 30.0s deadline)'",
+            "diag: failure record(s): ['f246 body STALL 258032/262144 (absolute 30.0s deadline)']"
+          ],
+          "mode": "native",
+          "kind": "diag",
+          "sizes": [
+            65536,
+            262144,
+            1048576
+          ],
+          "bench": {
+            "65536": {
+              "p50_us": 9267.0,
+              "p90_us": 12364.0,
+              "min_us": 5835.0,
+              "n": 200
+            }
+          },
+          "bridge": {
+            "expected_bytes": 289016288,
+            "rc": 0,
+            "up": 23200732,
+            "down": 22938584
+          },
+          "perf": {
+            "verdict": null,
+            "verdict_lines": 0,
+            "watchdog_rc": -1,
+            "ok": false
+          },
+          "phase": {
+            "conn": "c1",
+            "records": 1970,
+            "expected": 5053,
+            "matched": false,
+            "failures": [
+              "f246 body STALL 258032/262144 (absolute 30.0s deadline)"
+            ]
+          },
+          "payload_exit": "4"
+        },
+        "native_source": "shielded/anchor/avf/host/native-bridge.c: poll at line 131; read at line 71; send at line 84; cumulative source brackets in anchor_bridge_run_profile",
+        "host_phase_seconds": {
+          "65536": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 2.202609999862034,
+              "median_s": 0.00990899998578243,
+              "p90_s": 0.012427000037860125,
+              "p99_s": 0.0175419999868609,
+              "max_s": 0.04036899999482557
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 0.26318500039633363,
+              "median_s": 0.0006290000164881349,
+              "p90_s": 0.0029949999880045652,
+              "p99_s": 0.005393999977968633,
+              "max_s": 0.010723999992478639
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.0030709991115145385,
+              "median_s": 1.5999976312741637e-05,
+              "p90_s": 1.899997005239129e-05,
+              "p99_s": 3.000005381181836e-05,
+              "max_s": 3.50000336766243e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.0098189995624125,
+              "median_s": 4.600000102072954e-05,
+              "p90_s": 5.70000265724957e-05,
+              "p99_s": 6.799999391660094e-05,
+              "max_s": 7.399998139590025e-05
+            }
+          },
+          "262144": {
+            "hdr": {
+              "n": 35,
+              "sum_s": 0.9948210000875406,
+              "median_s": 0.02457999996840954,
+              "p90_s": 0.03935300000011921,
+              "p99_s": 0.06346299999859184,
+              "max_s": 0.06631800002651289
+            },
+            "body": {
+              "n": 35,
+              "sum_s": 14.964296000020113,
+              "median_s": 0.0049940000171773136,
+              "p90_s": 0.01714800001354888,
+              "p99_s": 1.4781650000368245,
+              "max_s": 13.245024000003468
+            },
+            "echo-hdr": {
+              "n": 35,
+              "sum_s": 0.0009270000737160444,
+              "median_s": 2.6999972760677338e-05,
+              "p90_s": 3.700004890561104e-05,
+              "p99_s": 4.700000863522291e-05,
+              "max_s": 5.70000265724957e-05
+            },
+            "echo-body": {
+              "n": 35,
+              "sum_s": 0.006081999919842929,
+              "median_s": 7.800001185387373e-05,
+              "p90_s": 9.200000204145908e-05,
+              "p99_s": 0.00010800000745803118,
+              "max_s": 0.0034650000161491334
+            }
+          },
+          "1048576": {
+            "hdr": {
+              "n": 0,
+              "sum_s": 0,
+              "median_s": null,
+              "p90_s": null,
+              "p99_s": null,
+              "max_s": null
+            },
+            "body": {
+              "n": 0,
+              "sum_s": 0,
+              "median_s": null,
+              "p90_s": null,
+              "p99_s": null,
+              "max_s": null
+            },
+            "echo-hdr": {
+              "n": 0,
+              "sum_s": 0,
+              "median_s": null,
+              "p90_s": null,
+              "p99_s": null,
+              "max_s": null
+            },
+            "echo-body": {
+              "n": 0,
+              "sum_s": 0,
+              "median_s": null,
+              "p90_s": null,
+              "p99_s": null,
+              "max_s": null
+            }
+          }
+        },
+        "stalls": [
+          {
+            "frame": 246,
+            "phase": "body",
+            "seconds": 30.031040999980178,
+            "moved": 258032,
+            "wanted": 262144,
+            "missing": 4112
+          }
+        ],
+        "bridge_bins": 18,
+        "bridge_captured_seconds": {
+          "dt": 50.57539362,
+          "cpu": 1.124037739,
+          "poll_empty": 49.880917811,
+          "poll_up": 0.0,
+          "poll_down": 0.017856078,
+          "poll_both": 0.0,
+          "read_guest": 0.085623436,
+          "read_host": 0.093866619,
+          "write_host": 0.436535852,
+          "write_guest": 0.050679148
+        },
+        "bridge_captured_up": 23200732,
+        "bridge_captured_down": 22938584,
+        "limits": [
+          "Host phase spans include diagnostic logging overhead.",
+          "Header waits include preceding response delivery, guest payload comparison and next request preparation.",
+          "Bridge bins include deliberate control waits and omit the trailing partial bin; they are not exact measured-window totals.",
+          "Bridge CPU is aggregate thread CPU; per-operation source spans are wall time, not exclusive CPU.",
+          "No per-socket retransmission watchdog in this leg; no clean-link verdict.",
+          "No-model/no-pad/no-burner workload; not an inference throughput measurement."
+        ],
+        "failed_frame_socket_acceptance": {
+          "frame": 246,
+          "expected_up_through_frame": 23200732,
+          "actual_native_up": 23200732,
+          "entire_request_accepted_by_phone_tcp": true,
+          "host_missing_bytes": 4112
+        }
+      },
+      "ping_brackets": null,
+      "simpleperf_rc": null
+    },
+    {
+      "label": "bridge-isolate-ping-1",
+      "controller": {
+        "status": "COMMAND_COMPLETE",
+        "max_seconds": 300,
+        "cleanup_reserve_seconds": 50,
+        "includes_preflight": true,
+        "command_started": true,
+        "phone_cleanup": true,
+        "root_pid": 2634557,
+        "phone_stopped": true,
+        "command_rc": 0,
+        "remaining_owned_pids": [],
+        "cleanup_seconds": 0.36429662100272253,
+        "elapsed_seconds": 39.637780528049916
+      },
+      "analysis": {
+        "label": "bridge-isolate-ping-1",
+        "status": "PASS_DIAGNOSTIC",
+        "functional": "PASS",
+        "gate": {
+          "functional": "PASS",
+          "reasons": [],
+          "mode": "native",
+          "kind": "diag",
+          "sizes": [
+            65536,
+            262144,
+            1048576
+          ],
+          "bench": {
+            "65536": {
+              "p50_us": 9625.0,
+              "p90_us": 12626.0,
+              "min_us": 5706.0,
+              "n": 200
+            },
+            "262144": {
+              "p50_us": 21454.0,
+              "p90_us": 29173.0,
+              "min_us": 8309.0,
+              "n": 200
+            },
+            "1048576": {
+              "p50_us": 56283.0,
+              "p90_us": 73568.0,
+              "min_us": 43230.0,
+              "n": 200
+            }
+          },
+          "bridge": {
+            "expected_bytes": 289016288,
+            "rc": 0,
+            "up": 289016288,
+            "down": 289016288
+          },
+          "perf": {
+            "verdict": null,
+            "verdict_lines": 0,
+            "watchdog_rc": -1,
+            "ok": false
+          },
+          "phase": {
+            "conn": "c1",
+            "records": 5053,
+            "expected": 5053,
+            "matched": true,
+            "failures": []
+          },
+          "payload_exit": "0"
+        },
+        "native_source": "shielded/anchor/avf/host/native-bridge.c: poll at line 131; read at line 71; send at line 84; cumulative source brackets in anchor_bridge_run_profile",
+        "host_phase_seconds": {
+          "65536": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 2.1828399999649264,
+              "median_s": 0.009740999987116084,
+              "p90_s": 0.01297300000442192,
+              "p99_s": 0.0168279999634251,
+              "max_s": 0.039690000005066395
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 0.31437900016317144,
+              "median_s": 0.000651500013191253,
+              "p90_s": 0.003663000010419637,
+              "p99_s": 0.006569000019226223,
+              "max_s": 0.014588999969419092
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.0030329994624480605,
+              "median_s": 1.2000033166259527e-05,
+              "p90_s": 1.799996243789792e-05,
+              "p99_s": 3.0999945010989904e-05,
+              "max_s": 5.400000372901559e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.009486000111792237,
+              "median_s": 4.499999340623617e-05,
+              "p90_s": 5.299999611452222e-05,
+              "p99_s": 6.0999998822808266e-05,
+              "max_s": 7.499998901039362e-05
+            }
+          },
+          "262144": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 4.967425000388175,
+              "median_s": 0.02250849999836646,
+              "p90_s": 0.030094999994616956,
+              "p99_s": 0.043406000011600554,
+              "max_s": 0.07512200000928715
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 1.4454070001957007,
+              "median_s": 0.00503900001058355,
+              "p90_s": 0.01313600002322346,
+              "p99_s": 0.024915000016335398,
+              "max_s": 0.05115999997360632
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.0047900002100504935,
+              "median_s": 2.0000035874545574e-05,
+              "p90_s": 3.0999945010989904e-05,
+              "p99_s": 3.50000336766243e-05,
+              "max_s": 4.600000102072954e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.015772000013384968,
+              "median_s": 6.3000014051795e-05,
+              "p90_s": 8.099997648969293e-05,
+              "p99_s": 0.00010400003520771861,
+              "max_s": 0.00193800003034994
+            }
+          },
+          "1048576": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 12.88323500030674,
+              "median_s": 0.05992499997955747,
+              "p90_s": 0.06907699996372685,
+              "p99_s": 0.08031699998537078,
+              "max_s": 0.23326700000325218
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 5.621379000425804,
+              "median_s": 0.022582000005058944,
+              "p90_s": 0.035537000047042966,
+              "p99_s": 0.11068299994803965,
+              "max_s": 0.13876899995375425
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.006097000266890973,
+              "median_s": 2.900004619732499e-05,
+              "p90_s": 3.4999975468963385e-05,
+              "p99_s": 4.499999340623617e-05,
+              "max_s": 5.5999960750341415e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.027759000076912344,
+              "median_s": 0.00012900002184323967,
+              "p90_s": 0.00015300000086426735,
+              "p99_s": 0.00018799997633323073,
+              "max_s": 0.00024500000290572643
+            }
+          }
+        },
+        "stalls": [],
+        "bridge_bins": 109,
+        "bridge_captured_seconds": {
+          "dt": 30.664774429,
+          "cpu": 7.901157763,
+          "poll_empty": 19.045509636,
+          "poll_up": 2.946e-05,
+          "poll_down": 3.931179094,
+          "poll_both": 0.0,
+          "read_guest": 0.651944886,
+          "read_host": 0.828053106,
+          "write_host": 5.401108422,
+          "write_guest": 0.727199069
+        },
+        "bridge_captured_up": 289016288,
+        "bridge_captured_down": 289016288,
+        "limits": [
+          "Host phase spans include diagnostic logging overhead.",
+          "Header waits include preceding response delivery, guest payload comparison and next request preparation.",
+          "Bridge bins include deliberate control waits and omit the trailing partial bin; they are not exact measured-window totals.",
+          "Bridge CPU is aggregate thread CPU; per-operation source spans are wall time, not exclusive CPU.",
+          "No per-socket retransmission watchdog in this leg; no clean-link verdict.",
+          "No-model/no-pad/no-burner workload; not an inference throughput measurement."
+        ]
+      },
+      "ping_brackets": true,
+      "simpleperf_rc": null
+    },
+    {
+      "label": "bridge-isolate-native-1",
+      "controller": {
+        "status": "COMMAND_COMPLETE",
+        "max_seconds": 300,
+        "cleanup_reserve_seconds": 50,
+        "includes_preflight": true,
+        "command_started": true,
+        "phone_cleanup": true,
+        "root_pid": 2642661,
+        "phone_stopped": true,
+        "command_rc": 0,
+        "remaining_owned_pids": [],
+        "cleanup_seconds": 0.34795728098833933,
+        "elapsed_seconds": 41.46666476200335
+      },
+      "analysis": {
+        "label": "bridge-isolate-native-1",
+        "status": "PASS_DIAGNOSTIC",
+        "functional": "PASS",
+        "gate": {
+          "functional": "PASS",
+          "reasons": [],
+          "mode": "native",
+          "kind": "diag",
+          "sizes": [
+            65536,
+            262144,
+            1048576
+          ],
+          "bench": {
+            "65536": {
+              "p50_us": 9531.0,
+              "p90_us": 13124.0,
+              "min_us": 3800.0,
+              "n": 200
+            },
+            "262144": {
+              "p50_us": 22602.0,
+              "p90_us": 30545.0,
+              "min_us": 11108.0,
+              "n": 200
+            },
+            "1048576": {
+              "p50_us": 56098.0,
+              "p90_us": 71659.0,
+              "min_us": 31922.0,
+              "n": 200
+            }
+          },
+          "bridge": {
+            "expected_bytes": 289016288,
+            "rc": 0,
+            "up": 289016288,
+            "down": 289016288
+          },
+          "perf": {
+            "verdict": null,
+            "verdict_lines": 0,
+            "watchdog_rc": -1,
+            "ok": false
+          },
+          "phase": {
+            "conn": "c1",
+            "records": 5053,
+            "expected": 5053,
+            "matched": true,
+            "failures": []
+          },
+          "payload_exit": "0"
+        },
+        "native_source": "shielded/anchor/avf/host/native-bridge.c: poll at line 131; read at line 71; send at line 84; cumulative source brackets in anchor_bridge_run_profile",
+        "host_phase_seconds": {
+          "65536": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 2.2736429993528873,
+              "median_s": 0.00978449999820441,
+              "p90_s": 0.013263000000733882,
+              "p99_s": 0.02532800001790747,
+              "max_s": 0.07146200002171099
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 0.2946310006082058,
+              "median_s": 0.0009025000326801091,
+              "p90_s": 0.0034990000422112644,
+              "p99_s": 0.005215000011958182,
+              "max_s": 0.0074560000211931765
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.003195000404957682,
+              "median_s": 1.3999990187585354e-05,
+              "p90_s": 2.300000051036477e-05,
+              "p99_s": 2.800003858283162e-05,
+              "max_s": 3.5999983083456755e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.01058299990836531,
+              "median_s": 4.900002386420965e-05,
+              "p90_s": 5.900004180148244e-05,
+              "p99_s": 6.999995093792677e-05,
+              "max_s": 7.899996126070619e-05
+            }
+          },
+          "262144": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 5.258133999654092,
+              "median_s": 0.02345399998011999,
+              "p90_s": 0.03041299997130409,
+              "p99_s": 0.06311499996809289,
+              "max_s": 0.09074399998644367
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 1.4962590004433878,
+              "median_s": 0.00503149998257868,
+              "p90_s": 0.012365000031422824,
+              "p99_s": 0.02809400000842288,
+              "max_s": 0.04659899999387562
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.004775000328663737,
+              "median_s": 2.0000035874545574e-05,
+              "p90_s": 3.2999960239976645e-05,
+              "p99_s": 4.1000021155923605e-05,
+              "max_s": 6.59999786876142e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.018684999842662364,
+              "median_s": 7.249999907799065e-05,
+              "p90_s": 9.799998952075839e-05,
+              "p99_s": 0.00014099996769800782,
+              "max_s": 0.0028929999680258334
+            }
+          },
+          "1048576": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 12.877976999792736,
+              "median_s": 0.06020649999845773,
+              "p90_s": 0.06616500002564862,
+              "p99_s": 0.11664100002963096,
+              "max_s": 0.19478499999968335
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 5.658877000038046,
+              "median_s": 0.022581500001251698,
+              "p90_s": 0.036942999984603375,
+              "p99_s": 0.05074100004276261,
+              "max_s": 0.19844199996441603
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.036777999775949866,
+              "median_s": 2.9999995604157448e-05,
+              "p90_s": 3.600004129111767e-05,
+              "p99_s": 4.600000102072954e-05,
+              "max_s": 0.030712000036146492
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.02699100034078583,
+              "median_s": 0.00012400001287460327,
+              "p90_s": 0.0001610000035725534,
+              "p99_s": 0.00020899996161460876,
+              "max_s": 0.00028500001644715667
+            }
+          }
+        },
+        "stalls": [],
+        "bridge_bins": 110,
+        "bridge_captured_seconds": {
+          "dt": 31.165626602,
+          "cpu": 7.954958395,
+          "poll_empty": 19.406316237,
+          "poll_up": 0.0,
+          "poll_down": 4.09656174,
+          "poll_both": 0.0,
+          "read_guest": 0.659436439,
+          "read_host": 0.83143051,
+          "write_host": 5.410942981,
+          "write_guest": 0.681622332
+        },
+        "bridge_captured_up": 289016288,
+        "bridge_captured_down": 289016288,
+        "limits": [
+          "Host phase spans include diagnostic logging overhead.",
+          "Header waits include preceding response delivery, guest payload comparison and next request preparation.",
+          "Bridge bins include deliberate control waits and omit the trailing partial bin; they are not exact measured-window totals.",
+          "Bridge CPU is aggregate thread CPU; per-operation source spans are wall time, not exclusive CPU.",
+          "No per-socket retransmission watchdog in this leg; no clean-link verdict.",
+          "No-model/no-pad/no-burner workload; not an inference throughput measurement."
+        ]
+      },
+      "ping_brackets": true,
+      "simpleperf_rc": 1
+    },
+    {
+      "label": "bridge-isolate-cpu-1",
+      "controller": {
+        "status": "COMMAND_COMPLETE",
+        "max_seconds": 300,
+        "cleanup_reserve_seconds": 50,
+        "includes_preflight": true,
+        "command_started": true,
+        "phone_cleanup": true,
+        "root_pid": 2660360,
+        "phone_stopped": true,
+        "command_rc": 0,
+        "remaining_owned_pids": [],
+        "cleanup_seconds": 0.37356849398929626,
+        "elapsed_seconds": 41.15232089499477
+      },
+      "analysis": {
+        "label": "bridge-isolate-cpu-1",
+        "status": "PASS_DIAGNOSTIC",
+        "functional": "PASS",
+        "gate": {
+          "functional": "PASS",
+          "reasons": [],
+          "mode": "native",
+          "kind": "diag",
+          "sizes": [
+            65536,
+            262144,
+            1048576
+          ],
+          "bench": {
+            "65536": {
+              "p50_us": 9610.0,
+              "p90_us": 14412.0,
+              "min_us": 4262.0,
+              "n": 200
+            },
+            "262144": {
+              "p50_us": 22148.0,
+              "p90_us": 29600.0,
+              "min_us": 9389.0,
+              "n": 200
+            },
+            "1048576": {
+              "p50_us": 57321.0,
+              "p90_us": 77686.0,
+              "min_us": 33668.0,
+              "n": 200
+            }
+          },
+          "bridge": {
+            "expected_bytes": 289016288,
+            "rc": -125,
+            "up": 289016288,
+            "down": 289016288
+          },
+          "perf": {
+            "verdict": null,
+            "verdict_lines": 0,
+            "watchdog_rc": -1,
+            "ok": false
+          },
+          "phase": {
+            "conn": "c1",
+            "records": 5053,
+            "expected": 5053,
+            "matched": true,
+            "failures": []
+          },
+          "payload_exit": "0"
+        },
+        "native_source": "shielded/anchor/avf/host/native-bridge.c; cumulative source brackets in anchor_bridge_run_profile around poll, pump_read and pump_write",
+        "host_phase_seconds": {
+          "65536": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 2.465876000060234,
+              "median_s": 0.009926000027917325,
+              "p90_s": 0.013873000047169626,
+              "p99_s": 0.041333000001031905,
+              "max_s": 0.048030000005383044
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 0.29567100026179105,
+              "median_s": 0.0008189999789465219,
+              "p90_s": 0.0033870000042952597,
+              "p99_s": 0.0057619999861344695,
+              "max_s": 0.009739000000990927
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.0028249998576939106,
+              "median_s": 1.1999974958598614e-05,
+              "p90_s": 1.8000020645558834e-05,
+              "p99_s": 3.100000321865082e-05,
+              "max_s": 3.400002606213093e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.010043999529443681,
+              "median_s": 4.600000102072954e-05,
+              "p90_s": 5.70000265724957e-05,
+              "p99_s": 6.59999786876142e-05,
+              "max_s": 7.300003198906779e-05
+            }
+          },
+          "262144": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 5.103175000171177,
+              "median_s": 0.023291999998036772,
+              "p90_s": 0.030003000050783157,
+              "p99_s": 0.058883999998215586,
+              "max_s": 0.09894600004190579
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 1.477240000560414,
+              "median_s": 0.005059499992057681,
+              "p90_s": 0.011807999981101602,
+              "p99_s": 0.019292999990284443,
+              "max_s": 0.08947599999373779
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.004273999424185604,
+              "median_s": 1.9000028260052204e-05,
+              "p90_s": 2.8999987989664078e-05,
+              "p99_s": 3.5999983083456755e-05,
+              "max_s": 5.600001895800233e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.017222999595105648,
+              "median_s": 7.40000104997307e-05,
+              "p90_s": 8.899997919797897e-05,
+              "p99_s": 0.00010300002759322524,
+              "max_s": 0.0013550000148825347
+            }
+          },
+          "1048576": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 13.35560199979227,
+              "median_s": 0.06049249999341555,
+              "p90_s": 0.0750969999935478,
+              "p99_s": 0.09918399999151006,
+              "max_s": 0.21713899995665997
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 5.621565000154078,
+              "median_s": 0.022617000009631738,
+              "p90_s": 0.03541599999880418,
+              "p99_s": 0.095848000026308,
+              "max_s": 0.15809100004844368
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.005972999962978065,
+              "median_s": 2.9999995604157448e-05,
+              "p90_s": 3.3999967854470015e-05,
+              "p99_s": 4.0000013541430235e-05,
+              "max_s": 4.499999340623617e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.028307999833486974,
+              "median_s": 0.00013500000932253897,
+              "p90_s": 0.00015599996550008655,
+              "p99_s": 0.00017800001660361886,
+              "max_s": 0.0002519999979995191
+            }
+          }
+        },
+        "stalls": [],
+        "bridge_bins": 112,
+        "bridge_captured_seconds": {
+          "dt": 31.660978124,
+          "cpu": 7.965429618,
+          "poll_empty": 19.187037997,
+          "poll_up": 0.0,
+          "poll_down": 4.729890311,
+          "poll_both": 0.0,
+          "read_guest": 0.666188839,
+          "read_host": 0.824149137,
+          "write_host": 5.326298167,
+          "write_guest": 0.71370595
+        },
+        "bridge_captured_up": 289016288,
+        "bridge_captured_down": 289016288,
+        "limits": [
+          "Host phase spans include diagnostic logging overhead.",
+          "Header waits include preceding response delivery, guest payload comparison and next request preparation.",
+          "Bridge bins include deliberate control waits and now retain the final partial interval. They cover the bridge lifetime, not exclusively timed frames.",
+          "Call CPU brackets use CLOCK_THREAD_CPUTIME_ID; user/system split uses RUSAGE_THREAD. Both include measurement overhead. Kernel CPU is not kernel source-PC attribution.",
+          "No per-socket retransmission watchdog in this leg; no clean-link verdict.",
+          "No-model/no-pad/no-burner workload; not an inference throughput measurement."
+        ],
+        "bridge_cpu_seconds": {
+          "cpu_poll": 1.56279363,
+          "cpu_read_guest": 0.571024356,
+          "cpu_read_host": 0.728327696,
+          "cpu_write_host": 4.295476315,
+          "cpu_write_guest": 0.651783577,
+          "cpu_user": 0.18876,
+          "cpu_system": 7.776669
+        },
+        "bridge_cpu_outside_call_brackets_seconds": 0.15602404399999958,
+        "bridge_cpu_system_fraction": 0.9763025946248469,
+        "profile_complete_byte_accounting": true
+      },
+      "ping_brackets": true
+    },
+    {
+      "label": "bridge-isolate-user-1",
+      "controller": {
+        "status": "COMMAND_COMPLETE",
+        "max_seconds": 300,
+        "cleanup_reserve_seconds": 50,
+        "includes_preflight": true,
+        "command_started": true,
+        "phone_cleanup": true,
+        "root_pid": 2646268,
+        "phone_stopped": true,
+        "command_rc": 0,
+        "remaining_owned_pids": [],
+        "cleanup_seconds": 0.3496342989965342,
+        "elapsed_seconds": 40.800700714986306
+      },
+      "analysis": {
+        "label": "bridge-isolate-user-1",
+        "status": "PASS_DIAGNOSTIC",
+        "functional": "PASS",
+        "gate": {
+          "functional": "PASS",
+          "reasons": [],
+          "mode": "native",
+          "kind": "diag",
+          "sizes": [
+            65536,
+            262144,
+            1048576
+          ],
+          "bench": {
+            "65536": {
+              "p50_us": 9427.0,
+              "p90_us": 12382.0,
+              "min_us": 5170.0,
+              "n": 200
+            },
+            "262144": {
+              "p50_us": 22881.0,
+              "p90_us": 30224.0,
+              "min_us": 11747.0,
+              "n": 200
+            },
+            "1048576": {
+              "p50_us": 56294.0,
+              "p90_us": 70467.0,
+              "min_us": 41363.0,
+              "n": 200
+            }
+          },
+          "bridge": {
+            "expected_bytes": 289016288,
+            "rc": -125,
+            "up": 289016288,
+            "down": 289016288
+          },
+          "perf": {
+            "verdict": null,
+            "verdict_lines": 0,
+            "watchdog_rc": -1,
+            "ok": false
+          },
+          "phase": {
+            "conn": "c1",
+            "records": 5053,
+            "expected": 5053,
+            "matched": true,
+            "failures": []
+          },
+          "payload_exit": "0"
+        },
+        "native_source": "shielded/anchor/avf/host/native-bridge.c; cumulative source brackets in anchor_bridge_run_profile around poll, pump_read and pump_write",
+        "host_phase_seconds": {
+          "65536": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 2.1710839996812865,
+              "median_s": 0.009950000006938353,
+              "p90_s": 0.012744000006932765,
+              "p99_s": 0.01918499998282641,
+              "max_s": 0.021394000039435923
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 0.2954020003671758,
+              "median_s": 0.0009990000107791275,
+              "p90_s": 0.0028590000001713634,
+              "p99_s": 0.007041000004392117,
+              "max_s": 0.01750199997331947
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.0035069999867118895,
+              "median_s": 1.6000005416572094e-05,
+              "p90_s": 2.7999980375170708e-05,
+              "p99_s": 3.6999990697950125e-05,
+              "max_s": 4.499999340623617e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.011045000166632235,
+              "median_s": 5.400000372901559e-05,
+              "p90_s": 6.0999998822808266e-05,
+              "p99_s": 7.499998901039362e-05,
+              "max_s": 8.999998681247234e-05
+            }
+          },
+          "262144": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 5.172148999408819,
+              "median_s": 0.02365550000104122,
+              "p90_s": 0.029716999968513846,
+              "p99_s": 0.04426699999021366,
+              "max_s": 0.07111200003419071
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 1.415251999918837,
+              "median_s": 0.005113999999593943,
+              "p90_s": 0.01235199999064207,
+              "p99_s": 0.01728299999376759,
+              "max_s": 0.023226000019349158
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.004578000458423048,
+              "median_s": 1.9000028260052204e-05,
+              "p90_s": 2.9999995604157448e-05,
+              "p99_s": 3.5999983083456755e-05,
+              "max_s": 4.299997817724943e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.01788399973884225,
+              "median_s": 6.949997623451054e-05,
+              "p90_s": 8.600001456215978e-05,
+              "p99_s": 0.00010000000474974513,
+              "max_s": 0.003132999991066754
+            }
+          },
+          "1048576": {
+            "hdr": {
+              "n": 210,
+              "sum_s": 12.837604000524152,
+              "median_s": 0.06054000000585802,
+              "p90_s": 0.06791899999370798,
+              "p99_s": 0.0752959999954328,
+              "max_s": 0.09588500001700595
+            },
+            "body": {
+              "n": 210,
+              "sum_s": 5.511828000016976,
+              "median_s": 0.02266249997774139,
+              "p90_s": 0.035503000020980835,
+              "p99_s": 0.06290999997872859,
+              "max_s": 0.14931999996770173
+            },
+            "echo-hdr": {
+              "n": 210,
+              "sum_s": 0.005454999627545476,
+              "median_s": 2.6999972760677338e-05,
+              "p90_s": 3.2999960239976645e-05,
+              "p99_s": 3.9000005926936865e-05,
+              "max_s": 4.4000043999403715e-05
+            },
+            "echo-body": {
+              "n": 210,
+              "sum_s": 0.027641000458970666,
+              "median_s": 0.0001309999788645655,
+              "p90_s": 0.0001480000209994614,
+              "p99_s": 0.0001740000443533063,
+              "max_s": 0.0002519999979995191
+            }
+          }
+        },
+        "stalls": [],
+        "bridge_bins": 108,
+        "bridge_captured_seconds": {
+          "dt": 30.668430516,
+          "cpu": 8.083058182,
+          "poll_empty": 19.038699945,
+          "poll_up": 0.0,
+          "poll_down": 3.889286238,
+          "poll_both": 0.0,
+          "read_guest": 0.64617992,
+          "read_host": 0.82383198,
+          "write_host": 5.485697949,
+          "write_guest": 0.707309878
+        },
+        "bridge_captured_up": 289016288,
+        "bridge_captured_down": 289016288,
+        "limits": [
+          "Host phase spans include diagnostic logging overhead.",
+          "Header waits include preceding response delivery, guest payload comparison and next request preparation.",
+          "Bridge bins include deliberate control waits and omit the trailing partial bin; they are not exact measured-window totals.",
+          "Bridge CPU is aggregate thread CPU; per-operation source spans are wall time, not exclusive CPU.",
+          "No per-socket retransmission watchdog in this leg; no clean-link verdict.",
+          "No-model/no-pad/no-burner workload; not an inference throughput measurement."
+        ]
+      },
+      "simpleperf_rc": 1,
+      "simpleperf_error": "simpleperf E event_selection_set.cpp:806] failed to open perf event file for event_type cpu-clock:u: Permission denied"
+    }
+  ]
+}

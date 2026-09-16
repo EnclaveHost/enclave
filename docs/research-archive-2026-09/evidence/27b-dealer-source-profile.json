@@ -1,0 +1,950 @@
+{
+  "scope": "Separate actual27B dealer run, public fixture seeds, two64-index shipments; sampled CPU instructions, not wall-time shares or inference throughput.",
+  "metrics": {
+    "pid": 2538795,
+    "start_ticks": 30383097,
+    "begin_ns": 303831081577705,
+    "end_ns": 303857211146853,
+    "events_opened": 782,
+    "event_failures": 1,
+    "first_errno": 3,
+    "samples": 7085,
+    "kernel_lost": 0,
+    "buffer_dropped": 0,
+    "other_records": 0,
+    "malformed_records": 0,
+    "cancelled": false
+  },
+  "sample_total": 7085,
+  "without_source_line": 454,
+  "thread_samples": {
+    "2538795": 699,
+    "2539771": 1,
+    "2539772": 1,
+    "2539773": 1,
+    "2539774": 1,
+    "2539775": 1,
+    "2539776": 1,
+    "2539777": 1,
+    "2539778": 1,
+    "2539779": 1,
+    "2539780": 1,
+    "2539781": 1,
+    "2539782": 1,
+    "2539783": 1,
+    "2539784": 1,
+    "2539785": 1,
+    "2539786": 1,
+    "2540095": 1,
+    "2540107": 1,
+    "2540413": 1,
+    "2540427": 1,
+    "2541532": 1,
+    "2541533": 1,
+    "2541534": 1,
+    "2541535": 1,
+    "2541536": 1,
+    "2541537": 1,
+    "2541538": 1,
+    "2541539": 1,
+    "2541540": 1,
+    "2541541": 1,
+    "2541542": 1,
+    "2541543": 1,
+    "2541544": 1,
+    "2541545": 1,
+    "2541546": 1,
+    "2541547": 1,
+    "2541731": 1,
+    "2541739": 1,
+    "2541925": 1,
+    "2543148": 1,
+    "2543156": 1,
+    "2543162": 1,
+    "2544011": 1,
+    "2544012": 1,
+    "2544013": 1,
+    "2544014": 1,
+    "2544015": 1,
+    "2544016": 1,
+    "2544017": 1,
+    "2544018": 1,
+    "2544019": 1,
+    "2544020": 1,
+    "2544021": 1,
+    "2544022": 1,
+    "2544023": 1,
+    "2544024": 1,
+    "2544025": 1,
+    "2544026": 1,
+    "2544217": 1,
+    "2544218": 1,
+    "2544219": 1,
+    "2544220": 1,
+    "2544221": 1,
+    "2544222": 1,
+    "2544223": 1,
+    "2544224": 1,
+    "2544225": 1,
+    "2544226": 1,
+    "2544227": 1,
+    "2544228": 1,
+    "2544229": 1,
+    "2544230": 1,
+    "2544231": 1,
+    "2544232": 1,
+    "2544800": 1,
+    "2544808": 1,
+    "2545150": 1,
+    "2545151": 1,
+    "2545152": 1,
+    "2545153": 1,
+    "2545154": 1,
+    "2545155": 1,
+    "2545156": 1,
+    "2545157": 1,
+    "2545158": 1,
+    "2545159": 1,
+    "2545160": 1,
+    "2545161": 1,
+    "2545162": 1,
+    "2545163": 1,
+    "2545164": 1,
+    "2545165": 1,
+    "2546020": 1,
+    "2546021": 1,
+    "2546034": 1,
+    "2546035": 1,
+    "2546873": 1,
+    "2546876": 1,
+    "2546886": 1,
+    "2546889": 1,
+    "2548546": 1,
+    "2548556": 1,
+    "2550020": 1,
+    "2550021": 1,
+    "2550022": 1,
+    "2550023": 1,
+    "2550024": 1,
+    "2550025": 1,
+    "2550026": 1,
+    "2550027": 1,
+    "2550028": 1,
+    "2550029": 1,
+    "2550030": 1,
+    "2550031": 1,
+    "2550032": 1,
+    "2550033": 1,
+    "2550034": 1,
+    "2550035": 1,
+    "2550383": 1,
+    "2551567": 1,
+    "2551569": 1,
+    "2551581": 1,
+    "2552503": 1,
+    "2552510": 1,
+    "2552516": 1,
+    "2552517": 1,
+    "2552695": 1,
+    "2552709": 1,
+    "2552854": 1,
+    "2552855": 1,
+    "2552856": 1,
+    "2552857": 1,
+    "2552858": 1,
+    "2552859": 1,
+    "2552860": 1,
+    "2552861": 1,
+    "2552862": 1,
+    "2552863": 1,
+    "2552864": 1,
+    "2552865": 1,
+    "2552866": 1,
+    "2552867": 1,
+    "2552868": 1,
+    "2552869": 1,
+    "2552984": 16,
+    "2552985": 23,
+    "2552986": 16,
+    "2552987": 15,
+    "2552988": 15,
+    "2552989": 16,
+    "2552990": 15,
+    "2552991": 15,
+    "2552992": 15,
+    "2552993": 15,
+    "2552994": 15,
+    "2552995": 15,
+    "2552996": 17,
+    "2552997": 15,
+    "2552998": 15,
+    "2552999": 23,
+    "2553000": 1,
+    "2553001": 1,
+    "2553002": 1,
+    "2553003": 1,
+    "2553004": 1,
+    "2553005": 1,
+    "2553006": 1,
+    "2553007": 1,
+    "2553008": 1,
+    "2553009": 1,
+    "2553010": 1,
+    "2553011": 1,
+    "2553012": 2,
+    "2553013": 1,
+    "2553014": 1,
+    "2553015": 1,
+    "2538813": 40,
+    "2538814": 40,
+    "2538815": 40,
+    "2554296": 136,
+    "2554297": 169,
+    "2554298": 272,
+    "2554299": 133,
+    "2554300": 132,
+    "2554301": 279,
+    "2554302": 292,
+    "2554303": 125,
+    "2554304": 138,
+    "2554305": 155,
+    "2554306": 295,
+    "2554307": 96,
+    "2554308": 133,
+    "2554309": 150,
+    "2554310": 232,
+    "2554311": 182,
+    "2554326": 187,
+    "2554327": 166,
+    "2554328": 280,
+    "2554329": 129,
+    "2554330": 131,
+    "2554331": 271,
+    "2554332": 254,
+    "2554333": 123,
+    "2554334": 132,
+    "2554335": 150,
+    "2554336": 269,
+    "2554337": 97,
+    "2554338": 117,
+    "2554339": 196,
+    "2554340": 228,
+    "2554341": 195
+  },
+  "top_lines": [
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_dpbusd_epi32",
+      "file": "/usr/lib/gcc/x86_64-pc-linux-gnu/16/include/avx512vnniintrin.h",
+      "line": 41,
+      "samples": 2170,
+      "percent": 30.628087508821455
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_loadu_si512",
+      "file": "/usr/lib/gcc/x86_64-pc-linux-gnu/16/include/avx512fintrin.h",
+      "line": 9448,
+      "samples": 1518,
+      "percent": 21.425546930134086
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_link_add_weight",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-tee.c",
+      "line": 717,
+      "samples": 512,
+      "percent": 7.226534932956952
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 415,
+      "samples": 246,
+      "percent": 3.4721242060691604
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 419,
+      "samples": 149,
+      "percent": 2.1030345800988
+    },
+    {
+      "module": "libggml-cpu.so",
+      "function": "ggml_vec_dot_q8_0_q8_0",
+      "file": "",
+      "line": 0,
+      "samples": 144,
+      "percent": 2.0324629498941427
+    },
+    {
+      "module": "libc.so.6",
+      "function": "",
+      "file": "",
+      "line": 0,
+      "samples": 137,
+      "percent": 1.9336626676076218
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 413,
+      "samples": 133,
+      "percent": 1.8772053634438957
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 35,
+      "samples": 110,
+      "percent": 1.55257586450247
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 759,
+      "samples": 107,
+      "percent": 1.5102328863796755
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 760,
+      "samples": 103,
+      "percent": 1.4537755822159493
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 189,
+      "samples": 96,
+      "percent": 1.3549752999294284
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 417,
+      "samples": 91,
+      "percent": 1.2844036697247707
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 33,
+      "samples": 84,
+      "percent": 1.18560338743825
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 409,
+      "samples": 80,
+      "percent": 1.1291460832745237
+    },
+    {
+      "module": "libm.so.6",
+      "function": "",
+      "file": "",
+      "line": 0,
+      "samples": 76,
+      "percent": 1.0726887791107975
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 423,
+      "samples": 75,
+      "percent": 1.058574453069866
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_reduce_add_epi32",
+      "file": "/usr/lib/gcc/x86_64-pc-linux-gnu/16/include/avx512fintrin.h",
+      "line": 16154,
+      "samples": 69,
+      "percent": 0.9738884968242767
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 34,
+      "samples": 67,
+      "percent": 0.9456598447424136
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 762,
+      "samples": 59,
+      "percent": 0.8327452364149612
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 36,
+      "samples": 50,
+      "percent": 0.7057163020465773
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 431,
+      "samples": 48,
+      "percent": 0.6774876499647142
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "modq",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 70,
+      "samples": 48,
+      "percent": 0.6774876499647142
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "aead_stream",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 784,
+      "samples": 45,
+      "percent": 0.6351446718419196
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 414,
+      "samples": 41,
+      "percent": 0.5786873676781934
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "modq",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 69,
+      "samples": 40,
+      "percent": 0.5645730416372619
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 407,
+      "samples": 37,
+      "percent": 0.5222300635144672
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 190,
+      "samples": 36,
+      "percent": 0.5081157374735357
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 187,
+      "samples": 32,
+      "percent": 0.4516584333098095
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 452,
+      "samples": 31,
+      "percent": 0.43754410726887794
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_pad_r",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 66,
+      "samples": 31,
+      "percent": 0.43754410726887794
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "fv_prepare_parallel",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-tee.c",
+      "line": 628,
+      "samples": 29,
+      "percent": 0.40931545518701484
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 38,
+      "samples": 29,
+      "percent": 0.40931545518701484
+    },
+    {
+      "module": "libm.so.6",
+      "function": "scalbnf32",
+      "file": "",
+      "line": 0,
+      "samples": 27,
+      "percent": 0.38108680310515175
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 186,
+      "samples": 24,
+      "percent": 0.3387438249823571
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 410,
+      "samples": 22,
+      "percent": 0.310515172900494
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 188,
+      "samples": 21,
+      "percent": 0.2964008468595625
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_init",
+      "file": "",
+      "line": 0,
+      "samples": 20,
+      "percent": 0.2822865208186309
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "crt_balanced",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 82,
+      "samples": 19,
+      "percent": 0.2681721947776994
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "poly1305_blocks",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/poly1305-donna-64.h",
+      "line": 141,
+      "samples": 19,
+      "percent": 0.2681721947776994
+    }
+  ],
+  "top_functions": [
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_dpbusd_epi32",
+      "samples": 2170,
+      "percent": 30.628087508821455
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_loadu_si512",
+      "samples": 1518,
+      "percent": 21.425546930134086
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "refill_rows_blocked",
+      "samples": 1007,
+      "percent": 14.213126323218066
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_link_add_weight",
+      "samples": 512,
+      "percent": 7.226534932956952
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_chacha20_block",
+      "samples": 355,
+      "percent": 5.010585744530698
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "chacha_ietf_block",
+      "samples": 283,
+      "percent": 3.9943542695836274
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "encode_row",
+      "samples": 214,
+      "percent": 3.020465772759351
+    },
+    {
+      "module": "libggml-cpu.so",
+      "function": "ggml_vec_dot_q8_0_q8_0",
+      "samples": 144,
+      "percent": 2.0324629498941427
+    },
+    {
+      "module": "libc.so.6",
+      "function": "",
+      "samples": 137,
+      "percent": 1.9336626676076218
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "modq",
+      "samples": 113,
+      "percent": 1.5949188426252647
+    },
+    {
+      "module": "libm.so.6",
+      "function": "",
+      "samples": 76,
+      "percent": 1.0726887791107975
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "poly1305_blocks",
+      "samples": 73,
+      "percent": 1.0303458009880029
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_reduce_add_epi32",
+      "samples": 69,
+      "percent": 0.9738884968242767
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "aead_stream",
+      "samples": 46,
+      "percent": 0.6492589978828511
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_pads_writer_cell_with",
+      "samples": 44,
+      "percent": 0.621030345800988
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_pad_r",
+      "samples": 43,
+      "percent": 0.6069160197600565
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_prepare_weight_rows_range",
+      "samples": 37,
+      "percent": 0.5222300635144672
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "crt_balanced",
+      "samples": 34,
+      "percent": 0.4798870853916726
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "fv_prepare_parallel",
+      "samples": 30,
+      "percent": 0.4234297812279464
+    },
+    {
+      "module": "libm.so.6",
+      "function": "scalbnf32",
+      "samples": 27,
+      "percent": 0.38108680310515175
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_init",
+      "samples": 20,
+      "percent": 0.2822865208186309
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_half_to_float",
+      "samples": 20,
+      "percent": 0.2822865208186309
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_simd_avx512_fv_prepare",
+      "samples": 17,
+      "percent": 0.2399435426958363
+    },
+    {
+      "module": "[vdso]",
+      "function": "[unmapped]",
+      "samples": 15,
+      "percent": 0.2117148906139732
+    },
+    {
+      "module": "libgomp.so.1.0.0",
+      "function": "",
+      "samples": 12,
+      "percent": 0.16937191249117856
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_float_to_half",
+      "samples": 11,
+      "percent": 0.155257586450247
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm512_extracti64x4_epi64",
+      "samples": 10,
+      "percent": 0.14114326040931546
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "sh_simd_avx512_pad_planes",
+      "samples": 8,
+      "percent": 0.11291460832745237
+    },
+    {
+      "module": "libggml-shielded.so",
+      "function": "_mm256_extracti128_si256",
+      "samples": 7,
+      "percent": 0.09880028228652082
+    },
+    {
+      "module": "libllama.so.0.0.10217",
+      "function": "llama_vocab::impl::load(llama_model_loader&, LLM_KV const&)",
+      "samples": 6,
+      "percent": 0.08468595624558928
+    }
+  ],
+  "project_source_lines": [
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 420,
+      "samples": 2170,
+      "percent": 30.628087508821455
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 417,
+      "samples": 1350,
+      "percent": 19.054340155257588
+    },
+    {
+      "function": "sh_link_add_weight",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-tee.c",
+      "line": 717,
+      "samples": 512,
+      "percent": 7.226534932956952
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 419,
+      "samples": 408,
+      "percent": 5.758645024700071
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 415,
+      "samples": 246,
+      "percent": 3.4721242060691604
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 413,
+      "samples": 133,
+      "percent": 1.8772053634438957
+    },
+    {
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 35,
+      "samples": 110,
+      "percent": 1.55257586450247
+    },
+    {
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 759,
+      "samples": 107,
+      "percent": 1.5102328863796755
+    },
+    {
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 760,
+      "samples": 103,
+      "percent": 1.4537755822159493
+    },
+    {
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 189,
+      "samples": 96,
+      "percent": 1.3549752999294284
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 448,
+      "samples": 96,
+      "percent": 1.3549752999294284
+    },
+    {
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 33,
+      "samples": 84,
+      "percent": 1.18560338743825
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 409,
+      "samples": 80,
+      "percent": 1.1291460832745237
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 423,
+      "samples": 75,
+      "percent": 1.058574453069866
+    },
+    {
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 34,
+      "samples": 67,
+      "percent": 0.9456598447424136
+    },
+    {
+      "function": "chacha_ietf_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 762,
+      "samples": 59,
+      "percent": 0.8327452364149612
+    },
+    {
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 36,
+      "samples": 50,
+      "percent": 0.7057163020465773
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 431,
+      "samples": 48,
+      "percent": 0.6774876499647142
+    },
+    {
+      "function": "modq",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 70,
+      "samples": 48,
+      "percent": 0.6774876499647142
+    },
+    {
+      "function": "aead_stream",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 784,
+      "samples": 45,
+      "percent": 0.6351446718419196
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 414,
+      "samples": 41,
+      "percent": 0.5786873676781934
+    },
+    {
+      "function": "modq",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 69,
+      "samples": 40,
+      "percent": 0.5645730416372619
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 407,
+      "samples": 37,
+      "percent": 0.5222300635144672
+    },
+    {
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 190,
+      "samples": 36,
+      "percent": 0.5081157374735357
+    },
+    {
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 187,
+      "samples": 32,
+      "percent": 0.4516584333098095
+    },
+    {
+      "function": "refill_rows_blocked",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-simd.c",
+      "line": 452,
+      "samples": 31,
+      "percent": 0.43754410726887794
+    },
+    {
+      "function": "sh_pad_r",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 66,
+      "samples": 31,
+      "percent": 0.43754410726887794
+    },
+    {
+      "function": "fv_prepare_parallel",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-tee.c",
+      "line": 628,
+      "samples": 29,
+      "percent": 0.40931545518701484
+    },
+    {
+      "function": "sh_chacha20_block",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-pads.c",
+      "line": 38,
+      "samples": 29,
+      "percent": 0.40931545518701484
+    },
+    {
+      "function": "encode_row",
+      "file": "/home/steven/Documents/Codex/2026-09-07/i-w/work/full-profile/dealer-symbol-build/shielded-field.c",
+      "line": 186,
+      "samples": 24,
+      "percent": 0.3387438249823571
+    }
+  ]
+}

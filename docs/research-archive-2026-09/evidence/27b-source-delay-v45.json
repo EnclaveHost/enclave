@@ -1,0 +1,330 @@
+{
+  "model": "Qwen3.8 27B Q8_0",
+  "apk": 45,
+  "source_commit": "c961b0289a1265e724cf8eb9ffeac3006402bb2b",
+  "labels": [
+    "b27-rcvbuf-1",
+    "b27-rcvbuf-3"
+  ],
+  "regions": [
+    {
+      "tag": "read_header",
+      "title": "Wait for reply header",
+      "detail": "The call waits for the first reply bytes through the full request/response path. This elapsed time is not GPU compute time.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-wire.c",
+      "line": 456,
+      "source": "if ((rc = read_reply(p, h, SH_HDR)) != SH_OK) {",
+      "source_sha256": "6d766008da0a02ea4986297509dca1410fceabf7dc15d7210eb770928f18a3c0",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 7028.418934,
+          "trial_elapsed_ms": [
+            5921.944258,
+            8134.89361
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 256.80328199999997
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 6466.8969290000005,
+          "trial_elapsed_ms": [
+            6007.61207,
+            6926.181788
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 263.697447
+        }
+      },
+      "measurement": "Socket WS span with separate caller-thread CPU clock"
+    },
+    {
+      "tag": "read_body",
+      "title": "Receive reply body",
+      "detail": "The call receives the remaining bytes. It includes VSOCK delivery, wakeup and scheduling delays; its caller CPU clock is much smaller.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-wire.c",
+      "line": 474,
+      "source": "if (size && (rc = read_reply(p, p->rbuf + used, (size_t)size)) != SH_OK) {",
+      "source_sha256": "6d766008da0a02ea4986297509dca1410fceabf7dc15d7210eb770928f18a3c0",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 4534.819023,
+          "trial_elapsed_ms": [
+            3927.471405,
+            5142.166641
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 695.9036945
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 3663.67105,
+          "trial_elapsed_ms": [
+            3114.88816,
+            4212.45394
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 450.3499455
+        }
+      },
+      "measurement": "Socket WS span with separate caller-thread CPU clock"
+    },
+    {
+      "tag": "write_request",
+      "title": "Send masked request",
+      "detail": "The write can wait for transport space. Header and body already use one vectored write.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-wire.c",
+      "line": 436,
+      "source": "int rc = write_all(p->fd, iov, iovcnt);",
+      "source_sha256": "6d766008da0a02ea4986297509dca1410fceabf7dc15d7210eb770928f18a3c0",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 906.770983,
+          "trial_elapsed_ms": [
+            720.155131,
+            1093.386835
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 169.2360895
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 884.194715,
+          "trial_elapsed_ms": [
+            725.04888,
+            1043.34055
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 144.4745235
+        }
+      },
+      "measurement": "Socket WS span with separate caller-thread CPU clock"
+    },
+    {
+      "tag": "post_ms",
+      "title": "Restore outliers and scale output",
+      "detail": "The production timer covers the member/row loop, including outlier_add, descale and accounting. It does not separate those callees.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/ggml-shielded.cpp",
+      "line": 1636,
+      "source": "if (nout) simd->outlier_add(x_tee.data() + (size_t)r * nout, e.out_cols.data(), (int)nout, N, yr);",
+      "source_sha256": "47ed6b113bf2f256e921a38e7d69333e62a7551413339343f7e5899b4f300160",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 644.65,
+          "trial_elapsed_ms": [
+            502.59999999999997,
+            786.7
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 572.7,
+          "trial_elapsed_ms": [
+            560.4000000000001,
+            585.0
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        }
+      },
+      "measurement": "Production block elapsed timer, rounded to 0.1 ms; CPU not separately measured"
+    },
+    {
+      "tag": "mask_ms",
+      "title": "Acquire pads and mask input",
+      "detail": "The production timer also covers dealt_wait, take_pads and request packing. Actual pad-wait counters were zero in all four trials.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-tee.c",
+      "line": 1876,
+      "source": "l->simd->mask_planes(x_field + (size_t)row * K, l->rp[row], (size_t)K,",
+      "source_sha256": "4d72d17e7ac9d80a63a5177689d0f8e2fdc52d7b0c2e53f0ae4de4cfed87bd31",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 634.65,
+          "trial_elapsed_ms": [
+            616.5,
+            652.8
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 549.75,
+          "trial_elapsed_ms": [
+            496.5999999999999,
+            602.9
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        }
+      },
+      "measurement": "Production block elapsed timer, rounded to 0.1 ms; CPU not separately measured"
+    },
+    {
+      "tag": "unmask_lhs_ms",
+      "title": "Unmask and verify output side",
+      "detail": "Packed replies are unmasked and their Freivalds left-hand terms computed in one pass.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-tee.c",
+      "line": 1943,
+      "source": "l->simd->unmask24_fv(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,",
+      "source_sha256": "4d72d17e7ac9d80a63a5177689d0f8e2fdc52d7b0c2e53f0ae4de4cfed87bd31",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 387.05,
+          "trial_elapsed_ms": [
+            314.0,
+            460.1
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 379.5,
+          "trial_elapsed_ms": [
+            398.1,
+            360.9
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        }
+      },
+      "measurement": "Production block elapsed timer, rounded to 0.1 ms; CPU not separately measured"
+    },
+    {
+      "tag": "encode_ms",
+      "title": "Encode activations and separate outliers",
+      "detail": "The production timer covers checked encoding, scratch capacity and outlier extraction.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/ggml-shielded.cpp",
+      "line": 1468,
+      "source": "if (!simd->encode_checked((const float *)a->data, (size_t)m * K, e0.act_scale, e0.encode_limit, x_gpu.data())) {",
+      "source_sha256": "47ed6b113bf2f256e921a38e7d69333e62a7551413339343f7e5899b4f300160",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 352.15000000000003,
+          "trial_elapsed_ms": [
+            252.6,
+            451.70000000000005
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 312.6,
+          "trial_elapsed_ms": [
+            301.50000000000006,
+            323.7
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        }
+      },
+      "measurement": "Production block elapsed timer, rounded to 0.1 ms; CPU not separately measured"
+    },
+    {
+      "tag": "rhs_ms",
+      "title": "Verify input side",
+      "detail": "The production counter covers Freivalds input terms, including the overlap callback when selected. Do not add a nested overlap timer twice.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-tee.c",
+      "line": 1950,
+      "source": "l->simd->fv_dots_x(x_field + (size_t)row * K, nd->st32, SH_FV_REPS, K, rhs_local);",
+      "source_sha256": "4d72d17e7ac9d80a63a5177689d0f8e2fdc52d7b0c2e53f0ae4de4cfed87bd31",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 220.45,
+          "trial_elapsed_ms": [
+            169.4,
+            271.5
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 200.40000000000003,
+          "trial_elapsed_ms": [
+            194.60000000000002,
+            206.20000000000002
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": null
+        }
+      },
+      "measurement": "Production block elapsed timer, rounded to 0.1 ms; CPU not separately measured"
+    },
+    {
+      "tag": "reply_reserve",
+      "title": "Check response buffer capacity",
+      "detail": "This source span includes length parsing and buffer-capacity handling. Its small time does not explain the read waits.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-wire.c",
+      "line": 468,
+      "source": "if (size && (rc = reply_reserve(p, used + (size_t)size)) != SH_OK) goto fail;",
+      "source_sha256": "6d766008da0a02ea4986297509dca1410fceabf7dc15d7210eb770928f18a3c0",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 5.110318,
+          "trial_elapsed_ms": [
+            6.086128,
+            4.134508
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 5.2532785
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 12.364509,
+          "trial_elapsed_ms": [
+            8.946215,
+            15.782803
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 8.8348125
+        }
+      },
+      "measurement": "Socket SP span with separate caller-thread CPU clock"
+    },
+    {
+      "tag": "overlap_work",
+      "title": "Optional overlap callback boundary",
+      "detail": "Mostly a callback boundary here. These tiny separately sampled clocks can have CPU slightly above elapsed time; retain that measurement discrepancy.",
+      "file": "/home/steven/Projects/enclave/wasm/ggml-shielded/shielded-wire.c",
+      "line": 444,
+      "source": "if (work && n) work(ctx);",
+      "source_sha256": "6d766008da0a02ea4986297509dca1410fceabf7dc15d7210eb770928f18a3c0",
+      "conditions": {
+        "256KiB": {
+          "mean_elapsed_ms_per_16_tokens": 4.381501,
+          "trial_elapsed_ms": [
+            2.314841,
+            6.448161
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 4.8651435
+        },
+        "4MiB": {
+          "mean_elapsed_ms_per_16_tokens": 3.534566,
+          "trial_elapsed_ms": [
+            2.890384,
+            4.178748
+          ],
+          "mean_caller_cpu_ms_per_16_tokens": 3.7564070000000003
+        }
+      },
+      "measurement": "Socket SP span with separate caller-thread CPU clock"
+    }
+  ],
+  "throughput": {
+    "off": {
+      "samples": 2,
+      "overall_tps": 0.833052763765787,
+      "steady_tps": 0.885671554494945,
+      "decode_seconds": 38.412932999999995,
+      "pad_wait_ms": 0.0
+    },
+    "on": {
+      "samples": 2,
+      "overall_tps": 0.9474204169810426,
+      "steady_tps": 1.0033097258413726,
+      "decode_seconds": 33.775923999999996,
+      "pad_wait_ms": 0.0
+    }
+  },
+  "trace_limits": [
+    {
+      "label": "b27-rcvbuf-1",
+      "status": "HOST_KERNEL_PROFILE_WITH_GUEST_STACK_GAP",
+      "guest_missing_stack_samples": 13146,
+      "other_trace_errors": []
+    },
+    {
+      "label": "b27-rcvbuf-3",
+      "status": "HOST_KERNEL_PROFILE_WITH_GUEST_STACK_GAP",
+      "guest_missing_stack_samples": 16767,
+      "other_trace_errors": []
+    }
+  ],
+  "limits": [
+    "Ten instrumented source regions, not an exhaustive per-line profile of the entire program.",
+    "Elapsed block timers include their callees and scheduling. Caller CPU excludes other threads, remote GPU and host-kernel work.",
+    "Concurrent MTP work and nested instrumentation prevent adding these rows into an exclusive decode-time decomposition.",
+    "Only socket spans have a separate caller-thread CPU clock. Production timers must not be labelled CPU time.",
+    "The protected guest has no sampled kernel callstacks in these captures. Exact kernel source-line delay is unavailable.",
+    "Both conditions use receive threshold 131072, original ARM kernels and fresh pads. Each condition averages two 16-token trials, one in each order.",
+    "These are short diagnostic inference measurements, excluding startup. They do not establish sustained production throughput."
+  ]
+}

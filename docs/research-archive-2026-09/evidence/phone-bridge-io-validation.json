@@ -1,0 +1,66 @@
+{
+  "status": "PASS_DIAGNOSTIC",
+  "label": "bridge-isolate-io-1",
+  "scope": "No-model sequential framed bridge diagnostic; no inference/pad traffic/burners; 1400-byte ICMP stimulus every 5 ms changes network and CPU activity",
+  "profile": 1,
+  "sizes": [
+    65536,
+    262144,
+    1048576
+  ],
+  "io_trace": {
+    "records": 19991,
+    "dropped": 0,
+    "stream_bytes": [
+      289016288,
+      289016288,
+      289016288,
+      289016288
+    ],
+    "bridge_status": 0,
+    "bytes": 799712,
+    "sha256": "6586f34805f68a457d28885f948ee686d93d1a80a191dd44ac0a839401a7ea0d"
+  },
+  "elapsed_seconds": 41.88971438497538,
+  "protected_unchanged": true,
+  "phone_lock_unchanged": true,
+  "functional_frames": {
+    "expected_bytes": 289016288,
+    "rc": 0,
+    "up": 289016288,
+    "down": 289016288
+  },
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "elapsed_seconds": 43.53188098501414,
+    "cleanup_seconds": 1.4133146020467393,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "native_sanitizer_tests": {
+    "cases": 6,
+    "status": "PASS",
+    "seconds": 7.606276697
+  },
+  "analysis_checks": {
+    "status": "PASS",
+    "frames_each_direction": 3823,
+    "split_io_events": 30584,
+    "trials": 2,
+    "exact_fields_each": 1574,
+    "known_clock_bounds_ns": [
+      999997000,
+      1000007000
+    ],
+    "checks": [
+      "known split-read/write phase sums",
+      "known clock bounds with send start/receive end",
+      "real prior frame geometry versus cumulative trial byte counters",
+      "corrupted byte offset rejected"
+    ]
+  },
+  "limitations": [
+    "Short bridge-only validation with no model, pads, or CPU burners; not an inference performance result.",
+    "The native trace contains syscall timing and stream offsets, never payloads; it does not timestamp kernel packet arrival."
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "controller": {
+    "status": "COMMAND_COMPLETE",
+    "max_seconds": 300,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 3787674,
+    "phone_stopped": true,
+    "command_rc": 0,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 0.2715428799856454,
+    "elapsed_seconds": 45.28692378400592
+  },
+  "resource_files": [
+    {
+      "stage": "before",
+      "file": 0,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "error": 0,
+      "bytes": 1065,
+      "values": 10
+    },
+    {
+      "stage": "before",
+      "file": 2,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "before",
+      "file": 3,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "before",
+      "file": 4,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "before",
+      "file": 5,
+      "error": 0,
+      "bytes": 1,
+      "values": 0
+    },
+    {
+      "stage": "before",
+      "file": 6,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 0,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "error": 0,
+      "bytes": 1065,
+      "values": 10
+    },
+    {
+      "stage": "after",
+      "file": 2,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 3,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 4,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 5,
+      "error": 0,
+      "bytes": 1,
+      "values": 0
+    },
+    {
+      "stage": "after",
+      "file": 6,
+      "error": 13,
+      "bytes": -1,
+      "values": 0
+    }
+  ],
+  "resource_values": [
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "MemTotal:",
+      "value": 6149396
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "MemFree:",
+      "value": 6045848
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "MemAvailable:",
+      "value": 5314092
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "Cached:",
+      "value": 24944
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "SwapTotal:",
+      "value": 6149392
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "SwapFree:",
+      "value": 6149392
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "Dirty:",
+      "value": 8
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "Writeback:",
+      "value": 4
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "AnonPages:",
+      "value": 4296
+    },
+    {
+      "stage": "before",
+      "file": 1,
+      "key": "Slab:",
+      "value": 22660
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "MemTotal:",
+      "value": 6149396
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "MemFree:",
+      "value": 6004136
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "MemAvailable:",
+      "value": 5275532
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "Cached:",
+      "value": 28880
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "SwapTotal:",
+      "value": 6149392
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "SwapFree:",
+      "value": 6149392
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "Dirty:",
+      "value": 0
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "Writeback:",
+      "value": 0
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "AnonPages:",
+      "value": 6524
+    },
+    {
+      "stage": "after",
+      "file": 1,
+      "key": "Slab:",
+      "value": 24152
+    }
+  ],
+  "protected_unchanged": true,
+  "phone_lock_unchanged": true,
+  "limitations": [
+    "Capability-only public-frame test, not inference or memory-pressure evidence.",
+    "Denied files were not retried with greater privilege. Wchan and kernel stack contents were not exported."
+  ]
+}

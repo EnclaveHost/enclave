@@ -1,0 +1,1286 @@
+{
+  "proof": {
+    "status": "PASS",
+    "mode": "full",
+    "supervisor_rc": 0,
+    "inputs_stable": true,
+    "all_started_workers_gone": true,
+    "owned_workers": [
+      100439,
+      102158
+    ],
+    "capture_status": "PASS",
+    "benchmark_status": "PASS"
+  },
+  "benchmark": {
+    "status": "PASS",
+    "results": [
+      {
+        "event": "plan",
+        "gpu": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+        "gpu_name": "Tesla V100-PCIE-32GB",
+        "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/shielded-worker",
+        "binary_sha256": "cbd424eecc6f86a35c55f0f92932565b9d6804b1ea3091de17402891cf291e89",
+        "geometry": "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/geometry-27b-nodes.json",
+        "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+        "condition": "private empty MPS pipe requested; checked post-context80SMs; resident live worker contexts remain",
+        "private_pipe": "/tmp/astra-xchg80-sgjkgrcz",
+        "harness_sha256": "a4b955b03dc99de9324845e5754273f37b5e7648c5fc7629e35abd51453e3e99",
+        "provenance_sha256": "538fd2bc9bc545d6100e61367a5857fe05a0aea83ff384b11ac60b22682464cf",
+        "nodes": 409,
+        "groups": 262,
+        "weight_bytes": 26023034880,
+        "macs_per_row": 26023034880,
+        "limits": [
+          256,
+          2048
+        ],
+        "rows": [
+          1,
+          4,
+          8,
+          16
+        ],
+        "warm": 2,
+        "passes": 10,
+        "label": "27B-SHAPED synthetic values in exact node geometry; not inference; host wall per exchange, never tok/s"
+      },
+      {
+        "event": "worker_started",
+        "limit": 256,
+        "pid": 100439,
+        "device_proof": {
+          "pid": 100439,
+          "uuid": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "name": "Tesla V100-PCIE-32GB",
+          "sm_count": 80,
+          "props_sm_count": 80,
+          "planner_sm_count": 80,
+          "driver_version": 13000,
+          "runtime_version": 12060,
+          "compute_mode": 0,
+          "mps_pipe": "/tmp/astra-xchg80-sgjkgrcz",
+          "worker_conf": "absent"
+        },
+        "hello": {
+          "version": [
+            1,
+            4,
+            0
+          ],
+          "device": "Tesla V100-PCIE-32GB",
+          "vram_total": 34072559616,
+          "vram_free": 33381679104,
+          "vram_budget": 30064771072,
+          "vram_reserved": 0,
+          "vram_reserve": 0,
+          "sm_count": 80,
+          "capability": "7.0",
+          "clock_khz": 1380000,
+          "card_tflops": 113.0,
+          "field_gmac_per_s": 2548.4,
+          "public_weight_cache_bytes": 0,
+          "worker": "shielded/worker-cuda"
+        }
+      },
+      {
+        "event": "registered",
+        "limit": 256,
+        "worker_version": [
+          1,
+          4,
+          0
+        ],
+        "upload_s": 21.14,
+        "install_s": 19.01,
+        "nodes": 409
+      },
+      {
+        "event": "verify",
+        "limit": 256,
+        "groups": [
+          "blk.0.attn_qkv.weight",
+          "blk.11.attn_q.weight",
+          "output.weight"
+        ],
+        "rows": [
+          1,
+          4,
+          8,
+          16
+        ],
+        "cells": 960,
+        "status": "PASS"
+      },
+      {
+        "event": "rows",
+        "limit": 256,
+        "m": 1,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0008,
+        "body_bytes": 6639252,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255473.365944645,
+            "end_mono": 255473.413737264
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255473.413743614,
+            "end_mono": 255473.456641396
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255473.456644926,
+            "end_mono": 255473.499574837
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255473.499578827,
+            "end_mono": 255473.542686536
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255473.542690606,
+            "end_mono": 255473.58530743
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255473.58531004,
+            "end_mono": 255473.628266741
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255473.628269761,
+            "end_mono": 255473.671637859
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255473.671641489,
+            "end_mono": 255473.715943528
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255473.715946088,
+            "end_mono": 255473.760077319
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255473.760079809,
+            "end_mono": 255473.803404527
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255473.803406647,
+            "end_mono": 255473.846870913
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255473.846873403,
+            "end_mono": 255473.890559138
+          }
+        ],
+        "exchange_ms_p50": 0.154,
+        "exchange_ms_p90": 0.251,
+        "exchange_ms_max": 1.648,
+        "exchange_ms_mean": 0.165,
+        "pass_s_mean": 0.043389,
+        "pass_s_min": 0.042617,
+        "request_bytes_per_pass": 6641610,
+        "reply_bytes_per_pass": 12639030,
+        "rows_per_second_in_pass": 23.05,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 256,
+        "m": 4,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0057,
+        "body_bytes": 26545812,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255473.896756275,
+            "end_mono": 255473.960393598
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255473.960395868,
+            "end_mono": 255474.024016281
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255474.024019611,
+            "end_mono": 255474.086739332
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255474.086743112,
+            "end_mono": 255474.149070507
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255474.149074467,
+            "end_mono": 255474.212470832
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255474.212474292,
+            "end_mono": 255474.275672359
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255474.275675329,
+            "end_mono": 255474.33846209
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255474.33846524,
+            "end_mono": 255474.401687267
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255474.401690137,
+            "end_mono": 255474.46533577
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255474.46533967,
+            "end_mono": 255474.529910265
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255474.529913005,
+            "end_mono": 255474.592402668
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255474.592406008,
+            "end_mono": 255474.654143238
+          }
+        ],
+        "exchange_ms_p50": 0.221,
+        "exchange_ms_p90": 0.343,
+        "exchange_ms_max": 2.37,
+        "exchange_ms_mean": 0.24,
+        "pass_s_mean": 0.063009,
+        "pass_s_min": 0.061737,
+        "request_bytes_per_pass": 26548170,
+        "reply_bytes_per_pass": 50549046,
+        "rows_per_second_in_pass": 63.48,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 256,
+        "m": 8,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0148,
+        "body_bytes": 53087892,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255474.669517486,
+            "end_mono": 255474.771731308
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255474.771734408,
+            "end_mono": 255474.871232913
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255474.871236593,
+            "end_mono": 255474.970788768
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255474.970793298,
+            "end_mono": 255475.070813748
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255475.070817388,
+            "end_mono": 255475.169726819
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255475.169730788,
+            "end_mono": 255475.268964446
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255475.268968036,
+            "end_mono": 255475.367896656
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255475.367900766,
+            "end_mono": 255475.467740228
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255475.467744048,
+            "end_mono": 255475.566222162
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255475.566226092,
+            "end_mono": 255475.665234222
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255475.665238542,
+            "end_mono": 255475.764486989
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255475.764490569,
+            "end_mono": 255475.864169243
+          }
+        ],
+        "exchange_ms_p50": 0.346,
+        "exchange_ms_p90": 0.582,
+        "exchange_ms_max": 4.048,
+        "exchange_ms_mean": 0.378,
+        "pass_s_mean": 0.09929,
+        "pass_s_min": 0.098478,
+        "request_bytes_per_pass": 53090250,
+        "reply_bytes_per_pass": 101095734,
+        "rows_per_second_in_pass": 80.57,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 256,
+        "m": 16,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0273,
+        "body_bytes": 106172052,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255475.892037804,
+            "end_mono": 255476.081877043
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255476.081882253,
+            "end_mono": 255476.26849142
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255476.26849763,
+            "end_mono": 255476.454865609
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255476.454870759,
+            "end_mono": 255476.642340448
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255476.642345858,
+            "end_mono": 255476.828913926
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255476.828919556,
+            "end_mono": 255477.01705538
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255477.01706022,
+            "end_mono": 255477.206407823
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255477.206413403,
+            "end_mono": 255477.395006493
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255477.395011033,
+            "end_mono": 255477.584663024
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255477.584669004,
+            "end_mono": 255477.773352353
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255477.773357183,
+            "end_mono": 255477.962550868
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255477.962555468,
+            "end_mono": 255478.151951161
+          }
+        ],
+        "exchange_ms_p50": 0.651,
+        "exchange_ms_p90": 1.142,
+        "exchange_ms_max": 8.464,
+        "exchange_ms_mean": 0.718,
+        "pass_s_mean": 0.188341,
+        "pass_s_min": 0.186368,
+        "request_bytes_per_pass": 106174410,
+        "reply_bytes_per_pass": 202189110,
+        "rows_per_second_in_pass": 84.95,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "cache": {
+          "limit": 256,
+          "high_water": 256,
+          "hits": 0,
+          "misses": 12588,
+          "capacity_flushes": 48,
+          "invalidations": 13
+        },
+        "capture_ms": 113.475,
+        "phases": {
+          "lock_wait": {
+            "samples": 12588,
+            "total_us": 639.273,
+            "max_us": 8.499
+          },
+          "staging": {
+            "samples": 12588,
+            "total_us": 9460.722,
+            "max_us": 4660.9
+          },
+          "graph_lookup_capture": {
+            "samples": 12588,
+            "total_us": 197923.751,
+            "max_us": 2194.121
+          },
+          "graph_launch_call": {
+            "samples": 12588,
+            "total_us": 45884.116,
+            "max_us": 32.289
+          },
+          "stream_sync": {
+            "samples": 12588,
+            "total_us": 3583172.659,
+            "max_us": 5973.598
+          },
+          "host_pack": {
+            "samples": 12588,
+            "total_us": 437.216,
+            "max_us": 2.47
+          },
+          "tcp_reply_write": {
+            "samples": 12588,
+            "total_us": 417356.363,
+            "max_us": 1442.198
+          }
+        },
+        "violation": false,
+        "event": "worker_close",
+        "limit": 256,
+        "calls": 12588
+      },
+      {
+        "event": "worker_stopped",
+        "limit": 256,
+        "rc": -15,
+        "reaped": true,
+        "attribution": {
+          "pid": 100439,
+          "own_seen": true,
+          "wrong_gpu": false,
+          "samples": 177,
+          "errors": 0,
+          "rows": [
+            [
+              "100439",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/shielded-worker"
+            ],
+            [
+              "651454",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "nvidia-cuda-mps-server"
+            ],
+            [
+              "651454",
+              "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+              "nvidia-cuda-mps-server"
+            ],
+            [
+              "99303",
+              "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+              "/home/steven/Projects/enclave/shielded/worker-cuda/shielded-worker"
+            ],
+            [
+              "99304",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "/home/steven/Projects/enclave/shielded/worker-cuda/shielded-worker"
+            ]
+          ]
+        }
+      },
+      {
+        "event": "worker_started",
+        "limit": 2048,
+        "pid": 102158,
+        "device_proof": {
+          "pid": 102158,
+          "uuid": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "name": "Tesla V100-PCIE-32GB",
+          "sm_count": 80,
+          "props_sm_count": 80,
+          "planner_sm_count": 80,
+          "driver_version": 13000,
+          "runtime_version": 12060,
+          "compute_mode": 0,
+          "mps_pipe": "/tmp/astra-xchg80-sgjkgrcz",
+          "worker_conf": "absent"
+        },
+        "hello": {
+          "version": [
+            1,
+            4,
+            0
+          ],
+          "device": "Tesla V100-PCIE-32GB",
+          "vram_total": 34072559616,
+          "vram_free": 33381679104,
+          "vram_budget": 30064771072,
+          "vram_reserved": 0,
+          "vram_reserve": 0,
+          "sm_count": 80,
+          "capability": "7.0",
+          "clock_khz": 1380000,
+          "card_tflops": 113.0,
+          "field_gmac_per_s": 2725.0,
+          "public_weight_cache_bytes": 0,
+          "worker": "shielded/worker-cuda"
+        }
+      },
+      {
+        "event": "registered",
+        "limit": 2048,
+        "worker_version": [
+          1,
+          4,
+          0
+        ],
+        "upload_s": 17.55,
+        "install_s": 19.41,
+        "nodes": 409
+      },
+      {
+        "event": "verify",
+        "limit": 2048,
+        "groups": [
+          "blk.0.attn_qkv.weight",
+          "blk.11.attn_q.weight",
+          "output.weight"
+        ],
+        "rows": [
+          1,
+          4,
+          8,
+          16
+        ],
+        "cells": 960,
+        "status": "PASS"
+      },
+      {
+        "event": "rows",
+        "limit": 2048,
+        "m": 1,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0009,
+        "body_bytes": 6639252,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255522.549458532,
+            "end_mono": 255522.595025052
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255522.595027562,
+            "end_mono": 255522.636139289
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255522.636141549,
+            "end_mono": 255522.677384286
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255522.677386176,
+            "end_mono": 255522.718846281
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255522.718848351,
+            "end_mono": 255522.760012318
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255522.760014798,
+            "end_mono": 255522.801609762
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255522.801612292,
+            "end_mono": 255522.842838278
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255522.842841368,
+            "end_mono": 255522.884211974
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255522.884214204,
+            "end_mono": 255522.924968144
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255522.924970614,
+            "end_mono": 255522.965967873
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255522.965970233,
+            "end_mono": 255523.007093261
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255523.007095641,
+            "end_mono": 255523.04796534
+          }
+        ],
+        "exchange_ms_p50": 0.15,
+        "exchange_ms_p90": 0.247,
+        "exchange_ms_max": 1.652,
+        "exchange_ms_mean": 0.157,
+        "pass_s_mean": 0.04118,
+        "pass_s_min": 0.040754,
+        "request_bytes_per_pass": 6641610,
+        "reply_bytes_per_pass": 12639030,
+        "rows_per_second_in_pass": 24.28,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 2048,
+        "m": 4,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0022,
+        "body_bytes": 26545812,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255523.050725207,
+            "end_mono": 255523.115822649
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255523.115825389,
+            "end_mono": 255523.172578953
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255523.172582023,
+            "end_mono": 255523.229401696
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255523.229404936,
+            "end_mono": 255523.285289307
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255523.285291927,
+            "end_mono": 255523.342600796
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255523.342604716,
+            "end_mono": 255523.399496698
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255523.399499718,
+            "end_mono": 255523.45649708
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255523.45650053,
+            "end_mono": 255523.512854407
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255523.512857397,
+            "end_mono": 255523.569784419
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255523.569787759,
+            "end_mono": 255523.627355316
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255523.627358436,
+            "end_mono": 255523.683541104
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255523.683543954,
+            "end_mono": 255523.739918751
+          }
+        ],
+        "exchange_ms_p50": 0.204,
+        "exchange_ms_p90": 0.33,
+        "exchange_ms_max": 2.3,
+        "exchange_ms_mean": 0.216,
+        "pass_s_mean": 0.056731,
+        "pass_s_min": 0.055884,
+        "request_bytes_per_pass": 26548170,
+        "reply_bytes_per_pass": 50549046,
+        "rows_per_second_in_pass": 70.51,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 2048,
+        "m": 8,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0043,
+        "body_bytes": 53087892,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255523.744829989,
+            "end_mono": 255523.851477835
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255523.851482155,
+            "end_mono": 255523.94785001
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255523.94785439,
+            "end_mono": 255524.04468623
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255524.0446909,
+            "end_mono": 255524.141346782
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255524.141350282,
+            "end_mono": 255524.23838441
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255524.23838901,
+            "end_mono": 255524.334220439
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255524.334224199,
+            "end_mono": 255524.431487395
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255524.431492065,
+            "end_mono": 255524.527350254
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255524.527354264,
+            "end_mono": 255524.625462203
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255524.625465863,
+            "end_mono": 255524.721684979
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255524.721688779,
+            "end_mono": 255524.818855026
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255524.818858916,
+            "end_mono": 255524.914251669
+          }
+        ],
+        "exchange_ms_p50": 0.331,
+        "exchange_ms_p90": 0.597,
+        "exchange_ms_max": 4.38,
+        "exchange_ms_mean": 0.368,
+        "pass_s_mean": 0.096636,
+        "pass_s_min": 0.095393,
+        "request_bytes_per_pass": 53090250,
+        "reply_bytes_per_pass": 101095734,
+        "rows_per_second_in_pass": 82.78,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "event": "rows",
+        "limit": 2048,
+        "m": 16,
+        "timed_exchanges": 2620,
+        "warm_exchanges": 524,
+        "passes": 10,
+        "warm_passes": 2,
+        "groups": 262,
+        "body_prep_s": 0.0082,
+        "body_bytes": 106172052,
+        "pass_intervals_mono": [
+          {
+            "pass_index": 0,
+            "warm": true,
+            "start_mono": 255524.923070473,
+            "end_mono": 255525.113228184
+          },
+          {
+            "pass_index": 1,
+            "warm": true,
+            "start_mono": 255525.113233114,
+            "end_mono": 255525.29461353
+          },
+          {
+            "pass_index": 2,
+            "warm": false,
+            "start_mono": 255525.2946181,
+            "end_mono": 255525.475449691
+          },
+          {
+            "pass_index": 3,
+            "warm": false,
+            "start_mono": 255525.475454721,
+            "end_mono": 255525.655867765
+          },
+          {
+            "pass_index": 4,
+            "warm": false,
+            "start_mono": 255525.655872335,
+            "end_mono": 255525.83730713
+          },
+          {
+            "pass_index": 5,
+            "warm": false,
+            "start_mono": 255525.83731294,
+            "end_mono": 255526.018764555
+          },
+          {
+            "pass_index": 6,
+            "warm": false,
+            "start_mono": 255526.018769375,
+            "end_mono": 255526.200680897
+          },
+          {
+            "pass_index": 7,
+            "warm": false,
+            "start_mono": 255526.200685857,
+            "end_mono": 255526.381851415
+          },
+          {
+            "pass_index": 8,
+            "warm": false,
+            "start_mono": 255526.381856195,
+            "end_mono": 255526.563043382
+          },
+          {
+            "pass_index": 9,
+            "warm": false,
+            "start_mono": 255526.563049582,
+            "end_mono": 255526.743622345
+          },
+          {
+            "pass_index": 10,
+            "warm": false,
+            "start_mono": 255526.743627545,
+            "end_mono": 255526.925614206
+          },
+          {
+            "pass_index": 11,
+            "warm": false,
+            "start_mono": 255526.925619066,
+            "end_mono": 255527.107584457
+          }
+        ],
+        "exchange_ms_p50": 0.624,
+        "exchange_ms_p90": 1.15,
+        "exchange_ms_max": 8.296,
+        "exchange_ms_mean": 0.691,
+        "pass_s_mean": 0.181292,
+        "pass_s_min": 0.180413,
+        "request_bytes_per_pass": 106174410,
+        "reply_bytes_per_pass": 202189110,
+        "rows_per_second_in_pass": 88.26,
+        "note": "host wall per fused FIELD_GEMM24 exchange on loopback; not model tok/s"
+      },
+      {
+        "cache": {
+          "limit": 2048,
+          "high_water": 526,
+          "hits": 11526,
+          "misses": 1062,
+          "capacity_flushes": 0,
+          "invalidations": 13
+        },
+        "capture_ms": 15.824,
+        "phases": {
+          "lock_wait": {
+            "samples": 12588,
+            "total_us": 438.119,
+            "max_us": 1.0
+          },
+          "staging": {
+            "samples": 12588,
+            "total_us": 10104.467,
+            "max_us": 4859.978
+          },
+          "graph_lookup_capture": {
+            "samples": 12588,
+            "total_us": 20670.611,
+            "max_us": 1281.429
+          },
+          "graph_launch_call": {
+            "samples": 12588,
+            "total_us": 61524.162,
+            "max_us": 44.86
+          },
+          "stream_sync": {
+            "samples": 12588,
+            "total_us": 3477149.258,
+            "max_us": 5832.01
+          },
+          "host_pack": {
+            "samples": 12588,
+            "total_us": 431.665,
+            "max_us": 3.1
+          },
+          "tcp_reply_write": {
+            "samples": 12588,
+            "total_us": 413501.149,
+            "max_us": 1595.236
+          }
+        },
+        "violation": false,
+        "event": "worker_close",
+        "limit": 2048,
+        "calls": 12588
+      },
+      {
+        "event": "worker_stopped",
+        "limit": 2048,
+        "rc": -15,
+        "reaped": true,
+        "attribution": {
+          "pid": 102158,
+          "own_seen": true,
+          "wrong_gpu": false,
+          "samples": 167,
+          "errors": 0,
+          "rows": [
+            [
+              "102158",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/shielded-worker"
+            ],
+            [
+              "651454",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "nvidia-cuda-mps-server"
+            ],
+            [
+              "651454",
+              "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+              "nvidia-cuda-mps-server"
+            ],
+            [
+              "99303",
+              "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+              "/home/steven/Projects/enclave/shielded/worker-cuda/shielded-worker"
+            ],
+            [
+              "99304",
+              "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+              "/home/steven/Projects/enclave/shielded/worker-cuda/shielded-worker"
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "capture": {
+    "status": "PASS",
+    "scope": "host-command-lifetime",
+    "command": [
+      "/usr/sbin/python3",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-microbench-27b.py",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/shielded-worker",
+      "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/full-20260908T194938Z/bench",
+      "--limits",
+      "256,2048",
+      "--rows",
+      "1,4,8,16",
+      "--warm",
+      "2",
+      "--passes",
+      "10",
+      "--verify-groups",
+      "3",
+      "--vram-gb",
+      "28"
+    ],
+    "gpus": [
+      "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+      "GPU-042eb279-e6e6-9866-5823-015b8d26946a"
+    ],
+    "command_rc": 0,
+    "capture_rc": 0,
+    "reasons": [],
+    "started_utc": 1788896978.5420728,
+    "sampler_pid": 99466,
+    "command_start_mono": 255425.364072767,
+    "command_start_utc": 1788896978.8941035,
+    "command_pid": 99469,
+    "command_end_mono": 255527.256852038,
+    "command_end_utc": 1788897080.786883,
+    "observations": {
+      "status": "VALID_OBSERVATIONS",
+      "capture_clean": true,
+      "clock": "recv_mono",
+      "window_start": 255425.364072767,
+      "window_end": 255527.256852038,
+      "window_seconds": 101.89277927100193,
+      "max_allowed_observation_gap_s": 1.0,
+      "gpus": {
+        "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+          "status": "VALID_OBSERVATIONS",
+          "samples_in_window": 396,
+          "window_bracketed": true,
+          "observation_coverage_fraction": 1.0,
+          "largest_observation_gap_s": 0.2785260000091512,
+          "mean_reported_util_pct": 0.04292929292929293,
+          "p50_reported_util_pct": 0.0,
+          "p90_reported_util_pct": 0.0,
+          "max_reported_util_pct": 8.0,
+          "fraction_readings_zero": 0.98989898989899,
+          "fraction_readings_ge90": 0.0,
+          "memory_used_mib_max": 337.0,
+          "power_reading_count": 396,
+          "mean_reported_power_w": 37.76588383838384
+        },
+        "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+          "status": "VALID_OBSERVATIONS",
+          "samples_in_window": 396,
+          "window_bracketed": true,
+          "observation_coverage_fraction": 1.0,
+          "largest_observation_gap_s": 0.32155100000090897,
+          "mean_reported_util_pct": 15.732323232323232,
+          "p50_reported_util_pct": 0.0,
+          "p90_reported_util_pct": 63.5,
+          "max_reported_util_pct": 100.0,
+          "fraction_readings_zero": 0.5151515151515151,
+          "fraction_readings_ge90": 0.010101010101010102,
+          "memory_used_mib_max": 25797.0,
+          "power_reading_count": 396,
+          "mean_reported_power_w": 45.78502525252525
+        }
+      },
+      "reasons": []
+    },
+    "ended_utc": 1788897082.059716
+  },
+  "identities": {
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-microbench-27b.py": {
+      "sha256": "a4b955b03dc99de9324845e5754273f37b5e7648c5fc7629e35abd51453e3e99",
+      "size": 24509,
+      "mtime_ns": 1788896750385848107
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/exchange_provenance.py": {
+      "sha256": "538fd2bc9bc545d6100e61367a5857fe05a0aea83ff384b11ac60b22682464cf",
+      "size": 4037,
+      "mtime_ns": 1788896388887085238
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/geometry-27b-nodes.json": {
+      "sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+      "size": 72942,
+      "mtime_ns": 1788892327656117620
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/shielded-worker": {
+      "sha256": "cbd424eecc6f86a35c55f0f92932565b9d6804b1ea3091de17402891cf291e89",
+      "size": 823896,
+      "mtime_ns": 1788896549246849591
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/exchange-device-proof.inc": {
+      "sha256": "13e8c8b9254151cf0e88af5230161a9ad3de694e5ce97f3cb8e3d99044ce733d",
+      "size": 3141,
+      "mtime_ns": 1788896304991862712
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/scratch-growth.h": {
+      "sha256": "7117f47134bfa97dec436c35a919ebf6cc05623dc961573f3bd5466f0c6ef891",
+      "size": 1225,
+      "mtime_ns": 1788895854337345094
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/public-weight-cache.h": {
+      "sha256": "dd5377f111410ff83b1a18b37f2c7a24dd5589866743498772ebccd08a318dbe",
+      "size": 3642,
+      "mtime_ns": 1788873616894712540
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/captured-graphs.h": {
+      "sha256": "b58c621facc2f725b0682a0ea7757f7d7fe3ea8062fe1e7915cdc0a0930e53ce",
+      "size": 2811,
+      "mtime_ns": 1788889174173793735
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/exchange-profile.h": {
+      "sha256": "494ca390e8ea25f13b0d53f9df018a186ad17aaaed2e8cd380e36d58ee7313ff",
+      "size": 1665,
+      "mtime_ns": 1788889950235845797
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/exchange80/worker-build/worker.cu": {
+      "sha256": "180761c4bd8a55589f5a3252d20e31001bd007218ac17b40dbe578bb7b132745",
+      "size": 113878,
+      "mtime_ns": 1788896304963297509
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/shielded/anchor/avf/host/gpu-capture-run.py": {
+      "sha256": "6d21dd8eccde3005eac47dd44f592c151e833ee694309b42ed40a304b9abcfcb",
+      "size": 10385,
+      "mtime_ns": 1788891945724105772
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/shielded/anchor/avf/host/gpu-util-sample.py": {
+      "sha256": "c212b05a232e7b96dc47c807e7497e22fb00335b3fcdd8084e31dd34edff7e6a",
+      "size": 14191,
+      "mtime_ns": 1788891945724949256
+    },
+    "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/shielded/anchor/avf/host/gpu-util-window.py": {
+      "sha256": "9220260aa4986ec45e9230ef4ff644c9bc2799d1bd565cb80ea20b14b5a8481e",
+      "size": 10045,
+      "mtime_ns": 1788891945724949256
+    }
+  },
+  "scope": "27B-shaped synthetic full worker exchange chain, explicit U2 private MPS pipe with checked80SM context, resident service contexts; not actual inference/phone tok/s; cache256 then2048 in one ordered comparison."
+}

@@ -1,0 +1,47 @@
+{
+  "status": "PARTIAL_GENERATION_ONLY",
+  "whole_probe_status": "FAIL",
+  "reason": "Cell-import setup failed at writer close (-1); no import comparison available.",
+  "generation_phase_complete": true,
+  "generation": [
+    {
+      "case": 0,
+      "width": 5120,
+      "calls": 6637,
+      "elements": 33981440,
+      "elapsed_us": 1500057,
+      "checksum": 48240787113,
+      "elements_per_second": 22653432.502898224
+    },
+    {
+      "case": 1,
+      "width": 34816,
+      "calls": 1036,
+      "elements": 36069376,
+      "elapsed_us": 1501429,
+      "checksum": 7316902675,
+      "elements_per_second": 24023364.408173814
+    },
+    {
+      "case": 2,
+      "width": 248320,
+      "calls": 146,
+      "elements": 36254720,
+      "elapsed_us": 1504268,
+      "checksum": 1074961589,
+      "elements_per_second": 24101237.279527318
+    }
+  ],
+  "whole_cycle": {
+    "elapsed_seconds": 16.293698495952412,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "scope": "One thread in protected VM; public inputs; existing mask sampler. This is neither model tok/s nor a new output-mask implementation.",
+  "reference_output_elements_per_token": 7401568,
+  "derived_single_thread_seconds_per_token": [
+    0.3267305296472427,
+    0.30809872731571514,
+    0.30710323765358
+  ]
+}

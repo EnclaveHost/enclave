@@ -1,0 +1,1178 @@
+{
+  "status": "PASS",
+  "scope": "exploratory three-class host CUDA comparison; fixed order; not phone inference",
+  "stages": {
+    "stage1-noop": {
+      "summary": {
+        "status": "PASS",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply",
+        "mode": "split",
+        "groups": 3,
+        "rows": [
+          1
+        ],
+        "iters": 5,
+        "invocations": 3,
+        "split_records_passed": 0,
+        "failures": [],
+        "abort": null,
+        "seconds": 15.6
+      },
+      "capture": {
+        "status": "PASS",
+        "scope": "host-command-lifetime",
+        "command": [
+          "python3",
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/worker-mapped-split.py",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage1-noop/diag",
+          "--rows",
+          "1",
+          "--iters",
+          "5",
+          "--hold-ms",
+          "2000",
+          "--probe",
+          "noop",
+          "--timeout",
+          "120",
+          "--max-secs",
+          "180"
+        ],
+        "gpus": [
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c"
+        ],
+        "command_rc": 0,
+        "capture_rc": 0,
+        "reasons": [],
+        "started_utc": 1788899691.557332,
+        "sampler_pid": 215151,
+        "command_start_mono": 258138.3790149,
+        "command_start_utc": 1788899691.9090452,
+        "command_pid": 215158,
+        "command_end_mono": 258154.104401779,
+        "command_end_utc": 1788899707.6344328,
+        "observations": {
+          "status": "VALID_OBSERVATIONS",
+          "capture_clean": true,
+          "clock": "recv_mono",
+          "window_start": 258138.3790149,
+          "window_end": 258154.104401779,
+          "window_seconds": 15.725386878999416,
+          "max_allowed_observation_gap_s": 1.0,
+          "gpus": {
+            "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 60,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.26162800000747666,
+              "mean_reported_util_pct": 2.3666666666666667,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 11.0,
+              "fraction_readings_zero": 0.5833333333333334,
+              "fraction_readings_ge90": 0.0,
+              "memory_used_mib_max": 2483.0,
+              "power_reading_count": 60,
+              "mean_reported_power_w": 35.38583333333334
+            },
+            "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 60,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.2628390000027139,
+              "mean_reported_util_pct": 0.8666666666666667,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 6.0,
+              "fraction_readings_zero": 0.8333333333333334,
+              "fraction_readings_ge90": 0.0,
+              "memory_used_mib_max": 1217.0,
+              "power_reading_count": 60,
+              "mean_reported_power_w": 37.95399999999999
+            }
+          },
+          "reasons": []
+        },
+        "ended_utc": 1788899708.8508208
+      },
+      "plan": {
+        "event": "plan",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply; PROBE noop: expected failure; ASYMMETRIC PAIR: device0 Tesla V100-PCIE-32GB 80 SMs + peer Tesla PG500-216 72 SMs",
+        "mode": "split",
+        "probe": "noop",
+        "identity": {
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a": [
+            "Tesla V100-PCIE-32GB",
+            80
+          ],
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": [
+            "Tesla PG500-216",
+            72
+          ]
+        },
+        "binary": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+        "binary_sha256": "fc39a7ae722d28cd96750535edb7405ecabde891813244b44718ee199917065c",
+        "worker_conf_beside_binary": "absent",
+        "smi": "nvidia-smi",
+        "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+        "gpu0": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+        "gpu0_name": "Tesla V100-PCIE-32GB",
+        "gpu1": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+        "gpu1_name": "Tesla PG500-216",
+        "rows": [
+          1
+        ],
+        "iters": 5,
+        "timeout_s": 120.0,
+        "max_secs": 180.0,
+        "hold_ms": 2000,
+        "private_pipe_dir": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage1-noop/diag/mps-private",
+        "env_dropped": [],
+        "default_pipe_exists": true,
+        "required_kinds": [
+          "init",
+          "init_peer",
+          "ref",
+          "split",
+          "split",
+          "end"
+        ],
+        "groups": [
+          {
+            "label": "ffn_gate pair",
+            "name": "blk.0.ffn_gate.weight",
+            "K": 5120,
+            "N": [
+              17408,
+              17408
+            ],
+            "split_left": [
+              8704,
+              8704
+            ]
+          },
+          {
+            "label": "ffn_down",
+            "name": "blk.0.ffn_down.weight",
+            "K": 17408,
+            "N": [
+              5120
+            ],
+            "split_left": [
+              2560
+            ]
+          },
+          {
+            "label": "output head",
+            "name": "output.weight",
+            "K": 5120,
+            "N": [
+              248320
+            ],
+            "split_left": [
+              124160
+            ]
+          }
+        ],
+        "label": "27B-shaped field-valued inputs, real member widths; one-card baseline vs two-card column split; host round incl. H2D + dispatch + wait; CUDA-event stream intervals incl. enqueue gaps; never tok/s"
+      },
+      "owned_pids": [
+        215161,
+        215233,
+        215305
+      ],
+      "hashes": {
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage1-noop/cap.capture.json": "f8dade17e8b6f62ede8f748ff8b8cad8e4b5bc7ef1eac998f88441f7c42f220f",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage1-noop/diag/summary.json": "bb3e2248536f980644eeaf8bd1002aad6bea9b30b68f8fbdd2e22196f7768c2c",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage1-noop/diag/diag.jsonl": "c61821531d8d54f1a12ed3bf248b81f669db9ed36221f1f933000a2037620b14"
+      }
+    },
+    "stage2-pre": {
+      "summary": {
+        "status": "PASS",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply",
+        "mode": "split",
+        "groups": 3,
+        "rows": [
+          1
+        ],
+        "iters": 5,
+        "invocations": 3,
+        "split_records_passed": 6,
+        "failures": [],
+        "abort": null,
+        "seconds": 15.5
+      },
+      "capture": {
+        "status": "PASS",
+        "scope": "host-command-lifetime",
+        "command": [
+          "python3",
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/worker-mapped-split.py",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage2-pre/diag",
+          "--rows",
+          "1",
+          "--iters",
+          "5",
+          "--hold-ms",
+          "2000",
+          "--timeout",
+          "120",
+          "--max-secs",
+          "180"
+        ],
+        "gpus": [
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c"
+        ],
+        "command_rc": 0,
+        "capture_rc": 0,
+        "reasons": [],
+        "started_utc": 1788899708.9469028,
+        "sampler_pid": 215584,
+        "command_start_mono": 258155.768682228,
+        "command_start_utc": 1788899709.2987127,
+        "command_pid": 215592,
+        "command_end_mono": 258171.394347222,
+        "command_end_utc": 1788899724.9243782,
+        "observations": {
+          "status": "VALID_OBSERVATIONS",
+          "capture_clean": true,
+          "clock": "recv_mono",
+          "window_start": 258155.768682228,
+          "window_end": 258171.394347222,
+          "window_seconds": 15.625664994004183,
+          "max_allowed_observation_gap_s": 1.0,
+          "gpus": {
+            "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 60,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.2704220000014175,
+              "mean_reported_util_pct": 2.533333333333333,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 12.0,
+              "fraction_readings_zero": 0.5666666666666667,
+              "fraction_readings_ge90": 0.0,
+              "memory_used_mib_max": 2483.0,
+              "power_reading_count": 60,
+              "mean_reported_power_w": 35.35166666666667
+            },
+            "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 60,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.2721220000239555,
+              "mean_reported_util_pct": 1.1,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 13.0,
+              "fraction_readings_zero": 0.8166666666666667,
+              "fraction_readings_ge90": 0.0,
+              "memory_used_mib_max": 1217.0,
+              "power_reading_count": 60,
+              "mean_reported_power_w": 37.90716666666666
+            }
+          },
+          "reasons": []
+        },
+        "ended_utc": 1788899726.0909069
+      },
+      "plan": {
+        "event": "plan",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply; fixed one_card then two_card order (EXPLORATORY); ASYMMETRIC PAIR: device0 Tesla V100-PCIE-32GB 80 SMs + peer Tesla PG500-216 72 SMs",
+        "mode": "split",
+        "probe": "none",
+        "identity": {
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a": [
+            "Tesla V100-PCIE-32GB",
+            80
+          ],
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": [
+            "Tesla PG500-216",
+            72
+          ]
+        },
+        "binary": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+        "binary_sha256": "fc39a7ae722d28cd96750535edb7405ecabde891813244b44718ee199917065c",
+        "worker_conf_beside_binary": "absent",
+        "smi": "nvidia-smi",
+        "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+        "gpu0": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+        "gpu0_name": "Tesla V100-PCIE-32GB",
+        "gpu1": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+        "gpu1_name": "Tesla PG500-216",
+        "rows": [
+          1
+        ],
+        "iters": 5,
+        "timeout_s": 120.0,
+        "max_secs": 180.0,
+        "hold_ms": 2000,
+        "private_pipe_dir": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage2-pre/diag/mps-private",
+        "env_dropped": [],
+        "default_pipe_exists": true,
+        "required_kinds": [
+          "init",
+          "init_peer",
+          "ref",
+          "split",
+          "split",
+          "end"
+        ],
+        "groups": [
+          {
+            "label": "ffn_gate pair",
+            "name": "blk.0.ffn_gate.weight",
+            "K": 5120,
+            "N": [
+              17408,
+              17408
+            ],
+            "split_left": [
+              8704,
+              8704
+            ]
+          },
+          {
+            "label": "ffn_down",
+            "name": "blk.0.ffn_down.weight",
+            "K": 17408,
+            "N": [
+              5120
+            ],
+            "split_left": [
+              2560
+            ]
+          },
+          {
+            "label": "output head",
+            "name": "output.weight",
+            "K": 5120,
+            "N": [
+              248320
+            ],
+            "split_left": [
+              124160
+            ]
+          }
+        ],
+        "label": "27B-shaped field-valued inputs, real member widths; one-card baseline vs two-card column split; host round incl. H2D + dispatch + wait; CUDA-event stream intervals incl. enqueue gaps; never tok/s"
+      },
+      "owned_pids": [
+        215595,
+        215679,
+        215749
+      ],
+      "hashes": {
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage2-pre/cap.capture.json": "7a1a218c7d2f711c9dab420872bb54eeca11317cb7900efb62b84da59e062a07",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage2-pre/diag/summary.json": "0abc44d6559f7be5b8da2444cd5b77b7f2a36e58e405935322c0c10c10dbf170",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage2-pre/diag/diag.jsonl": "5e0cb0ca46ec6513441862d38fb85498482a4cd1eb1fae46886d27172dfaa7a9"
+      }
+    },
+    "stage3-full": {
+      "summary": {
+        "status": "PASS",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply",
+        "mode": "split",
+        "groups": 3,
+        "rows": [
+          1,
+          8,
+          16
+        ],
+        "iters": 30,
+        "invocations": 9,
+        "split_records_passed": 18,
+        "failures": [],
+        "abort": null,
+        "seconds": 51.0
+      },
+      "capture": {
+        "status": "PASS",
+        "scope": "host-command-lifetime",
+        "command": [
+          "python3",
+          "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/worker-mapped-split.py",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+          "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage3-full/diag",
+          "--rows",
+          "1,8,16",
+          "--iters",
+          "30",
+          "--hold-ms",
+          "2000",
+          "--timeout",
+          "120",
+          "--max-secs",
+          "900"
+        ],
+        "gpus": [
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c"
+        ],
+        "command_rc": 0,
+        "capture_rc": 0,
+        "reasons": [],
+        "started_utc": 1788899726.1915777,
+        "sampler_pid": 216940,
+        "command_start_mono": 258173.013506964,
+        "command_start_utc": 1788899726.5435376,
+        "command_pid": 216947,
+        "command_end_mono": 258224.152773179,
+        "command_end_utc": 1788899777.6828036,
+        "observations": {
+          "status": "VALID_OBSERVATIONS",
+          "capture_clean": true,
+          "clock": "recv_mono",
+          "window_start": 258173.013506964,
+          "window_end": 258224.152773179,
+          "window_seconds": 51.13926621500286,
+          "max_allowed_observation_gap_s": 1.0,
+          "gpus": {
+            "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 198,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.27919900001143105,
+              "mean_reported_util_pct": 4.02020202020202,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 94.0,
+              "fraction_readings_zero": 0.5606060606060606,
+              "fraction_readings_ge90": 0.010101010101010102,
+              "memory_used_mib_max": 2483.0,
+              "power_reading_count": 198,
+              "mean_reported_power_w": 40.526414141414136
+            },
+            "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+              "status": "VALID_OBSERVATIONS",
+              "samples_in_window": 198,
+              "window_bracketed": true,
+              "observation_coverage_fraction": 1.0,
+              "largest_observation_gap_s": 0.2746380000025965,
+              "mean_reported_util_pct": 1.5808080808080809,
+              "p50_reported_util_pct": 0.0,
+              "p90_reported_util_pct": 6.0,
+              "max_reported_util_pct": 49.0,
+              "fraction_readings_zero": 0.803030303030303,
+              "fraction_readings_ge90": 0.0,
+              "memory_used_mib_max": 1229.0,
+              "power_reading_count": 198,
+              "mean_reported_power_w": 38.45934343434343
+            }
+          },
+          "reasons": []
+        },
+        "ended_utc": 1788899778.850614
+      },
+      "plan": {
+        "event": "plan",
+        "condition": "bare CUDA via a private no-daemon MPS pipe directory (NOT the serving MPS condition); two-card column split vs matched one-card baseline; in-place portable reply; fixed one_card then two_card order (EXPLORATORY); ASYMMETRIC PAIR: device0 Tesla V100-PCIE-32GB 80 SMs + peer Tesla PG500-216 72 SMs",
+        "mode": "split",
+        "probe": "none",
+        "identity": {
+          "GPU-042eb279-e6e6-9866-5823-015b8d26946a": [
+            "Tesla V100-PCIE-32GB",
+            80
+          ],
+          "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": [
+            "Tesla PG500-216",
+            72
+          ]
+        },
+        "binary": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split",
+        "binary_sha256": "fc39a7ae722d28cd96750535edb7405ecabde891813244b44718ee199917065c",
+        "worker_conf_beside_binary": "absent",
+        "smi": "nvidia-smi",
+        "geometry_sha256": "f2b90e7c19c838d9aee8f15bbc5ca8fb54afeaa83dc9bd0ef21bf243e4aefc5e",
+        "gpu0": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+        "gpu0_name": "Tesla V100-PCIE-32GB",
+        "gpu1": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+        "gpu1_name": "Tesla PG500-216",
+        "rows": [
+          1,
+          8,
+          16
+        ],
+        "iters": 30,
+        "timeout_s": 120.0,
+        "max_secs": 900.0,
+        "hold_ms": 2000,
+        "private_pipe_dir": "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage3-full/diag/mps-private",
+        "env_dropped": [],
+        "default_pipe_exists": true,
+        "required_kinds": [
+          "init",
+          "init_peer",
+          "ref",
+          "split",
+          "split",
+          "end"
+        ],
+        "groups": [
+          {
+            "label": "ffn_gate pair",
+            "name": "blk.0.ffn_gate.weight",
+            "K": 5120,
+            "N": [
+              17408,
+              17408
+            ],
+            "split_left": [
+              8704,
+              8704
+            ]
+          },
+          {
+            "label": "ffn_down",
+            "name": "blk.0.ffn_down.weight",
+            "K": 17408,
+            "N": [
+              5120
+            ],
+            "split_left": [
+              2560
+            ]
+          },
+          {
+            "label": "output head",
+            "name": "output.weight",
+            "K": 5120,
+            "N": [
+              248320
+            ],
+            "split_left": [
+              124160
+            ]
+          }
+        ],
+        "label": "27B-shaped field-valued inputs, real member widths; one-card baseline vs two-card column split; host round incl. H2D + dispatch + wait; CUDA-event stream intervals incl. enqueue gaps; never tok/s"
+      },
+      "owned_pids": [
+        216957,
+        217038,
+        217130,
+        217250,
+        217327,
+        217402,
+        217528,
+        218637,
+        218889
+      ],
+      "hashes": {
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage3-full/cap.capture.json": "e01038aa3f53d9980e1d8b831eff6c0647484e19464cd9f24c0f637e86e0dcda",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage3-full/diag/summary.json": "e923034f4a47030462120019cdee2e49eb0e1dd25a31335acbbbfd3f134f69ba",
+        "/tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/split-20260908T203451Z/stage3-full/diag/diag.jsonl": "26f63f46bdb27b38904923e36ea5b8ce137c4bbab743ce6c9b680b5611984c51"
+      }
+    }
+  },
+  "source_hash_manifest": "fc39a7ae722d28cd /tmp/claude-1000/-home-steven-Projects-enclave/baf9f90c-038e-4b79-bcc4-b87f74d359d3/scratchpad/worker-build/shielded-worker-split\nd4746d5df44d47cb /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/split-mapped.inc\nb5c0fb4381260ca0 /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/diag-mapped.inc\n97ec7d9b063a6f00 /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/sweep-mapped.inc\n14b0d71765c3b51c /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/worker-mapped-split.py\nf2b90e7c19c838d9 /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/geometry-27b-nodes.json\n",
+  "all_owned_pids_gone": true,
+  "full_records": [
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 15360,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 104448,
+      "device0_stream_us_per_iter": 222.48,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 222.31,
+      "out_bytes": 104448,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-001-blk.0.ffn_gate.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 30720,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 104448,
+      "device0_stream_us_per_iter": 121.72,
+      "device1_stream_us_per_iter": 121.68533,
+      "host_us_per_iter": 121.56,
+      "out_bytes": 104448,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-001-blk.0.ffn_gate.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 122880,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 835584,
+      "device0_stream_us_per_iter": 501.52,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 501.39,
+      "out_bytes": 835584,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-002-blk.0.ffn_gate.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 245760,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 835584,
+      "device0_stream_us_per_iter": 263.65,
+      "device1_stream_us_per_iter": 263.61173,
+      "host_us_per_iter": 263.5,
+      "out_bytes": 835584,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-002-blk.0.ffn_gate.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        2,
+        0
+      ],
+      "h2d_bytes_per_iter": 245760,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 1671168,
+      "device0_stream_us_per_iter": 975.74,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 975.56,
+      "out_bytes": 1671168,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-003-blk.0.ffn_gate.weight-m16"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        17408,
+        17408
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        8704,
+        8704
+      ],
+      "launches_per_iter": [
+        2,
+        2
+      ],
+      "h2d_bytes_per_iter": 491520,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 1671168,
+      "device0_stream_us_per_iter": 531.56,
+      "device1_stream_us_per_iter": 531.490135,
+      "host_us_per_iter": 531.33,
+      "out_bytes": 1671168,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_gate.weight",
+      "label": "ffn_gate pair",
+      "tag": "inv-003-blk.0.ffn_gate.weight-m16"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 52224,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 15360,
+      "device0_stream_us_per_iter": 133.15,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 133.03,
+      "out_bytes": 15360,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-004-blk.0.ffn_down.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 104448,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 15360,
+      "device0_stream_us_per_iter": 83.69,
+      "device1_stream_us_per_iter": 83.660801,
+      "host_us_per_iter": 83.58,
+      "out_bytes": 15360,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-004-blk.0.ffn_down.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 417792,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 122880,
+      "device0_stream_us_per_iter": 279.21,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 279.09,
+      "out_bytes": 122880,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-005-blk.0.ffn_down.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 835584,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 122880,
+      "device0_stream_us_per_iter": 250.5,
+      "device1_stream_us_per_iter": 250.504526,
+      "host_us_per_iter": 250.3,
+      "out_bytes": 122880,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-005-blk.0.ffn_down.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        2,
+        0
+      ],
+      "h2d_bytes_per_iter": 835584,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 245760,
+      "device0_stream_us_per_iter": 588.9,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 588.69,
+      "out_bytes": 245760,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-006-blk.0.ffn_down.weight-m16"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 17408,
+      "N": [
+        5120
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        2560
+      ],
+      "launches_per_iter": [
+        2,
+        2
+      ],
+      "h2d_bytes_per_iter": 1671168,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 245760,
+      "device0_stream_us_per_iter": 476.33,
+      "device1_stream_us_per_iter": 476.330662,
+      "host_us_per_iter": 476.19,
+      "out_bytes": 245760,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "blk.0.ffn_down.weight",
+      "label": "ffn_down",
+      "tag": "inv-006-blk.0.ffn_down.weight-m16"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 15360,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 744960,
+      "device0_stream_us_per_iter": 1458.35,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 1458.19,
+      "out_bytes": 744960,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-007-output.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 1,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 30720,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 744960,
+      "device0_stream_us_per_iter": 746.19,
+      "device1_stream_us_per_iter": 746.154658,
+      "host_us_per_iter": 745.97,
+      "out_bytes": 744960,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-007-output.weight-m1"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        1,
+        0
+      ],
+      "h2d_bytes_per_iter": 122880,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 5959680,
+      "device0_stream_us_per_iter": 3156.07,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 3155.91,
+      "out_bytes": 5959680,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-008-output.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 8,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        1,
+        1
+      ],
+      "h2d_bytes_per_iter": 245760,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 5959680,
+      "device0_stream_us_per_iter": 1601.57,
+      "device1_stream_us_per_iter": 1601.604207,
+      "host_us_per_iter": 1601.35,
+      "out_bytes": 5959680,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-008-output.weight-m8"
+    },
+    {
+      "diag": "split",
+      "mode": "one_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 1,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        2,
+        0
+      ],
+      "h2d_bytes_per_iter": 245760,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 11919360,
+      "device0_stream_us_per_iter": 6327.36,
+      "device1_stream_us_per_iter": 0,
+      "host_us_per_iter": 6327.03,
+      "out_bytes": 11919360,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-009-output.weight-m16"
+    },
+    {
+      "diag": "split",
+      "mode": "two_card",
+      "K": 5120,
+      "N": [
+        248320
+      ],
+      "m": 16,
+      "iters": 30,
+      "devices": 2,
+      "split_left": [
+        124160
+      ],
+      "launches_per_iter": [
+        2,
+        2
+      ],
+      "h2d_bytes_per_iter": 491520,
+      "verify": "PASS",
+      "verify_after_timing": "PASS",
+      "probe": "none",
+      "order": "fixed one_card then two_card (EXPLORATORY)",
+      "checked_bytes": 11919360,
+      "device0_stream_us_per_iter": 3182.18,
+      "device1_stream_us_per_iter": 3182.182312,
+      "host_us_per_iter": 3181.79,
+      "out_bytes": 11919360,
+      "interval": "per-device CUDA events around iters x {H2D planes, chunked launches, host wait}; host_us = the whole round incl. both H2D copies and dispatch; includes enqueue gaps; not kernel time; in-place portable reply, no gather",
+      "group": "output.weight",
+      "label": "output head",
+      "tag": "inv-009-output.weight-m16"
+    }
+  ],
+  "checked_output_bytes_per_before_or_after_sweep": 43238400
+}

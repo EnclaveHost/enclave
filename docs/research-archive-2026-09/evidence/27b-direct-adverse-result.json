@@ -1,0 +1,25 @@
+{
+  "label": "b27-mtp5-direct-1",
+  "status": "FAIL_INCOMPLETE",
+  "error": "TimeoutError: 540 second work deadline before decode completion",
+  "completed_trials": 0,
+  "tok_s": null,
+  "whole_cycle": {
+    "status": "COMMAND_FAILED",
+    "elapsed_seconds": 542.1906956440071,
+    "phone_stopped": true,
+    "remaining_owned_pids": []
+  },
+  "worker_cleanup": {
+    "owned_exit_code": -15,
+    "protected_unchanged": true,
+    "listener_closed": true
+  },
+  "gpu_peak_memory_mib": 25855.0,
+  "direct_shipments_accepted": 2,
+  "mtp_round_lines": [
+    "VSOCK ENGINE MTP profile: round 1 k=5 drafted=5 accepted=1 emitted=2 draft=1783.3 verify=13649.8 join=0.3 accept+rollback+observe=310.7 ms"
+  ],
+  "decision": "Do not retain direct streaming for the next speed comparison; no complete trial or tok/s measurement. Use cached-file pad path for ACK_STREAM test.",
+  "limitation": "Only partial capture; no completed verification/counter envelope. First round alone is not a throughput result."
+}

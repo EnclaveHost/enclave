@@ -1,0 +1,2219 @@
+{
+  "status": "PASS",
+  "scope": "balanced standalone CPU kernel comparison, not dealer or inference",
+  "summary_source": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/comparison-20260908T203844Z/summary.json",
+  "summary_sha256": "684784adbe83f8b7cd3504bc48d3921f79e3744af25271034907b89008cca14f",
+  "build": {
+    "status": "PASS",
+    "scope": "CPU build and correctness, no performance",
+    "elapsed_s": 14.125414490001276,
+    "variants": [
+      {
+        "variant": "A",
+        "status": "PASS",
+        "commands": [
+          [
+            "cc",
+            "-O3",
+            "-ffp-contract=off",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-fopt-info-vec-optimized=vec-A.log",
+            "-c",
+            "simd-A.c",
+            "-o",
+            "simd-A.o"
+          ],
+          [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-ffp-contract=off",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "refill-bench.cpp",
+            "simd-A.o",
+            "field.o",
+            "-Wl,--gc-sections",
+            "-pthread",
+            "-lm",
+            "-o",
+            "refill-A"
+          ],
+          [
+            "cc",
+            "-std=c11",
+            "-O1",
+            "-g",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-fsanitize=address,undefined",
+            "-fno-omit-frame-pointer",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-c",
+            "simd-A.c",
+            "-o",
+            "san-A.o"
+          ],
+          [
+            "cc",
+            "-std=c11",
+            "-O1",
+            "-g",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-fsanitize=address,undefined",
+            "-fno-omit-frame-pointer",
+            "boundary-oom.c",
+            "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.c",
+            "san-A.o",
+            "-Wl,--wrap=malloc",
+            "-Wl,--wrap=aligned_alloc",
+            "-Wl,--gc-sections",
+            "-lm",
+            "-o",
+            "boundary-A"
+          ]
+        ],
+        "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+        "binary_sha256": "2faf8cf138cbe2402be3cffa5338778e85e0558f08d89a0826c4aac4095306ad",
+        "source": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/simd-A.c",
+        "source_sha256": "666153b64352752336ca394ce70c9e5f5a48b6464ad5c5d8f65f3eaf4626cf88",
+        "tiny_cases": 25,
+        "scalar_boundary_oom_pairs": 320
+      },
+      {
+        "variant": "B",
+        "status": "PASS",
+        "commands": [
+          [
+            "cc",
+            "-O3",
+            "-ffp-contract=off",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-fopt-info-vec-optimized=vec-B.log",
+            "-c",
+            "simd-B.c",
+            "-o",
+            "simd-B.o"
+          ],
+          [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-ffp-contract=off",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "refill-bench.cpp",
+            "simd-B.o",
+            "field.o",
+            "-Wl,--gc-sections",
+            "-pthread",
+            "-lm",
+            "-o",
+            "refill-B"
+          ],
+          [
+            "cc",
+            "-std=c11",
+            "-O1",
+            "-g",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-fsanitize=address,undefined",
+            "-fno-omit-frame-pointer",
+            "-mavx512f",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mavx512vl",
+            "-mavx512vnni",
+            "-DSH_SIMD_AVX512",
+            "-c",
+            "simd-B.c",
+            "-o",
+            "san-B.o"
+          ],
+          [
+            "cc",
+            "-std=c11",
+            "-O1",
+            "-g",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded",
+            "-fsanitize=address,undefined",
+            "-fno-omit-frame-pointer",
+            "boundary-oom.c",
+            "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.c",
+            "san-B.o",
+            "-Wl,--wrap=malloc",
+            "-Wl,--wrap=aligned_alloc",
+            "-Wl,--gc-sections",
+            "-lm",
+            "-o",
+            "boundary-B"
+          ]
+        ],
+        "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+        "binary_sha256": "3ff29b247b07d71bc3719d9653b5db1fac215489da1fd14b07b938208c591711",
+        "source": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/simd-B.c",
+        "source_sha256": "f2b8879e11ee4ce2227f1a4f7c5160c27e2d5e8eca04489474b281ce7296dd17",
+        "tiny_cases": 25,
+        "scalar_boundary_oom_pairs": 320
+      }
+    ],
+    "shared_hashes": {
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/simd-A.c": "666153b64352752336ca394ce70c9e5f5a48b6464ad5c5d8f65f3eaf4626cf88",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/simd-B.c": "f2b8879e11ee4ce2227f1a4f7c5160c27e2d5e8eca04489474b281ce7296dd17",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-bench.cpp": "7d9992b6f757d927dd23d5946e138f180cd6a912f7affc17409f5d61e8169250",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/test-driver.py": "6131ce8621040b434d96862399a4bcf5c3b7bff98516a4f84292349903f436e0",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/boundary-oom.c": "6f11c7dbd1a37368e8c03efbce64a4cafcc04733f92a924468f0add0a8cfc315",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/field.o": "0b8594528a4849aaafb89c9dac8e51c105feb8428a8cb61f21c4860fcad051b2",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/source-plan.json": "88c5120b67d6003fd22009a20d22f832ca67473467a03c9c3d94ea7ac60b6b4a",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+      "/home/steven/Documents/Codex/2026-09-07/i-w/work/enclave-overlap-verify/wasm/ggml-shielded/shielded-simd.h": "5bb93117fc713fd32cf76c4b95a3457b32f45d557f8ae9dc7e99a92b6cbb38d2"
+    }
+  },
+  "metrics": [
+    {
+      "shape": "ffn_gate_member",
+      "threads": 1,
+      "median_gmac_per_wall_s": {
+        "A": 55.726486,
+        "B": 90.598318
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.6047156036649539
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.6217343872533098
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.6187900256348535
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.5979633064205145
+        }
+      ]
+    },
+    {
+      "shape": "ffn_gate_member",
+      "threads": 16,
+      "median_gmac_per_wall_s": {
+        "A": 518.3968605,
+        "B": 681.6182765000001
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.7388954155138929
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.7117962646300201
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.553448802046292
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.8446818631408958
+        }
+      ]
+    },
+    {
+      "shape": "ffn_down",
+      "threads": 1,
+      "median_gmac_per_wall_s": {
+        "A": 77.880332,
+        "B": 90.58037350000001
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.8209248817813967
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.8706633481324075
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.88514439269246
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.849168496607144
+        }
+      ]
+    },
+    {
+      "shape": "ffn_down",
+      "threads": 16,
+      "median_gmac_per_wall_s": {
+        "A": 657.6170215,
+        "B": 685.771497
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.8997619483994731
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.9387265543321619
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.9988008057400408
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 1.169236157463485
+        }
+      ]
+    },
+    {
+      "shape": "ssm_out",
+      "threads": 1,
+      "median_gmac_per_wall_s": {
+        "A": 60.106595999999996,
+        "B": 92.6027635
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.6377591684635732
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.643563229249407
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.6756059319166847
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.6527337776060264
+        }
+      ]
+    },
+    {
+      "shape": "ssm_out",
+      "threads": 16,
+      "median_gmac_per_wall_s": {
+        "A": 498.4901135,
+        "B": 680.436776
+      },
+      "matched_pairs": [
+        {
+          "repeat": 0,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.771341486795244
+        },
+        {
+          "repeat": 0,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.648136984986412
+        },
+        {
+          "repeat": 1,
+          "offset": 0,
+          "wall_ratio_B_over_A": 0.6977321909214226
+        },
+        {
+          "repeat": 1,
+          "offset": 2,
+          "wall_ratio_B_over_A": 0.9391182605640348
+        }
+      ]
+    }
+  ],
+  "measurements": {
+    "status": "PASS",
+    "expected": 48,
+    "completed": 48,
+    "results": [
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.828344612,
+          "process_cpu_s": 0.82536841,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 55.090631,
+          "logical_gmac_per_cpu_s": 55.289283,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225330,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.500912916,
+          "process_cpu_s": 0.499684099,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 91.101719,
+          "logical_gmac_per_cpu_s": 91.325755,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225364,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.50934734,
+          "process_cpu_s": 0.50742722,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 89.59314,
+          "logical_gmac_per_cpu_s": 89.932163,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225368,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.81923624,
+          "process_cpu_s": 0.81676771,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 55.703136,
+          "logical_gmac_per_cpu_s": 55.871488,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225384,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.48476019,
+          "process_cpu_s": 18.962495598,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 491.759171,
+          "logical_gmac_per_cpu_s": 38.50466,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225387,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.097082497,
+          "process_cpu_s": 13.11385312,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 665.532849,
+          "logical_gmac_per_cpu_s": 55.677339,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225423,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.07746468,
+          "process_cpu_s": 13.12080196,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 677.650464,
+          "logical_gmac_per_cpu_s": 55.647852,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225457,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.513726236,
+          "process_cpu_s": 18.970323334,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 482.349069,
+          "logical_gmac_per_cpu_s": 38.488772,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 225494,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.601138523,
+          "process_cpu_s": 0.59915599,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 75.912665,
+          "logical_gmac_per_cpu_s": 76.163851,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226461,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.493489574,
+          "process_cpu_s": 0.49174851,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 92.472121,
+          "logical_gmac_per_cpu_s": 92.799524,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226471,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.509645436,
+          "process_cpu_s": 0.50765508,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 89.540736,
+          "logical_gmac_per_cpu_s": 89.891797,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226474,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.585353039,
+          "process_cpu_s": 0.583705089,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 77.959837,
+          "logical_gmac_per_cpu_s": 78.179938,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226476,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.166151018,
+          "process_cpu_s": 14.3321651,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 626.114825,
+          "logical_gmac_per_cpu_s": 50.944462,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226486,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.049258311,
+          "process_cpu_s": 12.12371506,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 695.867197,
+          "logical_gmac_per_cpu_s": 60.22448,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226516,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.140437038,
+          "process_cpu_s": 14.997390524,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 640.232136,
+          "logical_gmac_per_cpu_s": 48.684765,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226534,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.214876719,
+          "process_cpu_s": 15.73347925,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 601.002907,
+          "logical_gmac_per_cpu_s": 46.407055,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226560,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.27043008,
+          "process_cpu_s": 0.26949335,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 59.557455,
+          "logical_gmac_per_cpu_s": 59.76447,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226605,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.172469263,
+          "process_cpu_s": 0.17181847,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 93.385494,
+          "logical_gmac_per_cpu_s": 93.739208,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226610,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.171751134,
+          "process_cpu_s": 0.17117108,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 93.775959,
+          "logical_gmac_per_cpu_s": 94.093742,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226612,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.266875308,
+          "process_cpu_s": 0.26361001,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 60.350759,
+          "logical_gmac_per_cpu_s": 61.098315,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226614,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 0,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.518221751,
+          "process_cpu_s": 6.413588914,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 497.273681,
+          "logical_gmac_per_cpu_s": 40.180005,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226621,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 1,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.399725936,
+          "process_cpu_s": 4.55172197,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 644.686808,
+          "logical_gmac_per_cpu_s": 56.615505,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226647,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 2,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.355681407,
+          "process_cpu_s": 4.16611821,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 724.519282,
+          "logical_gmac_per_cpu_s": 61.855671,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226664,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 0,
+          "position": 3,
+          "order": "ABBA",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.548775051,
+          "process_cpu_s": 7.42446424,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 469.587743,
+          "logical_gmac_per_cpu_s": 34.709311,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226682,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.506510565,
+          "process_cpu_s": 0.5046292,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 90.094917,
+          "logical_gmac_per_cpu_s": 90.43081,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226705,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.818549984,
+          "process_cpu_s": 0.81544355,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 55.749836,
+          "logical_gmac_per_cpu_s": 55.962215,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226714,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.81758204,
+          "process_cpu_s": 0.81480183,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 55.815839,
+          "logical_gmac_per_cpu_s": 56.00629,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226728,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.488884059,
+          "process_cpu_s": 0.4872415,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 93.343251,
+          "logical_gmac_per_cpu_s": 93.657924,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226734,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.741416422,
+          "process_cpu_s": 11.35802424,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 984.796693,
+          "logical_gmac_per_cpu_s": 64.284459,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226737,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.339629644,
+          "process_cpu_s": 18.660518774,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 545.03455,
+          "logical_gmac_per_cpu_s": 39.127768,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226768,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.26082153,
+          "process_cpu_s": 18.31856139,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 579.102135,
+          "logical_gmac_per_cpu_s": 39.858176,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226797,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ffn_gate_member",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            5120,
+            17408,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 5120,
+          "N": 17408,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.06499308,
+          "process_cpu_s": 12.24092678,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 685.586089,
+          "logical_gmac_per_cpu_s": 59.647807,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226827,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.513202916,
+          "process_cpu_s": 0.511440699,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 88.920047,
+          "logical_gmac_per_cpu_s": 89.22643,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226848,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.579795705,
+          "process_cpu_s": 0.57770282,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 78.707081,
+          "logical_gmac_per_cpu_s": 78.992219,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226851,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.586549389,
+          "process_cpu_s": 0.5846809,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 77.800827,
+          "logical_gmac_per_cpu_s": 78.049458,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226861,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 91701248,
+          "wall_s": 0.498079263,
+          "process_cpu_s": 0.49606296,
+          "logical_macs": 45634027520,
+          "logical_gmac_per_wall_s": 91.620011,
+          "logical_gmac_per_cpu_s": 91.992411,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226880,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.058262252,
+          "process_cpu_s": 12.672733586,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 689.946598,
+          "logical_gmac_per_cpu_s": 57.615386,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226895,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.059532837,
+          "process_cpu_s": 14.08878633,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 689.119218,
+          "logical_gmac_per_cpu_s": 51.824509,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226922,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 0.916176737,
+          "process_cpu_s": 13.52873796,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 796.947151,
+          "logical_gmac_per_cpu_s": 53.969886,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226950,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ffn_down",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            17408,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 17408,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 1467219968,
+          "wall_s": 1.071226967,
+          "process_cpu_s": 12.763373264,
+          "logical_macs": 730144440320,
+          "logical_gmac_per_wall_s": 681.596396,
+          "logical_gmac_per_cpu_s": 57.206228,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226968,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.180516717,
+          "process_cpu_s": 0.17991336,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 89.222359,
+          "logical_gmac_per_cpu_s": 89.521575,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226993,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.267192322,
+          "process_cpu_s": 0.26642336,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 60.279155,
+          "logical_gmac_per_cpu_s": 60.453135,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226996,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.268730896,
+          "process_cpu_s": 0.26492115,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 59.934037,
+          "logical_gmac_per_cpu_s": 60.795929,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 226999,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 1,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            1,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 1,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 32768000,
+          "wall_s": 0.175409731,
+          "process_cpu_s": 0.17462691,
+          "logical_macs": 16106127360,
+          "logical_gmac_per_wall_s": 91.820033,
+          "logical_gmac_per_cpu_s": 92.231646,
+          "checked_cells_before_and_after": 128,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 227005,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 0,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.359819614,
+          "process_cpu_s": 4.27748327,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 716.186744,
+          "logical_gmac_per_cpu_s": 60.245247,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 227007,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 1,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.515698743,
+          "process_cpu_s": 6.363082,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 499.706546,
+          "logical_gmac_per_cpu_s": 40.498934,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 227025,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 2,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "A",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-A",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.427052037,
+          "process_cpu_s": 5.9323158,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 603.434747,
+          "logical_gmac_per_cpu_s": 43.439703,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 227994,
+        "reaped": true
+      },
+      {
+        "case": {
+          "repeat": 1,
+          "position": 3,
+          "order": "BAAB",
+          "shape": "ssm_out",
+          "variant": "B",
+          "threads": 16,
+          "binary": "/home/steven/Documents/Codex/2026-09-07/i-w/work/cpu-refill-crt/refill-B",
+          "args": [
+            6144,
+            5120,
+            16,
+            16,
+            32
+          ]
+        },
+        "result": {
+          "status": "PASS",
+          "K": 6144,
+          "N": 5120,
+          "b": 16,
+          "threads": 16,
+          "iters": 32,
+          "fault": "none",
+          "buffer_bytes": 524288000,
+          "wall_s": 0.401052366,
+          "process_cpu_s": 4.998933994,
+          "logical_macs": 257698037760,
+          "logical_gmac_per_wall_s": 642.554588,
+          "logical_gmac_per_cpu_s": 51.550598,
+          "checked_cells_before_and_after": 2048,
+          "cleanup": "complete",
+          "scope": "independent same-shape lanes, common timing includes start/finish coordination, sampled scalar verification; no PRF/AEAD/file, not mixed dealer schedule"
+        },
+        "pid": 228019,
+        "reaped": true
+      }
+    ],
+    "elapsed_s": 40.8674532220175,
+    "error": null,
+    "scope": "balanced CPU kernel comparison; not dealer/model throughput"
+  }
+}

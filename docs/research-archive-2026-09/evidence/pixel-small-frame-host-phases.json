@@ -1,0 +1,113 @@
+{
+  "scope": "Same small-frame full-NCM echo capture; host monotonic phase timestamps rounded to microseconds, per-phase logging inside measurement.",
+  "rows": [
+    {
+      "frame_bytes": 4,
+      "phases": {
+        "host_body_complete_to_reply_sent": {
+          "mean_us": 46.33,
+          "p50_us": 43.0,
+          "p90_us": 61.0,
+          "max_us": 77.0,
+          "n": 200
+        },
+        "host_header_sent_to_body_send_entry": {
+          "mean_us": 7.185,
+          "p50_us": 7.0,
+          "p90_us": 9.0,
+          "max_us": 16.0,
+          "n": 200
+        },
+        "host_echo_body_send": {
+          "mean_us": 11.27,
+          "p50_us": 11.0,
+          "p90_us": 14.0,
+          "max_us": 42.0,
+          "n": 200
+        }
+      }
+    },
+    {
+      "frame_bytes": 64,
+      "phases": {
+        "host_body_complete_to_reply_sent": {
+          "mean_us": 37.205,
+          "p50_us": 30.0,
+          "p90_us": 58.0,
+          "max_us": 75.0,
+          "n": 200
+        },
+        "host_header_sent_to_body_send_entry": {
+          "mean_us": 6.615,
+          "p50_us": 6.0,
+          "p90_us": 8.0,
+          "max_us": 16.0,
+          "n": 200
+        },
+        "host_echo_body_send": {
+          "mean_us": 9.225,
+          "p50_us": 8.0,
+          "p90_us": 13.0,
+          "max_us": 21.0,
+          "n": 200
+        }
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "phases": {
+        "host_body_complete_to_reply_sent": {
+          "mean_us": 43.38,
+          "p50_us": 37.0,
+          "p90_us": 61.0,
+          "max_us": 73.0,
+          "n": 200
+        },
+        "host_header_sent_to_body_send_entry": {
+          "mean_us": 7.26,
+          "p50_us": 7.0,
+          "p90_us": 10.0,
+          "max_us": 17.0,
+          "n": 200
+        },
+        "host_echo_body_send": {
+          "mean_us": 10.555,
+          "p50_us": 9.0,
+          "p90_us": 14.0,
+          "max_us": 21.0,
+          "n": 200
+        }
+      }
+    },
+    {
+      "frame_bytes": 16384,
+      "phases": {
+        "host_body_complete_to_reply_sent": {
+          "mean_us": 60.395,
+          "p50_us": 65.0,
+          "p90_us": 83.0,
+          "max_us": 128.0,
+          "n": 200
+        },
+        "host_header_sent_to_body_send_entry": {
+          "mean_us": 8.02,
+          "p50_us": 8.0,
+          "p90_us": 10.0,
+          "max_us": 17.0,
+          "n": 200
+        },
+        "host_echo_body_send": {
+          "mean_us": 22.96,
+          "p50_us": 23.0,
+          "p90_us": 31.0,
+          "max_us": 41.0,
+          "n": 200
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Host syscalls returning do not prove NIC packet transmission times.",
+    "This is the Python echo path, not the production GPU worker."
+  ]
+}

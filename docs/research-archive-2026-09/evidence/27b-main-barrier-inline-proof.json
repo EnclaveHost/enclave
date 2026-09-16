@@ -1,0 +1,2111 @@
+{
+  "scope": "Original v24 exact-binary sampled PCs, main wire caller tid133, decode phases2/3; every main-caller cpu_relax leaf sample has ggml_barrier inline parent. Statistical CPU samples, not wall shares.",
+  "rows": [
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 2,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 7,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 6,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 12,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 2,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 6,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 4,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 6,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e74",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 11,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 7,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 14,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x3667c",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 6,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 4,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 5,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 2,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36680",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x3667c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 13,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3116,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 3,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 6,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e70",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e74",
+      "samples": 1,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e74",
+      "samples": 2,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "tid": 133,
+      "module": "libggml-cpu.so",
+      "offset": "0x36e74",
+      "samples": 2,
+      "inline_frames": [
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_thread_cpu_relax",
+          "Line": 521,
+          "StartAddress": "0x36e70",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 520
+        },
+        {
+          "Column": 9,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_barrier",
+          "Line": 600,
+          "StartAddress": "0x36e2c",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 575
+        },
+        {
+          "Column": 5,
+          "Discriminator": 0,
+          "FileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "FunctionName": "ggml_graph_compute_thread",
+          "Line": 3126,
+          "StartAddress": "0x36530",
+          "StartFileName": "/home/steven/Projects/enclave/shielded/anchor/avf/out/ggml-arm64-work/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+          "StartLine": 3060
+        }
+      ]
+    }
+  ]
+}

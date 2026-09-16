@@ -1,0 +1,100 @@
+{
+  "label": "b27-bridge-off-1",
+  "status": "RECOVERED_COMPLETE_DIAGNOSTIC",
+  "limitation": "Complete app capture, durable completion marker, successful engine exit, all benchmark records and checksum-verified full stderr recovered. Live logcat dropped the final messages; original controller FAIL and receipts remain unchanged. Not a clean full-cycle pass.",
+  "raw_capture_sha256": "00613c954d9a98d19a26c5b86f15f77ec4df7f093fd3b6f1ba13f06c8c7aed4e",
+  "bench": {
+    "status": "PASS_REPEAT_CAPTURE",
+    "scope": "complete repeat capture, engine exit, identities, counters and result equality",
+    "model_sha256": "a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348",
+    "calib_digest": "a16d28f24b0eeba05f4ea0698d31e859d977bc77ccd6ee0e8d9454784594ba93",
+    "settings": {
+      "n_predict": 16,
+      "mtp_k": 5,
+      "draft_ahead": 1,
+      "threads": 4,
+      "threads_batch": 4,
+      "head_threads": 2,
+      "cpu_poll": "50",
+      "arm_tuned": "unset",
+      "stream_min_bytes": "1048576"
+    },
+    "trials": [
+      {
+        "trial": 1,
+        "restore_us": 0,
+        "generated": 16,
+        "decode_us": 19900870,
+        "tokens_per_second": 0.8039849514116719,
+        "steady_tokens": 13,
+        "steady_us": 16962919,
+        "steady_tokens_per_second": 0.7663775320745209,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      },
+      {
+        "trial": 2,
+        "restore_us": 46603,
+        "generated": 16,
+        "decode_us": 25339488,
+        "tokens_per_second": 0.6314255441941052,
+        "steady_tokens": 13,
+        "steady_us": 20375430,
+        "steady_tokens_per_second": 0.6380233447833984,
+        "counter_delta": {
+          "offloaded_nodes": 2441,
+          "local_nodes": 0,
+          "macs": 720956293120,
+          "verify_fail": 0,
+          "pads_used": 6764,
+          "pads_missed": 0
+        }
+      }
+    ],
+    "generated_total": 32,
+    "limitation": "Same text and MTP decisions are repeat evidence, not exhaustive state equivalence or sustained pad production proof.",
+    "label": "b27-bridge-off-1",
+    "capture_sha256": "00613c954d9a98d19a26c5b86f15f77ec4df7f093fd3b6f1ba13f06c8c7aed4e",
+    "external_requirements": "Successful outer controller cleanup and independently checked APK/launch recipe still required; no sustained production throughput claim"
+  },
+  "outer_controller": {
+    "status": "COMMAND_FAILED",
+    "max_seconds": 600,
+    "cleanup_reserve_seconds": 50,
+    "includes_preflight": true,
+    "command_started": true,
+    "phone_cleanup": true,
+    "root_pid": 2714219,
+    "phone_stopped": true,
+    "command_rc": 2,
+    "remaining_owned_pids": [],
+    "cleanup_seconds": 4.736440405016765,
+    "elapsed_seconds": 546.2523287630174
+  },
+  "worker_cleanup": {
+    "owned_exit_code": -15,
+    "protected_unchanged": true,
+    "listener_closed": true
+  },
+  "original_error": "TimeoutError: 540 second work deadline before decode completion",
+  "bridge_profile_bins": 0,
+  "prefill_ms": 423146.69,
+  "combined_overall_tokens_per_second": 0.7073330409984819,
+  "combined_steady_tokens_per_second": 0.6963350200620815,
+  "registration_snapshot": {
+    "scope": "snapshot-after-engine-main-cleanup",
+    "file_bytes": 247170,
+    "from": 0,
+    "total": 247170,
+    "chunks": 172,
+    "sha256": "074bdcc73e6b8500bff7b31295c09c8c811789e9c3cc0ef99b43ef2a7b169cc1",
+    "truncated": 0
+  },
+  "stderr_sha256": "074bdcc73e6b8500bff7b31295c09c8c811789e9c3cc0ef99b43ef2a7b169cc1"
+}

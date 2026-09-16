@@ -1,0 +1,47 @@
+{
+  "scope": "Actual27B b27-kernel-1 app marker windows, kernel-only callstacks; complete trace no loss",
+  "rows": [
+    {
+      "trial": 1,
+      "thread": "vsock-pads",
+      "all_samples": 70,
+      "user_samples": 5,
+      "kernel_file_write_samples": 0,
+      "kernel_futex_wake_samples": 0,
+      "kernel_direct_compaction_samples": 11
+    },
+    {
+      "trial": 1,
+      "thread": "pads-fetch",
+      "all_samples": 589,
+      "user_samples": 216,
+      "kernel_file_write_samples": 128,
+      "kernel_futex_wake_samples": 99,
+      "kernel_direct_compaction_samples": 0
+    },
+    {
+      "trial": 2,
+      "thread": "vsock-pads",
+      "all_samples": 377,
+      "user_samples": 24,
+      "kernel_file_write_samples": 0,
+      "kernel_futex_wake_samples": 0,
+      "kernel_direct_compaction_samples": 160
+    },
+    {
+      "trial": 2,
+      "thread": "pads-fetch",
+      "all_samples": 1225,
+      "user_samples": 463,
+      "kernel_file_write_samples": 285,
+      "kernel_futex_wake_samples": 166,
+      "kernel_direct_compaction_samples": 0
+    }
+  ],
+  "limits": [
+    "Overlapping inclusive CPU samples, not serial wall time.",
+    "User samples have no callstacks; no managed-language line attribution.",
+    "Kernel functions do not establish why a futex was woken.",
+    "Background pad work overlaps decoding; this is not evidence all that CPU blocked token output."
+  ]
+}

@@ -1,0 +1,896 @@
+{
+  "recorded_utc": "2026-09-10T00:40:18.671101+00:00",
+  "label": "b27-pad-budget-1",
+  "status": "PASS",
+  "runtime_commit": "c0a01a36344f8b7095b47f19f2cc914657978448",
+  "test_commit": "452bffb95869d0058a63d68f1af8b0931ee0a581",
+  "apk_version": 51,
+  "combined_tps": 1.0817764513696018,
+  "whole_cycle_seconds": 511.141531787,
+  "cleanup_seconds": 1.943375381,
+  "trials": [
+    {
+      "trial": 1,
+      "restore_us": 0,
+      "generated": 16,
+      "decode_us": 13456748,
+      "tokens_per_second": 1.1889945475682535,
+      "steady_tokens": 13,
+      "steady_us": 10363345,
+      "steady_tokens_per_second": 1.2544212317548051,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      },
+      "mtp": {
+        "trial": 1,
+        "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+        "rounds": 5,
+        "drafted": 20,
+        "accepted": 10,
+        "emitted": 15
+      },
+      "costs": {
+        "trial": 1,
+        "decode_seconds": 13.456748,
+        "overall_tps": 1.1889945475682535,
+        "steady_tps": 1.2544212317548051,
+        "wire": {
+          "calls": 1574.0,
+          "request_bytes": 171091626.0,
+          "reply_bytes": 355289430.0,
+          "write_ms": 681.3000000000001,
+          "overlap_ms": 8.6,
+          "header_ms": 4999.5,
+          "body_ms": 3141.8
+        },
+        "link": {
+          "mask_ms": 709.4,
+          "wire_ms": 8962.5,
+          "refill_ms": 0.0,
+          "unmask_lhs_ms": 323.7,
+          "rhs_ms": 139.0,
+          "total_ms": 10413.6,
+          "encode_ms": 185.3,
+          "post_ms": 429.5,
+          "graph_ms": 11065.600000000006,
+          "pads_used": 6764.0,
+          "pads_missed": 0.0,
+          "pads_waited": 0.0,
+          "pads_wait_ms": 0.0
+        }
+      },
+      "receive_operations": {
+        "header": {
+          "reads": 1574,
+          "requested_bytes": 14166,
+          "ops": {
+            "get": {
+              "count": 1574,
+              "wall_ns": 9628234,
+              "cpu_ns": 9526005,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 2376099,
+              "max_cpu_ns": 2377563
+            },
+            "set": {
+              "count": 1574,
+              "wall_ns": 7108569,
+              "cpu_ns": 7113129,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 361776,
+              "max_cpu_ns": 363038
+            },
+            "poll": {
+              "count": 1574,
+              "wall_ns": 4840084414,
+              "cpu_ns": 109043869,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 26480876,
+              "max_cpu_ns": 10294844
+            },
+            "recv": {
+              "count": 1574,
+              "wall_ns": 30886210,
+              "cpu_ns": 26648973,
+              "bytes": 14166,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 4041952,
+              "max_cpu_ns": 4024820
+            },
+            "restore": {
+              "count": 1574,
+              "wall_ns": 44254061,
+              "cpu_ns": 41385999,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 32948405,
+              "max_cpu_ns": 30688598
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 4970752615,
+          "outer_cpu_ns": 232226660,
+          "outer_runqueue_ns": 19691893,
+          "unattributed_read_wall_ns": 38791127,
+          "operation_cpu_over_wall_ns": 391854
+        },
+        "body": {
+          "reads": 1574,
+          "requested_bytes": 355275264,
+          "ops": {
+            "get": {
+              "count": 1574,
+              "wall_ns": 6232833,
+              "cpu_ns": 6191354,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 180136,
+              "max_cpu_ns": 118124
+            },
+            "set": {
+              "count": 1966,
+              "wall_ns": 10384870,
+              "cpu_ns": 7987857,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1966,
+              "max_wall_ns": 388184,
+              "max_cpu_ns": 388143
+            },
+            "poll": {
+              "count": 2802,
+              "wall_ns": 2729618063,
+              "cpu_ns": 120991650,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 23707804,
+              "max_cpu_ns": 22683919
+            },
+            "recv": {
+              "count": 2802,
+              "wall_ns": 218190297,
+              "cpu_ns": 212111852,
+              "bytes": 355275264,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 5354939,
+              "max_cpu_ns": 5215657
+            },
+            "restore": {
+              "count": 1574,
+              "wall_ns": 6247153,
+              "cpu_ns": 6127557,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 310750,
+              "max_cpu_ns": 249553
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 3018818322,
+          "outer_cpu_ns": 399374165,
+          "outer_runqueue_ns": 10221686,
+          "unattributed_read_wall_ns": 48145106,
+          "operation_cpu_over_wall_ns": 1633637
+        },
+        "combined": {
+          "reads": 3148,
+          "requested_bytes": 355289430,
+          "ops": {
+            "get": {
+              "count": 3148,
+              "wall_ns": 15861067,
+              "cpu_ns": 15717359,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3148,
+              "max_wall_ns": 2376099,
+              "max_cpu_ns": 2377563
+            },
+            "set": {
+              "count": 3540,
+              "wall_ns": 17493439,
+              "cpu_ns": 15100986,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3540,
+              "max_wall_ns": 388184,
+              "max_cpu_ns": 388143
+            },
+            "poll": {
+              "count": 4376,
+              "wall_ns": 7569702477,
+              "cpu_ns": 230035519,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 26480876,
+              "max_cpu_ns": 22683919
+            },
+            "recv": {
+              "count": 4376,
+              "wall_ns": 249076507,
+              "cpu_ns": 238760825,
+              "bytes": 355289430,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 5354939,
+              "max_cpu_ns": 5215657
+            },
+            "restore": {
+              "count": 3148,
+              "wall_ns": 50501214,
+              "cpu_ns": 47513556,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3148,
+              "max_wall_ns": 32948405,
+              "max_cpu_ns": 30688598
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 7989570937,
+          "outer_cpu_ns": 631600825,
+          "outer_runqueue_ns": 29913579,
+          "unattributed_read_wall_ns": 86936233,
+          "operation_cpu_over_wall_ns": 2025491
+        }
+      }
+    },
+    {
+      "trial": 2,
+      "restore_us": 31311,
+      "generated": 16,
+      "decode_us": 16124225,
+      "tokens_per_second": 0.992295753749405,
+      "steady_tokens": 13,
+      "steady_us": 11922391,
+      "steady_tokens_per_second": 1.0903853094568028,
+      "counter_delta": {
+        "offloaded_nodes": 2441,
+        "local_nodes": 0,
+        "macs": 720956293120,
+        "verify_fail": 0,
+        "pads_used": 6764,
+        "pads_missed": 0
+      },
+      "mtp": {
+        "trial": 2,
+        "text_sha256": "93bbec1e9723858e9f93ee969afa4cb37084f37c7565a1c21202096e821fcc1c",
+        "rounds": 5,
+        "drafted": 20,
+        "accepted": 10,
+        "emitted": 15
+      },
+      "costs": {
+        "trial": 2,
+        "decode_seconds": 16.124225,
+        "overall_tps": 0.992295753749405,
+        "steady_tps": 1.0903853094568028,
+        "wire": {
+          "calls": 1574.0,
+          "request_bytes": 171091626.0,
+          "reply_bytes": 355289430.0,
+          "write_ms": 951.3999999999999,
+          "overlap_ms": 10.700000000000001,
+          "header_ms": 5986.299999999999,
+          "body_ms": 4125.1
+        },
+        "link": {
+          "mask_ms": 487.5,
+          "wire_ms": 11258.300000000001,
+          "refill_ms": 0.0,
+          "unmask_lhs_ms": 374.59999999999997,
+          "rhs_ms": 184.7,
+          "total_ms": 12510.199999999999,
+          "encode_ms": 303.3,
+          "post_ms": 526.3,
+          "graph_ms": 13381.599999999999,
+          "pads_used": 6764.0,
+          "pads_missed": 0.0,
+          "pads_waited": 0.0,
+          "pads_wait_ms": 0.0
+        }
+      },
+      "receive_operations": {
+        "header": {
+          "reads": 1574,
+          "requested_bytes": 14166,
+          "ops": {
+            "get": {
+              "count": 1574,
+              "wall_ns": 14502109,
+              "cpu_ns": 13908482,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 3831054,
+              "max_cpu_ns": 3601156
+            },
+            "set": {
+              "count": 1574,
+              "wall_ns": 14966615,
+              "cpu_ns": 13384579,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 2682902,
+              "max_cpu_ns": 2615397
+            },
+            "poll": {
+              "count": 1574,
+              "wall_ns": 5786081585,
+              "cpu_ns": 135474955,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 27890666,
+              "max_cpu_ns": 15392619
+            },
+            "recv": {
+              "count": 1574,
+              "wall_ns": 41316134,
+              "cpu_ns": 36732301,
+              "bytes": 14166,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 6825155,
+              "max_cpu_ns": 6447348
+            },
+            "restore": {
+              "count": 1574,
+              "wall_ns": 11042137,
+              "cpu_ns": 10090200,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 379110,
+              "max_cpu_ns": 381266
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 5934154279,
+          "outer_cpu_ns": 271631623,
+          "outer_runqueue_ns": 22286050,
+          "unattributed_read_wall_ns": 66245699,
+          "operation_cpu_over_wall_ns": 507535
+        },
+        "body": {
+          "reads": 1574,
+          "requested_bytes": 355275264,
+          "ops": {
+            "get": {
+              "count": 1574,
+              "wall_ns": 8063981,
+              "cpu_ns": 7955144,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 161296,
+              "max_cpu_ns": 163940
+            },
+            "set": {
+              "count": 1990,
+              "wall_ns": 13849832,
+              "cpu_ns": 10686121,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1990,
+              "max_wall_ns": 1491089,
+              "max_cpu_ns": 693481
+            },
+            "poll": {
+              "count": 2760,
+              "wall_ns": 3576283074,
+              "cpu_ns": 137510285,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 412783773,
+              "max_cpu_ns": 6533122
+            },
+            "recv": {
+              "count": 2760,
+              "wall_ns": 260440484,
+              "cpu_ns": 245049516,
+              "bytes": 355275264,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 8060425,
+              "max_cpu_ns": 8011108
+            },
+            "restore": {
+              "count": 1574,
+              "wall_ns": 8620201,
+              "cpu_ns": 8372338,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 1574,
+              "max_wall_ns": 135823,
+              "max_cpu_ns": 138265
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 3923546397,
+          "outer_cpu_ns": 463717388,
+          "outer_runqueue_ns": 16421993,
+          "unattributed_read_wall_ns": 56288825,
+          "operation_cpu_over_wall_ns": 3261589
+        },
+        "combined": {
+          "reads": 3148,
+          "requested_bytes": 355289430,
+          "ops": {
+            "get": {
+              "count": 3148,
+              "wall_ns": 22566090,
+              "cpu_ns": 21863626,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3148,
+              "max_wall_ns": 3831054,
+              "max_cpu_ns": 3601156
+            },
+            "set": {
+              "count": 3564,
+              "wall_ns": 28816447,
+              "cpu_ns": 24070700,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3564,
+              "max_wall_ns": 2682902,
+              "max_cpu_ns": 2615397
+            },
+            "poll": {
+              "count": 4334,
+              "wall_ns": 9362364659,
+              "cpu_ns": 272985240,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 412783773,
+              "max_cpu_ns": 15392619
+            },
+            "recv": {
+              "count": 4334,
+              "wall_ns": 301756618,
+              "cpu_ns": 281781817,
+              "bytes": 355289430,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 8060425,
+              "max_cpu_ns": 8011108
+            },
+            "restore": {
+              "count": 3148,
+              "wall_ns": 19662338,
+              "cpu_ns": 18462538,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 3148,
+              "max_wall_ns": 379110,
+              "max_cpu_ns": 381266
+            },
+            "read": {
+              "count": 0,
+              "wall_ns": 0,
+              "cpu_ns": 0,
+              "bytes": 0,
+              "errors": 0,
+              "eintr": 0,
+              "eagain": 0,
+              "zero": 0,
+              "max_wall_ns": 0,
+              "max_cpu_ns": 0
+            }
+          },
+          "outer_wall_ns": 9857700676,
+          "outer_cpu_ns": 735349011,
+          "outer_runqueue_ns": 38708043,
+          "unattributed_read_wall_ns": 122534524,
+          "operation_cpu_over_wall_ns": 3769124
+        }
+      }
+    }
+  ],
+  "gpu": {
+    "uuid": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+    "peak_memory_mib": 25856,
+    "scope": "Observed across this whole run; GPU execution evidence also checked in speed-evidence.json"
+  },
+  "inventory": [
+    {
+      "phase": "trial1.before",
+      "status": "ok",
+      "n_groups": 262,
+      "written_groups": 262,
+      "intervals": [
+        [
+          0,
+          128
+        ]
+      ],
+      "reader_files": 8,
+      "win_lo": 0,
+      "win_hi": 64,
+      "link_pads_used": 1310,
+      "per_group": {
+        "cursor": {
+          "max": 28,
+          "min": 24,
+          "n": 262
+        },
+        "depth": {
+          "max": 64,
+          "min": 64,
+          "n": 262
+        },
+        "generating": {
+          "max": 4,
+          "min": 0,
+          "n": 262
+        },
+        "groups_listed": 262,
+        "held": {
+          "max": 0,
+          "min": 0,
+          "n": 262
+        },
+        "ready": {
+          "max": 23,
+          "min": 19,
+          "n": 262
+        }
+      },
+      "snapshot_span": {
+        "end_ns": 440241621226,
+        "endpoint_source": "card mono_start_ns/mono_end_ns",
+        "ns": 25228,
+        "reason": null,
+        "scope": "one card sampling window; not a global atomic snapshot across cards and not output flush overhead",
+        "start_ns": 440241595998,
+        "valid": true
+      }
+    },
+    {
+      "phase": "trial1.after",
+      "status": "ok",
+      "n_groups": 262,
+      "written_groups": 262,
+      "intervals": [
+        [
+          80,
+          128
+        ]
+      ],
+      "reader_files": 3,
+      "win_lo": 0,
+      "win_hi": 192,
+      "link_pads_used": 8074,
+      "per_group": {
+        "cursor": {
+          "max": 136,
+          "min": 92,
+          "n": 262
+        },
+        "depth": {
+          "max": 64,
+          "min": 64,
+          "n": 262
+        },
+        "generating": {
+          "max": 8,
+          "min": 0,
+          "n": 262
+        },
+        "groups_listed": 262,
+        "held": {
+          "max": 0,
+          "min": 0,
+          "n": 262
+        },
+        "ready": {
+          "max": 62,
+          "min": 54,
+          "n": 262
+        }
+      },
+      "snapshot_span": {
+        "end_ns": 453818489315,
+        "endpoint_source": "card mono_start_ns/mono_end_ns",
+        "ns": 53385,
+        "reason": null,
+        "scope": "one card sampling window; not a global atomic snapshot across cards and not output flush overhead",
+        "start_ns": 453818435930,
+        "valid": true
+      }
+    },
+    {
+      "phase": "trial2.before",
+      "status": "ok",
+      "n_groups": 262,
+      "written_groups": 262,
+      "intervals": [
+        [
+          80,
+          128
+        ]
+      ],
+      "reader_files": 3,
+      "win_lo": 0,
+      "win_hi": 192,
+      "link_pads_used": 8074,
+      "per_group": {
+        "cursor": {
+          "max": 136,
+          "min": 92,
+          "n": 262
+        },
+        "depth": {
+          "max": 64,
+          "min": 64,
+          "n": 262
+        },
+        "generating": {
+          "max": 8,
+          "min": 0,
+          "n": 262
+        },
+        "groups_listed": 262,
+        "held": {
+          "max": 0,
+          "min": 0,
+          "n": 262
+        },
+        "ready": {
+          "max": 62,
+          "min": 54,
+          "n": 262
+        }
+      },
+      "snapshot_span": {
+        "end_ns": 453850763974,
+        "endpoint_source": "card mono_start_ns/mono_end_ns",
+        "ns": 34424,
+        "reason": null,
+        "scope": "one card sampling window; not a global atomic snapshot across cards and not output flush overhead",
+        "start_ns": 453850729550,
+        "valid": true
+      }
+    },
+    {
+      "phase": "trial2.after",
+      "status": "ok",
+      "n_groups": 262,
+      "written_groups": 262,
+      "intervals": [
+        [
+          80,
+          176
+        ]
+      ],
+      "reader_files": 6,
+      "win_lo": 0,
+      "win_hi": 192,
+      "link_pads_used": 14838,
+      "per_group": {
+        "cursor": {
+          "max": 184,
+          "min": 96,
+          "n": 262
+        },
+        "depth": {
+          "max": 64,
+          "min": 64,
+          "n": 262
+        },
+        "generating": {
+          "max": 8,
+          "min": 0,
+          "n": 262
+        },
+        "groups_listed": 262,
+        "held": {
+          "max": 0,
+          "min": 0,
+          "n": 262
+        },
+        "ready": {
+          "max": 45,
+          "min": 33,
+          "n": 262
+        }
+      },
+      "snapshot_span": {
+        "end_ns": 470061336369,
+        "endpoint_source": "card mono_start_ns/mono_end_ns",
+        "ns": 42846,
+        "reason": null,
+        "scope": "one card sampling window; not a global atomic snapshot across cards and not output flush overhead",
+        "start_ns": 470061293523,
+        "valid": true
+      }
+    }
+  ],
+  "pad_body_timing": {
+    "first_timed_request_guest_mono_ns": 440242655202,
+    "next_stream_begin": {
+      "stage": "stream_begin",
+      "index": 128,
+      "phone_mono_ns": 448269848223842
+    },
+    "next_stream_begin_seconds_after_first_request_bounds": [
+      12.702833503,
+      12.703028286
+    ],
+    "previous_ack": {
+      "stage": "ack_end",
+      "index": 112,
+      "phone_mono_ns": 448022458500414
+    },
+    "guest_minus_phone_monotonic_ns_bounds": [
+      -447816902735137,
+      -447816902540354
+    ],
+    "scope": "PAD_SP stream_begin is immediately before body copy after G header admission; no new body stream until this marker. This does not exclude header/control traffic."
+  },
+  "validation": {
+    "route": "PASS",
+    "standard_analyses": 13,
+    "extra_analyses": 10,
+    "summary_checks": 42,
+    "permanent_tests": "3 cases passed across two runs after test-only GNU C standard fix",
+    "parser_checks": 135
+  },
+  "limits": [
+    "Diagnostic-only change; no causal optimization gain is established by these two short trials.",
+    "Cumulative wire/CPU phase timers overlap and cannot be added to decode wall time.",
+    "Inventory describes one sampling interval per card, not future availability; cursor is scheduled import, not completed import; bind epoch remains unknown.",
+    "Short cached-development benchmarks do not demonstrate sustained confidential pad production or production root-of-trust admission."
+  ],
+  "provenance": {
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/speed-evidence.json": "bf06e51f3e3f9e4a6ebdf822b4b5859a980f1be8fab3999f21e8bc22f7388a34",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/receipt.json": "1f53a0e97a0ac25e5462f206dced7e302d7e04554a14d9e5df094defff84a870",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/pad-budget.json": "44fb6fb86055bb40b72ce63e61f55242a0415c8d5cb05a8570a7f14876855c2c",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/decode-cost-analysis.json": "c07e1c6f7aceeb2b90009cbb83ebed3ab0872f0b235dbb1df00f677c82871221",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/receive-operation-analysis.json": "d5af387199eb3937396effbb8ebe0d0fd0215b467f991c214c8edaa8b1b0de5a",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/guest-wire-analysis.json": "408c12ee492d022fb19ed9502f29b772b45e26c7b0c9ccca85bec9abdd790c06",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/pad-delivery-analysis.json": "65e44f11aa8b569b759c9ff0b585befc6be96872391250e7e261d920451936e4",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/capture.log": "ab867801de160e70815afb490b023c70d11307a2f7f0a82f5b4006da5e870134",
+    "/home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/dealt-e2e/route-b27-pad-budget-1/gpu.csv": "68c650749f4a5ca9d8345e84fafd0c059011f37264a8720017c660db3cfd8403",
+    "work/full-profile/b27-pad-budget-1/receipt.json": "bc2dc0b9ae3cde2d3673cae242548923b3b37dcd5e6fb8b87b5d12a0cad20ce9",
+    "work/full-profile/b27-pad-budget-1/extra-analysis/receipt.json": "4119d27ac7592c0862975393ecc847b84e86986b5e6d3f8cdbac2ea96e6ff606",
+    "work/pad-budget-root-summary-3/receipt.json": "d2fa5c375210933d17f7c3d668475a9e023376c95708dd0d7d4a0cb4aa4632e9"
+  }
+}

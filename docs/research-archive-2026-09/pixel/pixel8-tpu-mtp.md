@@ -1,0 +1,11 @@
+# Pixel 8 Qwen3.5 0.8B speculative TPU generation
+
+**Latest repeated rate: 12.63 generated tokens/s.** Three warmed 64-token trials measured 12.84, 12.71 and 12.37 tok/s; all 192 output token IDs matched the reference. The preceding first trial reached 12.88 tok/s. Test cycles took 23.15 and 30.41 seconds. These are full generation measurements, including drafting, target verification, rollback, observation and sampling. Model loading, prefill and initial prompt observation are timed separately.
+
+This remains **unshielded hybrid TPU/CPU inference**, with no Shielded pads or pVM overhead. Both target and MTP-head projections use the pinned google-edgetpu; prefill and unclaimed operators use CPU. The previous repeated ordinary-generation baseline was10.50 tok/s, measured in a different run series. The new result is about20% higher descriptively; an interleaved matched control is needed to isolate the gain from device/run-state variation.
+
+Each 64-token trial used37 verification rounds with26 accepted drafts out of37. Every target round covered150 logical projection nodes in102 physical two-row calls. Across target and head there were108 physical M2 models, with2,069,889,024 bytes of host FP32 weights, below the unchanged2300MiB cap. All outputs, exact logical MAC coverage, physical/dummy accounting and no-timed-compilation guards passed. No errors occurred.
+
+The default-off adapter serves logical M1 and M2 with one fixed physical M2 compilation per weight group. Logical M1 uses a public zero dummy row, whose extra arithmetic is counted separately; this is unrelated to Shielded cryptographic pads. Public tests checked both row orders and fused/unfused output slices, plus default controls. Root review corrected allocation and failed-call accounting before testing. Failure-injection paths were source-reviewed but not exercised by these successful hardware runs.
+
+[Repeated generation validation](../work/pixel8-plain-tpu-fixed-m2-root-1/warm1/root-validation.json) · [full repeated summary](../work/pixel8-plain-tpu-fixed-m2-root-1/warm1/summary.json) · [first trial](../work/pixel8-plain-tpu-fixed-m2-root-1/first/root-validation.json) · [public graph validation](../work/pixel8-plain-tpu-fixed-m2-root-1/graphs1/root-validation.json).

@@ -1,0 +1,41 @@
+{
+  "title": "Alpine desktop",
+  "api_key": "$RISCBOX_API_KEY",
+  "endpoint": "$S3_ENDPOINT",
+  "region": "auto",
+  "bucket": "machines",
+  "kernel": "alpine/fw_payload-gpu.elf",
+  "fs": "alpine/rootfs-uncap4.ext2.gz",
+  "saveKey": "alpine/rootfs-uncap4.saved.ext2",
+  "ramMiB": 21764,
+  "realtime": true,
+  "display": {
+    "width": 960,
+    "height": 600
+  },
+  "autostart": true,
+  "credentials": {
+    "accessKeyId": "$S3_ACCESS_KEY_ID",
+    "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+  },
+  "net": {
+    "forwards": [
+      {
+        "listen": 2222,
+        "to": 22
+      }
+    ]
+  },
+  "wasi": "0.2",
+  "mem64": true,
+  "_media": {
+    "thumbnail": "bafkreidcn43juu5xeizjsrbexb3zwnkmgyfcv4g5ooncvenwzk2khbpkjy",
+    "thumbnailSvg": true,
+    "banner": "bafkreib2ciaxlw7ale33jgqutzwylvny3qisdbdhqoowwyhwgiciilzhja",
+    "bannerSvg": true
+  },
+  "set": true,
+  "snapshot": "risc-perf-agent/warm960-palette.snap",
+  "restoreExec": "date -s @{epoch} >/dev/null; printf '%s' '{entropy}' > /dev/urandom; nohup /tmp/doom-palette-probe </dev/null >/tmp/live-wrapper.log 2>&1 &",
+  "snapshotSaveKey": "alpine/risc-box-user-saved.snap"
+}

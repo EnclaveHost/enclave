@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "scope": "six balanced64KiB bridge-only pairs,not model tok/s",
+  "source_sha256": "4bce2e32b5bd11c85fd5b375f5dfbf7688123bc42a76a2c82bb218806d78ee87",
+  "pairs": [
+    {
+      "pair": 1,
+      "order": "AB",
+      "java_p50_us": 10698.0,
+      "native_p50_us": 10186.0,
+      "native_p50_change_percent": -4.785941297438779,
+      "java_p90_us": 14018.0,
+      "native_p90_us": 12762.0
+    },
+    {
+      "pair": 2,
+      "order": "BA",
+      "java_p50_us": 10839.0,
+      "native_p50_us": 9645.0,
+      "native_p50_change_percent": -11.015776363133135,
+      "java_p90_us": 14068.0,
+      "native_p90_us": 13000.0
+    },
+    {
+      "pair": 3,
+      "order": "AB",
+      "java_p50_us": 9894.0,
+      "native_p50_us": 9463.0,
+      "native_p50_change_percent": -4.356175459874667,
+      "java_p90_us": 13689.0,
+      "native_p90_us": 12246.0
+    },
+    {
+      "pair": 4,
+      "order": "BA",
+      "java_p50_us": 10095.0,
+      "native_p50_us": 9331.0,
+      "native_p50_change_percent": -7.568103021297667,
+      "java_p90_us": 14143.0,
+      "native_p90_us": 12671.0
+    },
+    {
+      "pair": 5,
+      "order": "AB",
+      "java_p50_us": 7139.0,
+      "native_p50_us": 10322.0,
+      "native_p50_change_percent": 44.586076481299905,
+      "java_p90_us": 15997.0,
+      "native_p90_us": 13714.0
+    },
+    {
+      "pair": 6,
+      "order": "BA",
+      "java_p50_us": 10505.0,
+      "native_p50_us": 9162.0,
+      "native_p50_change_percent": -12.784388386482625,
+      "java_p90_us": 14557.0,
+      "native_p90_us": 12566.0
+    }
+  ],
+  "java_median_p50_us": 10300.0,
+  "native_median_p50_us": 9554.0,
+  "median_paired_p50_change_percent": -6.177022159368223,
+  "native_wins": 5
+}

@@ -1,0 +1,27 @@
+{
+  "app": "risc-box",
+  "version": "0.6.53",
+  "artifact": "risc-box-0.6.53-memory64.wasm",
+  "sha256": "84b8fa1d258e7fc7a5c91661c3cccc555b58a93070e06965e88a305f2f977290",
+  "bytes": 4280171,
+  "memory64": true,
+  "sharedEverythingThreads": false,
+  "wasiImportCount": 24,
+  "localValidation": [
+    "wasm-tools validation passed",
+    "proxy and final imports exactly match raw app imports",
+    "fresh startup logs report risc-box 0.6.53",
+    "HTTP UI served successfully"
+  ],
+  "publication": "published; catalog verified",
+  "cid": "bafybeigst3xuk7mstq62wj2ykhpipu6uavoretodg6njd6jxdrbq6w5yby",
+  "deployment": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+  "liveValidation": [
+    "dashboard deployment card shows risc-box:0.6.53",
+    "fresh runner startup reports risc-box 0.6.53 (single-threaded wasip2 build)",
+    "fresh S3 kernel/rootfs fetch and Linux boot completed",
+    "Chromium console: uname -m returned riscv64",
+    "Chromium console: uptime reported 3 minutes",
+    "Chromium console: free -h reported 20.8G total memory"
+  ]
+}
