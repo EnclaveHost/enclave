@@ -177,11 +177,11 @@ test("rankEnclavesFor: the dropdown's list — every host, recommended first, fu
 // signature: the runner's own claim gate refuses the record, and a hint sent to
 // a box that declines leaves the deploy sitting in the open queue.
 const vol = (...names) => ({ volumes: names.map((name) => ({ name })) });
-const LLM = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10, volumes: ["qwen3.5-122b-gguf-merged"] };
+const LLM = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10, volumes: ["qwen3.6-27b-gguf"] };
 
 test("rankEnclavesFor: only boxes carrying the requested volume are targets", () => {
   const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
-    ...vol("qwen3.5-122b-gguf-merged", "qwen2.5-0.5b-gguf") }, { tunnel: true });
+    ...vol("qwen3.6-27b-gguf", "qwen2.5-0.5b-gguf") }, { tunnel: true });
   const kryptos = row("kryptos", { ...GPU_BOX, ...vol("qwen2.5-0.5b-gguf") });
   const ranked = rankEnclavesFor(LLM, [kryptos, metal, row("big", CPU_BOX)]);
   assert.deepEqual(ranked.map((c) => c.name), ["metal0"],
@@ -193,7 +193,7 @@ test("rankEnclavesFor: only boxes carrying the requested volume are targets", ()
 test("pickEnclaveFor: names the missing volume instead of blaming the hardware", () => {
   const kryptos = row("kryptos", { ...GPU_BOX, ...vol("qwen2.5-0.5b-gguf") });
   const t = pickEnclaveFor(LLM, [kryptos, row("big", CPU_BOX)]);
-  assert.ok(t.none && /qwen3\.5-122b-gguf-merged/.test(t.none), t.none);
+  assert.ok(t.none && /qwen3\.6-27b-gguf/.test(t.none), t.none);
   assert.ok(!/big enough/.test(t.none), "the fleet has the hardware; it lacks the weights");
 });
 
@@ -202,11 +202,11 @@ test("pickEnclaveFor: when the volume's box can't run the app, blame the box tha
   // carries. "no live enclave's hardware is big enough" points the reader at
   // kryptos, which is big enough and simply hasn't got the model.
   const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
-    ...vol("qwen3.5-122b-gguf-merged") }, { tunnel: true });
-  const t = pickEnclaveFor({ ...IMAGE_GEN, volumes: ["qwen3.5-122b-gguf-merged"] }, [row("kryptos", GPU_BOX), metal]);
+    ...vol("qwen3.6-27b-gguf") }, { tunnel: true });
+  const t = pickEnclaveFor({ ...IMAGE_GEN, volumes: ["qwen3.6-27b-gguf"] }, [row("kryptos", GPU_BOX), metal]);
   assert.ok(t.none && /metal0/.test(t.none) && /GPU/.test(t.none), t.none);
   // a CPU app too big for the carrier reads as a size problem ON THAT BOX
-  const big = pickEnclaveFor({ memMb: 64 * 1024, cpuGflops: 0, volumes: ["qwen3.5-122b-gguf-merged"] }, [row("kryptos", GPU_BOX), metal]);
+  const big = pickEnclaveFor({ memMb: 64 * 1024, cpuGflops: 0, volumes: ["qwen3.6-27b-gguf"] }, [row("kryptos", GPU_BOX), metal]);
   assert.ok(big.none && /metal0/.test(big.none) && /big enough/.test(big.none), big.none);
 });
 

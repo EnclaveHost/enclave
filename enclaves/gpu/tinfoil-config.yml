@@ -477,7 +477,7 @@ containers:
       # (name:path:file.gguf) picks WHICH gguf preloads as the wasi-nn graph
       # when the repo ships several quantizations - the manager stages the
       # pick as a symlink dir, so the mpk-<hash> mount name never matters.
-      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-122b-gguf:/tinfoil/mpk/mpk-1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,qwen3.8-27b-mtp-gguf:/tinfoil/mpk/mpk-bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
+      - MODEL_VOLUMES: "qwen2.5-0.5b-gguf:/tinfoil/mpk/mpk-bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1,qwen3.5-9b-gguf:/tinfoil/mpk/mpk-b70cb1b66baaf59542b5d478f952fcb4085dfb681deedf9e0420452e2fe6e6be,qwen3.6-27b-gguf:/tinfoil/mpk/mpk-fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081,qwen3.5-0.8b-gguf:/tinfoil/mpk/mpk-d4ec07f5fc1bf2b12dba5cd4d56f01aadaf27959b1179287677499396f4553d8,qwen3.5-0.8b-mtp-gguf:/tinfoil/mpk/mpk-b515a1868c9f8bea7e8578e7ce06ac8e0546040dd623aad1d7b6c3dd98a9e6aa,qwen3.6-27b-mtp-gguf:/tinfoil/mpk/mpk-bc785d661620a4ffd94c65eee8ff27fe981eb6517dfa285b219c014c6dcc8aa9,qwen3.8-27b-mtp-gguf:/tinfoil/mpk/mpk-bedb4ba0c8d465ebcd2333ff7d58b5faca80eab833cffc76c66d78035b4628f2,fable-fusion-27b-mtp-gguf:/tinfoil/mpk/mpk-cf2030ea6070202555fa2d8b762fa4b1c94a3b636dd3d0f587d3f9fafddf4415,fable-fusion-27b-mtp-q4-gguf:/tinfoil/mpk/mpk-13f6f4245454958735336168c1d128794fe349563471640521ed325951fefbdb,sd-turbo:/tinfoil/mpk/mpk-df0919ea85c829fb62c61029ac130f7e4a98bc6a57fe52dfb777a7426d5b36fc,sd-turbo-full:/tinfoil/mpk/mpk-e787b81d664922c08ac69bb0952b436404bbb150f6f7b71971431d0c3ff4ef60,z-image-turbo-sd:/tinfoil/mpk/mpk-2b646ec9773d4dba7227656826627de606a86d98790b0e806a62e548b6c581f5,qwen-image-2512-sd:/tinfoil/mpk/mpk-f056a6215bdcb103a4e6b6c73bcfea205523593c6de78c53de4782d3c81e39f2,realesrgan-x4plus-sd:/tinfoil/mpk/mpk-e0690ebe660661664262455da17ffc8588ffa13dda14accc787c1d712bb529f4,qwen3-vl-8b-gguf:/tinfoil/mpk/mpk-3f7dafb23d0491e0f25b6136320ed91e990cb9fdc5a464ce07271b4aff2e279e:Qwen3VL-8B-Instruct-Q8_0.gguf"
       # Volumes preloaded through the stable-diffusion.cpp wasi-nn backend
       # (image txt2img: the guest load_by_name()s the volume and one
       # compute() runs the whole pipeline host-side; weights never enter
@@ -613,24 +613,12 @@ models:
   - name: "qwen2.5-0.5b-gguf"
     repo: "EnclaveHost/qwen2.5-0.5b-gguf@28ee3c6a09ba2c4b7447c53d3cddad0bdefcf186"
     mpk: "bb5cace1df1795f9dde1b6da38b2b9edfaaa56f4574a5d6270c1295b192c81c1_498454528_3b7bbfae-47ec-55ce-8c30-951d1874a293"
-  # Qwen3.5-122B-A10B at 4-bit (unsloth UD-IQ4_XS, ~60 GB) for the ggml/llama.cpp
-  # wasi-nn path - the big-model tenant option (~45% of an H200's VRAM). The repo
-  # ships THREE split GGUF parts (Qwen3.5-122B-A10B-UD-IQ4_XS-0000N-of-00003.gguf)
-  # + its own tokenizer.json, flat at the root; the wasm-manager auto-detects the
-  # complete split family and stages all parts as ONE nn-graph, so no MODEL_VOLUMES
-  # third field is needed. NOTE: loading a split family needs the split-family
-  # ggml backend from wasmtime-nn-ggml.patch - rebuild the "Wasmtime Toolchain"
-  # and repin WASMTIME_IMAGE in wasm/Dockerfile.wasm (the current 80148c92 pin
-  # predates that patch) before a deployment can actually serve this volume.
-  - name: "qwen3.5-122b-gguf"
-    repo: "EnclaveHost/qwen3.5-122b-gguf@8beb6427d807c9d2cf185ea22c149f8c63668815"
-    mpk: "1cbf0645575029ca49ebd10daaee21fccd6eb66f1d1563b147c647d78e08387c_60242325504_b8673ecf-afc3-5051-8093-f2bf785fe93a"
   # Qwen3.5-9B (dense hybrid-SSM, GGUF arch qwen35) at unsloth Dynamic Q4_K_XL
   # (~6 GB) - the small Qwen3.5 tenant option (~8 GB VRAM + KV). Slim curated
   # re-wrap of unsloth/Qwen3.5-9B-GGUF (which ships 22 quants + BF16 + vision
   # mmproj, ~160 GB, and NO tokenizer): ONLY the served gguf (sha256
   # 6f5d3066..., verified 2026-07-18) PLUS the official Qwen3.5 tokenizer.json
-  # (byte-identical to qwen3.5-122b-gguf's), so it's self-contained -
+  # (byte-identical to the other Qwen3.5-family copies), so it's self-contained -
   # provenance + per-file sha256 in the repo README. SINGLE-file gguf: no
   # MODEL_VOLUMES third field and, unlike the 122b split family, no toolchain
   # dependency - arch qwen35 is in the pinned LLAMA_COMMIT bec4772f (= the
@@ -660,7 +648,7 @@ models:
     repo: "EnclaveHost/qwen3.6-27b-gguf@ee09d0591e3b961ae5c42fd337f91c1262d6ea0d"
     mpk: "fe11e42632485c288a1f968434fbf41565e9c779ed73c0736b30e39908e6a081_17625395200_623660fa-869e-5ce6-90d1-a6ed9b313653"
   # Qwen3.5-0.8B at Q8_0 (~775 MB): the family's speculative-decoding DRAFT
-  # volume - attach next to qwen3.6-27b-gguf / qwen3.5-122b-gguf and the
+  # volume - attach next to qwen3.6-27b-gguf and the
   # llm-chat template's "draft" wiring turns speculation on (output stays
   # byte-identical to the big model's own; exact-match verification, see
   # wasm/llama-shim). tokenizer.json byte-identical to the 9b/27b/122b copies
