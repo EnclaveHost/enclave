@@ -93,6 +93,7 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define MODEL_PORT  7779
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
 #define ECHO_PORT   7780
+#define BUNDLE_PORT 7782     /* owner -> guest: the PUBLIC Shielded-TPU lane bundle (u64 size; 'K' = already stored at that size, 'S' = send) */
 #define LOCAL_PORT  7781     /* owner -> guest: the local engine's conversation (engine_local.cpp: GEN/RESET/BYE in, TXT/STATS/ERR out) */
 #define MAX_SHAPES  16
 
@@ -983,7 +984,26 @@ static void run_prepare(int ls_pads, int seconds) {
  * judged exactly as for the split engine (whole-file digest against the pin, per-tensor digests for the verified loader),
  * then the local engine serves one accepted chat connection until the owner says BYE or goes away. */
 typedef int (*engine_local_main_fn)(int, int, const char *, int, int);
-static void run_local(const anchor_local_plan *plan) {
+typedef int (*engine_local_set_tpu_fn)(const char *, int, int);
+/* The lane bundle is public data (int8 weights, scales, lanes): a wrong one cannot leak anything, it makes the unmasked products
+ * wrong (the pads are computed from ITS weights). It is kept in the encrypted store and reused when the size matches. */
+static int receive_bundle(int ls, uint64_t bytes, char *path, size_t pathcap) {
+    const char *es = AVmPayload_getEncryptedStoragePath(); if (!es) { OUT("LOCAL tpu: no encrypted store for the bundle"); return -1; }
+    snprintf(path, pathcap, "%s/tpu.bundle", es);
+    int c = vs_accept(ls, 120000); if (c < 0) { OUT("LOCAL tpu: no bundle stream from the owner"); return -1; }
+    uint64_t hdr = 0; if (read_exact(c, &hdr, 8) != 0 || hdr != bytes) { OUT("LOCAL tpu: bundle header %" PRIu64 " != %" PRIu64, hdr, bytes); close(c); return -1; }
+    struct stat sb; if (stat(path, &sb) == 0 && (uint64_t)sb.st_size == bytes) { (void)!write(c, "K", 1); close(c); OUT("LOCAL tpu: bundle already in the encrypted store (%" PRIu64 " MiB)", bytes >> 20); return 0; }
+    (void)!write(c, "S", 1);
+    char tmp[600]; snprintf(tmp, sizeof tmp, "%s.part", path); int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) { OUT("LOCAL tpu: cannot create %s: %s", tmp, strerror(errno)); close(c); return -1; }
+    static uint8_t buf[1 << 20]; uint64_t got = 0; double t0 = now_us();
+    while (got < bytes) { size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf; ssize_t r = read(c, buf, want); if (r < 0 && errno == EINTR) continue; if (r <= 0) break;
+        size_t o = 0; while (o < (size_t)r) { ssize_t w2 = write(fd, buf + o, (size_t)r - o); if (w2 < 0 && errno == EINTR) continue; if (w2 <= 0) { r = -1; break; } o += (size_t)w2; } if (r < 0) break; got += (uint64_t)r; }
+    close(c); if (got != bytes || fsync(fd) != 0) { close(fd); unlink(tmp); OUT("LOCAL tpu: bundle stream ended at %" PRIu64 " of %" PRIu64, got, bytes); return -1; }
+    close(fd); if (rename(tmp, path) != 0) { OUT("LOCAL tpu: bundle rename: %s", strerror(errno)); return -1; }
+    OUT("LOCAL tpu: bundle %" PRIu64 " MiB received in %.1f s", bytes >> 20, (now_us() - t0) / 1e6); return 0;
+}
+static void run_local(const anchor_local_plan *plan, int ls_wk) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
     int ls_chat = vs_bind(LOCAL_PORT);
@@ -992,6 +1012,14 @@ static void run_local(const anchor_local_plan *plan) {
     if (model_stage(plan->model_bytes) != 0) { close(ls_chat); return; }   /* hashed + judged after the last write, before any parse */
     int model_fd = g_model_fd;
     if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { OUT("LOCAL refused: no staged model table"); close(ls_chat); return; }
+    char bundle[600] = ""; int worker_fd = -1;
+    if (plan->tpu_bundle_bytes) {   /* Shielded-TPU decode: the public lane bundle, then the app's TPU worker on the worker port */
+        int ls_b = vs_bind(BUNDLE_PORT); if (ls_b < 0 || receive_bundle(ls_b, plan->tpu_bundle_bytes, bundle, sizeof bundle) != 0) { if (ls_b >= 0) close(ls_b); close(ls_chat); return; }
+        close(ls_b);
+        worker_fd = vs_accept(ls_wk, 300000);      /* the worker loads 35 compiled graphs before it dials */
+        if (worker_fd < 0) { OUT("LOCAL tpu: no worker connection from the owner within 300 s"); close(ls_chat); return; }
+        OUT("LOCAL tpu: worker connected; masked rows only cross this link");
+    }
     static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libllama.so", "liblocalengine.so" };   /* the CPU module is loaded by the engine: the REPACKING build */
     void *h = NULL;
     for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
@@ -1004,6 +1032,10 @@ static void run_local(const anchor_local_plan *plan) {
     void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
     if (!em || !setw || !sett) { OUT("LOCAL refused: liblocalengine.so lacks engine_local_main / its setters"); close(ls_chat); return; }
     setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
+    if (worker_fd >= 0) {
+        engine_local_set_tpu_fn settpu = (engine_local_set_tpu_fn)dlsym(h, "engine_local_set_tpu");
+        if (!settpu || settpu(bundle, worker_fd, plan->bank) != 0) { OUT("LOCAL refused: this engine cannot take the Shielded-TPU link"); close(worker_fd); close(ls_chat); return; }
+    }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine-local.err lives there */
     OUT("LOCAL listening on vsock %d for the conversation; model %" PRIu64 " bytes, %d threads, ctx %d", LOCAL_PORT, plan->model_bytes, plan->threads, plan->ctx);
     int chat = vs_accept(ls_chat, 120000); close(ls_chat);
@@ -1497,7 +1529,7 @@ int AVmPayload_main(void) {
         if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("LOCAL refused: pins invalid (%s)", g_pins.err);
         else if (local_bad) OUT("LOCAL refused: malformed or repeated LOCAL line");
         else if (engine || echo || bridgebench || n_shapes || bridge) OUT("LOCAL refused: conflicting mode commands on the same run (ENGINE/ECHO/BRIDGEBENCH/SHAPE/WORKER bridge)");
-        else { OUT("ANCHOR local mode: the whole model runs in this VM"); run_local(&local_plan); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
+        else { OUT("ANCHOR local mode: the whole model runs in this VM"); run_local(&local_plan, ls_wk); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();

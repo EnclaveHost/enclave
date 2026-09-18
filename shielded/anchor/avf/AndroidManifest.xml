@@ -27,6 +27,8 @@
          phone (an app cannot read /data/local/tmp). The VM's protection and the attestation
          do not depend on this flag; a release build drops it. -->
     <application android:usesCleartextTraffic="true" android:hasCode="true" android:extractNativeLibs="false" android:debuggable="true" android:label="Enclave Anchor (AVF)">
+        <!-- Shielded-TPU decode: the app-side worker reaches the Tensor TPU through the vendor's LiteRT dispatch library -->
+        <uses-native-library android:name="libedgetpu_litert.so" android:required="false" />
         <activity android:name=".Main" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

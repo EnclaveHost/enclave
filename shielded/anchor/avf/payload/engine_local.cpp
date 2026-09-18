@@ -47,6 +47,8 @@
 #include "anchor_header_file.h"
 #include "anchor_striped_read.h"
 #include "engine_local_proto.h"
+#include "anchor_plain_buft.h"
+#include "ggml-tpu.h"
 #include "llama-model.h"
 
 static int (*g_ctl_writer)(const char *, size_t) = nullptr;
@@ -54,6 +56,10 @@ extern "C" void engine_local_set_ctl_writer(int (*fn)(const char *, size_t)) { g
 static const anchor_gguf_table *g_table = nullptr;
 static const anchor_hash_ops *g_hops = nullptr;
 extern "C" void engine_local_set_model_table(const anchor_gguf_table *t, const anchor_hash_ops *h) { g_table = t; g_hops = h; }
+/* Shielded-TPU decode (ggml-tpu.cpp): set before engine_local_main. The projection matmuls of a decode step then leave the VM
+ * as masked int16 rows; everything else in this file is unchanged. */
+static std::string g_tpu_bundle; static int g_tpu_fd = -1, g_tpu_bank = 0;
+extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank) { if (!bundle || !*bundle || worker_fd < 0) return -1; g_tpu_bundle = bundle; g_tpu_fd = worker_fd; g_tpu_bank = bank; return 0; }
 /* exported by the pinned llama fork: every model tensor by name (tied weights may appear twice) */
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
 
@@ -103,6 +109,8 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
     FILE *hf = anchor_header_file_open(g_table->header, g_table->header_len, g_table->file_size);
     if (!hf) { outf("LOCAL refused: cannot serve the verified header from memory: %s", strerror(errno)); return nullptr; }
     llama_model_params mp = llama_model_default_params(); mp.n_gpu_layers = 0;
+    static llama_model_tensor_buft_override tpu_ov[2] = { { ANCHOR_TPU_CLAIM_PATTERN, nullptr }, { nullptr, nullptr } };
+    if (g_tpu_fd >= 0) { tpu_ov[0].buft = anchor_plain_buft(); mp.tensor_buft_overrides = tpu_ov; }   /* claimed weights: plain host buffers, so the scheduler offers their matmuls to the TPU backend */
     mp.no_alloc = true; mp.load_mode = LLAMA_LOAD_MODE_NONE; mp.use_extra_bufts = true;
     llama_model *model = llama_model_load_from_file_ptr(hf, mp);
     fclose(hf);
@@ -154,6 +162,19 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
     llama_log_set(quiet_log, nullptr);
     const std::string cpu_so = std::string(lib_dir) + "/libggml-cpu-repack.so";
     if (!ggml_backend_load(cpu_so.c_str())) { outf("LOCAL refused: the repacking CPU backend did not load (%s)", cpu_so.c_str()); return 2; }
+    typedef void (*tpu_stats_fn)(ggml_backend_tpu_stats_t *, int); tpu_stats_fn tpu_stats = nullptr;
+    if (g_tpu_fd >= 0) {
+        const std::string tpu_so = std::string(lib_dir) + "/libggml-tpu.so";
+        if (!ggml_backend_load(tpu_so.c_str())) { outf("LOCAL refused: the Shielded-TPU backend did not load (%s)", tpu_so.c_str()); return 2; }
+        void *th = dlopen(tpu_so.c_str(), RTLD_NOW);
+        auto open_b = th ? (int (*)(const char *))dlsym(th, "ggml_backend_tpu_open_bundle") : nullptr; auto set_l = th ? (void (*)(int, int))dlsym(th, "ggml_backend_tpu_set_link") : nullptr;
+        auto mint = th ? (double (*)(int, int))dlsym(th, "ggml_backend_tpu_mint") : nullptr; tpu_stats = th ? (tpu_stats_fn)dlsym(th, "ggml_backend_tpu_get_stats") : nullptr;
+        if (!open_b || !set_l || !mint || !tpu_stats) { outf("LOCAL refused: the Shielded-TPU backend lacks its entry points"); return 2; }
+        if (open_b(g_tpu_bundle.c_str()) != 0) { outf("LOCAL refused: the lane bundle did not open (engine-local.err has the reason)"); return 2; }
+        set_l(g_tpu_fd, 5);
+        outf("LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)");
+        if (g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.2f s per position on %d threads)", g_tpu_bank, sec, sec / g_tpu_bank, n_threads); }
+    }
     llama_backend_init();
     const int64_t t_load0 = ggml_time_us();
     std::vector<ggml_backend_buffer_t> owned;
@@ -227,6 +248,11 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                               st.status, st.n_prefill, st.prefill_s > 0 ? st.n_prefill / st.prefill_s : 0.0, st.n_decode, st.decode_s > 0 ? st.n_decode / st.decode_s : 0.0, n_past, n_ctx);
         if (!chat_write(chat_fd, s)) break;
         outf("LOCAL turn %d: %s", served, s + 6);   /* the owner's log sees the counters, never the text */
+        if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
+            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f unmask %.3f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu",
+                 served, (unsigned long long)ts.exchanges, ex / (st.n_decode ? st.n_decode : 1), ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.unmask_us / ex / 1e3,
+                 ts.bytes_out / 1024.0 / (st.n_decode ? st.n_decode : 1), ts.bytes_in / 1024.0 / (st.n_decode ? st.n_decode : 1), (unsigned long long)ts.pads_minted_inline,
+                 ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn); }
     }
     outf("LOCAL engine ending after %d turns", served);
     llama_free(ctx); llama_model_free(model); for (ggml_backend_buffer_t b : owned) ggml_backend_buffer_free(b);

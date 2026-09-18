@@ -1,0 +1,15 @@
+# Enclave Anchor: the app-side (untrusted) TPU worker for Shielded decode. Built here because LiteRT's C++ API lives in this tree.
+cc_binary(
+    name = "libanchortpu.so",
+    srcs = ["tpu_worker_jni.cc"],
+    linkshared = 1,
+    linkopts = ["-llog", "-static-libstdc++", "-Wl,-z,max-page-size=16384"],
+    deps = [
+        "@litert//litert/cc:litert_common",
+        "@litert//litert/cc:litert_compiled_model",
+        "@litert//litert/cc:litert_environment",
+        "@litert//litert/cc:litert_environment_options",
+        "@litert//litert/cc:litert_model",
+        "@litert//litert/cc:litert_tensor_buffer",
+    ],
+)

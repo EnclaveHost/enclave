@@ -32,6 +32,10 @@ public final class LocalChat {
     public static String plan(long modelBytes, int threads, int ctx) {
         return "LOCAL model_bytes=" + modelBytes + " threads=" + Math.max(1, Math.min(16, threads)) + " ctx=" + Math.max(512, Math.min(32768, ctx));
     }
+    /** The same line with the Shielded-TPU tail: the lane bundle's size and how many pad positions to mint before READY. */
+    public static String plan(long modelBytes, int threads, int ctx, long tpuBundleBytes, int bank) {
+        return plan(modelBytes, threads, ctx) + " tpu_bundle_bytes=" + tpuBundleBytes + " bank=" + Math.max(0, Math.min(4096, bank));
+    }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;

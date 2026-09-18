@@ -1,0 +1,94 @@
+// tpu_worker_jni.cc -- the UNTRUSTED half of Enclave Shielded on a phone: the app-side TPU worker (enclave repo:
+// shielded/anchor/avf/TPU.md; the wire is documented in payload/ggml-tpu.cpp).
+//
+// It holds the per-block compiled graphs (L<n>.tflite: signatures qkv | o | gu | down, int16 rows in, int16 rows out, public
+// int8 weights) and answers the protected VM's exchanges over the vsock descriptor the app's VM API returned:
+//   <- u8 0xE7, u8 layer, u8 kind, u8 rows, rows * n_in int16      -> per projection: rows * n_out int16
+// Everything it ever sees is masked rows. Buffers are created once per signature and reused for every exchange.
+#include <jni.h>
+#include <android/log.h>
+#include <unistd.h>
+#include <cerrno>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
+#include "litert/cc/litert_common.h"
+#include "litert/cc/litert_compiled_model.h"
+#include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_environment_options.h"
+#include "litert/cc/litert_model.h"
+#include "litert/cc/litert_tensor_buffer.h"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "anchor-tpu", __VA_ARGS__)
+namespace {
+using Clock = std::chrono::steady_clock;
+double us_since(Clock::time_point t) { return std::chrono::duration<double, std::micro>(Clock::now() - t).count(); }
+struct Sig { size_t index = 0; bool present = false; std::vector<litert::TensorBuffer> in, out; size_t in_bytes = 0; std::vector<size_t> out_bytes; };
+struct Layer { litert::Model model; litert::CompiledModel compiled; Sig sig[4]; Layer(litert::Model m, litert::CompiledModel c) : model(std::move(m)), compiled(std::move(c)) {} };
+struct Worker { litert::Environment env; std::vector<Layer> layers; int rows = 5; std::string err; explicit Worker(litert::Environment e) : env(std::move(e)) {} };
+const char* kKinds[4] = {"qkv", "o", "gu", "down"};
+bool rd_all(int fd, void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char*)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; } return true; }
+size_t packed(litert::TensorBuffer& b) { auto z = b.PackedSize(); return z ? *z : 0; }
+bool wr_all(int fd, const void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char*)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
+}  // namespace
+
+extern "C" JNIEXPORT jlong JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeOpen(JNIEnv* env, jclass, jstring jdispatch, jstring jdir, jint n_layers, jint rows) {
+  const char* d = env->GetStringUTFChars(jdispatch, nullptr); const char* g = env->GetStringUTFChars(jdir, nullptr); std::string dispatch = d, dir = g;
+  env->ReleaseStringUTFChars(jdispatch, d); env->ReleaseStringUTFChars(jdir, g);
+  auto t0 = Clock::now();
+  std::vector<litert::EnvironmentOptions::Option> opts; opts.push_back({litert::EnvironmentOptions::Tag::kDispatchLibraryDir, dispatch.c_str()});
+  auto e = litert::Environment::Create(litert::EnvironmentOptions(opts)); if (!e) { LOGI("environment: %s", e.Error().Message().c_str()); return 0; }
+  auto* w = new Worker(std::move(*e)); w->rows = rows;
+  for (int L = 0; L < n_layers; L++) {
+    const std::string path = dir + "/L" + std::to_string(L) + ".tflite";
+    auto m = litert::Model::CreateFromFile(w->env, path); if (!m) { LOGI("%s: %s", path.c_str(), m.Error().Message().c_str()); delete w; return 0; }
+    auto c = litert::CompiledModel::Create(w->env, path, litert::HwAccelerators::kNpu);   /* the Model above is kept for the signature names only */ if (!c) { LOGI("%s: compile/load: %s", path.c_str(), c.Error().Message().c_str()); delete w; return 0; }
+    w->layers.emplace_back(std::move(*m), std::move(*c)); Layer& ly = w->layers.back();
+    auto keys = ly.model.GetSignatureKeys(); if (!keys) { delete w; return 0; }
+    for (size_t si = 0; si < keys->size(); si++) for (int k = 0; k < 4; k++) if ((*keys)[si] == kKinds[k]) {
+      Sig& s = ly.sig[k]; s.index = si; s.present = true;
+      auto in = ly.compiled.CreateInputBuffers(si); auto out = ly.compiled.CreateOutputBuffers(si); auto names = ly.model.GetSignatureOutputNames(si);
+      if (!in || !out || !names || in->size() != 1) { LOGI("L%d %s: buffers", L, kKinds[k]); delete w; return 0; }
+      s.in = std::move(*in); s.in_bytes = packed(s.in[0]);
+      // the wire wants y0, y1, y2 (bundle order): place the runtime's outputs by their signature names
+      std::vector<litert::TensorBuffer> ordered; ordered.reserve(out->size()); std::vector<int> pos(out->size(), -1);
+      for (size_t o = 0; o < names->size(); o++) { const std::string nm((*names)[o]); if (nm.size() >= 2 && nm[0] == 'y') pos[(size_t)atoi(nm.c_str() + 1)] = (int)o; }
+      for (size_t o = 0; o < pos.size(); o++) { if (pos[o] < 0) { LOGI("L%d %s: output y%zu missing", L, kKinds[k], o); delete w; return 0; } }
+      s.out.reserve(out->size()); s.out_bytes.resize(out->size());
+      for (size_t o = 0; o < pos.size(); o++) { s.out.push_back(std::move((*out)[(size_t)pos[o]])); s.out_bytes[o] = packed(s.out[o]); }
+      std::vector<int16_t> zero(s.in_bytes / 2, 0); s.in[0].Write<int16_t>(litert::Span<const int16_t>(zero.data(), zero.size()));
+    }
+    if (L % 8 == 0 || L == n_layers - 1) LOGI("loaded L%d (%.1f s so far)", L, us_since(t0) / 1e6);
+  }
+  LOGI("worker ready: %zu layers, %d rows, %.1f s", w->layers.size(), rows, us_since(t0) / 1e6);
+  return (jlong)(intptr_t)w;
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeServe(JNIEnv* env, jclass, jlong handle, jint fd) {
+  auto* w = (Worker*)(intptr_t)handle; if (!w) return env->NewStringUTF("TPU worker: not open");
+  uint64_t n = 0; double wait_us = 0, recv_us = 0, write_us = 0, run_us = 0, read_us = 0, send_us = 0; std::string err;
+  std::vector<int16_t> rx, tx; uint8_t hdr[4];
+  for (;;) {
+    auto t0 = Clock::now(); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
+    if (hdr[0] != 0xE7 || hdr[1] >= w->layers.size() || hdr[2] > 3 || hdr[3] < 1 || hdr[3] > w->rows) { err = "malformed exchange header"; break; }
+    Sig& s = w->layers[hdr[1]].sig[hdr[2]]; if (!s.present) { err = "no such signature"; break; }
+    const size_t rows = hdr[3], n_in = s.in_bytes / 2 / (size_t)w->rows; rx.resize(rows * n_in);
+    if (!rd_all(fd, rx.data(), rx.size() * 2)) { err = "short exchange body"; break; } auto t2 = Clock::now();
+    if (auto r = s.in[0].Write<int16_t>(litert::Span<const int16_t>(rx.data(), rx.size())); !r) { err = "input write: " + r.Error().Message(); break; } auto t3 = Clock::now();
+    if (auto r = w->layers[hdr[1]].compiled.Run(s.index, s.in, s.out); !r) { err = "run: " + r.Error().Message(); break; } auto t4 = Clock::now();
+    size_t total = 0; for (size_t o = 0; o < s.out.size(); o++) total += rows * (s.out_bytes[o] / 2 / (size_t)w->rows);
+    tx.resize(total); size_t off = 0; bool ok = true;
+    for (size_t o = 0; o < s.out.size() && ok; o++) { const size_t cnt = rows * (s.out_bytes[o] / 2 / (size_t)w->rows); if (auto r = s.out[o].Read<int16_t>(litert::Span<int16_t>(tx.data() + off, cnt)); !r) { err = "output read: " + r.Error().Message(); ok = false; } off += cnt; }
+    if (!ok) break; auto t5 = Clock::now();
+    if (!wr_all(fd, tx.data(), tx.size() * 2)) { err = "reply write failed"; break; } auto t6 = Clock::now();
+    n++; wait_us += std::chrono::duration<double, std::micro>(t1 - t0).count(); recv_us += std::chrono::duration<double, std::micro>(t2 - t1).count();
+    write_us += std::chrono::duration<double, std::micro>(t3 - t2).count(); run_us += std::chrono::duration<double, std::micro>(t4 - t3).count();
+    read_us += std::chrono::duration<double, std::micro>(t5 - t4).count(); send_us += std::chrono::duration<double, std::micro>(t6 - t5).count();
+  }
+  char buf[512]; const double d = n ? (double)n : 1.0;
+  snprintf(buf, sizeof buf, "TPU worker: %llu exchanges; per exchange ms: idle-wait %.3f recv %.3f input-write %.3f tpu-run %.3f output-read %.3f send %.3f%s%s",
+           (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, err.empty() ? "" : " ERROR: ", err.c_str());
+  LOGI("%s", buf); return env->NewStringUTF(buf);
+}
+extern "C" JNIEXPORT void JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeClose(JNIEnv*, jclass, jlong handle) { delete (Worker*)(intptr_t)handle; }

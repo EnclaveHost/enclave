@@ -18,7 +18,8 @@ public final class LocalChatTest {
         expect("eos".equals(st.get("status")) && "16.30".equals(st.get("decode_tok_s")) && "4096".equals(st.get("ctx")), "stats parsed");
         expect(LocalChat.plan(3360161216L, 6, 4096).equals("LOCAL model_bytes=3360161216 threads=6 ctx=4096"), "plan line");
         expect(LocalChat.plan(5, 99, 1).equals("LOCAL model_bytes=5 threads=16 ctx=512"), "plan clamps");
-        System.out.println("{\"status\":\"" + (failed == 0 ? "PASS" : "FAIL") + "\",\"executed_checks\":" + checks + ",\"request\":\"" + LocalChat.request("hello", 256, 700) + "\",\"request_utf8\":\"" + LocalChat.request(snow, 64, 0) + "\",\"plan\":\"" + LocalChat.plan(3360161216L, 6, 4096) + "\"}");
+        expect(LocalChat.plan(3360161216L, 6, 4096, 1842000000L, 64).equals("LOCAL model_bytes=3360161216 threads=6 ctx=4096 tpu_bundle_bytes=1842000000 bank=64"), "tpu plan line");
+        System.out.println("{\"status\":\"" + (failed == 0 ? "PASS" : "FAIL") + "\",\"executed_checks\":" + checks + ",\"request\":\"" + LocalChat.request("hello", 256, 700) + "\",\"request_utf8\":\"" + LocalChat.request(snow, 64, 0) + "\",\"plan\":\"" + LocalChat.plan(3360161216L, 6, 4096) + "\",\"plan_tpu\":\"" + LocalChat.plan(3360161216L, 6, 4096, 1842000000L, 64) + "\"}");
         if (failed != 0) System.exit(1);
     }
 }
