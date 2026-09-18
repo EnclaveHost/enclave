@@ -50,6 +50,9 @@
 #include "anchor_plain_buft.h"
 #include "ggml-tpu.h"
 #include "llama-model.h"
+#include "common.h"
+#include "sampling.h"
+#include "speculative.h"
 
 static int (*g_ctl_writer)(const char *, size_t) = nullptr;
 extern "C" void engine_local_set_ctl_writer(int (*fn)(const char *, size_t)) { g_ctl_writer = fn; }
@@ -58,8 +61,13 @@ static const anchor_hash_ops *g_hops = nullptr;
 extern "C" void engine_local_set_model_table(const anchor_gguf_table *t, const anchor_hash_ops *h) { g_table = t; g_hops = h; }
 /* Shielded-TPU decode (ggml-tpu.cpp): set before engine_local_main. The projection matmuls of a decode step then leave the VM
  * as masked int16 rows; everything else in this file is unchanged. */
-static std::string g_tpu_bundle; static int g_tpu_fd = -1, g_tpu_bank = 0;
-extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank) { if (!bundle || !*bundle || worker_fd < 0) return -1; g_tpu_bundle = bundle; g_tpu_fd = worker_fd; g_tpu_bank = bank; return 0; }
+static std::string g_tpu_bundle; static int g_tpu_fd = -1, g_tpu_bank = 0, g_tpu_refill = 0;
+extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank, int refill) { if (!bundle || !*bundle || worker_fd < 0) return -1; g_tpu_bundle = bundle; g_tpu_fd = worker_fd; g_tpu_bank = bank; g_tpu_refill = refill; return 0; }
+/* Speculative rows (TPU.md, LOCAL.md): an OPTIONAL drafter proposes up to n_max tokens and the target verifies them as extra
+ * rows of ONE step; on the Shielded-TPU path those rows ride the same 140 exchanges. The drafter needs no authentication:
+ * the target checks every proposal, so a wrong or hostile drafter changes the speed and never the text. */
+static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr;
+extern "C" int engine_local_set_draft(const char *path, int n_max) { if (!path || !*path || n_max < 1 || n_max > 4) return -1; g_draft_path = path; g_draft_max = n_max; return 0; }
 /* exported by the pinned llama fork: every model tensor by name (tied weights may appear twice) */
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
 
@@ -173,7 +181,10 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (open_b(g_tpu_bundle.c_str()) != 0) { outf("LOCAL refused: the lane bundle did not open (engine-local.err has the reason)"); return 2; }
         set_l(g_tpu_fd, 5);
         outf("LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)");
-        if (g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.2f s per position on %d threads)", g_tpu_bank, sec, sec / g_tpu_bank, n_threads); }
+        auto refill = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_refill_start");
+        if (g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.2f s per position on %d threads)", g_tpu_bank, sec, sec / g_tpu_bank, n_threads);
+                              /* opt-in: minting while decoding keeps the vCPUs busy, and busy vCPUs slow the link (measured 4.3 -> 7.7 ms per exchange with 4 minters) */
+                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); } }
     }
     llama_backend_init();
     const int64_t t_load0 = ggml_time_us();
@@ -185,6 +196,7 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
     const llama_vocab *vocab = llama_model_get_vocab(model);
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = (uint32_t)n_ctx; cp.n_batch = 512; cp.n_threads = n_threads; cp.n_threads_batch = n_threads;
+    if (!g_draft_path.empty()) cp.n_rs_seq = (uint32_t)g_draft_max;   /* as llama.cpp's server sets it for an MTP drafter */
     llama_context *ctx = llama_init_from_model(model, cp);
     if (!ctx) { outf("LOCAL refused: context creation failed (ctx %d)", n_ctx); llama_model_free(model); for (auto b : owned) ggml_backend_buffer_free(b); return 2; }
     /* one persistent CPU pool: without it every graph respawns the threads (REPORT.md 12) */
@@ -194,19 +206,34 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
       /* ggml's default pool. What decides the rate in this guest is the HOST's placement of the vCPU threads (the owner requests
        * the uclamp boost for it, Main.java); poll=100 and high-capacity pinning were tried once on a heat-soaked phone and the
        * measurement was confounded (LOCAL.md), so neither is adopted. */
-      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); ggml_threadpool *tp = tp_new(&tpp); if (tp) llama_attach_threadpool(ctx, tp, tp); }
+      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); g_pool = tp_new(&tpp); if (g_pool) llama_attach_threadpool(ctx, g_pool, g_pool); }
       outf("LOCAL context ready: ctx %d, %d threads, persistent pool=%s, model loaded in %.1f s", n_ctx, n_threads, tp_new ? "yes" : "no", load_s); }
     char model_hex[65] = ""; if (g_table->has_whole) for (int i = 0; i < 32; i++) snprintf(model_hex + 2 * i, 3, "%02x", g_table->whole_digest[i]);
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
+    /* the drafter: its own context in MTP mode, sharing the target's memory (llama.cpp's speculative helper does the rest) */
+    common_speculative *spec = nullptr; common_speculative_init_result_ptr spec_init; common_params sp;
+    if (!g_draft_path.empty()) {
+        sp.n_ctx = n_ctx; sp.n_batch = 512; sp.n_gpu_layers = 0; sp.cpuparams.n_threads = n_threads; sp.cpuparams_batch.n_threads = n_threads; sp.warmup = false;
+        sp.speculative.types = { COMMON_SPECULATIVE_TYPE_DRAFT_MTP }; sp.speculative.draft.mparams.path = g_draft_path; sp.speculative.draft.n_max = g_draft_max; sp.speculative.draft.n_gpu_layers = 0;
+        common_params pd = common_base_params_to_speculative(sp);
+        spec_init = common_speculative_init_from_params(pd, model, ctx);
+        if (!spec_init || !spec_init->context()) { outf("LOCAL refused: the drafter did not load (%s)", g_draft_path.c_str()); return 2; }
+        if (g_pool) llama_attach_threadpool(spec_init->context(), g_pool, g_pool);
+        sp.speculative.draft.ctx_tgt = ctx; sp.speculative.draft.ctx_dft = spec_init->context();
+        spec = common_speculative_init(sp.speculative, 1);
+        if (!spec) { outf("LOCAL refused: speculative decoding did not initialize"); return 2; }
+        outf("LOCAL drafter ready: up to %d proposals per step (%d rows verified at once)", g_draft_max, g_draft_max + 1);
+    }
     llama_memory_t mem = llama_get_memory(ctx);
+    std::vector<llama_token> hist; llama_token pending = -1;   /* hist: every token in the KV; pending: a token already shown to the user that the KV has not seen yet (speculative turns end on one) */
     int n_past = 0; bool open_turn = false;   /* open_turn: the last reply ended without its end-of-turn marker in the KV (always: a sampled EOG is never fed back) */
     std::string line; int served = 0;
     for (;;) {
         const int rl = chat_read_line(chat_fd, line);
         if (rl == -2) { chat_write(chat_fd, "ERR request line too long"); continue; }
         if (rl < 0 || line == "BYE") break;
-        if (line == "RESET") { llama_memory_clear(mem, true); n_past = 0; open_turn = false; chat_write(chat_fd, "STATS status=reset ctx_used=0 ctx=" + std::to_string(n_ctx)); continue; }
+        if (line == "RESET") { llama_memory_clear(mem, true); n_past = 0; open_turn = false; hist.clear(); pending = -1; chat_write(chat_fd, "STATS status=reset ctx_used=0 ctx=" + std::to_string(n_ctx)); continue; }
         engine_local_request rq;
         if (!engine_local_parse_gen(line.c_str(), &rq)) { chat_write(chat_fd, "ERR malformed request (GEN <max_new_tokens 1..8192> <temperature_milli 0..2000> <hex message>)"); continue; }
         std::string msg; if (!engine_local_unhex(rq.hex, msg) || msg.empty()) { chat_write(chat_fd, "ERR message is not valid hex"); continue; }
@@ -218,15 +245,67 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         int n = llama_tokenize(vocab, text.c_str(), (int)text.size(), toks.data(), (int)toks.size(), /*add_special=*/n_past == 0, /*parse_special=*/true);
         if (n < 0) { chat_write(chat_fd, "ERR tokenize failed"); continue; }
         toks.resize(n);
+        if (pending >= 0) { toks.insert(toks.begin(), pending); n++; }
         if (n_past + n + 8 > n_ctx) { chat_write(chat_fd, "ERR context full (" + std::to_string(n_past) + " used + " + std::to_string(n) + " new > " + std::to_string(n_ctx) + "): send RESET to start a new conversation"); continue; }
         turn_stats st; st.n_prefill = n;
+        if (spec) {   /* ---- a speculative turn: prefill all but the last prompt token, then draft -> verify rows -> accept ---- */
+            const int64_t t0s = ggml_time_us(); bool bad = false; llama_batch batch = llama_batch_init(512, 0, 1);
+            for (int i = 0; i + 1 < n && !bad; ) { common_batch_clear(batch); for (; i + 1 < n && batch.n_tokens < 512; i++) common_batch_add(batch, toks[i], n_past + i, { 0 }, false);
+                if (llama_decode(ctx, batch) || !common_speculative_process(spec, batch)) bad = true; }
+            if (bad) { llama_batch_free(batch); llama_memory_seq_rm(mem, 0, n_past, -1); chat_write(chat_fd, "ERR prefill failed; the turn was rolled back"); continue; }
+            for (int i = 0; i + 1 < n; i++) hist.push_back(toks[i]);
+            n_past += n - 1; pending = -1; st.prefill_s = (ggml_time_us() - t0s) / 1e6;
+            common_params_sampling sps; sps.temp = rq.temperature_milli / 1000.0f; sps.top_k = 64; sps.top_p = 0.95f;
+            common_sampler_ptr smpl(common_sampler_init(model, sps));
+            common_speculative_begin(spec, 0, hist);
+            llama_token id_last = toks[n - 1]; llama_tokens draft; int drafted = 0, accepted = 0, steps = 0; bool peer_gone = false, done = false; const int64_t t1s = ggml_time_us();
+            while (!done) {
+                int room = n_ctx - n_past - 2; if (room < 1) { st.status = "ctx_full"; break; }
+                draft.clear(); auto &dp = common_speculative_get_draft_params(spec, 0);
+                dp.drafting = true; dp.n_max = room - 1 < g_draft_max ? (room - 1 < 0 ? 0 : room - 1) : g_draft_max; dp.n_past = n_past; dp.id_last = id_last; dp.prompt = &hist; dp.result = &draft;
+                common_speculative_draft(spec);
+                if ((int)draft.size() > g_draft_max) draft.resize((size_t)g_draft_max);
+                common_batch_clear(batch); common_batch_add(batch, id_last, n_past, { 0 }, true);
+                for (size_t i = 0; i < draft.size(); i++) common_batch_add(batch, draft[i], n_past + 1 + (llama_pos)i, { 0 }, true);
+                if (llama_decode(ctx, batch) || !common_speculative_process(spec, batch)) { st.status = "decode_failed"; break; }
+                const std::vector<llama_token> ids = common_sampler_sample_and_accept_n(smpl.get(), ctx, draft);   /* the accepted proposals, then one token of the target's own */
+                steps++; drafted += (int)draft.size(); accepted += (int)ids.size() - 1;
+                hist.push_back(id_last); n_past += (int)ids.size();                  /* id_last and the accepted proposals are in the KV now */
+                for (size_t i = 0; i + 1 < ids.size(); i++) hist.push_back(ids[i]);
+                llama_memory_seq_rm(mem, 0, n_past, -1);                                /* the rejected rows */
+                common_speculative_accept(spec, 0, (uint16_t)(ids.size() - 1));
+                /* show the step's tokens. The KV holds id_last and the accepted proposals ids[0..m-1]; ids[m] (the target's own
+                 * sample) is not in it yet. A turn that stops at ids[i] rolls the KV back to just before ids[i]: after an
+                 * end-of-turn nothing is pending (the marker is re-supplied as text next turn), after the budget ids[i] is. */
+                const int m = (int)ids.size() - 1;
+                auto rollback_before = [&](int i) { const int keep = n_past - (m - i); if (keep < n_past) { llama_memory_seq_rm(mem, 0, keep, -1); hist.resize(hist.size() - (size_t)(n_past - keep)); n_past = keep; } };
+                for (int i = 0; i <= m; i++) {
+                    if (llama_vocab_is_eog(vocab, ids[(size_t)i])) { st.status = "eos"; rollback_before(i); pending = -1; done = true; break; }
+                    char piece[256]; const int pn = llama_token_to_piece(vocab, ids[(size_t)i], piece, sizeof piece, 0, false);
+                    if (pn > 0 && !chat_write(chat_fd, "TXT " + engine_local_hex((const uint8_t *)piece, (size_t)pn))) { peer_gone = true; done = true; break; }
+                    if (++st.n_decode >= rq.max_new) { rollback_before(i); pending = ids[(size_t)i]; done = true; break; }
+                }
+                if (!done) id_last = ids.back();
+            }
+            if (!done) pending = id_last;                                               /* ctx_full / decode_failed: shown (or the prompt's last token), not in the KV */
+            st.decode_s = (ggml_time_us() - t1s) / 1e6; llama_batch_free(batch); open_turn = true; served++;
+            if (peer_gone) break;
+            char s2[512]; snprintf(s2, sizeof s2, "STATS status=%s prefill_tokens=%d prefill_tok_s=%.2f decode_tokens=%d decode_tok_s=%.2f ctx_used=%d ctx=%d steps=%d drafted=%d accepted=%d tokens_per_step=%.2f",
+                                   st.status, st.n_prefill, st.prefill_s > 0 ? (st.n_prefill - 1) / st.prefill_s : 0.0, st.n_decode, st.decode_s > 0 ? st.n_decode / st.decode_s : 0.0, n_past, n_ctx, steps, drafted, accepted, steps ? (double)st.n_decode / steps : 0.0);
+            if (!chat_write(chat_fd, s2)) break;
+            outf("LOCAL turn %d: %s", served, s2 + 6);
+            if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
+                outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/step, %.2f rows each) ms per exchange: mask %.3f link %.3f unmask %.3f | pads inline %llu refilled %llu bank_min %llu | outliers kept %llu saturated %llu",
+                     served, (unsigned long long)ts.exchanges, ex / (steps ? steps : 1), ts.rows / ex, ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.unmask_us / ex / 1e3, (unsigned long long)ts.pads_minted_inline, (unsigned long long)ts.pads_refilled, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated); }
+            continue;
+        }
         const int64_t t0 = ggml_time_us(); bool failed = false;
         for (int i = 0; i < n && !failed; i += 512) {
             const int k = n - i < 512 ? n - i : 512;
             if (llama_decode(ctx, llama_batch_get_one(toks.data() + i, k))) failed = true;
         }
         if (failed) { llama_memory_seq_rm(mem, 0, n_past, -1); chat_write(chat_fd, "ERR prefill failed; the turn was rolled back"); continue; }
-        n_past += n; st.prefill_s = (ggml_time_us() - t0) / 1e6;
+        n_past += n; st.prefill_s = (ggml_time_us() - t0) / 1e6; pending = -1; hist.insert(hist.end(), toks.begin(), toks.end());
         llama_sampler *smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
         if (rq.temperature_milli == 0) llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
         else { llama_sampler_chain_add(smpl, llama_sampler_init_top_k(64)); llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.95f, 1));
@@ -239,7 +318,7 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
             if (pn > 0 && !chat_write(chat_fd, "TXT " + engine_local_hex((const uint8_t *)piece, (size_t)pn))) { peer_gone = true; break; }
             if (n_past + 1 >= n_ctx) { st.status = "ctx_full"; break; }
             if (llama_decode(ctx, llama_batch_get_one(&tok, 1))) { st.status = "decode_failed"; break; }
-            n_past++; st.n_decode++;
+            n_past++; st.n_decode++; hist.push_back(tok);
         }
         st.decode_s = (ggml_time_us() - t1) / 1e6;
         llama_sampler_free(smpl); open_turn = true; served++;
@@ -254,6 +333,7 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                  ts.bytes_out / 1024.0 / (st.n_decode ? st.n_decode : 1), ts.bytes_in / 1024.0 / (st.n_decode ? st.n_decode : 1), (unsigned long long)ts.pads_minted_inline,
                  ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn); }
     }
+    if (g_tpu_fd >= 0) { if (void *th = dlopen((std::string(lib_dir) + "/libggml-tpu.so").c_str(), RTLD_NOW)) { auto stop = (void (*)(void))dlsym(th, "ggml_backend_tpu_refill_stop"); if (stop) stop(); } }
     outf("LOCAL engine ending after %d turns", served);
     llama_free(ctx); llama_model_free(model); for (ggml_backend_buffer_t b : owned) ggml_backend_buffer_free(b);
     return 0;

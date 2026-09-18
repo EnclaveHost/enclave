@@ -126,7 +126,11 @@ case "$NAME" in
            "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
            # the LOCAL engine (payload/engine_local.cpp, LOCAL.md): the whole model in the VM, CPU only. Same llama/ggml as above;
            # its CPU module is the REPACKING build (GGML_CPU_REPACK=ON ./build-ggml-arm64.sh "$PWD/out/ggml-arm64-repack-work": the work dir must be absolute), bundled as libggml-cpu-repack.so
-           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/liblocalengine.so" "$HERE/payload/engine_local.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,liblocalengine.so
+           # speculative rows use llama.cpp's own helper (common/speculative.cpp): libllama-common.so from the repack work tree
+           #   (cmake -B build-android-common ... -DLLAMA_BUILD_COMMON=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON; --target llama-common: LOCAL.md)
+           GRC="${GGML_ARM64_REPACK_SRC:-$HERE/out/ggml-arm64-repack-work/llama.cpp}"; [ -f "$GRC/build-android-common/bin/libllama-common.so" ] || { echo "no libllama-common.so under $GRC/build-android-common (LOCAL.md)" >&2; exit 2; }
+           cp "$GRC/build-android-common/bin/libllama-common.so" "$E/libllama-common.so"
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$HERE/payload" -I"$LSRC/src" -I"$LSRC/common" -I"$LSRC/vendor" -shared -o "$E/liblocalengine.so" "$HERE/payload/engine_local.cpp" -L"$GA/lib" -L"$E" -lllama-common -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,liblocalengine.so
            # Shielded-TPU decode (payload/ggml-tpu.cpp, TPU.md): the VM-side backend module, loaded by the local engine on request
            "$CXX" -O3 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$HERE/payload" -shared -o "$E/libggml-tpu.so" "$HERE/payload/ggml-tpu.cpp" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-tpu.so
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/liblocalengine.so" | grep -E ' T engine_local_(main|set_model_table|set_ctl_writer)$' | sed 's/^/  /'
@@ -151,7 +155,7 @@ case "$NAME" in
                   GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
                   if [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$GR/lib/libggml-cpu.so" ]; then
                     cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
-                    EXTRA_LIBS+=("$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so" "$OUT/engine-pvm/libggml-tpu.so")
+                    EXTRA_LIBS+=("$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so" "$OUT/engine-pvm/libggml-tpu.so" "$OUT/engine-pvm/libllama-common.so")
                     # the app-side (untrusted) TPU worker + LiteRT's Tensor dispatch library: prebuilt outside this repo (TPU.md), bundled when ANCHOR_TPU_LIBS names them
                     if [ -n "${ANCHOR_TPU_LIBS:-}" ] && [ -f "$ANCHOR_TPU_LIBS/libanchortpu.so" ] && [ -f "$ANCHOR_TPU_LIBS/libLiteRtDispatch_GoogleTensor.so" ]; then
                       EXTRA_LIBS+=("$ANCHOR_TPU_LIBS/libanchortpu.so" "$ANCHOR_TPU_LIBS/libLiteRtDispatch_GoogleTensor.so"); echo "tpu worker: bundling libanchortpu.so + the Tensor dispatch library from $ANCHOR_TPU_LIBS"

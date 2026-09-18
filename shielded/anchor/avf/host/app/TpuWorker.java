@@ -16,5 +16,6 @@ public final class TpuWorker {
     }
     static native long nativeOpen(String dispatchDir, String graphsDir, int layers, int rows);
     static native String nativeServe(long handle, int fd);
+    static native String nativeBench(long handle);
     static native void nativeClose(long handle);
 }

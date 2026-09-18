@@ -28,6 +28,7 @@
 #include "ggml-backend-impl.h"
 
 #include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
@@ -51,10 +52,10 @@
 
 namespace {
 struct proj { const char *name; uint32_t n_out; float s_out; int32_t budget; const float *sw; const int8_t *Wq; std::vector<double> M; };
-struct pad { std::vector<int16_t> r; std::vector<std::vector<int32_t>> P; };
+struct pad { std::vector<int16_t> r; std::vector<std::vector<int16_t>> P; };   /* |P_j| <= the projection's budget < 32767 by construction */
 struct group {
     int layer, kind; uint32_t n_in; float s_in, k; const float *s; const int16_t *sig_q, *r_amp; std::vector<proj> projs;
-    std::deque<pad> bank; std::mutex bank_mu;
+    std::deque<pad> bank; std::mutex bank_mu; size_t minting = 0;
     /* one exchange serves every projection of the group; the others read it here (keyed by the input's storage) */
     const void *cache_src = nullptr; uint32_t cache_rows = 0, served = 0; std::vector<std::vector<float>> cache;
 };
@@ -86,7 +87,7 @@ void mint_one(group &g, pad &out) {
         bool ok = true;
         for (size_t p = 0; p < g.projs.size() && ok; p++) {
             const proj &pr = g.projs[p]; out.P[p].resize(pr.n_out);
-            for (uint32_t j = 0; j < pr.n_out; j++) { const int64_t v = llround((double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, out.r.data(), g.n_in) * pr.M[j]); if (v > pr.budget || v < -pr.budget) { ok = false; break; } out.P[p][j] = (int32_t)v; }
+            for (uint32_t j = 0; j < pr.n_out; j++) { const int64_t v = llround((double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, out.r.data(), g.n_in) * pr.M[j]); if (v > pr.budget || v < -pr.budget) { ok = false; break; } out.P[p][j] = (int16_t)v; }
         }
         if (ok) return;
         S().st.pads_redrawn++;
@@ -128,9 +129,14 @@ void exchange(group &g, const float *x, uint32_t rows) {
     for (size_t p = 0; p < g.projs.size(); p++) {
         const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
         for (uint32_t r = 0; r < rows; r++) {
-            float *y = g.cache[p].data() + (size_t)r * pr.n_out; const int32_t *P = pads[r].P[p].data();
-            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] = pr.s_out * (float)((int32_t)v - P[j]); }
-            for (const auto &o : outl[r]) { const float xo = (float)o.second * g.s_in; for (uint32_t j = 0; j < pr.n_out; j++) y[j] += xo * pr.sw[j] * (float)pr.Wq[(size_t)j * g.n_in + o.first]; }
+            float *y = g.cache[p].data() + (size_t)r * pr.n_out; const int16_t *P = pads[r].P[p].data();
+            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] = pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
+            /* the rare entries beyond their lane: exact, inside the VM. Wq is row major, so a column is a strided walk (one
+             * cache miss per output); the misses are independent, so they are prefetched a few rows ahead and overlap. */
+            for (const auto &o : outl[r]) {
+                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
+                for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; }
+            }
             rx += pr.n_out;
         }
     }
@@ -145,6 +151,8 @@ bool claimable(const ggml_tensor *op) {
     const ggml_tensor *w = op->src[0], *x = op->src[1];
     if (!w || !x || x->type != GGML_TYPE_F32 || op->type != GGML_TYPE_F32 || !ggml_is_contiguous(x)) return false;
     if (x->ne[2] != 1 || x->ne[3] != 1 || x->ne[1] < 1 || x->ne[1] > s.rows_max) return false;       /* wider batches (prefill) stay on the VM's CPU */
+    /* only weights the engine placed in its plain host buffer type: a drafter in the same process has tensors of the same NAMES */
+    if (!w->buffer || strcmp(ggml_backend_buft_name(ggml_backend_buffer_get_type(w->buffer)), "CPU_plain") != 0) return false;
     auto it = s.by_name.find(w->name); if (it == s.by_name.end()) return false;
     const group &g = *it->second.first; const proj &p = g.projs[(size_t)it->second.second];
     return (uint32_t)x->ne[0] == g.n_in && (uint32_t)w->ne[1] == p.n_out;
@@ -234,6 +242,23 @@ extern "C" double ggml_backend_tpu_mint(int positions, int threads) {
     for (auto &x : th) x.join();
     const double sec = (now_us() - t0) / 1e6; s.st.mint_bank_us += (uint64_t)(sec * 1e6); return sec;
 }
+/* Background refill: during Shielded-TPU decode the VM's cores mostly wait on the link, which is when pads are cheapest to make.
+ * `threads` minters keep every group's bank at `target` pads, emptiest group first; they yield between pads. */
+static std::vector<std::thread> g_refill; static std::atomic<bool> g_refill_on{false};
+extern "C" void ggml_backend_tpu_refill_start(int target, int threads) {
+    state &s = S(); if (g_refill_on.exchange(true)) return; if (threads < 1) threads = 1;
+    for (int t = 0; t < threads; t++) g_refill.emplace_back([&s, target] {
+        while (g_refill_on.load(std::memory_order_relaxed)) {
+            group *low = nullptr; size_t low_n = (size_t)target;
+            for (group *g : s.groups) { std::lock_guard<std::mutex> lk(g->bank_mu); const size_t n = g->bank.size() + g->minting; if (n < low_n) { low_n = n; low = g; } }
+            if (!low) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); continue; }
+            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting++; }
+            pad p; mint_one(*low, p);
+            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting--; low->bank.push_back(std::move(p)); }
+            s.st.pads_refilled++; std::this_thread::yield();
+        } });
+}
+extern "C" void ggml_backend_tpu_refill_stop(void) { if (!g_refill_on.exchange(false)) return; for (auto &t : g_refill) t.join(); g_refill.clear(); }
 extern "C" void ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset) { *out = S().st; size_t left = (size_t)-1; for (group *g : S().groups) { std::lock_guard<std::mutex> lk(g->bank_mu); if (g->bank.size() < left) left = g->bank.size(); } out->bank_min = S().groups.empty() ? 0 : left; if (reset) S().st = ggml_backend_tpu_stats_t{}; }
 /* The arithmetic the TPU is REQUIRED to perform, as a loop over a connection: used by the host test as the worker, and the
  * definition the on-phone layer check compares the real TPU against (measured: at most one int16 step apart). */
