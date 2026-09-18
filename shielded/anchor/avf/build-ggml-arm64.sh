@@ -2,7 +2,8 @@
 # build-ggml-arm64.sh -- the pinned llama.cpp for the phone: arm64-v8a, CPU only,
 # loadable backends, NO weight repacking.
 #
-#   ./build-ggml-arm64.sh [work-dir]      # default: out/ggml-arm64-work
+#   ./build-ggml-arm64.sh [work-dir]      # default: out/ggml-arm64-work (give an ABSOLUTE path)
+#   GGML_CPU_REPACK=ON ./build-ggml-arm64.sh "$PWD/out/ggml-arm64-repack-work"   # the repacking CPU module for mode local (LOCAL.md)
 #
 # Produces <work>/prefix/lib/{libllama,libggml,libggml-base,libggml-cpu}.so and
 # the headers. Same pin and the same non-CUDA flags as
@@ -34,7 +35,10 @@ cmake -B build-android -G Ninja -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android
   -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_CURL=OFF \
   -DCMAKE_INSTALL_PREFIX="$WORK/prefix" > "$WORK/configure.log" 2>&1
 cmake --build build-android -j"$(nproc)" --target llama ggml-cpu ggml-base ggml > "$WORK/build.log" 2>&1
-cmake --install build-android > "$WORK/install.log" 2>&1
-cp build-android/bin/libggml-cpu.so build-android/bin/libllama.so "$WORK/prefix/lib/"     # the module and libllama are not installed by cmake --install
+# cmake --install stops at the pin's llama-app target (its binary is not built here: tools are OFF), AFTER the headers and
+# the ggml config are in place; the four libraries are taken from the build tree so the script does not depend on how far it got
+cmake --install build-android > "$WORK/install.log" 2>&1 || echo "cmake --install stopped early (see $WORK/install.log); libraries come from the build tree"
+mkdir -p "$WORK/prefix/lib"
+cp build-android/bin/libggml-base.so build-android/bin/libggml.so build-android/bin/libggml-cpu.so build-android/bin/libllama.so "$WORK/prefix/lib/"
 cp "$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$WORK/prefix/lib/"
 echo "prefix: $WORK/prefix"; ls "$WORK/prefix/lib"
