@@ -29,6 +29,12 @@ verified, sampled and cached on the phone; the GPU only ever sees masked planes.
 - **Badge from evidence.** A phone-anchored host earns the TEE CPU pill only when the verifier
   has accepted its chain, never from the model name.
 
+- **A phone-only tier exists beside the split (2026-09-18, `avf/LOCAL.md`).** Mode local runs the WHOLE model on the
+  VM's own CPU: no GPU box, no pads, nothing blinded because nothing leaves. Same payload, same attestation, same
+  model admission and verified loading; a second engine library (`liblocalengine.so`) and a repacking CPU module.
+  It answers "what does an operator with only a phone serve": a small model at interactive speed (Gemma 4 E2B Q4_0,
+  14 tok/s in the VM on a Pixel 10 Pro XL). The split engine stays the path for models that do not fit a phone's CPU.
+
 ## Phases
 
 ### 1. Product-shaped app, real GPU worker (DONE 2026-09-02, REPORT.md section 10)

@@ -102,6 +102,10 @@ public class Main extends Activity {
                                              // acknowledged (PADWINDOW) before any pads-port sender starts. 0 = default, no command sent, nothing changed.
                                              // Everything that uses the pads port is affected: shipments, prefix assets and artifacts.
         String modelCache = "";              // --es model_cache only: the VM reuses a retained model or refuses ('N', nothing streamed, store untouched); "" = today's re-receive on a miss
+        int ctx = 4096;                      // --ei ctx: mode local, the conversation's context window in tokens (512..32768)
+        int maxNew = 512;                    // --ei max_new: mode local, the most tokens one reply may run to (1..8192)
+        int temperatureMilli = 0;            // --ei temp_milli: mode local, sampling temperature x1000 (0 = greedy, reproducible; chat screen default 700)
+        String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
             Plan p = new Plan(); if (i == null) return p;
@@ -175,6 +179,21 @@ public class Main extends Activity {
                 final String raw = i.getStringExtra("vmname");
                 if (!"anchorfeed1".equals(raw)) p.configError = "mode delete removes only the owned test VM instance anchorfeed1 (explicit --es vmname anchorfeed1); refused for " + (raw == null ? "<missing>" : "'" + raw + "'");
             }
+            p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
+            if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
+            if (p.mode.equals("local")) {                                          // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
+                if (i.getIntExtra("mem", 0) == 0) p.memMib = 7168;
+                if (i.getIntExtra("storage", 0) == 0) p.storageMib = 6144;
+                if (i.getIntExtra("threads", 0) == 0) p.threads = 6;               // the six big cores of a Tensor G5; the little ones drag every parallel section
+                if (p.configError.isEmpty()) {
+                    if (!p.pads.isEmpty() || !p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.artifacts.isEmpty() || !p.artifactsUrl.isEmpty()) p.configError = "mode local takes no pads, prefix or artifacts: nothing leaves the VM, so nothing is blinded";
+                    else if ("catalog".equals(p.modelAuth)) p.configError = "mode local stages with the whole-file digest; model_auth catalog is not wired into the local engine yet";
+                    else if (p.ctx < 512 || p.ctx > 32768) p.configError = "ctx must be 512..32768";
+                    else if (p.threads < 1 || p.threads > 16) p.configError = "threads must be 1..16";
+                    else if (p.maxNew < 1 || p.maxNew > 8192) p.configError = "max_new must be 1..8192";
+                    else if (p.temperatureMilli < 0 || p.temperatureMilli > 2000) p.configError = "temp_milli must be 0..2000";
+                }
+            }
             if (p.mode.equals("engine")) {                                         // the model lives in the VM
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 4096;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 2048;             // encrypted storage: the model's home, kept across runs
@@ -214,6 +233,8 @@ public class Main extends Activity {
         TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 48, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
         ScrollView sv = new ScrollView(this); sv.addView(t); setContentView(sv); sScreen = t;
         final Plan plan = Plan.from(getIntent());
+        /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
+        if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
         if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
         new Thread(() -> runVm(this, plan), "anchor-host").start();
@@ -290,6 +311,10 @@ public class Main extends Activity {
             call(b, "setDebugLevel", plan.debug);
             call(b, "setMemoryBytes", plan.memMib << 20);
             call(b, "setCpuTopology", 1);            // CPU_TOPOLOGY_MATCH_HOST
+            /* mode local: every vCPU is a full-utilization compute thread. Without the boost the host scheduler was measured stacking
+             * two busy vCPU threads on one big core while another idled, and ggml's even split then runs at the slower pair's pace
+             * (7 tok/s instead of 14, LOCAL.md). Fixed at instance creation: an existing instance keeps what it was created with. */
+            if (plan.mode.equals("local")) say("HOST vCPU uclamp boost: " + (tryCall(b, "setShouldBoostUclamp", true) != null ? "requested" : "not available (hidden API: settings put global hidden_api_policy 1)"));
             if (plan.hugepages > 0) say("HOST hugepages: " + (tryCall(b, "setShouldUseHugepages", true) != null ? "requested" : "not available"));
             if (plan.storageMib > 0) say("HOST encrypted storage " + plan.storageMib + " MiB: " + (tryCall(b, "setEncryptedStorageBytes", plan.storageMib << 20) != null ? "set" : "not available"));
             Object cfg = call(b, "build");
@@ -424,7 +449,7 @@ public class Main extends Activity {
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
             //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
             boolean modelOk = false;
-            if (plan.mode.equals("engine") || plan.mode.equals("prepare")) {
+            if (plan.mode.equals("engine") || plan.mode.equals("prepare") || plan.mode.equals("local")) {
                 String ml = modelStage(vm, plan, out, r, 0);
                 modelOk = ml != null && ml.startsWith("MODEL ok");
                 if (!modelOk) say("MODEL stage did not pass: " + ml + (plan.mode.equals("prepare") ? " (the artifact feed will NOT start; the VM refuses PREPARE and ends)" : " (pads bootstrap will be refused)"));
@@ -491,11 +516,16 @@ public class Main extends Activity {
                 if (pre == null) throw new IllegalStateException("PREPARE preamble refused (shenv " + ArtifactProfile.KEY + " 0|1 once, artifacts_deadline 1..600): nothing sent");   // already refused at plan parse; CONTROL error + the finally's cleanup if ever reached
                 cmd.append(pre);
             }
+            if (plan.mode.equals("local")) {   // the whole model in the VM: one strict line (LocalChat.plan <-> anchor_local.h), then the conversation on its own port
+                cmd.append(LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx)).append('\n');
+                say("LOCAL plan: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + (plan.ask.isEmpty() ? ", no turns scripted (--es ask)" : ", scripted turns"));
+                if (modelOk) new Thread(() -> localSession(vm, plan), "vsock-local").start(); else say("LOCAL not started: the model stage did not pass");
+            }
             if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
             if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
@@ -531,6 +561,33 @@ public class Main extends Activity {
             if (relay != null) relay.close();
             captureClose(sawEnd);   /* the footer, then nothing more is written to the capture file */
         }
+    }
+
+    /* ---- mode local: the conversation with the engine that runs the WHOLE model in the VM (LocalChat, LOCAL.md) ---- */
+    static void localState(String state, String detail) { say("LOCAL " + state + (detail.isEmpty() ? "" : ": " + detail)); }
+    static void localSession(Object vm, Plan plan) {
+        localState("loading", "the VM is staging and loading the model");
+        ParcelFileDescriptor pfd = connect(vm, LocalChat.PORT, 1200);   /* the listener appears after RUN and the (cached) model stage */
+        if (pfd == null) { localState("failed", "no chat connection to the VM"); return; }
+        try (InputStream in = new FileInputStream(pfd.getFileDescriptor()); OutputStream out = new FileOutputStream(pfd.getFileDescriptor())) {
+            LocalChat.Session s = new LocalChat.Session(in, out);
+            java.util.Map<String, String> ready = s.awaitReady();
+            {
+                localState("ready", String.valueOf(ready));
+                int k = 0;
+                for (String q : plan.ask.split("\\|")) {
+                    if (q.trim().isEmpty()) continue; k++;
+                    final StringBuilder reply = new StringBuilder();
+                    java.util.Map<String, String> st = s.turn(q.trim(), plan.maxNew, plan.temperatureMilli, reply::append);
+                    say("LOCAL turn " + k + " Q: " + q.trim());
+                    say("LOCAL turn " + k + " A: " + reply.toString().replace("\n", "\\n"));
+                    say("LOCAL turn " + k + " STATS " + st);
+                }
+                localState("done", k + " scripted turns");
+            }
+            s.close();
+        } catch (Exception e) { localState("failed", String.valueOf(e.getMessage())); }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 
     /* vsock round trip, app <-> guest: the floor under every exchange the bridge carries */

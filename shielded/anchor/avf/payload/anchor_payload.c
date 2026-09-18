@@ -93,6 +93,7 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define MODEL_PORT  7779
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
 #define ECHO_PORT   7780
+#define LOCAL_PORT  7781     /* owner -> guest: the local engine's conversation (engine_local.cpp: GEN/RESET/BYE in, TXT/STATS/ERR out) */
 #define MAX_SHAPES  16
 
 /* ---- the mouth: every line to stdout (debug VMs), logcat, and the control vsock ---- */
@@ -430,6 +431,7 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_model_auth.h"
 #include "anchor_auth.h"
 #include "anchor_prepare.h"
+#include "anchor_local.h"
 #include "anchor_rxctl.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
@@ -977,6 +979,39 @@ static void run_prepare(int ls_pads, int seconds) {
     OUT("PREPARATION present %zu/%zu (%llu of %llu bytes, availability only: use-time reads verify), store free %llu MiB, %.1f s, reason=%s",
         present, g_ecat.count, bytes, total, freeb >> 20, (anchor_prepare_mono_ms() - t0) / 1e3, reason);
 }
+/* LOCAL: the whole model inside this VM (engine_local.cpp). No worker, no pads, no calibration: the model is staged and
+ * judged exactly as for the split engine (whole-file digest against the pin, per-tensor digests for the verified loader),
+ * then the local engine serves one accepted chat connection until the owner says BYE or goes away. */
+typedef int (*engine_local_main_fn)(int, int, const char *, int, int);
+static void run_local(const anchor_local_plan *plan) {
+    const char *apk = AVmPayload_getApkContentsPath();
+    char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
+    int ls_chat = vs_bind(LOCAL_PORT);
+    if (ls_chat < 0) { OUT("LOCAL refused: cannot listen on the chat port"); return; }
+    if (g_auth_catalog_requested) { OUT("LOCAL refused: catalog authentication is not wired into the local engine yet; stage with the whole-file digest"); close(ls_chat); return; }
+    if (model_stage(plan->model_bytes) != 0) { close(ls_chat); return; }   /* hashed + judged after the last write, before any parse */
+    int model_fd = g_model_fd;
+    if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { OUT("LOCAL refused: no staged model table"); close(ls_chat); return; }
+    static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libllama.so", "liblocalengine.so" };   /* the CPU module is loaded by the engine: the REPACKING build */
+    void *h = NULL;
+    for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
+        char path[600]; snprintf(path, sizeof path, "%s/%s", lib_dir, libs[i]);
+        h = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+        if (!h) { OUT("LOCAL dlopen %s: %s", libs[i], dlerror()); close(ls_chat); return; }
+    }
+    engine_local_main_fn em = (engine_local_main_fn)dlsym(h, "engine_local_main");
+    void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_local_set_ctl_writer");
+    void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
+    if (!em || !setw || !sett) { OUT("LOCAL refused: liblocalengine.so lacks engine_local_main / its setters"); close(ls_chat); return; }
+    setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
+    if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine-local.err lives there */
+    OUT("LOCAL listening on vsock %d for the conversation; model %" PRIu64 " bytes, %d threads, ctx %d", LOCAL_PORT, plan->model_bytes, plan->threads, plan->ctx);
+    int chat = vs_accept(ls_chat, 120000); close(ls_chat);
+    if (chat < 0) { OUT("LOCAL no chat connection from the owner within 120 s"); return; }
+    int rc = em(chat, model_fd, lib_dir, plan->threads, plan->ctx);
+    close(chat);
+    OUT("LOCAL exit %d", rc);
+}
 static void run_engine(int ls_wk, int ls_model, int ls_pads, const char *prompt, int n_predict, int threads, uint64_t model_bytes, int with_pads, int with_prefix) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512], calib[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk); snprintf(calib, sizeof calib, "%s/assets/model.calib", apk);
@@ -1226,6 +1261,7 @@ int AVmPayload_main(void) {
     int echo = 0, with_pads = 0, with_prefix = 0;
     int bridgebench = 0; static char bench_sizes[128] = "";
     int maskbench = 0, maskbench_bad = 0;                     /* MASKBENCH: the sampler + cell-import speed probe; no model, seed, worker or shapes */
+    int local = 0, local_bad = 0; anchor_local_plan local_plan; memset(&local_plan, 0, sizeof local_plan);   /* LOCAL: the whole model in this VM (run_local) */
     int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
@@ -1340,6 +1376,9 @@ int AVmPayload_main(void) {
                 else OUT("PADSIG refused: only the legacy seed request may be signed for the app, and only in an unpinned build");
             }
             else if (!strncmp(l, "WORKER ", 7)) bridge = !strcmp(l + 7, "bridge");
+            else if (!strncmp(l, "LOCAL", 5)) {           /* LOCAL model_bytes=N threads=N ctx=N: strict, once (anchor_local.h); malformed or repeated refuses the run at RUN */
+                if (local || !anchor_local_parse(l, &local_plan)) { local_bad = 1; OUT("LOCAL refused: %s", local ? "repeated" : "malformed (LOCAL model_bytes=N threads=1..16 ctx=512..32768)"); }
+                local = 1; }
             else if (!strncmp(l, "ENGINE ", 7)) {          /* ENGINE model_bytes=N n=N threads=N prompt=<hex> */
                 engine = 1; char *q;
                 if ((q = strstr(l, "model_bytes="))) eng_model = strtoull(q + 12, NULL, 10);
@@ -1451,6 +1490,16 @@ int AVmPayload_main(void) {
         else run_prepare(ls_pads, prep_seconds);
         OUT("END");
         if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_ctl >= 0) close(ls_ctl);
+        ctl_close();
+        sleep(1); return 0;
+    }
+    if (local) {   /* phone-only: no worker, no pads, no seed; conflicts are refused, never resolved by precedence */
+        if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("LOCAL refused: pins invalid (%s)", g_pins.err);
+        else if (local_bad) OUT("LOCAL refused: malformed or repeated LOCAL line");
+        else if (engine || echo || bridgebench || n_shapes || bridge) OUT("LOCAL refused: conflicting mode commands on the same run (ENGINE/ECHO/BRIDGEBENCH/SHAPE/WORKER bridge)");
+        else { OUT("ANCHOR local mode: the whole model runs in this VM"); run_local(&local_plan); g_model_fd = -1; g_model_state = 0; anchor_gguf_free(&g_model_table); }
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
         ctl_close();
         sleep(1); return 0;
     }

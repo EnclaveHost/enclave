@@ -124,6 +124,10 @@ case "$NAME" in
            "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-neon-tuned.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
            "$CLANG" "${PF[@]}" -D_GNU_SOURCE "${INC[@]}" -c "$HERE/payload/anchor_mtp.c" -o "$E/mtp.o"   # the MTP head as the draft model
            "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
+           # the LOCAL engine (payload/engine_local.cpp, LOCAL.md): the whole model in the VM, CPU only. Same llama/ggml as above;
+           # its CPU module is the REPACKING build (GGML_CPU_REPACK=ON ./build-ggml-arm64.sh "$PWD/out/ggml-arm64-repack-work": the work dir must be absolute), bundled as libggml-cpu-repack.so
+           "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/liblocalengine.so" "$HERE/payload/engine_local.cpp" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,liblocalengine.so
+           "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/liblocalengine.so" | grep -E ' T engine_local_(main|set_model_table|set_ctl_writer)$' | sed 's/^/  /'
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
            echo "engine-pvm: $E/libggml-shielded.so ($(stat -c %s "$E/libggml-shielded.so") B), libengine.so ($(stat -c %s "$E/libengine.so") B)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
@@ -141,6 +145,13 @@ case "$NAME" in
                   EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libggml-cpu.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libggml-shielded.so" "$OUT/engine-pvm/libengine.so")
                   EXTRA_ASSETS=("${ANCHOR_CALIB:-$HERE/../../../metal/shielded-overlay/calib/qwen3.5-0.8b-mtp-gguf.calib}")
                   echo "engine: bundling ${#EXTRA_LIBS[@]} libraries + $(basename "${EXTRA_ASSETS[0]}") as assets/model.calib"
+                  # the local engine rides along when both of its pieces exist: liblocalengine.so and the repacking CPU module
+                  GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
+                  if [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$GR/lib/libggml-cpu.so" ]; then
+                    cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
+                    EXTRA_LIBS+=("$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so")
+                    echo "local engine: bundling liblocalengine.so + libggml-cpu-repack.so (mode local, LOCAL.md)"
+                  else echo "local engine: NOT bundled (needs build.sh engine-pvm and GGML_CPU_REPACK=ON ./build-ggml-arm64.sh "\$PWD/out/ggml-arm64-repack-work")"; fi
                 fi ;;
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
