@@ -91,4 +91,16 @@ extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nati
            (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, err.empty() ? "" : " ERROR: ", err.c_str());
   LOGI("%s", buf); return env->NewStringUTF(buf);
 }
+// What one invocation costs by itself: each signature of two blocks, back to back and then with an idle gap between calls
+// (the real exchange pattern: the VM works for a few ms between exchanges). Public zeros in, nothing secret involved.
+extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeBench(JNIEnv* env, jclass, jlong handle) {
+  auto* w = (Worker*)(intptr_t)handle; if (!w) return env->NewStringUTF("TPU bench: not open");
+  std::string out = "TPU bench (ms per Run, min/mean):";
+  for (size_t L : {size_t(0), w->layers.size() / 2 + 3}) { if (L >= w->layers.size()) continue;
+    for (int k = 0; k < 4; k++) { Sig& s = w->layers[L].sig[k]; if (!s.present) continue;
+      for (int gap_us : {0, 3000}) { double mn = 1e9, sum = 0; const int N = 40;
+        for (int i = -5; i < N; i++) { if (gap_us) usleep(gap_us); auto t = Clock::now(); if (auto r = w->layers[L].compiled.Run(s.index, s.in, s.out); !r) return env->NewStringUTF("TPU bench: run failed"); double u = us_since(t); if (i >= 0) { sum += u; if (u < mn) mn = u; } }
+        char b[96]; snprintf(b, sizeof b, " L%zu.%s%s %.2f/%.2f", L, kKinds[k], gap_us ? "+3ms-gap" : "", mn / 1e3, sum / N / 1e3); out += b; } } }
+  LOGI("%s", out.c_str()); return env->NewStringUTF(out.c_str());
+}
 extern "C" JNIEXPORT void JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeClose(JNIEnv*, jclass, jlong handle) { delete (Worker*)(intptr_t)handle; }

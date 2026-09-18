@@ -22,14 +22,18 @@ int main(int argc, char **argv) {
     anchor_local_plan lp;
     expect(anchor_local_parse("LOCAL model_bytes=3360161216 threads=6 ctx=4096", &lp) && lp.model_bytes == 3360161216ull && lp.threads == 6 && lp.ctx == 4096, "LOCAL plan");
     expect(anchor_local_parse("LOCAL model_bytes=1 threads=1 ctx=512", &lp) && anchor_local_parse("LOCAL model_bytes=1099511627776 threads=16 ctx=32768", &lp), "LOCAL bounds");
-    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=1842000000 bank=64", &lp) && lp.tpu_bundle_bytes == 1842000000ull && lp.bank == 64, "LOCAL tpu tail");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=1842000000 bank=64 refill=2", &lp) && lp.tpu_bundle_bytes == 1842000000ull && lp.bank == 64 && lp.refill == 2, "LOCAL tpu tail");
     expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096", &lp) && lp.tpu_bundle_bytes == 0 && lp.bank == 0, "LOCAL without the tail clears it");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 draft_bytes=170194016 draft_max=4", &lp) && lp.tpu_bundle_bytes == 0 && lp.draft_bytes == 170194016ull && lp.draft_max == 4, "LOCAL draft tail alone");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 draft_bytes=7 draft_max=1", &lp) && lp.tpu_bundle_bytes == 9 && lp.draft_bytes == 7 && lp.draft_max == 1, "LOCAL both tails");
     const char *lbad[] = { "LOCAL", "LOCAL ", "LOCAL model_bytes=0 threads=6 ctx=4096", "LOCAL model_bytes=5 threads=0 ctx=4096", "LOCAL model_bytes=5 threads=17 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=511",
                            "LOCAL model_bytes=5 threads=6 ctx=32769", "LOCAL threads=6 model_bytes=5 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=4096 ", "LOCAL model_bytes=5  threads=6 ctx=4096", "LOCAL model_bytes=05 threads=6 ctx=4096",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 env=00", "LOCAL model_bytes=1099511627777 threads=6 ctx=4096", "LOCAL model_bytes=99999999999999999999 threads=6 ctx=4096", "LOCALmodel_bytes=5 threads=6 ctx=4096",
-                           "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9", "LOCAL model_bytes=5 threads=6 ctx=4096 bank=4", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=4097", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=0 bank=4" };
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9", "LOCAL model_bytes=5 threads=6 ctx=4096 bank=4", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=4097 refill=0", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=4", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=4 refill=9", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=0 bank=4 refill=0",
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 draft_bytes=7 draft_max=5", "LOCAL model_bytes=5 threads=6 ctx=4096 draft_bytes=7 draft_max=0", "LOCAL model_bytes=5 threads=6 ctx=4096 draft_max=4 draft_bytes=7",
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 draft_bytes=7 draft_max=4 tpu_bundle_bytes=9 bank=0" };
     for (size_t i = 0; i < sizeof lbad / sizeof *lbad; i++) expect(!anchor_local_parse(lbad[i], &lp), lbad[i]);
-    if (argc > 1 && !strcmp(argv[1], "--local")) { for (int i = 2; i < argc; i++) { if (anchor_local_parse(argv[i], &lp)) printf("LOCAL %llu %d %d %llu %d\n", (unsigned long long)lp.model_bytes, lp.threads, lp.ctx, (unsigned long long)lp.tpu_bundle_bytes, lp.bank); else printf("REFUSED\n"); } return 0; }
+    if (argc > 1 && !strcmp(argv[1], "--local")) { for (int i = 2; i < argc; i++) { if (anchor_local_parse(argv[i], &lp)) printf("LOCAL %llu %d %d %llu %d %llu %d\n", (unsigned long long)lp.model_bytes, lp.threads, lp.ctx, (unsigned long long)lp.tpu_bundle_bytes, lp.bank, (unsigned long long)lp.draft_bytes, lp.draft_max); else printf("REFUSED\n"); } return 0; }
     printf("{\"status\":\"%s\",\"executed_checks\":%d}\n", failed ? "FAIL" : "PASS", checks);
     return failed ? 1 : 0;
 }

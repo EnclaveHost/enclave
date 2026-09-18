@@ -72,6 +72,15 @@ inside a protected VM at 20-21.7 tok/s (18-19 without the drafter); llama.cpp's 
 engine here, and it is the one this app builds reproducibly and authenticates tensor by tensor.
 `gemma4-assistant` (the MTP drafter) exists in the pin; wiring it as a draft model is the known lever.
 
+## Speculative rows (optional)
+
+`--es draft <gguf> --ei draft_max 1..4` streams a drafter into the VM (vsock 7783) and the engine drives it with llama.cpp's
+own speculative helper (`libllama-common.so`, built in the repack work tree with `-DLLAMA_BUILD_COMMON=ON
+-DCMAKE_POSITION_INDEPENDENT_CODE=ON --target llama-common`). Tested with `google/gemma-4-E2B-it-assistant` (f16 GGUF,
+154 MB): coherent text, 1.7-2.3 tokens per step, but on the VM's CPU a 5-row verification costs real compute, so it
+measured 11.5 tok/s against about 13.5 plain: off by default. The drafter is not authenticated, on purpose: the target
+verifies every proposal, so a wrong drafter changes the speed and never the text.
+
 ## Traps, each of which produced a false "the VM is slow" conclusion
 
 1. **A dark or locked phone.** `am start` onto a dozing phone never makes the activity top-app: the app
