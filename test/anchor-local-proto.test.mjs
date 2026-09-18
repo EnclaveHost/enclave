@@ -20,12 +20,12 @@ test('local engine chat grammar: the app request builder and the VM parser agree
     const payload = join(root, 'shielded/anchor/avf/payload'), app = join(root, 'shielded/anchor/avf/host/app');
     const binary = join(dir, 'local-proto-test');
     run('cc', ['-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-I'+payload, join(root, 'test/fixtures/anchor-local-proto.c'), '-o', binary]);
-    assert.deepEqual(JSON.parse(run(binary, [])), {status:'PASS', executed_checks:41});
+    assert.deepEqual(JSON.parse(run(binary, [])), {status:'PASS', executed_checks:47});
     run('javac', ['--release', '17', '-Xlint:all', '-Werror', '-d', dir, join(app, 'LocalChat.java'), join(root, 'test/fixtures/LocalChatTest.java')]);
     const j = JSON.parse(run('java', ['-cp', dir, 'host.enclave.anchor.avf.LocalChatTest']));
-    assert.equal(j.status, 'PASS'); assert.equal(j.executed_checks, 11);
+    assert.equal(j.status, 'PASS'); assert.equal(j.executed_checks, 12);
     const lines = s => s.split('\n').filter(Boolean);
     assert.deepEqual(lines(run(binary, ['--wire', j.request, j.request_utf8, j.request + ' ', 'RESET'])), ['GEN 256 700 10', 'GEN 64 0 ' + (j.request_utf8.split(' ')[3].length), 'REFUSED', 'REFUSED']);
-    assert.deepEqual(lines(run(binary, ['--local', j.plan, j.plan + ' x=1'])), ['LOCAL 3360161216 6 4096', 'REFUSED']);
+    assert.deepEqual(lines(run(binary, ['--local', j.plan, j.plan + ' x=1', j.plan_tpu])), ['LOCAL 3360161216 6 4096 0 0', 'REFUSED', 'LOCAL 3360161216 6 4096 1842000000 64']);
   } finally { rmSync(dir, {recursive:true, force:true}); }
 });

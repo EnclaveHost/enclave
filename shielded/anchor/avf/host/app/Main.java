@@ -105,6 +105,10 @@ public class Main extends Activity {
         int ctx = 4096;                      // --ei ctx: mode local, the conversation's context window in tokens (512..32768)
         int maxNew = 512;                    // --ei max_new: mode local, the most tokens one reply may run to (1..8192)
         int temperatureMilli = 0;            // --ei temp_milli: mode local, sampling temperature x1000 (0 = greedy, reproducible; chat screen default 700)
+        String tpuGraphs = "";               // --es tpu_graphs <dir>: mode local with Shielded-TPU decode: the compiled per-block graphs (L<n>.tflite) the app-side worker loads
+        String tpuBundle = "";               // --es tpu_bundle <file>: the public lane bundle streamed into the VM (tpu/make_graphs.py)
+        int tpuBank = 64;                    // --ei tpu_bank: pad positions minted in the VM before READY (0 = mint inside decode steps, which the stats then show)
+        int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
@@ -181,6 +185,9 @@ public class Main extends Activity {
             }
             p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
+            if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
+            if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
+            p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
             if (p.mode.equals("local")) {                                          // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 7168;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 6144;
@@ -188,6 +195,9 @@ public class Main extends Activity {
                 if (p.configError.isEmpty()) {
                     if (!p.pads.isEmpty() || !p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.artifacts.isEmpty() || !p.artifactsUrl.isEmpty()) p.configError = "mode local takes no pads, prefix or artifacts: nothing leaves the VM, so nothing is blinded";
                     else if ("catalog".equals(p.modelAuth)) p.configError = "mode local stages with the whole-file digest; model_auth catalog is not wired into the local engine yet";
+                    else if (p.tpuGraphs.isEmpty() != p.tpuBundle.isEmpty()) p.configError = "Shielded-TPU decode needs both tpu_graphs (the worker's compiled graphs) and tpu_bundle (the VM's lane bundle)";
+                    else if (!p.tpuBundle.isEmpty() && !new java.io.File(p.tpuBundle).isFile()) p.configError = "tpu_bundle " + p.tpuBundle + " is not a file";
+                    else if (p.tpuBank < 0 || p.tpuBank > 4096 || p.tpuLayers < 1 || p.tpuLayers > 128) p.configError = "tpu_bank must be 0..4096 and tpu_layers 1..128";
                     else if (p.ctx < 512 || p.ctx > 32768) p.configError = "ctx must be 512..32768";
                     else if (p.threads < 1 || p.threads > 16) p.configError = "threads must be 1..16";
                     else if (p.maxNew < 1 || p.maxNew > 8192) p.configError = "max_new must be 1..8192";
@@ -283,6 +293,7 @@ public class Main extends Activity {
     static java.io.File filesDir = new java.io.File("/data/user/0/host.enclave.anchor.avf/files");
     static void runVm(Context ctx, Plan plan) {
         filesDir = ctx.getFilesDir();
+        apkPath = ctx.getApplicationInfo().sourceDir;
         try {
             say("HOST start payload=" + plan.payload + " debug=" + plan.debug + " mem=" + plan.memMib + "MiB worker=" + plan.worker + " mode=" + plan.mode + " host=" + ctx.getClass().getSimpleName());
             Object vmm = ctx.getSystemService("virtualization");
@@ -517,7 +528,10 @@ public class Main extends Activity {
                 cmd.append(pre);
             }
             if (plan.mode.equals("local")) {   // the whole model in the VM: one strict line (LocalChat.plan <-> anchor_local.h), then the conversation on its own port
-                cmd.append(LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx)).append('\n');
+                final boolean tpu = !plan.tpuBundle.isEmpty();
+                cmd.append(tpu ? LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx, new java.io.File(plan.tpuBundle).length(), plan.tpuBank)
+                               : LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx)).append('\n');
+                if (tpu && modelOk) { new Thread(() -> streamBundle(vm, plan), "vsock-bundle").start(); new Thread(() -> tpuWorker(vm, plan), "tpu-worker").start(); }
                 say("LOCAL plan: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + (plan.ask.isEmpty() ? ", no turns scripted (--es ask)" : ", scripted turns"));
                 if (modelOk) new Thread(() -> localSession(vm, plan), "vsock-local").start(); else say("LOCAL not started: the model stage did not pass");
             }
@@ -561,6 +575,52 @@ public class Main extends Activity {
             if (relay != null) relay.close();
             captureClose(sawEnd);   /* the footer, then nothing more is written to the capture file */
         }
+    }
+
+    /* ---- Shielded-TPU decode (TPU.md): the public lane bundle into the VM, and the app-side worker on the VM's worker port ---- */
+    static final int BUNDLE_PORT = 7782;
+    static void streamBundle(Object vm, Plan plan) {
+        ParcelFileDescriptor pfd = connect(vm, BUNDLE_PORT, 600);
+        if (pfd == null) { say("TPU bundle connect failed"); return; }
+        try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor()); InputStream f = new FileInputStream(plan.tpuBundle)) {
+            final long bytes = new java.io.File(plan.tpuBundle).length(); byte[] hdr = new byte[8]; for (int i = 0; i < 8; i++) hdr[i] = (byte) (bytes >>> (8 * i));
+            out.write(hdr); out.flush(); int ans = in.read();
+            if (ans == 'K') { say("TPU bundle already in the VM's encrypted storage (" + (bytes >> 20) + " MiB), not streamed"); return; }
+            if (ans != 'S') { say("TPU bundle: the VM answered " + ans); return; }
+            byte[] buf = new byte[1 << 20]; long sent = 0, t0 = System.nanoTime(); int n;
+            while ((n = f.read(buf)) > 0) { out.write(buf, 0, n); sent += n; }
+            out.flush(); say("TPU bundle streamed " + (sent >> 20) + " MiB in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
+        } catch (Exception e) { say("TPU bundle stream error " + e); }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
+    }
+    static void tpuWorker(Object vm, Plan plan) {
+        if (!TpuWorker.available()) { say("TPU worker unavailable: the VM will wait for a worker that never comes and end the run"); return; }
+        long t0 = System.nanoTime();
+        /* LiteRT dlopens the Tensor dispatch library from a DIRECTORY; this APK keeps its libraries inside itself
+         * (extractNativeLibs=false, the payload needs that), so the one library is copied out of the APK once per install. */
+        String dispatch = extractDispatch();
+        if (dispatch == null) { say("TPU worker: the Tensor dispatch library could not be extracted from the APK"); return; }
+        long h = TpuWorker.nativeOpen(dispatch, plan.tpuGraphs, plan.tpuLayers, 5);
+        if (h == 0) { say("TPU worker: the compiled graphs did not load (logcat tag anchor-tpu has the reason)"); return; }
+        say("TPU worker: " + plan.tpuLayers + " compiled blocks loaded in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
+        ParcelFileDescriptor pfd = connect(vm, WORKER_PORT, 1500);
+        if (pfd == null) { say("TPU worker: no connection to the VM's worker port"); TpuWorker.nativeClose(h); return; }
+        say("TPU worker: serving masked rows");
+        say(TpuWorker.nativeServe(h, pfd.getFd()));
+        try { pfd.close(); } catch (Exception ignored) { }
+        TpuWorker.nativeClose(h);
+    }
+    static String apkPath = "";
+    static String extractDispatch() {
+        final String lib = "libLiteRtDispatch_GoogleTensor.so"; java.io.File dir = new java.io.File(filesDir, "tpu-dispatch"), out = new java.io.File(dir, lib);
+        try (java.util.zip.ZipFile z = new java.util.zip.ZipFile(apkPath)) {
+            java.util.zip.ZipEntry e = z.getEntry("lib/arm64-v8a/" + lib); if (e == null) return null;
+            if (out.isFile() && out.length() == e.getSize() && out.lastModified() >= new java.io.File(apkPath).lastModified()) return dir.getPath();
+            dir.mkdirs(); java.io.File tmp = new java.io.File(dir, lib + ".part");
+            try (InputStream in = z.getInputStream(e); OutputStream o = new FileOutputStream(tmp)) { byte[] b = new byte[1 << 16]; int n; while ((n = in.read(b)) > 0) o.write(b, 0, n); }
+            if (!tmp.renameTo(out)) return null;
+            out.setReadOnly(); return dir.getPath();
+        } catch (Exception ex) { say("TPU dispatch extraction: " + ex); return null; }
     }
 
     /* ---- mode local: the conversation with the engine that runs the WHOLE model in the VM (LocalChat, LOCAL.md) ---- */
