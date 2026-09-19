@@ -66,6 +66,19 @@ existing bundles keep the old behaviour. Build one with
 So the price of real hiding is the denser sparse pass, and it is the cost lever 3 already names: a column-major copy of
 `Wq` (or a larger `--mod-headroom`). Nothing else changes.
 
+**Measured end to end on the phone (2026-09-18), not a simulation:** the full path (protected VM + the app's LiteRT
+worker + 35 AOT-compiled modular graphs) answers correctly - "The capital of France is Paris." - at **0.79 tok/s**
+against **1.01 tok/s** for the shipped statistical bundle run back to back on the SAME rebuilt binary and prompt (and
+with the phone 2 C warmer for that control, so the 22 % gap is if anything understated). 140.0 exchanges per token
+either way; TPU `Run` 3.10 ms per exchange modular against 2.80 ms statistical. The gap is entirely the denser correction pass on a row-major `Wq`. Build the graphs and the bundle from ONE
+`make_graphs.py --modular` run so the TPU's int8 weights and the VM's are the same bytes, and **rebuild the payload**
+(`build.sh engine-pvm` then `build.sh anchor`) before testing: a pre-modular payload reads `log2(m)` out of the `r_amp`
+slot as a pad amplitude and runs with essentially no mask at all.
+
+Modular masking makes this path SECURE, not FAST. It does not change the standing verdict below: the phone's own VM
+decodes the whole model on its CPU at 12-15 tok/s with no pads and nothing leaving it, so the split still buys nothing
+for decode. Use the modular mode wherever the lane is used at all (prefill, if long prompts ever need it).
+
 ## Pieces
 
 | piece | where | notes |
