@@ -14,6 +14,7 @@ typedef struct {
     uint64_t outlier_entries, saturated;             /* entries kept in the VM (beyond their lane) | replies on the int16 rail */
     uint64_t bank_min;                               /* pads left in the emptiest group */
     uint64_t pads_refilled;                          /* pads the background minters added */
+    uint64_t spin_us;                                /* of link_us, time spent spinning on the reply instead of sleeping for it */
 } ggml_backend_tpu_stats_t;
 struct ggml_backend_reg;
 struct ggml_backend_reg *ggml_backend_tpu_reg(void);

@@ -48,6 +48,7 @@
 #include <mutex>
 #include <string>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <thread>
@@ -88,6 +89,32 @@ state &S() { static state s; return s; }
 bool rd_all(int fd, void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char *)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; } return true; }
 bool wr_all(int fd, const void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char *)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 int64_t now_us() { return ggml_time_us(); }
+
+/* The reply is 1.5-3 ms away, and a blocking read pays a COLD vCPU wake to collect it: about 360 us in the guest plus
+ * 160-200 us on the host, against 21-27 us for a hot hand-off (LOCAL.md trap 4). At 140 exchanges per token that wake
+ * is the single largest cost left in the link -- bigger than the TPU's own per-invocation floor -- so spin on the
+ * socket for a bounded window first and only sleep if the worker is slower than expected. The window is one vCPU busy
+ * for the TPU's own runtime, which is cheap next to the six that mint pads, and ANCHOR_TPU_SPIN_US=0 turns it off so
+ * the two can be measured against each other on the same phone. */
+int link_spin_us() {
+    static const int v = []{ const char *e = getenv("ANCHOR_TPU_SPIN_US"); int n = e ? atoi(e) : 4000; return n < 0 ? 0 : n > 50000 ? 50000 : n; }();
+    return v;
+}
+bool rd_all_spin(int fd, void *p, size_t n, uint64_t *spun_us) {
+    size_t o = 0; const int win = link_spin_us();
+    if (win > 0) {
+        const int64_t t0 = now_us(), deadline = t0 + win;
+        while (o < n) {
+            ssize_t r = recv(fd, (char *)p + o, n - o, MSG_DONTWAIT);
+            if (r > 0) { o += (size_t)r; continue; }
+            if (r == 0) return false;
+            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
+            if (now_us() >= deadline) break;
+        }
+        if (spun_us) *spun_us += (uint64_t)(now_us() - t0);
+    }
+    return o >= n ? true : rd_all(fd, (char *)p + o, n - o);
+}
 
 /* sum_i Wq[j,i] * v_i for one output row: int8 x int16 products (< 2^22) gathered 256 at a time in int32, then widened */
 inline int64_t dot_i8_i8(const int8_t *w, const int8_t *v, uint32_t n) {
@@ -235,7 +262,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     { const uint8_t hdr[4] = { (uint8_t)(s_digit_split ? 0xE8 : 0xE7), (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
       memcpy(s.frame.data(), hdr, 4); }
     s.rxbuf.resize((size_t)wire_rows * n_out_total);
-    if (!wr_all(s.link, s.frame.data(), s.frame.size()) || !rd_all(s.link, s.rxbuf.data(), s.rxbuf.size() * 2)) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
+    if (!wr_all(s.link, s.frame.data(), s.frame.size()) || !rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     const int64_t t2 = now_us();
     /* unmask */
     g.cache.resize(g.projs.size()); const int16_t *rx = s.rxbuf.data();
