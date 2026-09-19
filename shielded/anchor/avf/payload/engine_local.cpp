@@ -40,6 +40,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <string>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <vector>
 #include <android/log.h>
@@ -72,6 +73,11 @@ extern "C" int engine_local_set_draft(const char *path, int n_max) { if (!path |
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
 
 /* diagnostics go to the owner's control channel (the payload's locked writer); chat lines go to the chat fd only */
+/* the VM's memory and this process's page-ins, for the log: a slow turn with climbing major faults is the page cache, not the engine */
+static std::string mem_line() {
+    long avail = -1, cached = -1; if (FILE *f = fopen("/proc/meminfo", "r")) { char l[128]; while (fgets(l, sizeof l, f)) { sscanf(l, "MemAvailable: %ld", &avail); sscanf(l, "Cached: %ld", &cached); } fclose(f); }
+    struct rusage ru; getrusage(RUSAGE_SELF, &ru); char o[160]; snprintf(o, sizeof o, "mem available %ld MiB, page cache %ld MiB, major faults %ld", avail / 1024, cached / 1024, ru.ru_majflt); return o;
+}
 static void outf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void outf(const char *fmt, ...) {
     char line[2048]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
@@ -181,10 +187,6 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (open_b(g_tpu_bundle.c_str()) != 0) { outf("LOCAL refused: the lane bundle did not open (engine-local.err has the reason)"); return 2; }
         set_l(g_tpu_fd, 5);
         outf("LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)");
-        auto refill = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_refill_start");
-        if (g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.2f s per position on %d threads)", g_tpu_bank, sec, sec / g_tpu_bank, n_threads);
-                              /* opt-in: minting while decoding keeps the vCPUs busy, and busy vCPUs slow the link (measured 4.3 -> 7.7 ms per exchange with 4 minters) */
-                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); } }
     }
     llama_backend_init();
     const int64_t t_load0 = ggml_time_us();
@@ -209,6 +211,15 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
       if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); g_pool = tp_new(&tpp); if (g_pool) llama_attach_threadpool(ctx, g_pool, g_pool); }
       outf("LOCAL context ready: ctx %d, %d threads, persistent pool=%s, model loaded in %.1f s", n_ctx, n_threads, tp_new ? "yes" : "no", load_s); }
     char model_hex[65] = ""; if (g_table->has_whole) for (int i = 0; i < 32; i++) snprintf(model_hex + 2 * i, 3, "%02x", g_table->whole_digest[i]);
+    /* Pads last: the model load above is the VM's biggest consumer of memory, and the lane bundle's pages must still be resident
+     * when decode walks them (a bundle page that went back to the encrypted store costs a disk read per touched page). */
+    if (g_tpu_fd >= 0) { void *th = dlopen((std::string(lib_dir) + "/libggml-tpu.so").c_str(), RTLD_NOW);
+        auto warm = th ? (double (*)(int, int *))dlsym(th, "ggml_backend_tpu_warm_bundle") : nullptr; auto mint = th ? (double (*)(int, int))dlsym(th, "ggml_backend_tpu_mint") : nullptr;
+        auto refill = th ? (void (*)(int, int))dlsym(th, "ggml_backend_tpu_refill_start") : nullptr;
+        if (warm) { int locked = 0; const double sec = warm(n_threads, &locked); outf("LOCAL tpu: lane bundle paged in from the encrypted store in %.1f s (%s) | %s", sec, locked ? "locked in memory" : "NOT locked: it can be evicted", mem_line().c_str()); }
+        if (mint && g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.1f positions per second on %d threads) | %s", g_tpu_bank, sec, g_tpu_bank / sec, n_threads, mem_line().c_str());
+                              /* opt-in: minting while decoding keeps the vCPUs busy, and busy vCPUs slow the link (measured 4.3 -> 7.7 ms per exchange with 4 minters) */
+                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); } } }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
     /* the drafter: its own context in MTP mode, sharing the target's memory (llama.cpp's speculative helper does the rest) */
@@ -328,10 +339,10 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (!chat_write(chat_fd, s)) break;
         outf("LOCAL turn %d: %s", served, s + 6);   /* the owner's log sees the counters, never the text */
         if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
-            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f unmask %.3f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu",
+            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f unmask %.3f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu | %s",
                  served, (unsigned long long)ts.exchanges, ex / (st.n_decode ? st.n_decode : 1), ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.unmask_us / ex / 1e3,
                  ts.bytes_out / 1024.0 / (st.n_decode ? st.n_decode : 1), ts.bytes_in / 1024.0 / (st.n_decode ? st.n_decode : 1), (unsigned long long)ts.pads_minted_inline,
-                 ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn); }
+                 ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn, mem_line().c_str()); }
     }
     if (g_tpu_fd >= 0) { if (void *th = dlopen((std::string(lib_dir) + "/libggml-tpu.so").c_str(), RTLD_NOW)) { auto stop = (void (*)(void))dlsym(th, "ggml_backend_tpu_refill_stop"); if (stop) stop(); } }
     outf("LOCAL engine ending after %d turns", served);

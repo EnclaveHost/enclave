@@ -18,9 +18,12 @@ typedef struct {
 struct ggml_backend_reg;
 struct ggml_backend_reg *ggml_backend_tpu_reg(void);
 int    ggml_backend_tpu_open_bundle(const char *path);         /* 0 = ok */
+double ggml_backend_tpu_warm_bundle(int threads, int *locked); /* page the bundle in and try to mlock it; returns seconds */
 void   ggml_backend_tpu_set_link(int fd, int rows_max);        /* the worker connection; rows_max = the compiled signatures' row count */
 int    ggml_backend_tpu_claims(const char *tensor_name);       /* 1 when the bundle covers this weight (the engine keeps those in plain host buffers) */
 double ggml_backend_tpu_mint(int positions, int threads);      /* fill every group's bank; returns seconds */
+long   ggml_backend_tpu_mint_check(int batch);                 /* batched minter vs the scalar reference over every group: differing values, 0 = exact */
+double ggml_backend_tpu_mint_bench(int positions, int threads, int scalar); /* minting alone, pads dropped; returns seconds */
 void   ggml_backend_tpu_refill_start(int target, int threads); /* keep every bank at `target` pads from background threads */
 void   ggml_backend_tpu_refill_stop(void);
 void   ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset);
