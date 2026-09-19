@@ -993,7 +993,20 @@ static int receive_public_file(int ls, uint64_t bytes, const char *name, char *p
     snprintf(path, pathcap, "%s/%s", es, name);
     int c = vs_accept(ls, 120000); if (c < 0) { OUT("LOCAL %s: no stream from the owner", name); return -1; }
     uint64_t hdr = 0; if (read_exact(c, &hdr, 8) != 0 || hdr != bytes) { OUT("LOCAL %s: header %" PRIu64 " != %" PRIu64, name, hdr, bytes); close(c); return -1; }
-    struct stat sb; if (stat(path, &sb) == 0 && (uint64_t)sb.st_size == bytes) { (void)!write(c, "K", 1); close(c); OUT("LOCAL %s: already in the encrypted store (%" PRIu64 " MiB)", name, bytes >> 20); return 0; }
+    /* The owner also sends the file's first 8 bytes. Size alone is NOT enough to decide the cached copy is the same
+     * file: the digit-split lane bundle (ETPUB002) is byte-for-byte the same LENGTH as the a16w8 one (ETPUB001), so a
+     * size-only check silently reuses the wrong format and the products come back wrong but plausible. */
+    uint8_t want_magic[8] = {0}; if (read_exact(c, want_magic, 8) != 0) { OUT("LOCAL %s: no magic", name); close(c); return -1; }
+    struct stat sb;
+    if (stat(path, &sb) == 0 && (uint64_t)sb.st_size == bytes) {
+        uint8_t have[8] = {0}; int hf = open(path, O_RDONLY | O_CLOEXEC); ssize_t hr = hf >= 0 ? read(hf, have, 8) : -1; if (hf >= 0) close(hf);
+        if (hr == 8 && memcmp(have, want_magic, 8) == 0) { (void)!write(c, "K", 1); close(c); OUT("LOCAL %s: already in the encrypted store (%" PRIu64 " MiB)", name, bytes >> 20); return 0; }
+        /* Drop the stale copy BEFORE streaming: the replacement is written to <path>.part first, and the encrypted
+         * store has not got room for the model plus two full bundles - a 1.8 GB bundle died at 819 MB this way. The
+         * bundle is public data (int8 weights, scales, lanes), so losing it to a failed stream costs only a restream. */
+        OUT("LOCAL %s: same size but a different file (first 8 bytes differ): restreaming", name);
+        if (unlink(path) != 0) OUT("LOCAL %s: could not remove the stale copy: %s", name, strerror(errno));
+    }
     (void)!write(c, "S", 1);
     char tmp[600]; snprintf(tmp, sizeof tmp, "%s.part", path); int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { OUT("LOCAL %s: cannot create %s: %s", name, tmp, strerror(errno)); close(c); return -1; }

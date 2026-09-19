@@ -64,6 +64,10 @@
 namespace {
 struct proj { const char *name; uint32_t n_out; float s_out; int32_t budget; const float *sw; const int8_t *Wq; std::vector<double> M; };
 struct pad { std::vector<int16_t> r; std::vector<std::vector<int16_t>> P; };   /* |P_j| <= the projection's budget < 32767 by construction */
+/* Set from the bundle magic: ETPUB002 graphs take the masked row as two int8 digits, q = 256*hi + lo, stacked as
+ * rows (hi first). Same bytes out, half the weight bytes the TPU streams, double the reply. */
+static bool s_digit_split = false;
+
 struct group {
     int layer, kind; uint32_t n_in; float s_in, k; const float *s; const int16_t *sig_q, *r_amp; std::vector<proj> projs;
     /* modular bundles (k < 0): r_amp holds log2(m_i) and mod[i] = m_i, a per-channel power-of-two modulus >= 2*sig_q_i+1.
@@ -86,6 +90,9 @@ bool wr_all(int fd, const void *p, size_t n) { size_t o = 0; while (o < n) { ssi
 int64_t now_us() { return ggml_time_us(); }
 
 /* sum_i Wq[j,i] * v_i for one output row: int8 x int16 products (< 2^22) gathered 256 at a time in int32, then widened */
+inline int64_t dot_i8_i8(const int8_t *w, const int8_t *v, uint32_t n) {
+    int64_t a = 0; for (uint32_t i = 0; i < n; i++) a += (int32_t)w[i] * (int32_t)v[i]; return a;
+}
 inline int64_t dot_i8_i16(const int8_t *w, const int16_t *v, uint32_t n) {
     int64_t acc = 0; uint32_t i = 0;
     while (i < n) { const uint32_t e = i + 256 < n ? i + 256 : n; int32_t a = 0; for (; i < e; i++) a += (int32_t)w[i] * (int32_t)v[i]; acc += a; }
@@ -205,18 +212,52 @@ void exchange(group &g, const float *x, uint32_t rows) {
         s.st.outlier_entries += outl[r].size();
     }
     const int64_t t1 = now_us();
-    uint8_t hdr[4] = { 0xE7, (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
-    s.frame.resize(4 + s.txbuf.size() * 2); memcpy(s.frame.data(), hdr, 4); memcpy(s.frame.data() + 4, s.txbuf.data(), s.txbuf.size() * 2);
     size_t n_out_total = 0; for (const proj &p : g.projs) n_out_total += p.n_out;
-    s.rxbuf.resize((size_t)rows * n_out_total);
+    const uint32_t wire_rows = s_digit_split ? 2u * rows : rows;
+    if (s_digit_split) {
+        /* q = 256*hi + lo with lo in [-128, 127] exactly, so hi = floor((q + 128) / 256). Modular lanes keep
+         * |q| <= 16384, hence |hi| <= 64: both digits are inside signed int8 with room to spare. Stack hi rows
+         * first, then lo rows, which is the layout make_graphs.py --digit-split authors. The byte count is
+         * unchanged (2*rows int8 == rows int16); only the TPU's weight streaming halves. */
+        s.frame.resize(4 + (size_t)wire_rows * g.n_in);
+        int8_t *d = (int8_t *)(s.frame.data() + 4);
+        for (uint32_t r = 0; r < rows; r++) {
+            const int16_t *q = s.txbuf.data() + (size_t)r * g.n_in;
+            int8_t *hi = d + (size_t)r * g.n_in, *lo = d + (size_t)(rows + r) * g.n_in;
+            for (uint32_t i = 0; i < g.n_in; i++) {
+                const int32_t v = q[i], h = (v + 128) >> 8;                /* arithmetic shift: floor for negatives too */
+                hi[i] = (int8_t)h; lo[i] = (int8_t)(v - (h << 8));
+            }
+        }
+    } else {
+        s.frame.resize(4 + s.txbuf.size() * 2); memcpy(s.frame.data() + 4, s.txbuf.data(), s.txbuf.size() * 2);
+    }
+    { const uint8_t hdr[4] = { (uint8_t)(s_digit_split ? 0xE8 : 0xE7), (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
+      memcpy(s.frame.data(), hdr, 4); }
+    s.rxbuf.resize((size_t)wire_rows * n_out_total);
     if (!wr_all(s.link, s.frame.data(), s.frame.size()) || !rd_all(s.link, s.rxbuf.data(), s.rxbuf.size() * 2)) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     const int64_t t2 = now_us();
     /* unmask */
     g.cache.resize(g.projs.size()); const int16_t *rx = s.rxbuf.data();
     for (size_t p = 0; p < g.projs.size(); p++) {
         const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
+        /* Digit-split replies carry both halves at ONE scale, sized for the larger (the lo product reaches about
+         * 1/128 of a full-range output, hi about 1/256; the rest is headroom for the pad's spread). This MUST equal
+         * make_graphs.py's DIGIT_OUT_DIV - it is deliberately not derived from the lane margin, so that retuning the
+         * margin cannot silently desynchronise graph and payload. */
+        const float s_d = pr.s_out / 102.4f;                               /* DIGIT_OUT_DIV */
         for (uint32_t r = 0; r < rows; r++) {
             float *y = g.cache[p].data() + (size_t)r * pr.n_out; const int16_t *P = pads[r].P[p].data();
+            if (s_digit_split) {
+                /* hi rows come first, so this projection's lo row sits rows*n_out further on. The pad was
+                 * projected in units of s_out, so subtract it as a float rather than mixing the domains. */
+                const int16_t *vh = rx, *vl = rx + (size_t)rows * pr.n_out;
+                for (uint32_t j = 0; j < pr.n_out; j++) {
+                    const int16_t a = vh[j], b2 = vl[j];
+                    if (a == 32767 || a == -32768 || b2 == 32767 || b2 == -32768) s.st.saturated++;
+                    y[j] = s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
+                }
+            } else
             for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] = pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
             /* the rare entries beyond their lane: exact, inside the VM. Wq is row major, so a column is a strided walk (one
              * cache miss per output); the misses are independent, so they are prefetched a few rows ahead and overlap. */
@@ -226,6 +267,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
             }
             rx += pr.n_out;
         }
+        if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
     }
     const int64_t t3 = now_us();
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
@@ -293,7 +335,12 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
     state &s = S(); int fd = open(path, O_RDONLY | O_CLOEXEC); if (fd < 0) { TPU_LOG("bundle %s: %s\n", path, strerror(errno)); return -1; }
     struct stat sb; if (fstat(fd, &sb) != 0 || sb.st_size < 16) { close(fd); return -1; }
     void *m = mmap(NULL, (size_t)sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0); close(fd); if (m == MAP_FAILED) { TPU_LOG("bundle mmap: %s\n", strerror(errno)); return -1; }
-    const uint8_t *b = (const uint8_t *)m, *e = b + sb.st_size; if (memcmp(b, "ETPUB001", 8)) { TPU_LOG("bundle magic\n"); munmap(m, (size_t)sb.st_size); return -1; }
+    const uint8_t *b = (const uint8_t *)m, *e = b + sb.st_size;
+    /* ETPUB002 is a digit-split bundle: its graphs take 2*rows int8 digit rows instead of rows of int16, so a payload
+     * that sent int16 would be feeding the TPU nonsense that still decodes to plausible text. Refuse loudly. */
+    const bool bundle_ds = !memcmp(b, "ETPUB002", 8);
+    if (!bundle_ds && memcmp(b, "ETPUB001", 8)) { TPU_LOG("bundle magic\n"); munmap(m, (size_t)sb.st_size); return -1; }
+    s_digit_split = bundle_ds;
     uint32_t n; memcpy(&n, b + 8, 4); size_t off = 16;
     auto al8 = [](size_t o) { return (o + 7) & ~(size_t)7; };
     for (uint32_t gi = 0; gi < n; gi++) {
@@ -403,16 +450,24 @@ extern "C" double ggml_backend_tpu_mint_bench(int positions, int threads, int sc
 /* The arithmetic the TPU is REQUIRED to perform, as a loop over a connection: used by the host test as the worker, and the
  * definition the on-phone layer check compares the real TPU against (measured: at most one int16 step apart). */
 extern "C" int ggml_backend_tpu_reference_worker(int fd) {
-    state &s = S(); std::vector<int16_t> q, y; uint8_t hdr[4];
+    state &s = S(); std::vector<int16_t> q, y; std::vector<int8_t> d; uint8_t hdr[4];
     while (rd_all(fd, hdr, 4)) {
-        if (hdr[0] != 0xE7) return -1;
+        const bool ds = hdr[0] == 0xE8;                                    /* digit-split frame: 2*rows int8, hi rows then lo */
+        if (hdr[0] != 0xE7 && !ds) return -1;
         group *g = nullptr; for (group *c : s.groups) if (c->layer == hdr[1] && c->kind == hdr[2]) { g = c; break; }
         if (!g || hdr[3] < 1) return -1;
-        const uint32_t rows = hdr[3]; q.resize((size_t)rows * g->n_in); if (!rd_all(fd, q.data(), q.size() * 2)) return -1;
+        const uint32_t rows = hdr[3], wire = ds ? 2u * rows : rows;
+        if (ds) { d.resize((size_t)wire * g->n_in); if (!rd_all(fd, d.data(), d.size())) return -1; }
+        else    { q.resize((size_t)rows * g->n_in); if (!rd_all(fd, q.data(), q.size() * 2)) return -1; }
         for (const proj &p : g->projs) {
-            y.resize((size_t)rows * p.n_out);
-            for (uint32_t r = 0; r < rows; r++) for (uint32_t j = 0; j < p.n_out; j++) {
-                long long v = llround((double)dot_i8_i16(p.Wq + (size_t)j * g->n_in, q.data() + (size_t)r * g->n_in, g->n_in) * p.M[j]);
+            /* The digit graphs carry both halves at one scale, DIGIT_OUT_DIV coarser than s_out, so the reference
+             * has to requantise the same way or the VM's recombination lands in the wrong units. */
+            const double mscale = ds ? 102.4 : 1.0;
+            y.resize((size_t)wire * p.n_out);
+            for (uint32_t r = 0; r < wire; r++) for (uint32_t j = 0; j < p.n_out; j++) {
+                const long long acc = ds ? dot_i8_i8(p.Wq + (size_t)j * g->n_in, d.data() + (size_t)r * g->n_in, g->n_in)
+                                         : dot_i8_i16(p.Wq + (size_t)j * g->n_in, q.data() + (size_t)r * g->n_in, g->n_in);
+                long long v = llround((double)acc * p.M[j] * mscale);
                 y[(size_t)r * p.n_out + j] = (int16_t)(v > 32767 ? 32767 : v < -32767 ? -32767 : v);
             }
             if (!wr_all(fd, y.data(), y.size() * 2)) return -1;

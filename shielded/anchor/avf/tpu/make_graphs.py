@@ -31,7 +31,19 @@ ap.add_argument('--no-graphs', action='store_true', help='write only the lane bu
 ap.add_argument('--mod-headroom', type=float, default=1.0, help='modular: modulus = next power of two above headroom*(2*sig_q+1). '
                 'Security is IDENTICAL for every value (the pad is uniform on the modulus either way); this only trades '
                 'resolution against the VM-side wrap correction, whose density falls as 1/headroom.')
+ap.add_argument('--digit-split', action='store_true', help='send each masked row as TWO int8 digits, q = 256*hi + lo, instead of one '
+                'int16 row, stacked as rows: hi in [0, rows), lo in [rows, 2*rows). Same bytes OUT and the same weights, but the '
+                'compiler no longer stores every weight at two bytes to feed an int16 activation: measured on a real layer, '
+                '74.9 -> 36.4 MB compiled, i.e. HALF the bytes the TPU streams per token, which is 338 of the 722 ms a token costs. '
+                'Rows are free on this TPU, so one FULLY_CONNECTED still does it. The VM recombines 256*hi + lo, which doubles the '
+                'reply; recombining on the TPU instead needs two FCs and MEASURED 71.9 MB - the second FC emits the weights again and '
+                'cancels the saving. Bundle magic becomes ETPUB002 so a payload that does not digit-split refuses it loudly.')
 A = ap.parse_args(); os.makedirs(A.outdir, exist_ok=True)
+# The digit reply carries both halves at ONE scale, sized for the larger of the two: lo spans +-128 against the
+# masked value's +-16384, so its product reaches about 1/128 of a full-range output (hi reaches 1/256). The extra
+# 1.25 is headroom against the pad's statistical spread. payload/ggml-tpu.cpp MUST use the same number - it is
+# deliberately NOT tied to --margin, so that changing the lane margin cannot silently desynchronise the two.
+DIGIT_OUT_DIV = 102.4    # = 128 / 1.25
 SIG_MAX = 16383          # modular: the modulus is the next power of two above 2*sig_q+1 and must stay <= 32768, so that
                          # |r| <= 16384 and the batched minter's r = 256*hi + lo keeps |hi| <= 127 (payload/ggml-tpu.cpp)
 LANES = np.load(A.lanes); R = GGUFReader(A.gguf); T = {t.name: t for t in R.tensors}
@@ -85,16 +97,40 @@ class Builder:
         q = S.QuantizationParametersT(); q.scale = np.atleast_1d(np.asarray(scale, np.float32)); q.zeroPoint = np.zeros(len(q.scale), np.int64); q.quantizedDimension = 0; t.quantization = q
         return t
     def signature(self, key, rows, g):
-        sg = S.SubGraphT(); sg.name = key.encode(); sg.tensors = [self._tensor(key + '_x', S.TensorType.INT16, [rows, g['n_in']], g['s_in'])]; sg.operators = []; sg.inputs = np.array([0], np.int32); outs = []
+        sg = S.SubGraphT(); sg.name = key.encode(); sg.operators = []; outs = []
+        if A.digit_split:
+            # q = 256*hi + lo, both digits int8, stacked as ROWS of ONE tensor: hi in rows [0, rows), lo in
+            # [rows, 2*rows). One FULLY_CONNECTED per projection, exactly as today - which is the whole point.
+            #
+            # Two separate FCs against a shared weight tensor would be tidier (the TPU could do the 256*hi + lo
+            # itself with an ADD, keeping the reply one row) but MEASURED: that emits the weights TWICE for a real
+            # layer, 35.6 MB authored -> 71.9 MB compiled, cancelling exactly the saving we came for. One FC over
+            # stacked rows compiles at 1.02x instead, because rows are free on this TPU. The recombination moves to
+            # the VM, which costs double on the reply and is still far the better trade.
+            #
+            # Both digit halves share one input scale, so the VM applies the 256 when it recombines.
+            sg.tensors = [self._tensor(key + '_x', S.TensorType.INT8, [2 * rows, g['n_in']], g['s_in'])]
+            sg.inputs = np.array([0], np.int32)
+        else:
+            sg.tensors = [self._tensor(key + '_x', S.TensorType.INT16, [rows, g['n_in']], g['s_in'])]
+            sg.inputs = np.array([0], np.int32)
         for p in g['projs']:
             b = S.BufferT(); b.data = np.frombuffer(p['Wq'].tobytes(), np.uint8); self.m.buffers.append(b)
             wi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_w' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, p['sw'], len(self.m.buffers) - 1))
-            oi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_y' + str(len(outs)), S.TensorType.INT16, [rows, p['Wq'].shape[0]], p['s_out'])); outs.append(oi)
+            # Digit-split doubles the rows, and the reply carries both halves at ONE scale. The bigger of the two
+            # is the lo product: lo spans +-128 against the masked value's +-16384, so it reaches about 1/128 of a
+            # full-range output, while the hi product reaches 1/256. Scaling the reply for the larger keeps both
+            # digits inside int16; the VM then forms 256*y_hi + y_lo, where the hi half's rounding error is
+            # amplified by 256 and lands at about one output LSB (sim_digit_split.py: 1.98x the direct path).
+            n_rows = 2 * rows if A.digit_split else rows
+            s_y = np.float32(float(p['s_out']) / DIGIT_OUT_DIV) if A.digit_split else p['s_out']
+            oi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_y' + str(len(outs)), S.TensorType.INT16, [n_rows, p['Wq'].shape[0]], s_y)); outs.append(oi)
             op = S.OperatorT(); op.opcodeIndex = 0; op.inputs = np.array([0, wi, -1], np.int32); op.outputs = np.array([oi], np.int32)
             op.builtinOptionsType = S.BuiltinOptions.FullyConnectedOptions; o = S.FullyConnectedOptionsT(); o.keepNumDims = True; op.builtinOptions = o; sg.operators.append(op)
         sg.outputs = np.array(outs, np.int32); self.m.subgraphs.append(sg)
         sd = S.SignatureDefT(); sd.signatureKey = key.encode(); sd.subgraphIndex = len(self.m.subgraphs) - 1
-        tm = S.TensorMapT(); tm.name = b'x'; tm.tensorIndex = 0; sd.inputs = [tm]; sd.outputs = []
+        tm = S.TensorMapT(); tm.name = b'x'; tm.tensorIndex = 0; sd.inputs = [tm]
+        sd.outputs = []
         for n, i in enumerate(outs): tm = S.TensorMapT(); tm.name = f'y{n}'.encode(); tm.tensorIndex = i; sd.outputs.append(tm)
         self.m.signatureDefs.append(sd)
 
@@ -107,7 +143,9 @@ for L in want:
     if not A.no_graphs: fu.write_model(b.m, f'{A.outdir}/L{L}.tflite')
     print(f'L{L}: {(os.path.getsize(f"{A.outdir}/L{L}.tflite") >> 20) if not A.no_graphs else 0} MB, ' + ', '.join(f"{KINDS[g['kind']][1]}[{'+'.join(p['name'].split('.')[2] for p in g['projs'])}] s_in={g['s_in']:.3g}" for g in groups[-4:]), flush=True)
 with open(f'{A.outdir}/lanes.etpu', 'wb') as f:
-    f.write(b'ETPUB001' + struct.pack('<I', len(groups))); pad8(f)
+    # ETPUB002 marks a digit-split bundle: the payload must send two int8 digit rows, not one int16 row.
+    # A mismatched pair must fail loudly rather than decode plausible nonsense (see the modular-lane lesson).
+    f.write((b'ETPUB002' if A.digit_split else b'ETPUB001') + struct.pack('<I', len(groups))); pad8(f)
     for g in groups:
         f.write(struct.pack('<HBBIff', g['layer'], g['kind'], len(g['projs']), g['n_in'], float(g['s_in']), -1.0 if A.modular else A.k))
         f.write(g['s'].tobytes()); f.write(g['sig_q'].tobytes()); f.write(g['r_amp'].tobytes()); pad8(f)
