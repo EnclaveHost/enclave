@@ -21,7 +21,50 @@ y  = s_out*(yq - P) + s_in*sw_j*sum_{i in x_out} Wq[j,i] x_out_i       P = round
 ```
 
 Crossing the link: `q` and `yq`. Not `x`, not `r`, not `P`, not which entries were outliers. One pad per row per exchange.
-This is statistical hiding with ratio k (default 8), not a modular one-time pad: the TPU's FC saturates instead of wrapping.
+
+> **The bounded pad above does NOT hide the token, and the default k=8 recipe is broken. Measured 2026-09-18.**
+> `r` is uniform on a BOUNDED interval and the sum does not wrap, so every coordinate confines `x_in,i` to
+> `[q_i - r_amp_i, q_i + r_amp_i]`, which bites against the public lane about 12.5 % of the time at k=8. The model is
+> public and the layer-0 q,k,v input is a function of the TOKEN ID alone (RoPE is applied after the projection), so
+> enumerating the 262,144-token vocabulary identifies the token **uniquely in 95 % of trials from ONE exchange**, for
+> prompt and output alike. Raising k does not fix it (k=64 is the first value that stops single-exchange identification
+> and it leaves the median channel under 8 bits of signal), and a truncated Gaussian pad only defers it: the likelihood
+> attack still wins inside one token's 140 exchanges. The fix is the modular mode below, which is what to use.
+> Evidence and the attack script: the Codex tree, `tensor-sdk/PROGRESS-nonlinear-masking.md` (E1) and
+> `tensor-sdk/shield/nonlinear/e1_dict.py`.
+
+## Modular lanes: what to use instead (`--modular`)
+
+A modular pad needs no headroom at all: `q_i = (x_in,i + r_i) mod m_i`, taken in `[-m_i/2, m_i/2)` with `r_i` uniform on
+`Z_{m_i}`, is **uniform and independent of `x_in,i`** — an information-theoretic one-time pad per use, not "hiding with
+ratio k". `m_i` is the next power of two above `headroom * (2*sig_q_i + 1)`, per input channel, capped at 32768 so the
+batched minter's `r = 256*hi + lo` split keeps `|hi| <= 127`.
+
+The TPU cannot help with the reduction — measured: with the requantize multiplier set to 1 its FC returns the integer
+sum **bit-exactly**, and past the int16 rail it **saturates, never wraps**. It does not need to: the wrap
+`x_in,i = q_i - r_i + m_i c_i` is known inside the VM, so `m_i c_i` is simply added to the SAME sparse correction list
+the out-of-lane entries already use (one column of `Wq` each). The unmask path is unchanged.
+
+Because the pad no longer has to be k times the signal, the output lane shrinks too: on the real bundle, per-channel
+power-of-two moduli put `sigma(W r)` at 1.0-1.15x the theoretical optimum against **8.0x** for the shipped k=8 recipe,
+so the modular mode is better on BOTH security and resolution. `--mod-headroom H` trades the two costs and **does not
+affect security at all** (the pad is uniform on its modulus for every H): wrap density falls as 1/H, the output lane
+grows as H. H=8 reproduces the shipped scheme's pad energy exactly while still being perfectly hiding.
+
+Bundles mark themselves modular with `k = -1` and store `log2(m_i)` in the `r_amp` slot, so the format is unchanged and
+existing bundles keep the old behaviour. Build one with
+`tpu/make_graphs.py <f16.gguf> <lanes.npz> <outdir> --modular [--mod-headroom 4] [--no-graphs]`.
+
+| `tpu-host-test`, same binary, same prompt, exact reference worker | shipped k=8 | modular H=1 |
+|---|---|---|
+| greedy text | = plain llama.cpp | **= plain llama.cpp** |
+| exchanges / bytes per token | 140.0, 1038.5 KB out / 1716.0 KB in | identical |
+| saturated replies, pads redrawn | 0, 0 | **0, 0** |
+| entries corrected in the VM | 0.116 % | **4.188 %** |
+| unmask, ms per exchange (workstation, row-major `Wq`) | 0.07 | **3.43** |
+
+So the price of real hiding is the denser sparse pass, and it is the cost lever 3 already names: a column-major copy of
+`Wq` (or a larger `--mod-headroom`). Nothing else changes.
 
 ## Pieces
 

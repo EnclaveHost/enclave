@@ -26,7 +26,14 @@ from ai_edge_litert import schema_py_generated as S
 ap = argparse.ArgumentParser(); ap.add_argument('gguf'); ap.add_argument('lanes'); ap.add_argument('outdir')
 ap.add_argument('--k', type=float, default=8.0); ap.add_argument('--alpha', type=float, default=0.5); ap.add_argument('--margin', type=float, default=1.25)
 ap.add_argument('--sigmas', type=float, default=5.0); ap.add_argument('--rows', type=int, default=5); ap.add_argument('--layers', default='')
+ap.add_argument('--modular', action='store_true', help='per-channel MODULAR pads instead of the bounded statistical ones (see below)')
+ap.add_argument('--no-graphs', action='store_true', help='write only the lane bundle (for the workstation reference worker)')
+ap.add_argument('--mod-headroom', type=float, default=1.0, help='modular: modulus = next power of two above headroom*(2*sig_q+1). '
+                'Security is IDENTICAL for every value (the pad is uniform on the modulus either way); this only trades '
+                'resolution against the VM-side wrap correction, whose density falls as 1/headroom.')
 A = ap.parse_args(); os.makedirs(A.outdir, exist_ok=True)
+SIG_MAX = 16383          # modular: the modulus is the next power of two above 2*sig_q+1 and must stay <= 32768, so that
+                         # |r| <= 16384 and the batched minter's r = 256*hi + lo keeps |hi| <= 127 (payload/ggml-tpu.cpp)
 LANES = np.load(A.lanes); R = GGUFReader(A.gguf); T = {t.name: t for t in R.tensors}
 n_layer = 1 + max(int(n.split('.')[1]) for n in T if n.startswith('blk.'))
 want = range(n_layer)
@@ -43,15 +50,27 @@ def group(layer, names):
     lead = f'blk.{layer}.{names[0]}.weight'
     c = np.maximum(LANES[lead + '|max'].astype(np.float64), 1e-3); q = np.maximum(LANES[lead + '|q'].astype(np.float64), 1e-3)
     s = c ** A.alpha; s = s / s.mean() if A.alpha > 0 else np.ones_like(c)
-    lane = q / s * A.margin; s_in = lane.max() * (1 + A.k) / 32767.0
-    sig_q = np.maximum(np.floor(lane / s_in), 1).astype(np.int16); r_amp = np.floor(A.k * lane / s_in).astype(np.int16)
+    lane = q / s * A.margin
+    if A.modular:
+        # A modular pad needs NO headroom: q = (x + r) mod m with r uniform on Z_m is a perfect one-time pad for any
+        # m >= the signal's own range, so the signal keeps the whole domain and the pad is the size of the SIGNAL
+        # rather than k times it. r_amp carries log2(m) per channel; k = -1 marks the bundle modular.
+        s_in = lane.max() / max(np.floor(SIG_MAX / A.mod_headroom), 1.0)
+        sig_q = np.clip(np.floor(lane / s_in), 1, SIG_MAX).astype(np.int16)
+        mod = np.minimum(2.0 ** np.ceil(np.log2(A.mod_headroom * (2 * sig_q.astype(np.float64) + 1))), 32768.0)
+        r_amp = np.round(np.log2(mod)).astype(np.int16)                     # the bundle stores log2(m), not an amplitude
+        pad_span = mod                                                      # r is uniform on the WHOLE modulus
+    else:
+        s_in = lane.max() * (1 + A.k) / 32767.0
+        sig_q = np.maximum(np.floor(lane / s_in), 1).astype(np.int16); r_amp = np.floor(A.k * lane / s_in).astype(np.int16)
+        pad_span = 2 * r_amp.astype(np.float64) + 1
     projs = []
     for nm in names:
         full = f'blk.{layer}.{nm}.weight'
         if full not in T or (full + '|out') not in LANES.files: continue    # KV-shared layers never run attn_k / attn_v (the GGUF may still carry them): no calibration, no graph
         Wp = weight(full) * s[None, :]; sw = np.maximum(np.abs(Wp).max(1), 1e-12) / 127.0
         Wq = np.clip(np.round(Wp / sw[:, None]), -127, 127).astype(np.int8)
-        sig = np.sqrt((((s_in * r_amp.astype(np.float64) / 3 ** .5)[None, :] * Wq * sw[:, None]) ** 2).sum(1)).max()
+        sig = np.sqrt((((s_in * pad_span / 12 ** .5)[None, :] * Wq * sw[:, None]) ** 2).sum(1)).max()
         signal = float(LANES[full + '|out']) * A.margin; s_out = (signal + A.sigmas * sig) / 32767.0
         projs.append(dict(name=full, Wq=Wq, sw=sw.astype(np.float32), s_out=np.float32(s_out), budget=int(np.floor(A.sigmas * sig / s_out))))
     return dict(layer=layer, n_in=len(c), s_in=np.float32(s_in), s=s.astype(np.float32), sig_q=sig_q, r_amp=r_amp, projs=projs)
@@ -85,14 +104,15 @@ for L in want:
     b = Builder()
     for kind, key, names in KINDS:
         g = group(L, names); g['kind'] = kind; groups.append(g); b.signature(key, A.rows, g)
-    fu.write_model(b.m, f'{A.outdir}/L{L}.tflite')
-    print(f'L{L}: {os.path.getsize(f"{A.outdir}/L{L}.tflite") >> 20} MB, ' + ', '.join(f"{KINDS[g['kind']][1]}[{'+'.join(p['name'].split('.')[2] for p in g['projs'])}] s_in={g['s_in']:.3g}" for g in groups[-4:]), flush=True)
+    if not A.no_graphs: fu.write_model(b.m, f'{A.outdir}/L{L}.tflite')
+    print(f'L{L}: {(os.path.getsize(f"{A.outdir}/L{L}.tflite") >> 20) if not A.no_graphs else 0} MB, ' + ', '.join(f"{KINDS[g['kind']][1]}[{'+'.join(p['name'].split('.')[2] for p in g['projs'])}] s_in={g['s_in']:.3g}" for g in groups[-4:]), flush=True)
 with open(f'{A.outdir}/lanes.etpu', 'wb') as f:
     f.write(b'ETPUB001' + struct.pack('<I', len(groups))); pad8(f)
     for g in groups:
-        f.write(struct.pack('<HBBIff', g['layer'], g['kind'], len(g['projs']), g['n_in'], float(g['s_in']), A.k))
+        f.write(struct.pack('<HBBIff', g['layer'], g['kind'], len(g['projs']), g['n_in'], float(g['s_in']), -1.0 if A.modular else A.k))
         f.write(g['s'].tobytes()); f.write(g['sig_q'].tobytes()); f.write(g['r_amp'].tobytes()); pad8(f)
         for p in g['projs']:
             f.write(p['name'].encode().ljust(64, b'\0')); f.write(struct.pack('<Ifi', p['Wq'].shape[0], float(p['s_out']), p['budget']))
             f.write(p['sw'].tobytes()); f.write(p['Wq'].tobytes()); pad8(f)
-print(f'bundle: {A.outdir}/lanes.etpu {os.path.getsize(A.outdir + "/lanes.etpu") >> 20} MB, {len(groups)} groups, rows={A.rows}, k={A.k}, alpha={A.alpha}')
+print(f'bundle: {A.outdir}/lanes.etpu {os.path.getsize(A.outdir + "/lanes.etpu") >> 20} MB, {len(groups)} groups, rows={A.rows}, '
+      f'{"MODULAR (per-channel power-of-two moduli, k field = -1)" if A.modular else f"k={A.k}"}, alpha={A.alpha}')
