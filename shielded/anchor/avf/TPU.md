@@ -29,7 +29,8 @@ This is statistical hiding with ratio k (default 8), not a modular one-time pad:
 |---|---|---|
 | calibration | `tpu/calibrate.py` | fp32 checkpoint on real chats: per-input-channel q99.9 and max of \|x\|, max \|W x\|, keyed by GGUF tensor names |
 | artifacts | `tpu/make_graphs.py` | from the **f16 GGUF**: `L<n>.tflite` (signatures qkv/o/gu/down, 5 rows, int16 in/out, authored as flatbuffers) + `lanes.etpu` (the VM's bundle: the SAME int8 bytes, scales, lanes). Then AOT-compile each layer for the Tensor G5 |
-| VM backend | `payload/ggml-tpu.cpp`, `ggml-tpu.h` | masks, exchanges, unmasks, pad bank, stats; also the exact reference worker |
+| VM backend | `payload/ggml-tpu.cpp`, `ggml-tpu.h` | masks, exchanges, unmasks, batched exact-integer pad minter + bank, stats; also the exact reference worker |
+| mint bench | `tpu/test/tpu-mint-bench.cpp` | the minter alone (needs only ggml): exactness check against the scalar reference, then positions per second; builds for the workstation and for the phone |
 | engine | `payload/engine_local.cpp` | loads the backend on request, keeps claimed weights in plain host buffers so ggml's scheduler offers their matmuls to it |
 | payload | `payload/anchor_payload.c` | `LOCAL ... tpu_bundle_bytes=N bank=N refill=N [draft_bytes=N draft_max=N]`: receives the bundle (vsock 7782, kept in the encrypted store), accepts the worker on 7778 |
 | app | `host/app/TpuWorker.java`, `Main.java` | streams the bundle, extracts LiteRT's dispatch library from the APK, runs the worker on the VM's descriptor |
@@ -57,7 +58,7 @@ re-drawn; greedy text equals plain llama.cpp except one word in 39 tokens. 1.0 M
 | mask (VM) | 0.17 | |
 
 = about 5.4 ms x 140 = 0.76 s per token, plus the VM's own attention/norm/head work. Pads: 0.11 s per position on six
-threads (about 9 positions per second), minted before READY. Boot: bundle into the VM 49 s once (1.76 GB), model load 50 s.
+threads (about 9 positions per second) with the first, one-at-a-time minter; see the batched minter below. Boot: bundle into the VM 49 s once (1.76 GB), model load 50 s.
 
 ## The four levers, measured (2026-09-18, same phone)
 
@@ -68,15 +69,40 @@ threads (about 9 positions per second), minted before READY. Boot: bundle into t
 | 3. unmask cost | the correction for entries beyond their lane walks a COLUMN of a row-major int8 matrix. A column cache did nothing (the overflowing channels are not a hot few: 7,490 distinct columns for 11,665 entries) and would have grown without bound; software prefetch is what is in the code | about 0.2 ms per overflowing entry remains (a TLB miss per element under two-stage translation): 1.6 ms per exchange at 7 entries (one row), 6.8 ms at 33 (five rows). The real fixes are a column-major copy of the weights (+1.76 GB) or fewer overflows (more calibration text, a wider margin) |
 | 2. more tokens per step | Google's `gemma-4-E2B-it-assistant` drafter (154 MB f16 GGUF, llama.cpp's own speculative helper, `--es draft`), 4 proposals = the 5 rows the graphs already take; the drafter is unauthenticated on purpose (the target verifies every proposal) | works, text coherent, 1.64-1.84 tokens per step on the phone (2.3-2.8 on a workstation with the Q8_0 target). **But a 5-row step costs 1.96 s against 0.83 s for one row**: rows are free on the TPU and nowhere else (5x the bytes on the link, 5x the rows to mask and unmask, 5x the overflow entries). Net 0.80 tok/s against 1.09 |
 
-**Pads are the other half of the cost.** Minting `W r` is the same integer MACs as the matmul it protects: 0.11-0.17 s per
-token position on six threads, 2.9 MB each (int16). Banked before READY they are free at decode time and cost memory
-(230 positions = 0.67 GB; a 320-position int32 bank got the VM OOM-killed). Minted during decode (`refill=N`) they keep
-the bank full, and four busy minters slowed the link from 4.3 to 7.7 ms per exchange, because busy vCPUs starve the vsock
-path on this phone. Five rows per step consume five positions per step.
+**Pads, and the batched minter.** A pad is `r` (kernel CSPRNG noise, per-channel amplitude from the public lanes) and
+`P = round(M * Wq r)` for every projection: the same integer MACs as the matmul it protects, and it must cancel exactly.
+Minted one at a time that is memory-bound (every weight row streamed for ONE dot product): 0.11-0.17 s per position on six
+threads. `mint_batch()` in `payload/ggml-tpu.cpp` mints 64 pads of a group at once, which is prefill's arithmetic:
+
+- exact by construction: `r = 256*hi + lo` with `lo = (int8)r`, so `Wq r = 256 * (Wq hi) + (Wq lo)`, two int8 x int8 SDOT
+  sums in int32 (bounds checked per group at open: `r_amp <= 32384`, `n_in < 2^17`; otherwise the scalar path). The
+  self-check `ggml_backend_tpu_mint_check()` recomputes every P from the pad's own r with the scalar reference:
+  0 differing values over all 140 groups, on the workstation and on the phone, also with budgets shrunk to force re-draws;
+- tiled like a GEMM, because SDOT outruns the caches: a tile of weight rows stays in L2, four pads' hi and lo chunks in L1
+  (untiled 52 positions per second, tiled 79);
+- work is dealt to the threads as (group, batch) items, largest first.
+
+| minting, positions per second (one position = one pad for each of the 140 groups) | scalar, one at a time | batched |
+|---|---|---|
+| phone, native, six big cores (`tpu/test/tpu-mint-bench.cpp`) | 12.7 | **78.8** (one prime core 23.2, one mid core 14.3) |
+| protected VM, six vCPUs, into recycled memory | 6-9 | **71-72** (one vCPU 20.6) |
+| protected VM, filling a fresh bank before READY | 6-9 | 31-34: first touch of fresh guest pages (LOCAL.md trap 2), 2.9 MB per position |
+
+So decode no longer needs a big bank: **8 positions (23 MB) and ONE background minter (`tpu_refill 1`) kept the bank full
+through a 40-token turn with zero inline pads and the link unchanged at 4.3 ms** (four scalar minters had slowed it to
+7.7 ms; a 230-position bank cost 0.67 GB). Five rows per step consume five positions per step, which one minter also
+covers. The minter runs AFTER the model load, and the bundle is paged in first (`ggml_backend_tpu_warm_bundle`, 2-3 s):
+minting before the load left the bundle's pages to be evicted by it, and decode then paid a disk read per touched page
+(unmask 1.2 -> 11.8 ms, 0.39 tok/s). `mlock` of the bundle is attempted and refused in the payload's sandbox; the log says so.
+
+What was ruled out as "cheap pads": mixing a small pool of `(b, W b)` pairs (every pad then lies in a low-dimensional
+subspace that the host, who sees many masked rows, can estimate and strip), sparse or reused pads (unmasked or correlated
+entries), sensor noise for `r` (the sensors belong to the host, and drawing `r` was never the cost), and minting on the
+TPU or GPU (they would see `r`). A trusted dealer remains possible (dealt-pad plumbing exists for the split engine).
 
 **Where that leaves it.** Best measured Shielded-TPU decode: **1.1-1.2 tok/s**. With every remaining inefficiency removed
 (unmask and mask to ~0.1 ms) the floor is the TPU's own 0.38 s per token plus 0.15 s of vsock: under 2 tok/s. The same VM
 decodes the same model on its own CPU at 12-15 tok/s with no pads at all (LOCAL.md), so on this phone the split costs
-about 10x and buys nothing: the desktop case for Shielded is a worker that is far faster than the enclave's CPU and pads
-that are dealt rather than minted at decode time, and neither holds for a 2B model on a Tensor G5. The lane is still the
+about 10x and buys nothing: the desktop case for Shielded is a worker that is far faster than the enclave's CPU, and that
+does not hold for a 2B model on a Tensor G5 (pads are no longer the obstacle: the batched minter makes them cheap). The lane is still the
 right tool where rows amortize: prefill (128 rows per exchange), if long prompts ever need it.

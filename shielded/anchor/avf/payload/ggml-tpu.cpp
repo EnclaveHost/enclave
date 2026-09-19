@@ -20,13 +20,15 @@
  *                      <- for each projection of the group in bundle order: rows * n_out int16
  * A reply whose value sits on the int16 rail is counted (the lane was too small for that row); it is not hidden.
  *
- * Pads are minted into a bank by ggml_backend_tpu_mint() (the payload calls it at idle); an exchange that finds the
- * bank empty mints on the spot and says so in the stats, because that time is the honest cost of having no bank.
+ * Pads are minted in batches (mint_batch: exact integer SDOT sums, tiled like a GEMM) into a bank by ggml_backend_tpu_mint()
+ * and kept full by the optional background minters; an exchange that finds the bank empty mints on the spot and says so in
+ * the stats, because that time is the honest cost of having no bank.
  */
 #include "ggml.h"
 #include "ggml-backend.h"
 #include "ggml-backend-impl.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cerrno>
@@ -47,6 +49,9 @@
 #include <unordered_map>
 #include <vector>
 #include "ggml-tpu.h"
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
 
 #define TPU_LOG(...) do { fprintf(stderr, "[tpu] " __VA_ARGS__); } while (0)
 
@@ -55,7 +60,7 @@ struct proj { const char *name; uint32_t n_out; float s_out; int32_t budget; con
 struct pad { std::vector<int16_t> r; std::vector<std::vector<int16_t>> P; };   /* |P_j| <= the projection's budget < 32767 by construction */
 struct group {
     int layer, kind; uint32_t n_in; float s_in, k; const float *s; const int16_t *sig_q, *r_amp; std::vector<proj> projs;
-    std::deque<pad> bank; std::mutex bank_mu; size_t minting = 0;
+    std::deque<pad> bank; std::mutex bank_mu; size_t minting = 0; bool fast = false;   /* fast: the batched integer minter's bounds hold */
     /* one exchange serves every projection of the group; the others read it here (keyed by the input's storage) */
     const void *cache_src = nullptr; uint32_t cache_rows = 0, served = 0; std::vector<std::vector<float>> cache;
 };
@@ -77,31 +82,83 @@ inline int64_t dot_i8_i16(const int8_t *w, const int16_t *v, uint32_t n) {
     while (i < n) { const uint32_t e = i + 256 < n ? i + 256 : n; int32_t a = 0; for (; i < e; i++) a += (int32_t)w[i] * (int32_t)v[i]; acc += a; }
     return acc;
 }
-/* one pad for one row of this group: r from the kernel CSPRNG, P for every projection; re-drawn if a P_j leaves its share of the output lane */
-void mint_one(group &g, pad &out) {
-    out.r.resize(g.n_in); out.P.resize(g.projs.size());
-    std::vector<uint32_t> rnd(g.n_in);
-    for (int attempt = 0; attempt < 8; attempt++) {
-        size_t got = 0; while (got < rnd.size() * 4) { ssize_t r = getrandom((char *)rnd.data() + got, rnd.size() * 4 - got, 0); if (r < 0 && errno == EINTR) continue; if (r <= 0) abort(); got += (size_t)r; }
-        for (uint32_t i = 0; i < g.n_in; i++) { const uint32_t span = 2u * (uint32_t)g.r_amp[i] + 1u; out.r[i] = (int16_t)((int32_t)(((uint64_t)rnd[i] * span) >> 32) - (int32_t)g.r_amp[i]); }
-        bool ok = true;
-        for (size_t p = 0; p < g.projs.size() && ok; p++) {
-            const proj &pr = g.projs[p]; out.P[p].resize(pr.n_out);
-            for (uint32_t j = 0; j < pr.n_out; j++) { const int64_t v = llround((double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, out.r.data(), g.n_in) * pr.M[j]); if (v > pr.budget || v < -pr.budget) { ok = false; break; } out.P[p][j] = (int16_t)v; }
-        }
-        if (ok) return;
-        S().st.pads_redrawn++;
+/* Batched minting. One pad alone streams every weight row from memory for ONE dot product (memory-bound: 0.11-0.17 s per
+ * position on this phone). A batch reads each weight row once and dots it against many pads, which is prefill's arithmetic.
+ * The pad must cancel EXACTLY, so the sums stay integer: r = 256*hi + lo with lo = (int8)r, and
+ *   sum_i Wq r  =  256 * sum_i Wq hi  +  sum_i Wq lo        two int8 x int8 dots (SDOT), bit-identical to dot_i8_i16.
+ * Bounds (checked per group at open, else the scalar path): |hi| <= 127 needs r_amp <= 32384; an int32 sum of n_in products
+ * of at most 127*128 needs n_in < 2^17. */
+inline void dot8_i8(const int8_t *w, const int8_t *const v[8], uint32_t n, int32_t out[8]) {   /* out[k] += sum_i w[i] * v[k][i] */
+    uint32_t i = 0;
+#if defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+    int32x4_t a0 = vdupq_n_s32(0), a1 = a0, a2 = a0, a3 = a0, a4 = a0, a5 = a0, a6 = a0, a7 = a0;
+    for (; i + 16 <= n; i += 16) {
+        const int8x16_t ww = vld1q_s8(w + i);
+        a0 = vdotq_s32(a0, ww, vld1q_s8(v[0] + i)); a1 = vdotq_s32(a1, ww, vld1q_s8(v[1] + i)); a2 = vdotq_s32(a2, ww, vld1q_s8(v[2] + i)); a3 = vdotq_s32(a3, ww, vld1q_s8(v[3] + i));
+        a4 = vdotq_s32(a4, ww, vld1q_s8(v[4] + i)); a5 = vdotq_s32(a5, ww, vld1q_s8(v[5] + i)); a6 = vdotq_s32(a6, ww, vld1q_s8(v[6] + i)); a7 = vdotq_s32(a7, ww, vld1q_s8(v[7] + i));
     }
-    TPU_LOG("a pad for blk.%d kind %d stayed outside its output budget after 8 draws; the lane recipe is wrong for this group\n", g.layer, g.kind); abort();
+    out[0] += vaddvq_s32(a0); out[1] += vaddvq_s32(a1); out[2] += vaddvq_s32(a2); out[3] += vaddvq_s32(a3); out[4] += vaddvq_s32(a4); out[5] += vaddvq_s32(a5); out[6] += vaddvq_s32(a6); out[7] += vaddvq_s32(a7);
+#endif
+    for (int k = 0; k < 8; k++) { int32_t a = 0; const int8_t *vk = v[k]; for (uint32_t t = i; t < n; t++) a += (int32_t)w[t] * (int32_t)vk[t]; out[k] += a; }
+}
+bool mint_fast(const group &g) { if (g.n_in >= (1u << 17)) return false; for (uint32_t i = 0; i < g.n_in; i++) if (g.r_amp[i] > 32384) return false; return true; }
+uint32_t mint_width(const group &) { return 64; }
+void fill_random(void *p, size_t n) { size_t got = 0; while (got < n) { ssize_t r = getrandom((char *)p + got, n - got, 0); if (r < 0 && errno == EINTR) continue; if (r <= 0) abort(); got += (size_t)r; } }
+
+/* At least `want` pads for rows of this group, appended to `out` (up to 3 more: the kernel works four pads at a time, and a
+ * pad is a pad). r from the kernel CSPRNG, P for every projection; a pad with a P_j outside its share of the output lane is
+ * dropped and drawn again. `scalar` forces the reference arithmetic (the self-check compares the two). */
+void mint_batch(group &g, size_t want, std::vector<pad> &out, bool scalar = false) {
+    static thread_local std::vector<uint32_t> rnd; static thread_local std::vector<int8_t> hl; static thread_local std::vector<int32_t> acc;       /* kept per thread: fresh pages are expensive in a protected VM */
+    const bool fast = !scalar && g.fast; const uint32_t n = g.n_in, width = fast ? mint_width(g) : 1; const size_t goal = out.size() + want;
+    for (int barren = 0; out.size() < goal; ) {
+        if (barren >= 8) { TPU_LOG("8 draws in a row for blk.%d kind %d stayed outside their output budget; the lane recipe is wrong for this group\n", g.layer, g.kind); abort(); }
+        const size_t left = goal - out.size(); const uint32_t B = fast ? (uint32_t)(left >= width ? width : (left + 3) & ~(size_t)3) : 1;
+        rnd.resize((size_t)B * n); fill_random(rnd.data(), rnd.size() * 4);
+        std::vector<pad> pads(B); std::vector<char> ok(B, 1);
+        for (uint32_t b = 0; b < B; b++) {
+            pads[b].r.resize(n); pads[b].P.resize(g.projs.size()); for (size_t p = 0; p < g.projs.size(); p++) pads[b].P[p].resize(g.projs[p].n_out);
+            const uint32_t *u = rnd.data() + (size_t)b * n; int16_t *r = pads[b].r.data();
+            for (uint32_t i = 0; i < n; i++) { const uint32_t span = 2u * (uint32_t)g.r_amp[i] + 1u; r[i] = (int16_t)((int32_t)(((uint64_t)u[i] * span) >> 32) - (int32_t)g.r_amp[i]); }
+        }
+        if (!fast) {
+            for (size_t p = 0; p < g.projs.size() && ok[0]; p++) { const proj &pr = g.projs[p];
+                for (uint32_t j = 0; j < pr.n_out; j++) { const int64_t v = llround((double)dot_i8_i16(pr.Wq + (size_t)j * n, pads[0].r.data(), n) * pr.M[j]); if (v > pr.budget || v < -pr.budget) { ok[0] = 0; break; } pads[0].P[p][j] = (int16_t)v; } }
+        } else {
+            hl.resize((size_t)2 * B * n);                                   /* [b] hi rows, then [B + b] lo rows */
+            for (uint32_t b = 0; b < B; b++) { const int16_t *r = pads[b].r.data(); int8_t *hi = hl.data() + (size_t)b * n, *lo = hl.data() + (size_t)(B + b) * n;
+                for (uint32_t i = 0; i < n; i++) { const int8_t l = (int8_t)(uint8_t)(r[i] & 0xFF); lo[i] = l; hi[i] = (int8_t)(((int32_t)r[i] - l) >> 8); } }
+            /* Tiled like a GEMM, because the dot is faster than the caches behind it: a tile of weight rows (TJ x TC bytes) stays
+             * in L2 while four pads' hi and lo chunks (8 x TC bytes) stay in L1; partial sums wait in acc[row][pad][hi|lo]. */
+            const uint32_t TC = n < 1536 ? n : 1536, TJ = (262144u / TC) < 1 ? 1 : 262144u / TC; acc.resize((size_t)TJ * B * 2);
+            for (size_t p = 0; p < g.projs.size(); p++) { const proj &pr = g.projs[p];
+                for (uint32_t j0 = 0; j0 < pr.n_out; j0 += TJ) { const uint32_t jn = pr.n_out - j0 < TJ ? pr.n_out - j0 : TJ;
+                    std::fill(acc.begin(), acc.begin() + (size_t)jn * B * 2, 0);
+                    for (uint32_t c0 = 0; c0 < n; c0 += TC) { const uint32_t cn = n - c0 < TC ? n - c0 : TC;
+                        for (uint32_t b = 0; b < B; b += 4) {
+                            const int8_t *v[8]; for (uint32_t t = 0; t < 4; t++) { v[t] = hl.data() + (size_t)(b + t) * n + c0; v[4 + t] = hl.data() + (size_t)(B + b + t) * n + c0; }
+                            for (uint32_t j = 0; j < jn; j++) { int32_t *a = acc.data() + ((size_t)j * B + b) * 2; int32_t o[8] = { a[0], a[2], a[4], a[6], a[1], a[3], a[5], a[7] };
+                                dot8_i8(pr.Wq + (size_t)(j0 + j) * n + c0, v, cn, o); a[0] = o[0]; a[2] = o[1]; a[4] = o[2]; a[6] = o[3]; a[1] = o[4]; a[3] = o[5]; a[5] = o[6]; a[7] = o[7]; }
+                        } }
+                    for (uint32_t j = 0; j < jn; j++) { const double M = pr.M[j0 + j];
+                        for (uint32_t b = 0; b < B; b++) { const int32_t *a = acc.data() + ((size_t)j * B + b) * 2; const int64_t v64 = llround((double)(256 * (int64_t)a[0] + (int64_t)a[1]) * M);
+                            if (v64 > pr.budget || v64 < -pr.budget) ok[b] = 0; else pads[b].P[p][j0 + j] = (int16_t)v64; } }
+                } }
+        }
+        const size_t before = out.size();
+        for (uint32_t b = 0; b < B; b++) { if (ok[b]) out.push_back(std::move(pads[b])); else S().st.pads_redrawn++; }
+        barren = out.size() == before ? barren + 1 : 0;
+    }
 }
 
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
-    std::vector<pad> pads(rows);
-    for (uint32_t r = 0; r < rows; r++) {
-        std::unique_lock<std::mutex> lk(g.bank_mu);
-        if (!g.bank.empty()) { pads[r] = std::move(g.bank.front()); g.bank.pop_front(); lk.unlock(); }
-        else { lk.unlock(); const int64_t m0 = now_us(); mint_one(g, pads[r]); s.st.mint_inline_us += (uint64_t)(now_us() - m0); s.st.pads_minted_inline++; }
+    std::vector<pad> pads; pads.reserve(rows + 3);
+    { std::lock_guard<std::mutex> lk(g.bank_mu); while (pads.size() < rows && !g.bank.empty()) { pads.push_back(std::move(g.bank.front())); g.bank.pop_front(); } }
+    if (pads.size() < rows) {                                              /* the bank ran dry: mint the rest here, in one batch, and say so */
+        const size_t missing = rows - pads.size(); const int64_t m0 = now_us(); mint_batch(g, missing, pads);
+        s.st.mint_inline_us += (uint64_t)(now_us() - m0); s.st.pads_minted_inline += missing;
+        if (pads.size() > rows) { std::lock_guard<std::mutex> lk(g.bank_mu); while (pads.size() > rows) { g.bank.push_back(std::move(pads.back())); pads.pop_back(); } }
     }
     /* mask: the signal lane gets the pad, the rest stays here */
     s.txbuf.resize((size_t)rows * g.n_in);
@@ -223,7 +280,7 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
               pr.M.resize(pr.n_out); for (uint32_t j = 0; j < pr.n_out; j++) pr.M[j] = (double)g->s_in * (double)pr.sw[j] / (double)pr.s_out;
               s.by_name[pr.name] = { g, (int)p }; g->projs.push_back(std::move(pr));
           }
-          s.groups.push_back(g); }
+          g->fast = mint_fast(*g); s.groups.push_back(g); }
     }
     s.map = m; s.map_len = (size_t)sb.st_size;
     TPU_LOG("bundle %s: %u exchange groups, %zu projections, k=%.1f\n", path, n, s.by_name.size(), s.groups.empty() ? 0.0 : (double)s.groups[0]->k);
@@ -231,19 +288,43 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
 bad:
     TPU_LOG("bundle %s is malformed at byte %zu\n", path, off); munmap(m, (size_t)sb.st_size); s.groups.clear(); s.by_name.clear(); return -1;
 }
+/* Page the whole bundle in (it lives in the VM's encrypted store: about 100 MB/s, cold) and try to pin it, so minting and the
+ * unmask's column walks never wait for the disk. Returns seconds; *locked = 1 when mlock held. */
+extern "C" double ggml_backend_tpu_warm_bundle(int threads, int *locked) {
+    state &s = S(); if (locked) *locked = 0; if (!s.map) return 0; const int64_t t0 = now_us(); if (threads < 1) threads = 1;
+    madvise(s.map, s.map_len, MADV_WILLNEED); std::vector<std::thread> th; std::atomic<uint64_t> sink{0}; const size_t slice = (s.map_len + threads - 1) / threads;
+    for (int t = 0; t < threads; t++) th.emplace_back([&, t] { const uint8_t *b = (const uint8_t *)s.map; uint64_t a = 0; const size_t e = std::min(s.map_len, slice * (t + 1)); for (size_t o = slice * t; o < e; o += 4096) a += b[o]; sink += a; });
+    for (auto &x : th) x.join();
+    if (mlock(s.map, s.map_len) == 0) { if (locked) *locked = 1; } else TPU_LOG("bundle mlock: %s (the pages stay evictable)\n", strerror(errno));
+    return (now_us() - t0) / 1e6;
+}
 extern "C" void ggml_backend_tpu_set_link(int fd, int rows_max) { S().link = fd; if (rows_max >= 1 && rows_max <= 64) S().rows_max = rows_max; }
 extern "C" int ggml_backend_tpu_claims(const char *tensor_name) { return S().by_name.count(tensor_name) ? 1 : 0; }
-/* Fill every group's bank to `positions` pads on `threads` threads. Idle-time work: one position costs about one CPU pass over the projections. */
-extern "C" double ggml_backend_tpu_mint(int positions, int threads) {
-    state &s = S(); if (threads < 1) threads = 1; const int64_t t0 = now_us(); std::atomic<size_t> next{0}; std::vector<std::thread> th;
+/* Work for the minters: (group, at most one batch of pads), largest first, so threads finish together. */
+static void mint_items(int threads, const std::vector<std::pair<group *, size_t>> &items, bool scalar, bool keep) {
+    std::atomic<size_t> next{0}; std::vector<std::thread> th; if (threads < 1) threads = 1;
     for (int t = 0; t < threads; t++) th.emplace_back([&] {
-        for (;;) { const size_t gi = next.fetch_add(1); if (gi >= s.groups.size()) return; group &g = *s.groups[gi];
-            for (;;) { { std::lock_guard<std::mutex> lk(g.bank_mu); if ((int)g.bank.size() >= positions) break; } pad p; mint_one(g, p); std::lock_guard<std::mutex> lk(g.bank_mu); g.bank.push_back(std::move(p)); } } });
+        for (;;) { const size_t i = next.fetch_add(1); if (i >= items.size()) return; group &g = *items[i].first;
+            std::vector<pad> fresh; mint_batch(g, items[i].second, fresh, scalar); if (!keep) continue;
+            std::lock_guard<std::mutex> lk(g.bank_mu); for (pad &p : fresh) g.bank.push_back(std::move(p)); } });
     for (auto &x : th) x.join();
+}
+static std::vector<std::pair<group *, size_t>> mint_plan(const std::vector<std::pair<group *, size_t>> &need) {
+    std::vector<std::pair<group *, size_t>> items;
+    for (const auto &nd : need) for (size_t left = nd.second; left > 0; ) { const size_t take = left < mint_width(*nd.first) ? left : mint_width(*nd.first); items.push_back({ nd.first, take }); left -= take; }
+    auto cost = [](const std::pair<group *, size_t> &it) { size_t rows = 0; for (const proj &p : it.first->projs) rows += p.n_out; return rows * it.first->n_in * it.second; };
+    std::stable_sort(items.begin(), items.end(), [&](const auto &x, const auto &y) { return cost(x) > cost(y); });
+    return items;
+}
+/* Fill every group's bank to `positions` pads on `threads` threads. Idle-time work: a batch of pads costs about one prefill pass over the projections. */
+extern "C" double ggml_backend_tpu_mint(int positions, int threads) {
+    state &s = S(); const int64_t t0 = now_us(); std::vector<std::pair<group *, size_t>> need;
+    for (group *g : s.groups) { std::lock_guard<std::mutex> lk(g->bank_mu); if ((int)g->bank.size() < positions) need.push_back({ g, (size_t)positions - g->bank.size() }); }
+    mint_items(threads, mint_plan(need), false, true);
     const double sec = (now_us() - t0) / 1e6; s.st.mint_bank_us += (uint64_t)(sec * 1e6); return sec;
 }
 /* Background refill: during Shielded-TPU decode the VM's cores mostly wait on the link, which is when pads are cheapest to make.
- * `threads` minters keep every group's bank at `target` pads, emptiest group first; they yield between pads. */
+ * `threads` minters keep every group's bank at `target` pads, emptiest group first, one batch at a time; they yield between batches. */
 static std::vector<std::thread> g_refill; static std::atomic<bool> g_refill_on{false};
 extern "C" void ggml_backend_tpu_refill_start(int target, int threads) {
     state &s = S(); if (g_refill_on.exchange(true)) return; if (threads < 1) threads = 1;
@@ -252,14 +333,31 @@ extern "C" void ggml_backend_tpu_refill_start(int target, int threads) {
             group *low = nullptr; size_t low_n = (size_t)target;
             for (group *g : s.groups) { std::lock_guard<std::mutex> lk(g->bank_mu); const size_t n = g->bank.size() + g->minting; if (n < low_n) { low_n = n; low = g; } }
             if (!low) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); continue; }
-            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting++; }
-            pad p; mint_one(*low, p);
-            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting--; low->bank.push_back(std::move(p)); }
-            s.st.pads_refilled++; std::this_thread::yield();
+            const size_t ask = std::min<size_t>((size_t)target - low_n, mint_width(*low));
+            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting += ask; }
+            std::vector<pad> fresh; mint_batch(*low, ask, fresh);
+            { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting -= ask; for (pad &p : fresh) low->bank.push_back(std::move(p)); }
+            s.st.pads_refilled += fresh.size(); std::this_thread::yield();
         } });
 }
 extern "C" void ggml_backend_tpu_refill_stop(void) { if (!g_refill_on.exchange(false)) return; for (auto &t : g_refill) t.join(); g_refill.clear(); }
 extern "C" void ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset) { *out = S().st; size_t left = (size_t)-1; for (group *g : S().groups) { std::lock_guard<std::mutex> lk(g->bank_mu); if (g->bank.size() < left) left = g->bank.size(); } out->bank_min = S().groups.empty() ? 0 : left; if (reset) S().st = ggml_backend_tpu_stats_t{}; }
+/* The batched minter against the scalar reference: for every group, `batch` pads from the batched path, each P recomputed from
+ * the pad's own r with dot_i8_i16. Returns the number of differing values (0 = exact), or -1 without a bundle. */
+extern "C" long ggml_backend_tpu_mint_check(int batch) {
+    state &s = S(); if (s.groups.empty()) return -1; long bad = 0;
+    for (group *g : s.groups) { std::vector<pad> pads; mint_batch(*g, (size_t)(batch < 1 ? 1 : batch), pads);
+        for (const pad &pd : pads) for (size_t p = 0; p < g->projs.size(); p++) { const proj &pr = g->projs[p];
+            for (uint32_t j = 0; j < pr.n_out; j++) if ((int64_t)pd.P[p][j] != (int64_t)llround((double)dot_i8_i16(pr.Wq + (size_t)j * g->n_in, pd.r.data(), g->n_in) * pr.M[j])) bad++; } }
+    return bad;
+}
+/* Minting alone, for measurement: `positions` pads per group on `threads` threads with the batched (scalar = 0) or the
+ * one-at-a-time reference path (scalar = 1); the pads are dropped. Returns seconds. */
+extern "C" double ggml_backend_tpu_mint_bench(int positions, int threads, int scalar) {
+    state &s = S(); const int64_t t0 = now_us(); std::vector<std::pair<group *, size_t>> need; for (group *g : s.groups) need.push_back({ g, (size_t)(positions < 1 ? 1 : positions) });
+    mint_items(threads, mint_plan(need), scalar != 0, false);
+    return (now_us() - t0) / 1e6;
+}
 /* The arithmetic the TPU is REQUIRED to perform, as a loop over a connection: used by the host test as the worker, and the
  * definition the on-phone layer check compares the real TPU against (measured: at most one int16 step apart). */
 extern "C" int ggml_backend_tpu_reference_worker(int fd) {
