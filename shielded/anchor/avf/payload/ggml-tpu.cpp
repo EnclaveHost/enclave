@@ -9,6 +9,12 @@
  *   x' = x / s                      smoothing, public, folded into the public weights
  *   x_in = clip(round(x'/s_in), lane)   the signal lane per channel (public calibration); x_out = the rare rest
  *   q   = x_in + r                  r: a one-time pad, uniform in +-r_amp_i (k times the channel's own lane), CSPRNG
+ *        MODULAR bundles (--modular, k field = -1) instead send q = (x_in + r) mod m_i taken in [-m_i/2, m_i/2), with
+ *        r uniform on the whole per-channel power-of-two modulus m_i >= 2*sig_q_i+1. What crosses the link is then
+ *        UNIFORM and independent of x_in (an information-theoretic one-time pad, per use), where the bounded pad above
+ *        only hides x_in statistically: an entry of x_in + r near the edge of its range confines x_in to an interval,
+ *        and against a PUBLIC model that is enough to identify the token (PROGRESS-nonlinear-masking.md, E1).
+ *        The wrap x_in = q - r + m_i*c_i is known here and joins the sparse out-of-lane correction below.
  *   TPU: yq_j = sat16(round(M_j * sum_i Wq[j,i] q_i))         int16 rows in, int16 rows out, int8 public weights
  *   VM:  y_j  = s_out * (yq_j - P_j) + s_in * sw_j * sum_{i in x_out} Wq[j,i] x_out_i
  *        P_j  = round(M_j * sum_i Wq[j,i] r_i)                minted here, never sent; M_j = s_in * sw_j / s_out
@@ -60,6 +66,9 @@ struct proj { const char *name; uint32_t n_out; float s_out; int32_t budget; con
 struct pad { std::vector<int16_t> r; std::vector<std::vector<int16_t>> P; };   /* |P_j| <= the projection's budget < 32767 by construction */
 struct group {
     int layer, kind; uint32_t n_in; float s_in, k; const float *s; const int16_t *sig_q, *r_amp; std::vector<proj> projs;
+    /* modular bundles (k < 0): r_amp holds log2(m_i) and mod[i] = m_i, a per-channel power-of-two modulus >= 2*sig_q_i+1.
+     * The pad is then uniform on the WHOLE modulus, so what crosses the link is uniform and independent of x. */
+    bool modular = false; std::vector<int32_t> mod;
     std::deque<pad> bank; std::mutex bank_mu; size_t minting = 0; bool fast = false;   /* fast: the batched integer minter's bounds hold */
     /* one exchange serves every projection of the group; the others read it here (keyed by the input's storage) */
     const void *cache_src = nullptr; uint32_t cache_rows = 0, served = 0; std::vector<std::vector<float>> cache;
@@ -101,7 +110,12 @@ inline void dot8_i8(const int8_t *w, const int8_t *const v[8], uint32_t n, int32
 #endif
     for (int k = 0; k < 8; k++) { int32_t a = 0; const int8_t *vk = v[k]; for (uint32_t t = i; t < n; t++) a += (int32_t)w[t] * (int32_t)vk[t]; out[k] += a; }
 }
-bool mint_fast(const group &g) { if (g.n_in >= (1u << 17)) return false; for (uint32_t i = 0; i < g.n_in; i++) if (g.r_amp[i] > 32384) return false; return true; }
+bool mint_fast(const group &g) {
+    if (g.n_in >= (1u << 17)) return false;
+    if (g.modular) { for (uint32_t i = 0; i < g.n_in; i++) if (g.mod[i] > 32768) return false; return true; }   /* |r| <= m/2 <= 16384 */
+    for (uint32_t i = 0; i < g.n_in; i++) if (g.r_amp[i] > 32384) return false;
+    return true;
+}
 uint32_t mint_width(const group &) { return 64; }
 void fill_random(void *p, size_t n) { size_t got = 0; while (got < n) { ssize_t r = getrandom((char *)p + got, n - got, 0); if (r < 0 && errno == EINTR) continue; if (r <= 0) abort(); got += (size_t)r; } }
 
@@ -119,7 +133,11 @@ void mint_batch(group &g, size_t want, std::vector<pad> &out, bool scalar = fals
         for (uint32_t b = 0; b < B; b++) {
             pads[b].r.resize(n); pads[b].P.resize(g.projs.size()); for (size_t p = 0; p < g.projs.size(); p++) pads[b].P[p].resize(g.projs[p].n_out);
             const uint32_t *u = rnd.data() + (size_t)b * n; int16_t *r = pads[b].r.data();
-            for (uint32_t i = 0; i < n; i++) { const uint32_t span = 2u * (uint32_t)g.r_amp[i] + 1u; r[i] = (int16_t)((int32_t)(((uint64_t)u[i] * span) >> 32) - (int32_t)g.r_amp[i]); }
+            if (g.modular) {   /* uniform on the whole modulus, centred: r_i in [-m_i/2, m_i/2) */
+                for (uint32_t i = 0; i < n; i++) { const uint32_t m = (uint32_t)g.mod[i]; r[i] = (int16_t)((int32_t)(((uint64_t)u[i] * m) >> 32) - (int32_t)(m >> 1)); }
+            } else {
+                for (uint32_t i = 0; i < n; i++) { const uint32_t span = 2u * (uint32_t)g.r_amp[i] + 1u; r[i] = (int16_t)((int32_t)(((uint64_t)u[i] * span) >> 32) - (int32_t)g.r_amp[i]); }
+            }
         }
         if (!fast) {
             for (size_t p = 0; p < g.projs.size() && ok[0]; p++) { const proj &pr = g.projs[p];
@@ -169,8 +187,20 @@ void exchange(group &g, const float *x, uint32_t rows) {
         for (uint32_t i = 0; i < g.n_in; i++) {
             const long full = lround((double)xr[i] / g.s[i] * inv_in); const long lane = g.sig_q[i];
             const long in = full > lane ? lane : full < -lane ? -lane : full;
-            if (full != in) outl[r].push_back({i, (int32_t)(full - in)});
-            q[i] = (int16_t)(in + pr[i]);                                  /* |in| <= lane_i, |r| <= k*lane_i: inside int16 by construction */
+            long delta = full - in;                                        /* the rare entry beyond its lane: stays here, exact */
+            long sent;
+            if (g.modular) {
+                /* q_i = ((in_i + r_i) mod m_i) taken in [-m/2, m/2). Uniform on the whole modulus and INDEPENDENT of x:
+                 * a one-time pad, per use. The wrap is in_i = q_i - r_i + m_i*c_i with c_i known here, so it joins the
+                 * same sparse correction the out-of-lane entries already use (one column of Wq each). */
+                const int32_t m = g.mod[i]; const long t = in + (long)pr[i];
+                sent = (long)(int32_t)((uint32_t)(t + (m >> 1)) & (uint32_t)(m - 1)) - (m >> 1);
+                delta += t - sent;                                         /* = m_i * c_i, an exact multiple of the modulus */
+            } else {
+                sent = in + (long)pr[i];                                   /* |in| <= lane_i, |r| <= k*lane_i: inside int16 by construction */
+            }
+            if (delta != 0) outl[r].push_back({i, (int32_t)delta});
+            q[i] = (int16_t)sent;
         }
         s.st.outlier_entries += outl[r].size();
     }
@@ -272,6 +302,16 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
           g->layer = layer; g->kind = kind; off += 16;
           if (np < 1 || np > 3 || g->n_in < 1 || g->n_in > (1u << 20) || b + off + (size_t)g->n_in * 8 > e) goto bad;
           g->s = (const float *)(b + off); off += (size_t)g->n_in * 4; g->sig_q = (const int16_t *)(b + off); off += (size_t)g->n_in * 2; g->r_amp = (const int16_t *)(b + off); off += (size_t)g->n_in * 2; off = al8(off);
+          g->modular = g->k < 0.0f;                                        /* k = -1 marks a modular bundle: r_amp holds log2(m_i) */
+          if (g->modular) {
+              g->mod.resize(g->n_in);
+              for (uint32_t i = 0; i < g->n_in; i++) {
+                  const int e = g->r_amp[i];
+                  if (e < 1 || e > 15) { TPU_LOG("bundle: blk.%d kind %d channel %u has log2(modulus) %d, outside 1..15\n", g->layer, g->kind, i, e); goto bad; }
+                  g->mod[i] = 1 << e;
+                  if (g->mod[i] < 2 * (int32_t)g->sig_q[i] + 1) { TPU_LOG("bundle: blk.%d kind %d channel %u modulus %d is below its own lane %d\n", g->layer, g->kind, i, g->mod[i], (int)g->sig_q[i]); goto bad; }
+              }
+          }
           for (uint8_t p = 0; p < np; p++) {
               if (b + off + 76 > e) goto bad;
               proj pr; pr.name = (const char *)(b + off); memcpy(&pr.n_out, b + off + 64, 4); memcpy(&pr.s_out, b + off + 68, 4); memcpy(&pr.budget, b + off + 72, 4); off += 76;
@@ -283,7 +323,9 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
           g->fast = mint_fast(*g); s.groups.push_back(g); }
     }
     s.map = m; s.map_len = (size_t)sb.st_size;
-    TPU_LOG("bundle %s: %u exchange groups, %zu projections, k=%.1f\n", path, n, s.by_name.size(), s.groups.empty() ? 0.0 : (double)s.groups[0]->k);
+    { const bool mo = !s.groups.empty() && s.groups[0]->modular;
+      TPU_LOG("bundle %s: %u exchange groups, %zu projections, %s\n", path, n, s.by_name.size(),
+              mo ? "MODULAR pads (uniform on a per-channel power-of-two modulus)" : "statistical pads"); }
     return 0;
 bad:
     TPU_LOG("bundle %s is malformed at byte %zu\n", path, off); munmap(m, (size_t)sb.st_size); s.groups.clear(); s.by_name.clear(); return -1;
