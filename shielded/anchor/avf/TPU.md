@@ -179,6 +179,16 @@ layer in 1.8 ms. Seventy int16 calls are 0.3 s per token before any masking cost
 call per token, which would need masks to survive GELU-gating and attention. Log and scripts: the Codex tree,
 `tensor-sdk/PROGRESS-nonlinear-masking.md`, `tensor-sdk/shield/nonlinear/`.
 
+**The chained exchange, quantized and then withdrawn (2026-09-19).** Built as a simulation with the real int16 arithmetic
+(`tensor-sdk/shield/nonlinear/sim_chain.py`): re-masking the intermediate inside the call with a fresh pad, carrying the
+previous multiply's VM-side outlier share as a second correction row, integer rescale factors, and 64 heavy channels
+multiplied by the VM, it reaches KL 0.0074 (statistical k=8 lanes), and the TPU runs the chained graph exactly (FC, ADD,
+MUL, ADD, CONCAT, FC: 99.99 % bit-exact, max one step). It is nevertheless not admissible: the intermediate can only be
+masked with a BOUNDED pad, because the mask is added inside the TPU call and this chip saturates rather than wraps, and a
+bounded pad is the leak the modular lanes above were introduced to remove (E1: 95 % of tokens read off one exchange). Only
+the VM can reduce modulo m, and the VM never sees the intermediate. Calibration keys (`chain.*` in `tpu/calibrate.py`) and
+the generator `tpu/make_graphs2.py` ("ETPUB002") are kept as the record; nothing reads them.
+
 **Where that leaves it.** Best measured Shielded-TPU decode: **1.1-1.2 tok/s**. With every remaining inefficiency removed
 (unmask and mask to ~0.1 ms) the floor is the TPU's own 0.38 s per token plus 0.15 s of vsock: under 2 tok/s. The same VM
 decodes the same model on its own CPU at 12-15 tok/s with no pads at all (LOCAL.md), so on this phone the split costs
