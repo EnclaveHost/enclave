@@ -4,6 +4,7 @@
 // It holds the per-block compiled graphs (L<n>.tflite: signatures qkv | o | gu | down, int16 rows in, int16 rows out, public
 // int8 weights) and answers the protected VM's exchanges over the vsock descriptor the app's VM API returned:
 //   <- u8 0xE7, u8 layer, u8 kind, u8 rows, rows * n_in int16      -> per projection: rows * n_out int16
+//   <- u8 0xE8 (digit-split): 2*rows * n_in int8, hi rows then lo  -> per projection: 2*rows * n_out int16
 // Everything it ever sees is masked rows. Buffers are created once per signature and reused for every exchange.
 #include <jni.h>
 #include <android/log.h>
@@ -57,7 +58,8 @@ extern "C" JNIEXPORT jlong JNICALL Java_host_enclave_anchor_avf_TpuWorker_native
       for (size_t o = 0; o < pos.size(); o++) { if (pos[o] < 0) { LOGI("L%d %s: output y%zu missing", L, kKinds[k], o); delete w; return 0; } }
       s.out.reserve(out->size()); s.out_bytes.resize(out->size());
       for (size_t o = 0; o < pos.size(); o++) { s.out.push_back(std::move((*out)[(size_t)pos[o]])); s.out_bytes[o] = packed(s.out[o]); }
-      std::vector<int16_t> zero(s.in_bytes / 2, 0); s.in[0].Write<int16_t>(litert::Span<const int16_t>(zero.data(), zero.size()));
+      // in_bytes is the packed byte size; zero it as bytes so this works for int8 digit graphs too.
+      std::vector<int8_t> zero(s.in_bytes, 0); s.in[0].Write<int8_t>(litert::Span<const int8_t>(zero.data(), zero.size()));
     }
     if (L % 8 == 0 || L == n_layers - 1) LOGI("loaded L%d (%.1f s so far)", L, us_since(t0) / 1e6);
   }
@@ -68,18 +70,32 @@ extern "C" JNIEXPORT jlong JNICALL Java_host_enclave_anchor_avf_TpuWorker_native
 extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeServe(JNIEnv* env, jclass, jlong handle, jint fd) {
   auto* w = (Worker*)(intptr_t)handle; if (!w) return env->NewStringUTF("TPU worker: not open");
   uint64_t n = 0; double wait_us = 0, recv_us = 0, write_us = 0, run_us = 0, read_us = 0, send_us = 0; std::string err;
-  std::vector<int16_t> rx, tx; uint8_t hdr[4];
+  std::vector<int16_t> rx, tx; std::vector<int8_t> rx8; uint8_t hdr[4];
   for (;;) {
     auto t0 = Clock::now(); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
-    if (hdr[0] != 0xE7 || hdr[1] >= w->layers.size() || hdr[2] > 3 || hdr[3] < 1 || hdr[3] > w->rows) { err = "malformed exchange header"; break; }
+    // 0xE7: rows of int16.  0xE8: DIGIT-SPLIT, 2*rows of int8 (hi rows then lo rows) against a graph whose weights
+    // the compiler therefore keeps at one byte instead of two. The reply carries both halves; the VM recombines.
+    const bool ds = hdr[0] == 0xE8;
+    if ((hdr[0] != 0xE7 && !ds) || hdr[1] >= w->layers.size() || hdr[2] > 3 || hdr[3] < 1 || hdr[3] > w->rows) { err = "malformed exchange header"; break; }
     Sig& s = w->layers[hdr[1]].sig[hdr[2]]; if (!s.present) { err = "no such signature"; break; }
-    const size_t rows = hdr[3], n_in = s.in_bytes / 2 / (size_t)w->rows; rx.resize(rows * n_in);
-    if (!rd_all(fd, rx.data(), rx.size() * 2)) { err = "short exchange body"; break; } auto t2 = Clock::now();
-    if (auto r = s.in[0].Write<int16_t>(litert::Span<const int16_t>(rx.data(), rx.size())); !r) { err = "input write: " + r.Error().Message(); break; } auto t3 = Clock::now();
+    const size_t rows = hdr[3], wire_rows = ds ? 2 * rows : rows, max_wire = ds ? 2 * (size_t)w->rows : (size_t)w->rows;
+    // int8 input in digit mode, so in_bytes is already the element count; int16 otherwise.
+    const size_t n_in = ds ? s.in_bytes / max_wire : s.in_bytes / 2 / (size_t)w->rows;
+    auto t2 = Clock::now();
+    if (ds) {
+      rx8.resize(wire_rows * n_in);
+      if (!rd_all(fd, rx8.data(), rx8.size())) { err = "short exchange body"; break; } t2 = Clock::now();
+      if (auto r = s.in[0].Write<int8_t>(litert::Span<const int8_t>(rx8.data(), rx8.size())); !r) { err = "input write: " + r.Error().Message(); break; }
+    } else {
+      rx.resize(rows * n_in);
+      if (!rd_all(fd, rx.data(), rx.size() * 2)) { err = "short exchange body"; break; } t2 = Clock::now();
+      if (auto r = s.in[0].Write<int16_t>(litert::Span<const int16_t>(rx.data(), rx.size())); !r) { err = "input write: " + r.Error().Message(); break; }
+    }
+    auto t3 = Clock::now();
     if (auto r = w->layers[hdr[1]].compiled.Run(s.index, s.in, s.out); !r) { err = "run: " + r.Error().Message(); break; } auto t4 = Clock::now();
-    size_t total = 0; for (size_t o = 0; o < s.out.size(); o++) total += rows * (s.out_bytes[o] / 2 / (size_t)w->rows);
+    size_t total = 0; for (size_t o = 0; o < s.out.size(); o++) total += wire_rows * (s.out_bytes[o] / 2 / max_wire);
     tx.resize(total); size_t off = 0; bool ok = true;
-    for (size_t o = 0; o < s.out.size() && ok; o++) { const size_t cnt = rows * (s.out_bytes[o] / 2 / (size_t)w->rows); if (auto r = s.out[o].Read<int16_t>(litert::Span<int16_t>(tx.data() + off, cnt)); !r) { err = "output read: " + r.Error().Message(); ok = false; } off += cnt; }
+    for (size_t o = 0; o < s.out.size() && ok; o++) { const size_t cnt = wire_rows * (s.out_bytes[o] / 2 / max_wire); if (auto r = s.out[o].Read<int16_t>(litert::Span<int16_t>(tx.data() + off, cnt)); !r) { err = "output read: " + r.Error().Message(); ok = false; } off += cnt; }
     if (!ok) break; auto t5 = Clock::now();
     if (!wr_all(fd, tx.data(), tx.size() * 2)) { err = "reply write failed"; break; } auto t6 = Clock::now();
     n++; wait_us += std::chrono::duration<double, std::micro>(t1 - t0).count(); recv_us += std::chrono::duration<double, std::micro>(t2 - t1).count();

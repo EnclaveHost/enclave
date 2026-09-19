@@ -596,10 +596,14 @@ public class Main extends Activity {
         if (pfd == null) { say(what + " connect failed"); return; }
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor()); InputStream f = new FileInputStream(path)) {
             final long bytes = new java.io.File(path).length(); byte[] hdr = new byte[8]; for (int i = 0; i < 8; i++) hdr[i] = (byte) (bytes >>> (8 * i));
-            out.write(hdr); out.flush(); int ans = in.read();
+            // ...followed by the file's first 8 bytes. The VM keeps a cached copy keyed on size, and the digit-split
+            // lane bundle has exactly the same size as the a16w8 one, so size alone would silently reuse the wrong format.
+            byte[] magic = new byte[8]; { int got = 0; while (got < 8) { int r = f.read(magic, got, 8 - got); if (r <= 0) break; got += r; } }
+            out.write(hdr); out.write(magic); out.flush(); int ans = in.read();
             if (ans == 'K') { say(what + " already in the VM's encrypted storage (" + (bytes >> 20) + " MiB), not streamed"); return; }
             if (ans != 'S') { say(what + ": the VM answered " + ans); return; }
             byte[] buf = new byte[1 << 20]; long sent = 0, t0 = System.nanoTime(); int n;
+            out.write(magic); sent += magic.length;          // the 8 bytes already consumed to form the header
             while ((n = f.read(buf)) > 0) { out.write(buf, 0, n); sent += n; }
             out.flush(); say(what + " streamed " + (sent >> 20) + " MiB in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
         } catch (Exception e) { say(what + " stream error " + e); }
