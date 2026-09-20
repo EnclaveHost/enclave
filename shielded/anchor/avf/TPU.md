@@ -195,3 +195,72 @@ decodes the same model on its own CPU at 12-15 tok/s with no pads at all (LOCAL.
 about 10x and buys nothing: the desktop case for Shielded is a worker that is far faster than the enclave's CPU, and that
 does not hold for a 2B model on a Tensor G5 (pads are no longer the obstacle: the batched minter makes them cheap). The lane is still the
 right tool where rows amortize: prefill (128 rows per exchange), if long prompts ever need it.
+
+## What one TPU invocation costs, and what that means for the 15 tok/s bar (2026-09-19)
+
+The run logs could never separate the two halves of the TPU's time, and the earlier estimate came from real
+signatures, where three of the SAME size (3.1 MB) measured 0.43, 0.91 and 1.08 ms. Taking the minima gave
+0.18 ms + 0.080 ms/MB (bytes dominate, a smaller model scales); taking a least-squares fit gave
+0.637 ms + 0.0677 ms/MB (invocations dominate, a smaller model hits a wall). Those point at different
+projects, so `a8w4/sweep_dispatch.py` measures it directly: eight FULLY_CONNECTEDs differing only in weight
+count, spanning 128x, authored exactly as `make_graphs.py` does and laid out as two "layers" of four
+signatures so the worker's own `nativeBench` walks all eight in one run.
+
+| weights, MB | 0.52 | 1.05 | 2.10 | 4.19 | 8.39 | 16.78 | 33.55 | 67.11 |
+|---|---|---|---|---|---|---|---|---|
+| ms, back to back | 0.37 | 0.84 | 0.98 | 0.81 | 0.91 | 1.86 | 2.77 | 4.58 |
+| ms, after 3 ms idle | 0.84 | 1.12 | 1.07 | 0.88 | 1.10 | 1.69 | 2.51 | 4.38 |
+
+**0.637 ms per invocation + 0.0600 ms/MB** (0.829 + 0.0520 after an idle gap), residual under 0.30 ms. The
+intercept is the same 0.637 the noisy real-graph fit gave, from independent data: it is real, and it is the
+binding constraint. Masked decode needs four exchanges per block and the mask cannot survive GELU-gating or
+attention, so the invocation count is 4x the layer count and nothing about a smaller model reduces it.
+
+| model | invocations | MB streamed | TPU alone |
+|---|---|---|---|
+| E2B int16 (what shipped) | 140 | 3865 | 321 ms/token, **3.1 tok/s** |
+| E2B int8 (digit-split) | 140 | 1872 | 202 ms/token, **5.0 tok/s** |
+| Llama-3.2-1B class, 16 blocks | 64 | 970 | 99 ms/token, 10.1 tok/s |
+| Gemma-3-1B class, 26 blocks | 104 | 700 | 108 ms/token, 9.2 tok/s |
+| Gemma-3-270M class, 18 blocks | 72 | 170 | 56 ms/token, **17.8 tok/s** |
+
+15 tok/s is 66.7 ms per token. E2B spends 202 ms of that on the TPU alone, so **no amount of link, mask or
+pad work can reach the bar with this model** -- not with the 1.64-1.84 tokens per step the drafter gives
+either. A 270M-class model leaves 10.7 ms for everything else at one token per step (0.148 ms per exchange:
+out of reach, transport alone is 1.19) and 64 ms at 1.8 tokens per step (0.889 ms per exchange: reachable,
+transport 1.19 and unmask 2.88 today but both fall on a model with a quarter of the output width). **The bar
+is reachable on this architecture only with a model of about 18 blocks and 170 MB of int8 weights, plus the
+drafter.** Off-the-shelf pruned E2Bs do not provide it: `trim/` evaluated a 10-of-35-layer drop (gibberish)
+and a 40 %-sparse rebuild (parrots the prompt, PPL 94 against 47), so a shallow model means a healing run.
+
+### The modular 2x2, and digit-split's verdict
+
+Same phone, same prompts, 42-token turn, all four correct:
+
+| pad recipe | activations | headroom | unmask | link | tok/s |
+|---|---|---|---|---|---|
+| statistical k=8 (**leaks**, E1) | int16 | - | 0.76 | 4.20 | 1.20 |
+| modular | int8 digit-split | 1 | 5.64 | 4.83 | 0.63 |
+| modular | int16 | 4 | 2.54 | 4.66 | 0.91 |
+| modular | int8 digit-split | 4 | 2.88 | 4.28 | 0.91 |
+
+`--mod-headroom 4` is the win: wraps fall from 155 to 40 per exchange (the count is identical for both
+activation widths, confirming it is purely the modulus), unmask halves, and digit-split goes 0.63 -> 0.91.
+
+**Digit-split is a dead heat at equal security.** It halves the compiled graphs (3865 -> 1872 MB, which is
+real for phone storage and load time) and its link is 0.38 ms faster, but the reply carries hi and lo
+separately -- 3432 KB per token against 1716 -- and the VM's recombination puts 0.34 ms back into unmask.
+The two cancel. Keep it for the bytes, not for the speed. Recombining on the TPU would fix the reply, but
+two FCs against one weight tensor emit the weights twice (35.6 -> 71.9 MB on a real layer), which is why the
+digits are stacked as rows in the first place.
+
+### Spinning on the reply: measured, and worse
+
+A blocking read pays a cold vCPU wake (360 us guest + 160-200 us host against 21-27 us hot, LOCAL.md trap 4),
+which is most of the 1.19 ms of the link that is neither the TPU nor the copies. Collecting the reply with a
+bounded `MSG_DONTWAIT` spin instead made it worse: link 4.284 -> 7.180 ms and 0.91 -> 0.70 tok/s, with
+3.937 ms of the 4000 us window spun and then a blocking read anyway. The worker's own clock says it answered
+in 3.19 ms, so the window should have caught the reply: the spin DELAYS delivery rather than missing it. The
+guest's vCPUs and the app's TPU worker are threads on the same six big cores, and a spinning vCPU at decode
+uclamp starves the path carrying the reply. There is no spare core on this phone -- which is the reason the
+work was pushed off the CPU to begin with. Kept behind `ANCHOR_TPU_SPIN_US`, default 0.
