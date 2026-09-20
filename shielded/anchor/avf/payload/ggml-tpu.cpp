@@ -90,14 +90,22 @@ bool rd_all(int fd, void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t r
 bool wr_all(int fd, const void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char *)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 int64_t now_us() { return ggml_time_us(); }
 
-/* The reply is 1.5-3 ms away, and a blocking read pays a COLD vCPU wake to collect it: about 360 us in the guest plus
- * 160-200 us on the host, against 21-27 us for a hot hand-off (LOCAL.md trap 4). At 140 exchanges per token that wake
- * is the single largest cost left in the link -- bigger than the TPU's own per-invocation floor -- so spin on the
- * socket for a bounded window first and only sleep if the worker is slower than expected. The window is one vCPU busy
- * for the TPU's own runtime, which is cheap next to the six that mint pads, and ANCHOR_TPU_SPIN_US=0 turns it off so
- * the two can be measured against each other on the same phone. */
+/* MEASURED AND OFF BY DEFAULT (2026-09-19). The idea was to skip the cold vCPU wake that collects the reply -- about
+ * 360 us in the guest plus 160-200 us on the host, against 21-27 us for a hot hand-off (LOCAL.md trap 4) -- by
+ * spinning on the socket for a bounded window instead of sleeping. It does the opposite. Same phone, same H=4
+ * digit-split graphs, back to back:
+ *
+ *     blocking read   link 4.284 ms   0.91 tok/s
+ *     spin 4000 us    link 7.180 ms   0.70 tok/s   (of which 3.937 ms spun, then it blocked anyway)
+ *
+ * The worker's own clock says it answered in 3.19 ms, so a 4 ms window should have caught the reply and did not:
+ * the spin does not merely fail to help, it DELAYS delivery. The guest's vCPUs and the app's TPU worker are threads
+ * on the same six big cores, and a spinning vCPU at decode uclamp starves the path that carries the reply across.
+ * There is no idle core on this phone to spin on, which is the whole reason the work was pushed to the TPU.
+ *
+ * Kept behind ANCHOR_TPU_SPIN_US (default 0) so the result can be re-checked on hardware with cores to spare. */
 int link_spin_us() {
-    static const int v = []{ const char *e = getenv("ANCHOR_TPU_SPIN_US"); int n = e ? atoi(e) : 4000; return n < 0 ? 0 : n > 50000 ? 50000 : n; }();
+    static const int v = []{ const char *e = getenv("ANCHOR_TPU_SPIN_US"); int n = e ? atoi(e) : 0; return n < 0 ? 0 : n > 50000 ? 50000 : n; }();
     return v;
 }
 bool rd_all_spin(int fd, void *p, size_t n, uint64_t *spun_us) {
