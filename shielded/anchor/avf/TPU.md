@@ -264,3 +264,39 @@ in 3.19 ms, so the window should have caught the reply: the spin DELAYS delivery
 guest's vCPUs and the app's TPU worker are threads on the same six big cores, and a spinning vCPU at decode
 uclamp starves the path carrying the reply. There is no spare core on this phone -- which is the reason the
 work was pushed off the CPU to begin with. Kept behind `ANCHOR_TPU_SPIN_US`, default 0.
+
+### The whole-exchange floor, and what it rules out
+
+The TPU-alone table above is not the binding number. Measured on the H=4 digit-split run with the
+boosted worker, the parts of one exchange that do NOT depend on the model are:
+
+| | ms | how it was obtained |
+|---|---|---|
+| TPU invocation | 0.637 | the sweep's intercept |
+| guest/host wake, both ways | 1.555 | link 4.281 minus the worker's own 2.726 |
+| worker recv + input-write + send | 0.346 | the worker's own counters |
+| **fixed, per exchange** | **2.538** | |
+
+Four exchanges per block are forced (the mask does not survive GELU-gating or attention), so
+`blocks x 4 x 2.538 ms` is a floor no model can go under. At 66.7 ms per token that is **6.6 blocks at
+one token per step, or 11.8 with the drafter at 1.8 tokens per step.** Adding the measured mask and
+unmask (2.82 ms at H=4 on E2B; call it 0.6 on a model with a quarter of the output width) gives:
+
+| | exchanges | projected | with the drafter |
+|---|---|---|---|
+| Gemma 4 E2B, 35 blocks | 140 | 1.81 tok/s (0.93 measured) | 3.26 |
+| Gemma-3-1B class, 26 blocks | 104 | 2.71 | 4.89 |
+| Gemma-3-270M class, 18 blocks | 72 | 4.31 | 7.76 |
+| ~150M, 12 blocks | 48 | 6.46 | 11.63 |
+
+**So 15 tok/s is not reachable on this architecture for any model worth running.** The cost is not the
+TPU and not the weights; it is 1.555 ms of scheduling per round trip, 61 % of the fixed cost, paid
+140 times a token. Both ways of attacking it are now measured and closed: spinning to skip the wake
+makes it worse (there is no spare core), and boosting the worker speeds the worker up without moving
+the link at all, because the residual is the guest's half.
+
+The same protected VM decodes the same model on its own six vCPUs at **13.3-14.2 tok/s** (LOCAL.md),
+which is 14x the masked TPU path, with the weights, KV cache, activations and sampling equally inside
+the pVM. The TPU only wins if it can be given the whole graph -- one invocation per token, no masking,
+no round trips, which is what Google's own NPU lane does at 25.2 tok/s -- and that needs the TPU
+INSIDE the pVM (device assignment), not a masked worker outside it.
