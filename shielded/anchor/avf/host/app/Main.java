@@ -298,7 +298,9 @@ public class Main extends Activity {
     }
 
     static java.io.File filesDir = new java.io.File("/data/user/0/host.enclave.anchor.avf/files");
+    static Context appCtx = null;
     static void runVm(Context ctx, Plan plan) {
+        appCtx = ctx;
         filesDir = ctx.getFilesDir();
         apkPath = ctx.getApplicationInfo().sourceDir;
         try {
@@ -611,6 +613,20 @@ public class Main extends Activity {
     }
     static void tpuWorker(Object vm, Plan plan) {
         if (!TpuWorker.available()) { say("TPU worker unavailable: the VM will wait for a worker that never comes and end the run"); return; }
+        /* The VM's six vCPUs run with uclamp boost (LOCAL.md); this thread did not, and it is the one the VM waits
+         * for 140 times per token. Of the 4.28 ms link, 1.19 ms is neither the TPU nor the copies -- it is the two
+         * hand-offs -- and a worker that loses the scheduling contest to a boosted vCPU pays for it twice. Ask for
+         * the same treatment: nice -19, and an ADPF session naming this tid with the exchange's own deadline so the
+         * governor keeps a big core available for it. Both are best-effort and neither is required to be granted. */
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+        Object hint = null;
+        try {
+            Object phm = appCtx == null ? null : appCtx.getSystemService("performance_hint");
+            if (phm != null) hint = phm.getClass().getMethod("createHintSession", int[].class, long.class)
+                    .invoke(phm, new int[] { android.os.Process.myTid() }, 4_000_000L);
+        } catch (Throwable t) { hint = null; }
+        say("TPU worker: thread priority " + android.os.Process.getThreadPriority(android.os.Process.myTid())
+            + (hint != null ? ", ADPF hint session held" : ", no ADPF hint session"));
         long t0 = System.nanoTime();
         /* LiteRT dlopens the Tensor dispatch library from a DIRECTORY; this APK keeps its libraries inside itself
          * (extractNativeLibs=false, the payload needs that), so the one library is copied out of the APK once per install. */
