@@ -110,3 +110,38 @@ This is a host capability, not an app surface: the engine a phone host serves in
 enclave host (PLAN.md). Today the only driver is the scripted `ask` path; the text of those turns passes through the owner
 app. The weights' use, the KV cache, activations and sampling exist only in the VM. Terminating the tenant's session inside
 the VM is what removes the app from the text path.
+
+## Decode rate and CPU cost against model size (2026-09-19)
+
+The Shielded-TPU path was closed on measurement this day (TPU.md): 0.93 tok/s, and 20x MORE phone CPU per
+token than this engine, because minting a pad is the same integer MACs as the matmul it protects. That puts
+the 15 tok/s question back here, where decode is bandwidth-bound and the lever is the model, not the engine.
+
+Two points, same protected VM, same six vCPUs, `a8w4/cpu_cost.sh` sampling utime+stime of the app, its
+virtmgr and its crosvm across one decode turn:
+
+| model | on disk | tok/s | core-ms/token | cores busy |
+|---|---|---|---|---|
+| Gemma 4 E2B Q4_0 | 3204 MB | 13.08 | 332 | 4.3 |
+| Qwen2.5-0.5B q8 | 645 MB | **39.89** | **98** | 4.3 |
+
+The line through them: **12.1 ms/token + 0.0201 ms/MB**, i.e. a fixed per-token cost (attention, norms,
+sampling, the embedding lookup) plus the weight stream.
+
+| | on disk | tok/s | core-ms/token | cores needed to HOLD 15 tok/s |
+|---|---|---|---|---|
+| E2B Q4_0, today | 3204 MB | 13.1 | 329 | flat out, and still short |
+| break-even for 15 tok/s | **2716 MB** | 15.0 | 287 | 100 % |
+| E2B at about Q3_K_M | 2500 MB | 16.0 | 268 | 93 % |
+| a 1B model at Q4_0 | 800 MB | 35.5 | 121 | **42 %** |
+| Qwen2.5-0.5B q8 | 645 MB | 39.9 | 108 | 38 % |
+
+Two things follow. **15 tok/s is reachable today** with the root of trust unchanged -- anything under about
+2.7 GB clears it, which E2B itself does at a slightly smaller quantisation. And the heat objection is really
+a duty-cycle objection: E2B holds 13 tok/s only by pinning six big cores at 100 %, which is what decays
+20.0 -> 16.2 -> 12.7 with BIG at 87 C, whereas a 1B model **holds 15 tok/s at 42 % duty** and a third of the
+CPU energy per token. Pick a model fast enough that the phone is not pinned, then cap the rate.
+
+Caveat on the Qwen row: the app applied Gemma's chat template to it, so the text carries `<|turn|>` artifacts
+and both turns ended on the token budget rather than EOS. The decode rate is still a valid measurement of
+forward-pass throughput at ctx 219-449; the row is here for the size curve, not as a model recommendation.
