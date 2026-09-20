@@ -300,3 +300,28 @@ which is 14x the masked TPU path, with the weights, KV cache, activations and sa
 the pVM. The TPU only wins if it can be given the whole graph -- one invocation per token, no masking,
 no round trips, which is what Google's own NPU lane does at 25.2 tok/s -- and that needs the TPU
 INSIDE the pVM (device assignment), not a masked worker outside it.
+
+### And it does not spare the phone's CPU either (2026-09-19)
+
+The reason for pushing the matmuls off the CPU was that a host's phone must not be made slow, hot and
+flat. So measure that directly, in core-milliseconds per token rather than wall clock
+(`a8w4/cpu_cost.sh`: utime+stime of the app, its virtmgr and its crosvm, sampled across one decode
+turn, summed only over pids present in both samples):
+
+| | tok/s | core-ms per token | cores busy |
+|---|---|---|---|
+| CPU only, in the pVM | 13.08 | **332** | 4.3 |
+| Shielded-TPU, H=4, digit-split | 0.67 | **6641** | 4.5 |
+
+**The masked path costs 20x more CPU per token, and keeps the same number of cores busy while doing
+it.** It does not move work off the CPU at all: it keeps 4.5 cores occupied and takes twenty times
+longer to produce each token. At the best decode of the day (0.93 tok/s) it would still be about
+4800 core-ms, 15x. The arithmetic is not mysterious - minting a pad is the SAME integer MACs as the
+matmul it protects, the unmask walks a column of a row-major int8 matrix for every wrapped entry, and
+the VM still does all the attention, norms and sampling itself. The TPU takes the GEMMs and the CPU
+takes everything the mask costs, which is more.
+
+So on this phone the masked TPU path is worse than the pVM's own CPU on every axis that was supposed
+to justify it: 14-20x slower, 15-20x more CPU energy per token, and a weaker boundary (the host sees
+masked activations; on the CPU path it sees nothing). It remains the right tool for PREFILL, where
+one invocation amortises over 128 rows, and it stays in the tree behind its flags.
