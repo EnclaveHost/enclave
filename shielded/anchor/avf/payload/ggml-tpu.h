@@ -15,6 +15,7 @@ typedef struct {
     uint64_t bank_min;                               /* pads left in the emptiest group */
     uint64_t pads_refilled;                          /* pads the background minters added */
     uint64_t spin_us;                                /* of link_us, time spent spinning on the reply instead of sleeping for it */
+    uint64_t window_mint_us;                         /* pad minting done inside the link window, off the critical path */
     uint64_t corr_us, wait_us;                       /* of link_us: the out-of-lane correction run while the request is in flight, and what was left of the window */
 } ggml_backend_tpu_stats_t;
 struct ggml_backend_reg;
@@ -28,6 +29,7 @@ long   ggml_backend_tpu_mint_check(int batch);                 /* batched minter
 double ggml_backend_tpu_mint_bench(int positions, int threads, int scalar); /* minting alone, pads dropped; returns seconds */
 void   ggml_backend_tpu_refill_start(int target, int threads); /* keep every bank at `target` pads from background threads */
 void   ggml_backend_tpu_refill_stop(void);
+void   ggml_backend_tpu_window_mint(int target, int chunk);  /* mint inside the link window: bank target, pads per batch (0 = off) */
 void   ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset);
 int    ggml_backend_tpu_reference_worker(int fd);              /* the exact integer worker, for host tests: what the TPU is required to compute */
 #ifdef __cplusplus

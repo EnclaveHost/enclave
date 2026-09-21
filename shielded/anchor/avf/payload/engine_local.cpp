@@ -219,7 +219,10 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (warm) { int locked = 0; const double sec = warm(n_threads, &locked); outf("LOCAL tpu: lane bundle paged in from the encrypted store in %.1f s (%s) | %s", sec, locked ? "locked in memory" : "NOT locked: it can be evicted", mem_line().c_str()); }
         if (mint && g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.1f positions per second on %d threads) | %s", g_tpu_bank, sec, g_tpu_bank / sec, n_threads, mem_line().c_str());
                               /* opt-in: minting while decoding keeps the vCPUs busy, and busy vCPUs slow the link (measured 4.3 -> 7.7 ms per exchange with 4 minters) */
-                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); } } }
+                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); }
+                              /* the link window is idle for about 3.9 ms of every exchange and a pad depends on nothing,
+                               * so decode mints its own there; with this on, g_tpu_refill 0 costs the worker no cores */
+                              if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(g_tpu_bank, 8); outf("LOCAL tpu: minting inside the link window to a bank of %d positions", g_tpu_bank); } } }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
     /* the drafter: its own context in MTP mode, sharing the target's memory (llama.cpp's speculative helper does the rest) */
@@ -339,8 +342,8 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (!chat_write(chat_fd, s)) break;
         outf("LOCAL turn %d: %s", served, s + 6);   /* the owner's log sees the counters, never the text */
         if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
-            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f (corr %.3f wait %.3f) unmask %.3f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu | %s",
-                 served, (unsigned long long)ts.exchanges, ex / (st.n_decode ? st.n_decode : 1), ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3,
+            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu | %s",
+                 served, (unsigned long long)ts.exchanges, ex / (st.n_decode ? st.n_decode : 1), ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.window_mint_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3,
                  ts.bytes_out / 1024.0 / (st.n_decode ? st.n_decode : 1), ts.bytes_in / 1024.0 / (st.n_decode ? st.n_decode : 1), (unsigned long long)ts.pads_minted_inline,
                  ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn, mem_line().c_str()); }
     }
