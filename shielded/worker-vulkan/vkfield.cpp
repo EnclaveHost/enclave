@@ -354,6 +354,24 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "usage: vkfield [--device N] [--cus N] [--shaders DIR] [--iters N] [--no-selftest]\n"); return 2; }
     }
     load_loader(); init_device(want);
+    if (getenv("VKFIELD_ALLOC_PROBE")) {   /* how much device-local memory can ONE process take, and what does the budget say */
+        for (uint32_t i = 0; i < D.mem.memoryHeapCount; i++) printf("[vkfield] heap %u: %.1f GiB%s\n", i, D.mem.memoryHeaps[i].size / 1073741824.0, (D.mem.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) ? " device-local" : "");
+        std::vector<Buf> held; size_t total = 0;
+        for (;;) {
+            VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO}; bi.size = 256u << 20; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            Buf x; if (vkCreateBuffer(D.dev, &bi, nullptr, &x.b) != VK_SUCCESS) break;
+            VkMemoryRequirements mr; vkGetBufferMemoryRequirements(D.dev, x.b, &mr);
+            VkMemoryAllocateFlagsInfo fl{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO}; fl.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+            VkMemoryAllocateInfo mai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.pNext = &fl; mai.allocationSize = mr.size; mai.memoryTypeIndex = mem_type(mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            VkResult r = vkAllocateMemory(D.dev, &mai, nullptr, &x.m);
+            if (r != VK_SUCCESS) { printf("[vkfield] allocation %zu failed with %d after %.1f GiB\n", held.size() + 1, (int)r, total / 1073741824.0); vkDestroyBuffer(D.dev, x.b, nullptr); break; }
+            vkBindBufferMemory(D.dev, x.b, x.m, 0); held.push_back(x); total += mr.size;
+            if (total > (64ull << 30)) break;
+        }
+        printf("[vkfield] one process holds %.1f GiB of device-local memory in %zu blocks of 256 MiB\n", total / 1073741824.0, held.size());
+        for (auto &x : held) { vkDestroyBuffer(D.dev, x.b, nullptr); vkFreeMemory(D.dev, x.m, nullptr); }
+        return 0;
+    }
     printf("[vkfield] %s: subgroup %u..%u (using 32), packed int8 dot accelerated: %s, plan threshold %d blocks\n", D.name.c_str(), D.subgroup_min, D.subgroup_max, D.dot_accel ? "yes" : "NO", g_cus);
     init_pipelines();
     if (st && !selftest()) return 1;
