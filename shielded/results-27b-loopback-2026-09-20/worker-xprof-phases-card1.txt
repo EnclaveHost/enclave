@@ -1,0 +1,14 @@
+[shielded-worker] 127.0.0.1:59732 exchange phase=lock_wait samples=8832 total_us=1641.504 max_us=2.070
+[shielded-worker] 127.0.0.1:59732 exchange phase=staging samples=8832 total_us=2328.412 max_us=1654.597
+[shielded-worker] 127.0.0.1:59732 exchange phase=graph_lookup_capture samples=8832 total_us=33970.106 max_us=4595.964
+[shielded-worker] 127.0.0.1:59732 exchange phase=graph_launch_call samples=8832 total_us=142577.247 max_us=329.398
+[shielded-worker] 127.0.0.1:59732 exchange phase=stream_sync samples=8832 total_us=2438995.187 max_us=1663.877
+[shielded-worker] 127.0.0.1:59732 exchange phase=host_pack samples=8832 total_us=41486.576 max_us=95.989
+[shielded-worker] 127.0.0.1:59732 exchange phase=tcp_reply_write samples=8832 total_us=188935.305 max_us=1008.232
+[shielded-worker] 127.0.0.1:50148 exchange phase=lock_wait samples=8834 total_us=2057.669 max_us=6.880
+[shielded-worker] 127.0.0.1:50148 exchange phase=staging samples=8834 total_us=1605.545 max_us=869.466
+[shielded-worker] 127.0.0.1:50148 exchange phase=graph_lookup_capture samples=8834 total_us=21647.490 max_us=507.088
+[shielded-worker] 127.0.0.1:50148 exchange phase=graph_launch_call samples=8834 total_us=160659.978 max_us=111.950
+[shielded-worker] 127.0.0.1:50148 exchange phase=stream_sync samples=8834 total_us=1289021.069 max_us=1141.725
+[shielded-worker] 127.0.0.1:50148 exchange phase=host_pack samples=8834 total_us=52513.088 max_us=39.110
+[shielded-worker] 127.0.0.1:50148 exchange phase=tcp_reply_write samples=2 total_us=762.548 max_us=397.679

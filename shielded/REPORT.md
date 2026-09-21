@@ -1662,6 +1662,51 @@ the loopback through a scratch build that accepts a `/dev/shm` path, equals TCP
 here (8.5-8.8 against 8.55 plain): the loopback socket was never the cost, and
 production already uses the ring. Rewind depth 0-4 costs nothing at m = 1.
 
+The same configuration with the repo build (refill unit 16 default), three
+baselines and the last knobs, all on the fixed drop:
+
+| run | plain tok/s | spec k = 1 |
+|---|---|---|
+| baseline x3 | 10.41-10.68 (94-96 ms) | 12.2-12.8 |
+| `SHIELDED_SPIN_US=2000` (engine) | 10.47 | 13.0 |
+| `SHIELDED_WORKER_SPIN_US=2000` (worker) x2 | 10.1-10.7 | 12.0-12.1 |
+| refill threads 4 | 8.79 | 10.1 |
+| 492-token prompt, prefill on the cards | 26.9 s prefill, then 10.5 | 12.0 |
+
+Neither spin knob moves it; four refill threads cannot keep a 64-row batch
+fed and lose 17%; prefill of 492 tokens on the cards takes 26.9 s with every
+site there (51.5 s in the enclave) and decode is intact after it. Decode
+threads 4 / 6 / 8 / 12 on the fixed drop are within noise of each other on the
+runs the box was quiet for (10.0-10.9 plain, 12.5-12.9 spec; the ones that
+coincided with another session's job sit 10-25% lower), so 8 stays.
+
+Where the token goes now, from the worker's own phase profile (a `-DSH_XPROF`
+build, ring transport, 8834 exchanges on card 1): stream sync 146 us per
+exchange, graph launch 18, host packing 6, cache lookup 2.4, staging and lock
+under 1 -- 173 us against the 196-201 us the engine measures as wire on the
+ring, so the wire IS the device time and the V100s are near their HBM floor
+(~18 ms of a ~94 ms token). TCP adds ~0.15 ms per exchange on the busier card.
+The CPU backend's ~32 ms is recurrent-state traffic (bandwidth-bound) and 267
+OpenMP regions of tiny ops; the shielded backend's own mask, unmask, verify and
+descale ~15 ms; scheduler and dispatch the rest.
+
+Two more levers were built and measured against this state and lost. Computing
+the 414 tiny elementwise and norm ops per token inside the shielded backend on
+the request thread (a private single-thread CPU backend, one-node graphs, so
+178 of the 267 CPU splits and their OpenMP regions disappear) gives identical
+text and 8.67 against 10.44 tok/s: each op costs ~8.7 us through a one-node
+graph, more than the region it replaces. Discarded. And the shared-memory ring
+against TCP on the loopback: 8.5-8.8 against 8.55 plain earlier, 9.06 against
+8.65 on the fixed drop under load; the worker's phases show the ring saving
+~0.15 ms per exchange only on the busier card. Production already has it.
+
+What is left is inside the engine, not this backend: the ~27 ms per token of
+recurrent-state traffic (a 3 MB state row per delta-net layer loaded, copied
+and stored through GET_ROWS / CPY / GATED_DELTA_NET, bandwidth-bound at ~100
+GB/s), and the OpenMP region per CPU split. Both are llama.cpp graph-structure
+questions (in-place state updates, or a single-thread path for graphs whose
+every node has n_tasks = 1) for the toolchain cut, and are the next 20-30%.
+
 What this says for production: the 27B at 4 tok/s in the CVM had the repack
 (fixed since v0.5.779, never re-measured), the 16 + 8 thread oversubscription
 (14.5), a 4-pad refill batch and no drafting. With the three engine changes in
