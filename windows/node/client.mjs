@@ -7,7 +7,16 @@ import { createRequire } from 'node:module';
 const nacl = createRequire(import.meta.url)('tweetnacl');
 const [hub, name, prompt, maxTokens = '16'] = process.argv.slice(2);
 if (!hub || !name || !prompt) { console.error('usage: node client.mjs <hub url> <node name> "<prompt>" [max_tokens]'); process.exit(2); }
-const info = await (await fetch(`${hub}/info/${name}`)).json();
+// The node's pad key comes from what the RELAY attested, never from the node's own answer:
+// the row in /enclaves (production) or /info/<name> (relay/local-hub.mjs). A key the node
+// quoted itself would let the untrusted host substitute one and read every prompt.
+async function attestedRow(base, node) {
+  try { const r = await (await fetch(`${base}/info/${node}`)).json(); if (r && r.padKey) return { padKey: r.padKey, tier: r.tier }; } catch {}
+  const j = await (await fetch(`${base}/enclaves`)).json();
+  const row = (j.enclaves || []).find((e) => e.name === node && e.mode === "vbs");
+  return row && row.attestedKeys && row.attestedKeys.padKey ? { padKey: row.attestedKeys.padKey, tier: row.tier } : null;
+}
+const info = await attestedRow(hub, name);
 if (!info || !info.padKey) { console.error(`no attested row for ${name} on ${hub}`); process.exit(1); }
 const enclavePk = Buffer.from(info.padKey, 'hex');
 const me = nacl.box.keyPair();

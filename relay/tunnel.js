@@ -545,6 +545,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
       measurement: t.measurement || undefined,
       ...(t.tier ? { tier: t.tier } : {}),
+      // A CONSUMER NODE's attested public keys, published because a client needs them to
+      // talk to it at all: the session is sealed to the enclave's X25519 key (padKey) and
+      // signed by its Ed25519 transport key, both minted inside VTL1 per boot and both
+      // covered by the report this hub verified at attach. Publishing the public halves
+      // adds no trust: in this tier the relay IS the verifier, so a client that believes
+      // the row's tier already believes the row's keys. Nothing else consumes them yet,
+      // so the field is scoped to mode vbs rather than every attached tunnel.
+      ...(t.mode === "vbs" && t.spki ? { attestedKeys: { transportKey: t.spki, padKey: t.padKey || "" } } : {}),
     })),
     // fetch JSON (availability polling)
     fetchJson: async (origin, path) => {

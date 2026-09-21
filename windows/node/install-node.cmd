@@ -14,6 +14,9 @@ set HERE=%~dp0
   echo cd /d "%HERE%"
   echo node agent.mjs ^>^> "%HERE%agent.log" 2^>^&1
 )
-schtasks /create /tn EnclaveWindowsNode /tr "\"%HERE%run-node.cmd\"" /sc onlogon /rl highest /f || exit /b 1
-echo registered: task EnclaveWindowsNode runs %HERE%run-node.cmd at logon (elevated); start it now with:
+rem AT BOOT, as SYSTEM: a node that only starts at logon is dark after every unattended
+rem reboot, which is most of them on a machine whose owner is asleep. The one-minute delay
+rem lets the network and the TPM come up first. Vulkan and TBS both work from session 0 here.
+schtasks /create /tn EnclaveWindowsNode /tr "\"%HERE%run-node.cmd\"" /sc onstart /delay 0001:00 /ru SYSTEM /rl highest /f || exit /b 1
+echo registered: task EnclaveWindowsNode runs %HERE%run-node.cmd at boot as SYSTEM (elevated); start it now with:
 echo   schtasks /run /tn EnclaveWindowsNode
