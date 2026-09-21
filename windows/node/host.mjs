@@ -107,6 +107,23 @@ export class Host {
   async heartbeat() {
     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
     try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
+    await this.warnLowGas();
+  }
+  /**
+   * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
+   * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
+   * the app quietly goes away at the end of the quantum. Warn while there is still time to top up.
+   */
+  async warnLowGas() {
+    const wei = await chain.operatorBalance().catch(() => null);
+    if (wei === null) return;
+    const renews = wei / 400000000000n;                  // ~1 renewal's gas, rounded up
+    const low = renews < 200n;                           // roughly four days of renewals
+    if (low && Date.now() - (this._gasWarnedAt || 0) > 3600_000) {
+      this._gasWarnedAt = Date.now();
+      this.log(`operator gas is low: ${(Number(wei) / 1e18).toFixed(6)} ETH, about ${renews} renewals left. Top up ${chain.operatorAddress()}`);
+    }
+    this.gasRenewals = Number(renews);
   }
 
   /** Consider a deployment: the policy first, then the chain, then the app. */
@@ -296,6 +313,8 @@ export class Host {
       enclaveId: this.enclaveId,
       registered: !!this.registered,
       operator: chain.operatorAddress() || null,
+      gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
+
       proofKey: chain.proofAddress() || null,
       ownerWallet: this.ownerAllow(),
     };
