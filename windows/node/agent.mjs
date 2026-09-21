@@ -216,7 +216,15 @@ async function handle(frame) {
     // it does not serve (relay/api-relay.js sticky(), now scoped to serving boxes).
     gpu: false, maxShare: host.cpuShareFree(), gpuShareFree: 0, cpuShareFree: host.cpuShareFree(),
     nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
-    nodeRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    // RAM, and the honest number here is NOT the machine's. An app on this box runs inside the
+    // enclave, so what a deployment can actually have is the enclave's app budget - the machine
+    // has 112 GB and none of it is purchasable for an app. The row and the console size a
+    // deployment off this field, so it has to be the ceiling that really applies; the machine's
+    // own figure rides beside it as machineRamGb for anyone who wants to see the box.
+    nodeRamGb: host.appsInTee()
+      ? Math.round((Number(host.cfg.enclaveAppRamMb) || 768) / 1024 * 100) / 100
+      : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
     teeCpu: 'windows-vbs-enclave', tier: tier || null, shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), ...(gpuName ? { device: gpuName } : {}) }, model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
   if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });

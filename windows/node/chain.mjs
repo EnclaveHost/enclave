@@ -290,16 +290,17 @@ export function parseEnvelope(raw, gpuMilli) {
  * is the bring-up scope and still reachable (CLAIM_SCOPE=owner-only), for an operator who wants
  * the box on the ledger without selling to strangers.
  *
- * CONSENT, and this is the one rule here with no counterpart on a platform box. Every other
- * enclave in the fleet runs a tenant's app INSIDE the TEE its row badges. This one cannot: a VBS
- * enclave holds the model and the keys, and the app runs beside it in VTL0 where the owner of the
- * PC can read it. That is published on /availability (apps.inTee: false) and stated on the fleet
- * row, so a buyer who picks this box now has been told. A deployment created BEFORE this box was
- * listed was not: claiming it would move somebody's app out of a TEE and restart their billing
- * with nothing having asked. So a stranger's older deployment is refused unless they point at
- * this box themselves - the deploy console's target pick, which arrives here as a claim hint
- * naming this enclave (`invited`). Their own owner's deployments are always in scope, and
- * anything created while this box has been listed is a deployment made in sight of the row.
+ * CONSENT, and this is the one rule here with no counterpart on a platform box. An app DOES run
+ * inside this box's enclave (windows/enclave-rt), but it is a VBS enclave on a consumer PC and
+ * that is a different guarantee from the fleet's confidential VMs: it protects against the
+ * machine's software, including its administrator and its kernel, and not against whoever
+ * physically holds the box, and on the dev tier the enclave build is test-signed. All of that is
+ * published (/availability teeCpu, tier, apps) and on the fleet row, so a buyer who picks this box
+ * has been told. Somebody who deployed BEFORE this box was listed was not: every enclave in the
+ * fleet was a CVM then. So a stranger's older deployment is refused unless they point at this box
+ * themselves - the deploy console's target pick, which arrives here as a claim hint naming this
+ * enclave (`invited`). Their own owner's deployments are always in scope, and anything created
+ * while this box has been listed was deployed in sight of the row.
  */
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false } = {}) {
@@ -311,9 +312,10 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
     if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
   } else if (!owners && !invited && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
-    return "it was created before this box was listed, and an app here runs on the Windows host rather than inside the enclave"
-         + " (this row says so, /availability reports apps.inTee false). Pick this enclave in the deploy console, or redeploy,"
-         + " and it will run here";
+    return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
+         + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
+         + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
+         + " or redeploy, and it will run here";
   }
   if (!d.isPublic)
     return "it is a private deployment, whose access control is a session token this node does not verify yet";

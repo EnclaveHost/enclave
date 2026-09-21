@@ -31,16 +31,16 @@ test("market scope takes a stranger's public deployment; owner-only does not", (
   assert.equal(claimPolicy(dep({ owner: OWNER }), ctx({ scope: "owner-only" })), null);
 });
 
-// The one rule with no counterpart on a platform box. Every other enclave runs the app inside the
-// TEE its row badges; this one runs it beside the enclave in VTL0. A buyer who picks this box has
-// been told that. Somebody who deployed months ago, when every box was a CVM, has not — so taking
-// their row would move their app out of a TEE and restart their billing with nothing having asked.
+// The one rule with no counterpart on a platform box. An app does run inside this box's enclave,
+// but a VBS enclave on a consumer PC is a different guarantee from the fleet's confidential VMs:
+// software-only, and test-signed on the dev tier. A buyer who picks this box has been told. Somebody
+// who deployed months ago, when every enclave in the fleet was a CVM, has not.
 test("an older stranger's deployment needs their own invitation", () => {
   const LISTED = 1790000000;                               // this box's registry entry
   const older = dep({ createdAt: BigInt(LISTED - 86400) });
   const refused = claimPolicy(older, ctx({ listedAt: LISTED }));
   assert.match(String(refused), /created before this box was listed/);
-  assert.match(String(refused), /runs on the Windows host rather than inside the enclave/,
+  assert.match(String(refused), /protects it against this machine's software/,
                "the refusal has to say WHY, or it reads as a bug");
   // The deploy console's target pick reaches the node as a claim hint naming this box.
   assert.equal(claimPolicy(older, ctx({ listedAt: LISTED, invited: true })), null);
