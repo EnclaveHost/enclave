@@ -165,6 +165,15 @@ jobs:
           # every helper idle while thread zero copies the entire tensor.
           git apply "$GITHUB_WORKSPACE/wasm/llamacpp-parallel-copy.patch"
           grep -q "ggml_compute_forward_dup_bytes_parallel" ggml/src/ggml-cpu/ops.cpp || { echo "::error::parallel-copy patch did not apply"; exit 1; }
+          # Same shape of bug in two more decode kernels: ggml splits get_rows
+          # over the rows it GATHERS, and a decode gathers one (a hybrid
+          # model's recurrent state, megabytes in a single row), so thread zero
+          # copies it alone - 11.3 ms of an 87 ms token on the shielded 27B.
+          # concat distributes over ne2, which is 1 for a decode ubatch.
+          # Measured: GET_ROWS 765 -> 310 ms over a run, decode +12%.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-parallel-rows.patch"
+          grep -q "FEWER ROWS THAN THREADS" ggml/src/ggml-cpu/ops.cpp || { echo "::error::parallel-rows get_rows hunk did not apply"; exit 1; }
+          grep -q "Spread over EVERY row" ggml/src/ggml-cpu/ops.cpp || { echo "::error::parallel-rows concat hunk did not apply"; exit 1; }
           # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
           # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
           # topk sparse logits removed the sampling tax the mm5 revert blamed.
