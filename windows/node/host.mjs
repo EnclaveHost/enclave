@@ -140,7 +140,7 @@ export class Host {
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false } = {}) {
-    const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil) });
+    const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil), cpuShare: Number(d.cpuMilli) / 1000 });
     let v;
     try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
     if (v.yanked) return this.#record(id, { status: "failed", reason: "the catalog version is yanked" });
@@ -238,7 +238,7 @@ export class Host {
           if (untilMs < Date.now()) { await this.#stopApp(id, `the lease expired and renew failed: ${msg}`); continue; }
         }
       }
-      this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6) });
+      this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6), cpuShare: Number(d.cpuMilli) / 1000 });
       const app = this.apps.get(id);
       if (!app || app.state !== "running") await this.ensureApp(id, d);
     }
