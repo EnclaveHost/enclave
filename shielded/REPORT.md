@@ -1897,3 +1897,156 @@ what more bandwidth per column would make it. **It is a hardware question,
 not a software one.** On this pair of V100s, 14 tok/s with drafting is the
 honest number, and the 27B's decode is now within about 10% of what this
 hardware can do.
+
+## 16. 20 tok/s on the 27B: what 15.6 got wrong (2026-09-21)
+
+Section 15.6 closed with "it is a hardware question, not a software one" and
+put the honest number at 14 tok/s with drafting. That conclusion was wrong,
+and it was wrong for a reason worth writing down: **both of its two load-
+bearing measurements were measuring a bug, not the machine.**
+
+### 16.1 The column split was never slow; the worker's graph cache was
+
+15.2 built "both cards on every exchange" and measured it as a regression, so
+the split was recorded as not paying. Re-running `kbench` on the 27B's own
+shapes said that could not be right: at one row the field kernel scales almost
+perfectly in both dimensions (gate|up 208.5 -> 107.5 us at half the columns,
+-> 107.6 us at half the depth; lm_head 1460 -> 733 us), at 820-880 GB/s on a
+card whose HBM2 peak is 900. The card IS bandwidth-bound at m=1, so halving
+the columns per card has to halve the streaming term.
+
+The gap was the worker's CUDA graph cache. It is keyed by `(m, ordered node
+list)` and its overflow policy is **clear-at-capacity, not evict-one**, so a
+recurring pass that does not fit never reuses anything at all. The 27B needs
+274 distinct keys for one split decode pass and 514 for a speculative round
+(the same pass at m=1 and again at m=2); the default was 256. The worker's own
+end-of-connection line, split run, old default:
+
+    graph cache: limit=256 high_water=256 hits=24 misses=17733 capacity_flushes=68
+
+and the same run at 2048:
+
+    graph cache: limit=2048 high_water=514 hits=16963 misses=770 capacity_flushes=0
+
+Re-capturing a graph on essentially every exchange cost roughly 70-100 us per
+exchange, which is the whole of what the split was supposed to save. Note the
+speculative figure is over 256 even in the ordinary alternating placement
+(~257 per card), so the old default was marginal for this model anyway. The
+default is now **1024** (`shielded/worker-cuda/captured-graphs.h`), documented
+in `GRAPH-CACHE.md`.
+
+With the cache large enough, the column split pays exactly what the kernel
+said it would:
+
+| placement | plain decode |
+|---|---|
+| one card per layer (cards alternate, each idle half the time) | 13.40 / 13.12 tok/s |
+| columns split over both cards, every exchange on both | 15.20 / 14.94 tok/s |
+
+### 16.2 Threads are not the lever: the enclave's CPU half is bandwidth-bound
+
+Before touching the CPU work, the obvious knob, measured on the split build
+(32 cores on the box, 8 refill threads alongside):
+
+| decode threads | 6 | 8 | 12 | 16 | 24 |
+|---|---|---|---|---|---|
+| plain tok/s | -- | **15.20** | 14.62 | 11.56 | 6.43 |
+
+More threads make it dramatically worse. That is the signature of a memory-
+bound kernel with a per-node barrier, and it is what pointed at the copies.
+
+### 16.3 The recurrent state was being copied four times per layer per token
+
+`ENCLAVE_OP_PROFILE=1` on the 27B, per decode token: `GET_ROWS` 4.5 ms, `CPY`
+5.5 ms, `GATED_DELTA_NET` 5.8 ms. The first two are the same 3 MiB tensor. A
+delta-net layer moves its state like this:
+
+1. `build_rs` emits `ggml_get_rows(state, s_copy)` to pick the live cell -- a
+   permutation of ONE element, i.e. a 3 MiB copy that permutes nothing;
+2. the op stages each head's 64 KiB block into its own scratch;
+3. the op writes the new state into its packed output tensor;
+4. the graph copies that back into the recurrent cache.
+
+Three of those four are avoidable. When the gather is provably the identity --
+one sequence, a one-cell cache, head 0, and no rollback plane pending --
+`build_rs` now returns a **view** of the cache, and a new op
+`ggml_gated_delta_net_inplace` runs the recurrence **where the state already
+lives**, leaving snapshot slot 0 correct by construction and writing the older
+slots at the cache's own stride. Its result carries the attention scores
+alone, so step 4 disappears with it. Both are patch
+`wasm/llamacpp-rs-inplace.patch`, both have kill switches
+(`ENCLAVE_GGML_RS_ALIAS=0`, `ENCLAVE_GGML_GDN_INPLACE=0`).
+
+### 16.4 The alias SHAPES the graph, which is a correctness trap
+
+A graph built while the gather was the identity reads snapshot plane 0
+directly. It must therefore never be replayed for a ubatch whose gather would
+have picked a rollback plane -- `s_copy()` returns `idx * size + src0`, and
+after a rejected speculative token `idx` is 1. So the decision is stored on
+the input (`rs_identity`) and re-checked in `can_reuse`.
+
+That is where this nearly shipped wrong. `llm_graph_input_rs::can_reuse` is
+NOT the reuse path this model takes: the hybrid inputs duplicate the same four
+rs checks inline in three other classes, and adding the check to only the
+first one left the graph being replayed across a rewind. The symptom was mild
+and easy to wave away -- the run still produced fluent text, acceptance drifted
+0.83 -> 0.73, and only `text_identical` caught it. `ENCLAVE_RS_DEBUG=1` now
+audits at runtime that every graph built with the alias really did face an
+identity gather, and it is what found this:
+
+    [rs] alias=1 n_rs=1 head=0 rs_z=-1 s_copy=[ 1] (alias 44 / copy 0 / VIOLATIONS 11)
+
+The check is in all four reuse paths now. **A plain-decode A/B cannot catch
+this class of bug**, because plain decode never rewinds; the 48 greedy token
+ids were byte-identical with and without the change while the speculative path
+was quietly diverging.
+
+### 16.5 Measured, on the same box 15.6 called finished
+
+All figures are the 27B on two V100s over the host loopback, 64 tokens,
+8 decode threads, `WARM=1`, A/B within one build via the kill switches.
+
+| build | plain decode | speculative (k=1) |
+|---|---|---|
+| 15.4's settled state (cards alternate by layer) | 12.85 | 14.05 |
+| + graph cache large enough, still alternating | 13.40 / 13.12 | 15.47 / 14.62 |
+| + column split over both cards | 15.20 / 14.94 | 15.35 / 15.50 |
+| + recurrent state aliased and updated in place | **17.11 / 16.39** | **17.67 / 16.30** |
+
+Correctness, not just speed: with the alias on and off, the 48 greedy token
+ids of a plain decode are **identical**, and `text_identical` (speculative
+output against the plain reference) holds at 64 tokens.
+
+### 16.6 Where the token goes now: a per-PASS term and a per-TOKEN term
+
+A speculative verify pass puts two tokens through one weight stream, which
+splits the token into its two halves for free. With `W` the per-PASS cost
+(everything paid once however many tokens are in flight -- the weight stream,
+the exchange launches, the state copies) and `C` the per-TOKEN cost:
+
+| build | plain = W + C | verify = W + 2C | W | C |
+|---|---|---|---|---|
+| before the state change | 64.8 ms | 99.8 ms | 29.8 ms | 35.0 ms |
+| after | 58.4 ms | 93.4 ms | **23.4 ms** | **35.0 ms** |
+
+This is worth reading carefully, because it says something the tok/s numbers
+do not. The state work is per-PASS, so aliasing it away came out of `W`, not
+`C` -- 6.4 ms, which is the whole of the improvement. And `C` did not move at
+all: **35 ms of every token is per-token CPU work inside the enclave**, and it
+is now the larger half by a wide margin.
+
+`W` is close to what the cards should cost: 21.6 GB of int8 field weights over
+two V100s at ~850 GB/s is 12.7 ms of streaming, plus ~241 exchanges at ~44 us
+of launch and sync. So the GPU half is nearly spent, and **15.6's conclusion
+is inverted twice over** -- the column split DID scale once the graph cache
+stopped thrashing, and what stands between this box and 20 tok/s is now CPU
+work in the enclave, not card bandwidth. More cards, a 6-bit lane, or an H100
+each buy a share of 23.4 ms and none of 35 ms.
+
+It also explains why speculation has stopped paying. A drafted token costs a
+full `C` whether it is accepted or not, and accepting one saves only `W`. At
+acceptance 0.83 the round is `W + 1.83C + draft` for 1.83 tokens, i.e. 50.9 ms
+per token against plain's 58.4 -- a 13% gain, and measured 17.67 against 17.11.
+k=2 makes it worse, exactly as that arithmetic predicts (2.29 tokens per round
+but a 148 ms round: **14.83 tok/s**). Speculation on this engine is capped by
+`C`, not by the draft head's accuracy.
