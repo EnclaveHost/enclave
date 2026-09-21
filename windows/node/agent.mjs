@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { Host } from './host.mjs';
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -38,8 +39,33 @@ const HOST_EXE = process.env.HOST_EXE || path.join(DIR, 'ee-host.exe');
 const ENCLAVE_DLL = process.env.ENCLAVE_DLL || path.join(DIR, 'ee-engine.dll');
 const HOST_PORT = Number(process.env.HOST_PORT || 9596), THREADS = process.env.THREADS || '8', CTX = process.env.CTX || '1024';
 const TPMATTEST_EXE = process.env.TPMATTEST_EXE || path.join(DIR, 'tpmattest.exe');
-const PUBLIC_URL = process.env.PUBLIC_URL || '';
+// The one string that has to agree in three places: the hello frame (the hub honours only a
+// self-routed URL), the registry entry, and therefore keccak256(it) = the enclave id the ledger
+// records as a deployment's runner. Get it wrong and every app this box holds reads "claimed"
+// forever (relay/tunnel.js selfRoutedUrl, api-relay.js runnerIsLive).
+const PUBLIC_URL = process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
+// Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
+// wasmtime, in VTL0. Owner-only and public-only; see host.mjs and chain.mjs claimPolicy.
+const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
+const host = new Host({
+  dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
+  appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
+  cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 1),
+  repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
+  // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
+  // registry row so the chain's view and the relay's attestation verdict can be compared
+  measurement: process.env.ENCLAVE_MEASUREMENT || '0x0000000000000000000000000000000000000000000000000000000000000000',
+  vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
+  ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+  wasmtime: process.env.WASMTIME_BIN || path.join(DIR, 'wasmtime.exe'),
+  python: process.env.PYTHON_BIN || 'python',
+  gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
+  portBase: Number(process.env.APP_PORT_BASE || 9700),
+  appSlots: Number(process.env.APP_SLOTS || 4),
+  inferenceUrl: `http://127.0.0.1:${process.env.LOCAL_HTTP_PORT || 9600}/v1/completions`,
+  log: (m) => log('[host]', m),
+});
 if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); process.exit(2); }
 
 let gpuName = process.env.GPU_NAME || '', tier = '', attachedAt = 0, spkiFp = '';
@@ -146,17 +172,34 @@ async function attestFrame(nonceB64, credentialBlobB64, secretB64) {
   };
   return { frame: { t: 'attest', rad: { format: 'windows-vbs-enclave/v1', transportKey: b64(spki), padKey: hex(boxPk), body: b64(Buffer.from(JSON.stringify(evidence))) } }, spki, boxPk };
 }
+// Once the name is REGISTERED on chain the hub demands this: a personal_sign of
+// "enclave-tunnel-attach:<name>:<nonce>" recovering to the registry entry's operator, so a box
+// running the same enclave build cannot take a registered seller's name while it is down
+// (relay/tunnel.js). The key is the box's own operator key, the same one that registered it.
 async function operatorSig(nonceB64) {
-  const key = process.env.NODE_OPERATOR_KEY; if (!key) return null;
-  try { const { ethers } = await import('ethers'); const w = new ethers.Wallet(key); return await w.signMessage(`enclave-tunnel-attach:${NAME}:${nonceB64}`); } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
+  try {
+    const { loadOperator } = await import('./chain.mjs');
+    const acct = loadOperator(path.join(DIR, 'operator.key'));
+    if (!acct) return null;
+    return await acct.signMessage({ message: `enclave-tunnel-attach:${NAME}:${nonceB64}` });
+  } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
 }
 
 // ---- the public surface over the tunnel ------------------------------------------------------
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, gpu: true, maxShare: 0, gpuShareFree: 0, cpuShareFree: 0, nodeVcpus: 0, nodeRamGb: 0,
-    teeCpu: 'windows-vbs-enclave', tier: tier || null, shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), ...(gpuName ? { device: gpuName } : {}) }, model: path.basename(MODEL), attachedAt });
+  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME,
+    // gpu:false is the honest answer to the question the relay is asking: does this box SELL a
+    // share of a card. It does not. Its card serves the enclave's masked inference for the model
+    // it hosts, and the card's facts ride in `shielded` below, where the fleet row reads them.
+    // Saying true also made this box the relay's sticky pick for /v1/auth and /v1/pricing, which
+    // it does not serve (relay/api-relay.js sticky(), now scoped to serving boxes).
+    gpu: false, maxShare: host.cpuShareFree(), gpuShareFree: 0, cpuShareFree: host.cpuShareFree(),
+    nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
+    nodeRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+    nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
+    teeCpu: 'windows-vbs-enclave', tier: tier || null, shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), ...(gpuName ? { device: gpuName } : {}) }, model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
   if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
@@ -168,6 +211,44 @@ async function handle(frame) {
       return json(200, { id: `cmpl-${Date.now()}`, object: 'text_completion', model: path.basename(MODEL), choices: [{ index: 0, text, finish_reason: 'length' }],
                          usage: { completion_tokens: Number(r[1]) }, timing: { prompt_us: Number(r[2]), decode_us: Number(r[3]) }, shielded: { offloaded: Number(r[4]), local: Number(r[5]), macs: Number(r[6]), verify_fail: Number(r[7]) } });
     } catch (e) { return json(500, { error: e.message }); }
+  }
+  if (APPS && p === '/v1/deployments') return json(200, { deployments: host.deployments() });
+  if (APPS && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}$/.test(p)) {
+    const id = p.split('/').pop().toLowerCase();
+    const r = host.deployments().find((d) => d.id === id);
+    return r ? json(200, r) : json(404, { error: 'not_found', id });
+  }
+  if (APPS && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}\/logs$/.test(p)) {
+    const id = p.split('/')[3].toLowerCase();
+    const app = host.apps.get(id);
+    return app ? json(200, { id, lines: app.logs(200) }) : json(404, { error: 'not_found', id });
+  }
+  if (APPS && method === 'POST' && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}\/restart$/.test(p)) {
+    const id = p.split('/')[3].toLowerCase();
+    let d; try { d = await (await import('./chain.mjs')).readDeployment(id); } catch (e) { return json(502, { error: 'chain', message: e.message }); }
+    const r = await host.ensureApp(id, d, { force: true });
+    return json(200, r);
+  }
+  // The platform's own "come and claim this" nudge (the relay sends it after funding, the console
+  // when a row reads queued). The policy in chain.mjs decides; a refusal names its reason.
+  if (APPS && method === 'POST' && p === '/v1/claim-hint') {
+    let b = {}; try { b = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch {}
+    const r = await host.consider(b.id, { force: b.force === true });
+    return json(r.accepted ? 200 : 409, r);
+  }
+  // The relay asks HEAD /x/<id> of every box to find which one owns a deployment: any status
+  // other than 404 means "here". It must be answered BEFORE the app is consulted, or a box that
+  // holds the lease while its app is still starting disowns it (api-relay.js xOwnerOf).
+  if (APPS && method === 'HEAD' && /^\/x\/0x[0-9a-fA-F]{64}\/?$/.test(p)) {
+    const id = p.split('/')[2].toLowerCase();
+    return host.records.has(id) ? { status: 204, headers: {}, body: '' } : json(404, { error: 'not_found', id });
+  }
+  if (APPS && /^\/x\/0x[0-9a-fA-F]{64}(\/|$)/.test(p)) {
+    const id = p.split('/')[2].toLowerCase();
+    const rest = p.slice(('/x/' + id).length) || '/';
+    const r = await host.proxy(id, { method, pathRest: rest + (String(frame.path || '').includes('?') ? '?' + String(frame.path).split('?')[1] : ''),
+                                     headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null });
+    return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
   if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
   if (p === '/v1/session' && method === 'POST') {           // opaque bytes in, opaque bytes out: sealed to the enclave's attested pad key
@@ -219,7 +300,24 @@ function localHttp(port) {
   const http = requireHttp();
   http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
-    const r = await handle({ path: req.url, method: req.method, body: Buffer.concat(chunks).toString('base64') });
+    const body = Buffer.concat(chunks);
+    const p = String(req.url || '').split('?')[0];
+    const json = (status, o) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    // OPERATOR ROUTES, loopback only. handle() serves the tunnel and never sees these, so nothing
+    // on the relay can run an app on this box: only somebody already on the machine.
+    if (APPS && req.method === 'POST' && p === '/v1/host/run') {
+      let b = {}; try { b = JSON.parse(body.toString('utf8')); } catch {}
+      try { return json(200, await host.runUnleased(b)); } catch (e) { return json(400, { error: e.message }); }
+    }
+    if (APPS && req.method === 'POST' && p === '/v1/host/stop') {
+      let b = {}; try { b = JSON.parse(body.toString('utf8')); } catch {}
+      const app = host.apps.get(String(b.id || '').toLowerCase());
+      if (!app) return json(404, { error: 'not_running', id: b.id });
+      await app.stop(); host.apps.delete(String(b.id).toLowerCase());
+      return json(200, { id: b.id, stopped: true });
+    }
+    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
+    const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
     res.writeHead(r.status, r.headers); res.end(r.body);
   }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
 }
@@ -231,6 +329,7 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
   if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
   const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
+  if (APPS) await host.init();
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
 })().catch((e) => { console.error(e); process.exit(1); });

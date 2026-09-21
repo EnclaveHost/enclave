@@ -114,6 +114,13 @@ class FleetList extends EnclaveElement {
             if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
             if (shn.device) parts.push('masked offload to ' + esc(shn.device)
               + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : ''));
+            // Apps, when it hosts any. The residency is the point and is never implied: on this
+            // tier the enclave holds the model, while an app is a wasm component on the Windows
+            // host, which its owner can read. So the row says where, in those words.
+            const ap = a.apps;
+            if (ap && ap.running > 0)
+              parts.push(esc(String(ap.running)) + ' app' + (ap.running === 1 ? '' : 's')
+                + ' on the host' + (ap.inTee === false ? ', outside the enclave' : ''));
             return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
               + '<span class="fleet-head">'
               + consumerBadge
@@ -121,7 +128,7 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '<span class="fleet-relay-note">'
               + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
-              + ' \u00b7 serves its own inference, not app deployments'
+              + (a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner' : ' \u00b7 serves its own inference, not app deployments')
               + '</span>'
               + '</div>';
           }

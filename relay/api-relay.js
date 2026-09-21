@@ -1165,9 +1165,16 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // Sticky enclave for non-deployment-scoped calls (auth nonces are per-enclave
 // state, so /v1/auth/* must land on one box consistently). A GPU enclave is
 // preferred because it serves the full API surface (/v1/gpu, card pricing).
-const sticky = () =>
-     live.filter((e) => e.availability.gpu).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
-  || live.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
+// SERVING boxes only. A box that takes no work does not serve the control-plane surface either:
+// a relay row, or an attached consumer node that hosts only its owner's apps. Picking one turned
+// /v1/auth, /v1/pricing and /v1/version into 404s for the whole platform the moment it sorted
+// first, which is exactly what happened when a consumer node became the only live row reporting a
+// card. A GPU enclave is still preferred among the boxes that do serve.
+const sticky = () => {
+  const s = servingEnclaves();
+  return s.filter((e) => e.availability.gpu).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
+      || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
+};
 
 // Which enclave owns a deployment id — probed once, cached. Two probes:
 // /x/:id (unauth; 404 = not here) covers the data path, and the /v1 record
@@ -1722,6 +1729,9 @@ async function gateway(u, req, res) {
     ? live.find((e) => String(e.name || "").toLowerCase() === pin
                     || String(e.endpoint || "").toLowerCase() === pin) : null;
   const c = pinned || sticky();                              // auth, pricing, version, attestation, ...
+  // Say so, rather than dereferencing null: with no serving enclave there is nowhere to ask.
+  if (!c) return json(res, 503, { error: "no_serving_enclave",
+    message: "No enclave in the fleet is taking work right now, so there is nowhere to serve this." }, req);
   return proxyTo(c.endpoint, req, res);
 }
 
