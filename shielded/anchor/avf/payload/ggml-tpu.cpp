@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
@@ -241,6 +242,54 @@ extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
     if (chunk >= 1 && chunk <= 64) g_window_chunk.store((unsigned)chunk, std::memory_order_relaxed);
 }
 
+/* The correction pays for itself but not in full: run inline it occupies the core the app's TPU worker wants, and the
+ * reply that used to arrive 4.28 ms after publish then arrives at 5.56. The work is not the problem, its PLACEMENT is
+ * - the decode thread should be asleep on the socket so the worker gets a core, while the correction runs on one of
+ * the five vCPUs that are otherwise idle. So: a single persistent helper, posted after the write and joined after the
+ * read. One helper, not a pool: four scalar minters once took the link from 4.3 to 7.7 ms, and this phone punishes
+ * every extra runnable thread. ANCHOR_TPU_CORR_THREAD=0 puts it back inline. */
+struct corr_job {
+    std::mutex mu; std::condition_variable cv_go, cv_done;
+    group *g = nullptr; const std::vector<std::vector<std::pair<uint32_t, int32_t>>> *outl = nullptr;
+    uint32_t rows = 0; bool pending = false, stop = false; std::thread th;
+};
+static corr_job g_cj;
+static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
+    g.cache.resize(g.projs.size());
+    for (size_t p = 0; p < g.projs.size(); p++) {
+        const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
+        for (uint32_t r = 0; r < rows; r++) {
+            float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
+            for (const auto &o : outl[r]) {
+                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
+                if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
+                else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
+            }
+            if (first) std::fill(y, y + pr.n_out, 0.0f);
+        }
+    }
+}
+static bool corr_threaded() {
+    static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
+    return v;
+}
+static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
+    std::unique_lock<std::mutex> lk(g_cj.mu);
+    if (!g_cj.th.joinable()) g_cj.th = std::thread([] {
+        std::unique_lock<std::mutex> lk(g_cj.mu);
+        for (;;) { g_cj.cv_go.wait(lk, [] { return g_cj.pending || g_cj.stop; });
+            if (g_cj.stop) return;
+            group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows;
+            lk.unlock(); corr_run(*g, *ol, rw); lk.lock();
+            g_cj.pending = false; g_cj.cv_done.notify_one(); } });
+    g_cj.g = &g; g_cj.outl = &outl; g_cj.rows = rows; g_cj.pending = true; g_cj.cv_go.notify_one();
+}
+static void corr_join() { std::unique_lock<std::mutex> lk(g_cj.mu); g_cj.cv_done.wait(lk, [] { return !g_cj.pending; }); }
+extern "C" void ggml_backend_tpu_corr_stop(void) {
+    { std::lock_guard<std::mutex> lk(g_cj.mu); if (!g_cj.th.joinable()) return; g_cj.stop = true; g_cj.cv_go.notify_one(); }
+    g_cj.th.join();
+}
+
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
     std::vector<pad> pads; pads.reserve(rows + 3);
@@ -312,19 +361,8 @@ void exchange(group &g, const float *x, uint32_t rows) {
      * Wq is row major, so a column is a strided walk (one cache miss per output); the misses are independent, so
      * they are prefetched a few rows ahead and overlap. The first term writes, the rest accumulate, which saves a
      * zeroing pass over the cache; a row with no out-of-lane entries is cleared instead. */
-    g.cache.resize(g.projs.size());
-    for (size_t p = 0; p < g.projs.size(); p++) {
-        const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
-        for (uint32_t r = 0; r < rows; r++) {
-            float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
-            for (const auto &o : outl[r]) {
-                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
-                if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
-                else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
-            }
-            if (first) std::fill(y, y + pr.n_out, 0.0f);
-        }
-    }
+    const bool ct = corr_threaded();
+    if (ct) corr_post(g, outl, rows); else corr_run(g, outl, rows);
     const int64_t t_corr = now_us();
     /* whatever is left of the window goes to pads: three quarters of the wait this link has been showing, so a batch
      * that runs long still lands inside it. The estimate starts at 3 ms and follows the measurement. */
@@ -332,6 +370,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     mint_window(t_corr + (int64_t)(wait_ewma_us * 0.75));
     const int64_t t_mint = now_us();
     if (!rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed waiting for the reply (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
+    if (ct) corr_join();                                                   /* the cache must be complete before the reply is added to it */
     const int64_t t2 = now_us();
     wait_ewma_us += 0.05 * ((double)(t2 - t_corr) - wait_ewma_us);
     /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
