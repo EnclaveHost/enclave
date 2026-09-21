@@ -1840,3 +1840,55 @@ Against where this started: 4 tok/s in production, 7.3 plain / 8.4 speculative
 at the top of section 15 on this box. The 20 tok/s target is not reached and
 is not reachable here without the 4-bit weight lane of 15.3; everything above
 that line has been measured and either shipped or recorded as a negative.
+
+### 15.5 The 4-bit lane does not survive contact with the model
+
+15.3 named a narrower weight lane as the only remaining term worth more than
+a few percent, on the strength of section 2's kernel research ("the 4-bit
+weight path", q4_0 at 0.5625 B/weight, "masked round-trip verified exact").
+Before writing a CUDA kernel, an encoder and an AVX-512 refill for it,
+`shielded/lane/lane_error.py` prices what the model loses. Real tensors of the
+deployed 27B, dequantized exactly as the tier's encoder sees them, relative
+error of `W.x` against the f32 product of the same weights:
+
+| lane | bytes/weight | relative error |
+|---|---|---|
+| int8, one exponent per output column (today) | 1.0625 | 1.3-1.4% |
+| int6, integer scale per 32-block | 0.8125 | 1.8-2.3% |
+| int5, integer scale per 32-block | 0.6875 | 4.4-4.8% |
+| int4, integer scale per 32-block | 0.5625 | **9.8-10.3%** |
+| int6, power-of-two scale per 32-block | 0.7812 | 3.1-3.6% |
+| int4, power-of-two scale per 32-block | 0.5312 | 14.5-15.3% |
+
+Two things this settles. The block scale does NOT have to be a power of two
+for the field arithmetic to stay exact -- an integer multiplier per block
+keeps the whole product integral (`y = sum_b m_b * block_dot_b`, descaled once
+per column) and is worth a bit and a half at every width, so any future lane
+should use one. And even then **a 4-bit lane costs seven times the present
+encoding error**, which is not a tuning decision; it is a different model.
+"Round-trip verified exact" in section 2 was a statement about the masking
+algebra, which is exact for any encoding however coarse; it was never a
+measurement of the encoding's error, and this is.
+
+The usable end of that table is int6 with an integer block scale: 24% fewer
+bytes for 1.6x the error, which would take the streaming term from 24 ms to
+18 ms and the token from 78 ms to about 72 -- roughly 15 tok/s with drafting.
+Worth having, not worth calling 20.
+
+### 15.6 What 20 tok/s on this model actually needs
+
+Adding up everything measured in 14 and 15: the enclave's own CPU half is
+22 ms and the fixed per-exchange cost about 12 ms, neither of which any lane
+or placement change touches. That is a 34 ms floor before a single weight
+byte moves, i.e. **29 tok/s is the ceiling on this box even with infinitely
+fast cards**, and the streaming term is what stands between 14 and that.
+
+Two V100s read 21.6 GB of int8 field weights in 24 ms, alternating by layer.
+Reaching 20 tok/s (50 ms) needs that term under 16 ms, which means either
+cards with roughly three times the aggregate bandwidth (H100-class), or four
+or more V100s with a column split that scales -- and 15.2 shows the split
+only scales once the card is bandwidth-bound at one row, which is exactly
+what more bandwidth per column would make it. **It is a hardware question,
+not a software one.** On this pair of V100s, 14 tok/s with drafting is the
+honest number, and the 27B's decode is now within about 10% of what this
+hardware can do.
