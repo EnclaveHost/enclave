@@ -1823,3 +1823,20 @@ So the two things that would move this materially are both below the backend:
 Together those are worth roughly 24 ms -> 12 ms of streaming and would put the
 token near 60 ms, i.e. about 17 tok/s plain and 19-20 with drafting. Nothing
 else measured in sections 14 and 15 is worth more than a few percent.
+
+### 15.4 Settled
+
+Six consecutive runs of the final configuration -- repo backend (refill unit
+16), both kernel fixes, ring transport, `nnShieldedRefillBatch` 64,
+`nnShieldedPoolDepth` 64, `nnShieldedMaxM` 64, 8 decode threads, 64 generated
+tokens, text identical every time:
+
+| drafting | plain tok/s | speculative tok/s | tokens/round |
+|---|---|---|---|
+| k = 1 | 12.85 (78 ms) | **14.05** (13.88-14.13) | 1.83 |
+| k = 2 | 12.81 | 12.96 (12.95-13.14) | 2.29 |
+
+Against where this started: 4 tok/s in production, 7.3 plain / 8.4 speculative
+at the top of section 15 on this box. The 20 tok/s target is not reached and
+is not reachable here without the 4-bit weight lane of 15.3; everything above
+that line has been measured and either shipped or recorded as a negative.

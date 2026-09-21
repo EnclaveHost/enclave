@@ -1,0 +1,18 @@
+[opprof] graphs=22149 nodes=116127 graph_total=1501.9 ms
+[opprof]   ADD              n=12144    total=     29.8 ms  mean=    2.5 us  worst=2831.4 us  node_1986 [48,1,1,1] 0 KB
+[opprof]   MUL              n=7728     total=     13.9 ms  mean=    1.8 us  worst= 575.5 us  node_2232 [128,48,1,1] 24 KB
+[opprof]   CONCAT           n=3312     total=     83.2 ms  mean=   25.1 us  worst=2873.7 us  conv_input-54 [4,10240,1,1] 160 KB
+[opprof]   RMS_NORM         n=14421    total=     76.3 ms  mean=    5.3 us  worst=1317.2 us  norm-9 [5120,1,1,1] 20 KB
+[opprof]   L2_NORM          n=6624     total=     19.0 ms  mean=    2.9 us  worst= 652.6 us  k_conv_predelta-20 [128,16,17,1] 136 KB
+[opprof]   MUL_MAT          n=6624     total=     80.5 ms  mean=   12.2 us  worst=2859.5 us  node_1072 [48,1,1,1] 0 KB
+[opprof]   SCALE            n=6624     total=     22.0 ms  mean=    3.3 us  worst= 947.4 us  cache_s_l25 (reshaped) (view) (view) [786432,1,1,1] 3072 KB
+[opprof]   CPY              n=13248    total=    174.7 ms  mean=   13.2 us  worst=2940.8 us  cache_s_l34 (view) (copy of ) [786432,0,1,1] 0 KB
+[opprof]   CONT             n=1104     total=      2.9 ms  mean=    2.6 us  worst=  37.2 us  gate_reshaped-63 [6144,1,1,1] 24 KB
+[opprof]   GET_ROWS         n=13386    total=    356.1 ms  mean=   26.6 us  worst=3530.7 us  node_1973 [786432,1,1,1] 3072 KB
+[opprof]   SET_ROWS         n=2208     total=      2.8 ms  mean=    1.3 us  worst=   7.5 us  cache_k_l51 (view) [1024,1024,1,1] 2048 KB
+[opprof]   ROPE             n=2208     total=     11.2 ms  mean=    5.1 us  worst=2214.4 us  Qcur-63 [256,24,17,1] 408 KB
+[opprof]   FLASH_ATTN_EXT   n=1104     total=     31.3 ms  mean=   28.4 us  worst= 151.8 us  node_2268 [256,24,17,1] 408 KB
+[opprof]   SSM_CONV         n=3312     total=     53.6 ms  mean=   16.2 us  worst=3991.3 us  conv_output_raw-20 [10240,17,1,1] 680 KB
+[opprof]   GATED_DELTA_NET  n=3312     total=    437.4 ms  mean=  132.1 us  worst=3595.3 us  node_1475 [6144,145,1,1] 3480 KB
+[opprof]   UNARY            n=14352    total=     70.2 ms  mean=    4.9 us  worst= 956.7 us  conv_output_silu-20 [10240,17,1,1] 680 KB
+[opprof]   GLU              n=4416     total=     24.9 ms  mean=    5.6 us  worst=  75.5 us  ffn_swiglu-0 [17408,17,1,1] 1156 KB
