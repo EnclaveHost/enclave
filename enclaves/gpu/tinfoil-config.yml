@@ -329,7 +329,7 @@ containers:
   # are hardware-enforced per process. Tenants without a GPU share never get
   # the wasi-nn import at all.
   - name: "wasm-manager"
-    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:59c895a34f573a61926c6b4f10693c9c4ece45d0becde72107a2466a9fe108a8"
+    image: "ghcr.io/enclavehost/enclave-wasm-manager@sha256:049eed294f4dd4aed73338a1e6365b1086d675c1ae338c0250a4bfd8dbcff511"
     runtime: nvidia
     gpus: all
     ipc: host
