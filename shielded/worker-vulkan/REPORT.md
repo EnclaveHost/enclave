@@ -50,7 +50,41 @@ ships SPIR-V built here with `glslc`.
 6. Windows: `NOMINMAX` before `windows.h`; MSVC builds the harness and the C field helper as-is;
    the SPIR-V files are copied over unchanged. Vulkan headers come from the Khronos repo (no SDK).
 
-## Next: the worker on this layer
+## The worker on this layer: DONE (Linux and Windows), verified through the protocol
+
+`vkdev.{h,cpp}` implements the CUDA runtime subset `../worker-cuda/worker.cu` calls, on Vulkan;
+`make shielded-worker` compiles the unmodified worker source as C++ with `-DSH_VULKAN`. On
+Windows, `windows/worker-win/build-vulkan.cmd` does the same with MSVC and the existing
+POSIX-over-Winsock compat header (which grew a few shims), so one Windows binary serves any
+vendor's card through the driver's Vulkan loader. No CUDA toolkit anywhere in that build.
+
+| | Tesla V100, Linux, Vulkan | Tesla V100, Linux, CUDA (reference) | Radeon 780M, Windows 11, Vulkan |
+|---|---|---|---|
+| startup self-test (61 shape cases) | PASS | PASS | PASS |
+| field GEMM throughput (HELLO figure) | 2558 G-MAC/s | 2286 G-MAC/s | 172 G-MAC/s |
+| SMs / CUs reported to the planner | 72 (`VK_NV_shader_sm_builtins`) | 80 | 12 (`VK_AMD_shader_core_properties`) |
+| protocol HELLO from the Python TEE | 1.4.0, 22 ms | 1.4.0 | 1.4.0, 47 ms over the LAN |
+| 3-node install + 8 masked exchanges, Freivalds-verified, vs local int64 | EXACT | EXACT | EXACT |
+| per exchange, Python TEE side included | 3.9 ms | 1.9 ms | 11.8 ms (LAN) |
+
+The exchange test (`synth_exchange.py`, 4 rounds of gate|up shared-x at m = 1 and 4 plus a down
+projection) drives the legacy doorbell path: SET_TENSOR, RECOMPUTE, GET_TENSOR. Every reply
+passed the TEE's Freivalds check and matched `x . w_fixed` computed locally. The full-model
+run (`e2e.py`, the bit-identical GPU-vs-local token streams) is in the section below.
+
+What the device layer does differently, and what it does not do yet:
+- Device pointers are buffer device addresses; the pool is an arena of 64 MiB-minimum blocks,
+  so `claim_reservation()`'s hold-then-free trick reserves real VRAM as before.
+- A stream is a lazily submitted command buffer; the captured exchange graph is one pre-recorded
+  command buffer replayed per step. The legacy per-node doorbell pays one submit + fence per
+  node (~35 us on NVIDIA, ~190 us on the AMD Windows driver), which is where the 3.9 vs 1.9 ms
+  above comes from; the engine's one-frame exchange batches a whole step per submit.
+- `cudaMemGetInfo` is `VK_EXT_memory_budget`. `card_tflops` cannot be derived (no clock in the
+  API): `SHIELDED_CARD_TFLOPS` states it.
+- The shm ring (`--shm`) is not available on Windows (the compat `mmap` refuses it); vsock is
+  AF_HYPERV there, untested. MPS has no equivalent yet; `VK_EXT_global_priority` is the plan.
+
+## Next
 
 `../worker-cuda/worker.cu` keeps its protocol, admission rules, graph install and VRAM ledger;
 its ~60 CUDA runtime call sites become a Vulkan device layer: streams -> a queue plus command
