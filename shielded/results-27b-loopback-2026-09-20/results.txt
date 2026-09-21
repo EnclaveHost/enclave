@@ -420,3 +420,95 @@ n-k3-2 rc=0 wall=92s load=5.32 5.53 5.62 others=chromium:6.5 picom:5.8
 n-instr-plain rc=0 wall=68s load=5.81 5.51 5.60 others=chromium:6.4 picom:5.8 
   plain 10.37 tok/s (96.5 ms/tok, prefill 711 ms) | spec k=0 0.00 tok/s, 0.00 tok/round, accept 0.00, draft 0.0 ms verify 0.0 ms/round, identical=True | spec prefill 0 ms | warm prefill 0 ms x0
 QUEUE21 DONE
+v-k1-1 rc=0 wall=90s load=4.68 4.34 5.07 others=chromium:6.0 picom:5.8 
+  plain 10.68 tok/s (93.6 ms/tok, prefill 713 ms) | spec k=1 12.81 tok/s, 1.83 tok/round, accept 0.83, draft 6.1 ms verify 132.2 ms/round, identical=True | spec prefill 17361 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42603 local=97 GMAC=4807.27 verify_fail=0
+v-rf4-k1 rc=0 wall=102s load=5.30 4.86 5.19 others=chromium:6.0 picom:5.8 
+  plain 8.79 tok/s (113.8 ms/tok, prefill 537 ms) | spec k=1 10.10 tok/s, 1.78 tok/round, accept 0.78, draft 15.8 ms verify 155.7 ms/round, identical=True | spec prefill 21086 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43017 local=101 GMAC=4855.09 verify_fail=0
+v-spin2000-k1 rc=0 wall=90s load=6.24 5.14 5.25 others=chromium:5.9 picom:5.8 
+  plain 10.47 tok/s (95.6 ms/tok, prefill 605 ms) | spec k=1 12.98 tok/s, 1.85 tok/round, accept 0.85, draft 6.2 ms verify 134.2 ms/round, identical=True | spec prefill 17028 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42184 local=98 GMAC=4753.42 verify_fail=0
+v-k1-2 rc=0 wall=90s load=8.49 6.03 5.54 others=chromium:5.9 picom:5.8 
+  plain 10.68 tok/s (93.7 ms/tok, prefill 742 ms) | spec k=1 12.37 tok/s, 1.78 tok/round, accept 0.78, draft 6.0 ms verify 133.3 ms/round, identical=True | spec prefill 17083 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43022 local=96 GMAC=4860.70 verify_fail=0
+v-long-rb64-k1 rc=0 wall=191s load=16.29 10.12 7.16 others=chromium:6.3 picom:5.9 
+  plain 10.52 tok/s (95.1 ms/tok, prefill 25553 ms) | spec k=1 11.97 tok/s, 2.00 tok/round, accept 1.00, draft 32.0 ms verify 130.2 ms/round, identical=True | spec prefill 42110 ms | warm prefill 26936 ms x1
+[bench] shielded: offloaded=53042 local=25 GMAC=53714.26 verify_fail=0
+2
+[shielded-worker] shm ring file /dev/shm/enclave-shielded-shm/card-0: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+v-wspin-k1-1 rc=0 wall=91s load=6.54 8.20 6.78 others=chromium:6.3 picom:5.9 
+  plain 10.11 tok/s (98.9 ms/tok, prefill 700 ms) | spec k=1 11.97 tok/s, 1.78 tok/round, accept 0.78, draft 6.4 ms verify 137.7 ms/round, identical=True | spec prefill 16982 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43018 local=100 GMAC=4856.60 verify_fail=0
+v-wspin-k1-2 rc=0 wall=89s load=6.16 7.31 6.59 others=chromium:6.2 picom:5.9 
+  plain 10.67 tok/s (93.7 ms/tok, prefill 754 ms) | spec k=1 12.05 tok/s, 1.78 tok/round, accept 0.78, draft 6.2 ms verify 136.8 ms/round, identical=True | spec prefill 16687 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43018 local=100 GMAC=4856.60 verify_fail=0
+2
+[shielded-worker] shm ring file /dev/shm/enclave-shielded-shm/card-0: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+v-k1-3 rc=0 wall=91s load=5.96 6.77 6.46 others=chromium:6.2 picom:5.9 
+  plain 10.41 tok/s (96.1 ms/tok, prefill 660 ms) | spec k=1 12.23 tok/s, 1.78 tok/round, accept 0.78, draft 6.3 ms verify 134.5 ms/round, identical=True | spec prefill 16786 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43018 local=100 GMAC=4856.60 verify_fail=0
+QUEUE22 DONE
+XPROF BUILD FAILED
+QUEUE23 DONE
+x-tcp-k1 rc=0 wall=80s load=7.05 6.70 6.45 others=python3:99.7 python3:99.5 
+  plain 8.65 tok/s (115.6 ms/tok, prefill 756 ms) | spec k=0 0.00 tok/s, 0.00 tok/round, accept 0.00, draft 0.0 ms verify 0.0 ms/round, identical=True | spec prefill 0 ms | warm prefill 0 ms x0
+x-ring-k1 rc=0 wall=84s load=9.06 7.12 6.61 others=ps:100 python3:99.6 
+  plain 9.06 tok/s (110.4 ms/tok, prefill 871 ms) | spec k=0 0.00 tok/s, 0.00 tok/round, accept 0.00, draft 0.0 ms verify 0.0 ms/round, identical=True | spec prefill 0 ms | warm prefill 0 ms x0
+QUEUE23B DONE
+2
+[shielded-worker] shm ring file /dev/shm/enclave-shielded-shm/card-0: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+w-t8-1 rc=0 wall=109s load=7.43 6.78 6.54 others=python3:80.2 python3:80.0 
+  plain 9.90 tok/s (101.0 ms/tok, prefill 807 ms) | spec k=1 9.38 tok/s, 1.85 tok/round, accept 0.85, draft 11.5 ms verify 184.0 ms/round, identical=True | spec prefill 16650 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42209 local=73 GMAC=4779.27 verify_fail=0
+w-t4-1 rc=0 wall=102s load=7.33 6.80 6.56 others=picom:5.9 chromium:4.7 
+  plain 10.32 tok/s (96.9 ms/tok, prefill 774 ms) | spec k=1 12.52 tok/s, 1.83 tok/round, accept 0.83, draft 5.9 ms verify 135.7 ms/round, identical=True | spec prefill 16629 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42618 local=82 GMAC=4821.53 verify_fail=0
+w-t6-1 rc=0 wall=111s load=12.43 8.61 7.23 others=python3:99.0 python3:99.0 
+  plain 9.59 tok/s (104.3 ms/tok, prefill 899 ms) | spec k=1 10.64 tok/s, 1.78 tok/round, accept 0.78, draft 7.2 ms verify 155.0 ms/round, identical=True | spec prefill 22530 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43079 local=39 GMAC=4918.72 verify_fail=0
+w-t12-1 rc=0 wall=131s load=11.23 8.61 7.37 others=ps:100 python3:79.2 
+  plain 9.53 tok/s (104.9 ms/tok, prefill 832 ms) | spec k=1 8.32 tok/s, 1.83 tok/round, accept 0.83, draft 13.6 ms verify 200.7 ms/round, identical=True | spec prefill 17203 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42643 local=57 GMAC=4846.13 verify_fail=0
+w-t8-2 rc=0 wall=91s load=7.54 8.21 7.36 others=node:93.6 node:6.0 
+  plain 10.86 tok/s (92.1 ms/tok, prefill 679 ms) | spec k=1 12.56 tok/s, 1.80 tok/round, accept 0.80, draft 6.3 ms verify 134.7 ms/round, identical=True | spec prefill 17038 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42606 local=94 GMAC=4809.79 verify_fail=0
+w-t4-2 rc=0 wall=105s load=13.09 10.66 8.37 others=refill-selftest:99.3 picom:5.9 
+  plain 9.98 tok/s (100.2 ms/tok, prefill 740 ms) | spec k=1 12.88 tok/s, 1.83 tok/round, accept 0.83, draft 6.0 ms verify 131.7 ms/round, identical=True | spec prefill 17466 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42611 local=89 GMAC=4815.21 verify_fail=0
+w-t6-2 rc=0 wall=108s load=12.25 10.54 8.57 others=python3:99.6 python3:99.6 
+  plain 9.41 tok/s (106.3 ms/tok, prefill 914 ms) | spec k=1 11.29 tok/s, 1.85 tok/round, accept 0.85, draft 7.5 ms verify 154.4 ms/round, identical=True | spec prefill 23355 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42217 local=65 GMAC=4786.13 verify_fail=0
+w-t8-gomp1m rc=0 wall=123s load=11.20 11.19 9.10 others=python3:87.3 python3:85.6 
+  plain 9.73 tok/s (102.8 ms/tok, prefill 751 ms) | spec k=1 9.34 tok/s, 1.78 tok/round, accept 0.78, draft 11.2 ms verify 174.0 ms/round, identical=True | spec prefill 20996 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43067 local=51 GMAC=4905.71 verify_fail=0
+QUEUE24 DONE
+y-tiny1-k1-1 rc=2 wall=42s load=9.45 10.65 9.04 others=python3:60.7 python3:60.6 
+  no json: list index out of range
+y-tiny0-k1-1 rc=0 wall=86s load=5.34 8.94 8.58 others=picom:5.9 chromium:3.6 
+  plain 11.10 tok/s (90.1 ms/tok, prefill 731 ms) | spec k=1 13.38 tok/s, 1.80 tok/round, accept 0.80, draft 5.8 ms verify 126.5 ms/round, identical=True | spec prefill 16766 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42606 local=94 GMAC=4809.79 verify_fail=0
+y-tiny1-k1-2 rc=2 wall=27s load=5.71 8.62 8.49 others=clang++:98.6 picom:5.9 
+  no json: list index out of range
+y-tiny0-k1-2 rc=0 wall=119s load=13.23 10.17 9.05 others=python3:97.6 python3:97.6 
+  plain 8.49 tok/s (117.8 ms/tok, prefill 950 ms) | spec k=1 9.60 tok/s, 1.78 tok/round, accept 0.78, draft 7.7 ms verify 172.4 ms/round, identical=True | spec prefill 24617 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43068 local=50 GMAC=4906.60 verify_fail=0
+y-tiny1-k3-1 rc=2 wall=33s load=9.11 9.45 8.86 others=ps:100 python3:97.4 
+  no json: list index out of range
+QUEUE25 DONE
+z-tiny1-k1-1 rc=0 wall=94s load=4.27 7.08 8.03 others=picom:5.9 chromium:3.8 
+  plain 8.67 tok/s (115.3 ms/tok, prefill 834 ms) | spec k=1 11.13 tok/s, 1.78 tok/round, accept 0.78, draft 7.0 ms verify 148.1 ms/round, identical=True | spec prefill 17161 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43018 local=100 GMAC=4856.60 verify_fail=0
+z-tiny0-k1-1 rc=0 wall=90s load=7.81 7.35 8.02 others=picom:5.9 chromium:3.9 
+  plain 10.44 tok/s (95.8 ms/tok, prefill 690 ms) | spec k=1 12.31 tok/s, 1.78 tok/round, accept 0.78, draft 6.2 ms verify 133.7 ms/round, identical=True | spec prefill 17112 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=43018 local=100 GMAC=4856.60 verify_fail=0
+z-tiny1-k1-2 rc=0 wall=128s load=10.64 8.34 8.27 others=ps:100 python3:87.7 
+  plain 6.24 tok/s (160.2 ms/tok, prefill 1139 ms) | spec k=1 8.08 tok/s, 1.83 tok/round, accept 0.83, draft 11.5 ms verify 209.3 ms/round, identical=True | spec prefill 22347 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42618 local=82 GMAC=4821.53 verify_fail=0
+z-tiny0-k1-2 rc=0 wall=121s load=16.38 10.51 9.02 others=python3:99.2 python3:99.0 
+  plain 6.82 tok/s (146.7 ms/tok, prefill 1335 ms) | spec k=1 7.90 tok/s, 1.83 tok/round, accept 0.83, draft 20.4 ms verify 205.6 ms/round, identical=True | spec prefill 24542 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=42656 local=44 GMAC=4860.22 verify_fail=0
+z-tiny1-k3-1 rc=0 wall=122s load=13.67 11.14 9.43 others=python3:99.6 python3:99.6 
+  plain 6.74 tok/s (148.4 ms/tok, prefill 1024 ms) | spec k=3 8.14 tok/s, 2.91 tok/round, accept 0.64, draft 22.2 ms verify 326.0 ms/round, identical=True | spec prefill 24027 ms | warm prefill 0 ms x0
+[bench] shielded: offloaded=37580 local=82 GMAC=5334.03 verify_fail=0
+QUEUE26 DONE
