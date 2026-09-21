@@ -24,6 +24,13 @@ ships SPIR-V built here with `glslc`.
   on this box (AMD's Windows HIP SDK does not list gfx1103).
 - The 3070 row is contended (a foreign process at 93-97% the whole time) and is reported only to
   show the port runs there; its idle number is expected at or above the CUDA 2130.
+- **Per-submit floor** (one pre-recorded command buffer, submit + completion, the exchange path's
+  form): V100 33 us with a blocking fence, 37 us spin-polling `vkGetFenceStatus`; Radeon 780M
+  198 us blocking, 186 us spinning. The 780M's ~190 us is therefore the AMD Windows driver's
+  submit-to-completion latency, not the host wake-up. At the tier's ~128 blocking round trips per
+  token that caps a 7B-class decode near 40 tok/s on that iGPU from latency alone (its 173 G-MAC/s
+  is the tighter bound anyway); the worker should batch every op of a step into one submit, which
+  the installed-graph design already does.
 
 ## What it took (the notes the port needs)
 

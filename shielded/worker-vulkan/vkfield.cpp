@@ -34,7 +34,7 @@ static PFN_vkGetInstanceProcAddr gipa;
 #define VK_INSTANCE_FNS(X) X(vkEnumeratePhysicalDevices) X(vkGetPhysicalDeviceProperties2) \
   X(vkGetPhysicalDeviceFeatures2) X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkGetPhysicalDeviceMemoryProperties) \
   X(vkCreateDevice) X(vkGetDeviceProcAddr)
-#define VK_DEVICE_FNS(X) X(vkGetDeviceQueue) X(vkCreateBuffer) X(vkDestroyBuffer) X(vkGetBufferMemoryRequirements) \
+#define VK_DEVICE_FNS(X) X(vkGetFenceStatus) X(vkGetDeviceQueue) X(vkCreateBuffer) X(vkDestroyBuffer) X(vkGetBufferMemoryRequirements) \
   X(vkAllocateMemory) X(vkFreeMemory) X(vkBindBufferMemory) X(vkMapMemory) X(vkUnmapMemory) X(vkGetBufferDeviceAddress) \
   X(vkCreateShaderModule) X(vkDestroyShaderModule) X(vkCreatePipelineLayout) X(vkCreateComputePipelines) X(vkDestroyPipeline) \
   X(vkCreateCommandPool) X(vkAllocateCommandBuffers) X(vkBeginCommandBuffer) X(vkEndCommandBuffer) X(vkResetCommandBuffer) \
@@ -324,6 +324,22 @@ static void measure_latency() {
         if (i >= 20) { sum += us; best = std::min(best, us); }
     }
     printf("[vkfield] dispatch latency, 0.5B gate|up x2 m=1 (record+submit+fence, mapped reply): mean %.1f us, best %.1f us over %d\n", sum / reps, best, reps);
+    /* The exchange path's form: the command buffer recorded once (the installed graph), one
+     * submit per step. This is the per-step floor the worker will see. */
+    vkResetCommandBuffer(D.cb, 0);
+    { VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO}; ck(vkBeginCommandBuffer(D.cb, &bi), "begin"); }
+    cmd_gemm(pl, K, dX.addr, K, (long long)m * K); cmd_barrier(); ck(vkEndCommandBuffer(D.cb), "end");
+    best = 1e9; sum = 0;
+    for (int i = 0; i < reps + 20; i++) {
+        const auto t0 = std::chrono::steady_clock::now();
+        VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO}; si.commandBufferCount = 1; si.pCommandBuffers = &D.cb;
+        ck(vkResetFences(D.dev, 1, &D.fence), "reset fence"); ck(vkQueueSubmit(D.queue, 1, &si, D.fence), "submit");
+        if (getenv("VKFIELD_SPIN")) { while (vkGetFenceStatus(D.dev, D.fence) == VK_NOT_READY) {} }
+        else ck(vkWaitForFences(D.dev, 1, &D.fence, VK_TRUE, ~0ull), "wait");
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+        if (i >= 20) { sum += us; best = std::min(best, us); }
+    }
+    printf("[vkfield] same, pre-recorded command buffer (submit+%s only):                     mean %.1f us, best %.1f us over %d\n", getenv("VKFIELD_SPIN") ? "spin" : "fence", sum / reps, best, reps);
     free_buf(dW); free_buf(dX); free_buf(dY);
 }
 
