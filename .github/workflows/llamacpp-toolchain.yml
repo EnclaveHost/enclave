@@ -174,6 +174,21 @@ jobs:
           git apply "$GITHUB_WORKSPACE/wasm/llamacpp-parallel-rows.patch"
           grep -q "FEWER ROWS THAN THREADS" ggml/src/ggml-cpu/ops.cpp || { echo "::error::parallel-rows get_rows hunk did not apply"; exit 1; }
           grep -q "Spread over EVERY row" ggml/src/ggml-cpu/ops.cpp || { echo "::error::parallel-rows concat hunk did not apply"; exit 1; }
+          # The same recurrent state was being copied FOUR times per delta-net
+          # layer per token: gathered in (a permutation of one element), staged
+          # into the op's scratch, written to the op's output, and copied back
+          # to the cache. When the gather is provably the identity - one seq,
+          # one cell, no rollback plane pending - build_rs hands back a view of
+          # the cache and ggml_gated_delta_net_inplace updates it where it
+          # lies. 3 MiB x 48 layers x 2 copies per token on the 27B. The flag
+          # SHAPES the graph, so every can_reuse path has to check it; missing
+          # that on the hybrid inputs is a silent wrong answer, which is what
+          # ENCLAVE_RS_DEBUG=1 audits. Measured: plain decode +10%, and the
+          # speculative round 16.2 -> 19.5 tok/s on the shielded 27B.
+          git apply "$GITHUB_WORKSPACE/wasm/llamacpp-rs-inplace.patch"
+          grep -q "ggml_gated_delta_net_inplace" ggml/src/ggml.c || { echo "::error::rs-inplace op hunk did not apply"; exit 1; }
+          grep -q "is_identity_gather" src/llama-graph.cpp || { echo "::error::rs-inplace alias hunk did not apply"; exit 1; }
+          grep -q "s_copy_peek" src/llama-memory-recurrent.cpp || { echo "::error::rs-inplace peek hunk did not apply"; exit 1; }
           # mm7 VERDICT (2026-08-02, canary with per-verb timing): shape-keyed
           # graph slots were retried (mm7 = mm4 + slot cap + kill-switch) after
           # topk sparse logits removed the sampling tax the mm5 revert blamed.

@@ -1,0 +1,538 @@
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -2583,6 +2583,29 @@
+             struct ggml_tensor  * state,
+             int64_t               K);
+ 
++    // Same recurrence, but the state is updated WHERE IT ALREADY LIVES.
++    //
++    // `state` must be a view of the caller's recurrent cache holding s0 (snapshot
++    // slot 0); `snap_stride` is the byte distance from one snapshot slot to the
++    // next in that cache. The op writes slot 0 in place and the older slots at
++    // their own stride, and the result carries ONLY the attention scores
++    // [S_v, H_v, n_tokens, n_seqs]. The caller therefore does not gather the
++    // state in or copy it back: on a 27B-class hybrid those two copies are
++    // 6 MiB per delta-net layer per token of pure memory traffic.
++    //
++    // A backend that does not implement the in-place form must decline the op
++    // (op_params[1] != 0), NOT fall back to the packed-output code path.
++    GGML_API struct ggml_tensor * ggml_gated_delta_net_inplace(
++            struct ggml_context * ctx,
++            struct ggml_tensor  * q,
++            struct ggml_tensor  * k,
++            struct ggml_tensor  * v,
++            struct ggml_tensor  * g,
++            struct ggml_tensor  * beta,
++            struct ggml_tensor  * state,
++            int64_t               K,
++            size_t                snap_stride);
++
+     // DSA lightning indexer
+     //
+     // q:       [n_embd_idx, n_head_idx, n_batch, ne3 ]
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -6308,6 +6308,65 @@
+     return result;
+ }
+ 
++struct ggml_tensor * ggml_gated_delta_net_inplace(
++        struct ggml_context * ctx,
++        struct ggml_tensor  * q,
++        struct ggml_tensor  * k,
++        struct ggml_tensor  * v,
++        struct ggml_tensor  * g,
++        struct ggml_tensor  * beta,
++        struct ggml_tensor  * state,
++        int64_t               K,
++        size_t                snap_stride) {
++    GGML_ASSERT(ggml_is_contiguous_rows(q));
++    GGML_ASSERT(ggml_is_contiguous_rows(k));
++    GGML_ASSERT(ggml_is_contiguous_rows(v));
++    GGML_ASSERT(ggml_is_contiguous(g));
++    GGML_ASSERT(ggml_is_contiguous(beta));
++    GGML_ASSERT(ggml_is_contiguous(state));
++
++    GGML_ASSERT(q->type == GGML_TYPE_F32);
++    GGML_ASSERT(k->type == GGML_TYPE_F32);
++    GGML_ASSERT(v->type == GGML_TYPE_F32);
++    GGML_ASSERT(g->type == GGML_TYPE_F32);
++    GGML_ASSERT(beta->type == GGML_TYPE_F32);
++    GGML_ASSERT(state->type == GGML_TYPE_F32);
++
++    const int64_t S_v      = v->ne[0];
++    const int64_t H        = v->ne[1];
++    const int64_t n_tokens = v->ne[2];
++    const int64_t n_seqs   = v->ne[3];
++
++    GGML_ASSERT(g->ne[0] == 1 || g->ne[0] == S_v);
++    GGML_ASSERT(beta->ne[0] == 1);
++
++    GGML_ASSERT(state->ne[0] == S_v);
++    GGML_ASSERT(state->ne[1] == S_v);
++    GGML_ASSERT(state->ne[2] == H);
++    GGML_ASSERT(state->ne[3] == n_seqs);
++    GGML_ASSERT(K >= 1);
++    /* Slots past the first are written at snap_stride; one slot needs none. */
++    GGML_ASSERT(K == 1 || snap_stride >= (size_t) ggml_nbytes(state));
++
++    const int64_t ne[4] = { S_v * H, n_tokens * n_seqs, 1, 1 };
++    struct ggml_tensor * result = ggml_new_tensor(ctx, GGML_TYPE_F32, 4, ne);
++
++    ggml_set_op_params_i32(result, 0, (int32_t) K);
++    ggml_set_op_params_i32(result, 1, 1);                              /* in-place state */
++    ggml_set_op_params_i32(result, 2, (int32_t) (snap_stride & 0xffffffffu));
++    ggml_set_op_params_i32(result, 3, (int32_t) (snap_stride >> 32));
++
++    result->op     = GGML_OP_GATED_DELTA_NET;
++    result->src[0] = q;
++    result->src[1] = k;
++    result->src[2] = v;
++    result->src[3] = g;
++    result->src[4] = beta;
++    result->src[5] = state;
++
++    return result;
++}
++
+ // ggml_lightning_indexer
+ 
+ struct ggml_tensor * ggml_lightning_indexer(
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -10865,6 +10865,14 @@
+     // K (snapshot slot count) is an op param; state holds s0 only [S_v, S_v, H, n_seqs].
+     const int64_t K = ggml_get_op_params_i32(dst, 0);
+     GGML_ASSERT(K >= 1);
++    // In-place form: the recurrence runs in the caller's recurrent cache and dst
++    // carries the attention scores alone. Slot 0 IS the state we were handed, so
++    // it needs no write-back; older slots sit snap_stride bytes apart.
++    const bool inplace = ggml_get_op_params_i32(dst, 1) != 0;
++    const size_t snap_stride = inplace
++        ? ((size_t) (uint32_t) ggml_get_op_params_i32(dst, 2)) |
++          (((size_t) (uint32_t) ggml_get_op_params_i32(dst, 3)) << 32)
++        : 0;
+     // per-seq stride in floats (seq s starts at state + s * seq_stride)
+     const int64_t state_seq_stride = src_state->nb[3] / sizeof(float);
+ 
+@@ -10880,12 +10888,12 @@
+     const int64_t attn_score_elems    = S_v * H * n_tokens * n_seqs;
+     const int64_t state_size_per_snap = S_v * S_v * H * n_seqs;
+     float * attn_out_base  = (float *)dst->data;
+-    float * state_out_base = (float *)dst->data + attn_score_elems;
++    float * state_out_base = inplace ? nullptr : (float *)dst->data + attn_score_elems;
+ 
+     // snapshot slot mapping: slot 0 = most recent state, slot s = s tokens back.
+     // When n_tokens < K only slots 0..n_tokens-1 are written; older slots are caller-owned.
+ 
+-    const float * state_in_base = (const float *)src_state->data;
++    float * const state_in_base = (float *)src_state->data;
+ 
+   //const int64_t rq1 = nev1 / neq1;
+   //const int64_t rk1 = nev1 / nek1;
+@@ -10904,16 +10912,23 @@
+         const int64_t iq3 = iv3 / rq3;
+         const int64_t ik3 = iv3 / rk3;
+ 
++        // state layout [S_v, S_v, H, n_seqs]: seq iv3 starts at iv3 * state_seq_stride.
++        const int64_t s_off = iv3 * state_seq_stride + iv1 * S_v * S_v;
++        float * s_in = state_in_base + s_off;
++
++        // In place: run the recurrence in the cache itself -- no read-in copy, and
++        // slot 0 is finished the moment the last token is done.
+         // For K=1, write directly to the single output slot to avoid an extra memcpy at the end.
+         // For K>1, work in scratch and copy out per-token when the slot is in range.
+-        float * s_out = (K > 1)
+-            ? state_work
+-            : state_out_base + (iv3 * H + iv1) * S_v * S_v;
+-
+-        // copy input state into the working buffer and operate in-place
+-        // state layout [S_v, S_v, H, n_seqs]: seq iv3 starts at iv3 * state_seq_stride.
+-        const float * s_in = state_in_base + iv3 * state_seq_stride + iv1 * S_v * S_v;
+-        memcpy(s_out, s_in, S_v * S_v * sizeof(float));
++        float * s_out = inplace
++            ? s_in
++            : ((K > 1) ? state_work
++                       : state_out_base + (iv3 * H + iv1) * S_v * S_v);
++
++        if (!inplace) {
++            // copy input state into the working buffer and operate in-place
++            memcpy(s_out, s_in, S_v * S_v * sizeof(float));
++        }
+ 
+         // attn output pointer for first token of this (head, seq)
+         float * attn_data = attn_out_base + (iv3 * n_tokens * H + iv1) * S_v;
+@@ -10966,9 +10981,15 @@
+             if (K > 1) {
+                 const int64_t target_slot = n_tokens - 1 - t;
+                 if (target_slot >= 0 && target_slot < K) {
+-                    float * curr_state_o = state_out_base + target_slot * state_size_per_snap +
+-                                     (iv3 * H + iv1) * S_v * S_v;
+-                    memcpy(curr_state_o, s_out, S_v * S_v * sizeof(float));
++                    // slot 0 in the in-place form is s_out itself: already written
++                    if (!inplace) {
++                        float * curr_state_o = state_out_base + target_slot * state_size_per_snap +
++                                         (iv3 * H + iv1) * S_v * S_v;
++                        memcpy(curr_state_o, s_out, S_v * S_v * sizeof(float));
++                    } else if (target_slot > 0) {
++                        float * curr_state_o = (float *)((char *)state_in_base + target_slot * snap_stride) + s_off;
++                        memcpy(curr_state_o, s_out, S_v * S_v * sizeof(float));
++                    }
+                 }
+             }
+         }
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -5140,6 +5140,12 @@
+         case GGML_OP_RWKV_WKV7:
+             return true;
+         case GGML_OP_GATED_DELTA_NET:
++            // the in-place state form (op_params[1]) writes the recurrent cache
++            // directly; this backend implements the packed-output form only, and
++            // must decline rather than silently produce the wrong layout.
++            if (ggml_get_op_params_i32(op, 1) != 0) {
++                return false;
++            }
+             //TODO: enable once MUSA compiler is solved https://github.com/ggml-org/llama.cpp/pull/19504#issuecomment-4018634327
+ #ifdef GGML_USE_MUSA
+             return false;
+--- a/src/llama-graph.h
++++ b/src/llama-graph.h
+@@ -264,6 +264,8 @@
+ 
+     bool can_reuse(const llm_graph_params & params) override;
+ 
++    static bool is_identity_gather(const llama_memory_recurrent_context * mctx, int64_t n_seqs);
++
+     ggml_tensor * s_copy;  // I32 [n_rs]
+ 
+     // views of s_copy, computed once per graph
+@@ -276,6 +278,13 @@
+     // used in view offsets, need to match for valid graph reuse
+     uint32_t head;
+     int32_t rs_z;
++
++    // whether the gather build_rs would emit is provably the identity for this
++    // ubatch (one sequence, one cell, no rollback plane pending). build_rs then
++    // aliases the state instead of copying it, so the graph is SHAPED by this
++    // and it has to match for a reuse to be valid -- a pending rollback must
++    // force a rebuild, not replay a graph that reads plane 0.
++    bool rs_identity = false;
+ };
+ 
+ class llm_graph_input_cross_embd : public llm_graph_input_i {
+@@ -1195,6 +1204,7 @@
+                uint32_t   rs_head,
+                uint32_t   rs_size,
+                 int32_t   rs_zero,
++                   bool   identity_gather,
+             const llm_graph_get_rows_fn & get_state_rows = ggml_get_rows) const;
+ 
+     llm_graph_input_rs * build_rs_inp() const;
+--- a/src/llama-graph.cpp
++++ b/src/llama-graph.cpp
+@@ -328,7 +328,9 @@
+ 
+     const int64_t n_rs = mctx->get_n_rs();
+ 
+-    if (s_copy) {
++    // With the identity gather aliased away (see build_rs) nothing reads s_copy,
++    // so the graph allocator never gives it a buffer and there is nothing to fill.
++    if (s_copy && s_copy->buffer) {
+         GGML_ASSERT(ggml_backend_buffer_is_host(s_copy->buffer));
+         int32_t * data = (int32_t *) s_copy->data;
+ 
+@@ -339,6 +341,47 @@
+     }
+ }
+ 
++// One sequence, one cell, head at 0, and the sequence's rollback index clear --
++// then the only row the gather could pick is row 0, and build_rs hands back a
++// view of the state instead of a copy of it. s_copy_peek() is used rather than
++// s_copy() because the latter consumes the rollback index.
++bool llm_graph_input_rs::is_identity_gather(const llama_memory_recurrent_context * mctx, int64_t n_seqs) {
++    static const bool on = []{
++        const char * e = getenv("ENCLAVE_GGML_RS_ALIAS");
++        return !(e && e[0] == '0');
++    }();
++    return on
++        && n_seqs == 1
++        && mctx->get_n_rs() == 1
++        && mctx->get_size() == 1
++        && mctx->get_head() == 0
++        && mctx->s_copy_peek(0) == 0;
++}
++
++// Diagnostic (ENCLAVE_RS_DEBUG=1): assert at RUNTIME that every graph built
++// with the alias really did face an identity gather. Worth keeping: the alias
++// is a silent-wrong-answer bug if a reuse path ever forgets to check it, and
++// that is exactly the bug this found.
++static bool rs_alias_debug() {
++    static const bool on = getenv("ENCLAVE_RS_DEBUG") != nullptr;
++    return on;
++}
++
++static void rs_alias_audit(const llama_memory_recurrent_context * mctx, bool aliased) {
++    static int64_t n_alias = 0, n_copy = 0, n_bad = 0;
++    const int64_t n_rs = mctx->get_n_rs();
++    std::string vals;
++    for (int64_t i = 0; i < n_rs; ++i) { vals += ' '; vals += std::to_string(mctx->s_copy_peek((int) i)); }
++    (aliased ? n_alias : n_copy)++;
++    const bool bad = aliased && (n_rs != 1 || mctx->s_copy_peek(0) != 0);
++    if (bad) n_bad++;
++    if (bad || ((n_alias + n_copy) % 64) == 0) {
++        fprintf(stderr, "[rs] alias=%d n_rs=%lld head=%u rs_z=%d s_copy=[%s] (alias %lld / copy %lld / VIOLATIONS %lld)\n",
++                (int) aliased, (long long) n_rs, mctx->get_head(), mctx->get_rs_z(), vals.c_str(),
++                (long long) n_alias, (long long) n_copy, (long long) n_bad);
++    }
++}
++
+ bool llm_graph_input_rs::can_reuse(const llm_graph_params & params) {
+     const auto * mctx = static_cast<const llama_memory_recurrent_context *>(params.mctx);
+ 
+@@ -346,6 +389,8 @@
+ 
+     bool res = true;
+ 
++    res &= rs_identity == is_identity_gather(mctx, params.ubatch.n_seqs);
++
+     res &= s_copy->ne[0] == mctx->get_n_rs();
+ 
+     res &= s_copy_main->ne[0]  == params.ubatch.n_seqs;
+@@ -970,7 +1015,9 @@
+ 
+     const int64_t n_rs = mctx->get_recr()->get_n_rs();
+ 
+-    if (inp_rs->s_copy) {
++    if (rs_alias_debug()) { rs_alias_audit(mctx->get_recr(), inp_rs->rs_identity); }
++
++    if (inp_rs->s_copy && inp_rs->s_copy->buffer) {
+         GGML_ASSERT(ggml_backend_buffer_is_host(inp_rs->s_copy->buffer));
+         int32_t * data = (int32_t *) inp_rs->s_copy->data;
+ 
+@@ -1001,6 +1048,12 @@
+     res &= inp_rs->head == mctx->get_recr()->get_head();
+     res &= inp_rs->rs_z == mctx->get_recr()->get_rs_z();
+ 
++    // build_rs SHAPES the graph on this: a graph built while the gather was the
++    // identity reads snapshot plane 0 directly, so it must not be replayed for a
++    // ubatch whose gather would have picked a rollback plane.
++    res &= inp_rs->rs_identity ==
++           llm_graph_input_rs::is_identity_gather(mctx->get_recr(), params.ubatch.n_seqs);
++
+     return res;
+ }
+ 
+@@ -1014,7 +1067,9 @@
+ 
+     const int64_t n_rs = mctx->get_recr()->get_n_rs();
+ 
+-    if (inp_rs->s_copy) {
++    if (rs_alias_debug()) { rs_alias_audit(mctx->get_recr(), inp_rs->rs_identity); }
++
++    if (inp_rs->s_copy && inp_rs->s_copy->buffer) {
+         GGML_ASSERT(ggml_backend_buffer_is_host(inp_rs->s_copy->buffer));
+         int32_t * data = (int32_t *) inp_rs->s_copy->data;
+ 
+@@ -1044,6 +1099,12 @@
+     res &= inp_rs->head == mctx->get_recr()->get_head();
+     res &= inp_rs->rs_z == mctx->get_recr()->get_rs_z();
+ 
++    // build_rs SHAPES the graph on this: a graph built while the gather was the
++    // identity reads snapshot plane 0 directly, so it must not be replayed for a
++    // ubatch whose gather would have picked a rollback plane.
++    res &= inp_rs->rs_identity ==
++           llm_graph_input_rs::is_identity_gather(mctx->get_recr(), params.ubatch.n_seqs);
++
+     return res;
+ }
+ 
+@@ -1088,7 +1149,9 @@
+ 
+     const int64_t n_rs = mctx->get_recr()->get_n_rs();
+ 
+-    if (inp_rs->s_copy) {
++    if (rs_alias_debug()) { rs_alias_audit(mctx->get_recr(), inp_rs->rs_identity); }
++
++    if (inp_rs->s_copy && inp_rs->s_copy->buffer) {
+         GGML_ASSERT(ggml_backend_buffer_is_host(inp_rs->s_copy->buffer));
+         int32_t * data = (int32_t *) inp_rs->s_copy->data;
+ 
+@@ -1132,6 +1195,12 @@
+     res &= inp_rs->head == mctx->get_recr()->get_head();
+     res &= inp_rs->rs_z == mctx->get_recr()->get_rs_z();
+ 
++    // build_rs SHAPES the graph on this: a graph built while the gather was the
++    // identity reads snapshot plane 0 directly, so it must not be replayed for a
++    // ubatch whose gather would have picked a rollback plane.
++    res &= inp_rs->rs_identity ==
++           llm_graph_input_rs::is_identity_gather(mctx->get_recr(), params.ubatch.n_seqs);
++
+     return res;
+ }
+ 
+@@ -3121,9 +3190,9 @@
+            uint32_t   rs_head,
+            uint32_t   rs_size,
+             int32_t   rs_zero,
++               bool   identity_gather,
+         const llm_graph_get_rows_fn & get_state_rows) const {
+ 
+-    GGML_UNUSED(rs_size);
+     ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, s->ne[1]);
+ 
+     // Clear a single state which will then be copied to the other cleared states.
+@@ -3131,6 +3200,22 @@
+     ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
+     ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
+ 
++    // When the gather cannot be anything but the identity -- one sequence, and
++    // a recurrent cache one cell wide, so row 0 is the only row that exists --
++    // hand back the state itself instead of copying it. On the 27B hybrid that
++    // copy is 3 MiB per delta-net layer per token in and the same again on the
++    // write-back, for a permutation of one element. The consumer only READS
++    // the state (ggml_gated_delta_net stages each head into its own scratch
++    // and publishes the update through a separate copy), so the alias is safe.
++    // ENCLAVE_GGML_RS_ALIAS=0 restores the copy.
++    if (identity_gather) {
++        // states is {state_size, rs_size * n_rollback_groups}; the gather would
++        // have returned its first row. Hand back a view of that row instead --
++        // it lives in the recurrent cache, which the graph allocator does not
++        // manage, so nothing moves underneath it.
++        return ggml_view_2d(ctx0, states, state_size, n_seqs, states->nb[1], 0);
++    }
++
+     // copy states
+     // NOTE: assuming the copy destinations are ALL contained between rs_head and rs_head + n_rs
+     // {state_size, rs_size} -> {state_size, n_seqs}
+@@ -3165,6 +3250,7 @@
+ 
+     inp->head = mctx_cur->get_head();
+     inp->rs_z = mctx_cur->get_rs_z();
++    inp->rs_identity = llm_graph_input_rs::is_identity_gather(mctx_cur, n_seqs);
+ 
+     return inp;
+ }
+@@ -3187,7 +3273,7 @@
+ 
+     return build_rs(s, inp->s_copy_main, inp->s_copy_extra, state_size, n_seqs,
+                     kv_state->get_n_rs(), kv_state->get_head(), kv_state->get_size(), kv_state->get_rs_z(),
+-                    get_state_rows);
++                    inp->rs_identity, get_state_rows);
+ }
+ 
+ ggml_tensor * llm_graph_context::build_rwkv_token_shift_load(
+--- a/src/llama-memory-recurrent.h
++++ b/src/llama-memory-recurrent.h
+@@ -173,6 +173,10 @@
+ 
+     int32_t s_copy(int i) const;
+ 
++    // s_copy() without its side effect (it clears the seq's rollback index).
++    // Lets the graph builder ask whether the gather is the identity.
++    int32_t s_copy_peek(int i) const;
++
+ private:
+     const llama_memory_status status;
+ 
+--- a/src/llama-memory-recurrent.cpp
++++ b/src/llama-memory-recurrent.cpp
+@@ -1309,6 +1309,24 @@
+     return mem->s_l[il];
+ }
+ 
++int32_t llama_memory_recurrent_context::s_copy_peek(int i) const {
++    const uint32_t cell_idx = i + mem->head;
++    const int32_t  src0     = mem->cells[cell_idx].src0;
++
++    if (mem->n_rs_seq == 0) {
++        return src0;
++    }
++
++    uint32_t idx = 0;
++    if (!mem->cells[cell_idx].seq_id.empty()) {
++        const llama_seq_id seq = *mem->cells[cell_idx].seq_id.begin();
++        if (seq >= 0 && (size_t) seq < mem->rs_idx.size()) {
++            idx = mem->rs_idx[seq];
++        }
++    }
++    return (int32_t)(idx * mem->size) + src0;
++}
++
+ int32_t llama_memory_recurrent_context::s_copy(int i) const {
+     const uint32_t cell_idx = i + mem->head;
+     const int32_t  src0     = mem->cells[cell_idx].src0;
+--- a/src/models/delta-net-base.cpp
++++ b/src/models/delta-net-base.cpp
+@@ -524,6 +524,20 @@
+     return conv_input;
+ }
+ 
++// The in-place recurrence is available exactly when the state we were handed IS
++// the live recurrent cache -- build_rs hands back a view of it whenever the
++// gather it would have done is the identity. The op then updates the state
++// where it already lies, and both the gather in and the write-back out go away:
++// on a 27B-class hybrid that is 6 MiB per delta-net layer per token of pure
++// memory traffic. ENCLAVE_GGML_GDN_INPLACE=0 restores the copies.
++static bool gdn_state_is_cache_view(const ggml_tensor * s, const ggml_tensor * cache, size_t offs) {
++    static const bool on = []{
++        const char * e = getenv("ENCLAVE_GGML_GDN_INPLACE");
++        return !(e && e[0] == '0');
++    }();
++    return on && s->view_src == cache && s->view_offs == offs && ggml_is_contiguous(s);
++}
++
+ ggml_tensor * llm_build_delta_net_base::build_recurrent_attn(
+         llm_graph_input_rs * inp,
+         ggml_tensor *        ssm_states_all,
+@@ -545,6 +559,25 @@
+ 
+     const bool keep = cparams.n_rs_seq > 0;
+ 
++    const size_t cache_offs = (size_t) kv_head * hparams.n_embd_s() * ggml_element_size(ssm_states_all);
++    const bool   in_cache   = gdn_state_is_cache_view(s, ssm_states_all, cache_offs);
++
++    if (!keep && in_cache && ((n_seq_tokens == 1) ? cparams.fused_gdn_ar : cparams.fused_gdn_ch)) {
++        // K=1 in place: the op leaves the final state in the cache, so there is
++        // nothing left to copy back and dst carries the scores alone.
++        ggml_tensor * result = ggml_gated_delta_net_inplace(ctx0, q, k, v, g, b, s, /*K=*/1, /*snap_stride=*/0);
++        res->add_fused_node({n_seq_tokens == 1 ? LLM_FUSED_OP_GDN_AR : LLM_FUSED_OP_GDN_CH, result, il});
++
++        ggml_tensor * output = ggml_view_4d(ctx0, result,
++                S_v, H_v, n_seq_tokens, n_seqs,
++                ggml_row_size(result->type, S_v),
++                ggml_row_size(result->type, S_v * H_v),
++                ggml_row_size(result->type, S_v * H_v * n_seq_tokens), 0);
++        cb(output, "attn_output", il);
++        ggml_build_forward_expand(gf, result);
++        return output;
++    }
++
+     if (!keep) {
+         auto attn_out = build_delta_net(q, k, v, g, b, s, il);
+         ggml_tensor * output    = attn_out.first;
+@@ -564,7 +597,10 @@
+     const int64_t K = cparams.n_rs_seq + 1;
+ 
+     // state s is 4D [S_v, S_v, H_v, n_seqs]; K snapshot slots are written into the output.
+-    ggml_tensor * gdn_out = ggml_gated_delta_net(ctx0, q, k, v, g, b, s, K);
++    const size_t row_size_c = hparams.n_embd_s() * ggml_element_size(ssm_states_all);
++    ggml_tensor * gdn_out = in_cache
++        ? ggml_gated_delta_net_inplace(ctx0, q, k, v, g, b, s, K, (size_t) mem_size * row_size_c)
++        : ggml_gated_delta_net(ctx0, q, k, v, g, b, s, K);
+     if (n_seq_tokens > 1) {
+         res->add_fused_node({LLM_FUSED_OP_GDN_CH, gdn_out, il});
+     } else {
+@@ -582,6 +618,12 @@
+         0);
+     cb(output, "attn_output", il);
+ 
++    if (in_cache) {
++        // the op wrote every snapshot slot into the cache itself, at its stride
++        ggml_build_forward_expand(gf, gdn_out);
++        return output;
++    }
++
+     const size_t row_size = hparams.n_embd_s() * ggml_element_size(ssm_states_all);
+ 
+     // op writes the last min(n_seq_tokens, K) snapshots; trailing slots are left unwritten
