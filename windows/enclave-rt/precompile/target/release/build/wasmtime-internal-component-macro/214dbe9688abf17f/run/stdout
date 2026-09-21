@@ -1,2 +1,0 @@
-cargo:rerun-if-changed=build.rs
-cargo:rustc-env=DEBUG_OUTPUT_DIR=/home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/wasmtime-internal-component-macro/214dbe9688abf17f/out

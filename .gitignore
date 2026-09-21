@@ -87,3 +87,12 @@ metal/.update-state.json
 /gemma-4-E2B-it-en-code/
 /trim/artifacts/id_map_old_to_new.json
 /trim/artifacts/*.tsv.gz
+
+# the in-enclave app runtime's build trees: cargo target dirs, hundreds of MB of
+# rlibs (including a rebuilt libcore for the no_std enclave build)
+windows/enclave-rt/target/
+windows/enclave-rt/precompile/target/
+windows/enclave-rt/*.lib
+windows/enclave-rt/*.exe
+windows/enclave-rt/*.cwasm
+windows/enclave-app-hello/target/
