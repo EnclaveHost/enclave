@@ -25,7 +25,7 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
-import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger, appHostingOf, APPS_OUTSIDE_TEE } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
 function deploymentTitle(d) {
@@ -3027,6 +3027,10 @@ class Deployments extends EnclaveElement {
       +       esc(t.name)
       +       (t.queued ? " · full right now (waits in the queue)" : "")
       +       (t.cpuNn ? " · CPU only" : "")
+      // a move is a re-claim, so a destination that hosts apps outside its
+      // enclave changes what this deployment is protected by: same clause the
+      // deploy picker and the fleet row use (core/pricing APPS_OUTSIDE_TEE)
+      +       (appHostingOf(t.row).outsideTee ? " · " + APPS_OUTSIDE_TEE : "")
       +     '</option>').join("")
       +   '</select>'
       +   '<button class="btn btn-sm mv-go">Move</button>'

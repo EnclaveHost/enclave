@@ -322,6 +322,63 @@ export function enclaveClassOf(row){
   return { kind: "cpu", inTee: false, shielded: false, hasCard: false };
 }
 
+/* DOES THIS BOX TAKE WORK FROM THE MARKET? The relay's own rule, in one place,
+   because three surfaces were each carrying their own copy of it.
+   `serving` is the relay's explicit verdict (rows since 2026-07-25) and outranks
+   everything else; a row from an older relay is judged by what the box says
+   (`claimEnabled`), with hosted non-tunnel enclaves grandfathered because they
+   predate the field and have always claimed. */
+export function servesWork(row){
+  if (!row) return false;
+  if (row.serving != null) return row.serving === true;
+  const a = row.availability || {};
+  return a.claimEnabled === true || (a.claimEnabled == null && !row.tunnel);
+}
+
+/* WHERE A HOSTED APP RUNS ON THIS BOX. Like enclaveClassOf and teeCpuOf this is a
+   TRUST CLAIM, so it lives here with a test rather than in the renderer.
+
+   On every box in the fleet but one, a tenant's app runs INSIDE the TEE whose
+   attestation the row badges, and no box says so because there was never another
+   case. There is now: a Windows consumer node cannot run wasmtime inside its VBS
+   enclave (no JIT, no mmap, no Rust std in VTL1), so a hosted app runs in the
+   ordinary Windows session, which the machine's owner can read. The enclave holds
+   the model, the pads and the keys; it does not hold the app.
+
+   `outsideTee` is therefore keyed on an EXPLICIT false and nothing else. An absent
+   `apps` block means the box never said, which on this fleet means the old,
+   in-enclave case - reading absence as "outside" would slander every other box,
+   and reading an explicit false as "probably fine" would sell host-process
+   isolation under an attestation pill. Only the box's own word counts either way. */
+export function appHostingOf(row){
+  const ap = ((row && row.availability) || {}).apps;
+  const str = (x) => (typeof x === "string" && x ? x : null);
+  const num = (x) => { const v = Number(x); return Number.isFinite(v) && v > 0 ? v : 0; };
+  if (!ap || typeof ap !== "object")
+    return { known: false, inTee: null, outsideTee: false, isolation: null, runtime: null,
+             world: null, scope: null, ownerOnly: false, running: 0, capacity: 0, note: null };
+  return {
+    known: true,
+    inTee: ap.inTee === true ? true : (ap.inTee === false ? false : null),
+    outsideTee: ap.inTee === false,
+    isolation: str(ap.isolation), runtime: str(ap.runtime), world: str(ap.world),
+    scope: str(ap.scope), ownerOnly: ap.scope === "owner-only",
+    running: num(ap.running), capacity: num(ap.capacity), note: str(ap.note),
+  };
+}
+// The clause a target label owes a buyer when the box hosts apps outside its
+// enclave. One string so the deploy picker, the move picker and the fleet row
+// cannot drift apart on the wording of the same caveat.
+export const APPS_OUTSIDE_TEE = "apps run outside the enclave";
+
+/* Does this box sell the WHOLE platform, or a subset it has declared? A partial
+   box (`fullService: false`) is listed and its capacity is real - the relay just
+   keeps it out of the fleet-wide capability AND and the default price, see
+   api-relay fullServiceEnclaves. A buyer still has to know, because the options
+   it cannot honour are REFUSED at claim rather than ignored. Absent = full, the
+   same direction every other capability field reads. */
+export const sellsFullService = (row) => (((row && row.availability) || {}).fullService !== false);
+
 // Does this box have a CPU TEE at all? Answered from EVIDENCE, never from the
 // box's flavor: a CPU-only row is not "a TEE CPU because it has no card", and a
 // box with some other root of trust (a phone-anchored host, one day) must not
@@ -457,9 +514,7 @@ export function hasVolumes(a, want){
 // queued }. The deploy surfaces render this as the target dropdown — the
 // head is the recommended pick, any entry is a valid user choice.
 export function rankEnclavesFor(v, rows){
-  const claiming = (rows || []).filter((e) => e && e.availability && (e.serving != null
-    ? e.serving === true   // the relay's explicit verdict (rows since 2026-07-25) outranks the local rule
-    : (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel))));
+  const claiming = (rows || []).filter((e) => e && e.availability && servesWork(e));
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
   const memMb = Number(v && v.memMb || 0), cpuGf = Number(v && v.cpuGflops || 0);
   // A deployment's GPU need has two strengths. The app's own specs (vram /
@@ -576,8 +631,9 @@ export function leaseHostOf(d, rows, nowMs){
 }
 
 export function pickEnclaveFor(v, rows){
-  const claiming = (rows || []).filter((e) => e && e.availability
-    && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
+  // the same serving test rankEnclavesFor applies below, so "nobody is taking
+  // work" and "nothing fits" can never disagree about which boxes were considered
+  const claiming = (rows || []).filter((e) => e && e.availability && servesWork(e));
   if (!claiming.length) return { none: "no live enclave is taking work right now" };
   const ranked = rankEnclavesFor(v, rows);
   if (ranked.length) return ranked[0];
