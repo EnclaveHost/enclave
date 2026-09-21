@@ -76,3 +76,21 @@ ok
 quit
 ok
 ```
+
+## agent.mjs: the node
+
+`node agent.mjs` (Node 22+, `npm install` for `ws`) runs the three processes and the fleet tunnel:
+the Vulkan worker (`shielded-worker.exe`, untrusted GPU half), the enclave host (`ee-host.exe` +
+`ee-engine.dll` from `windows/enclave-engine`, the trusted half in VTL1) and `tpmattest.exe`, then
+dials `RELAY_URL` and attaches by evidence exactly as `windows/vbs/EVIDENCE.md` describes (keys ->
+credential -> transcript/report/quote/log -> attest -> hello). Over the tunnel it answers
+`/availability` (`role windows-vbs-node`, `teeCpu windows-vbs-enclave`, shares 0 so no deployment is
+placed on it), `/v1/health` and `POST /v1/completions` (`{prompt, max_tokens}`; greedy; the reply
+carries the enclave's offload counters). `LOCAL_HTTP_PORT=9600` serves the same surface on loopback
+for tests; `RELAY_URL=none` skips the tunnel. Configuration is by environment: see
+`node-config.example.cmd`; `install-node.cmd <config>` registers a logon task (elevated, interactive
+session) that starts it.
+
+Proven on the NucBox K11 (2026-09-21): worker up in 6 s, enclave up in 12 s, TPM ready, a completion
+through the agent = ` Paris. It is the largest city in` with 657 nodes offloaded and 0 verification
+failures, the same text the enclave alone and the Linux reference produce.

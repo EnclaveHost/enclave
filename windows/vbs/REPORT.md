@@ -406,3 +406,32 @@ Where the port departs from EVIDENCE.md, and why:
   decodes to `3691145829` against boot counter 228.
 - The credential round trip and the transport binding cannot be exercised by this box's evidence (captured before either
   existed); the synthetic node in the tests covers both, and `make-credential-kat.json` waits for the hardware answer.
+
+## 11. The node, attached and serving: items 1-5 of the listing plan (2026-09-21)
+
+Steven asked for the five things standing between this box and a listing. State at the end of the day:
+
+| item | state | where |
+|---|---|---|
+| 1. the trusted half inside the enclave | **built and generating**: llama.cpp + the shielded backend run in VTL1, offload every linear op masked to the Vulkan worker on the 780M, token-identical to the Linux engine | windows/enclave-engine/REPORT.md |
+| 2. relay mode `vbs` | **built, tested (12+2+78 tests)**: verifier port, TPM2_MakeCredential, tunnel round `vbs-keys`/`vbs-credential`, policy env, consumer-tier badge | relay/vbs-*.mjs, section 10 above |
+| 3. Windows node agent | **built and attached**: worker + enclave host + TPM tool + fleet tunnel; attached to a hub over ZeroTier as `attestation(vbs-dev)`, completions routed through it | windows/node/ |
+| 4. production signing | **documented and scripted**; the Artifact Signing account and identity validation are Steven's (Azure, ~$10/month, 1-20 business days) | SIGNING.md, tools/sign-release.cmd |
+| 5a. EK binding | **closed**: ActivateCredential round trip on the fTPM, the verifier's warning is a PASS | section 10 (EK binding) |
+| 5b. yield to the owner's game | **built**: duty cycle on the worker's GPU turns (Vulkan and CUDA), measured | shielded/worker-vulkan/REPORT.md |
+
+The attach transcript (local hub `relay/local-hub.mjs` on the workstation, the box dialing over
+ZeroTier): challenge -> `vbs-keys` (EK certificate 1267 B from Windows' EK store, AIK public + name)
+-> `vbs-credential` (minted by the hub) -> the enclave's report over `sha256(bound)` and its Ed25519
+signature, the TPM's quote over PCR 0/7/12/13/14 with the same challenge, the recovered credential,
+the boot-64 log -> **ACCEPTED**, tier `vbs-dev` (TESTSIGNING=1 admitted by lab policy), the row
+carries the transport key fingerprint, the pad key and the measurement `ec1a5e00…10…01 ‖ authorId ‖ svn`.
+Policy that admitted it: `METAL_VBS_ENCLAVE_MEASUREMENTS=ce450a96a8f32f2bc7a4821583057f4e6cef8ca6a5d742c0af4047fb41d30b3c
+METAL_VBS_ALLOW_TESTSIGNING=1`.
+
+What separates this from **enclave.host itself**: the hosted relay must get relay commit dad54c98
+deployed (relay/deploy.sh) with those two environment keys, and the name registered on chain for
+the operator-signed attach; both are production actions that were not taken here. And two honest
+limits: sessions are plaintext to the relay and the host until the phone's boxed-session design is
+ported (the enclave already mints and attests the key for it), and the tier stays `vbs-dev` until
+Artifact Signing replaces the test certificate and Secure Boot goes back on.
