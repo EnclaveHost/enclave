@@ -5602,13 +5602,28 @@ def _spawn_and_wait(rec, ctx):
     # reach nothing.)
     if nn and enclave_config:
         nt = _nn_threads_for(enclave_config, cpu_share)
+        ntb = _nn_cfg_int(enclave_config, "nnThreadsBatch", 1, 512)
+        if nt is None and env.get("SHIELDED_CALIB"):
+            # A shielded tenant that set no nnThreads: the engine's own default
+            # is every vCPU, and the refill threads (half the vCPUs unless
+            # nnShieldedRefillThreads says otherwise) come on top, so a 16-vCPU
+            # share runs 24 hot threads. Measured on the 27B (2026-09-20, 8
+            # cores): 8 compute + 8 refill threads decode at 2.1 tok/s, 4 + 4
+            # at 5.7. Decode threads default to what the refill leaves, at
+            # least two; prefill keeps every vCPU (it runs on cores, and the
+            # refill is idle while it does) unless nnThreadsBatch narrows it.
+            par = _available_parallelism_for(cpu_share)
+            rt = _nn_cfg_int(enclave_config, "nnShieldedRefillThreads", 1, 64)
+            refill = rt if rt is not None else max(1, par // 2)
+            nt = max(2, par - refill)
+            if ntb is None:
+                ntb = par
         if nt is not None:
             env["ENCLAVE_GGML_N_THREADS"] = str(nt)
         # Batch (prefill) threads, capped like nnThreads. Decode on the shielded
         # tier wants few compute threads (the refill threads bind), prefill
         # runs on cores and scales with them; absent = the engine uses the
         # decode count, so existing configs keep their behaviour.
-        ntb = _nn_cfg_int(enclave_config, "nnThreadsBatch", 1, 512)
         if ntb is not None:
             env["ENCLAVE_GGML_N_THREADS_BATCH"] = str(min(ntb, _available_parallelism_for(cpu_share)))
         # Optional bounded wait for a privacy-pad batch already in flight.
