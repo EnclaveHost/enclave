@@ -98,9 +98,10 @@ What the device layer does differently, and what it does not do yet:
   node (~35 us on NVIDIA, ~190 us on the AMD Windows driver), which is where the 3.9 vs 1.9 ms
   above comes from; the engine's one-frame exchange batches a whole step per submit.
 - `cudaMemGetInfo` is `VK_EXT_memory_budget`. `card_tflops` cannot be derived (no clock in the
-  API): `SHIELDED_CARD_TFLOPS` states it.
+  API): `SHIELDED_CARD_TFLOPS` states it. `SHIELDED_VK_PRIORITY=low|medium|high|realtime|none` sets
+  the rented queue's global priority (low by default; see the queue-priority section).
 - The shm ring (`--shm`) is not available on Windows (the compat `mmap` refuses it); vsock is
-  AF_HYPERV there, untested. MPS has no equivalent yet; `VK_EXT_global_priority` is the plan.
+  AF_HYPERV there, untested. MPS has no equivalent; queue priority is wired and measured inert (below).
 
 ## The share a tenant pays for: enforced on the worker's GPU turn (both vendors)
 
@@ -127,7 +128,7 @@ The contended split is the paid share to within 2%, the sum under contention equ
 solo rate (the card is saturated and nothing is wasted), and a tenant alone gets the whole card:
 the burst into unused capacity. The B-alone Vulkan row was measured while another process was
 using that card. What this does not do: fence Enclave's tenants from the host's own use (queue
-priority, not wired yet) or limit memory (the reservation ledger does).
+priority, wired and measured inert in the next section) or limit memory (the reservation ledger does).
 
 A false alarm on the way: reservations were refused at ~3.6 GiB on a 32 GiB card during the
 first attempts. `VKFIELD_ALLOC_PROBE=1 ./vkfield` shows one Vulkan process can hold 31.2 GiB on
@@ -138,6 +139,63 @@ from its neighbours and freed live memory once tenants churned; the shim's immed
 maps were shared across connection threads without a lock (SIGSEGV in the NVIDIA driver with
 eight links); SET_TENSOR held the GPU mutex before taking the turn (self-deadlock).
 
+## Queue priority: wired on the rented queue, measured inert against the owner's application
+
+The plan was `VK_EXT_global_priority` LOW on the worker's queue so the node owner's own game
+wins the card when they contend, the MPS replacement for background mode. It is wired:
+`vkdev.cpp` creates the queue through `VK_KHR_global_priority` (else the EXT) at LOW by default,
+`SHIELDED_VK_PRIORITY=low|medium|high|realtime|none` overrides, a refused priority falls back
+to the default queue with a log line instead of a failed start, and startup logs what it got
+(`queue family 2 at global priority low (family offers medium)`). The harness gained the probes:
+`--priority`, `--gpu-class` (Windows: the process's WDDM scheduling priority class through
+`D3DKMTSetProcessSchedulingPriorityClass`), `--gfx-queue`, `--flood SEC` (the worker: 16-launch
+command buffers back to back, rate per second) and `--frames SEC --frame-us US --fps N` (the
+owner's game: a fixed amount of GPU work per frame, paced, frame GPU time from submit to fence).
+
+What the drivers in hand say when asked:
+
+| | NVIDIA 580.178 Linux (3070, V100, PG500-216) | AMD 32.0.13031 Windows (Radeon 780M) |
+|---|---|---|
+| query (`VkQueueFamilyGlobalPriorityProperties`) | medium only, every family | compute family low,medium,high; graphics family low,medium |
+| low | accepted | accepted |
+| high, realtime | `VK_ERROR_NOT_PERMITTED` (privilege) | accepted, realtime too though unlisted |
+| WDDM scheduling class idle/below-normal | n/a | accepted (class 2 -> 0 / 1) |
+
+What they do. The game stand-in on the graphics family at 60 fps against the flood on the
+compute family (as the worker runs), two processes; frame GPU time is the mean over 12 s and the
+flood's rate is its own count. Two runs where given, the scatter is real:
+
+| card | game alone | + flood default | + flood LOW | + flood no priority | flood rate |
+|---|---|---|---|---|---|
+| Tesla V100 (5.8 ms of work per frame) | 5.7-6.1 ms | 9.2, 10.7 ms | 10.5, 11.0 ms | 10.4, 11.2 ms | 1400-1720 G-MAC/s (2537 alone) |
+| RTX 3070 (5.9 ms per frame) | 6.2 ms | 8.2 ms | 8.9 ms | | 1237-1409 |
+| Radeon 780M (6.9 ms per frame) | 16.3-16.5 ms | 25.5 ms | 25.9 ms | | 446 (446 alone) |
+
+More on the 780M, same game on the graphics family: flood at REALTIME 25.6 ms; flood at WDDM
+class idle 25.5, below-normal 25.3, idle + low 25.4; the flood kept its full solo rate in every
+one. With the game moved to the compute family (17.2 ms alone): flood default 12.2 ms (flood 357),
+LOW 12.2 (358), REALTIME 12.2 (358), WDDM idle 10.2 (322), and HIGH 25.7 with the flood back at
+445. (The 780M's paced baseline sits above its 6.9 ms calibration because the integrated GPU drops
+its clock between paced frames; with the flood keeping the clock up the compute-family game
+runs faster than alone.)
+
+Reading: NVIDIA time-slices the two contexts equally whatever the flag says, and LOW costs the
+worker nothing either (the LOW/default differences are within the run-to-run scatter). The AMD
+Windows driver runs the graphics and compute pipes concurrently and no priority or scheduling
+class arbitrates the compute units between them; it honours HIGH only between compute queues,
+which is the reverse of what a consumer node needs. So on every card in hand the driver cannot
+make the worker yield to the owner's application. The default stays LOW: free, and the right
+request on a driver that does honour it (Linux amdgpu/RADV honours context priority in the
+kernel scheduler; no card here to measure).
+
+The mechanism that would work is the worker's own submission policy, vendor-neutral: a duty
+cycle on its GPU turns while the owner is active. The fair scheduler already meters every turn;
+sleeping (1-d)/d of the held time before the next turn caps the worker's occupancy at d, and the
+owner's frames then lose at most one turn's length. Detection: a turn's held time against the
+best seen for that installed graph (any OS; every turn holds the card alone from the worker's
+side, so inflation is external), and on Windows the shell's fullscreen state
+(`SHQueryUserNotificationState`). Not built; it is a policy (d, hysteresis) to decide first.
+
 ## Next
 
 `../worker-cuda/worker.cu` keeps its protocol, admission rules, graph install and VRAM ledger;
@@ -145,7 +203,8 @@ its ~60 CUDA runtime call sites become a Vulkan device layer: streams -> a queue
 buffers, stream-captured graphs -> one pre-recorded command buffer per installed graph (submit per
 step), external events -> timestamp queries, `cudaMallocAsync`/pools -> explicit device memory
 with `VK_EXT_memory_budget` for the free figure, mapped host memory -> host-visible allocations,
-MPS -> `VK_EXT_global_priority` low priority for the rented queue. Sockets and `mmap` stay POSIX
+MPS -> `VK_EXT_global_priority` low priority for the rented queue (wired; measured inert, see
+above). Sockets and `mmap` stay POSIX
 on Linux and gain a Winsock path for the Windows node.
 
 Build and run:

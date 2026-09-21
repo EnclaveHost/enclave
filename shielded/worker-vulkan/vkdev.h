@@ -101,4 +101,5 @@ void vk_launch_pack24(const int32_t *y, uint8_t *o, long long E, cudaStream_t s)
  * lives (env SHIELDED_VK_SHADERS, default: shaders/ beside the binary). Called once from main. */
 void vk_init(const char *argv0);
 const char *vk_device_name();
+const char *vk_queue_priority();  /* low|medium|high|realtime|default: what the rented queue got (SHIELDED_VK_PRIORITY) */
 int vk_cu_count();            /* the planner's block threshold: SMs / CUs when the driver says, else a default */
