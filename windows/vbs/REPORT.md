@@ -465,10 +465,12 @@ Verified live, end to end:
 
 `serving:false` is the honest verdict and is deliberate: this node hosts a model inside its
 enclave, not the app shares the fleet meters, and putting it in the serving set would collapse the
-fleet's minimum-spec fields (the metal0 sizing incident). One observed behaviour worth knowing: a
-longer run reported `local: 517` alongside `offloaded: 1746`, which is the pad pool running dry and
-the enclave computing those nodes itself rather than reusing a pad. Correct and confidential, just
-slower.
+fleet's minimum-spec fields (the metal0 sizing incident). One observed behaviour, not yet
+explained: the first prompt after a restart offloads everything (657 nodes, `local: 0`), while
+later prompts report a constant `local: 517` beside the offloaded count. Something in that class of
+node is computed inside the enclave instead of being offloaded, which is the safest place for it
+and leaves the text identical with `verify_fail: 0`, but the reason is unpinned (a group's batch
+range, an uncalibrated site or the pad pool; `SHIELDED_PROFILE=1` on the node would say which).
 
 Still open, in one line each: tier stays `vbs-dev` until Artifact Signing (SIGNING.md) and Secure
 Boot; the name is not registered on chain, so the row carries no on-chain id and the node earns
