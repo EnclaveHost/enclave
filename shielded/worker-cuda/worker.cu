@@ -1082,15 +1082,15 @@ static std::mutex g_gpu;                 /* one kernel stream at a time */
  * Granularity is one exchange, tens of microseconds. SHIELDED_FAIR_SHARE=0
  * turns it off (plain mutex order) for an A/B.
  *
- * What it is not: a fence against the host's own use of the card (queue
- * priority does that in background mode) or a memory limit (the reservation
- * ledger is). MPS's fixed SM slice is neither of these things either: it caps
+ * What it is not: a fence against the host's own use of the card (background
+ * mode's yield gate below does that; the driver's queue priority does not) or
+ * a memory limit (the reservation ledger is). MPS's fixed SM slice is neither of these things either: it caps
  * a tenant at its slice even when the card is idle, which this does not.
  * ------------------------------------------------------------------------ */
 struct GpuTenant {
     double share = 0.1;                  /* fraction of the card's time this link paid for */
     double vt = 0;                       /* virtual time: held / share, caught up on re-entry */
-    double gpu_seconds = 0, waited_seconds = 0;
+    double gpu_seconds = 0, waited_seconds = 0, yield_seconds = 0;   /* yield: gaps left for the owner before this link's turns */
     unsigned long long turns = 0;
 };
 static bool g_fair_share = true;
@@ -1126,18 +1126,218 @@ struct GpuScheduler {
     }
 };
 static GpuScheduler g_sched;
-/* The card for one exchange: a fair turn, then g_gpu itself. Metered while held. */
+
+/* ---------------------------------------------------------------------------
+ * BACKGROUND MODE: WHILE THE OWNER USES THE CARD, THE WORKER RUNS A DUTY CYCLE.
+ *
+ * The driver's queue priority does not protect the owner's application from
+ * the worker: NVIDIA and the AMD Windows driver time-slice the two contexts
+ * equally whatever the flag says (worker-vulkan/REPORT.md). What does is the
+ * worker's own submission policy, at the one point every exchange passes. While
+ * the owner is active, no turn may start before the previous turn's end plus
+ * held * (1 - d) / d, so the worker's occupancy of the card is capped at the
+ * duty d and the owner's frames lose at most one turn's length. The gate is
+ * global and sits in front of whichever tenant won the turn: the fair order
+ * among tenants is unchanged, and the gap is metered per link as yield time.
+ *
+ * Detection A, any OS: from the worker's side every turn holds the card alone,
+ * so a turn slower than the fastest its class has ever run (its SOLO FLOOR; a
+ * class is one captured graph, one legacy node at one m, or one copy of one
+ * size, shape included) is being slowed by someone outside the worker: the
+ * owner. The judgement is over wall-clock windows, not turns: when the turns
+ * of the last 100 ms held the card for more than 1.5x their floors (with at
+ * least 2 ms of floor in the window, so a single outlier cannot judge),
+ * "owner active"; when the last 250 ms are within 1.35x, "owner idle". Time
+ * windows because a paced game does not slow every turn: it stalls the ONE
+ * turn that straddles its frame (measured on the V100: one 1-7 ms stall per
+ * 16.7 ms frame, the other turns at the floor in the frame's idle part, so a
+ * count of slow turns in a row never reaches 8 and a count of fast turns in a
+ * row reaches 32 mid-game), that stall lands on a copy four times in five
+ * (which is why copies are judged too), the worker's own turns have rare
+ * CPU-side outliers of a few ms (two among 8 turns read as 2x), and a 30 us
+ * copy exceeds 1.2x on jitter alone. Idle at full speed the window measures
+ * 1.1x; a paced game 2x at full speed and 2.3x at 25% duty; and a duty-cycled
+ * worker with NO owner measures 1.25-1.3x, because every turn then follows a
+ * sleep and the thread and the card wake cold (a 30 us copy 1.6x, a 200 us
+ * kernel 1.2x), which is why the leave threshold is above that. A floor is a
+ * minimum, so one set while the owner was already on the card falls the moment
+ * the owner leaves; and it grows 1% per 200 turns of its class while the owner
+ * is idle (it tracks a slow clock drift) and per 2000 while active (a floor
+ * stale the other way, the card's clocks dropped, still recovers, but a long
+ * owner session is not mistaken for that). Floors are process-wide, keyed by
+ * the class, so a link that reconnects mid-session inherits what its
+ * predecessor measured.
+ * Detection B, Windows: the shell's own word that a fullscreen application,
+ * an exclusive-mode D3D application or presentation mode is up
+ * (SHQueryUserNotificationState states 2, 3, 4, polled once a second through
+ * the hook the compat header defines), owner active regardless of A; a shell
+ * that cannot answer for the console user (session 0: a service, or a command
+ * run over OpenSSH, where the call succeeds but describes no desktop) leaves A
+ * alone in charge.
+ *
+ * SHIELDED_YIELD=0 turns the whole mechanism off; SHIELDED_YIELD_DUTY is d
+ * (default 0.25). Each state transition is logged once, with the uptime.
+ * ------------------------------------------------------------------------ */
+static bool g_yield = true;
+static double g_yield_duty = 0.25;
+static const double YIELD_BUCKET_S = 0.05;                        /* the windows are made of 50 ms buckets */
+static const int YIELD_ENTER_BUCKETS = 2, YIELD_LEAVE_BUCKETS = 5;   /* 100 ms to enter, 250 ms to leave */
+static const double YIELD_ENTER_RATIO = 1.5, YIELD_LEAVE_RATIO = 1.35, YIELD_MIN_FLOOR_S = 0.002;
+static const unsigned YIELD_DECAY_TURNS_IDLE = 200, YIELD_DECAY_TURNS_ACTIVE = 2000;
+static const double YIELD_PROBE_S = 0.05, YIELD_PROBE_PERIOD_S = 1.0;   /* while active: 50 ms at full speed once a second */
+static const size_t YIELD_FLOOR_CLASSES = 4096;   /* the floor table is bounded; it starts over past this */
+struct YieldGate {
+    std::mutex mu;
+    std::atomic<bool> active{false};     /* shell || timing */
+    bool shell = false, timing = false;
+    struct Bucket { long long id = -1; double held = 0, floor = 0; };
+    Bucket buckets[YIELD_LEAVE_BUCKETS + 1];          /* a ring of 50 ms buckets of judged turns */
+    /* held and floor summed over the n complete buckets before bucket cur (absent buckets are empty) */
+    void window(long long cur, int n, double &held, double &floor) const {
+        held = floor = 0;
+        for (long long id = std::max(0ll, cur - n); id < cur; id++) { const Bucket &b = buckets[id % (YIELD_LEAVE_BUCKETS + 1)]; if (b.id == id) { held += b.held; floor += b.floor; } }
+    }
+    struct Floor { double best = 0; unsigned n = 0; };
+    std::map<uint64_t, Floor> floors;
+    /* THE PROBE. A duty-cycled worker lets the card idle between turns, and a card that idles
+     * for milliseconds drops its clocks: the next kernel then runs up to 10x slower than its
+     * floor (V100: 1730 us against a 190 us floor, the idle clock being ~10x below boost), the
+     * gap grows with it, and the card never wakes -- a stable trap with no owner present, which
+     * no comparison against the floor can escape. So while the owner is held active on timing
+     * alone, once a second the gate is suspended for 50 ms and the turns of the probe's second
+     * half, run back to back on a card that has had 25 ms to wake, are judged against the
+     * floors: within the leave ratio and the owner is gone. The owner's application pays 50 ms
+     * of full contention per second while the worker believes it present. */
+    std::atomic<bool> probing{false};
+    double probe_start = 0, probe_until = -1, probe_next = 0, probe_held = 0, probe_floor = 0;
+    std::atomic<long long> next_allowed_ns{0};   /* uptime ns before which no turn may start; 0 = no gap */
+    double yielded_seconds = 0; unsigned long long gated_turns = 0, transitions = 0;
+    FILE *trace = nullptr;               /* SHIELDED_YIELD_TRACE=file: every judged turn, for tuning the detector */
+    const std::chrono::steady_clock::time_point t_start = std::chrono::steady_clock::now();
+    long long uptime_ns(std::chrono::steady_clock::time_point t) const {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(t - t_start).count();
+    }
+    double uptime() const { return uptime_ns(std::chrono::steady_clock::now()) / 1e9; }
+    void settle(const char *why) {                    /* under mu */
+        const bool now_active = shell || timing;
+        if (!timing) { probe_until = -1; probing = false; }
+        if (now_active == active.load()) return;
+        active = now_active; transitions++;
+        if (now_active) logf("[yield] owner active (%s; duty %.0f%%) at +%.3f s", why, g_yield_duty * 100, uptime());
+        else { next_allowed_ns = 0; logf("[yield] owner idle: full speed (%s) at +%.3f s", why, uptime()); }
+    }
+    void observe(uint64_t cls, double held) {         /* detection A: one classed turn against its solo floor */
+        std::lock_guard<std::mutex> lk(mu);
+        if (floors.size() >= YIELD_FLOOR_CLASSES && !floors.count(cls)) floors.clear();
+        Floor &f = floors[cls];
+        if (f.n == 0 || f.best <= 0) { f.best = held; f.n = 1; return; }   /* the first sight of a class judges nothing */
+        const double floor = f.best, r = held / floor;
+        if (held < f.best) f.best = held;
+        if (++f.n % (timing ? YIELD_DECAY_TURNS_ACTIVE : YIELD_DECAY_TURNS_IDLE) == 0) f.best *= 1.01;
+        const double now = uptime(); const long long cur = (long long)(now / YIELD_BUCKET_S);
+        Bucket &b = buckets[cur % (YIELD_LEAVE_BUCKETS + 1)];
+        if (b.id != cur) { b.id = cur; b.held = b.floor = 0; }
+        b.held += held; b.floor += floor;
+        double eh, ef, lh, lf, ph, pf;
+        window(cur, YIELD_ENTER_BUCKETS, eh, ef); window(cur, YIELD_LEAVE_BUCKETS, lh, lf); window(cur - YIELD_ENTER_BUCKETS, YIELD_ENTER_BUCKETS, ph, pf);
+        if (trace) fprintf(trace, "%.6f %016llx %.1f %.1f %.2f %.2f %.2f %d%d\n", now, (unsigned long long)cls, held * 1e6, floor * 1e6, r, ef > 0 ? eh / ef : 0, lf > 0 ? lh / lf : 0, timing ? 1 : 0, probing.load() ? 1 : 0);
+        if (!timing) {
+            /* The 100 ms BEFORE the window must have had work too: a card that idled downclocks,
+             * and the first turns of a load that resumes run slow while it wakes (9x on the V100). */
+            if (ef >= YIELD_MIN_FLOOR_S && pf >= YIELD_MIN_FLOOR_S && eh > YIELD_ENTER_RATIO * ef) {
+                timing = true; probe_next = now + YIELD_PROBE_PERIOD_S;
+                char why[64]; snprintf(why, sizeof why, "turns %.1fx the solo floor", eh / ef);
+                settle(why);
+            }
+            return;
+        }
+        if (lf >= YIELD_MIN_FLOOR_S && lh <= YIELD_LEAVE_RATIO * lf && eh <= YIELD_LEAVE_RATIO * ef) {
+            /* both windows calm (the long one alone can be while the last 100 ms already qualify to re-enter) */
+            timing = false; settle("turns back at the floor"); return;
+        }
+        if (probe_until > 0) {                       /* inside a probe */
+            if (now >= probe_start + YIELD_PROBE_S / 2) { probe_held += held; probe_floor += floor; }
+            if (now >= probe_until) {
+                const bool calm = probe_floor >= YIELD_MIN_FLOOR_S / 2 && probe_held <= YIELD_LEAVE_RATIO * probe_floor;
+                char why[96]; snprintf(why, sizeof why, "a %.0f ms full-speed probe ran at %.2fx the floor", YIELD_PROBE_S * 1e3, probe_floor > 0 ? probe_held / probe_floor : 0);
+                probe_until = -1; probing = false; probe_next = now + YIELD_PROBE_PERIOD_S;
+                if (calm) { timing = false; settle(why); }
+                else if (trace) fprintf(trace, "# probe kept the state: %s\n", why);
+            }
+        } else if (!shell && now >= probe_next) {    /* the shell's word needs no probe */
+            probe_start = now; probe_until = now + YIELD_PROBE_S; probe_held = probe_floor = 0;
+            probing = true; next_allowed_ns = 0;
+        }
+    }
+    void set_shell(bool on, int state) {              /* detection B */
+        std::lock_guard<std::mutex> lk(mu);
+        if (shell == on) return;
+        shell = on;
+        char why[96]; snprintf(why, sizeof why, "the shell reports state %d: %s", state,
+                               state == 3 ? "an exclusive-mode D3D application" : state == 4 ? "presentation mode" : "a fullscreen application");
+        settle(why);
+    }
+    void after_turn(double held) {                    /* the gap the next turn must leave: held * (1 - d) / d */
+        if (!active.load(std::memory_order_relaxed)) return;
+        if (probing.load(std::memory_order_relaxed)) { next_allowed_ns.store(0, std::memory_order_relaxed); return; }
+        const double d = g_yield_duty;
+        next_allowed_ns.store(uptime_ns(std::chrono::steady_clock::now()) + (long long)(held * (1.0 - d) / d * 1e9),
+                              std::memory_order_relaxed);
+    }
+    double wait() {                                   /* with the turn won and g_gpu held: nobody else can start meanwhile */
+        const long long until = next_allowed_ns.load(std::memory_order_relaxed);
+        if (!until) return 0;
+        const auto t0 = std::chrono::steady_clock::now();
+        if (uptime_ns(t0) >= until) return 0;
+        std::this_thread::sleep_until(t_start + std::chrono::nanoseconds(until));
+        const double slept = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        std::lock_guard<std::mutex> lk(mu); yielded_seconds += slept; gated_turns++;
+        return slept;
+    }
+};
+static YieldGate g_yield_gate;
+/* A class of turn for the solo floors: FNV-1a over the words that fix its work, never 0. */
+static inline uint64_t yield_class(const uint32_t *v, size_t n, uint64_t h = 1469598103934665603ull) {
+    for (size_t i = 0; i < n; i++) { h ^= v[i]; h *= 1099511628211ull; }
+    return h | 1;
+}
+/* Detection B's probe: the shell's QUERY_USER_NOTIFICATION_STATE (2 = a fullscreen application or
+ * presentation settings, 3 = an exclusive-mode D3D application, 4 = presentation mode; the rest idle),
+ * or -1 when the shell cannot answer for the console user (no interactive session, the call fails).
+ * windows/worker-win/win-compat.h defines it (SHQueryUserNotificationState); no other OS has a shell
+ * to ask, and detection A is alone in charge. */
+#ifndef SH_OWNER_SHELL_PROBE
+#define SH_OWNER_SHELL_PROBE() (-1)
+#define SH_OWNER_SHELL_PROBE_PRESENT 0
+#else
+#define SH_OWNER_SHELL_PROBE_PRESENT 1
+#endif
+static void owner_shell_poll() {
+    for (;;) {
+        const int st = SH_OWNER_SHELL_PROBE();
+        if (st < 0) { logf("[yield] the shell's notification state is unavailable (a session-0 service?): detection by turn timing alone"); return; }
+        g_yield_gate.set_shell(st == 2 || st == 3 || st == 4, st);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+/* The card for one exchange: a fair turn, then g_gpu itself, then the gap
+ * background mode asks for. Metered while held; judged against its class's
+ * solo floor when it has one. */
 struct GpuTurn {
     GpuTenant &t; std::unique_lock<std::mutex> lk; std::chrono::steady_clock::time_point t0;
-    GpuTurn(GpuTenant &tenant, long long reserve, long long budget) : t(tenant) {
+    uint64_t cls;                        /* the class of turn for the solo floors; 0 = unclassed, gated but not judged */
+    GpuTurn(GpuTenant &tenant, long long reserve, long long budget, uint64_t klass = 0) : t(tenant), cls(klass) {
         t.share = (reserve > 0 && budget > 0) ? (double)reserve / (double)budget : g_share_default;
         if (g_fair_share) g_sched.acquire(t);
         lk = std::unique_lock<std::mutex>(g_gpu);
+        if (g_yield) t.yield_seconds += g_yield_gate.wait();
         t0 = std::chrono::steady_clock::now();
     }
     ~GpuTurn() {
         const double held = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
         lk.unlock();
+        if (g_yield) { if (cls) g_yield_gate.observe(cls, held); g_yield_gate.after_turn(held); }
         if (g_fair_share) g_sched.release(t, held); else { t.gpu_seconds += held; t.turns++; }
     }
 };
@@ -1505,7 +1705,8 @@ struct Conn {
         if (n - 24 != nbytes) VIOLATE("SET_TENSOR declared %llu bytes, frame carries %zu",
                                       (unsigned long long)nbytes, n - 24);
         if (b.dev) {
-            GpuTurn turn(sched, reserve, g_vram_budget);   /* the copy is card time too: it is the tenant's turn (takes g_gpu) */
+            const uint32_t klass[3] = { 1, (uint32_t)nbytes, (uint32_t)(nbytes >> 32) };
+            GpuTurn turn(sched, reserve, g_vram_budget, yield_class(klass, 3));   /* the copy is card time too: it is the tenant's turn (takes g_gpu) */
             ck(cudaMemcpy(b.dev + off, p + 24, nbytes, cudaMemcpyHostToDevice), "SET_TENSOR copy");
         } else {
             memcpy(b.host.data() + off, p + 24, nbytes);
@@ -1541,7 +1742,8 @@ struct Conn {
                     (unsigned long long)bid, (unsigned long long)off, (unsigned long long)nbytes);
         std::string out(nbytes, '\0');
         if (b.dev) {
-            GpuTurn turn(sched, reserve, g_vram_budget);   /* the readback is card time too */
+            const uint32_t klass[3] = { 2, (uint32_t)nbytes, (uint32_t)(nbytes >> 32) };
+            GpuTurn turn(sched, reserve, g_vram_budget, yield_class(klass, 3));   /* the readback is card time too */
             ck(cudaMemcpy(&out[0], b.dev + off, nbytes, cudaMemcpyDeviceToHost), "GET_TENSOR copy");
         } else {
             memcpy(&out[0], b.host.data() + off, nbytes);
@@ -1693,7 +1895,8 @@ struct Conn {
         Buffer &xb = buffers[nd.xbid]; Buffer &yb = buffers[nd.ybid];
         const auto t0 = std::chrono::steady_clock::now();
         {
-            GpuTurn turn(sched, reserve, g_vram_budget);
+            const uint32_t klass[4] = { idx, m, (uint32_t)nd.K, (uint32_t)nd.N };
+            GpuTurn turn(sched, reserve, g_vram_budget, yield_class(klass, 4, 0x6c65676163796b65ull));
             field_gemm_launch(nd.w, (int)nd.K, (int)nd.N, xb.dev + nd.xoff, (int)m,
                               nd.K, (long long)nd.max_m * nd.K,
                               (int32_t *)(yb.dev + nd.yoff), stream);
@@ -1819,6 +2022,10 @@ struct Conn {
             XP_MARK(STAGING);
             std::vector<uint32_t> key(nn + 2); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
             for (uint32_t i = 0; i < nn; i++) key[i + 2] = rd_u32(p + 8 + 4 * i);
+            {   /* background mode judges this turn against the graph's own solo floor */
+                const uint32_t shape[3] = { (uint32_t)K, (uint32_t)(ybytes & 0xffffffffu), (uint32_t)(ybytes >> 32) };
+                turn.cls = yield_class(shape, 3, yield_class(key.data(), key.size()));
+            }
             cudaGraphExec_t graph = graphs.get(key, [&]() {
                 const auto started = std::chrono::steady_clock::now();
                 cudaGraphExec_t captured = capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm);
@@ -2049,9 +2256,9 @@ struct Conn {
         cudaEventDestroy(profile_start); cudaEventDestroy(profile_end); cudaEventDestroy(profile_uploaded);
 #endif
         if (exchanges || recomputes)
-            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync); share %.3f: %llu turns, %.1f ms on the card, %.1f ms waiting for it",
+            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync); share %.3f: %llu turns, %.1f ms on the card, %.1f ms waiting for it, %.1f ms yielded to the owner",
                  peer.c_str(), (unsigned long long)exchanges, (unsigned long long)ring_exchanges, (unsigned long long)recomputes, gemm_ms,
-                 sched.share, sched.turns, sched.gpu_seconds * 1e3, sched.waited_seconds * 1e3);
+                 sched.share, sched.turns, sched.gpu_seconds * 1e3, sched.waited_seconds * 1e3, sched.yield_seconds * 1e3);
         if (exchanges)
             logf("%s graph cache: limit=%zu high_water=%zu hits=%llu misses=%llu capacity_flushes=%llu invalidations=%llu capture=%.3f ms (host capture+instantiate, not GPU kernel time)",
                  peer.c_str(), graphs.limit(), graphs.stats.high_water,
@@ -2125,6 +2332,9 @@ int main(int argc, char **argv) {
     load_conf_beside_binary();
     if (const char *e = getenv("SHIELDED_FAIR_SHARE")) g_fair_share = strcmp(e, "0") != 0;
     if (const char *e = getenv("SHIELDED_SHARE_DEFAULT")) { const double v = atof(e); if (v > 0 && v <= 1) g_share_default = v; }
+    if (const char *e = getenv("SHIELDED_YIELD")) g_yield = strcmp(e, "0") != 0;
+    if (const char *e = getenv("SHIELDED_YIELD_DUTY")) { const double v = atof(e); if (v > 0 && v < 1) g_yield_duty = v; }
+    if (const char *e = getenv("SHIELDED_YIELD_TRACE")) g_yield_gate.trace = fopen(e, "w");
 #ifdef SH_VULKAN
     vk_init(argv[0]);
     g_sm_count = vk_cu_count();
@@ -2224,6 +2434,11 @@ int main(int argc, char **argv) {
      * a neighbour cannot get (201 MB observed idle, 2026-08-27). Hand it back. */
     { std::lock_guard<std::mutex> lk(g_gpu); pool_trim(); }
     if (g_gmacs > 0) logf("field GEMM throughput %.0f G-MAC/s (measured, masked path)", g_gmacs);
+    if (g_yield) {
+        logf("[yield] background mode on: duty %.0f%% of the card while the owner is active (SHIELDED_YIELD_DUTY), detection by turn timing%s; SHIELDED_YIELD=0 disables",
+             g_yield_duty * 100, SH_OWNER_SHELL_PROBE_PRESENT ? " and the shell's notification state" : "");
+        if (SH_OWNER_SHELL_PROBE_PRESENT) std::thread(owner_shell_poll).detach();
+    } else logf("[yield] background mode off (SHIELDED_YIELD=0): the worker never yields to the owner");
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
     int one = 1; setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);

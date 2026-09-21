@@ -8,7 +8,7 @@
  *
  *   vkfield [--device N] [--cus N] [--shaders DIR] [--no-selftest] [--iters N]
  *           [--priority low|medium|high|realtime] [--gpu-class idle|below|normal|above|high|realtime]
- *           [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N]]
+ *           [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N] [--frame-launches L] [--no-warmup]]
  *
  * --priority creates the queue with VK_KHR/EXT_global_priority (the worker runs LOW so the
  * owner's own applications win the card when they contend). --flood saturates the card and
@@ -424,7 +424,7 @@ static void flood(double seconds) {
     printf("[vkfield] flood %s: %.0f G-MAC/s over %.1f s\n", D.prio_name.c_str(), total / std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / 1e9, seconds);
     free_buf(dW); free_buf(dX); free_buf(dY);
 }
-static void frames(double seconds, double frame_us, double fps) {
+static void frames(double seconds, double frame_us, double fps, int launches, bool warmup) {
     const int K = 4096, N = 4096, m = 8;
     Buf dW = make_buf((size_t)N * K, false), dX = make_buf((size_t)3 * m * K, false), dY = make_buf((size_t)m * N * 4, false);
     fill(dW, 0x01010101); fill(dX, 0x01010101);
@@ -442,10 +442,10 @@ static void frames(double seconds, double frame_us, double fps) {
         return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
     };
     /* calibrate on whatever the card is doing now: the caller starts the game first, alone */
-    record(16); for (int i = 0; i < 3; i++) submit_us();
-    double per = 1e9; for (int i = 0; i < 10; i++) per = std::min(per, submit_us() / 16);
-    int L = std::max(1, (int)(frame_us / per)); record(L);
-    double idle = 1e9; for (int i = 0; i < 10; i++) idle = std::min(idle, submit_us());
+    double per = 1e9, idle = 0;
+    if (warmup) { record(16); for (int i = 0; i < 3; i++) submit_us(); for (int i = 0; i < 10; i++) per = std::min(per, submit_us() / 16); }
+    int L = launches > 0 ? launches : std::max(1, (int)(frame_us / per)); record(L);   /* --frame-launches: the count calibrated on the idle card, for a contended run */
+    if (warmup) { idle = 1e9; for (int i = 0; i < 10; i++) idle = std::min(idle, submit_us()); }   /* --no-warmup: no back-to-back burst before the paced frames */
     printf("[vkfield] frames %s: %d launches per frame = %.0f us on the idle card, %.0f fps (%.0f us budget)\n", D.prio_name.c_str(), L, idle, fps, 1e6 / fps); fflush(stdout);
     const auto period = std::chrono::duration<double, std::micro>(1e6 / fps);
     std::vector<double> ft; auto next = std::chrono::steady_clock::now(); const auto t0 = next;
@@ -463,7 +463,7 @@ static void frames(double seconds, double frame_us, double fps) {
 
 int main(int argc, char **argv) {
     int want = 0, iters = 20; bool st = true; VkQueueGlobalPriority prio = (VkQueueGlobalPriority)0; bool gfx = false;
-    double flood_s = 0, frames_s = 0, frame_us = 6000, fps = 60; const char *gpu_class = nullptr;
+    double flood_s = 0, frames_s = 0, frame_us = 6000, fps = 60; int frame_launches = 0; bool warmup = true; const char *gpu_class = nullptr;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--device") && i + 1 < argc) want = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--cus") && i + 1 < argc) g_cus = atoi(argv[++i]);
@@ -477,7 +477,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_s = atof(argv[++i]);
         else if (!strcmp(argv[i], "--frame-us") && i + 1 < argc) frame_us = atof(argv[++i]);
         else if (!strcmp(argv[i], "--fps") && i + 1 < argc) fps = atof(argv[++i]);
-        else { fprintf(stderr, "usage: vkfield [--device N] [--cus N] [--shaders DIR] [--iters N] [--no-selftest] [--priority low|medium|high|realtime] [--gpu-class idle|below|normal|above|high|realtime] [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N]]\n"); return 2; }
+        else if (!strcmp(argv[i], "--frame-launches") && i + 1 < argc) frame_launches = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--no-warmup")) warmup = false;
+        else { fprintf(stderr, "usage: vkfield [--device N] [--cus N] [--shaders DIR] [--iters N] [--no-selftest] [--priority low|medium|high|realtime] [--gpu-class idle|below|normal|above|high|realtime] [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N] [--frame-launches L] [--no-warmup]]\n"); return 2; }
     }
     if (gpu_class) set_gpu_class(gpu_class);
     load_loader(); init_device(want, prio, gfx);
@@ -505,7 +507,7 @@ int main(int argc, char **argv) {
     init_pipelines();
     if (st && !selftest()) return 1;
     if (flood_s > 0) { flood(flood_s); vkDeviceWaitIdle(D.dev); return 0; }
-    if (frames_s > 0) { frames(frames_s, frame_us, fps); vkDeviceWaitIdle(D.dev); return 0; }
+    if (frames_s > 0) { if (!warmup && frame_launches <= 0) { fprintf(stderr, "vkfield: --no-warmup needs --frame-launches L\n"); return 2; } frames(frames_s, frame_us, fps, frame_launches, warmup); vkDeviceWaitIdle(D.dev); return 0; }
     printf("[vkfield] field GEMM throughput %.0f G-MAC/s (K = N = 4096, m = 8, %d launches, host-timed as the worker does)\n", measure_gmacs(iters), iters);
     measure_latency();
     vkDeviceWaitIdle(D.dev);

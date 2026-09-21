@@ -38,6 +38,12 @@
  *       `errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR` tests and
  *       its strerror() logging keep working verbatim.
  *
+ *   SHQueryUserNotificationState (shell32) -> SH_OWNER_SHELL_PROBE()
+ *       Background mode's second detector: the shell's word that the owner
+ *       is in a fullscreen or presentation application. worker.cu polls the
+ *       hook once a second when it is defined; -1 (no interactive shell)
+ *       leaves its timing detector alone in charge.
+ *
  * NOT ported, deliberately:
  *
  *   AF_VSOCK    Linux-only. The Windows host side of the same link is
@@ -269,6 +275,38 @@ static inline GUID sh_hv_wildcard(void) {
     GUID g = { 0x00000000, 0x0000, 0x0000, { 0, 0, 0, 0, 0, 0, 0, 0 } };
     return g;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Background mode's detection B: the shell's notification state.           */
+/*                                                                          */
+/* worker.cu yields the card to the owner while the owner is active. On any  */
+/* OS it detects that from its own turn timings; on Windows the shell can    */
+/* also say outright that a fullscreen D3D application, a presentation or a  */
+/* busy application is up (SHQueryUserNotificationState, shell32, Vista+).   */
+/* Returns the raw QUERY_USER_NOTIFICATION_STATE (worker.cu reads 2, 3 and 4  */
+/* as the owner being active), or -1 when the shell cannot answer for the    */
+/* console user: the export is missing, the call fails, or the worker runs   */
+/* in session 0 (a service, or a command run over OpenSSH), where the call   */
+/* SUCCEEDS but describes no one's desktop (measured 2026-09-21: it said     */
+/* "busy" on a mini PC with nobody at its console). worker.cu then relies on */
+/* timing alone. Resolved by name so the binary carries no shell32 import.   */
+/* ------------------------------------------------------------------------ */
+static inline int sh_win_owner_shell_probe(void) {
+    typedef HRESULT (WINAPI *sh_quns_fn)(int *);
+    static sh_quns_fn fn = NULL; static int tried = 0;
+    DWORD session = 0;
+    if (!ProcessIdToSessionId(GetCurrentProcessId(), &session) || session == 0) return -1;
+    if (!tried) {
+        tried = 1;
+        HMODULE h = LoadLibraryA("shell32.dll");
+        if (h) fn = (sh_quns_fn)(void *)GetProcAddress(h, "SHQueryUserNotificationState");
+    }
+    if (!fn) return -1;
+    int st = 0;
+    if (fn(&st) != S_OK) return -1;
+    return st;
+}
+#define SH_OWNER_SHELL_PROBE() sh_win_owner_shell_probe()
 
 #else  /* !_WIN32 */
 #define SH_WIN_STARTUP() (0)
