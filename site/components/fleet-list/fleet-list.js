@@ -12,7 +12,8 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf,
+         appHostingOf, servesWork, sellsFullService } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -26,12 +27,15 @@ class FleetList extends EnclaveElement {
     // non-claiming box (relay row serving:false) is operational truth, not
     // sellable capacity - listing it would advertise hardware nobody can buy.
     // Rows from an older relay carry no verdict and stay visible.
-    // A CONSUMER NODE (a gamer's PC attested as a VBS enclave, teeCpuOf) is the one
-    // exception. It can never be "serving": it hosts a model inside its enclave rather
-    // than the app shares this list meters, so the relay records serving:false for it
-    // exactly as it does for a relay box. Hiding it would say the tier does not exist
-    // while a real, attested node is attached, so it is shown as what it is, with no
-    // capacity bars and no price. A relay row stays hidden: it sells nothing at all.
+    // A CONSUMER NODE (a PC attested as a VBS enclave, teeCpuOf) is the one
+    // exception, and it has TWO states now. Before it claims, it sells nothing: it
+    // holds a model inside its enclave rather than the app shares this list meters,
+    // the relay records serving:false, and hiding it would say the tier does not
+    // exist while a real attested node is attached - so it is shown as what it is,
+    // with no capacity bars and no price. Once it claims (claimEnabled) it is a
+    // seller like any other and gets the full row: pool, share, price, rating. What
+    // it does NOT get is silence about where a hosted app runs (see `honest`).
+    // A relay row stays hidden either way: it sells nothing at all.
     const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
     const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
@@ -77,11 +81,56 @@ class FleetList extends EnclaveElement {
           // the pill says which: "vbs enclave", never "tee cpu"; a dev-tier row (a relay
           // that admitted a test-signed build) says "development, unsigned".
           const tc = teeCpuOf(e);
+          const serves = servesWork(e);          // does this box take work from the market?
+          const hosting = appHostingOf(e);       // ...and where does an app it takes RUN?
           const consumerBadge = !tc.consumer ? '' :
             '<span class="ap-badge ' + (tc.dev ? 'warn' : 'ok') + '" title="' + esc(tc.label) + ': ' + esc(tc.note)
               + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
               + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
+              // The pill says what is ATTESTED, and on this tier that is the enclave
+              // holding the model, the pads and the keys. It must not be read as
+              // covering a hosted app as well, so where the box itself says the app
+              // runs elsewhere, the pill says so too rather than leaving the reader
+              // to infer the scope of a green badge.
+              + (hosting.outsideTee ? ' It covers the enclave that holds the model and the keys.'
+                  + ' An app hosted here runs outside that enclave.' : '')
               + '">' + (tc.dev ? 'vbs enclave (dev)' : 'vbs enclave') + '</span>';
+          /* THE APP RESIDENCY CALLOUT - the whole point of this row kind.
+             Every other box in the fleet runs a tenant's app INSIDE the TEE whose
+             attestation this row badges. A box reporting apps.inTee:false does not:
+             its enclave holds the model and the keys, and the app runs in the
+             machine's ordinary session, which the owner can read. Once such a box
+             claims, the row is an OFFER of app hosting, so the difference has to be
+             on the row, in a sentence, unprompted.
+
+             WHY THIS TREATMENT, out of the three that were on the table:
+             - Not a second badge beside the vbs pill. That pill is the CPU pool's
+               LABEL, column 1 of the row's subgrid, and the column is sized by its
+               widest badge: a second pill there widens the label column and squashes
+               every meter in the panel. It is also the wrong scope - this is a fact
+               about the box, not about its CPU pool.
+             - Not a badge alone anywhere. A badge can only carry three words, and the
+               rest would live in a `title`, which is not disclosed at all on a touch
+               device. A caveat nobody can read is not a disclosure.
+             - So: the site's OWN honesty-callout idiom, the "what we do not claim"
+               box from the isolation section (.iso-honest), scaled to row density.
+               Amber hairline with the 3px left accent, amber-deep tint, a mono
+               uppercase amber label that scans like a badge, and the sentence itself
+               in sans - prose gets the human typeface (DESIGN.md's Mono Voice Rule),
+               which is also what makes it stand out in a panel of instrument mono.
+               Amber, not red: the box is not broken and is not lying. It sells
+               something narrower and says so itself.
+             It sits directly under the name and ABOVE the pools on purpose: the
+             caveat has to be read before the price, not after it. The label is a
+             <b>, not a heading - one heading per fleet row would add five entries to
+             the page outline for a caption. */
+          const honest = !(serves && hosting.outsideTee) ? '' :
+            '<div class="fleet-honest"><b>apps run outside the enclave</b>'
+            + '<p>An app you deploy here runs beside the enclave on this machine’s ordinary'
+            + ' desktop, not inside it, so the box’s owner can read the app’s memory and its'
+            + ' traffic. The enclave holds the model and the keys, and its attestation covers'
+            + ' those, not your app. If your app’s data has to stay private from the person who'
+            + ' owns the box, deploy it on a box without this notice.</p></div>';
           // Any host may also CARRY traffic; one with no resources at all only
           // carries it, and that is what this badge reads — no capacity, so
           // nothing to sell and nothing to meter. Empty CPU/GPU bars would say
@@ -105,22 +154,28 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '</div>';
           }
-          // The consumer node's row: what it RUNS, not what it sells. Empty share meters
-          // would read as "full", which is the opposite of the truth, so the row names the
-          // model it hosts and the card its enclave offloads to without trusting it.
-          if (consumerNode(e)) {
-            const shn = a.shielded || {};
-            const parts = [];
-            if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
-            if (shn.device) parts.push('masked offload to ' + esc(shn.device)
-              + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : ''));
+          // WHAT THE ENCLAVE ITSELF RUNS: the model it holds and the card it offloads
+          // to without trusting it. This is exactly the set the pill's attestation
+          // covers, so both consumer states below carry it - on a serving row it is
+          // the counterweight to the callout, naming what IS inside the enclave right
+          // beside the statement of what is not.
+          const shn = a.shielded || {};
+          const encRuns = !tc.consumer ? [] : [
+            ...(a.model ? ['holds ' + esc(String(a.model).replace(/\.gguf$/i, '')) + ' inside its enclave'] : []),
+            ...(shn.device ? ['masked offload to ' + esc(shn.device)
+              + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : '')] : []),
+          ];
+          // The consumer node BEFORE it claims: what it RUNS, not what it sells, because
+          // it sells nothing yet. Empty share meters would read as "full", which is the
+          // opposite of the truth, and a price would quote capacity nobody can buy.
+          if (consumerNode(e) && !serves) {
+            const parts = encRuns.slice();
             // Apps, when it hosts any. The residency is the point and is never implied: on this
             // tier the enclave holds the model, while an app is a wasm component on the Windows
             // host, which its owner can read. So the row says where, in those words.
-            const ap = a.apps;
-            if (ap && ap.running > 0)
-              parts.push(esc(String(ap.running)) + ' app' + (ap.running === 1 ? '' : 's')
-                + ' on the host' + (ap.inTee === false ? ', outside the enclave' : ''));
+            if (hosting.running > 0)
+              parts.push(String(hosting.running) + ' app' + (hosting.running === 1 ? '' : 's')
+                + ' on the host' + (hosting.outsideTee ? ', outside the enclave' : ''));
             return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
               + '<span class="fleet-head">'
               + consumerBadge
@@ -128,7 +183,7 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '<span class="fleet-relay-note">'
               + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
-              + (a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner' : ' \u00b7 serves its own inference, not app deployments')
+              + (hosting.ownerOnly ? ' \u00b7 takes app work only from its own owner' : ' \u00b7 serves its own inference, not app deployments')
               + '</span>'
               + '</div>';
           }
@@ -218,11 +273,31 @@ class FleetList extends EnclaveElement {
           const vramGb = a.cardVramGb || s.cardVramGb, tflops = a.cardTflops || s.cardTflops;
           const ramGb = a.nodeRamGb || s.nodeRamGb, vcpus = a.nodeVcpus || s.nodeVcpus;
           const price = enclavePriceOf(e);   // this box's posted ask; the fleet price where it posts none
+          // The app-hosting slots this box declares, which on a node that caps them is
+          // a second admission gate beside the share meter: a buyer can read 60% of the
+          // node as available and still not land, because every slot is taken.
+          const slots = hosting.capacity > 0
+            ? String(hosting.running) + ' of ' + hosting.capacity + ' app slots in use' : '';
+          // A box that has DECLARED it sells a subset (fullService:false). Worth a line
+          // because the missing options are refused at claim rather than ignored, so a
+          // deployment that needs one sits in the queue instead of running here. The
+          // named ones come from the row's own explicit falses only: an absent
+          // capability field means an older build never said, and reading absence as
+          // "not offered" would invent a limitation the box never claimed.
+          const lacks = [["waf", "WAF"], ["secrets", "deployment secrets"],
+                         ["customDomains", "custom domains"], ["shareResize", "live resizes"]]
+            .filter(([k]) => a[k] === false).map(([, label]) => label);
+          const subset = sellsFullService(e) ? '' :
+            '<span class="fleet-relay-note">sells a subset of the platform'
+            + (lacks.length ? ': no ' + lacks.map(esc).join(', no ') : '')
+            + '. An option it cannot honour is refused rather than ignored, so a deployment'
+            + ' that needs one waits for another box.</span>';
           return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
             + '<span class="fleet-head">'
             + '<span class="fleet-name">' + esc(name) + '</span>'
             + this._ratingHtml(e)
             + '</span>'
+            + honest
             + (sh ? pool(cardBadge, shPct,
                 stat(fmtNum(shLeasableGb), fmtNum(shTotal), "GB", "vram available", shVramTitle)
                 // The card's RATED figure, which is what every other row quotes and
@@ -290,6 +365,16 @@ class FleetList extends EnclaveElement {
                 // CPU pool saying so. The field still crosses the wire, so bring the
                 // cell back if a box ever carries enough resident weight to need it.
                 price.node)
+            // Under the pools, in the row's quiet ink: what the enclave itself is
+            // holding (the attested part), how many app slots are left, and whether
+            // this box takes work from anyone. Capacity is what a buyer reads first;
+            // these are what they read next.
+            + (encRuns.length || slots || hosting.ownerOnly
+                ? '<span class="fleet-relay-note">'
+                  + [...encRuns, ...(slots ? [slots] : []),
+                     ...(hosting.ownerOnly ? ['takes app work only from its own owner'] : [])].join(" · ")
+                  + '</span>' : '')
+            + subset
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));
