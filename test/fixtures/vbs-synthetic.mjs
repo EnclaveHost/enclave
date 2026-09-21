@@ -117,14 +117,35 @@ export function makeTpmCa(dir) {
   const root = derOf(dir, "root");
   return { root, inter: derOf(dir, "inter"), rootPem, interPem, bundlePem: rootPem + interPem, rootPin: fp(new X509Certificate(root)) };
 }
+// just enough DER to write the TCG subjectAltName by hand (see issueEk)
+const derLen = (n) => {
+  if (n < 0x80) return Buffer.from([n]);
+  const b = []; for (let v = n; v > 0; v >>>= 8) b.unshift(v & 0xff);
+  return Buffer.from([0x80 | b.length, ...b]);
+};
+const derTlv = (tag, ...parts) => { const body = Buffer.concat(parts); return Buffer.concat([Buffer.from([tag]), derLen(body.length), body]); };
+const TCG_OID_TLV = { manufacturer: "06056781050201", model: "06056781050202", version: "06056781050203" };
+const derRdn = (oidHex, value) =>                              // RDN ::= SET OF AttributeTypeAndValue
+  derTlv(0x31, derTlv(0x30, Buffer.from(oidHex, "hex"), derTlv(0x0c, Buffer.from(value, "utf8"))));
+const tcgSanDer = (manufacturer) =>                            // GeneralNames { [4] directoryName { Name } }
+  derTlv(0x30, derTlv(0xa4, derTlv(0x30,
+    derRdn(TCG_OID_TLV.manufacturer, `id:${manufacturer}`),
+    derRdn(TCG_OID_TLV.model, "SYNTH"),
+    derRdn(TCG_OID_TLV.version, "id:00030001"))));
 let ekSeq = 0;
 // An RSA-2048 EK under the intermediate, with the TCG SAN (empty subject, like the real one).
 export function issueEk(dir, { manufacturer = "414D4400" } = {}) {
   const x = ssl(dir), n = `ek-${++ekSeq}`;
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   fs.writeFileSync(path.join(dir, `${n}.key`), privateKey.export({ type: "pkcs8", format: "pem" }));
-  fs.writeFileSync(path.join(dir, `${n}.cnf`), `oid_section = oids\n[oids]\ntcg-at-tpmManufacturer = 2.23.133.2.1\ntcg-at-tpmModel = 2.23.133.2.2\ntcg-at-tpmVersion = 2.23.133.2.3\n`
-    + `[ek]\nbasicConstraints=CA:FALSE\nsubjectAltName=critical,dirName:tpm_dn\n[tpm_dn]\ntcg-at-tpmManufacturer = id:${manufacturer}\ntcg-at-tpmModel = SYNTH\ntcg-at-tpmVersion = id:00030001\n`);
+  // The TCG SAN is handed to OpenSSL as RAW DER, not as a dirName config section: a section
+  // names each attribute by an object name, and neither form survives every OpenSSL build (an
+  // `oid_section` name is rejected as a dirName field by the CI runner's, and a numeric OID has
+  // its leading digit eaten as the duplicate-field prefix of `0.OU`-style keys). The bytes below
+  // are the GeneralNames the verifier reads out of a real AMD EK certificate: one [4]
+  // directoryName holding tpmManufacturer / tpmModel / tpmVersion (2.23.133.2.{1,2,3}).
+  fs.writeFileSync(path.join(dir, `${n}.cnf`),
+    `[ek]\nbasicConstraints=CA:FALSE\nsubjectAltName=DER:${tcgSanDer(manufacturer).toString("hex")}\n`);
   x("req", "-new", "-key", `${n}.key`, "-subj", "/", "-out", `${n}.csr`);
   x("x509", "-req", "-in", `${n}.csr`, "-CA", "inter.pem", "-CAkey", "inter.key", "-CAcreateserial", "-days", "30", "-sha256", "-extfile", `${n}.cnf`, "-extensions", "ek", "-out", `${n}.pem`);
   return { cert: derOf(dir, n), privateKey, publicKey, tpmtPublic: tpmtPublicOf(publicKey, { ek: true }) };
