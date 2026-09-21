@@ -247,6 +247,14 @@ Same phone, same prompts, 42-token turn, all four correct:
 `--mod-headroom 4` is the win: wraps fall from 155 to 40 per exchange (the count is identical for both
 activation widths, confirming it is purely the modulus), unmask halves, and digit-split goes 0.63 -> 0.91.
 
+**Digit-split was a dead heat at equal security; since the correction moved off the critical path it is
+a 24 % win.** Measured again on 2026-09-20 with the helper vCPU in place: digit-split 1.22 tok/s against
+int16's 0.98, link 4.604 against 6.138. Nothing about the two recipes changed -- what changed is that
+unmask no longer dominates, so the TPU's own time does, and digit-split halves the compiled graphs
+(1872 MB against 3865). Halving the REPLY instead, which is what int16 buys (1716 against 3432 KB per
+token), does not pay for doubling the weights the TPU streams. The original reading below stands for the
+configuration it was taken in:
+
 **Digit-split is a dead heat at equal security.** It halves the compiled graphs (3865 -> 1872 MB, which is
 real for phone storage and load time) and its link is 0.38 ms faster, but the reply carries hi and lo
 separately -- 3432 KB per token against 1716 -- and the VM's recombination puts 0.34 ms back into unmask.
