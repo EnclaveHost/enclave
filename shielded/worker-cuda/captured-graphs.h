@@ -12,7 +12,17 @@
 // Per-connection bound. Preserve the existing clear-at-capacity policy so an
 // experiment changes only capacity. Staging-pointer changes still invalidate
 // every captured graph, independent of this bound.
-static constexpr size_t SH_GRAPH_CACHE_DEFAULT = 256;
+//
+// 2026-09-21: raised from 256 after measuring the 27B. The cache is keyed by
+// (m, node list), so ONE decode pass of that model needs 274 entries, and a
+// speculative round -- which runs the same pass at m=1 and again at m=2 --
+// needs 514. At 256 the policy clears the whole cache every time it fills, so
+// a pass that does not fit never reuses anything: 24 hits against 17733 misses
+// and 68 capacity flushes on a run that should have been almost all hits. The
+// column split makes it worse still, because then every card holds every
+// weight slice rather than half of them. Cost of the larger bound is a
+// cudaGraphExec per entry, a few KB of HOST memory each.
+static constexpr size_t SH_GRAPH_CACHE_DEFAULT = 1024;
 static constexpr size_t SH_GRAPH_CACHE_MAX = 4096;
 
 inline bool sh_graph_cache_limit(const char *value, size_t *out) {

@@ -6,17 +6,41 @@ contains pointers into the connection's staging buffers, so growing any of
 those buffers still invalidates the complete cache.
 
 `SHIELDED_GRAPH_CACHE_ENTRIES` controls the per-connection entry limit. The
-default is **256**, preserving the existing capacity and clear-at-capacity
-policy. An explicitly configured value must be a canonical decimal integer
-from 1 through 4096; invalid values refuse startup before CUDA initialization.
-The environment takes precedence over `worker.conf`, as for other worker
-settings. A larger limit is opt-in and requires a new worker process.
+default is **1024** (it was 256 before 2026-09-21; see below). An explicitly
+configured value must be a canonical decimal integer from 1 through 4096;
+invalid values refuse startup before CUDA initialization. The environment takes
+precedence over `worker.conf`, as for other worker settings. A limit change
+requires a new worker process.
 
 The full 27B target pass has 257 grouped exchanges, with additional MTP groups
 and row-count variants. A cache smaller than one recurring pass can continually
 discard graphs before reusing them. A 2048-entry experiment can hold five row
 variants of 262 distinct group keys (1310 entries), provided that staging stays
 stable. This arithmetic does not prove the actual workload's hit rate or speed.
+
+## Measured on the 27B, 2026-09-21: why the default moved to 1024
+
+The arithmetic above turned out to be the whole story, and the old 256 sat just
+below what the model needs. Counted from the worker's own end-of-connection
+line on Qwen3.8-27B-UD-Q4_K_XL:
+
+| run | distinct keys (high water) |
+|---|---|
+| plain decode, one card per layer | 137 |
+| plain decode, columns split over both cards | 274 |
+| speculative round (same pass at m=1 and m=2), split | 514 |
+
+Because the policy is clear-at-capacity rather than evict-one, a pass that does
+not fit never reuses anything at all. The split run at the old default logged
+**24 hits against 17733 misses and 68 capacity flushes**, re-capturing a graph
+on nearly every exchange; the same run at 2048 logged 16963 hits against 770
+misses and no flushes. That is worth about 70-100 us per exchange, and it was
+large enough to hide the column split's entire benefit -- the split measured as
+a regression until the cache was raised.
+
+Note the speculative figure exceeds 256 even WITHOUT the column split (~257 per
+card), so the old default was marginal for this model in its normal placement
+too. 1024 covers both with room for another row variant.
 
 The limit bounds graph entries, not CUDA graph memory in bytes. Memory cost and
 capture latency depend on the installed graph and driver; measure them alongside
