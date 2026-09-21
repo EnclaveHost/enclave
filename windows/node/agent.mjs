@@ -83,13 +83,23 @@ function hostCmd(line) {
   return (hostQueue = hostQueue.then(job, job));
 }
 // ---- the TPM tool ---------------------------------------------------------------------------
-let tpm = null, tpmBuf = '', tpmWaiters = [];
+let tpm = null, tpmBuf = '', tpmWaiters = [], tpmReady = null;
 function startTpm() {
   tpm = spawn(TPMATTEST_EXE, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   tpm.stderr.on('data', (d) => process.stderr.write(`[tpm] ${d}`));
-  tpm.stdout.on('data', (d) => { tpmBuf += d; let i; while ((i = tpmBuf.indexOf('\n')) >= 0) { const line = tpmBuf.slice(0, i).replace(/\r$/, ''); tpmBuf = tpmBuf.slice(i + 1); const w = tpmWaiters[0]; if (!w) { log(`tpm: ${line}`); continue; } if (line === 'ok' || line.startsWith('err ')) { tpmWaiters.shift(); line === 'ok' ? w.res(w.lines) : w.rej(new Error(line)); } else { const sp = line.indexOf(' '); if (sp > 0) w.lines[line.slice(0, sp)] = line.slice(sp + 1); } } });
-  tpm.on('exit', (c) => { log(`tpm exited (${c})`); tpm = null; });
-  return new Promise((res) => { tpmWaiters.push({ lines: {}, res, rej: res }); setTimeout(res, 15_000); });   // "ready" is not terminated by ok; the first command's reply resolves it
+  tpm.stdout.on('data', (d) => {
+    tpmBuf += d; let i;
+    while ((i = tpmBuf.indexOf('\n')) >= 0) {
+      const line = tpmBuf.slice(0, i).replace(/\r$/, ''); tpmBuf = tpmBuf.slice(i + 1);
+      if (line.startsWith('ready ')) { log(`tpm: ${line}`); tpmReady?.res(); continue; }   // the banner has no terminator
+      const w = tpmWaiters[0];
+      if (!w) { log(`tpm: ${line}`); continue; }
+      if (line === 'ok' || line.startsWith('err ')) { tpmWaiters.shift(); line === 'ok' ? w.res(w.lines) : w.rej(new Error(line)); }
+      else { const sp = line.indexOf(' '); if (sp > 0) w.lines[line.slice(0, sp)] = line.slice(sp + 1); }
+    }
+  });
+  tpm.on('exit', (c) => { log(`tpm exited (${c})`); tpm = null; tpmReady?.rej(new Error('tpm tool exited')); });
+  return new Promise((res, rej) => { tpmReady = { res, rej }; setTimeout(() => rej(new Error('tpm tool did not report ready')), 30_000); });
 }
 function tpmCmd(cmd) { return new Promise((res, rej) => { if (!tpm) return rej(new Error('tpm tool not running')); tpmWaiters.push({ lines: {}, res, rej }); tpm.stdin.write(cmd + '\n'); }); }
 
@@ -118,7 +128,7 @@ async function attestFrame(nonceB64, credentialBlobB64, secretB64) {
   if (!challenge.equals(createHash('sha256').update(bound).digest())) throw new Error('enclave challenge mismatch');
   const act = await tpmCmd(`activate ${hex(Buffer.from(credentialBlobB64, 'base64'))} ${hex(Buffer.from(secretB64, 'base64'))}`);
   const q = await tpmCmd(`quote ${hex(challenge)}`);
-  const pcr0 = (await tpmCmd('pcr 0'))['pcr 0'] || '';
+  const pcr0 = String((await tpmCmd('pcr 0')).pcr || '').split(' ').pop() || '';   // the reply line is "pcr 0 <hex>"
   const logPath = (await tpmCmd('log')).log;
   const bootLog = fs.readFileSync(logPath);
   const evidence = {
@@ -204,7 +214,7 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
 (async () => {
   await startWorker();
   await startHost();
-  await startTpm();
+  await startTpm().catch((e) => log(`tpm: ${e.message} (attestation unavailable)`));
   const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
   if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
   const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
