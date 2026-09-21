@@ -1170,9 +1170,14 @@ const proxied = (p) => p.startsWith("/v1/") || p === "/availability" || p === "/
 // /v1/auth, /v1/pricing and /v1/version into 404s for the whole platform the moment it sorted
 // first, which is exactly what happened when a consumer node became the only live row reporting a
 // card. A GPU enclave is still preferred among the boxes that do serve.
+// FULL-SERVICE boxes only, and with none of them serving this is null, NOT the fallback
+// fullServiceEnclaves() makes for pricing. That difference is deliberate: a partial box is an
+// honest answer to "what does the fleet cost", and a wrong answer to "where do I sign in". A
+// clean 503 that says nobody is taking work beats /v1/auth and /v1/pricing 404ing off a box that
+// never implemented them.
 const sticky = () => {
-  const s = servingEnclaves();
-  return s.filter((e) => e.availability.gpu).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
+  const s = servingEnclaves().filter((e) => e.availability?.fullService !== false);
+  return s.filter((e) => e.availability?.gpu === true).sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0]
       || s.slice().sort((a, b) => a.endpoint.localeCompare(b.endpoint))[0] || null;
 };
 
@@ -1355,9 +1360,28 @@ function servingEnclaves() {
   return live.filter((e) => !e.relay && (e.availability?.claimEnabled === true
     || (e.availability?.claimEnabled == null && !e.tunnel)));
 }
+// A box may sell a SUBSET of what the fleet offers and SAY so (`fullService: false` on its
+// /availability). It is listed, its capacity is real capacity, and it claims the work it can
+// honour. What it must not do is decide what the platform OFFERS or what it costs by default.
+//
+// Both of those are computed from the fleet, and both are protective: a capability AND exists so a
+// customer is never handed a control whose deployment would then sit Queued with its funding tied
+// up for want of a runner that honours it, and the cheapest ask defaults a new deployment's rate
+// cap, which pins it to the boxes that can meet that price. A limited box inside either one takes
+// a feature away from every customer, or makes itself the only place a new deployment can run.
+//
+// So those two are computed over the FULL-SERVICE boxes. With none of them serving, they fall back
+// to the whole serving set, because then a partial box IS the honest state of the fleet.
+function fullServiceEnclaves() {
+  const s = servingEnclaves();
+  const full = s.filter((e) => e.availability?.fullService !== false);
+  return full.length ? full : s;
+}
 function aggregateAvailability() {
   const serving = servingEnclaves();
-  const gpus = serving.filter((e) => e.availability.gpu);
+  const offered = fullServiceEnclaves();      // what the fleet offers, and what it costs by default
+  const gpus = serving.filter((e) => e.availability?.gpu === true);
+  const offeredGpus = offered.filter((e) => e.availability?.gpu === true);
   const g = gpus.slice()
     .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0]?.availability || null;
   const c = serving.slice()
@@ -1376,8 +1400,12 @@ function aggregateAvailability() {
     cardVramGb: g ? g.cardVramGb ?? 0 : 0, cardTflops: g ? g.cardTflops ?? 0 : 0, cards: g ? g.cards ?? 0 : 0,
     vcpusFree: c ? c.vcpusFree ?? 0 : 0, ramGbFree: c ? c.ramGbFree ?? 0 : 0, cpuGflopsFree: c ? c.cpuGflopsFree ?? 0 : 0,
     nodeVcpus: c ? c.nodeVcpus ?? 0 : 0, nodeRamGb: c ? c.nodeRamGb ?? 0 : 0, nodeGflops: c ? c.nodeGflops ?? 0 : 0,
-    specCardVramGb: minOf(gpus, "cardVramGb"), specCardTflops: minOf(gpus, "cardTflops"),
-    specNodeVcpus: minOf(serving, "nodeVcpus"), specNodeRamGb: minOf(serving, "nodeRamGb"), specNodeGflops: minOf(serving, "nodeGflops"),
+    // The CARD floor over the OFFERED boxes, for the same reason as the node floors on the
+    // next line: a partial box with a card must not set the sizing the console quotes to
+    // every publisher. `gpus` above stays the whole serving set, because the free-capacity
+    // numbers beside it describe what is actually buyable right now.
+    specCardVramGb: minOf(offeredGpus, "cardVramGb"), specCardTflops: minOf(offeredGpus, "cardTflops"),
+    specNodeVcpus: minOf(offered, "nodeVcpus"), specNodeRamGb: minOf(offered, "nodeRamGb"), specNodeGflops: minOf(offered, "nodeGflops"),
     // WHY the cpu pool is small, carried up from the enclave whose numbers we
     // just quoted. The aggregate reported the folded cpuShareFree and dropped
     // every term behind it, so a box reading 65% free with one resident model
@@ -1395,11 +1423,11 @@ function aggregateAvailability() {
     // EVERY live enclave enforces the envelope — any runner may claim any
     // deployment, so a mixed fleet would strand protected deploys on old
     // runners ("configCid retired" refusal). Same fleet-minimum rule as spec*.
-    waf: serving.length > 0 && serving.every((e) => e.availability?.waf === true),
+    waf: offered.length > 0 && offered.every((e) => e.availability?.waf === true),
     // envelope `config` namespace (per-deployment app-config override): same
     // fleet-AND — a mixed fleet would strand an overridden deploy on a runner
     // that refuses the namespace, so the console only unlocks the box on true
-    configOverride: serving.length > 0 && serving.every((e) => e.availability?.configOverride === true),
+    configOverride: offered.length > 0 && offered.every((e) => e.availability?.configOverride === true),
     // envelope `configCid` namespace: the SAME override, split the way catalog
     // rev 7 splits a version's config — bulk at a pinned CID, the inline field
     // demoted to the routing manifest (volumes). It exists because the whole
@@ -1407,23 +1435,23 @@ function aggregateAvailability() {
     // larger than that has no override without it. Same fleet-AND, and it is
     // strictly narrower than configOverride: a runner that knows the split
     // necessarily knows the inline form, never the reverse.
-    configCidOverride: serving.length > 0 && serving.every((e) => e.availability?.configCidOverride === true),
+    configCidOverride: offered.length > 0 && offered.every((e) => e.availability?.configCidOverride === true),
     // setConfig reaches LIVE deployments (audit envelope watch: waf swaps in
     // place, a config change restarts the app on the new value): fleet-AND -
     // on false an edit still lands on-chain but only applies at re-claim
-    configEdit: serving.length > 0 && serving.every((e) => e.availability?.configEdit === true),
+    configEdit: offered.length > 0 && offered.every((e) => e.availability?.configEdit === true),
     // setShares reaches LIVE deployments (audit share watch: re-slice +
     // restart in place, or hand the lease to a box that fits): fleet-AND —
     // on false a resize tx would change the BILLING while the served slice
     // silently didn't, so clients refuse to send it against an older fleet
-    shareResize: serving.length > 0 && serving.every((e) => e.availability?.shareResize === true),
+    shareResize: offered.length > 0 && offered.every((e) => e.availability?.shareResize === true),
     // {"gpu":{"optional":true}} — a GPU-dialled deployment may fall back to a
     // CPU-only enclave rather than queue for a card: fleet-AND, and strictly so.
     // A runner that predates the namespace REFUSES the whole envelope as
     // unknown (deliberately - options are never silently dropped), which would
     // strand the deployment unclaimable on that box. So the console must not
     // offer the control until every live runner knows the word.
-    gpuOptional: serving.length > 0 && serving.every((e) => e.availability?.gpuOptional === true),
+    gpuOptional: offered.length > 0 && offered.every((e) => e.availability?.gpuOptional === true),
     // A version config's `cpuFallback` ({memMb, cpuGflops}): the node floor a
     // runner demands of a CORELESS placement, instead of the on-chain axes
     // that describe the same app beside its card. Fleet-AND like the rest, but
@@ -1434,44 +1462,44 @@ function aggregateAvailability() {
     // hidden behind this flag; it exists so a publisher can be told how much of
     // the live fleet honours the second figure, and so a deployer can see why
     // one box takes a claim another refuses.
-    cpuFallback: serving.length > 0 && serving.every((e) => e.availability?.cpuFallback === true),
+    cpuFallback: offered.length > 0 && offered.every((e) => e.availability?.cpuFallback === true),
     // per-deployment relay choice (the envelope's `network` namespace). Nothing
     // in a CVM acts on it — DNS does — but the ENVELOPE is fail-closed, so a
     // deployment carrying {"network":…} that lands on a runner predating it is
     // refused outright. Same fleet-AND rule, same reason: the console must keep
     // the Network tab hidden until every live runner knows the word.
-    networkOptions: serving.length > 0 && serving.every((e) => e.availability?.networkOptions === true),
+    networkOptions: offered.length > 0 && offered.every((e) => e.availability?.networkOptions === true),
     // per-deployment secrets (relay-stored, injected as guest env by the lease
     // holder): needs BOTH this relay configured (SECRETS_KEY + data dir) and a
     // fleet-AND of runners that fetch+inject — a mixed fleet would run the same
     // app with secrets on one runner and without them after a lease migration
-    secrets: secretsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.secrets === true),
+    secrets: secretsEnabled() && offered.length > 0 && offered.every((e) => e.availability?.secrets === true),
     // $NAME placeholders in config strings resolving from those secrets at
     // launch — a build refinement on top of `secrets`, same fleet-AND
-    secretsInConfig: secretsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.secretsInConfig === true),
+    secretsInConfig: secretsEnabled() && offered.length > 0 && offered.every((e) => e.availability?.secretsInConfig === true),
     // customer-owned hostnames (relay/domains.js): needs this relay configured
     // AND a fleet-AND of runners that fetch the names and mint their
     // certificates. Strictly AND-ed: a lease migrating to a runner that doesn't
     // know the feature would leave the customer's own domain refusing
     // handshakes with nothing on the dashboard to explain it, so the console
     // only offers the section when every live runner can honour it.
-    customDomains: domainsEnabled() && serving.length > 0 && serving.every((e) => e.availability?.customDomains === true),
+    customDomains: domainsEnabled() && offered.length > 0 && offered.every((e) => e.availability?.customDomains === true),
     // publisher dev-mode: runners admit PENDING catalog versions for PRIVATE
     // deployments (public deploys of pending versions stay refused). Fleet-AND —
     // on false a pending-version deploy would sit Queued forever on old runners,
     // so clients only offer the option when every live runner honors it
-    devDeploy: serving.length > 0 && serving.every((e) => e.availability?.devDeploy === true),
+    devDeploy: offered.length > 0 && offered.every((e) => e.availability?.devDeploy === true),
     // per-deployment rate caps (ledger rev 8): runners price claims off their
     // own registry entry and treat a cap-blocked renew as "stop at lease end".
     // Fleet-AND — against an older runner a lowered cap would just look like a
     // stuck renewal, so clients only offer cap edits when every live runner
     // handles it
-    rateCap: serving.length > 0 && serving.every((e) => e.availability?.rateCap === true),
+    rateCap: offered.length > 0 && offered.every((e) => e.availability?.rateCap === true),
     // Every live runner proves the time it bills for (ledger rev 9): it signs
     // block-anchored checkpoints from a key minted inside its own CVM, and the
     // ledger pays it only for service it proved. AND-ed, not OR-ed: a buyer can
     // only be told "the hosts here are held to account" if every host is.
-    proofOfTime: serving.length > 0 && serving.every((e) => e.availability?.proofOfTime === true),
+    proofOfTime: offered.length > 0 && offered.every((e) => e.availability?.proofOfTime === true),
     // WASIp3 (component-model async) serving: each runner probes its own
     // wasmtime for `-S p3` and reports per box; a version publishes `wasi:
     // "0.3"` in its config and only p3-capable boxes claim it. Fleet-AND for
@@ -1481,40 +1509,45 @@ function aggregateAvailability() {
     // Per-box truth stays visible in the target list for the canary flow:
     // deploying pinned to a p3-capable box is legitimate while the AND is
     // still false.
-    p3: serving.length > 0 && serving.every((e) => e.availability?.p3 === true),
+    p3: offered.length > 0 && offered.every((e) => e.availability?.p3 === true),
     // Cooperative threads (🧵), one capability over: `threads: true` versions
     // route only to boxes whose engine passed the thread.new-indirect compile
     // probe (coopThreads on each runner's availability). Same fleet-AND
     // reasoning as p3, same per-box canary escape hatch.
-    coopThreads: serving.length > 0 && serving.every((e) => e.availability?.coopThreads === true),
+    coopThreads: offered.length > 0 && offered.every((e) => e.availability?.coopThreads === true),
     // Shared-everything threads (⚡), one more capability over: `set: true`
     // versions route only to boxes whose engine passed the thread.spawn-indirect
     // compile probe (`set` on each runner's availability). Same fleet-AND and
     // per-box canary escape hatch as p3/coopThreads.
-    set: serving.length > 0 && serving.every((e) => e.availability?.set === true),
+    set: offered.length > 0 && offered.every((e) => e.availability?.set === true),
     // wasm64 (memory64) core modules — the >4 GiB guests: `mem64: true`
     // versions route only to boxes whose engine passed the flagless memory64
     // compile probe (`mem64` on each runner's availability). Same fleet-AND
     // and per-box canary escape hatch as the rest.
-    mem64: serving.length > 0 && serving.every((e) => e.availability?.mem64 === true),
+    mem64: offered.length > 0 && offered.every((e) => e.availability?.mem64 === true),
     // Catalog rev-7 large configs, same fleet-AND and same per-box canary
     // escape hatch: a version whose config lives at a CID routes only to boxes
     // that fetch and hash-verify it. A box without it REFUSES the claim rather
     // than serving the routing manifest as the config — correct, but it means
     // an un-rolled-out fleet leaves such a deployment Queued with its funding
     // tied up, so clients must be able to see this before they create one.
-    configCid: serving.length > 0 && serving.every((e) => e.availability?.configCid === true),
+    configCid: offered.length > 0 && offered.every((e) => e.availability?.configCid === true),
     // The smallest config the whole fleet will accept — a config over this
     // publishes fine and then fails every launch, so the publish UI sizes its
     // own check off the fleet rather than a hardcoded guess.
-    configMaxBytes: serving.length > 0
-      ? Math.min(...serving.map((e) => Number(e.availability?.configMaxBytes) || 0)) : 0,
+    // The smallest config the whole OFFERING fleet accepts. A box that publishes none is not
+    // counted: reading its silence as zero capped the fleet at zero bytes and refused every app
+    // config, which is the opposite of a floor.
+    configMaxBytes: (() => {
+      const vals = offered.map((e) => Number(e.availability?.configMaxBytes)).filter((v) => Number.isFinite(v) && v > 0);
+      return vals.length ? Math.min(...vals) : 0;
+    })(),
     // the CHEAPEST posted price across the claiming fleet, USDC 6dp/sec for a
     // whole node / whole card. Each enclave sets its own (registry entry), so
     // "what does this cost" is a fleet-minimum question now, not a contract
     // constant. Clients quote "from $X/hr" off these and default a new
     // deployment's rate cap to the box it actually picked.
-    ...cheapestAsk(serving, gpus),
+    ...cheapestAsk(offered, offeredGpus),
     // attached model volumes across the fleet (Modelwrap), deduped by name -
     // each carries `enclaves`: which endpoints can mount it (placement matters,
     // a volume only lives where its enclave declares it)
@@ -1956,7 +1989,10 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
-                   fleetAsk: () => cheapestAsk(servingEnclaves(), servingEnclaves().filter((e) => e.availability?.gpu === true)),
+                   // over the FULL-SERVICE boxes, for the reason in fullServiceEnclaves(): a
+                   // partial box's cheaper ask must not become the price a buyer is charged for
+                   // work it cannot honour, which would leave the lease underfunded and Queued.
+                   fleetAsk: () => cheapestAsk(fullServiceEnclaves(), fullServiceEnclaves().filter((e) => e.availability?.gpu === true)),
                    // secrets.js: match a fetch's claimed endpoint to a lease's
                    // on-chain runner id, and drop the ledger cache when a row
                    // must be newer than the 10s TTL (just-claimed/just-created)

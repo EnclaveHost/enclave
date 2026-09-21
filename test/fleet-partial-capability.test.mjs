@@ -224,6 +224,15 @@ test("only a partial box serving: the aggregate reports ITS capabilities and ITS
 
   const { body: list } = await getJson(origin, "/enclaves");
   assert.equal(list.aggregate.serving, 1, "and it is serving — the fallback is not a fleet-down state");
+
+  // ...but the CONTROL PLANE is not its to serve. sticky() picks the box that /v1/auth, /v1/pricing
+  // and /v1/version land on, and a partial box implements none of them: picking one turned those
+  // three into 404s for the whole platform once already. The pricing fallback above is an honest
+  // answer to "what does the fleet cost"; there is no honest answer to "where do I sign in", so
+  // this must be a named 503 and not a proxy to a box that will 404.
+  const { status: cpStatus, body: cp } = await getJson(origin, "/v1/pricing");
+  assert.equal(cpStatus, 503, "no full-service box is serving, so there is nowhere to ask");
+  assert.equal(cp.error, "no_serving_enclave");
 });
 
 // ---------- 4. regression: silence is not a zero-byte ceiling ----------------
