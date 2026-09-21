@@ -174,11 +174,47 @@ the host, same kernels (`enclave/benchkern.h`), 1/2/4 threads. Box DRAM ceiling 
 - Not measured: CallEnclave round-trip latency, enclave-to-VTL0 callbacks, and behavior under a
   concurrent game (this box has no discrete GPU).
 
-## 7. Spikes (b) and (d), from public sources
+## 7. Spikes (b) and (d), from public sources (research agent, 2026-09-20; URLs in the notes)
 
-See section 7 in the appended research notes below (Trusted Signing eligibility for a young
-Delaware C-corp; TrenchBoot upstream status; TSME visibility). Filled in from the research
-agent's report; every claim there carries its URL.
+**(b) Trusted Signing eligibility: probably yes, no longer blocked by age.** Trusted Signing was
+renamed **Artifact Signing** and went GA in January 2026 (USA, Canada, EU, UK for organizations).
+The "incorporated more than 3 years ago" rule was a 2025 public-preview restriction; the docs
+commit of 2026-04-01 removed it, the current quickstart has no age requirement, and a Microsoft
+employee answered on Q&A in August 2026 "no minimum org age restrictions". Caveats that remain:
+identity validation takes 1-20 business days, failures are not explained and cannot be
+expedited, and a January-2026 US LLC without a D-U-N-S number failed organization validation in
+August 2026, so keep the state registration, the domain registration and the address consistent
+and get a D-U-N-S number first. The **VBS enclave** certificate profile exists as a Public
+Trust type ("Used to sign virtualization-based security enclaves on Windows"), the Basic SKU
+($9.99/month, 5,000 signatures) includes one profile of each type, and free/trial/sponsored
+Azure subscriptions are refused. The certificate carries the production Author EKU
+(`1.3.6.1.4.1.311.97.<4 octets>`), is renewed daily and valid 72 hours. An Individual path exists
+(US/Canada, government ID + face check) but the CN would be the person's name, not the company.
+
+**(d) TrenchBoot upstream status: not merged, Intel only, AMD consumer parts not working.**
+The Secure Launch series is at v16 (2026-05-15, 38 patches on top of v7.0); it is not in
+Linux 7.1, 7.2, or the 7.3 merge window. Maintainers asked for it to be split; the first
+split-out (a TPM header/`tpm-buf` reorg, July 2026) has no maintainer replies yet. Every version's
+cover letter says "Intel TXT support ... AMD SKINIT is pending the common infrastructure". The
+AMD SKINIT RFC (v2, April 2025) depends on that series and has not moved. GRUB's slaunch series
+(v4, April 2025) is not merged either. On AMD hardware specifically: TrenchBoot's own HCL says
+"AMD Zen or newer CPUs will likely not work in the current stage of development"; Zen 2+ needs
+the PSP DRTM service (AMD pub 58453), which an OEM BIOS setting gates (a Framework 13 with a
+non-PRO 7040 reports "DRTM Enabled = 0" with no BIOS option), and AMD markets DRTM /
+Secured-core / Memory Guard as PRO features "requiring OEM enablement". Net: a Linux DRTM
+appliance on consumer AMD is not available today; on Intel it means out-of-tree kernel and GRUB
+patches, and vPro/TXT parts. Design A should be built without DRTM and state that SMM and early
+firmware remain in the chain.
+
+**(c) again, from the sources: no Windows indicator of TSME.** Nothing in the Windows Security
+app, `Win32_DeviceGuard`, msinfo32, Azure Attestation's claim set, the SIPA log, or the Hyper-V
+event log reports SME/TSME state; the 2026 press consensus after AMD's AGESA 1.2.7.0 change was
+"impossible to detect on Windows". Worse for the tier: in June 2026 AMD removed the TSME option
+from non-PRO Ryzen 9000 firmware (then said it would reinstate it) and described Memory Guard as
+"for Ryzen PRO ... where supported in silicon"; the AGESA change also hid the SME CPUID flag, so
+CPUID is not even a reliable "not supported" signal. On Linux, ground truth is
+`MSR C001_0010[23]` or the PSP's `tsme_status` sysfs file (what fwupd's HSI "Encrypted RAM"
+reads). The non-PRO 8945HS product page lists no Memory Guard.
 
 ## 8. What this does NOT establish, and what is next
 
