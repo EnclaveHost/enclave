@@ -1,0 +1,125 @@
+Decode-shaped get_rows and concat run on ONE thread (27B, 2026-09-21).
+
+An instrumented ggml-cpu built from the engine's own commit, profiling every
+node of a shielded 27B decode, found 11.3 ms of an 87 ms token inside
+GET_ROWS: 197 calls, mean 57 us, the worst gathering [786432,1,1,1] -- 3 MB
+in ONE row. ggml partitions get_rows over the rows it gathers, so a gather of
+a single row runs on thread zero while the rest wait at the barrier. A hybrid
+model's recurrent state is exactly that shape at decode and is gathered
+several times per delta-net layer.
+
+CONCAT has the same shape of problem: it distributes over ne2, which is 1 for
+a decode ubatch, and copies element by element through a four-way branch --
+273 ms over the same run, worst instance conv_input [20, 10240].
+
+get_rows_f32: when there are fewer rows than threads and the rows are long,
+split the ROW across threads instead. The slices are disjoint, so it is the
+same copy; the per-row path is untouched, which keeps prefill (many rows)
+exactly as it was.
+
+concat_f32: distribute over every row of (ne1, ne2, ne3) rather than ne2
+alone. Each thread walks a contiguous range of rows carrying its own
+(i1, i2, i3), so the index arithmetic costs three divisions per THREAD -- a
+first version that recomputed them per row with a modulo was 3% SLOWER than
+the stock kernel, which is what a per-row integer division buys you at 49
+concats a token. Rows of 256 bytes or more are copied whole; shorter rows and
+non-contiguous layouts keep the element loop and its source selection.
+
+Measured on the 27B (two V100s, host loopback, ring transport): GET_ROWS
+765 -> 310 ms over the run, the CPU-side graph 2184 -> 1516 ms, and decode
+11.3 -> 12.5 tok/s plain, 12.5 -> 14.2 with one-token drafting.
+
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -1,3 +1,4 @@
++#include <cstring>
+ #include "ops.h"
+ 
+ #include "ggml-cpu.h"
+@@ -2092,22 +2093,45 @@
+ 
+     const float * x;
+ 
+-    // TODO: smarter multi-theading
+-    for (int i3 = 0; i3 < ne3; i3++) {
+-        for (int i2 = ith; i2 < ne2; i2 += nth) {
+-            for (int i1 = 0; i1 < ne1; i1++) {
+-                for (int i0 = 0; i0 < ne0; i0++) {
++    // Spread over EVERY row of (ne1, ne2, ne3), not ne2 alone: a decode ubatch
++    // has ne2 == 1, so the old loop left the whole concat on one thread. Each
++    // thread walks a contiguous range and carries its own (i1, i2, i3), so the
++    // index arithmetic costs three divisions per THREAD, not per row. Long
++    // contiguous rows are copied whole; everything else keeps the element loop
++    // and its source selection, unchanged.
++    const int64_t nrows = ne1*ne2*ne3;
++    const int64_t dr    = (nrows + nth - 1)/nth;
++    const int64_t r0    = dr*ith;
++    const int64_t r1    = MIN(r0 + dr, nrows);
++    const bool row_contig = nb00 == sizeof(float) && nb10 == sizeof(float) && nb0 == sizeof(float) && ne0*(int64_t)sizeof(float) >= 256;
++    if (r0 < r1) {
++        int64_t i1 = r0 % ne1;
++        int64_t i2 = (r0 / ne1) % ne2;
++        int64_t i3 = r0 / (ne1*ne2);
++        for (int64_t r = r0; r < r1; r++) {
++            char * dst_row = (char *)dst->data + i1*nb1 + i2*nb2 + i3*nb3;
++            if (row_contig && dim == 0) {
++                memcpy(dst_row, (const char *)src0->data + i1*nb01 + i2*nb02 + i3*nb03, ne00*sizeof(float));
++                memcpy(dst_row + ne00*sizeof(float),
++                       (const char *)src1->data + i1*nb11 + i2*nb12 + i3*nb13, (ne0 - ne00)*sizeof(float));
++            } else if (row_contig) {
++                const bool from0 = (i1 < ne01 && i2 < ne02 && i3 < ne03);
++                const char * src_row = from0
++                    ? (const char *)src0->data + (i1       )*nb01 + (i2       )*nb02 + (i3       )*nb03
++                    : (const char *)src1->data + (i1 - o[1])*nb11 + (i2 - o[2])*nb12 + (i3 - o[3])*nb13;
++                memcpy(dst_row, src_row, ne0*sizeof(float));
++            } else {
++                for (int64_t i0 = 0; i0 < ne0; i0++) {
+                     if (i0 < ne00 && i1 < ne01 && i2 < ne02 && i3 < ne03) {
+                         x = (const float *) ((const char *)src0->data + (i0       )*nb00 + (i1       )*nb01 + (i2       )*nb02 + (i3       )*nb03);
+                     } else {
+                         x = (const float *) ((const char *)src1->data + (i0 - o[0])*nb10 + (i1 - o[1])*nb11 + (i2 - o[2])*nb12 + (i3 - o[3])*nb13);
+                     }
+-
+                     float * y = (float *)((char *)dst->data + i0*nb0 + i1*nb1 + i2*nb2 + i3*nb3);
+-
+                     *y = *x;
+                 }
+             }
++            if (++i1 == ne1) { i1 = 0; if (++i2 == ne2) { i2 = 0; i3++; } }
+         }
+     }
+ }
+@@ -5032,6 +5056,33 @@
+     const int ith = params->ith;
+     const int nth = params->nth;
+ 
++    // FEWER ROWS THAN THREADS, AND LONG ROWS: split the row itself.
++    // ggml partitions get_rows over the gathered rows, so a gather of ONE row
++    // runs on thread 0 alone. A hybrid model's recurrent state is exactly that
++    // shape at decode - one cell, hundreds of thousands of floats - and it is
++    // gathered several times per layer: 11 ms of a 87 ms token on a 27B
++    // delta-net model (2026-09-21), all of it one thread copying while seven
++    // wait at the barrier. The slices are disjoint, so this is the same copy.
++    if (nr > 0 && nr < nth && nc >= 4096) {
++        const int64_t dc  = (nc + nth - 1)/nth;
++        const int64_t ic0 = dc*ith;
++        const int64_t ic1 = MIN(ic0 + dc, nc);
++        if (ic0 >= ic1) return;
++        for (int64_t i = 0; i < nr; ++i) {
++            const int64_t i12 = i/(ne11*ne10);
++            const int64_t i11 = (i - i12*ne11*ne10)/ne10;
++            const int64_t i10 = (i - i12*ne11*ne10 - i11*ne10);
++            const int64_t i01 = *(int32_t *) ((char *) src1->data + i10*nb10 + i11*nb11 + i12*nb12);
++
++            GGML_ASSERT(i01 >= 0 && i01 < ne01);
++
++            ggml_vec_cpy_f32(ic1 - ic0,
++                    (float *) ((char *)  dst->data + i10*nb1  + i11*nb2  + i12*nb3)  + ic0,
++                    (float *) ((char *) src0->data + i01*nb01 + i11*nb02 + i12*nb03) + ic0);
++        }
++        return;
++    }
++
+     // rows per thread
+     const int dr = (nr + nth - 1)/nth;
+ 
