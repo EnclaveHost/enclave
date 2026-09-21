@@ -100,23 +100,19 @@ extern "C" __declspec(dllexport) void *WINAPI EeLoad(void *param) {
       catch (...) { p->status = -10; set_err(p->error, "unknown exception"); return (void *)(intptr_t)-10; }
 }
 
-extern "C" __declspec(dllexport) void *WINAPI EeGenerate(void *param) {
-    ee_gen_params *p = (ee_gen_params *)param;
-    if (!p || !g_ctx) { if (p) { p->status = -1; set_err(p->error, "no model"); } return (void *)(intptr_t)-1; }
-    if (!p->prompt || p->prompt_len == 0 || p->prompt_len > (1u << 20)) { p->status = -2; set_err(p->error, "prompt size"); return (void *)(intptr_t)-2; }
-    std::string prompt((const char *)p->prompt, (size_t)p->prompt_len);   /* copied in: host memory is read once */
-    const int n_predict = p->n_predict > 0 && p->n_predict <= 4096 ? p->n_predict : 16;
+static int generate_text(const std::string &prompt, int n_predict_in, std::string &out, ee_session_params *st) {
+    const int n_predict = n_predict_in > 0 && n_predict_in <= 4096 ? n_predict_in : 16;
     try {
         std::vector<llama_token> toks(prompt.size() + 16);
         int n = llama_tokenize(g_vocab, prompt.c_str(), (int)prompt.size(), toks.data(), (int)toks.size(), true, false);
         if (n < 0) { toks.resize((size_t)-n); n = llama_tokenize(g_vocab, prompt.c_str(), (int)prompt.size(), toks.data(), (int)toks.size(), true, false); }
-        if (n <= 0 || n > g_n_batch) { p->status = -3; set_err(p->error, "prompt does not fit one batch"); return (void *)(intptr_t)-3; }
+        if (n <= 0 || n > g_n_batch) { set_err(st->error, "prompt does not fit one batch"); return -3; }
         llama_memory_clear(llama_get_memory(g_ctx), true);
         const int64_t t0 = ee_now_us();
         llama_batch batch = llama_batch_get_one(toks.data(), n);
-        if (llama_decode(g_ctx, batch)) { p->status = -4; set_err(p->error, "prompt decode failed"); return (void *)(intptr_t)-4; }
-        p->prompt_us = ee_now_us() - t0;
-        std::string out; int n_gen = 0; const int64_t t1 = ee_now_us();
+        if (llama_decode(g_ctx, batch)) { set_err(st->error, "prompt decode failed"); return -4; }
+        st->prompt_us = ee_now_us() - t0;
+        int n_gen = 0; const int64_t t1 = ee_now_us(); int rc = 0;
         for (int i = 0; i < n_predict; i++) {
             const float *logits = llama_get_logits_ith(g_ctx, -1); const int n_vocab = llama_vocab_n_tokens(g_vocab);
             int best = 0; float bv = logits[0];
@@ -125,18 +121,53 @@ extern "C" __declspec(dllexport) void *WINAPI EeGenerate(void *param) {
             if (llama_vocab_is_eog(g_vocab, cur)) break;
             char buf[256]; const int L = llama_token_to_piece(g_vocab, cur, buf, sizeof buf, 0, false);
             llama_batch b1 = llama_batch_get_one(&cur, 1);
-            if (llama_decode(g_ctx, b1)) { p->status = -5; set_err(p->error, "decode failed"); break; }
+            if (llama_decode(g_ctx, b1)) { set_err(st->error, "decode failed"); rc = -5; break; }
             if (L > 0) out.append(buf, (size_t)L);
             n_gen++;
         }
-        p->decode_us = ee_now_us() - t1; p->n_tokens = n_gen;
-        const uint64_t cap = p->out_cap; const size_t k = out.size() < cap ? out.size() : (size_t)cap;
-        if (p->out && cap) memcpy(p->out, out.data(), k); p->out_len = k;
-        ggml_backend_shielded_stats(&p->offloaded, &p->local, &p->macs, &p->verify_fail);
-        if (p->status == 0 || p->status == -5) { /* keep -5 if set */ } else p->status = 0;
-        if (p->status != -5) p->status = 0;
-        return (void *)1;
-    } catch (const std::exception &e) { p->status = -9; set_err(p->error, e.what()); return (void *)(intptr_t)-9; }
+        st->decode_us = ee_now_us() - t1; st->n_tokens = n_gen;
+        ggml_backend_shielded_stats(&st->offloaded, &st->local, &st->macs, &st->verify_fail);
+        return rc;
+    } catch (const std::exception &e) { set_err(st->error, e.what()); return -9; }
+}
+extern "C" __declspec(dllexport) void *WINAPI EeGenerate(void *param) {
+    ee_gen_params *p = (ee_gen_params *)param;
+    if (!p || !g_ctx) { if (p) { p->status = -1; set_err(p->error, "no model"); } return (void *)(intptr_t)-1; }
+    if (!p->prompt || p->prompt_len == 0 || p->prompt_len > (1u << 20)) { p->status = -2; set_err(p->error, "prompt size"); return (void *)(intptr_t)-2; }
+    std::string prompt((const char *)p->prompt, (size_t)p->prompt_len), text;   /* copied in: host memory is read once */
+    ee_session_params st{}; const int rc = generate_text(prompt, p->n_predict, text, &st);
+    p->n_tokens = st.n_tokens; p->prompt_us = st.prompt_us; p->decode_us = st.decode_us; p->offloaded = st.offloaded; p->local = st.local; p->macs = st.macs; p->verify_fail = st.verify_fail;
+    if (rc && rc != -5) { p->status = rc; memcpy(p->error, st.error, sizeof p->error); return (void *)(intptr_t)rc; }
+    const uint64_t cap = p->out_cap; const size_t k = text.size() < cap ? text.size() : (size_t)cap;
+    if (p->out && cap) memcpy(p->out, text.data(), k); p->out_len = k; p->status = rc;
+    return (void *)1;
+}
+
+/* A boxed session: the only path on which a prompt or an answer exists in the clear is inside VTL1. */
+static int generate_text(const std::string &prompt, int n_predict, std::string &out, ee_session_params *st);
+extern "C" __declspec(dllexport) void *WINAPI EeSession(void *param) {
+    ee_session_params *p = (ee_session_params *)param;
+    if (!p || !g_ctx) { if (p) { p->status = -1; set_err(p->error, "no model"); } return (void *)(intptr_t)-1; }
+    if (!p->in || p->in_len < 32 + 24 + 16 + 4 || p->in_len > (1u << 20)) { p->status = -2; set_err(p->error, "session blob size"); return (void *)(intptr_t)-2; }
+    std::vector<uint8_t> in(p->in, p->in + p->in_len);                       /* copied in: read once */
+    const uint8_t *client_pk = in.data(), *nonce = in.data() + 32; const size_t clen = in.size() - 56;
+    std::vector<uint8_t> c(16 + clen, 0), m(16 + clen, 0); memcpy(c.data() + 16, in.data() + 56, clen);   /* BOXZEROBYTES padding */
+    if (crypto_box_open(m.data(), c.data(), (unsigned long long)c.size(), nonce, client_pk, g_box_sk) != 0) { p->status = -3; set_err(p->error, "session: box does not open (wrong key or tampered)"); return (void *)(intptr_t)-3; }
+    const uint8_t *req = m.data() + 32; const size_t rlen = m.size() - 32;   /* ZEROBYTES padding */
+    const int n_predict = (int)(req[0] | (req[1] << 8) | (req[2] << 16) | (req[3] << 24));
+    std::string prompt((const char *)req + 4, rlen - 4), text;
+    const int rc = generate_text(prompt, n_predict, text, p);
+    if (rc) { p->status = rc; return (void *)(intptr_t)rc; }
+    std::vector<uint8_t> reply(32 + 4 + text.size(), 0);
+    reply[32] = (uint8_t)p->n_tokens; reply[33] = (uint8_t)(p->n_tokens >> 8); reply[34] = (uint8_t)(p->n_tokens >> 16); reply[35] = (uint8_t)(p->n_tokens >> 24);
+    memcpy(reply.data() + 36, text.data(), text.size());
+    uint8_t rn[24]; ee_random(rn, 24);
+    std::vector<uint8_t> boxed(reply.size(), 0);
+    crypto_box(boxed.data(), reply.data(), (unsigned long long)reply.size(), rn, client_pk, g_box_sk);
+    const size_t olen = 24 + boxed.size() - 16;
+    if (!p->out || p->out_cap < olen) { p->status = -4; set_err(p->error, "out buffer"); return (void *)(intptr_t)-4; }
+    memcpy(p->out, rn, 24); memcpy(p->out + 24, boxed.data() + 16, boxed.size() - 16); p->out_len = olen; p->status = 0;
+    return (void *)1;
 }
 
 /* The binding transcript (windows/vbs/EVIDENCE.md): "enclave-vbs-bind-v1\n" || spki(44) || padKey(32) || nonce(32).

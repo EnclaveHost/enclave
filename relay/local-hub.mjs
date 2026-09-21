@@ -11,6 +11,8 @@ if (!vbs) { console.error('set METAL_VBS_ENCLAVE_MEASUREMENTS (and METAL_VBS_ALL
 const hub = createTunnelHub({ allow: [], attest: { allowedMeasurements: [], requireVcek: false, vbs }, operatorFor: async () => null,
                               onChange: (ev, name) => console.log(`[hub] ${ev} ${name}: ${JSON.stringify(hub.info(name))}`) });
 const server = http.createServer(async (req, res) => {
+  const im = (req.url || '').match(/^\/info\/([^/]+)$/);
+  if (im) { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(hub.info(im[1]))); return; }
   const m = (req.url || '').match(/^\/t\/([^/]+)(\/.*)$/);
   if (!m) { res.end(JSON.stringify({ hub: 'local', tunnels: hub.origins() })); return; }
   const chunks = []; for await (const c of req) chunks.push(c);

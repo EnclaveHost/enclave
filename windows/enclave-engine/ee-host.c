@@ -6,6 +6,7 @@
  *   keys                     -> ok <sign_pk hex> <box_pk hex>
  *   attest <bound hex>       -> ok <challenge hex> <signature hex> <report hex>
  *   gen <n> <prompt hex>     -> ok <text hex> <tokens> <prompt_us> <decode_us> <offloaded> <local> <macs> <verify_fail>
+ *   session <blob hex>       -> ok <blob hex> <tokens> ... (a boxed request, see ee-rt.h; the host never sees the text)
  *   ping                     -> ok
  * It never sees an activation, a pad or a private key: those live in VTL1. */
 #include <winsock2.h>
@@ -20,7 +21,7 @@
 #include "ee-rt.h"
 #pragma comment(lib, "ws2_32.lib")
 
-static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest;
+static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession;
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
 static int g_quiet;
@@ -95,7 +96,7 @@ static int start_enclave(const wchar_t *dll, SIZE_T size, DWORD threads) {
     ENCLAVE_INIT_INFO_VBS ii; ii.Length = sizeof ii; ii.ThreadCount = threads;
     if (!InitializeEnclave(GetCurrentProcess(), g_base, &ii, sizeof ii, &err)) { say("[host] InitializeEnclave failed: enclaveError=0x%08lx lastError=%lu\n", err, GetLastError()); return -4; }
     g_EeInit = GetProcAddress((HMODULE)g_base, "EeInit"); g_EeThread = GetProcAddress((HMODULE)g_base, "EeThread");
-    g_EeLoad = GetProcAddress((HMODULE)g_base, "EeLoad"); g_EeGenerate = GetProcAddress((HMODULE)g_base, "EeGenerate"); g_EeAttest = GetProcAddress((HMODULE)g_base, "EeAttest");
+    g_EeLoad = GetProcAddress((HMODULE)g_base, "EeLoad"); g_EeGenerate = GetProcAddress((HMODULE)g_base, "EeGenerate"); g_EeAttest = GetProcAddress((HMODULE)g_base, "EeAttest"); g_EeSession = GetProcAddress((HMODULE)g_base, "EeSession");
     if (!g_EeInit || !g_EeThread || !g_EeLoad || !g_EeGenerate || !g_EeAttest) { say("[host] exports missing\n"); return -5; }
     return 0;
 }
@@ -114,6 +115,11 @@ static int do_generate(const char *prompt, size_t plen, int n, char *out, size_t
     int st = g->status; if (stats) *stats = *g; if (st) strncpy(err, g->error, 255); free(g); return st;
 }
 
+static int do_session(const uint8_t *in, size_t in_len, uint8_t *out, size_t cap, ee_session_params *stats, char *err) {
+    ee_session_params *g = (ee_session_params *)calloc(1, sizeof *g); g->size = sizeof *g; g->in = in; g->in_len = in_len; g->out = out; g->out_cap = cap;
+    if (call(g_EeSession, g)) { free(g); strcpy(err, "CallEnclave"); return -1; }
+    int st = g->status; if (stats) *stats = *g; if (st) strncpy(err, g->error, 255); free(g); return st;
+}
 /* ---- the loopback server for the agent ---------------------------------------------------- */
 static void serve(int port) {
     SOCKET ls = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)port);
@@ -141,6 +147,12 @@ static void serve(int port) {
                     if (!sp || unhex(bin, sizeof bin, sp + 1, &pl)) strcpy(reply, "err bad request\n");
                     else if (do_generate((const char *)bin, pl, n, outtext, sizeof outtext, &st, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, (const uint8_t *)outtext, (size_t)st.out_len); k += 2 * (size_t)st.out_len;
+                           snprintf(reply + k, sizeof reply - k, " %d %lld %lld %llu %llu %llu %llu\n", st.n_tokens, (long long)st.prompt_us, (long long)st.decode_us, (unsigned long long)st.offloaded, (unsigned long long)st.local, (unsigned long long)st.macs, (unsigned long long)st.verify_fail); }
+                } else if (!strncmp(line, "session ", 8)) {   /* opaque: the host cannot read what it carries */
+                    size_t bl = 0; ee_session_params st; static uint8_t sout[1u << 20];
+                    if (unhex(bin, sizeof bin, line + 8, &bl)) strcpy(reply, "err bad hex\n");
+                    else if (do_session(bin, bl, sout, sizeof sout, &st, err)) snprintf(reply, sizeof reply, "err %s\n", err);
+                    else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, sout, (size_t)st.out_len); k += 2 * (size_t)st.out_len;
                            snprintf(reply + k, sizeof reply - k, " %d %lld %lld %llu %llu %llu %llu\n", st.n_tokens, (long long)st.prompt_us, (long long)st.decode_us, (unsigned long long)st.offloaded, (unsigned long long)st.local, (unsigned long long)st.macs, (unsigned long long)st.verify_fail); }
                 } else if (!strcmp(line, "quit")) { closesocket(c); closesocket(ls); return; }
                 else strcpy(reply, "err unknown command\n");

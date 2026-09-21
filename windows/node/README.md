@@ -94,3 +94,9 @@ session) that starts it.
 Proven on the NucBox K11 (2026-09-21): worker up in 6 s, enclave up in 12 s, TPM ready, a completion
 through the agent = ` Paris. It is the largest city in` with 657 nodes offloaded and 0 verification
 failures, the same text the enclave alone and the Linux reference produce.
+
+`client.mjs <hub url> <name> "<prompt>" [n]` is the sealed-session client: it takes the node's pad key
+from the hub's attested row (`/info/<name>` on `relay/local-hub.mjs`), seals the prompt with
+tweetnacl's crypto_box to it, POSTs the blob to `/t/<name>/v1/session`, and opens the reply; the
+relay, the tunnel and the node's own host never see the text. Proven through the local hub on
+2026-09-21 with the same completions as the plaintext path.
