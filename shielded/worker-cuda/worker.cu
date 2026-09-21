@@ -81,6 +81,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 #include <set>
 #include <string>
 #include <thread>
@@ -1065,6 +1066,81 @@ static inline void ring_st(uint8_t *at, uint64_t v) { _mm_sfence(); __atomic_sto
  * process-wide card survives.
  * ------------------------------------------------------------------------ */
 static std::mutex g_gpu;                 /* one kernel stream at a time */
+
+/* ---------------------------------------------------------------------------
+ * THE SHARE A TENANT PAYS FOR IS A SHARE OF THE CARD'S TIME.
+ *
+ * Every exchange on this worker runs under g_gpu, one tenant at a time, so the
+ * order in which waiting tenants get the mutex IS the compute share. This is a
+ * start-time fair queue over the tenants' GPU time: each link carries a virtual
+ * time vt = (seconds it has held the card) / (its share); when several links
+ * wait, the one with the smallest vt goes next; a link that joins after idling
+ * is lifted to the running tenant's vt, so idle time earns no credit and a burst
+ * that ran alone leaves no debt. With one tenant waiting the card is its
+ * outright: unused capacity is anyone's. The share is the link's HELLO
+ * reservation over the budget (a 4-byte HELLO gets SHIELDED_SHARE_DEFAULT).
+ * Granularity is one exchange, tens of microseconds. SHIELDED_FAIR_SHARE=0
+ * turns it off (plain mutex order) for an A/B.
+ *
+ * What it is not: a fence against the host's own use of the card (queue
+ * priority does that in background mode) or a memory limit (the reservation
+ * ledger is). MPS's fixed SM slice is neither of these things either: it caps
+ * a tenant at its slice even when the card is idle, which this does not.
+ * ------------------------------------------------------------------------ */
+struct GpuTenant {
+    double share = 0.1;                  /* fraction of the card's time this link paid for */
+    double vt = 0;                       /* virtual time: held / share, caught up on re-entry */
+    double gpu_seconds = 0, waited_seconds = 0;
+    unsigned long long turns = 0;
+};
+static bool g_fair_share = true;
+static double g_share_default = 0.1;
+struct GpuScheduler {
+    std::mutex mu; std::condition_variable cv;
+    bool busy = false; double V = 0;     /* the running tenant's vt */
+    struct Waiter { GpuTenant *t; double vt; unsigned long long seq; };
+    std::vector<Waiter> waiters; unsigned long long seq = 0;
+    bool my_turn(unsigned long long my) const {
+        const Waiter *best = nullptr;
+        for (const Waiter &w : waiters) if (!best || w.vt < best->vt || (w.vt == best->vt && w.seq < best->seq)) best = &w;
+        return best && best->seq == my;
+    }
+    void acquire(GpuTenant &t) {
+        std::unique_lock<std::mutex> lk(mu);
+        t.vt = std::max(t.vt, V);
+        if (!busy && waiters.empty()) { busy = true; V = t.vt; return; }
+        const unsigned long long my = ++seq;
+        waiters.push_back({&t, t.vt, my});
+        const auto t0 = std::chrono::steady_clock::now();
+        cv.wait(lk, [&] { return !busy && my_turn(my); });
+        t.waited_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        for (size_t i = 0; i < waiters.size(); i++) if (waiters[i].seq == my) { waiters.erase(waiters.begin() + i); break; }
+        busy = true; V = t.vt;
+    }
+    void release(GpuTenant &t, double held) {
+        std::lock_guard<std::mutex> lk(mu);
+        t.vt += held / (t.share > 0 ? t.share : 1e-3);
+        t.gpu_seconds += held; t.turns++;
+        busy = false;
+        cv.notify_all();
+    }
+};
+static GpuScheduler g_sched;
+/* The card for one exchange: a fair turn, then g_gpu itself. Metered while held. */
+struct GpuTurn {
+    GpuTenant &t; std::unique_lock<std::mutex> lk; std::chrono::steady_clock::time_point t0;
+    GpuTurn(GpuTenant &tenant, long long reserve, long long budget) : t(tenant) {
+        t.share = (reserve > 0 && budget > 0) ? (double)reserve / (double)budget : g_share_default;
+        if (g_fair_share) g_sched.acquire(t);
+        lk = std::unique_lock<std::mutex>(g_gpu);
+        t0 = std::chrono::steady_clock::now();
+    }
+    ~GpuTurn() {
+        const double held = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        lk.unlock();
+        if (g_fair_share) g_sched.release(t, held); else { t.gpu_seconds += held; t.turns++; }
+    }
+};
 static long long g_vram_budget = 0;
 static double g_gmacs = 0.0;
 static std::chrono::steady_clock::time_point g_gmacs_at;
@@ -1212,6 +1288,7 @@ struct Conn {
     std::vector<Node> nodes;
     std::set<std::tuple<uint64_t, uint64_t, uint64_t>> outputs;
     cudaStream_t stream = nullptr;
+    GpuTenant sched;                         /* this link's share of the card's time, and what it used */
     /* Staging for the one-frame exchange. The FIELD_GEMM frame is read straight
      * into pinned memory (h_in), so the planes go to the card with no memcpy;
      * the product is written by the kernel into MAPPED pinned memory (h_out),
@@ -1428,7 +1505,7 @@ struct Conn {
         if (n - 24 != nbytes) VIOLATE("SET_TENSOR declared %llu bytes, frame carries %zu",
                                       (unsigned long long)nbytes, n - 24);
         if (b.dev) {
-            std::lock_guard<std::mutex> lk(g_gpu);
+            GpuTurn turn(sched, reserve, g_vram_budget);   /* the copy is card time too: it is the tenant's turn (takes g_gpu) */
             ck(cudaMemcpy(b.dev + off, p + 24, nbytes, cudaMemcpyHostToDevice), "SET_TENSOR copy");
         } else {
             memcpy(b.host.data() + off, p + 24, nbytes);
@@ -1464,7 +1541,7 @@ struct Conn {
                     (unsigned long long)bid, (unsigned long long)off, (unsigned long long)nbytes);
         std::string out(nbytes, '\0');
         if (b.dev) {
-            std::lock_guard<std::mutex> lk(g_gpu);
+            GpuTurn turn(sched, reserve, g_vram_budget);   /* the readback is card time too */
             ck(cudaMemcpy(&out[0], b.dev + off, nbytes, cudaMemcpyDeviceToHost), "GET_TENSOR copy");
         } else {
             memcpy(&out[0], b.host.data() + off, nbytes);
@@ -1616,7 +1693,7 @@ struct Conn {
         Buffer &xb = buffers[nd.xbid]; Buffer &yb = buffers[nd.ybid];
         const auto t0 = std::chrono::steady_clock::now();
         {
-            std::lock_guard<std::mutex> lk(g_gpu);
+            GpuTurn turn(sched, reserve, g_vram_budget);
             field_gemm_launch(nd.w, (int)nd.K, (int)nd.N, xb.dev + nd.xoff, (int)m,
                               nd.K, (long long)nd.max_m * nd.K,
                               (int32_t *)(yb.dev + nd.yoff), stream);
@@ -1732,7 +1809,7 @@ struct Conn {
         const auto t0 = std::chrono::steady_clock::now();
         XP_BEGIN();
         {
-            std::lock_guard<std::mutex> lk(g_gpu);
+            GpuTurn turn(sched, reserve, g_vram_budget);
             XP_MARK(LOCK_WAIT);
             ensure_dx(xbytes);
             /* The reply staging is rounded up to a word so pack24_kernel's
@@ -1972,8 +2049,9 @@ struct Conn {
         cudaEventDestroy(profile_start); cudaEventDestroy(profile_end); cudaEventDestroy(profile_uploaded);
 #endif
         if (exchanges || recomputes)
-            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync)",
-                 peer.c_str(), (unsigned long long)exchanges, (unsigned long long)ring_exchanges, (unsigned long long)recomputes, gemm_ms);
+            logf("%s closed: %llu exchanges (%llu over the ring), %llu recomputes, %.1f ms worker GEMM elapsed (includes lock/setup/sync); share %.3f: %llu turns, %.1f ms on the card, %.1f ms waiting for it",
+                 peer.c_str(), (unsigned long long)exchanges, (unsigned long long)ring_exchanges, (unsigned long long)recomputes, gemm_ms,
+                 sched.share, sched.turns, sched.gpu_seconds * 1e3, sched.waited_seconds * 1e3);
         if (exchanges)
             logf("%s graph cache: limit=%zu high_water=%zu hits=%llu misses=%llu capacity_flushes=%llu invalidations=%llu capture=%.3f ms (host capture+instantiate, not GPU kernel time)",
                  peer.c_str(), graphs.limit(), graphs.stats.high_water,
@@ -2045,6 +2123,8 @@ static void load_conf_beside_binary(void) {
 
 int main(int argc, char **argv) {
     load_conf_beside_binary();
+    if (const char *e = getenv("SHIELDED_FAIR_SHARE")) g_fair_share = strcmp(e, "0") != 0;
+    if (const char *e = getenv("SHIELDED_SHARE_DEFAULT")) { const double v = atof(e); if (v > 0 && v <= 1) g_share_default = v; }
 #ifdef SH_VULKAN
     vk_init(argv[0]);
     g_sm_count = vk_cu_count();
