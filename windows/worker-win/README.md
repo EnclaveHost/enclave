@@ -22,6 +22,16 @@ and the security-critical source is compiled byte-identical on both platforms.
 If a future change to `worker.cu` needs a POSIX call that is not shimmed, add it
 to `win-compat.h`. Do not add an `#ifdef _WIN32` to `worker.cu`.
 
+## Vulkan, the build that needs no CUDA toolkit (2026-09-20)
+
+`build-vulkan.cmd` builds the same unmodified `worker.cu` against
+`shielded/worker-vulkan/vkdev.cpp` (the CUDA runtime subset on Vulkan) with the kernels as
+SPIR-V, so one Windows binary serves NVIDIA, AMD and Intel cards through the driver's own
+Vulkan loader. Verified on the Radeon 780M: self-test passes, 172 G-MAC/s, listens. The
+compat header grew the GCC spellings and POSIX calls that build needs (`__attribute__`,
+`__builtin_cpu_supports`, the ring's `__atomic_*`, `readlink`, `setenv`, `open`, a
+Winsock-starting `socket()`), still without touching `worker.cu`.
+
 ## How it works
 
 | piece | role |
