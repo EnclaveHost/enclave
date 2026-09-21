@@ -1,0 +1,22 @@
+#version 460
+/* pack24.comp -- int32 products in device memory -> the packed 3-byte reply, whole words. */
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 256) in;
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Ints { int v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) buffer Words { uint v[]; };
+layout(push_constant, std430) uniform PC { uint64_t y; uint64_t o; int E; } pc;
+void main() {
+    const int k = int(gl_GlobalInvocationID.x);
+    const int nw = (3 * pc.E + 3) / 4;
+    if (k >= nw) return;
+    const int a = (4 * k) / 3, b = (4 * k + 3) / 3;
+    const uint va = uint(Ints(pc.y).v[a]), vb = b < pc.E ? uint(Ints(pc.y).v[b]) : 0u;
+    uint w;
+    switch (k % 3) {
+        case 0:  w = (va & 0xffffffu) | (vb << 24); break;
+        case 1:  w = ((va >> 8) & 0xffffu) | (vb << 16); break;
+        default: w = ((va >> 16) & 0xffu) | (vb << 8); break;
+    }
+    Words(pc.o).v[k] = w;
+}

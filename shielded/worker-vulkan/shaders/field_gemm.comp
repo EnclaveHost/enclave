@@ -1,0 +1,228 @@
+#version 460
+/* field_gemm.comp -- the shielded worker's field GEMM, as it runs on every vendor.
+ *
+ * Same contract as field_gemm_kernel in ../worker-cuda/worker.cu: three int8 residue planes of
+ * the masked activations (|x_p| <= 125) against int8 weights (|w| <= 119), exact int32
+ * accumulation (K * 14875 < 2^31 for K < 144k), Garner in int32, balanced output in Z_M with
+ * M = 251 * 241 * 239, written as int32 rows or packed 3-byte values.
+ *
+ * Work-group = 256 invocations = 8 subgroups of 32 (the pipeline demands subgroup size 32):
+ * WR = 4 weight rows per subgroup, G row-groups per block, KS = 8 / G subgroups split K.
+ * Every subgroup-uniform loop bound is uniform by construction so the shuffles below run in
+ * converged control flow on every driver. The node table rides in push constants as device
+ * addresses, which is what the CUDA parameter-space pointer table was. */
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_integer_dot_product : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_control_flow_attributes : require
+
+layout(local_size_x = 256) in;
+/* MR (activation rows per launch, 1..8) and G (row-groups per block: 1, 2, 4, 8) are compile-time:
+ * one SPIR-V module per (MR, G), built with -DMR= -DG=, exactly the CUDA template instantiations. */
+#ifndef MR
+#define MR 1
+#endif
+#ifndef G
+#define G 1
+#endif
+#define WR 4
+#define KS (8 / G)
+#define RB (WR * G)
+#define NV (3 * MR * WR)                                       /* live partial sums per lane */
+/* NVP: NV padded to a chunkable count (power of two up to 32, then multiples of 32); CH: chunk. */
+#if NV > 32
+#define NVP ((((NV) + 31) / 32) * 32)
+#define CH 32
+#elif NV > 16
+#define NVP 32
+#define CH 32
+#elif NV > 8
+#define NVP 16
+#define CH 16
+#elif NV > 4
+#define NVP 8
+#define CH 8
+#elif NV > 2
+#define NVP 4
+#define CH 4
+#elif NV > 1
+#define NVP 2
+#define CH 2
+#else
+#define NVP 1
+#define CH 1
+#endif
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Vec16 { ivec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4)  buffer Words { uint v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4)  buffer Ints  { int v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 1)  buffer Bytes { uint8_t v[]; };
+
+layout(push_constant, std430) uniform PC {
+    uint64_t W[8];       /* (N, K) int8, row-major */
+    uint64_t Y[8];       /* [MR][N] int32, or 3-byte values when pack != 0 */
+    int      N[8];
+    int      blk0[8];    /* first block of each node */
+    uint64_t X;          /* plane 0, row 0 */
+    int      K;
+    int      xs16;       /* row stride, in 16-byte units */
+    int      ps16;       /* plane stride, in 16-byte units */
+    int      n;
+    int      pack;
+} pc;
+
+#define KQ0 251
+#define KQ1 241
+#define KQ2 239
+#define KM  14457349
+#define KINV01  217
+#define KINV012 10
+
+/* GLSL leaves integer % undefined for negative operands (CUDA's is C's truncation), so the residues
+ * go through an explicit truncating division; the result is the same number CUDA computes. */
+int modq(int a, int q) { const int r = a - (a / q) * q; return r < 0 ? r + q : r; }
+int crt3(int a0, int a1, int a2) {
+    const int r0 = modq(a0, KQ0);
+    const int r1 = modq(a1, KQ1);
+    const int r2 = modq(a2, KQ2);
+    int t1 = modq(r1 - r0, KQ1);
+    t1 = (t1 * KINV01) % KQ1;                 /* both operands non-negative here */
+    int x = r0 + KQ0 * t1;
+    int t2 = modq(r2 - x, KQ2);
+    t2 = (t2 * KINV012) % KQ2;
+    x += KQ0 * KQ1 * t2;
+    if (x > KM / 2) x -= KM;
+    return x;
+}
+
+shared int red[8][96];
+shared uint8_t pk[3 * 8 * 32];
+
+/* Fused butterfly over a chunk of C (a power of two <= 32) values starting at OFF: each stage
+ * exchanges half of the live values with the partner lane and halves the live count, so 32
+ * values cost 31 shuffles. Afterwards lane l holds the total of value OFF + l / (32 / C).
+ * Every index is a literal after preprocessing, which keeps acc[] in registers. */
+#define STAGE(OFF, H, O)                                                                      \
+    {                                                                                         \
+        const bool up = (lane & (O)) != 0;                                                    \
+        [[unroll]] for (int i = 0; i < (H); i++) {                                            \
+            const int send = up ? acc[(OFF) + i] : acc[(OFF) + i + (H)];                      \
+            const int keep = up ? acc[(OFF) + i + (H)] : acc[(OFF) + i];                      \
+            acc[(OFF) + i] = keep + subgroupShuffleXor(send, (O));                            \
+        }                                                                                     \
+    }
+#define SINGLE(OFF, O) acc[OFF] += subgroupShuffleXor(acc[OFF], (O));
+#define REDUCE32(OFF) STAGE(OFF, 16, 16) STAGE(OFF, 8, 8) STAGE(OFF, 4, 4) STAGE(OFF, 2, 2) STAGE(OFF, 1, 1)
+#define REDUCE16(OFF) STAGE(OFF, 8, 16) STAGE(OFF, 4, 8) STAGE(OFF, 2, 4) STAGE(OFF, 1, 2) SINGLE(OFF, 1)
+#define REDUCE8(OFF)  STAGE(OFF, 4, 16) STAGE(OFF, 2, 8) STAGE(OFF, 1, 4) SINGLE(OFF, 2) SINGLE(OFF, 1)
+#define REDUCE4(OFF)  STAGE(OFF, 2, 16) STAGE(OFF, 1, 8) SINGLE(OFF, 4) SINGLE(OFF, 2) SINGLE(OFF, 1)
+#define REDUCE2(OFF)  STAGE(OFF, 1, 16) SINGLE(OFF, 8) SINGLE(OFF, 4) SINGLE(OFF, 2) SINGLE(OFF, 1)
+#define REDUCE1(OFF)  SINGLE(OFF, 16) SINGLE(OFF, 8) SINGLE(OFF, 4) SINGLE(OFF, 2) SINGLE(OFF, 1)
+#if CH == 32
+#define REDUCE_FIRST REDUCE32(0)
+#elif CH == 16
+#define REDUCE_FIRST REDUCE16(0)
+#elif CH == 8
+#define REDUCE_FIRST REDUCE8(0)
+#elif CH == 4
+#define REDUCE_FIRST REDUCE4(0)
+#elif CH == 2
+#define REDUCE_FIRST REDUCE2(0)
+#else
+#define REDUCE_FIRST REDUCE1(0)
+#endif
+
+void main() {
+    const int warp = int(gl_SubgroupID), lane = int(gl_SubgroupInvocationID);
+    const int rg = warp / KS, ks = warp - rg * KS;
+    const int blk = int(gl_WorkGroupID.x);
+
+    int ni = 0;
+    [[unroll]] for (int i = 1; i < 8; i++) if (i < pc.n && blk >= pc.blk0[i]) ni = i;
+    uint64_t Wa = pc.W[0], Ya = pc.Y[0]; int N = pc.N[0], blk0 = 0;
+    [[unroll]] for (int i = 1; i < 8; i++) if (ni == i) { Wa = pc.W[i]; Ya = pc.Y[i]; N = pc.N[i]; blk0 = pc.blk0[i]; }
+
+    const int jbase = (blk - blk0) * RB;
+    const int j0 = jbase + rg * WR;
+    const int K16 = pc.K >> 4;
+    Vec16 X = Vec16(pc.X);
+    Vec16 W = Vec16(Wa);
+
+    int acc[NVP];
+    [[unroll]] for (int i = 0; i < NVP; i++) acc[i] = 0;
+
+    /* Row bases in 16-byte units; a row past N is clamped and computed for nothing. */
+    int wrow[WR];
+    [[unroll]] for (int w = 0; w < WR; w++) wrow[w] = min(j0 + w, N - 1) * K16;
+
+    /* Uniform trip count per subgroup: every lane runs the same iterations, loads guarded. */
+    const int start = 32 * ks;
+    const int iters = start < K16 ? (K16 - start + 32 * KS - 1) / (32 * KS) : 0;
+    for (int it = 0; it < iters; it++) {
+        const int k16 = start + lane + it * 32 * KS;
+        const bool live = k16 < K16;
+        ivec4 wv[WR];
+        [[unroll]] for (int w = 0; w < WR; w++) wv[w] = live ? W.v[wrow[w] + k16] : ivec4(0);
+        [[unroll]] for (int p = 0; p < 3; p++)
+            [[unroll]] for (int r = 0; r < MR; r++) {
+                const ivec4 x = live ? X.v[p * pc.ps16 + r * pc.xs16 + k16] : ivec4(0);
+                [[unroll]] for (int w = 0; w < WR; w++) {
+                    int a = acc[(p * MR + r) * WR + w];
+                    a += dotPacked4x8EXT(wv[w].x, x.x); a += dotPacked4x8EXT(wv[w].y, x.y);
+                    a += dotPacked4x8EXT(wv[w].z, x.z); a += dotPacked4x8EXT(wv[w].w, x.w);
+                    acc[(p * MR + r) * WR + w] = a;
+                }
+            }
+    }
+
+    REDUCE_FIRST
+    if (lane % (32 / CH) == 0 && lane / (32 / CH) < NV) red[warp][lane / (32 / CH)] = acc[0];
+#if NVP > 32
+    REDUCE32(32)
+    if (32 + lane < NV) red[warp][32 + lane] = acc[32];
+#endif
+#if NVP > 64
+    REDUCE32(64)
+    if (64 + lane < NV) red[warp][64 + lane] = acc[64];
+#endif
+    barrier();
+
+    /* Epilogue: invocation t -> (activation row r, block row jj); one output each. */
+    const int t = int(gl_LocalInvocationIndex);
+    const int r = t / RB, jj = t - r * RB;
+    const int j = jbase + jj;
+    int v = 0;
+    if (t < MR * RB && j < N) {
+        const int g = jj / WR, w = jj - g * WR;
+        int s0 = 0, s1 = 0, s2 = 0;
+        [[unroll]] for (int k = 0; k < KS; k++) {
+            s0 += red[g * KS + k][(0 * MR + r) * WR + w];
+            s1 += red[g * KS + k][(1 * MR + r) * WR + w];
+            s2 += red[g * KS + k][(2 * MR + r) * WR + w];
+        }
+        v = crt3(s0, s1, s2);
+        if (pc.pack == 0) Ints(Ya).v[r * N + j] = v;
+    }
+    if (pc.pack == 0) return;
+
+    /* Packed 3-byte reply, staged so each row's run leaves as whole aligned words. */
+    if (t < MR * RB) { pk[3 * t] = uint8_t(v & 0xff); pk[3 * t + 1] = uint8_t((v >> 8) & 0xff); pk[3 * t + 2] = uint8_t((v >> 16) & 0xff); }
+    barrier();
+    const int WPR = 3 * RB / 4;
+    const bool full = jbase + RB <= N;
+    for (int q = t; q < MR * WPR; q += 256) {
+        const int rr = q / WPR, ww = q - rr * WPR;
+        const uint64_t row = Ya + uint64_t(3 * (rr * N + jbase));
+        const int src = 3 * rr * RB + 4 * ww;
+        if (full && (row & 3ul) == 0ul) {
+            Words(row).v[ww] = uint(pk[src]) | (uint(pk[src + 1]) << 8) | (uint(pk[src + 2]) << 16) | (uint(pk[src + 3]) << 24);
+        } else {
+            [[unroll]] for (int b = 0; b < 4; b++)
+                if ((4 * ww + b) / 3 + jbase < N) Bytes(row).v[4 * ww + b] = pk[src + b];
+        }
+    }
+}
