@@ -19,7 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
-import { App, fetchArtifact, wasmLayer, appEnv } from "./apprun.mjs";
+import { App, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces } from "./apprun.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -36,13 +36,22 @@ export class Host {
     this.registered = null;                          // the registry entry as last read
     this.chainReady = false; this.lastError = "";
     this.statePath = path.join(cfg.dir, "host-state.json");
-    this.tracked = new Set(this.#loadTracked());
+    const st = this.#loadState();
+    this.tracked = new Set(st.tracked || []);
+    // Work this box GAVE BACK, and why. It survives a restart on purpose: a claim costs gas and a
+    // lease takes a deployment off the market, so a box that has already found out it cannot run
+    // an app must not rediscover that every 30 seconds for as long as the row is on the ledger.
+    // An operator or the console can clear an entry by forcing the claim (/v1/claim-hint force).
+    this.blocked = new Map(Object.entries(st.blocked || {}));
   }
-  #loadTracked() {
-    try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")).tracked || []; } catch { return []; }
+  #loadState() {
+    try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
   }
   #saveTracked() {
-    try { fs.writeFileSync(this.statePath, JSON.stringify({ tracked: [...this.tracked] }, null, 1)); } catch {}
+    try {
+      fs.writeFileSync(this.statePath, JSON.stringify({ tracked: [...this.tracked],
+        blocked: Object.fromEntries(this.blocked) }, null, 1));
+    } catch {}
   }
 
   async init() {
@@ -142,6 +151,16 @@ export class Host {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
+    if (this.blocked.has(id)) {
+      if (!force) {
+        const reason = this.blocked.get(id);
+        this.#record(id, { status: "failed", reason });
+        return { accepted: false, reason };
+      }
+      // Forced: the operator is saying try again (a new version, a fixed runtime, a wiped cache).
+      this.blocked.delete(id); this.#saveTracked();
+      this.log(`unblocking ${id.slice(0, 10)}: a forced claim overrides "${this.records.get(id)?.reason || "an earlier failure"}"`);
+    }
     let d; try { d = await chain.readDeployment(id); } catch (e) { return { accepted: false, reason: `ledger read failed: ${e.shortMessage || e.message}` }; }
     // The catalog version is read BEFORE the policy, not after: two of the policy's answers live
     // in the version config and nowhere else - the publisher's `gpuOptional` (may a card-dialled
@@ -194,7 +213,7 @@ export class Host {
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil), cpuShare: Number(d.cpuMilli) / 1000 });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
-    if (v.yanked) return this.#record(id, { status: "failed", reason: "the catalog version is yanked" });
+    if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
     // The CORELESS floor, which is the only kind this box does: the version's own memMb, raised by
     // the publisher's cpuFallback when they declared one. Sizing a fallback off the card-case
     // figure is how a big model lands on a small slice and dies at weight-load with nothing having
@@ -206,7 +225,13 @@ export class Host {
     catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
     try {
       const layer = wasmLayer(art.path);
-      if (layer !== 1) return this.#record(id, { status: "failed", reason: `the artifact is a core wasm module (layer ${layer}), not a wasi:http component` });
+      if (layer !== 1) return await this.#giveUp(id, `the artifact is a core wasm module (layer ${layer}), not a wasi:http component`);
+      // What the artifact needs from its runtime, checked BEFORE it is launched: an app built
+      // against the platform's patched wasmtime (wasi-nn inference, guest threads) cannot run
+      // here, and finding that out by watching it restart while holding the lease is the worst
+      // of the available orders.
+      const needs = missingHostInterfaces(art.path);
+      if (needs.length) return await this.#giveUp(id, `this box cannot run it: the artifact needs ${needs.join(" and ")}. It runs stock wasmtime 49 and carries no model volume; the enclave's own model is reachable at ENCLAVE_INFERENCE_URL instead, which is a different contract`);
     } catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
     let app = this.apps.get(id);
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
@@ -220,9 +245,18 @@ export class Host {
     }
     if (app.state !== "running") {
       this.#record(id, { status: "provisioning" });
-      try { await app.start(); } catch (e) { return this.#record(id, { status: "failed", reason: `app: ${e.message}` }); }
+      try { await app.start(); }
+      catch (e) {
+        // Three goes, then the lease goes back. A start that keeps failing is not always this
+        // box's fault (a port, a cold cache, a bad artifact), but holding a lease through it
+        // keeps the deployment off every other enclave while its balance drains.
+        const tries = (this.records.get(id)?.startTries || 0) + 1;
+        this.#record(id, { status: "failed", reason: `app: ${e.message}`, startTries: tries });
+        if (tries >= 3) return await this.#giveUp(id, `it would not start after ${tries} tries: ${e.message}`);
+        return this.records.get(id);
+      }
     }
-    return this.#record(id, { status: "running", reason: null, port: app.port });
+    return this.#record(id, { status: "running", reason: null, port: app.port, startTries: 0 });
   }
 
   /**
@@ -276,6 +310,7 @@ export class Host {
     let claimed = 0;
     for (const d of pool) {
       const id = String(d.id).toLowerCase();
+      if (this.blocked.has(id)) continue;                  // already tried, already handed back
       const rec = this.records.get(id);
       if (rec && ["running", "provisioning", "claiming"].includes(rec.status)) continue;
       const ours = String(d.runner || "").toLowerCase() === ourId;
@@ -340,6 +375,30 @@ export class Host {
       if (!app || app.state !== "running") await this.ensureApp(id, d);
     }
   }
+  /**
+   * Give the lease back. The ledger's release() is what puts the deployment in front of the rest
+   * of the fleet again, and this box remembers not to take it a second time. Every caller is a
+   * failure that will not fix itself by waiting, which makes holding the lease the wrong answer:
+   * a tenant whose app cannot run here is better served by a row that reads Queued somewhere else
+   * than by one that reads "running on nucbox-k11" over a restart loop.
+   */
+  async #giveUp(id, why) {
+    const app = this.apps.get(id);
+    if (app) { await app.stop(); this.apps.delete(id); }
+    this.#record(id, { status: "failed", reason: why, port: null });
+    this.blocked.set(id, why);
+    this.tracked.delete(id); this.#saveTracked();
+    this.log(`giving up on ${id.slice(0, 10)}: ${why}`);
+    try {
+      const held = await chain.readDeployment(id).catch(() => null);
+      if (held && String(held.runner || "").toLowerCase() === this.enclaveId.toLowerCase()) {
+        const hash = await chain.releaseDeployment(id);
+        this.log(`released ${id.slice(0, 10)} back to the fleet (tx ${hash})`);
+        this.#record(id, { status: "released", reason: why });
+      }
+    } catch (e) { this.log(`release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`); }
+    return this.records.get(id);
+  }
   async #stopApp(id, why) {
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
@@ -389,8 +448,23 @@ export class Host {
     return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
              ramMbFree: ramMb, cpuGflops: Number(this.cfg.gflops) || 0 };
   }
-  /** Which scope this box claims in: the config's, and "market" unless it was narrowed. */
-  scope() { return this.cfg.claimScope === "owner-only" ? "owner-only" : "market"; }
+  /**
+   * Does an app this box hosts run INSIDE the enclave? Today: no, and that is the gate on
+   * everything below. A VBS enclave has no JIT, no mmap and no Rust std, so `wasmtime serve`
+   * cannot run in VTL1; the app runs in the ordinary Windows session while the enclave holds the
+   * model, the pads and the keys. That is not what this platform sells, so this box does not sell
+   * app hosting: it stays out of the serving set and takes nothing from the market. It flips to
+   * true when the in-enclave runtime lands, and then the row needs no caveat, because there will
+   * not be one to make.
+   */
+  appsInTee() { return this.cfg.appsInTee === true; }
+  /**
+   * Which scope this box claims in. The market is only open when an app runs inside the enclave
+   * (appsInTee): claiming a stranger's deployment onto a runtime the enclave does not cover would
+   * sell them the one thing they came here for and not deliver it. Until then the box runs its
+   * OWNER's apps only, which is the owner's own machine and the owner's own call.
+   */
+  scope() { return this.appsInTee() && this.cfg.claimScope === "market" ? "market" : "owner-only"; }
   /**
    * What this box adds to /availability.
    *
@@ -405,7 +479,10 @@ export class Host {
     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
                      && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
     return {
-      claimEnabled: ready && cap.slotsFree > 0 && cap.cpuShareFree > 0,
+      // Selling app hosting requires the app to run in the enclave (appsInTee, false today). The
+      // rest of `ready` is the ordinary can-it-actually-claim check: apps enabled, an operator key
+      // with gas, a priced registry entry, and somewhere to put the work.
+      claimEnabled: this.appsInTee() && ready && cap.slotsFree > 0 && cap.cpuShareFree > 0,
       // The honest word for what this box is: a seller of SOME of the platform's features. The
       // relay reads it and keeps this box out of the fleet-wide capability ANDs, the sizing floors
       // and the default price, so the flags below can be the plain truth about this box instead of
@@ -478,6 +555,8 @@ export class Host {
     const art = await fetchArtifact({ cid, dir: path.join(this.cfg.dir, "apps"), python: this.cfg.python, gateway: this.cfg.gateway, log: (m) => this.log(m) });
     const layer = wasmLayer(art.path);
     if (layer !== 1) throw new Error(`the artifact is a core wasm module (layer ${layer}), not a wasi:http component`);
+    const needs = missingHostInterfaces(art.path);
+    if (needs.length) throw new Error(`this box cannot run it: the artifact needs ${needs.join(" and ")}`);
     let app = this.apps.get(key);
     if (app) { await app.stop(); this.apps.delete(key); }
     const memMb = Number(v?.memMb) || 512;

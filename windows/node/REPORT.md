@@ -33,14 +33,6 @@ and the fleet row renders it as "1 app on the host, outside the enclave". Every 
 fleet runs apps inside the TEE its quote covers; this one does not, and nothing in the protocol
 would have caught the difference, so the node states it rather than letting the badge imply it.
 
-The site reads that field rather than the tier (`appHostingOf` in site/js/core/pricing.js, keyed on
-an EXPLICIT `inTee: false`, so an older box that never said is never slandered). While the node
-does not claim, the row stays the no-meters one above. The day it advertises `claimEnabled` it
-becomes a full enclave row - CPU pool, available share, price, rating - and carries an amber
-"apps run outside the enclave" callout under its name, above the price, in the site's own
-"what we do not claim" idiom; the same clause rides the deploy and move target labels, since the
-ranking makes the cheapest box on the platform the recommended one.
-
 ## The scope, enforced in code
 
 `chain.mjs claimPolicy` refuses, by name, anything this box cannot honour:

@@ -7,10 +7,10 @@ c-fleet-list{display:contents;}
 /* The row is a grid whose first column is sized by its widest pool badge
    ("TEE CPU", "GPU", or the rare amber "NO TEE CPU"), and each pool lays its
    [label | meter | pct] line on that same grid via subgrid, so the two pools'
-   meters start on one edge whatever their pills say. A rigid label column
+   meters start on one edge whatever their pills say. A fixed label column
    either wastes the width of the widest pill on every row or lets it overflow
    into the meter. */
-.fleet-row{display:grid;grid-template-columns:minmax(0,max-content) minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
+.fleet-row{display:grid;grid-template-columns:max-content minmax(48px,1fr) auto;column-gap:10px;row-gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);}
 .fleet-row>*{grid-column:1/-1;}
 .fleet-row:last-child{border-bottom:0;}
 .fleet-head{display:flex;align-items:center;gap:12px;}
@@ -20,18 +20,6 @@ c-fleet-list{display:contents;}
    one-line statement of what it does, in place of the CPU/GPU grid */
 .fleet-relay-region{font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
 .fleet-relay-note{display:block;margin-top:6px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);}
-
-/* THE APP RESIDENCY CALLOUT (fleet-list.js `honest`). Not a new treatment: it is
-   the site's own honesty idiom, the "what we do not claim" box from the isolation
-   section (.iso-honest, site/index.html), at row density. Amber hairline with the
-   3px left accent, amber-deep tint, a mono uppercase amber label that scans like a
-   badge, and the sentence in sans because prose gets the human typeface - which is
-   also what makes it stand out in a panel of instrument mono. The label carries
-   the state in words, so nothing here rests on the amber alone (WCAG 1.4.1). */
-.fleet-honest{justify-self:start;border:1px solid var(--amber);border-left-width:3px;border-radius:var(--radius-sm);
-  background:linear-gradient(180deg,var(--amber-deep),var(--surface-deep));padding:9px 12px;}   /* hugs its paragraph (78ch) instead of banding the whole row */
-.fleet-honest b{display:block;font-family:var(--font-mono);font-size:.66rem;font-weight:400;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);}
-.fleet-honest p{margin:4px 0 0;max-width:78ch;font-family:var(--font-sans);font-size:.78rem;line-height:1.55;color:var(--text-muted);}
 
 /* one pool = a [label | meter | pct] line on the row's grid (subgrid) with the
    stat cells underneath; the meter flexes so the line fits any aside width, the
@@ -43,19 +31,6 @@ c-fleet-list{display:contents;}
 .fleet-pool-price{grid-column:1;font-size:.66rem;white-space:nowrap;color:var(--text-dim);align-self:start;}
 .fleet-pool-price b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-pool-pct{white-space:nowrap;font-size:.7rem;color:var(--text-dim);}
-/* REFLOW AT 320px. The widest pool badge (the consumer tier's "VBS ENCLAVE (DEV)")
-   beside a 48px meter and a nowrap "60% available" asks for more than a 320px row
-   has, and a grid whose tracks do not fit CLIPS rather than wraps - .fleet-list
-   hides the overflow, so the right edge of the row would simply go missing (WCAG
-   1.4.10). Three things give, in the order that costs the least: the label track is
-   minmax(0,max-content) above, so the badge takes a second line instead of pushing
-   the row; here the meter's floor drops to 28px (it is a picture of a number that
-   is also printed beside it) and the gaps tighten; and the percentage may wrap if
-   it still has to. Nothing is dropped and nothing is cut off. */
-@media (max-width:400px){
-  .fleet-row{grid-template-columns:minmax(0,max-content) minmax(28px,1fr) auto;column-gap:8px;}
-  .fleet-pool-pct{white-space:normal;}
-}
 .fleet-pool-pct b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .fleet-meter{display:block;height:5px;border-radius:999px;background:rgba(47,230,168,.12);overflow:hidden;}   /* track = a faint step of the fill's own jade ramp; meter tracks are true pills */
 .fleet-meter b{display:block;height:100%;background:linear-gradient(90deg,var(--jade),var(--jade-2));border-radius:999px;}

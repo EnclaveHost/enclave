@@ -20,7 +20,7 @@ import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
 import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadToken, putConfig, cpuFallbackOfConfig } from "../core/catalog.js";
-import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger, appHostingOf, APPS_OUTSIDE_TEE } from "../core/pricing.js";
+import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { navigate } from "../boot.js";
 
 /* ---- render: filter + sort the catalog into <c-app-card>s ---- */
@@ -566,12 +566,6 @@ function quickDeploy(app, v, idx){
       // console's renderTargetRow for the same rule
       const optOf = (c, i) => esc(c.name) + " · " + c.spec.nodeVcpus + " vCPU / " + c.spec.nodeRamGb + " GB"
         + (c.mins.gpuPct > 0 ? " · " + c.spec.cardVramGb + " GB card" : "")
-        // A box that hosts apps OUTSIDE its enclave says so here too, not only on the
-        // fleet row. This tier is the cheapest thing on the platform, so the ranking
-        // hands it the "recommended" slot for CPU work, and a label that named only
-        // the hardware would put a buyer one click from host-process isolation
-        // without the word for it. Same clause everywhere (core/pricing).
-        + (appHostingOf(c.row).outsideTee ? " · " + APPS_OUTSIDE_TEE : "")
         + (c.queued ? " · full, queues" : "")
         + (i === 0 ? " · recommended" : "");
       tEl.hidden = false;

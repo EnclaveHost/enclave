@@ -55,7 +55,11 @@ const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
-  claimScope: (process.env.CLAIM_SCOPE || 'market').toLowerCase(),
+  claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
+  // Does a hosted app run INSIDE the VBS enclave? No, until the in-enclave runtime lands: stock
+  // wasmtime needs a JIT, mmap and Rust std, none of which exist in VTL1. While this is false the
+  // box advertises no claimEnabled, sells no app hosting, and runs only its owner's own apps.
+  appsInTee: /^(1|true|yes)$/i.test(String(process.env.APPS_IN_TEE || '')),
   repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
   // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
   // registry row so the chain's view and the relay's attestation verdict can be compared
