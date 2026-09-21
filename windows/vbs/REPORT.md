@@ -429,10 +429,47 @@ carries the transport key fingerprint, the pad key and the measurement `ec1a5e00
 Policy that admitted it: `METAL_VBS_ENCLAVE_MEASUREMENTS=ce450a96a8f32f2bc7a4821583057f4e6cef8ca6a5d742c0af4047fb41d30b3c
 METAL_VBS_ALLOW_TESTSIGNING=1`.
 
-What separates this from **enclave.host itself**: the hosted relay must get relay commit dad54c98
-deployed (relay/deploy.sh) with those two environment keys, and the name registered on chain for
-the operator-signed attach; both are production actions that were not taken here. Sessions are
+**Deployed to enclave.host the same day** (section 12). Sessions are
 sealed end to end (`windows/node/client.mjs` boxes the prompt to the pad key the hub attested and
 opens the enclave's boxed reply; the relay and the node's host carry ciphertext), so the one honest
 limit left is the tier: `vbs-dev` until Artifact Signing replaces the test certificate and Secure
 Boot goes back on.
+
+## 12. Live on enclave.host (2026-09-21)
+
+The production deploy, in the order it was done:
+
+1. **Relay code**: already on `nan` from the push-to-main CD (`relay/**` -> `relay/deploy.sh`), so
+   only policy was missing.
+2. **Policy**: `/etc/nan-relay/api-relay.env` gained
+   `METAL_VBS_ENCLAVE_MEASUREMENTS=ce450a96a8f32f2bc7a4821583057f4e6cef8ca6a5d742c0af4047fb41d30b3c`
+   and `METAL_VBS_ALLOW_TESTSIGNING=1` (backup `api-relay.env.bak-vbs-20260921`), `enclave-api-relay`
+   restarted. The allowlist is the gate: it names this one enclave build (SIGNING.md).
+3. **The node**: scheduled task `EnclaveWindowsNode` on the NucBox, `/sc onstart /ru SYSTEM
+   /rl highest`, running `windows/node/agent.mjs` against `wss://api.enclave.host/v1/fleet-tunnel`
+   as `nucbox-k11`. It survives an unattended reboot and an SSH session ending; Vulkan and the TPM
+   both work from session 0.
+4. **The site**: the fleet list showed nothing, because it lists rows that take on-chain work and a
+   consumer node never can. It now has a row kind of its own (no meters, no price, the vbs-enclave
+   pill, what it hosts and what it offloads to). `teeCpuOf` also stopped believing a node's own
+   `tier` over the relay's recorded one, so a node cannot badge itself out of the development tier.
+
+Verified live, end to end:
+
+| | |
+|---|---|
+| `GET https://api.enclave.host/enclaves` | row `nucbox-k11`, mode vbs, tier `vbs-dev`, teeCpu `windows-vbs-enclave`, device `AMD Radeon 780M Graphics`, `serving:false` |
+| `https://enclave.host/host` (rendered) | `VBS ENCLAVE (DEV) nucbox-k11 hosts qwen2.5-0.5b-q8 · masked offload to AMD Radeon 780M Graphics (2 GiB) · serves its own inference, not app deployments` |
+| `POST /t/nucbox-k11/v1/completions` (plaintext path) | ` Paris. It is the largest city in`, 657 nodes offloaded, 0 verification failures, 10.0 s cold / 1.3 s warm |
+| `node windows/node/client.mjs https://api.enclave.host nucbox-k11 "..."` (sealed) | same text, 1.7 s and 2.1 s; the prompt and the answer are `crypto_box` to the row's attested pad key, so the relay and the node's host carry ciphertext |
+
+`serving:false` is the honest verdict and is deliberate: this node hosts a model inside its
+enclave, not the app shares the fleet meters, and putting it in the serving set would collapse the
+fleet's minimum-spec fields (the metal0 sizing incident). One observed behaviour worth knowing: a
+longer run reported `local: 517` alongside `offloaded: 1746`, which is the pad pool running dry and
+the enclave computing those nodes itself rather than reusing a pad. Correct and confidential, just
+slower.
+
+Still open, in one line each: tier stays `vbs-dev` until Artifact Signing (SIGNING.md) and Secure
+Boot; the name is not registered on chain, so the row carries no on-chain id and the node earns
+nothing; dealt pads are not wired on Windows.

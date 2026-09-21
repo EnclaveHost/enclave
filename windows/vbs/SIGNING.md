@@ -9,7 +9,16 @@ accepts before `LoadEnclaveImageW` will map it into VTL1. Two regimes:
 which the box accepts only because `bcdedit /set testsigning on` and Secure Boot is off. The report's
 `AuthorId` is derived from that certificate; the boot log records `TESTSIGNING = 1`, and the relay
 admits such a node only under `METAL_VBS_ALLOW_TESTSIGNING=1` as tier **vbs-dev** (badge: development,
-unsigned). This is the lab configuration and never the hosted default (relay/vbs-policy.mjs).
+unsigned).
+
+**This is switched on in production today** (2026-09-21, `/etc/nan-relay/api-relay.env` on `nan`),
+because the tier had to be demonstrable before the signing account exists. What limits it is not the
+flag but the allowlist beside it: `METAL_VBS_ENCLAVE_MEASUREMENTS` names exactly one build,
+`ce450a96a8f32f2bc7a4821583057f4e6cef8ca6a5d742c0af4047fb41d30b3c` =
+sha256(FamilyId ‖ ImageId ‖ AuthorId) of our test-signed enclave, so a stranger's test-signed
+enclave computes a different key and is refused. Every such node is badged "vbs enclave (dev)" and
+carries tier `vbs-dev` on its row. **Remove the flag in the same change that lands the steps below**;
+a production-signed build needs no relaxation.
 
 ## Production: Artifact Signing (formerly Trusted Signing), VBS enclave profile
 What REPORT.md section 7 established: the service went GA in January 2026 (US, Canada, EU, UK
