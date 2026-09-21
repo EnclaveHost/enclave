@@ -1,12 +1,16 @@
 // windows/node/host.mjs -- the Windows consumer node's host half: it holds a lease on the ledger
 // and runs that deployment's app, and it answers the platform's host surface over the tunnel.
 //
-// Scope, deliberately narrow (see chain.mjs claimPolicy for the reasons, they are hard ones):
-// OWNER-ONLY and PUBLIC-ONLY. It claims a deployment only when the ledger says its owner is the
-// wallet this box declares as its payout wallet, it is public, it asks for no GPU share, and it
-// carries no option (WAF, secrets, a CID-borne envelope) this box does not enforce. It never
-// advertises claimEnabled, so it stays out of the relay's serving set and cannot collapse a
-// fleet-AND capability flag or the fleet's minimum-spec numbers for everybody else.
+// Scope (see chain.mjs claimPolicy for each refusal and its reason): PUBLIC deployments, on CORES,
+// whose options this box actually enforces, that FIT in what it has left to sell. In the default
+// "market" scope that means any wallet's, which is what being a listed enclave means; CLAIM_SCOPE=
+// owner-only narrows it back to the box owner's own for bring-up.
+//
+// It advertises `claimEnabled: true` (it takes work) with `fullService: false` (it sells a subset
+// of the platform's features). The relay keeps a partial box out of the fleet-AND capability flags,
+// the minimum-spec numbers and the default price, so being listed here cannot take a feature away
+// from another customer or make this box the platform's price - see fullServiceEnclaves() in
+// relay/api-relay.js and test/fleet-partial-capability.test.mjs.
 //
 // The app runs in VTL0 under wasmtime, NOT in the enclave (apprun.mjs says why). The enclave keeps
 // the model; an app's inference goes to it over loopback, so the untrusted card still only ever
@@ -126,13 +130,29 @@ export class Host {
     this.gasRenewals = Number(renews);
   }
 
-  /** Consider a deployment: the policy first, then the chain, then the app. */
-  async consider(id, { force = false } = {}) {
+  /** When this box's registry entry was created: the date its disclosure became visible. */
+  listedAt() { return Number(this.registered?.registeredAt || 0); }
+
+  /**
+   * Consider a deployment: the policy first, then the chain, then the app.
+   * `invited` is the deploy console's target pick arriving as a claim hint that names this box -
+   * the buyer choosing it, which is the consent the policy looks for on an older deployment.
+   */
+  async consider(id, { force = false, invited = false } = {}) {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
     let d; try { d = await chain.readDeployment(id); } catch (e) { return { accepted: false, reason: `ledger read failed: ${e.shortMessage || e.message}` }; }
-    const refuse = chain.claimPolicy(d, { ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId, appsEnabled: this.cfg.appsEnabled });
+    // The catalog version is read BEFORE the policy, not after: two of the policy's answers live
+    // in the version config and nowhere else - the publisher's `gpuOptional` (may a card-dialled
+    // app run on cores) and their `cpuFallback` (how much node RAM it needs when it does). A
+    // catalog read that fails leaves them undeclared, which fails closed in both cases.
+    let v = null;
+    try { v = await chain.resolveAppRef(d.appRef); } catch (e) { this.#record(id, { reason: `catalog: ${e.message}` }); }
+    const refuse = chain.claimPolicy(d, { ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
+                                          appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
+                                          version: v, capacity: this.capacity(),
+                                          listedAt: this.listedAt(), invited: invited || force });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
@@ -140,6 +160,20 @@ export class Host {
     if (!(ours && live)) {
       if (!chain.operatorAddress()) { this.#record(id, { status: "queued", reason: "no operator key on this box: cannot claim", appRef: d.appRef }); return { accepted: false, reason: "no operator key on this box" }; }
       if (!this.registered) { this.#record(id, { status: "queued", reason: "this box is not registered on the ledger yet", appRef: d.appRef }); return { accepted: false, reason: "not registered" }; }
+      // Ask the ledger whether IT would let this box claim, before spending gas finding out. It is
+      // the authority on the two things this box cannot see in a record: whether the deployment's
+      // rate cap covers what this box's registry entry charges, and whether the balance covers a
+      // quantum at that rate. A reverted claim costs nothing but says nothing either, and a tenant
+      // reading "Queued" deserves the reason.
+      try {
+        const ok = await chain.claimableBy(id, this.enclaveId);
+        if (!ok) {
+          const reason = "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no"
+            + ` (this box charges ${this.cfg.cpuPricePerSec6}/sec per whole node, ${Math.round(Number(d.cpuMilli) / 10)}% of it here)`;
+          this.#record(id, { status: "queued", reason, appRef: d.appRef });
+          return { accepted: false, reason };
+        }
+      } catch (e) { this.log(`claimableBy ${id.slice(0, 10)}: ${e.shortMessage || e.message}`); }
       try {
         this.#record(id, { status: "claiming", appRef: d.appRef });
         const hash = await chain.claimDeployment(id, this.enclaveId);
@@ -151,17 +185,22 @@ export class Host {
         this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason };
       }
     }
-    await this.ensureApp(id, d, { force });
+    await this.ensureApp(id, d, { force, version: v });
     return { accepted: true, status: this.records.get(id)?.status || "unknown" };
   }
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
-  async ensureApp(id, d, { force = false } = {}) {
+  async ensureApp(id, d, { force = false, version = null } = {}) {
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil), cpuShare: Number(d.cpuMilli) / 1000 });
-    let v;
-    try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
+    let v = version;
+    if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
     if (v.yanked) return this.#record(id, { status: "failed", reason: "the catalog version is yanked" });
-    this.#record(id, { cid: v.cid, version: v.version, memMb: Number(v.memMb) || 512 });
+    // The CORELESS floor, which is the only kind this box does: the version's own memMb, raised by
+    // the publisher's cpuFallback when they declared one. Sizing a fallback off the card-case
+    // figure is how a big model lands on a small slice and dies at weight-load with nothing having
+    // said no, so the guest's memory cap is the larger number.
+    const floor = chain.nodeFloorOf(v);
+    this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
     let art;
     try { art = await fetchArtifact({ cid: v.cid, dir: path.join(this.cfg.dir, "apps"), python: this.cfg.python, gateway: this.cfg.gateway, log: (m) => this.log(m) }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
@@ -173,7 +212,7 @@ export class Host {
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
     if (!app) {
       const port = this.cfg.portBase + (this.apps.size % 64);
-      const memMb = Number(v.memMb) || 512;
+      const memMb = floor.memMb;
       app = new App({ id, wasmtime: this.cfg.wasmtime, wasmPath: art.path, port, memMb,
                       allowHttp: true, dir: this.cfg.dir, log: (m) => this.log(m),
                       env: appEnv({ config: this.appConfig(d, v), memMb, inferenceUrl: this.cfg.inferenceUrl }) });
@@ -186,12 +225,17 @@ export class Host {
     return this.#record(id, { status: "running", reason: null, port: app.port });
   }
 
-  /** The app's config: the catalog version's, replaced by the deployment's override when it has one. */
+  /**
+   * The app's config: the catalog version's, replaced by the deployment's override when it carries
+   * one. Through the same parser the claim policy used, so the config that reaches the guest is
+   * the one the policy accepted and nothing else - a second, looser reading of the same field is
+   * how a runner ends up honouring an option it told the tenant it had refused.
+   */
   appConfig(d, v) {
-    const env = String(d?.configCid || "").trim();
-    if (env.startsWith("{")) {
-      try { const o = JSON.parse(env); if (o && o.config !== undefined) return JSON.stringify(o.config); } catch {}
-    }
+    try {
+      const opts = chain.parseEnvelope(d?.configCid, d?.gpuMilli);
+      if (opts.config !== undefined) return JSON.stringify(opts.config);
+    } catch { /* the policy already refused it; the version's own config stands */ }
     return String(v?.config || "");
   }
   #record(id, patch) {
@@ -201,23 +245,54 @@ export class Host {
     return rec;
   }
 
-  /** Find the owner's deployments on the ledger and take the ones this box may run. */
+  /**
+   * Read the ledger and take the work this box may run.
+   *
+   * In "market" scope that is any wallet's public, coreless, option-compatible deployment that
+   * fits in what this box has left; in "owner-only" it is the box owner's alone. An unclaimed row
+   * is the platform's Queued state, so this scan IS how a deployment reaches this box - nobody
+   * pushes work at a runner.
+   *
+   * ONE new claim per pass. A claim costs gas and a lease commits capacity, and a scan that took
+   * every row it liked at once would spend both before the first app had proved it starts.
+   */
   async scanLedger() {
     const owner = this.ownerAllow();
-    if (!this.cfg.appsEnabled || !owner || !this.registered || !chain.operatorAddress()) return;
+    const scope = this.scope();
+    if (!this.cfg.appsEnabled || !this.registered || !chain.operatorAddress()) return;
+    if (scope === "owner-only" && !owner) return;
     let rows; try { rows = await chain.allDeployments(); } catch (e) { this.log(`ledger scan failed: ${e.shortMessage || e.message}`); return; }
-    const mine = rows.filter((d) => String(d.owner).toLowerCase() === String(owner).toLowerCase() && d.active);
-    if (mine.length && !this._sawLedger) { this.log(`ledger: ${mine.length} deployment(s) owned by ${owner}`); this._sawLedger = true; }
-    for (const d of mine) {
+    const isOwners = (d) => owner && String(d.owner).toLowerCase() === String(owner).toLowerCase();
+    const pool = rows.filter((d) => d.active && (scope === "market" ? d.isPublic : isOwners(d)));
+    if (pool.length && !this._sawLedger) {
+      this._sawLedger = true;
+      this.log(`ledger: ${pool.length} active deployment(s) in scope (${scope})`);
+    }
+    // Ours first (a lease already held is work in progress), then this box owner's own, then the
+    // market oldest-first: a queue, not a cherry-pick.
+    const ourId = this.enclaveId.toLowerCase();
+    const rank = (d) => (String(d.runner || "").toLowerCase() === ourId ? 0 : isOwners(d) ? 1 : 2);
+    pool.sort((a, b) => rank(a) - rank(b) || Number(a.createdAt) - Number(b.createdAt));
+    let claimed = 0;
+    for (const d of pool) {
       const id = String(d.id).toLowerCase();
       const rec = this.records.get(id);
       if (rec && ["running", "provisioning", "claiming"].includes(rec.status)) continue;
-      const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
+      const ours = String(d.runner || "").toLowerCase() === ourId;
       const live = Number(d.leaseUntil) * 1000 > Date.now();
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
-      const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true });
-      if (refuse) { if (!rec || rec.reason !== refuse) this.#record(id, { status: "refused", reason: refuse, appRef: d.appRef }); continue; }
-      this.log(`ledger: taking ${id.slice(0, 10)} (${d.appRef})`);
+      if (!ours && claimed >= 1) continue;
+      let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
+      const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
+                                            scope, version: v, capacity: this.capacity(), listedAt: this.listedAt() });
+      if (refuse) {
+        // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
+        // the console reads it off /v1/deployments. Only a CHANGE is worth a line.
+        if (!rec || rec.reason !== refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d.appRef }); this.log(`ledger: not taking ${id.slice(0, 10)}: ${refuse}`); }
+        continue;
+      }
+      if (!ours) claimed++;
+      this.log(`ledger: taking ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
       await this.consider(id).catch((e) => this.log(`consider ${id.slice(0, 10)}: ${e.message}`));
     }
   }
@@ -250,8 +325,13 @@ export class Host {
       if (untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
+          // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
+          // an error to retry, it is the deployment's own rate cap or its balance saying "this is
+          // the last quantum". Say when the app goes rather than retrying until it vanishes.
           const msg = e.shortMessage || e.message;
-          this.#record(id, { reason: `renew failed: ${msg}` });
+          const ends = new Date(untilMs).toISOString().replace("T", " ").slice(0, 19);
+          const capped = /cap|balance|fund|rate/i.test(msg);
+          this.#record(id, { reason: capped ? `the lease ends at ${ends} UTC and will not renew: ${msg}` : `renew failed: ${msg}` });
           if (untilMs < Date.now()) { await this.#stopApp(id, `the lease expired and renew failed: ${msg}`); continue; }
         }
       }
@@ -296,20 +376,57 @@ export class Host {
     const used = [...this.records.values()].filter((r) => r.status === "running").reduce((a, r) => a + (r.cpuShare || 0), 0);
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
   }
-  /** What this box adds to /availability. It never claims claimEnabled (see the header). */
+  /**
+   * What this box has left to sell, in the numbers a refusal can be checked against. The reserve
+   * is not slack: the enclave holds the model and its pads in VTL1, the shielded worker feeds the
+   * card, and the owner of the PC is entitled to their own machine.
+   */
+  capacity() {
+    const slots = this.cfg.appSlots ?? 4;
+    const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning");
+    const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
+    const ramMb = Math.max(0, Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25))) - committedMb);
+    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
+             ramMbFree: ramMb, cpuGflops: Number(this.cfg.gflops) || 0 };
+  }
+  /** Which scope this box claims in: the config's, and "market" unless it was narrowed. */
+  scope() { return this.cfg.claimScope === "owner-only" ? "owner-only" : "market"; }
+  /**
+   * What this box adds to /availability.
+   *
+   * claimEnabled is the relay's question "does this box take work", and the answer is yes only
+   * when it actually can: apps enabled, an operator key with gas, a registry entry with a price
+   * and a proof key, and somewhere to put the work. Saying yes while any of those is missing
+   * publishes capacity the platform would then offer and this box would refuse.
+   */
   availability() {
     const running = [...this.apps.values()].filter((a) => a.state === "running").length;
+    const cap = this.capacity();
+    const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
+                     && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
     return {
+      claimEnabled: ready && cap.slotsFree > 0 && cap.cpuShareFree > 0,
+      // The honest word for what this box is: a seller of SOME of the platform's features. The
+      // relay reads it and keeps this box out of the fleet-wide capability ANDs, the sizing floors
+      // and the default price, so the flags below can be the plain truth about this box instead of
+      // a promise the whole fleet has to keep.
+      fullService: false,
+      ...this.features(),
       apps: {
         // Where a hosted app runs, in the one word that matters. The relay's teeCpu describes the
         // enclave that holds the MODEL; an app is a wasm component under wasmtime in VTL0 and the
         // owner of this PC can read its memory. Never report this as a TEE.
         isolation: "host-process", inTee: false, runtime: "wasmtime", world: "wasi:http",
-        scope: "owner-only", public: true, running, capacity: this.cfg.appSlots ?? 4,
+        scope: this.scope(), public: true, running, capacity: cap.slots,
         note: "apps run on the Windows host, not inside the VBS enclave; the enclave holds the model and the pads",
       },
-      claimScope: "owner-only",                 // deliberately NOT claimEnabled: this box takes no work from the market
-      askCpuPricePerSec6: this.cfg.cpuPricePerSec6,
+      claimScope: this.scope(),
+      // The REGISTRY's price, not the config's, when this box is listed: that entry is what the
+      // ledger charges a lease and therefore what a buyer would actually pay. The config value is
+      // only what a fresh box would register itself at.
+      askCpuPricePerSec6: Number(this.registered?.cpuPricePerSec6) || this.cfg.cpuPricePerSec6,
+      askGpuPricePerSec6: 0,                    // no card for sale: this box's GPU serves the enclave's masked inference
+      nodeSlotsFree: cap.slotsFree, ramMbFree: cap.ramMbFree,
       enclaveId: this.enclaveId,
       registered: !!this.registered,
       operator: chain.operatorAddress() || null,
@@ -319,6 +436,33 @@ export class Host {
       ownerWallet: this.ownerAllow(),
     };
   }
+  /**
+   * Exactly which of the platform's deployment features this box implements. The relay AND-folds
+   * these across the full-service fleet; this box is not in that fold (fullService: false), so
+   * these describe THIS box and nothing else. A true here is a promise the claim policy keeps: if
+   * a flag is false, a deployment that needs it is refused by name rather than run without it.
+   */
+  features() {
+    return {
+      // What it does implement.
+      configOverride: true,   // the envelope's `config` namespace: the deployment's app-config replaces the version's (appConfig() below)
+      gpuOptional: true,      // {"gpu":{"optional":true}}: a card-dialled deployment may run here on cores instead of queueing for a card
+      cpuFallback: true,      // a version config's cpuFallback ({memMb, cpuGflops}) raises the node floor this box demands of a coreless placement (chain.nodeFloorOf)
+      networkOptions: true,   // the envelope's `network` namespace is understood and not refused; the choice itself is consumed at the DNS layer, as it is on every runner
+      rateCap: true,          // it prices a claim off its own registry entry, asks the ledger first (claimableBy) and treats a cap-blocked renew as "stop at lease end"
+      proofOfTime: true,      // it signs EIP-712 checkpoints from the proof key in its registry entry; /v1/attestation says where that key lives, which on this box is the Windows host
+      // What it does not, each one a refusal in chain.claimPolicy rather than a silent gap.
+      waf: false,             // no per-IP rate limit and no request filter: a deployment carrying {"waf":…} is refused
+      secrets: false, secretsInConfig: false,   // it fetches and injects no relay-stored secrets
+      configCid: false, configCidOverride: false,   // it fetches no pinned config, so the rev-7 split is refused
+      configEdit: false, shareResize: false,    // a live edit or resize lands on-chain and applies at re-claim, not in place
+      customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>
+      devDeploy: false,       // pending catalog versions stay refused, public or not
+      p3: false, set: false, coopThreads: false, mem64: false,   // stock wasmtime: no SET spawn, no cooperative threads, and p3/memory64 untested here
+      volumes: [],            // no attested model volumes: the one model on this box is the enclave's own
+    };
+  }
+
   /**
    * Run an app by catalog reference or CID with NO lease behind it. This is a bring-up and proof
    * path for the box's owner, reachable only on the loopback surface (agent.mjs never routes it

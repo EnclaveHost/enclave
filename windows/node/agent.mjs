@@ -46,18 +46,26 @@ const TPMATTEST_EXE = process.env.TPMATTEST_EXE || path.join(DIR, 'tpmattest.exe
 const PUBLIC_URL = process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
 // Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
-// wasmtime, in VTL0. Owner-only and public-only; see host.mjs and chain.mjs claimPolicy.
+// wasmtime, in VTL0. With APPS off it reports no claimEnabled at all and the relay keeps it out of
+// the serving set, which is the honest reading: a box hosting nothing sells nothing.
+// CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
+// CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
-  cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 1),
+  cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
+  claimScope: (process.env.CLAIM_SCOPE || 'market').toLowerCase(),
   repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
   // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
   // registry row so the chain's view and the relay's attestation verdict can be compared
   measurement: process.env.ENCLAVE_MEASUREMENT || '0x0000000000000000000000000000000000000000000000000000000000000000',
   vcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
   ramGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
+  // the fleet's convention for a node's compute (metal gsup.mjs): 62.5 GFLOPS a vCPU
+  gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
+  // what stays with the enclave, the shielded worker and the owner of the PC, never sold
+  reservedShare: Number(process.env.RESERVED_SHARE || 0.25),
   wasmtime: process.env.WASMTIME_BIN || path.join(DIR, 'wasmtime.exe'),
   python: process.env.PYTHON_BIN || 'python',
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
@@ -233,7 +241,12 @@ async function handle(frame) {
   // when a row reads queued). The policy in chain.mjs decides; a refusal names its reason.
   if (APPS && method === 'POST' && p === '/v1/claim-hint') {
     let b = {}; try { b = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch {}
-    const r = await host.consider(b.id, { force: b.force === true });
+    // A hint that NAMES this box is the deploy console's target pick: the relay sends it only
+    // here (api-relay.js /v1/claim-hint), so it is the buyer choosing this enclave, which is the
+    // consent chain.claimPolicy looks for before taking an older deployment onto a box whose apps
+    // run outside the TEE. A blanket fan-out hint carries no name and grants nothing.
+    const invited = String(b.enclave || '').trim().toLowerCase() === NAME;
+    const r = await host.consider(b.id, { force: b.force === true, invited });
     return json(r.accepted ? 200 : 409, r);
   }
   // The relay asks HEAD /x/<id> of every box to find which one owns a deployment: any status

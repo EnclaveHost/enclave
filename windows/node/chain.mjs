@@ -2,18 +2,24 @@
 // the box addressable, and the lease it holds for a deployment it runs.
 //
 // Deliberately NARROWER than the fleet supervisor's (the platform's /app/supervisor.js). This box
-// is OWNER-ONLY: it claims a deployment only when that deployment's owner is the wallet the box
-// declares as its payout wallet, and it refuses anything carrying an option it cannot honour. Two
-// reasons, both hard rules rather than preferences:
+// sells a SUBSET of the platform, and the two halves of that sentence are both load-bearing:
 //
-//  1. The relay ANDs capability flags across the SERVING set (api-relay.js: waf, configOverride,
-//     configEdit, shareResize, cpuFallback, gpuOptional, networkOptions, secrets are each
-//     `serving.every(...)`). A box that joins that set without implementing a feature turns the
-//     feature off for every customer on the platform. So this box does not advertise
-//     claimEnabled, stays out of servingEnclaves(), and takes no work from the market.
-//  2. A tenant's deployment may carry a WAF, an app-config override or relay-staged secrets. This
-//     box enforces none of those yet. Running such a deployment anyway would silently drop the
-//     protection the owner paid for, so the policy below refuses it by name instead.
+//  1. It SELLS. It advertises claimEnabled, so it is in the relay's serving set, and in the
+//     default "market" scope it claims any wallet's public deployment it can honour. Being listed
+//     with capacity and a price is what makes it an enclave rather than a box on a shelf.
+//  2. A SUBSET. The relay ANDs capability flags across the serving set (waf, configOverride,
+//     configEdit, shareResize, cpuFallback, gpuOptional, networkOptions, secrets are each an
+//     `every(...)`), and it takes the fleet's sizing floors and default price the same way. A box
+//     that joined that fold without implementing a feature would turn the feature off for every
+//     customer on the platform. So this box publishes `fullService: false`, which the relay reads
+//     to compute those fleet-wide numbers over the full-service boxes only (fullServiceEnclaves()
+//     in relay/api-relay.js, test/fleet-partial-capability.test.mjs), and then says plainly in
+//     host.mjs features() which of the platform's options it does and does not implement.
+//
+// A tenant's deployment may carry a WAF, relay-staged secrets or a CID-borne config. This box
+// enforces none of those. Running such a deployment anyway would silently drop the protection the
+// owner paid for, so claimPolicy below refuses it BY NAME, and the same parser that refused it is
+// the one that later feeds the guest its config.
 //
 // What it still does, in full: register (EnclaveRegistry.register), heartbeat, claim / renew /
 // release (EnclaveDeployments), and resolve a deployment's catalog version to the artifact CID.
@@ -184,31 +190,160 @@ export async function resolveAppRef(appRef) {
   return { appId: m[1], index: Number(m[2]), ...v };
 }
 
+// ---- what a version's config declares -------------------------------------------------------
+// Mirrored from the platform runner (supervisor.js gpuOptionalOfConfig / cpuFallbackOfConfig),
+// bounds included, because a box that reads these keys DIFFERENTLY from the rest of the fleet is
+// worse than one that does not read them at all: the same app would clear a floor here and fail
+// there with nothing having said no.
+const CATALOG_MAX_MB = 1048576;          // 1 TB, EnclaveAppCatalog's own MAX_MB
+const CATALOG_MAX_GFLOPS = 10000000;     // 10,000 TFLOPS, its MAX_GFLOPS
+/** The publisher saying this version's card specs are what it WOULD use, not what it needs. */
+export function gpuOptionalOfConfig(cfg) {
+  try { return JSON.parse(String(cfg || "{}") || "{}").gpuOptional === true; } catch { return false; }
+}
+/** The publisher's CPU-fallback sizing: what the app needs from a NODE with no card under it. */
+export function cpuFallbackOfConfig(cfg) {
+  let f;
+  try { f = JSON.parse(String(cfg || "{}") || "{}").cpuFallback; } catch { return null; }
+  if (!f || Array.isArray(f) || typeof f !== "object") return null;
+  const num = (x, max) => { const n = Number(x); return Number.isFinite(n) && n >= 0 && n <= max ? n : 0; };
+  const memMb = num(f.memMb, CATALOG_MAX_MB), cpuGflops = num(f.cpuGflops, CATALOG_MAX_GFLOPS);
+  return (memMb || cpuGflops) ? { memMb, cpuGflops } : null;
+}
+/**
+ * The node floor a CORELESS placement of this version demands: the on-chain axes, RAISED by the
+ * publisher's cpuFallback when they declared one. One-directional, like the runner's: a fallback
+ * smaller than the card case describes something no app does, and taking the smaller figure would
+ * under-size the exact placement the key exists for. This box has no card to sell, so every
+ * placement it takes is the coreless case.
+ */
+export function nodeFloorOf(v) {
+  const fb = cpuFallbackOfConfig(v && v.config);
+  return {
+    memMb: Math.max(Number(v && v.memMb) || 0, (fb && fb.memMb) || 0) || 512,
+    cpuGflops: Math.max(Number(v && v.cpuGflops) || 0, (fb && fb.cpuGflops) || 0),
+    fromFallback: !!(fb && (fb.memMb > (Number(v && v.memMb) || 0) || fb.cpuGflops > (Number(v && v.cpuGflops) || 0))),
+  };
+}
+
+/**
+ * The deployment-options envelope, as much of it as this box implements. Returns the parsed
+ * options, or throws with the reason. FAIL-CLOSED, like the platform runner's: an option is never
+ * silently dropped, because every one of them is something a tenant paid for or relied on.
+ *
+ * Known here: `config` (the inline app-config override), `gpu` ({"optional":true}) and `network`
+ * ({"relay":"<name>"}, consumed at the DNS layer, nothing for a runner to do but not refuse it).
+ * NOT known here: `waf` (this box enforces no per-IP rate limit or filter) and `configCid` (it
+ * fetches no pinned config). Both are refused by name.
+ */
+export function parseEnvelope(raw, gpuMilli) {
+  const s = String(raw || "").trim();
+  if (!s) return {};
+  if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope (catalog rev 7 large configs); this node fetches no pinned config");
+  let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
+  if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
+  const known = ["config", "gpu", "network"];
+  const unknown = Object.keys(o).filter((k) => !known.includes(k));
+  if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
+  const opts = {};
+  if ("gpu" in o) {
+    const g = o.gpu;
+    if (!g || Array.isArray(g) || typeof g !== "object") throw new Error('gpu must be a JSON object like {"optional":true}');
+    const bad = Object.keys(g).filter((k) => k !== "optional");
+    if (bad.length) throw new Error(`unknown gpu option ${JSON.stringify(bad[0])} (this node knows: optional)`);
+    if ("optional" in g) {
+      if (typeof g.optional !== "boolean") throw new Error("gpu.optional must be true or false");
+      if (g.optional && gpuMilli != null && Number(gpuMilli) <= 0)
+        throw new Error("gpu.optional applies only to a deployment that bought GPU share (this one is 0% GPU, so it already runs anywhere)");
+      opts.gpuOptional = g.optional;
+    }
+  }
+  if ("network" in o) {
+    const n = o.network;
+    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error('network must be a JSON object like {"relay":"us-west"}');
+    const bad = Object.keys(n).filter((k) => k !== "relay");
+    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])} (this node knows: relay)`);
+    if ("relay" in n) {
+      const r = n.relay;
+      if (r === null || r === "") opts.relay = "";
+      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
+        throw new Error('network.relay must be a relay name: lowercase letters, digits and dashes (or "" for the fleet default)');
+      else opts.relay = r;
+    }
+  }
+  if ("config" in o) {
+    const c = o.config;
+    if (!c || Array.isArray(c) || typeof c !== "object") throw new Error("config must be a JSON object: the app-config this deployment overrides the version's with");
+    opts.config = c;
+  }
+  return opts;
+}
+
 /**
  * May this box run this deployment? Returns null to accept, or the reason to refuse.
- * Every branch is a thing this box does NOT implement; the alternative to refusing is running a
- * tenant's app with a protection they paid for silently missing.
+ * Every branch is a thing this box does NOT implement or cannot fit; the alternative to refusing
+ * is running a tenant's app with a protection they paid for silently missing, or taking a lease
+ * this box then cannot honour.
+ *
+ * SCOPE. "market" (the default once this box advertises claimEnabled) takes any wallet's public
+ * deployment it can honour, which is what being listed as a serving enclave means. "owner-only"
+ * is the bring-up scope and still reachable (CLAIM_SCOPE=owner-only), for an operator who wants
+ * the box on the ledger without selling to strangers.
+ *
+ * CONSENT, and this is the one rule here with no counterpart on a platform box. Every other
+ * enclave in the fleet runs a tenant's app INSIDE the TEE its row badges. This one cannot: a VBS
+ * enclave holds the model and the keys, and the app runs beside it in VTL0 where the owner of the
+ * PC can read it. That is published on /availability (apps.inTee: false) and stated on the fleet
+ * row, so a buyer who picks this box now has been told. A deployment created BEFORE this box was
+ * listed was not: claiming it would move somebody's app out of a TEE and restart their billing
+ * with nothing having asked. So a stranger's older deployment is refused unless they point at
+ * this box themselves - the deploy console's target pick, which arrives here as a claim hint
+ * naming this enclave (`invited`). Their own owner's deployments are always in scope, and
+ * anything created while this box has been listed is a deployment made in sight of the row.
  */
-export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true }) {
+export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
+                                 version = null, capacity = null, listedAt = 0, invited = false } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
-  const owner = String(d.owner || "").toLowerCase();
-  if (!ownerAllow) return "this node hosts only its owner's deployments and no owner wallet is declared";
-  if (owner !== String(ownerAllow).toLowerCase())
-    return `this node hosts only deployments owned by ${ownerAllow} (this one is owned by ${d.owner})`;
+  const owners = !!ownerAllow && String(d.owner || "").toLowerCase() === String(ownerAllow).toLowerCase();
+  if (scope === "owner-only") {
+    if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
+    if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
+  } else if (!owners && !invited && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
+    return "it was created before this box was listed, and an app here runs on the Windows host rather than inside the enclave"
+         + " (this row says so, /availability reports apps.inTee false). Pick this enclave in the deploy console, or redeploy,"
+         + " and it will run here";
+  }
   if (!d.isPublic)
     return "it is a private deployment, whose access control is a session token this node does not verify yet";
-  if (Number(d.gpuMilli) > 0)
-    return "the deployment asks for a share of a card; this node's card is reserved for masked inference and sells no GPU share";
-  if (d.runner && String(d.runner) !== enclaveId && Number(d.leaseUntil) * 1000 > Date.now())
+  if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
+      && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
-  const env = String(d.configCid || "").trim();
-  if (env) {
-    if (!env.startsWith("{")) return "its options ride at a CID (catalog rev 7 large configs), which this node does not fetch yet";
-    let o; try { o = JSON.parse(env); } catch { return "its options envelope is not readable JSON"; }
-    const unsupported = Object.keys(o).filter((k) => !["config", "ports", "appPort"].includes(k));
-    if (unsupported.length) return `its options envelope carries ${unsupported.join(", ")}, which this node does not enforce`;
+  // The card. This box's GPU is the enclave's: it serves masked inference for the model in VTL1
+  // and sells no share of itself. A GPU-dialled deployment may still land here, but only when
+  // somebody with the standing to say so has said the card is soft - the OWNER through the
+  // envelope's {"gpu":{"optional":true}}, or the PUBLISHER through the version's gpuOptional. The
+  // ledger charges the cpu half only, because this box posts no GPU price.
+  let opts;
+  try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (Number(d.gpuMilli) > 0 && !(opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config)))
+    return "it bought a share of a card, and this box's card is reserved for the enclave's masked inference; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
+  // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
+  // worse than one it declines: the tenant's funding is tied up against an app that thrashes.
+  if (capacity) {
+    const want = Number(d.cpuMilli) / 1000;
+    if (capacity.slotsFree != null && capacity.slotsFree <= 0)
+      return `this box is running its ${capacity.slots} app slots already`;
+    if (want > (capacity.cpuShareFree ?? 0) + 1e-9)
+      return `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
+    if (version && capacity.ramMbFree != null) {
+      const floor = nodeFloorOf(version);
+      if (floor.memMb > capacity.ramMbFree)
+        return `the version needs ${floor.memMb} MB of node RAM${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and this box has ${capacity.ramMbFree} MB left`;
+      if (capacity.cpuGflops != null && floor.cpuGflops > capacity.cpuGflops * want + 1e-9)
+        return `the version needs ${floor.cpuGflops} GFLOPS${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and ${Math.round(want * 100)}% of this box is ${Math.round(capacity.cpuGflops * want)}`;
+    }
   }
   return null;
 }
