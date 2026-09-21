@@ -389,3 +389,46 @@ minting, 0.7 % of the path's measured CPU; at the 15 tok/s target it would be 73
 LPN's best batched factor (1.2x) removes 8 core-ms of 6641 per token; even the unbatched 3.6x removes 35.
 The phone is in the same regime the report finds the CVM tier to be in -- the uniform path's bytes fall
 as 1/B and the gather's do not -- and it arrived there by batching, exactly as the report predicts.
+
+## The ceiling does not belong to the accelerator (2026-09-21)
+
+With the correction off the critical path the exchange decomposes cleanly, and the largest term is no
+longer anything the TPU does. On the 1-row helper run: link 4.604 ms, of which 0.056 is posting the
+correction and 2.366 is the worker's own measured time. The remaining **2.18 ms is the pVM-to-host
+round trip itself** -- two thread wakes and two SWIOTLB bounce copies, which a protected VM requires.
+
+At 140 exchanges per token that is **305 ms of link per token, a 3.3 tok/s ceiling with a FREE
+accelerator and zero VM work.** 15 tok/s would need 0.476 ms per round trip, 4.6x better than measured.
+
+Substituting a different accelerator does not move it. The new Vulkan worker (`shielded/worker-vulkan`)
+measures a per-submit floor of **198 us on an integrated GPU** against this TPU's 637 us per invocation
+-- 3.4x better, and a phone GPU is the same kind of part, sharing LPDDR with the CPU:
+
+| worker | per-invocation floor | exchange | 35 blocks |
+|---|---|---|---|
+| Pixel TPU, LiteRT | 0.637 ms | 3.12 ms | 2.29 tok/s |
+| iGPU-class, Vulkan | 0.198 ms | 2.68 ms | 2.67 tok/s |
+| a perfect, instant accelerator | 0 | 2.48 ms | **2.88 tok/s** |
+
+So the masked architecture caps near 3 tok/s on a 35-block model whatever computes the GEMMs, because
+the cost is the 140 round trips, not the silicon. Three ways out, and all three are now closed or
+external:
+
+1. **Fewer round trips.** Blocked by what a mask survives: RMSNorm deferral is verified, GELU-gating and
+   attention are not, so four exchanges per block is irreducible. Merging needs the intermediate masked
+   INSIDE the call, and this chip saturates rather than wraps, so only a bounded pad is possible -- the
+   leak modular lanes were introduced to remove.
+2. **A faster link.** It is SWIOTLB bounce traffic between a protected VM and the host; 43 MB/s at 24 KB
+   is what a protected VM's transport does here. Spinning to skip the wake measured WORSE (there is no
+   spare core), and boosting the worker moved the worker without moving the link.
+3. **The accelerator INSIDE the pVM** -- one whole-graph invocation, no masking, no link. Google's own
+   NPU lane does 25.2 tok/s on this exact model and phone, so the hardware reaches the bar comfortably.
+
+Route 3 needs an EL2 reset handler, and this is now verified against the QPR2 kernel source, not just
+6.6: `ack-a16-6.12/arch/arm64/kvm/hyp/nvhe/device/device.c` has `/* Reset is mandatory. */ if
+(!dev->reset_handler) return -ENODEV;` with no default, and `pkvm_device_register_reset` is exposed only
+through `modules.c`'s EL2 module ops table. EL2 modules load from `kvm-arm.protected_modules=` in the
+boot image. **So the QPR2 kernel gate opening does not open this path on a locked phone** -- it still
+needs a Google-signed EL2 reset handler for the TPU, which exists for no Tensor, including Pixel 11. We
+have built one (`pkvm_tpu_da.ko`); it cannot be loaded without unlocking, and unlocking turns
+`verifiedbootstate` yellow, which is the signal a tenant checks.
