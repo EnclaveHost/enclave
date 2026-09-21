@@ -80,3 +80,11 @@ test("nnShieldedMaxM reaches the engine as SHIELDED_MAX_M, opt-in, bounded 1..64
   assert.equal(m[1], "1"); assert.equal(m[2], "64");
   assert.match(backend, /sh_env_int\("SHIELDED_MAX_M", 8\)/, "the backend must read SHIELDED_MAX_M with default 8");
 });
+
+test("a shielded tenant without nnThreads gets decode threads that leave room for the refill", () => {
+  // 8 compute + 8 refill threads on 8 cores decoded the 27B at 2.1 tok/s; 4 + 4 at 5.7 (2026-09-20).
+  const m = manager.match(/if nt is None and env\.get\("SHIELDED_CALIB"\):[\s\S]*?refill = rt if rt is not None else max\(1, par \/\/ 2\)[\s\S]*?nt = max\(2, par - refill\)/);
+  assert.ok(m, "the manager must default a shielded tenant's decode threads to the vCPUs the refill leaves");
+  assert.match(manager, /if ntb is None:\n\s+ntb = par/, "prefill keeps every vCPU when nnThreadsBatch is unset");
+});
+

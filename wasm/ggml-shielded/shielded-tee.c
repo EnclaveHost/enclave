@@ -481,7 +481,7 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     pthread_cond_init(&l->pool_filled, &filled_attr);
     pthread_condattr_destroy(&filled_attr);
     l->threads_env  = env_int("SHIELDED_REFILL_THREADS", -1, 0, 64);
-    l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", -1, -1, 4096);   /* -1: 4 x the widest max_m, at least 16 */
+    l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", -1, -1, 4096);   /* -1: 4 x the widest max_m, within [16, 32] */
     l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
@@ -892,16 +892,31 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
     int best_low = -1;
     double best_score = -1;
     *deficit = 0;
+    /* The refill unit is min(B, 8) pads, not the whole batch B. A group with
+     * fewer than that coming is LOW and refilled at once with whatever fits;
+     * a group missing at least that many is topped up (b = min(deficit, B))
+     * even though it is not low. B <= 8 is exactly the old rule. With the
+     * batch raised to 64 for prefill on the card (SHIELDED_REFILL_BATCH=64:
+     * one weight pass per 64 pads instead of per 4) the old rule made every
+     * group with a 64-deep pool permanently low, so each token's single
+     * missing pad was minted alone, one weight pass per pad, on every refill
+     * thread at once: decode fell from 7.3 to 4.1 tok/s. Waiting for a WHOLE
+     * batch instead (an earlier fix) starved prefill: each 64-row chunk found
+     * the pool short and minted the shortfall on the request thread, 81 s
+     * against 25 s for a 492-token prompt. Eight-at-a-time keeps both: decode
+     * refills in 8-row passes, prefill finds the pool topped up. (27B,
+     * 2026-09-21.) */
+    const int unit = B < 8 ? B : 8;
     for (size_t i = 0; i < l->n_groups; i++) {
         sh_group *c = &l->groups[i];
         const int d = group_deficit(c);
         if (d <= 0) continue;
         const int coming = c->count + c->generating;
-        if (coming < B) {
+        if (coming < unit) {
             if (best_low < 0 || coming < best_low) {
                 best = c; *deficit = d; best_low = coming;
             }
-        } else if (best_low < 0 && d >= B) {
+        } else if (best_low < 0 && d >= unit) {
             double score = (double)d;
             if (l->refill_cost_priority) score *= (double)c->K * (double)c->u_len;
             if (score > best_score) {
@@ -1397,8 +1412,20 @@ static int start_pools(sh_link *l) {
         /* A batched step takes m pads from a group at once, and the pool is
          * refilled between steps: a depth below ~4m starves it (bench-batch at
          * m=8 with the old fixed 16: hundreds of on-path refills). Sized from
-         * what the graph may ask for; SHIELDED_POOL_DEPTH overrides. */
-        g->depth = l->pool_depth > 0 ? l->pool_depth : (g->max_m * 4 > 16 ? g->max_m * 4 : 16);
+         * what the graph may ask for, but CAPPED at 32 (never below max_m): max_m is the widest
+         * batch the link accepts, and with prefill on the card (max_m 64)
+         * the 4m rule made 256 pads per group -- 10 GB of pads on a 27B and
+         * a refill that never idles, which cost 22% of decode (7.31 -> 5.67
+         * tok/s, 2026-09-20). A prefill wider than the pool fills the rest on
+         * the request path, in batches, which the measurement shows is cheap
+         * (0.5 s of a 1 s 17-row prefill). SHIELDED_POOL_DEPTH overrides. */
+        {
+            int want = g->max_m * 4;
+            if (want < 16) want = 16;
+            if (want > 32) want = 32;
+            if (want < g->max_m) want = g->max_m;     /* never narrower than the widest exchange */
+            g->depth = l->pool_depth > 0 ? l->pool_depth : want;
+        }
         g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
         g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
         g->ready   = (uint8_t *)calloc((size_t)g->depth, 1);

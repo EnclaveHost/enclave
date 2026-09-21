@@ -1450,3 +1450,175 @@ placed tenants, at 75-93 tok/s from outside. The same restart carried the
 platform certificate service: both app names on the box were issued through
 it (ZeroSSL under the platform account, keys minted in the CVM) at 08:58 UTC,
 after ZeroSSL's own slowness cost a cool-off round.
+
+## 14. The 27B on the host loopback: every lever, measured (2026-09-20)
+
+Setup: Qwen3.8-27B UD-Q4_K_XL, the two V100s as workers over TCP loopback (one
+link each; 10.5 and 11.1 GB of int8 field encoding on the cards), the production
+engine drop (`enclave-llamacpp-linux-x64-gpu`, ddd4ec14) driven by `bench-spec`
+with a warm-up so the link is open before anything is timed,
+`ENCLAVE_GGML_EXTRA_BUFTS=0`, the q4 vl calibration (262 sites), EPYC 9115, 8
+engine threads unless stated, 64 generated tokens per phase, one prompt. Plain =
+greedy decode; spec = MTP self-drafting with k drafts per round and greedy accept,
+the text asserted identical to plain. Decode was identical across all runs (one
+text), so any difference between rows is cost, not content. The box carried
+other work during two stretches (a game at ~4.6 cores, then another session's
+calibration at 1-3.6 cores, then a fair-share test whose own worker took card 1
+alongside mine); every run records the load it saw, the interleaved pairs were
+re-run once the box was quiet, and two runs that lost a card link (a 30 GB
+reservation refused while the other worker held part of card 1, and one CUDA
+context loss on card 2 with a shared MPS server) are excluded rather than
+averaged in.
+
+### 14.1 What a token is made of
+
+| term | per plain token | how measured |
+|---|---|---|
+| whole token | 133-137 ms (7.3-7.5 tok/s) | bench-spec, clean runs |
+| exchanges | 125 (m = 1), 0.19-0.25 ms each on TCP loopback | profile |
+| of which card time | ~20 ms | worker's own timer, ~0.13 ms per exchange |
+| wire wait beyond the card | ~35 ms | profile `wire` minus card |
+| mask, unmask + Freivalds, outlier term + descale, encode | ~20 ms | profile |
+| everything else: the CPU backend and the scheduler | ~60 ms | remainder |
+| CPU actually busy | ~1.3 cores | per-thread sampling |
+
+The "everything else" is not compute. `GGML_SCHED_DEBUG` shows the decode graph is
+**534 splits with 1550 CPU-side ops per token** (321 MUL, 209 RMS_NORM, 194
+GET_ROWS, 176 ADD, 170 small MUL_MATs, 96 SILU, 64 SIGMOID, 64 SWIGLU, 48 each of
+CONCAT, SSM_CONV, SOFTPLUS and GATED_DELTA_NET), each dispatched to an 8-thread
+OpenMP team; the process runs at 1.3 cores while doing it. The token is a chain of
+waits, on the wire and on barriers, which is why the levers that move it are the
+ones that remove waits or rows, and why more threads make it slower.
+
+For scale, the same engine with no card: 3.36 tok/s on 8 threads, 4.91 on 16
+(prefill 9.6 tok/s on 8). Shielded is 2.2x the enclave's own CPU at 8 threads. The
+unmasked CUDA baseline could not be run here (the drop's `libggml-cuda.so` needs a
+cuBLAS the box does not have); the research archive's direct 27B Q8 on one V100 is
+27.6 tok/s.
+
+### 14.2 The levers, one at a time
+
+Plain / speculative tok/s, k = 1 unless stated, clean runs (queue 2 and the
+re-runs after the game stopped). Baseline = `SHIELDED_MAX_M=64` with the pool
+capped at 32.
+
+| lever | plain | spec | verdict |
+|---|---|---|---|
+| baseline | 7.31-7.53 | 7.90-8.42 | |
+| pool depth 256 (what `MAX_M=64` derived before the cap) | 5.67 | 7.37 | **-22%: the refill never idles. Fixed (cap).** |
+| draft k = 1 / 2 / 3 / 4 / 5 / 7 | - | 8.4 / 7.7 / 7.2 / 5.6 / 5.4 / 4.6 | **k = 1 is +12%**; every extra verify row costs ~60-75 ms |
+| 16 threads | 5.51-5.79 | 6.33-6.81 | worse: 16 + 8 refill on 16 cores |
+| 4 threads | 6.94 | 7.51 | worse on an unconstrained box |
+| 2 threads | 6.07 | 6.32 | worse |
+| refill threads 2 / 4 / 8 / 16 | 5.55 / 7.57 / 7.31 / 7.21 | 5.52 / 8.28 / 8.42 / 8.20 | 2 starves (on-path refill); 4 is enough |
+| `SHIELDED_OVERLAP_VERIFY=1` | 7.03-7.36 | 7.76-7.94 | neutral |
+| `SHIELDED_SPIN_US` 300 / 2000 | 7.31 / 6.95-7.33 | 8.28 / 8.22-8.37 | +0-6% on spec, not repeatable |
+| `GOMP_SPINCOUNT` 0 / 1000000 | 6.64 / 7.07-7.40 | 7.98 / 8.12-8.45 | 0 costs 9%; 1M neutral to +7% |
+| `SHIELDED_FUSE_LOCAL=1` | 4.12-6.59 | 7.07-7.17 | neutral to worse |
+| row pool (per-row work on 4 threads, scratch build) | 6.5-6.8 | 7.1-7.5, verify/round unchanged | no gain: the per-row cost is not in those loops |
+| 8 cores, 8 compute + 8 refill threads | 1.97-2.14 | 2.05 | oversubscribed: the spinning threads starve the chain |
+| 8 cores, 4 + 4 | 5.74-6.70 | 6.49-7.49 | **3.4x over 8 + 8** |
+
+Three things in that table matter for production. The pool-depth rule was a bug:
+`nnShieldedMaxM: 64` (needed for prefill on the card) made the derived pool 256
+pads per group, ~10 GB of pads on the 27B, and the refill threads streamed the
+weights continuously against the decode. Drafting pays at k = 1 only, because a
+verify row costs a fixed ~60-75 ms of CPU-side work and acceptance drops with
+depth. And the CVM's thread count: the engine defaults to every vCPU and the
+refill takes half of them on top, which is the 8 + 8 row; the manager now defaults
+a shielded tenant's decode threads to what the refill leaves.
+
+### 14.3 Prefill on the card is refill-bound, and a wide refill batch fixes it
+
+492-token prompt, prefill timed with the link open and the graphs captured:
+
+| prefill (8 threads) | 492 tokens | decode after it, plain / spec k=1 |
+|---|---|---|
+| in the enclave (`MAX_M=8`) | 51.5 s (9.6 tok/s) | 7.4 / - |
+| on the card, refill batch 4 (the default) | 114.3 s | 7.2 / 8.3 |
+| on the card, refill batch 16, pool 64 | 40.5 s | 8.6 / 8.8 |
+| on the card, refill batch 64, pool 64, old refill rule | 23.5-25.2 s (20 tok/s) | **4.0-4.1** / 6.5-6.6 |
+| on the card, refill batch 64, pool 64, refill-unit rule | 27.1-30.9 s | **8.1** / 9.4 |
+
+The 16-thread prefill variants ran under another session's load and are not
+reported. Decode with the 64-row batch and the refill-unit rule is also faster
+than the default on a short prompt, 8.55 / 10.04 against 7.3-7.5 / 8.4-8.6,
+because the refill now streams the weights once per 8 pads instead of once
+per 4 (old rule with the same batch: 3.96 / 5.38).
+
+Why it was slower than the CPU: every prefill ROW takes its own one-time pad per
+group, and the refill mints 4 pads per pass over the weights, so 492 rows are
+~120 weight passes per card (266 s of on-path refill in the profile, 174k pads
+missed). The CPU prefill streams the weights once per 64 rows. The refill kernel
+already takes up to 64 rows per pass (`refill_rows_blocked`), so
+`SHIELDED_REFILL_BATCH=64` cuts the pad cost 16x and on-card prefill becomes 2.2x
+faster than CPU prefill. But the same batch size wrecked decode afterwards: the
+pool logic called a group "low" whenever fewer than a batch was ready, so with a
+64-batch every group was always low and each token's single missing pad was
+minted alone, one weight pass per pad, on all the refill threads at once. The
+first fix tried here (top up only when a whole batch is missing) starved prefill
+instead: each 64-row chunk found the pool short and minted the shortfall on the
+request thread, 81 s against 25 s. The rule that keeps both is a refill UNIT of
+min(batch, 8): a group with fewer than 8 pads coming is refilled at once, one
+missing at least 8 is topped up with whatever is missing, and B <= 8 is exactly
+the old behaviour. That is the second code change.
+
+### 14.4 The rows question
+
+The per-row cost that caps drafting (~60-75 ms per extra verify row) is neither the
+shielded backend's per-row loops (the row pool parallelised mask, unmask +
+Freivalds, outlier term and descale over 4 threads and the verify round did not
+move) nor the card (the worker's card time per exchange barely changes with m). The
+CPU-only engine shows the same ~65 ms per extra row, where it is the
+compute-bound q4_K matmul; on the shielded path the matmuls are on the card, so
+what remains per row is the CPU backend's own per-token ops (the recurrent
+gated-delta-net update is sequential per token) and the per-split dispatch. That
+is an engine-side cost, upstream of this backend.
+
+### 14.5 Applied, recommended, and not applied
+
+Two runs were lost to the environment and are excluded: one verification failure
+on card 0 and one CUDA context loss on card 1 ("unspecified launch failure") while
+another session's worker shared card 1 through the same MPS server; neither
+recurred in the 20 runs after that worker's reservation was accommodated, and
+decode was byte-identical across every completed run.
+
+Applied in this repo (measured here, tests green):
+
+1. `shielded-tee.c`: the derived pool depth is capped at 32 (never below the
+   widest exchange); `SHIELDED_POOL_DEPTH` still overrides. +29% decode with
+   `MAX_M=64`, and 10 GB less pad RAM on the 27B.
+2. `shielded-tee.c`: the refill unit is min(batch, 8) pads. A group is low
+   below that and topped up above it, so a 64-row refill batch serves prefill
+   (27-31 s against 51.5 s on the CPU) without turning decode into single-pad
+   weight passes (8.1 tok/s after the prefill against 4.0). Batches of 8 or
+   less behave exactly as before. Three k = 3 and two k = 1 runs on the final
+   build: 7.3-7.5 plain, 7.9-8.0 spec, text identical, no verification failure.
+3. `wasm_manager.py`: a shielded tenant with no `nnThreads` gets decode threads =
+   vCPUs minus refill threads (at least 2), prefill threads = all vCPUs.
+
+Recommended deployment config for the 27B (all existing keys):
+`draft_tokens: 2` with `nnRsSeq: 2` (k = 1 drafting, +12%); `nnShieldedRefillThreads: 4`;
+`nnShieldedMaxM: 64`, `nnShieldedRefillBatch: 64`, `nnShieldedPoolDepth: 64` and the
+app's `prefill_chunk: 64`, which together give prefill on the card at 2x the CPU and
+decode at 8.5 / 10.0 tok/s on the loopback, once the refill-unit build is deployed
+(with today's build the same keys halve decode); `nnOmpSpinCount` left at its default. `SHIELDED_SPIN_US=2000` through
+`tenantEnv` is worth one A/B in the CVM, where the wire is 0.45 ms per exchange
+against 0.2 here; it was not repeatable on the loopback.
+
+Not applied, with the measurement that closed each:
+
+- Freivalds overlap on the ring path: the socket-path knob is neutral here (the
+  RHS is ~2 ms per token); the ring gate stays as it is.
+- int32 instead of int64 through unmask, outlier term and descale: those terms
+  are ~6 ms per token in total; the ceiling is ~3%.
+- Column-parallel weights across the two cards: card time is ~20 ms of 137; the
+  ceiling is ~10% for a placement and verification redesign.
+- Local residual/norm islands (`SHIELDED_FUSE_LOCAL`): neutral to worse.
+- The row pool: no gain, discarded.
+- LPN-structured pads (`shielded/lpn/REPORT.md`): refill is off the critical path
+  and 4 threads suffice; pad generation is not what this tier is waiting on.
+- Dealt pads: not deployable from here (the relay routes are Steven's manual
+  step). The prefill result is their strongest argument: minted pads make
+  on-card prefill cost a weight pass per 64 rows even with the wide batch, and
+  dealt pads would make it cost nothing.
