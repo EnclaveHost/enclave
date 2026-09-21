@@ -24,7 +24,7 @@
 static PFN_vkGetInstanceProcAddr gipa;
 #define VKFN(name) static PFN_##name name;
 #define VK_INSTANCE_FNS(X) X(vkEnumeratePhysicalDevices) X(vkGetPhysicalDeviceProperties2) X(vkGetPhysicalDeviceFeatures2) \
-  X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkGetPhysicalDeviceMemoryProperties) X(vkGetPhysicalDeviceMemoryProperties2) \
+  X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkGetPhysicalDeviceQueueFamilyProperties2) X(vkGetPhysicalDeviceMemoryProperties) X(vkGetPhysicalDeviceMemoryProperties2) \
   X(vkEnumerateDeviceExtensionProperties) X(vkCreateDevice) X(vkGetDeviceProcAddr)
 #define VK_DEVICE_FNS(X) X(vkGetDeviceQueue) X(vkCreateBuffer) X(vkDestroyBuffer) X(vkGetBufferMemoryRequirements) \
   X(vkAllocateMemory) X(vkFreeMemory) X(vkBindBufferMemory) X(vkMapMemory) X(vkUnmapMemory) X(vkGetBufferDeviceAddress) \
@@ -48,7 +48,14 @@ struct Dev {
     VkInstance inst = VK_NULL_HANDLE; VkPhysicalDevice phys = VK_NULL_HANDLE; VkDevice dev = VK_NULL_HANDLE; VkQueue queue = VK_NULL_HANDLE; uint32_t qf = 0;
     VkPhysicalDeviceMemoryProperties mem{}; std::string name; int cus = 32; size_t total_local = 0; bool budget_ext = false;
     bool spin = false; std::mutex queue_mu;
+    bool prio_khr = false, prio_ext = false, prio_query = false; std::string prio_name = "default", prio_offered = "?";
 } D;
+/* Queue global priority (VK_KHR_global_priority, else VK_EXT_global_priority). The rented queue runs LOW by
+ * default so the node owner's own applications win the card whenever they contend; SHIELDED_VK_PRIORITY
+ * = low|medium|high|realtime|none overrides. A priority the driver refuses (NOT_PERMITTED for high and
+ * realtime without privilege) falls back to the default queue with a note, never a failed start. */
+static const char *prio_str(VkQueueGlobalPriority p) { return p == VK_QUEUE_GLOBAL_PRIORITY_LOW ? "low" : p == VK_QUEUE_GLOBAL_PRIORITY_MEDIUM ? "medium" : p == VK_QUEUE_GLOBAL_PRIORITY_HIGH ? "high" : p == VK_QUEUE_GLOBAL_PRIORITY_REALTIME ? "realtime" : "?"; }
+
 
 static uint32_t mem_type(uint32_t bits, VkMemoryPropertyFlags want, VkMemoryPropertyFlags avoid = 0) {
     for (uint32_t i = 0; i < D.mem.memoryTypeCount; i++)
@@ -290,7 +297,8 @@ void vk_init(const char *argv0) {
     /* SM / CU count where a vendor extension says; the planner's threshold. */
     uint32_t next = 0; vkEnumerateDeviceExtensionProperties(D.phys, nullptr, &next, nullptr); std::vector<VkExtensionProperties> ext(next); vkEnumerateDeviceExtensionProperties(D.phys, nullptr, &next, ext.data());
     bool has_nv_sm = false, has_amd_core = false;
-    for (auto &e : ext) { if (!strcmp(e.extensionName, "VK_NV_shader_sm_builtins")) has_nv_sm = true; if (!strcmp(e.extensionName, "VK_AMD_shader_core_properties")) has_amd_core = true; if (!strcmp(e.extensionName, "VK_EXT_memory_budget")) D.budget_ext = true; }
+    for (auto &e : ext) { if (!strcmp(e.extensionName, "VK_NV_shader_sm_builtins")) has_nv_sm = true; if (!strcmp(e.extensionName, "VK_AMD_shader_core_properties")) has_amd_core = true; if (!strcmp(e.extensionName, "VK_EXT_memory_budget")) D.budget_ext = true;
+                         if (!strcmp(e.extensionName, "VK_KHR_global_priority")) D.prio_khr = true; if (!strcmp(e.extensionName, "VK_EXT_global_priority")) D.prio_ext = true; if (!strcmp(e.extensionName, "VK_EXT_global_priority_query")) D.prio_query = true; }
     if (has_nv_sm) { VkPhysicalDeviceShaderSMBuiltinsPropertiesNV sm{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_PROPERTIES_NV}; VkPhysicalDeviceProperties2 q{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2}; q.pNext = &sm; vkGetPhysicalDeviceProperties2(D.phys, &q); if (sm.shaderSMCount) D.cus = (int)sm.shaderSMCount; }
     else if (has_amd_core) { VkPhysicalDeviceShaderCorePropertiesAMD cp{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD}; VkPhysicalDeviceProperties2 q{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2}; q.pNext = &cp; vkGetPhysicalDeviceProperties2(D.phys, &q); const int n = (int)(cp.shaderEngineCount * cp.shaderArraysPerEngineCount * cp.computeUnitsPerShaderArray); if (n) D.cus = n; }
     if (getenv("SHIELDED_VK_CUS")) D.cus = atoi(getenv("SHIELDED_VK_CUS"));
@@ -303,13 +311,38 @@ void vk_init(const char *argv0) {
     D.qf = UINT32_MAX;
     for (uint32_t i = 0; i < nq; i++) if ((qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) && !(qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { D.qf = i; break; }
     if (D.qf == UINT32_MAX) for (uint32_t i = 0; i < nq; i++) if (qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) { D.qf = i; break; }
+    /* what the family offers (informational: NVIDIA lists only medium yet accepts low) */
+    if (D.prio_khr || D.prio_query) {
+        std::vector<VkQueueFamilyGlobalPriorityProperties> gp(nq); std::vector<VkQueueFamilyProperties2> qp2(nq);
+        for (uint32_t i = 0; i < nq; i++) { gp[i] = VkQueueFamilyGlobalPriorityProperties{VK_STRUCTURE_TYPE_QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES}; qp2[i] = VkQueueFamilyProperties2{VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2}; qp2[i].pNext = &gp[i]; }
+        vkGetPhysicalDeviceQueueFamilyProperties2(D.phys, &nq, qp2.data());
+        D.prio_offered.clear(); for (uint32_t k = 0; k < gp[D.qf].priorityCount; k++) { if (k) D.prio_offered += ","; D.prio_offered += prio_str(gp[D.qf].priorities[k]); }
+    }
+    VkQueueGlobalPriority want_prio = VK_QUEUE_GLOBAL_PRIORITY_LOW;
+    if (const char *e = getenv("SHIELDED_VK_PRIORITY")) {
+        if (!strcmp(e, "low")) want_prio = VK_QUEUE_GLOBAL_PRIORITY_LOW; else if (!strcmp(e, "medium")) want_prio = VK_QUEUE_GLOBAL_PRIORITY_MEDIUM;
+        else if (!strcmp(e, "high")) want_prio = VK_QUEUE_GLOBAL_PRIORITY_HIGH; else if (!strcmp(e, "realtime")) want_prio = VK_QUEUE_GLOBAL_PRIORITY_REALTIME;
+        else if (!strcmp(e, "none") || !strcmp(e, "default") || !*e) want_prio = (VkQueueGlobalPriority)0;
+        else { fprintf(stderr, "[shielded-worker] vulkan: SHIELDED_VK_PRIORITY=%s is not low|medium|high|realtime|none; using low\n", e); }
+    }
+    if (want_prio && !D.prio_khr && !D.prio_ext) { fprintf(stderr, "[shielded-worker] vulkan: no global-priority extension on this device; the rented queue runs at the default priority\n"); want_prio = (VkQueueGlobalPriority)0; }
     float prio = 1.0f; VkDeviceQueueCreateInfo qci{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}; qci.queueFamilyIndex = D.qf; qci.queueCount = 1; qci.pQueuePriorities = &prio;
+    VkDeviceQueueGlobalPriorityCreateInfo gpi{VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO};
     VkPhysicalDeviceVulkan13Features e13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES}; e13.shaderIntegerDotProduct = 1; e13.subgroupSizeControl = 1; e13.computeFullSubgroups = 1;
     VkPhysicalDeviceVulkan12Features e12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES}; e12.pNext = &e13; e12.bufferDeviceAddress = 1; e12.storageBuffer8BitAccess = 1; e12.shaderInt8 = 1;
     VkPhysicalDeviceFeatures2 e2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2}; e2.pNext = &e12; e2.features.shaderInt64 = 1;
-    const char *exts[2]; uint32_t ne = 0; if (D.budget_ext) exts[ne++] = "VK_EXT_memory_budget";
-    VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO}; dci.pNext = &e2; dci.queueCreateInfoCount = 1; dci.pQueueCreateInfos = &qci; dci.enabledExtensionCount = ne; dci.ppEnabledExtensionNames = exts;
-    if (vkCreateDevice(D.phys, &dci, nullptr, &D.dev) != VK_SUCCESS) fatal("vkCreateDevice");
+    const char *exts[4]; uint32_t ne = 0; if (D.budget_ext) exts[ne++] = "VK_EXT_memory_budget";
+    VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO}; dci.pNext = &e2; dci.queueCreateInfoCount = 1; dci.pQueueCreateInfos = &qci; dci.ppEnabledExtensionNames = exts;
+    VkResult cr = VK_ERROR_UNKNOWN;
+    if (want_prio) {
+        const uint32_t ne0 = ne; exts[ne++] = D.prio_khr ? "VK_KHR_global_priority" : "VK_EXT_global_priority";
+        gpi.globalPriority = want_prio; qci.pNext = &gpi; dci.enabledExtensionCount = ne;
+        cr = vkCreateDevice(D.phys, &dci, nullptr, &D.dev);
+        if (cr == VK_SUCCESS) D.prio_name = prio_str(want_prio);
+        else { fprintf(stderr, "[shielded-worker] vulkan: the driver refused a %s-priority queue (%d%s); the rented queue runs at the default priority\n", prio_str(want_prio), (int)cr, cr == VK_ERROR_NOT_PERMITTED ? ", NOT_PERMITTED: needs privilege" : ""); qci.pNext = nullptr; ne = ne0; }
+    }
+    if (cr != VK_SUCCESS) { dci.enabledExtensionCount = ne; if (vkCreateDevice(D.phys, &dci, nullptr, &D.dev) != VK_SUCCESS) fatal("vkCreateDevice"); }
+    fprintf(stderr, "[shielded-worker] vulkan: %s, queue family %u at global priority %s (family offers %s)\n", D.name.c_str(), D.qf, D.prio_name.c_str(), D.prio_offered.c_str());
 #define LOADD(n) n = (PFN_##n)vkGetDeviceProcAddr(D.dev, #n); if (!n) fatal("missing " #n);
     VK_DEVICE_FNS(LOADD)
     vkGetDeviceQueue(D.dev, D.qf, 0, &D.queue);
@@ -338,6 +371,7 @@ void vk_init(const char *argv0) {
         g_gemm[mr][g] = make_pipeline(g_shader_dir + "/field_gemm_mr" + std::to_string(mr) + "_g" + std::to_string(g) + ".spv", g_layout, true);
     g_pack = make_pipeline(g_shader_dir + "/pack24.spv", g_layout_pack, false);
 }
+const char *vk_queue_priority() { return D.prio_name.c_str(); }
 const char *vk_device_name() { return D.name.c_str(); }
 int vk_cu_count() { return D.cus; }
 

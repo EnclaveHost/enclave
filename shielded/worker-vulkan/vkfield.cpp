@@ -7,6 +7,16 @@
  * shaders/, buffers are addressed by device address so there are no descriptor sets at all.
  *
  *   vkfield [--device N] [--cus N] [--shaders DIR] [--no-selftest] [--iters N]
+ *           [--priority low|medium|high|realtime] [--gpu-class idle|below|normal|above|high|realtime]
+ *           [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N]]
+ *
+ * --priority creates the queue with VK_KHR/EXT_global_priority (the worker runs LOW so the
+ * owner's own applications win the card when they contend). --flood saturates the card and
+ * prints its rate each second; --frames is the stand-in for the owner's game: a fixed amount of
+ * GPU work per frame at --fps, frame times reported. Run one of each on the same card, in two
+ * processes, to see what a priority does. --gpu-class (Windows only) sets the process's WDDM
+ * scheduling priority class (D3DKMTSetProcessSchedulingPriorityClass), which covers every context
+ * the process creates, before the device exists.
  */
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
@@ -18,6 +28,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <thread>
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -32,8 +43,8 @@ extern "C" {
 static PFN_vkGetInstanceProcAddr gipa;
 #define VKFN(name) static PFN_##name name;
 #define VK_INSTANCE_FNS(X) X(vkEnumeratePhysicalDevices) X(vkGetPhysicalDeviceProperties2) \
-  X(vkGetPhysicalDeviceFeatures2) X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkGetPhysicalDeviceMemoryProperties) \
-  X(vkCreateDevice) X(vkGetDeviceProcAddr)
+  X(vkGetPhysicalDeviceFeatures2) X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkGetPhysicalDeviceQueueFamilyProperties2) \
+  X(vkGetPhysicalDeviceMemoryProperties) X(vkEnumerateDeviceExtensionProperties) X(vkCreateDevice) X(vkGetDeviceProcAddr)
 #define VK_DEVICE_FNS(X) X(vkGetFenceStatus) X(vkGetDeviceQueue) X(vkCreateBuffer) X(vkDestroyBuffer) X(vkGetBufferMemoryRequirements) \
   X(vkAllocateMemory) X(vkFreeMemory) X(vkBindBufferMemory) X(vkMapMemory) X(vkUnmapMemory) X(vkGetBufferDeviceAddress) \
   X(vkCreateShaderModule) X(vkDestroyShaderModule) X(vkCreatePipelineLayout) X(vkCreateComputePipelines) X(vkDestroyPipeline) \
@@ -57,14 +68,43 @@ static void load_loader() {
     vkCreateInstance = (PFN_vkCreateInstance)gipa(nullptr, "vkCreateInstance");
 }
 
+/* ---- Windows: the process's GPU scheduling priority class (WDDM scheduler) ---------------- */
+static std::string g_gpu_class;
+static void set_gpu_class(const char *s) {
+    const int cls = !strcmp(s, "idle") ? 0 : !strcmp(s, "below") ? 1 : !strcmp(s, "normal") ? 2 : !strcmp(s, "above") ? 3 : !strcmp(s, "high") ? 4 : !strcmp(s, "realtime") ? 5 : -1;
+    if (cls < 0) die("--gpu-class idle|below|normal|above|high|realtime", 2);
+#ifdef _WIN32
+    HMODULE g = LoadLibraryA("gdi32.dll"); if (!g) die("gdi32.dll");
+    typedef LONG (WINAPI *SetFn)(HANDLE, int); typedef LONG (WINAPI *GetFn)(HANDLE, int *);
+    SetFn setf = (SetFn)GetProcAddress(g, "D3DKMTSetProcessSchedulingPriorityClass"); GetFn getf = (GetFn)GetProcAddress(g, "D3DKMTGetProcessSchedulingPriorityClass");
+    if (!setf) die("gdi32 does not export D3DKMTSetProcessSchedulingPriorityClass", 75);
+    int before = -1, after = -1; if (getf) getf(GetCurrentProcess(), &before);
+    const LONG st = setf(GetCurrentProcess(), cls); if (getf) getf(GetCurrentProcess(), &after);
+    printf("[vkfield] GPU scheduling priority class %s (%d): status 0x%lx, class %d -> %d\n", s, cls, (unsigned long)st, before, after);
+    if (st != 0) die("the scheduling class was refused", 75);
+    g_gpu_class = s;
+#else
+    fprintf(stderr, "vkfield: --gpu-class is a Windows (WDDM) setting; ignored here\n");
+#endif
+}
+
 /* ---- device ------------------------------------------------------------------------------ */
 struct Dev {
     VkInstance inst; VkPhysicalDevice phys; VkDevice dev; VkQueue queue; uint32_t qf;
     VkPhysicalDeviceMemoryProperties mem; VkCommandPool pool; VkFence fence; VkCommandBuffer cb;
     std::string name; uint32_t subgroup_min, subgroup_max; bool dot_accel;
+    std::string prio_name = "default"; std::string prio_offered;
 } D;
+/* ---- queue global priority (VK_KHR_global_priority, else VK_EXT_global_priority [+ _query]) ---- */
+static const char *prio_str(VkQueueGlobalPriority p) { return p == VK_QUEUE_GLOBAL_PRIORITY_LOW ? "low" : p == VK_QUEUE_GLOBAL_PRIORITY_MEDIUM ? "medium" : p == VK_QUEUE_GLOBAL_PRIORITY_HIGH ? "high" : p == VK_QUEUE_GLOBAL_PRIORITY_REALTIME ? "realtime" : "?"; }
+static VkQueueGlobalPriority prio_parse(const char *s) {
+    if (!strcmp(s, "low")) return VK_QUEUE_GLOBAL_PRIORITY_LOW; if (!strcmp(s, "medium")) return VK_QUEUE_GLOBAL_PRIORITY_MEDIUM;
+    if (!strcmp(s, "high")) return VK_QUEUE_GLOBAL_PRIORITY_HIGH; if (!strcmp(s, "realtime")) return VK_QUEUE_GLOBAL_PRIORITY_REALTIME;
+    return (VkQueueGlobalPriority)0;
+}
 
-static void init_device(int want) {
+
+static void init_device(int want, VkQueueGlobalPriority prio, bool gfx_queue) {
     VkApplicationInfo ai{VK_STRUCTURE_TYPE_APPLICATION_INFO}; ai.pApplicationName = "vkfield"; ai.apiVersion = VK_API_VERSION_1_3;
     VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO}; ici.pApplicationInfo = &ai;
     ck(vkCreateInstance(&ici, nullptr, &D.inst), "vkCreateInstance");
@@ -93,14 +133,32 @@ static void init_device(int want) {
     uint32_t nq = 0; vkGetPhysicalDeviceQueueFamilyProperties(D.phys, &nq, nullptr);
     std::vector<VkQueueFamilyProperties> qp(nq); vkGetPhysicalDeviceQueueFamilyProperties(D.phys, &nq, qp.data());
     D.qf = UINT32_MAX;
-    for (uint32_t i = 0; i < nq; i++) if ((qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) && !(qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { D.qf = i; break; }
+    if (gfx_queue) { for (uint32_t i = 0; i < nq; i++) if ((qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) && (qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { D.qf = i; break; } }
+    else for (uint32_t i = 0; i < nq; i++) if ((qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) && !(qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { D.qf = i; break; }
     if (D.qf == UINT32_MAX) for (uint32_t i = 0; i < nq; i++) if (qp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) { D.qf = i; break; }
-    float prio = 1.0f; VkDeviceQueueCreateInfo qci{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}; qci.queueFamilyIndex = D.qf; qci.queueCount = 1; qci.pQueuePriorities = &prio;
+    /* global priority: which extension, and what the family offers */
+    uint32_t next = 0; vkEnumerateDeviceExtensionProperties(D.phys, nullptr, &next, nullptr); std::vector<VkExtensionProperties> ext(next); vkEnumerateDeviceExtensionProperties(D.phys, nullptr, &next, ext.data());
+    bool khr = false, ext_prio = false, ext_query = false;
+    for (auto &e : ext) { if (!strcmp(e.extensionName, "VK_KHR_global_priority")) khr = true; if (!strcmp(e.extensionName, "VK_EXT_global_priority")) ext_prio = true; if (!strcmp(e.extensionName, "VK_EXT_global_priority_query")) ext_query = true; }
+    if (khr || ext_query) {
+        std::vector<VkQueueFamilyGlobalPriorityProperties> gp(nq); std::vector<VkQueueFamilyProperties2> qp2(nq);
+        for (uint32_t i = 0; i < nq; i++) { gp[i] = VkQueueFamilyGlobalPriorityProperties{VK_STRUCTURE_TYPE_QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES}; qp2[i] = VkQueueFamilyProperties2{VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2}; qp2[i].pNext = &gp[i]; }
+        vkGetPhysicalDeviceQueueFamilyProperties2(D.phys, &nq, qp2.data());
+        for (uint32_t k = 0; k < gp[D.qf].priorityCount; k++) { if (k) D.prio_offered += ","; D.prio_offered += prio_str(gp[D.qf].priorities[k]); }
+    } else D.prio_offered = khr || ext_prio ? "(no query extension)" : "(no global-priority extension)";
+    float prio1 = 1.0f; VkDeviceQueueCreateInfo qci{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}; qci.queueFamilyIndex = D.qf; qci.queueCount = 1; qci.pQueuePriorities = &prio1;
+    VkDeviceQueueGlobalPriorityCreateInfo gpi{VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO}; gpi.globalPriority = prio;
+    const char *exts[2]; uint32_t ne = 0;
+    if (prio) {
+        if (khr) exts[ne++] = "VK_KHR_global_priority"; else if (ext_prio) exts[ne++] = "VK_EXT_global_priority"; else die("--priority: the device has no global-priority extension", 75);
+        qci.pNext = &gpi; D.prio_name = prio_str(prio);
+    }
     VkPhysicalDeviceVulkan13Features e13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES}; e13.shaderIntegerDotProduct = 1; e13.subgroupSizeControl = 1; e13.computeFullSubgroups = 1; e13.synchronization2 = f13.synchronization2;
     VkPhysicalDeviceVulkan12Features e12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES}; e12.pNext = &e13; e12.bufferDeviceAddress = 1; e12.storageBuffer8BitAccess = 1; e12.shaderInt8 = 1;
     VkPhysicalDeviceFeatures2 e2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2}; e2.pNext = &e12; e2.features.shaderInt64 = 1;
-    VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO}; dci.pNext = &e2; dci.queueCreateInfoCount = 1; dci.pQueueCreateInfos = &qci;
-    ck(vkCreateDevice(D.phys, &dci, nullptr, &D.dev), "vkCreateDevice");
+    VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO}; dci.pNext = &e2; dci.queueCreateInfoCount = 1; dci.pQueueCreateInfos = &qci; dci.enabledExtensionCount = ne; dci.ppEnabledExtensionNames = exts;
+    { VkResult r = vkCreateDevice(D.phys, &dci, nullptr, &D.dev);
+      if (r != VK_SUCCESS) { fprintf(stderr, "vkfield: vkCreateDevice failed: %d%s\n", (int)r, r == VK_ERROR_NOT_PERMITTED ? " (VK_ERROR_NOT_PERMITTED: this priority needs privilege)" : r == VK_ERROR_INITIALIZATION_FAILED ? " (VK_ERROR_INITIALIZATION_FAILED: priority not offered by this family)" : ""); exit(75); } }
 #define LOADD(n) n = (PFN_##n)vkGetDeviceProcAddr(D.dev, #n); if (!n) die("missing " #n);
     VK_DEVICE_FNS(LOADD)
     vkGetDeviceQueue(D.dev, D.qf, 0, &D.queue);
@@ -343,17 +401,87 @@ static void measure_latency() {
     free_buf(dW); free_buf(dX); free_buf(dY);
 }
 
+/* ---- contention stand-ins: the worker's flood and the owner's game ------------------------ */
+static void flood(double seconds) {
+    const int K = 4096, N = 4096, m = 8, L = 16;
+    Buf dW = make_buf((size_t)N * K, false), dX = make_buf((size_t)3 * m * K, false), dY = make_buf((size_t)m * N * 4, false);
+    fill(dW, 0x01010101); fill(dX, 0x01010101);
+    uint64_t W = dW.addr, Y = dY.addr; int Nn = N; const Plan pl = plan(&W, &Y, &Nn, 1, m, 0);
+    vkResetCommandBuffer(D.cb, 0);
+    { VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO}; ck(vkBeginCommandBuffer(D.cb, &bi), "begin"); }
+    for (int i = 0; i < L; i++) { cmd_gemm(pl, K, dX.addr, K, (long long)m * K); cmd_barrier(); }
+    ck(vkEndCommandBuffer(D.cb), "end");
+    const double mac = (double)m * K * N * L;
+    const auto t0 = std::chrono::steady_clock::now(); auto tick = t0; double acc = 0, total = 0; int sec = 0;
+    for (;;) {
+        VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO}; si.commandBufferCount = 1; si.pCommandBuffers = &D.cb;
+        ck(vkResetFences(D.dev, 1, &D.fence), "reset fence"); ck(vkQueueSubmit(D.queue, 1, &si, D.fence), "submit"); ck(vkWaitForFences(D.dev, 1, &D.fence, VK_TRUE, ~0ull), "wait");
+        acc += mac; total += mac;
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration<double>(now - tick).count() >= 1.0) { printf("[vkfield] flood %-8s t=%2ds %6.0f G-MAC/s\n", D.prio_name.c_str(), ++sec, acc / std::chrono::duration<double>(now - tick).count() / 1e9); fflush(stdout); acc = 0; tick = now; }
+        if (std::chrono::duration<double>(now - t0).count() >= seconds) break;
+    }
+    printf("[vkfield] flood %s: %.0f G-MAC/s over %.1f s\n", D.prio_name.c_str(), total / std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / 1e9, seconds);
+    free_buf(dW); free_buf(dX); free_buf(dY);
+}
+static void frames(double seconds, double frame_us, double fps) {
+    const int K = 4096, N = 4096, m = 8;
+    Buf dW = make_buf((size_t)N * K, false), dX = make_buf((size_t)3 * m * K, false), dY = make_buf((size_t)m * N * 4, false);
+    fill(dW, 0x01010101); fill(dX, 0x01010101);
+    uint64_t W = dW.addr, Y = dY.addr; int Nn = N; const Plan pl = plan(&W, &Y, &Nn, 1, m, 0);
+    auto record = [&](int L) {
+        vkResetCommandBuffer(D.cb, 0);
+        VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO}; ck(vkBeginCommandBuffer(D.cb, &bi), "begin");
+        for (int i = 0; i < L; i++) { cmd_gemm(pl, K, dX.addr, K, (long long)m * K); cmd_barrier(); }
+        ck(vkEndCommandBuffer(D.cb), "end");
+    };
+    auto submit_us = [&]() {
+        const auto t0 = std::chrono::steady_clock::now();
+        VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO}; si.commandBufferCount = 1; si.pCommandBuffers = &D.cb;
+        ck(vkResetFences(D.dev, 1, &D.fence), "reset fence"); ck(vkQueueSubmit(D.queue, 1, &si, D.fence), "submit"); ck(vkWaitForFences(D.dev, 1, &D.fence, VK_TRUE, ~0ull), "wait");
+        return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+    };
+    /* calibrate on whatever the card is doing now: the caller starts the game first, alone */
+    record(16); for (int i = 0; i < 3; i++) submit_us();
+    double per = 1e9; for (int i = 0; i < 10; i++) per = std::min(per, submit_us() / 16);
+    int L = std::max(1, (int)(frame_us / per)); record(L);
+    double idle = 1e9; for (int i = 0; i < 10; i++) idle = std::min(idle, submit_us());
+    printf("[vkfield] frames %s: %d launches per frame = %.0f us on the idle card, %.0f fps (%.0f us budget)\n", D.prio_name.c_str(), L, idle, fps, 1e6 / fps); fflush(stdout);
+    const auto period = std::chrono::duration<double, std::micro>(1e6 / fps);
+    std::vector<double> ft; auto next = std::chrono::steady_clock::now(); const auto t0 = next;
+    while (std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() < seconds) {
+        ft.push_back(submit_us());
+        next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period);
+        const auto now = std::chrono::steady_clock::now(); if (next < now) next = now; else std::this_thread::sleep_until(next);
+    }
+    std::vector<double> s = ft; std::sort(s.begin(), s.end()); double sum = 0; int over = 0, over2 = 0; const double budget = 1e6 / fps;
+    for (double v : ft) { sum += v; if (v > budget) over++; if (v > 2 * budget) over2++; }
+    printf("[vkfield] frames %s: %zu frames, GPU time per frame mean %.0f us, p50 %.0f, p99 %.0f, max %.0f; %d over the %.0f us budget, %d over twice it\n",
+           D.prio_name.c_str(), ft.size(), sum / ft.size(), s[s.size() / 2], s[(size_t)(s.size() * 0.99)], s.back(), over, budget, over2);
+    free_buf(dW); free_buf(dX); free_buf(dY);
+}
+
 int main(int argc, char **argv) {
-    int want = 0, iters = 20; bool st = true;
+    int want = 0, iters = 20; bool st = true; VkQueueGlobalPriority prio = (VkQueueGlobalPriority)0; bool gfx = false;
+    double flood_s = 0, frames_s = 0, frame_us = 6000, fps = 60; const char *gpu_class = nullptr;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--device") && i + 1 < argc) want = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--cus") && i + 1 < argc) g_cus = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shaders") && i + 1 < argc) g_shader_dir = argv[++i];
         else if (!strcmp(argv[i], "--iters") && i + 1 < argc) iters = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--no-selftest")) st = false;
-        else { fprintf(stderr, "usage: vkfield [--device N] [--cus N] [--shaders DIR] [--iters N] [--no-selftest]\n"); return 2; }
+        else if (!strcmp(argv[i], "--priority") && i + 1 < argc) { prio = prio_parse(argv[++i]); if (!prio) { fprintf(stderr, "vkfield: --priority low|medium|high|realtime\n"); return 2; } }
+        else if (!strcmp(argv[i], "--gfx-queue")) gfx = true;
+        else if (!strcmp(argv[i], "--gpu-class") && i + 1 < argc) gpu_class = argv[++i];
+        else if (!strcmp(argv[i], "--flood") && i + 1 < argc) flood_s = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_s = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--frame-us") && i + 1 < argc) frame_us = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--fps") && i + 1 < argc) fps = atof(argv[++i]);
+        else { fprintf(stderr, "usage: vkfield [--device N] [--cus N] [--shaders DIR] [--iters N] [--no-selftest] [--priority low|medium|high|realtime] [--gpu-class idle|below|normal|above|high|realtime] [--gfx-queue] [--flood SEC] [--frames SEC [--frame-us US] [--fps N]]\n"); return 2; }
     }
-    load_loader(); init_device(want);
+    if (gpu_class) set_gpu_class(gpu_class);
+    load_loader(); init_device(want, prio, gfx);
+    if (!g_gpu_class.empty()) D.prio_name += "+" + g_gpu_class;
     if (getenv("VKFIELD_ALLOC_PROBE")) {   /* how much device-local memory can ONE process take, and what does the budget say */
         for (uint32_t i = 0; i < D.mem.memoryHeapCount; i++) printf("[vkfield] heap %u: %.1f GiB%s\n", i, D.mem.memoryHeaps[i].size / 1073741824.0, (D.mem.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) ? " device-local" : "");
         std::vector<Buf> held; size_t total = 0;
@@ -372,9 +500,12 @@ int main(int argc, char **argv) {
         for (auto &x : held) { vkDestroyBuffer(D.dev, x.b, nullptr); vkFreeMemory(D.dev, x.m, nullptr); }
         return 0;
     }
-    printf("[vkfield] %s: subgroup %u..%u (using 32), packed int8 dot accelerated: %s, plan threshold %d blocks\n", D.name.c_str(), D.subgroup_min, D.subgroup_max, D.dot_accel ? "yes" : "NO", g_cus);
+    printf("[vkfield] %s: subgroup %u..%u (using 32), packed int8 dot accelerated: %s, plan threshold %d blocks; queue family %u%s at global priority %s (family offers %s)\n",
+           D.name.c_str(), D.subgroup_min, D.subgroup_max, D.dot_accel ? "yes" : "NO", g_cus, D.qf, gfx ? " (graphics)" : "", D.prio_name.c_str(), D.prio_offered.c_str());
     init_pipelines();
     if (st && !selftest()) return 1;
+    if (flood_s > 0) { flood(flood_s); vkDeviceWaitIdle(D.dev); return 0; }
+    if (frames_s > 0) { frames(frames_s, frame_us, fps); vkDeviceWaitIdle(D.dev); return 0; }
     printf("[vkfield] field GEMM throughput %.0f G-MAC/s (K = N = 4096, m = 8, %d launches, host-timed as the worker does)\n", measure_gmacs(iters), iters);
     measure_latency();
     vkDeviceWaitIdle(D.dev);

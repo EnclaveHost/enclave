@@ -54,7 +54,7 @@ PCs, with no vendor SDK on the host. Capability check on the hardware in hand:
 | Vulkan | 1.4.312 | 1.3.302 |
 | `integerDotProduct4x8BitPackedSignedAccelerated` | true | true |
 | subgroup size | 32 | 32..64, `VK_EXT_subgroup_size_control` |
-| `VK_EXT_global_priority` (yield to the game) | yes | yes |
+| `VK_EXT_global_priority` (yield to the game) | exposed; low = no measurable yield (see worker-vulkan/REPORT.md) | exposed; same |
 | `VK_EXT_memory_budget` | yes | yes |
 
 Mapping: dp4a -> `GL_EXT_integer_dot_product` (`dotPacked4x8EXT`, Vulkan 1.3 core); shuffles ->
