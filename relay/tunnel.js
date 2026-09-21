@@ -19,6 +19,8 @@ import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
+import { VBS_FORMAT, verifyVbsEvidence, tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
+import { ekPublicFrom, makeCredential } from "./vbs-credential.mjs";
 import { boxOrigin } from "./boxhost.js";
 
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
@@ -66,6 +68,12 @@ function selfRoutedUrl(url, name) {
 //   attestation chain (avf-verify.mjs) whose leaf carries our challenge, is
 //   rooted at Google, and names an allowlisted anchor build (codeHash) signed by
 //   our APK certificate (authorityHash). Its mode is "avf", not "snp".
+//   `vbs` admits a WINDOWS CONSUMER NODE running a VBS enclave (vbs-verify.mjs,
+//   windows/vbs/EVIDENCE.md): the same handshake with one extra round, in which
+//   the hub mints a TPM credential for the node's (EK, quoting key) and the
+//   node's TPM proves it can recover it. Its mode is "vbs"; its tier is "vbs"
+//   or, under METAL_VBS_ALLOW_TESTSIGNING, "vbs-dev".
+//           vbs: { measurements: [hex], minSvn, pcr0: [hex], ekRoots: PEM, allowTestSigning }
 // operatorFor: async (name) -> 0x… | null                — WHO OWNS A NAME on chain.
 //   A quote proves the IMAGE, and the transport key is minted PER BOOT, so
 //   neither survives a reboot as an identity: while a seller was down, another
@@ -103,8 +111,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
+  const vbsOn = !!(attest && attest.vbs && attest.vbs.measurements && attest.vbs.measurements.length);
   const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
-                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)));
+                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)
+                               || vbsOn));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 
@@ -174,6 +184,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
     const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
                 measurement: meta.measurement || null, keyFp: meta.keyFp || "",
+                // mode "vbs" only: "vbs" (production) or "vbs-dev" (test-signed, admitted by lab policy)
+                tier: meta.tier || "",
                 // dealt pads (relay/pads.mjs): the attested transport SPKI signs
                 // ledger requests, the X25519 pad key receives the pVM's seed
                 spki: meta.spki || "", padKey: meta.padKey || "" };
@@ -307,18 +319,48 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       return wss.handleUpgrade(req, socket, head, (ws) => {
         const nonce = randomBytes(32);
         let settled = false, verifying = false;
+        // VBS state for THIS attach (EVIDENCE.md steps 3-4): the keys the node
+        // presented and the credential minted for them. The 15 s timer above
+        // covers both rounds; the credential is compared on `attest`.
+        let vbs = null;
+        const b64 = (v, cap) => { if (typeof v !== "string" || !v.length || v.length > 4 * Math.ceil(cap / 3) + 4) return null; const b = Buffer.from(v, "base64"); return b.length && b.length <= cap ? b : null; };
         const deny = (why) => { if (settled) return; settled = true; console.log(`[tunnel] ${name} attest REJECTED: ${why}`); try { ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: why })); } catch {} setTimeout(() => { try { ws.close(); } catch {} }, 100); };
         const timer = setTimeout(() => deny("attestation timeout"), 15000);
         timer.unref?.();                                     // a stalled attach must not hold the loop open
         ws.on("message", async (data) => {
           if (settled || verifying) return;                    // one quote in flight at a time
           let f; try { f = JSON.parse(data); } catch { return; }
+          // Windows VBS node: the credential round. The hub mints a TPM credential
+          // for the (EK, quoting-key name) presented (vbs-credential.mjs); only a
+          // TPM holding that EK's private key AND that quoting key can recover it,
+          // which is what ties the quote (and so the log, and so the enclave
+          // report) to the hardware whose EK certificate is checked at `attest`.
+          if (f.t === "vbs-keys") {
+            if (!vbsOn) return deny("VBS attach is not enabled on this relay");
+            if (vbs) return deny("duplicate vbs-keys");
+            verifying = true;
+            try {
+              const ekCert = b64(f.ek, VBS_MAX_CERT_BYTES), aikPub = b64(f.aikPub, VBS_MAX_TPMT_PUBLIC_BYTES), aikName = b64(f.aikName, 34);
+              if (!ekCert || !aikPub || !aikName) return deny("vbs-keys needs ek, aikPub and aikName (bounded base64)");
+              const ekChain = Array.isArray(f.ekChain) ? f.ekChain : [];
+              if (ekChain.length > VBS_MAX_CHAIN_CERTS || !ekChain.every((c) => b64(c, VBS_MAX_CERT_BYTES))) return deny("vbs-keys ekChain malformed");
+              const wantName = tpmNameOf(aikPub);
+              if (!wantName.equals(aikName)) return deny("vbs-keys aikName is not 0x000B || sha256(aikPub)");
+              const credential = randomBytes(32);
+              const { credentialBlob, secret } = makeCredential(ekPublicFrom(ekCert), wantName, credential);
+              vbs = { ekCert, aikName: wantName, credential };
+              try { ws.send(JSON.stringify({ t: "vbs-credential", credentialBlob: credentialBlob.toString("base64"), secret: secret.toString("base64") })); } catch {}
+            } catch (e) { deny(`vbs-keys: ${e.message}`); }
+            finally { verifying = false; }
+            return;
+          }
           if (f.t !== "attest" || !f.rad || !f.rad.body) return;
           verifying = true;
           try {
             const spki = f.rad.transportKey ? Buffer.from(f.rad.transportKey, "base64") : null;
             const isAvf = f.rad.format === "android-avf-pvm/v1" || f.rad.format === AVF_PAD_FORMAT;
             const avfV2 = f.rad.format === AVF_PAD_FORMAT;
+            const isVbs = f.rad.format === VBS_FORMAT;
             // Validate the versioned transcript even in explicitly enabled
             // development mode. Production checks its certificate/signature.
             const avfBound = avfV2 ? avfPadBinding(spki, f.rad.padKey, nonce) : null;
@@ -349,6 +391,19 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                         signature: Buffer.from(ev.signature, "base64"), signedMessage: bound },
                                       { allowedCodeHashes: codeHashes, allowedAuthorityHashes: attest.avf.authorityHashes || [],
                                         ...(attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
+            } else if (isVbs) {
+              // EVIDENCE.md step 6: the body carries report, log, quote, EK,
+              // the activated credential and the transport signature; the hub
+              // rebuilds the transcript from ITS nonce and the credential it
+              // minted in the vbs-keys round. Both keys are covered (AVF v2 rule).
+              if (!vbsOn) return deny("VBS attach is not enabled on this relay");
+              if (!vbs) return deny("VBS attest without the vbs-keys round");
+              if (!spki) return deny("VBS attach must carry transportKey");
+              if (typeof f.rad.body !== "string" || f.rad.body.length > 12 * 1024 * 1024) return deny("VBS body exceeds size limit");
+              let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("VBS body is not JSON"); }
+              res = verifyVbsEvidence({ evidence: ev, nonce, transportKeySpki: spki, padKeyHex: String(f.rad.padKey || ""), expectedCredential: vbs.credential,
+                                        mintedFor: { ekCert: vbs.ekCert, aikName: vbs.aikName } }, attest.vbs);
+              if (!res.ok) return deny(res.reasons.join("; ") || "VBS evidence invalid");
             } else {
               if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP or AVF`);
               const report = Buffer.from(f.rad.body, "base64");
@@ -387,8 +442,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
             const padKey = (!isAvf || avfV2) && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
-            bind(name, ws, { via: isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
-                             measurement: res.measurement, mode: isAvf ? "avf" : "snp", keyFp,
+            bind(name, ws, { via: isVbs ? `attestation(${res.tier})` : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
+                             measurement: res.measurement, mode: isVbs ? "vbs" : isAvf ? "avf" : "snp", keyFp, tier: isVbs ? res.tier : "",
                              spki: spki ? spki.toString("base64") : "", padKey });
           } catch (e) { deny(`verify error: ${e.message}`); }
           finally { verifying = false; }
@@ -479,7 +534,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     isTunnel: (origin) => NAME_RE.test(String(origin || "")),
     // One attached tunnel's identity, for modules that authenticate a tunnel's
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
-    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, keyFp: t.keyFp, spki: t.spki, padKey: t.padKey } : null; },
+    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey } : null; },
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
     // discovery filters; auth already happened at attach time). `endpoint`
@@ -489,6 +544,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       endpoint: `tunnel://${name}`, id: `tunnel:${name}`, name, repo: "EnclaveHost/enclave",
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
       measurement: t.measurement || undefined,
+      ...(t.tier ? { tier: t.tier } : {}),
     })),
     // fetch JSON (availability polling)
     fetchJson: async (origin, path) => {

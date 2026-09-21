@@ -116,7 +116,16 @@ class FleetList extends EnclaveElement {
           // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
           // box), plain "CPU" when it has not said.
           const tc = teeCpuOf(e);
-          const teeCpuBadge = tc.real
+          // The consumer tier (a Windows VBS enclave, teeCpuOf) earned its pill
+          // with real evidence, but against a weaker threat model, and its pill
+          // says which: "vbs enclave", never "tee cpu". A dev-tier row (a lab
+          // relay admitted a test-signed build) says "development, unsigned".
+          const teeCpuBadge = tc.real && tc.consumer
+            ? '<span class="ap-badge ' + (tc.dev ? 'warn' : 'ok') + '" title="' + esc(tc.label) + ': ' + esc(tc.note)
+              + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
+              + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
+              + '">' + (tc.dev ? 'vbs enclave (dev)' : 'vbs enclave') + '</span>'
+            : tc.real
             ? '<span class="ap-badge ok" title="' + esc(tc.label) + ' confidential VM: '
               + (tc.source === "relay"
                   ? 'the relay verified a fresh hardware quote from this box when it attached'

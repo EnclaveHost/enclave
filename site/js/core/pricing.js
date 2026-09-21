@@ -337,18 +337,28 @@ export function enclaveClassOf(row){
 //     attestation chain, rooted at Google, naming an allowlisted anchor build
 //     (relay/avf-verify.mjs): a PHONE-anchored host. Same rule, different root.
 // Anything else is UNKNOWN, not "no": an older build simply never said.
-export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX", "android-avf-pvm": "Android protected VM" };
+//   - row.mode === "vbs": the relay verified a Windows VBS-enclave attestation
+//     (relay/vbs-verify.mjs): a CONSUMER PC. Same rule, a weaker boundary, and
+//     the badge says so: it protects against the owner's software, not against
+//     physical possession (windows/vbs/EVIDENCE.md). Its tier is "vbs" or, when
+//     a lab relay admitted a test-signed build, "vbs-dev" (development, unsigned).
+export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX", "android-avf-pvm": "Android protected VM", "windows-vbs-enclave": "Windows VBS enclave" };
+// The consumer tier: real evidence, a different threat model. Copy for the badge.
+export const CPU_TEE_CONSUMER = { "windows-vbs-enclave": "VBS enclave on a consumer PC: protects against the owner’s software, not physical possession" };
+export const CPU_TEE_DEV_TIERS = { "vbs-dev": "development, unsigned" };
 export function teeCpuOf(row){
   const a = (row && row.availability) || {};
   const tech = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
-  if (tech && CPU_TEE_TECHNOLOGIES[tech])
-    return { real: true, known: true, technology: tech, label: CPU_TEE_TECHNOLOGIES[tech], source: "attestation" };
-  if (row && row.tunnel && row.mode === "snp")
-    return { real: true, known: true, technology: "amd-sev-snp", label: CPU_TEE_TECHNOLOGIES["amd-sev-snp"], source: "relay" };
-  if (row && row.tunnel && row.mode === "avf")
-    return { real: true, known: true, technology: "android-avf-pvm", label: CPU_TEE_TECHNOLOGIES["android-avf-pvm"], source: "relay" };
-  if (tech) return { real: false, known: true, technology: tech, label: tech, source: "attestation" };
-  return { real: false, known: false, technology: null, label: null, source: null };
+  const tier = typeof a.tier === "string" && a.tier ? a.tier : (row && typeof row.tier === "string" && row.tier) || null;
+  const real = (technology, source) => ({ real: true, known: true, technology, label: CPU_TEE_TECHNOLOGIES[technology], source,
+                                          consumer: !!CPU_TEE_CONSUMER[technology], note: CPU_TEE_CONSUMER[technology] || null,
+                                          tier: CPU_TEE_CONSUMER[technology] ? tier : null, dev: CPU_TEE_DEV_TIERS[tier] || null });
+  if (tech && CPU_TEE_TECHNOLOGIES[tech]) return real(tech, "attestation");
+  if (row && row.tunnel && row.mode === "snp") return real("amd-sev-snp", "relay");
+  if (row && row.tunnel && row.mode === "avf") return real("android-avf-pvm", "relay");
+  if (row && row.tunnel && row.mode === "vbs") return real("windows-vbs-enclave", "relay");
+  if (tech) return { real: false, known: true, technology: tech, label: tech, source: "attestation", consumer: false, note: null, tier: null, dev: null };
+  return { real: false, known: false, technology: null, label: null, source: null, consumer: false, note: null, tier: null, dev: null };
 }
 
 // The VRAM a shielded card actually sells: the worker's budget, not the physical

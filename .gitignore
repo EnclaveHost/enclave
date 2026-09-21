@@ -55,6 +55,9 @@ e2e/playwright-report/
 # snp-ark-pin.test.mjs verifies our pinned ARK against them, so a runner that
 # cannot see them fails a test that passes on every developer's machine.
 !test/fixtures/amd/*.pem
+# ...and AMD's PUBLIC fTPM EK root chain is the relay's pinned trust anchor for
+# Windows VBS nodes (vbs-policy.mjs default METAL_VBS_EK_ROOTS): a runtime fixture.
+!relay/fixtures/tpm-roots.pem
 *.pfx
 
 # playwright-cli session artifacts (snapshots, traces); .playwright/ config IS committed
