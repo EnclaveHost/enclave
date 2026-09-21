@@ -1836,6 +1836,11 @@ tokens, text identical every time:
 | k = 1 | 12.85 (78 ms) | **14.05** (13.88-14.13) | 1.83 |
 | k = 2 | 12.81 | 12.96 (12.95-13.14) | 2.29 |
 
+The last two knobs, measured after that table: `nnShieldedMaxM` must stay at
+64 -- at 8 the speculative verify exceeds the row limit, falls back to the CPU
+backend's f32 path, and collapses to 3.1 tok/s with text that no longer
+matches -- and a refill unit of 32 is neutral against 16.
+
 Against where this started: 4 tok/s in production, 7.3 plain / 8.4 speculative
 at the top of section 15 on this box. The 20 tok/s target is not reached and
 is not reachable here without the 4-bit weight lane of 15.3; everything above
