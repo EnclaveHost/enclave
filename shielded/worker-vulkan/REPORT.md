@@ -129,6 +129,10 @@ the burst into unused capacity. The B-alone Vulkan row was measured while anothe
 using that card. What this does not do: fence Enclave's tenants from the host's own use (queue
 priority, not wired yet) or limit memory (the reservation ledger does).
 
+A false alarm on the way: reservations were refused at ~3.6 GiB on a 32 GiB card during the
+first attempts. `VKFIELD_ALLOC_PROBE=1 ./vkfield` shows one Vulkan process can hold 31.2 GiB on
+that card; the missing memory was another process's reservation on it at the time.
+
 Bugs found on the way, all fixed: the Vulkan shim's arena recovered a freed allocation's length
 from its neighbours and freed live memory once tenants churned; the shim's immediate stream and
 maps were shared across connection threads without a lock (SIGSEGV in the NVIDIA driver with
