@@ -60,6 +60,35 @@ typedef struct ee_session_params {
     uint32_t size; const uint8_t *in; uint64_t in_len; uint8_t *out; uint64_t out_cap; uint64_t out_len;
     int32_t status; char error[256]; int32_t n_tokens; int64_t prompt_us, decode_us; uint64_t offloaded, local, macs, verify_fail;
 } ee_session_params;
+/* ---- a tenant's app inside the enclave (ee-app.cpp + windows/enclave-rt) -------------------
+ * Same rule as every struct above: these live in HOST memory, so they carry frames and sizes and
+ * nothing secret. The app's bytecode is Pulley bytecode (windows/enclave-rt/precompile), which is
+ * data: an enclave has no page it may execute, and interpreting is what makes this possible.
+ *
+ * The request/response frames are length-prefixed, little-endian, and defined in one place
+ * (windows/enclave-rt/src/lib.rs, the codec):
+ *   request : u32 method | u32 path | u32 nheaders | (u32 name, u32 value) * n | u32 body
+ *   response: u16 status | u32 nheaders | (u32 name, u32 value) * n | u32 body */
+#define EE_APP_ABI 1
+typedef struct ee_app_open_params {
+    uint32_t size; const uint8_t *cwasm; uint64_t cwasm_len;   /* host memory: copied in */
+    uint32_t id;                                               /* out: the handle for Handle/Close */
+    int32_t status; char error[256]; int64_t load_us;
+} ee_app_open_params;
+typedef struct ee_app_params {
+    uint32_t size, id;
+    const uint8_t *req; uint64_t req_len;                      /* host memory: copied in */
+    uint8_t *out; uint64_t out_cap; uint64_t out_len;          /* status -5: out_len = needed */
+    uint64_t now_ms;                                           /* the host's clock, for this call */
+    int32_t status; char error[256]; int64_t handle_us;
+} ee_app_params;
+typedef struct ee_app_close_params { uint32_t size, id; int32_t status; } ee_app_close_params;
+
+/* The engine's own completion path, for the app's `generate` import: the one host function that is
+ * a product rather than plumbing. Inside VTL1 from end to end. */
+int ee_engine_generate(const char *prompt, size_t plen, int n_predict,
+                       char *out, size_t cap, size_t *out_len);
+
 /* runtime services for the shims (ee-rt.c) */
 void ee_logv(const char *fmt, va_list ap);
 void ee_log(const char *fmt, ...);

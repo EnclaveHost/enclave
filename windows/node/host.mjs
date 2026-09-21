@@ -12,14 +12,17 @@
 // from another customer or make this box the platform's price - see fullServiceEnclaves() in
 // relay/api-relay.js and test/fleet-partial-capability.test.mjs.
 //
-// The app runs in VTL0 under wasmtime, NOT in the enclave (apprun.mjs says why). The enclave keeps
-// the model; an app's inference goes to it over loopback, so the untrusted card still only ever
-// sees masked activations.
+// A LEASED app runs INSIDE the enclave: its artifact is compiled to Pulley bytecode in VTL0 and
+// interpreted in VTL1 by the runtime linked into the enclave image (windows/enclave-rt). Its code,
+// its memory and its model calls never leave the enclave, and the card underneath only ever sees
+// masked activations. An artifact built for a world the enclave cannot serve is refused by name
+// rather than run beside the enclave, which is the thing this box does not sell.
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
-import { App, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces } from "./apprun.mjs";
+import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
+import { worldOf } from "./appframe.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -233,18 +236,37 @@ export class Host {
       const needs = missingHostInterfaces(art.path);
       if (needs.length) return await this.#giveUp(id, `this box cannot run it: the artifact needs ${needs.join(" and ")}. It runs stock wasmtime 49 and carries no model volume; the enclave's own model is reachable at ENCLAVE_INFERENCE_URL instead, which is a different contract`);
     } catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
+    // WHICH WORLD the artifact was built for, read from the bytes rather than from a claim beside
+    // them. Only the enclave:app world runs in VTL1: wasi:http needs a socket, a poll loop and a
+    // host implementation of wasi:io, none of which exist in an enclave. A tenant whose app is
+    // built for that world is told so, and their lease is handed back, rather than having their
+    // app quietly run in the Windows session where this box's owner can read it.
+    const world = worldOf(fs.readFileSync(art.path));
+    if (!this.appsInTee())
+      return await this.#giveUp(id, "this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it");
+    if (world !== "enclave-app")
+      return await this.#giveUp(id, `this box runs an app INSIDE its VBS enclave, which serves the enclave:app@0.1.0 world`
+        + ` (windows/enclave-rt/wit/app.wit). This artifact is built for ${world === "wasi-http" ? "wasi:http" : world},`
+        + ` which needs a socket and a poll loop that VTL1 does not have. Publish an enclave:app build to run it here`);
     let app = this.apps.get(id);
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
     if (!app) {
-      const port = this.cfg.portBase + (this.apps.size % 64);
       const memMb = floor.memMb;
-      app = new App({ id, wasmtime: this.cfg.wasmtime, wasmPath: art.path, port, memMb,
-                      allowHttp: true, dir: this.cfg.dir, log: (m) => this.log(m),
-                      env: appEnv({ config: this.appConfig(d, v), memMb, inferenceUrl: this.cfg.inferenceUrl }) });
+      if (memMb > (this.cfg.enclaveAppRamMb || 768))
+        return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave's app budget is ${this.cfg.enclaveAppRamMb || 768} MB`);
+      // Compile once per CID and keep it: the bytecode is a pure function of the artifact, and a
+      // cold start should not pay cranelift twice for the same bytes.
+      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.cwasm`);
+      if (!fs.existsSync(cwasm) || fs.statSync(cwasm).size < 64) {
+        this.#record(id, { status: "provisioning", reason: "compiling the app to enclave bytecode" });
+        try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe, log: (m) => this.log(m) }); }
+        catch (e) { return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` }); }
+      }
+      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
     }
     if (app.state !== "running") {
-      this.#record(id, { status: "provisioning" });
+      this.#record(id, { status: "provisioning", reason: null });
       try { await app.start(); }
       catch (e) {
         // Three goes, then the lease goes back. A start that keeps failing is not always this
@@ -444,20 +466,25 @@ export class Host {
     const slots = this.cfg.appSlots ?? 4;
     const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning");
     const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
-    const ramMb = Math.max(0, Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25))) - committedMb);
+    // An app inside the enclave lives in ENCLAVE memory, and the enclave is a fixed size chosen at
+    // creation (ee-main.cpp EnclaveSize, 2 GB) that already holds the model, its KV cache and the
+    // pads. So the ceiling on app memory here is the enclave's budget, not the machine's 112 GB:
+    // quoting the machine would take a lease this box then cannot fit and thrash in VTL1.
+    const hostMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25)));
+    const budgetMb = this.appsInTee() ? Math.min(hostMb, Number(this.cfg.enclaveAppRamMb) || 768) : hostMb;
+    const ramMb = Math.max(0, budgetMb - committedMb);
     return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
              ramMbFree: ramMb, cpuGflops: Number(this.cfg.gflops) || 0 };
   }
   /**
-   * Does an app this box hosts run INSIDE the enclave? Today: no, and that is the gate on
-   * everything below. A VBS enclave has no JIT, no mmap and no Rust std, so `wasmtime serve`
-   * cannot run in VTL1; the app runs in the ordinary Windows session while the enclave holds the
-   * model, the pads and the keys. That is not what this platform sells, so this box does not sell
-   * app hosting: it stays out of the serving set and takes nothing from the market. It flips to
-   * true when the in-enclave runtime lands, and then the row needs no caveat, because there will
-   * not be one to make.
+   * Does an app this box hosts run INSIDE the enclave?
+   *
+   * DETECTED, never configured: the answer is whether the loaded enclave image carries an app
+   * runtime, which the enclave itself answers (EeAppAbi -> `appabi` on the host protocol, read at
+   * startup). A switch in a config file could say yes while the image said nothing, and this
+   * property is the whole basis on which the box sells app hosting at all.
    */
-  appsInTee() { return this.cfg.appsInTee === true; }
+  appsInTee() { return Number(this.cfg.enclaveAppAbi || 0) >= 1; }
   /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
    * (appsInTee): claiming a stranger's deployment onto a runtime the enclave does not cover would
@@ -489,13 +516,21 @@ export class Host {
       // a promise the whole fleet has to keep.
       fullService: false,
       ...this.features(),
-      apps: {
-        // Where a hosted app runs, in the one word that matters. The relay's teeCpu describes the
-        // enclave that holds the MODEL; an app is a wasm component under wasmtime in VTL0 and the
-        // owner of this PC can read its memory. Never report this as a TEE.
-        isolation: "host-process", inTee: false, runtime: "wasmtime", world: "wasi:http",
-        scope: this.scope(), public: true, running, capacity: cap.slots,
-        note: "apps run on the Windows host, not inside the VBS enclave; the enclave holds the model and the pads",
+      apps: this.appsInTee() ? {
+        // Where a leased app runs, in the one word that matters: INSIDE the enclave. The bytecode
+        // is interpreted in VTL1 by the runtime linked into the measured image, so the app's code
+        // and memory are covered by the same attestation as the model beside it. What is NOT
+        // covered is the traffic: VTL0 owns the socket and carries the request and response
+        // frames, exactly as the platform's relay does for every other box in the fleet.
+        isolation: "vbs-enclave", inTee: true, runtime: "wasmtime-pulley", abi: Number(this.cfg.enclaveAppAbi || 0),
+        world: "enclave:app@0.1.0", traffic: "carried by the host",
+        scope: this.scope(), public: true, running, capacity: cap.slots, ramMb: Number(this.cfg.enclaveAppRamMb) || 768,
+        note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
+      } : {
+        // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
+        // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
+        isolation: "none", inTee: false, running, capacity: 0,
+        note: "this enclave image carries no app runtime, so this box sells no app hosting",
       },
       claimScope: this.scope(),
       // The REGISTRY's price, not the config's, when this box is listed: that entry is what the
@@ -570,10 +605,25 @@ export class Host {
     return this.#record(key, { status: "running", reason: null, port: app.port, leased: false });
   }
 
-  /** Proxy an /x/:id/... request to that deployment's app. */
+  /** Carry an /x/:id/... request to that deployment's app: into the enclave, or to a local port. */
   async proxy(id, { method, pathRest, headers, body }) {
     const app = this.apps.get(String(id).toLowerCase());
     if (!app || app.state !== "running") return { status: 503, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "not_running", id, state: app?.state || "unknown", reason: this.records.get(String(id).toLowerCase())?.reason || null }) };
+    if (app instanceof EnclaveApp) {
+      try {
+        const r = await app.handle({ method, pathRest, headers, body });
+        this.#record(String(id).toLowerCase(), { enclaveUs: r.enclaveUs });
+        return { status: r.status, headers: r.headers, body: r.body };
+      } catch (e) {
+        // "no such app" means the enclave restarted under us and its memory went with it, which is
+        // the honest failure mode for an app that lives in there. Mark it for reload rather than
+        // pretending the app is still up.
+        const gone = /no such app/i.test(e.message || "");
+        if (gone) { app.state = "failed"; this.#record(String(id).toLowerCase(), { status: "failed", reason: "the enclave no longer carries this app (it restarted); reloading" }); }
+        return { status: 502, headers: { "content-type": "application/json" },
+                 body: JSON.stringify({ error: gone ? "app_gone" : "enclave_error", message: e.message }) };
+      }
+    }
     const hdrs = {};
     for (const [k, v] of Object.entries(headers || {})) if (!/^host$|^connection$|^x-metal-|^x-enclave-/i.test(k)) hdrs[k] = v;
     return await new Promise((resolve) => {

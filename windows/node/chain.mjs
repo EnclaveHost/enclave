@@ -329,6 +329,18 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
   if (Number(d.gpuMilli) > 0 && !(opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config)))
     return "it bought a share of a card, and this box's card is reserved for the enclave's masked inference; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
+  // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
+  // yanked are refused always, and a version still awaiting the catalog owner's approval is
+  // refused on a PUBLIC deployment. The fleet's relaxation for this case is dev mode on a private
+  // deployment; this box refuses private deployments outright (it verifies no session token), so
+  // the one place it can honestly relax is its OWN owner testing their own app on their own
+  // machine, where the only person exposed is the person who published it.
+  if (version) {
+    if (version.yanked) return "the catalog version was yanked by its publisher";
+    if (Number(version.approval) === 2) return "the catalog version was rejected by the catalog owner";
+    if (Number(version.approval) !== 1 && !owners)
+      return "the catalog version is awaiting the catalog owner's approval, and this box runs a pending version only for its own owner";
+  }
   // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
   // worse than one it declines: the tenant's funding is tied up against an app that thrashes.
   if (capacity) {

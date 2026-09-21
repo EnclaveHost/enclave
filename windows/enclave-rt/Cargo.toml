@@ -1,0 +1,29 @@
+[package]
+name = "enclave-rt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The wasm runtime that runs a tenant's app INSIDE the VBS enclave (VTL1)."
+
+# staticlib: this is linked into ee-engine.dll, the enclave image itself. rlib so the host-side
+# test harness can use the same code with std.
+[lib]
+name = "enclave_rt"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# runtime        : execution without cranelift. The enclave compiles NOTHING.
+# pulley         : the portable bytecode interpreter. VTL1 has no executable pages to JIT into,
+#                  which is the property VBS exists to enforce, so the app is interpreted from
+#                  bytecode that was produced outside and carried in as data.
+# component-model: what a platform app IS (a wasi-style component, not a core module).
+# No "std": there is no OS in here. Measured on the built .lib, this needs ZERO Windows API
+# imports - only malloc/free, the mem* intrinsics and two libm functions, all of which the
+# enclave-flavoured CRT already provides.
+wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley"] }
+
+[workspace]
+
+[profile.release]
+opt-level = "s"
+panic = "abort"

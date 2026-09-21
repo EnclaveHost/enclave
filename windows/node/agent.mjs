@@ -59,7 +59,14 @@ const host = new Host({
   // Does a hosted app run INSIDE the VBS enclave? No, until the in-enclave runtime lands: stock
   // wasmtime needs a JIT, mmap and Rust std, none of which exist in VTL1. While this is false the
   // box advertises no claimEnabled, sells no app hosting, and runs only its owner's own apps.
-  appsInTee: /^(1|true|yes)$/i.test(String(process.env.APPS_IN_TEE || '')),
+  // the enclave gate, for an app that runs INSIDE it: host.mjs sends appopen/apphandle/appclose
+  hostCmd: (line) => hostCmd(line),
+  precompileExe: process.env.EE_PRECOMPILE || 'C:\\Users\\claude\\vbs\\enclave-rt\\ee-precompile.exe',
+  // What an app may have of the enclave's own memory. The enclave is a fixed 2 GB (ee-main.cpp
+  // EnclaveSize) and the model, its KV cache and the pads are in there first.
+  enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 768),
+  // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
+  enclaveAppAbi: 0,
   repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
   // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
   // registry row so the chain's view and the relay's attestation verdict can be compared
@@ -346,6 +353,16 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
   if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
   const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
+  // Does the loaded enclave image carry an app runtime? The enclave answers, not a config file:
+  // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
+  // whether it sells app hosting at all (host.mjs appsInTee).
+  try {
+    const abi = Number(await hostCmd('appabi')) || 0;
+    host.cfg.enclaveAppAbi = abi;
+    log(abi >= 1
+      ? `app runtime in the enclave: abi ${abi} (enclave:app@0.1.0, ${host.cfg.enclaveAppRamMb} MB budget)`
+      : 'no app runtime in this enclave image: this box sells no app hosting');
+  } catch (e) { log(`app runtime check failed: ${e.message}`); }
   if (APPS) await host.init();
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');

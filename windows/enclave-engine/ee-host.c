@@ -22,6 +22,9 @@
 #pragma comment(lib, "ws2_32.lib")
 
 static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession;
+/* the app runtime's entry points. Optional on purpose: an older enclave image has no app runtime,
+ * and the host says so rather than failing to start. */
+static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi;
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
 static int g_quiet;
@@ -97,6 +100,8 @@ static int start_enclave(const wchar_t *dll, SIZE_T size, DWORD threads) {
     if (!InitializeEnclave(GetCurrentProcess(), g_base, &ii, sizeof ii, &err)) { say("[host] InitializeEnclave failed: enclaveError=0x%08lx lastError=%lu\n", err, GetLastError()); return -4; }
     g_EeInit = GetProcAddress((HMODULE)g_base, "EeInit"); g_EeThread = GetProcAddress((HMODULE)g_base, "EeThread");
     g_EeLoad = GetProcAddress((HMODULE)g_base, "EeLoad"); g_EeGenerate = GetProcAddress((HMODULE)g_base, "EeGenerate"); g_EeAttest = GetProcAddress((HMODULE)g_base, "EeAttest"); g_EeSession = GetProcAddress((HMODULE)g_base, "EeSession");
+    g_EeAppOpen = GetProcAddress((HMODULE)g_base, "EeAppOpen"); g_EeAppHandle = GetProcAddress((HMODULE)g_base, "EeAppHandle");
+    g_EeAppClose = GetProcAddress((HMODULE)g_base, "EeAppClose"); g_EeAppAbi = GetProcAddress((HMODULE)g_base, "EeAppAbi");
     if (!g_EeInit || !g_EeThread || !g_EeLoad || !g_EeGenerate || !g_EeAttest) { say("[host] exports missing\n"); return -5; }
     return 0;
 }
@@ -120,6 +125,47 @@ static int do_session(const uint8_t *in, size_t in_len, uint8_t *out, size_t cap
     if (call(g_EeSession, g)) { free(g); strcpy(err, "CallEnclave"); return -1; }
     int st = g->status; if (stats) *stats = *g; if (st) strncpy(err, g->error, 255); free(g); return st;
 }
+/* ---- a tenant's app, running inside the enclave (ee-app.cpp) ------------------------------- */
+/* The host's whole part in this: read the bytecode off disk, carry request frames in and response
+ * frames out. It cannot read the app's memory, and the app cannot reach past the four host
+ * functions the enclave gives it. */
+static int do_app_open(const uint8_t *cwasm, size_t len, uint32_t *id, long long *load_us, char *err) {
+    if (!g_EeAppOpen) { strcpy(err, "this enclave image has no app runtime"); return -1; }
+    ee_app_open_params *p = (ee_app_open_params *)calloc(1, sizeof *p);
+    p->size = sizeof *p; p->cwasm = cwasm; p->cwasm_len = len;
+    if (call(g_EeAppOpen, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
+    int st = p->status; *id = p->id; if (load_us) *load_us = (long long)p->load_us;
+    if (st) strncpy(err, p->error, 255);
+    free(p); return st;
+}
+static int do_app_handle(uint32_t id, const uint8_t *req, size_t req_len,
+                         uint8_t *out, size_t cap, size_t *out_len, long long *us, char *err) {
+    if (!g_EeAppHandle) { strcpy(err, "this enclave image has no app runtime"); return -1; }
+    ee_app_params *p = (ee_app_params *)calloc(1, sizeof *p);
+    p->size = sizeof *p; p->id = id; p->req = req; p->req_len = req_len; p->out = out; p->out_cap = cap;
+    /* VTL1 has no clock. The host reads one HERE, per call, and the app is told where it came
+     * from (wit/app.wit now-ms): a host-supplied number an app can reason about beats a made-up
+     * one it cannot. */
+    { FILETIME ft; GetSystemTimeAsFileTime(&ft);
+      unsigned long long t = ((unsigned long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+      p->now_ms = t / 10000ULL - 11644473600000ULL; }
+    if (call(g_EeAppHandle, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
+    int st = p->status; *out_len = (size_t)p->out_len; if (us) *us = (long long)p->handle_us;
+    if (st) strncpy(err, p->error, 255);
+    free(p); return st;
+}
+static int do_app_close(uint32_t id, char *err) {
+    if (!g_EeAppClose) { strcpy(err, "this enclave image has no app runtime"); return -1; }
+    ee_app_close_params *p = (ee_app_close_params *)calloc(1, sizeof *p);
+    p->size = sizeof *p; p->id = id;
+    if (call(g_EeAppClose, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
+    int st = p->status; free(p); return st;
+}
+static uint32_t app_abi(void) {
+    if (!g_EeAppAbi) return 0;
+    uint32_t v = 0; if (call(g_EeAppAbi, &v)) return 0; return v;
+}
+
 /* ---- the loopback server for the agent ---------------------------------------------------- */
 static void serve(int port) {
     SOCKET ls = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)port);
@@ -154,6 +200,45 @@ static void serve(int port) {
                     else if (do_session(bin, bl, sout, sizeof sout, &st, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, sout, (size_t)st.out_len); k += 2 * (size_t)st.out_len;
                            snprintf(reply + k, sizeof reply - k, " %d %lld %lld %llu %llu %llu %llu\n", st.n_tokens, (long long)st.prompt_us, (long long)st.decode_us, (unsigned long long)st.offloaded, (unsigned long long)st.local, (unsigned long long)st.macs, (unsigned long long)st.verify_fail); }
+                } else if (!strcmp(line, "appabi")) {
+                    snprintf(reply, sizeof reply, "ok %u\n", app_abi());
+                } else if (!strncmp(line, "appopen ", 8)) {
+                    /* by PATH, not by hex: bytecode is a hundred kilobytes and up, and the host is
+                     * the one that fetched it. The enclave copies it in before looking at it. */
+                    const char *path = line + 8; uint32_t id = 0; long long load_us = 0;
+                    FILE *f = fopen(path, "rb");
+                    if (!f) snprintf(reply, sizeof reply, "err cannot open %s\n", path);
+                    else {
+                        fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+                        uint8_t *bytes = (n > 0 && n <= (64L << 20)) ? (uint8_t *)malloc((size_t)n) : NULL;
+                        if (!bytes) { snprintf(reply, sizeof reply, "err bytecode size %ld\n", n); fclose(f); }
+                        else if (fread(bytes, 1, (size_t)n, f) != (size_t)n) { strcpy(reply, "err short read\n"); fclose(f); free(bytes); }
+                        else {
+                            fclose(f);
+                            int st = do_app_open(bytes, (size_t)n, &id, &load_us, err);
+                            free(bytes);                       /* the enclave has its own copy */
+                            if (st) snprintf(reply, sizeof reply, "err %s\n", err);
+                            else snprintf(reply, sizeof reply, "ok %u %lld\n", id, load_us);
+                        }
+                    }
+                } else if (!strncmp(line, "apphandle ", 10)) {
+                    unsigned int id = 0; size_t rl = 0, ol = 0; long long us = 0;
+                    const char *sp = strchr(line + 10, ' ');
+                    static uint8_t aout[4u << 20];
+                    if (!sp || sscanf(line + 10, "%u", &id) != 1) strcpy(reply, "err bad request\n");
+                    else if (unhex(bin, sizeof bin, sp + 1, &rl)) strcpy(reply, "err bad hex\n");
+                    else {
+                        int st = do_app_handle(id, bin, rl, aout, sizeof aout, &ol, &us, err);
+                        if (st == -5) snprintf(reply, sizeof reply, "err the response is %llu bytes, larger than this host carries\n", (unsigned long long)ol);
+                        else if (st) snprintf(reply, sizeof reply, "err %s\n", err);
+                        else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, aout, ol); k += 2 * ol;
+                               snprintf(reply + k, sizeof reply - k, " %lld\n", us); }
+                    }
+                } else if (!strncmp(line, "appclose ", 9)) {
+                    unsigned int id = 0;
+                    if (sscanf(line + 9, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    else if (do_app_close(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
+                    else strcpy(reply, "ok\n");
                 } else if (!strcmp(line, "quit")) { closesocket(c); closesocket(ls); return; }
                 else strcpy(reply, "err unknown command\n");
                 send(c, reply, (int)strlen(reply), 0);
