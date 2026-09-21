@@ -3,6 +3,7 @@
 
 #include "shielded-field.h"
 #include <stdint.h>
+#include "shielded-wide.h"
 #if defined(__cplusplus)
 static_assert(SH_M_MOD > 0 && SH_M_MOD < (INT64_C(1) << 24), "online pad dot requires a field below 2^24");
 #else
@@ -36,12 +37,7 @@ static inline int32_t sh_pad_check_dot_field(const int32_t *a, const int32_t *b,
 static inline void sh_pad_check_ref_range(const int8_t *weights, int64_t K, int64_t N,
                                           int64_t k_begin, int64_t k_end,
                                           const int32_t *s, int32_t *st) {
-    for (int64_t k = k_begin; k < k_end; k++) {
-        __int128 acc = 0;
-        for (int64_t j = 0; j < N; j++) acc += (__int128)weights[j * K + k] * s[j];
-        int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
-        st[k] = (int32_t)v;
-    }
+    for (int64_t k = k_begin; k < k_end; k++) st[k] = (int32_t)sh_dot_mod_i8(weights + k, K, s, N, SH_M_MOD);
 }
 
 /* Compute W^T s modulo M, with the same result as the column-strided

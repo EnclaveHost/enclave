@@ -60,7 +60,10 @@ typedef struct {
     uint8_t  dealer_pk[32];           /* ephemeral X25519 public key of this shipment */
     uint8_t  key_box[48];             /* crypto_box(shipment key) to the consumer's pad key */
     uint8_t  hdr_box[80];             /* ChaCha20-Poly1305 of sha512(header || groups): tag || ct */
-    uint8_t  pad[256 - 8 - 4 - 4 - 32 - 16 - 8 - 8 - 8 - 8 - 32 - 48 - 80];
+#define SH_PADS_HDR_PAD (256 - 8 - 4 - 4 - 32 - 16 - 8 - 8 - 8 - 8 - 32 - 48 - 80)
+#if SH_PADS_HDR_PAD > 0
+    uint8_t  pad[SH_PADS_HDR_PAD];   /* absent when the fields fill the 256 bytes exactly (a zero-length array is a GNU extension) */
+#endif
 } sh_pads_hdr;
 
 /* The engine's ChaCha20 block (64-bit counter, zero nonce). */

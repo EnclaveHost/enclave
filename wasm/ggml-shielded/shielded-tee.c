@@ -4,6 +4,7 @@
 #include "shielded-pads.h"
 #include "shielded-bank.h"
 #include "shielded-http.h"
+#include "shielded-wide.h"
 #include "shielded-field.h"
 #include "shielded-pad-check.h"
 #include "shielded-pad-parallel.h"
@@ -721,12 +722,7 @@ static int pad_check_prepare(sh_node *nd) {
         }
         return SH_OK;
     }
-    for (int64_t k = 0; k < K; k++) {
-        __int128 acc = 0;
-        for (int64_t j = 0; j < N; j++) acc += (__int128)nd->w[j * K + k] * nd->sM[j];
-        int64_t v = (int64_t)(acc % SH_M_MOD); if (v < 0) v += SH_M_MOD;
-        nd->stM[k] = (int32_t)v;
-    }
+    for (int64_t k = 0; k < K; k++) nd->stM[k] = (int32_t)sh_dot_mod_i8(nd->w + k, K, nd->sM, N, SH_M_MOD);
     if (prepare_profile) {
         sh_pad_par_stats_serial(&pstats, prepare_threads, K, N);
         sh_pad_par_report(&pstats, nd->name, use_tiled);
@@ -759,9 +755,13 @@ int sh_link_add_weight(sh_link *l, const char *name, const int8_t *w_fixed,
     const double tp0 = profile_registration ? now_ms() : 0;
     sh_node staged = {0}; sh_node *nd = &staged;
     nd->w_off = align_up(l->wbytes); nd->x_off = align_up(l->abytes);
-    const __int128 yoff = ((__int128)nd->x_off + 3 * (__int128)max_m * K + SH_ALIGN - 1) & ~((__int128)SH_ALIGN - 1);
-    const __int128 ab = yoff + (__int128)max_m * N * 4, wb = (__int128)nd->w_off + K * N;
-    if (ab > INT64_MAX || wb > INT64_MAX || ab > SIZE_MAX || wb > SIZE_MAX) return SH_ERR_RANGE;
+    uint64_t t1, t2, yoff, ab, wb;   /* overflow-checked 64-bit arithmetic (shielded-wide.h): the same bound the wide form checked */
+    if (max_m < 0 || K < 0 || N < 0 || nd->x_off < 0 || nd->w_off < 0) return SH_ERR_RANGE;
+    if (sh_mul_u64(3 * (uint64_t)max_m, (uint64_t)K, &t1) || sh_add_u64((uint64_t)nd->x_off, t1, &t2) || sh_add_u64(t2, SH_ALIGN - 1, &yoff)) return SH_ERR_RANGE;
+    yoff &= ~(uint64_t)(SH_ALIGN - 1);
+    if (sh_mul_u64((uint64_t)max_m, (uint64_t)N, &t1) || sh_mul_u64(t1, 4, &t2) || sh_add_u64(yoff, t2, &ab)) return SH_ERR_RANGE;
+    if (sh_mul_u64((uint64_t)K, (uint64_t)N, &t1) || sh_add_u64((uint64_t)nd->w_off, t1, &wb)) return SH_ERR_RANGE;
+    if (ab > (uint64_t)INT64_MAX || wb > (uint64_t)INT64_MAX) return SH_ERR_RANGE;
     nd->y_off = (int64_t)yoff;
     snprintf(nd->name, sizeof nd->name, "%s", name);
     nd->w = w_fixed; nd->K = K; nd->N = N; nd->max_m = max_m;
@@ -979,12 +979,8 @@ static int dealt_import(sh_link *l, const sh_group *g, uint32_t gi, uint64_t ind
                 a = sh_pad_check_dot_field(uu, nd->sM, nd->N);
                 b = sh_pad_check_dot_field(rr, nd->stM, nd->K);
             } else {
-                __int128 lhs = 0, rhs = 0;
-                for (int64_t j = 0; j < nd->N; j++) lhs += (__int128)uu[j] * nd->sM[j];
-                for (int64_t k = 0; k < nd->K; k++) rhs += (__int128)rr[k] * nd->stM[k];
-                a = (int64_t)(lhs % SH_M_MOD); b = (int64_t)(rhs % SH_M_MOD);
-                if (a < 0) a += SH_M_MOD;
-                if (b < 0) b += SH_M_MOD;
+                a = sh_dot_mod_i32(uu, nd->sM, nd->N, SH_M_MOD);
+                b = sh_dot_mod_i32(rr, nd->stM, nd->K, SH_M_MOD);
             }
             if (a != b) {
                 snprintf(l->err, sizeof l->err, "dealt pads: group %u index %llu: pad FAILED the check on %s (the dealer minted u != r.W for this seed)", gi, (unsigned long long)index, nd->name);
@@ -2416,19 +2412,15 @@ int sh_link_mint_shipment_worker(sh_link *l, const uint8_t seed[32], const uint8
                 const sh_node *nd = &l->nodes[g->nodes[n]];
                 if (!nd->sM || !nd->stM) { snprintf(l->err, sizeof l->err, "mint via worker: no mod-M check vectors (set SHIELDED_PAD_CHECK=1 before the model loads)"); rc = SH_ERR_RANGE; break; }
                 for (int i = 0; i < b; i++) {
-                    __int128 lhs = 0, rhs = 0;
                     for (int64_t j = 0; j < nd->N; j++) {
                         int64_t v = yout[n][(size_t)i * nd->N + j] % SH_M_MOD;      /* the writer's balanced range [-M/2, M/2], as the in-process mint */
                         if (v < 0) v += SH_M_MOD;
                         if (v > SH_M_MOD / 2) v -= SH_M_MOD;
                         u[(size_t)i * g->u_len + nd->u_off + j] = (int32_t)v;
-                        lhs += (__int128)v * nd->sM[j];
                     }
                     /* the worker's word is checked here, the way a consumer checks a shipment: (u . s) == (r . (W s)) mod M */
-                    for (int64_t k = 0; k < K; k++) rhs += (__int128)r[(size_t)i * K + k] * nd->stM[k];
-                    int64_t a = (int64_t)(lhs % SH_M_MOD), c = (int64_t)(rhs % SH_M_MOD);
-                    if (a < 0) a += SH_M_MOD;
-                    if (c < 0) c += SH_M_MOD;
+                    const int64_t a = sh_dot_mod_i32(&u[(size_t)i * g->u_len + nd->u_off], nd->sM, nd->N, SH_M_MOD);
+                    const int64_t c = sh_dot_mod_i32(&r[(size_t)i * K], nd->stM, K, SH_M_MOD);
                     if (a != c) { snprintf(l->err, sizeof l->err, "mint via worker: the worker's product for %s row %llu FAILED the mod-M check", nd->name, (unsigned long long)(index0 + i0 + (uint64_t)i)); rc = SH_ERR_VERIFY; break; }
                 }
                 if (rc != SH_OK) break;

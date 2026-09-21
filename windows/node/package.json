@@ -1,0 +1,4 @@
+{ "name": "enclave-windows-node", "version": "0.1.0", "private": true, "type": "module",
+  "description": "The Windows consumer node's agent: runs the VBS enclave engine, the Vulkan worker and the TPM tool, attaches to the fleet tunnel as a windows-vbs-node (windows/vbs/EVIDENCE.md).",
+  "scripts": { "start": "node agent.mjs" },
+  "dependencies": { "ws": "^8.18.0" } }

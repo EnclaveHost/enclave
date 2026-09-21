@@ -16,6 +16,7 @@
  */
 #include "shielded-field.h"
 #include "shielded-simd.h"
+#include "shielded-wide.h"
 
 /* OP-TEE TAs have no libm and no <math.h>. The ONLY libm user in this file is
  * lrintf in FN(encode); on aarch64 __builtin_lrintf lowers to FCVTNS -- round
@@ -423,7 +424,7 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
     const int G = (b + 3) / 4;
     const int64_t K64 = K & ~(int64_t)63;
     const __mmask64 tail = (K & 63) ? (((__mmask64)1 << (K & 63)) - 1) : 0;
-    __m512i *saved = (__m512i *)aligned_alloc(64, (size_t)G * 3 * 4 * 16 * sizeof(__m512i));
+    __m512i *saved = (__m512i *)sh_aligned_alloc64((size_t)G * 3 * 4 * 16 * sizeof(__m512i));
     if (!saved) { /* The caller's 12*N scratch makes fallback allocation-free.
                    * A second failed allocation must not silently leave u stale. */
         for (int b0 = 0; b0 < b; b0 += 4) {
@@ -506,7 +507,7 @@ static void refill_rows_blocked(const uint8_t *planes, int b, const int8_t *W,
             }
         }
     }
-    free(saved);
+    sh_aligned_free(saved);
 }
 #elif defined(SH_SIMD_NEON)
 /* SDOT is signed x signed; the planes are unsigned residues. The exact identity
