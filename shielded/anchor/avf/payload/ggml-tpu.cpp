@@ -270,12 +270,38 @@ void exchange(group &g, const float *x, uint32_t rows) {
     { const uint8_t hdr[4] = { (uint8_t)(s_digit_split ? 0xE8 : 0xE7), (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
       memcpy(s.frame.data(), hdr, 4); }
     s.rxbuf.resize((size_t)wire_rows * n_out_total);
-    if (!wr_all(s.link, s.frame.data(), s.frame.size()) || !rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
-    const int64_t t2 = now_us();
-    /* unmask */
-    g.cache.resize(g.projs.size()); const int16_t *rx = s.rxbuf.data();
+    if (!wr_all(s.link, s.frame.data(), s.frame.size())) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
+    const int64_t t_pub = now_us();
+    /* The request is PUBLISHED, so the worker is already computing, and this thread is about to sleep for 4.3 ms.
+     * The out-of-lane correction is a function of the REQUEST alone -- outl[] was built while masking and the walk
+     * reads only public weights -- so it belongs in that window, not after the reply. This is the engine's
+     * sh_pipe_exchange_work contract (shielded, "Fill the ring's spin window with the work that was waiting on
+     * it"), which runs the Freivalds RHS there for the same reason: it removes work from the critical path
+     * instead of adding a thread, and on this phone there is no spare core to add one to.
+     *
+     * Wq is row major, so a column is a strided walk (one cache miss per output); the misses are independent, so
+     * they are prefetched a few rows ahead and overlap. The first term writes, the rest accumulate, which saves a
+     * zeroing pass over the cache; a row with no out-of-lane entries is cleared instead. */
+    g.cache.resize(g.projs.size());
     for (size_t p = 0; p < g.projs.size(); p++) {
         const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
+        for (uint32_t r = 0; r < rows; r++) {
+            float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
+            for (const auto &o : outl[r]) {
+                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
+                if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
+                else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
+            }
+            if (first) std::fill(y, y + pr.n_out, 0.0f);
+        }
+    }
+    const int64_t t_corr = now_us();
+    if (!rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed waiting for the reply (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
+    const int64_t t2 = now_us();
+    /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
+    const int16_t *rx = s.rxbuf.data();
+    for (size_t p = 0; p < g.projs.size(); p++) {
+        const proj &pr = g.projs[p];
         /* Digit-split replies carry both halves at ONE scale, sized for the larger (the lo product reaches about
          * 1/128 of a full-range output, hi about 1/256; the rest is headroom for the pad's spread). This MUST equal
          * make_graphs.py's DIGIT_OUT_DIV - it is deliberately not derived from the lane margin, so that retuning the
@@ -290,16 +316,10 @@ void exchange(group &g, const float *x, uint32_t rows) {
                 for (uint32_t j = 0; j < pr.n_out; j++) {
                     const int16_t a = vh[j], b2 = vl[j];
                     if (a == 32767 || a == -32768 || b2 == 32767 || b2 == -32768) s.st.saturated++;
-                    y[j] = s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
+                    y[j] += s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
                 }
             } else
-            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] = pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
-            /* the rare entries beyond their lane: exact, inside the VM. Wq is row major, so a column is a strided walk (one
-             * cache miss per output); the misses are independent, so they are prefetched a few rows ahead and overlap. */
-            for (const auto &o : outl[r]) {
-                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
-                for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; }
-            }
+            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] += pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
             rx += pr.n_out;
         }
         if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
@@ -307,6 +327,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     const int64_t t3 = now_us();
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
+    s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_corr);
 }
 
 bool claimable(const ggml_tensor *op) {
