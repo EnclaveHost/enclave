@@ -307,7 +307,11 @@ test("the proof interval leaves room for a missed round inside the contract's wi
 test("the fleet advertises proof-of-time capability, AND-ed across every host", () => {
   assert.match(SUP, /proofOfTime: PROOF_READY\(\),/, "each box advertises whether it can prove");
   const relay = fs.readFileSync(path.join(REPO, "relay", "api-relay.js"), "utf8");
-  assert.match(relay, /proofOfTime: serving\.length > 0 && serving\.every\(\(e\) => e\.availability\?\.proofOfTime === true\)/,
+    // `offered` is the SERVING set minus the boxes that publish fullService:false, and it is
+    // still an AND: a partial box must not switch a capability off for the whole platform,
+    // and a full-service box that lacks it still does (relay/api-relay.js
+    // fullServiceEnclaves, test/fleet-partial-capability.test.mjs).
+  assert.match(relay, /proofOfTime: offered\.length > 0 && offered\.every\(\(e\) => e\.availability\?\.proofOfTime === true\)/,
     "the relay must AND it: 'hosts here are held to account' is only true if ALL are");
 });
 
