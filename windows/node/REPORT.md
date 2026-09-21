@@ -72,6 +72,12 @@ box declared its owner's payout wallet, so the deployment needs no balance and n
 Proof-of-time checkpoints are **skipped while the rate is zero**: they would spend the box's gas
 every five minutes to credit a meter multiplied by zero. On a paid lease they resume.
 
+Measured gas on Base: register 262k (0.0000016 ETH), claim 158k, **renew 60k (0.00000036 ETH)**.
+The 0.0004 ETH this box was given is about 1,100 renewals, i.e. three weeks of 30-minute quanta;
+`/availability` publishes `gasRenewalsLeft` and the node warns hourly below about four days' worth,
+because an empty tank does not fail loudly, it just stops renewing and the app goes away at the end
+of the quantum.
+
 The box's operator key holds a small gas tank and nothing else; earnings would go to the payout
 wallet, which the operator key cannot change. The proof key sits beside it on the host, so on this
 node a checkpoint is worth what the owner's word is worth. On a fleet enclave that key is minted
