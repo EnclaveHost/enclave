@@ -77,17 +77,18 @@ integer matmul, the two token streams required to be identical):
 
 | worker | identical token streams | masked exchanges | round trips | offloaded | verify failures | wire term per token |
 |---|---|---|---|---|---|---|
-| Tesla V100, Linux, **Vulkan** | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 657 ms (first build; re-measured below) |
+| Tesla V100, Linux, **Vulkan** | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 657 ms first build; **54 ms** with the staging cache |
 | Tesla V100, Linux, CUDA | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 70 ms |
 | Radeon 780M, **Windows 11, Vulkan, over the LAN** | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 1059 ms |
 
 Same outputs, same exchange counts, same peak |y| (2.1e6 against M/2 = 7.2e6) on all three.
 The wire term is the Python TEE's per-node doorbell path, three round trips per node; on
-Vulkan each of those is a submit plus a fence wait (and, in the first build, a fresh staging
-buffer per pageable copy, since replaced by a cache). The engine's one-frame exchange, the
-production path, batches a whole step into one pre-recorded command buffer and one submit, so
-the doorbell figure is a bound on the legacy path, not on decode. The three runs overlapped on
-one CPU, so the TEE-side terms (refill, mask, verify) are not comparable between rows.
+Vulkan each of those is a submit plus a fence wait. The first build also created a fresh
+staging buffer per pageable copy, which is where its 657 ms went; with a cache of staging
+buffers the same run measures 54 ms per token against CUDA's 70, and the worker's own GEMM
+time over the run fell from 1415 ms to 441 ms (CUDA: 311 ms). The engine's one-frame exchange,
+the production path, batches a whole step into one pre-recorded command buffer and one submit.
+The three first runs overlapped on one CPU, so their TEE-side terms are not comparable.
 
 What the device layer does differently, and what it does not do yet:
 - Device pointers are buffer device addresses; the pool is an arena of 64 MiB-minimum blocks,
@@ -100,6 +101,38 @@ What the device layer does differently, and what it does not do yet:
   API): `SHIELDED_CARD_TFLOPS` states it.
 - The shm ring (`--shm`) is not available on Windows (the compat `mmap` refuses it); vsock is
   AF_HYPERV there, untested. MPS has no equivalent yet; `VK_EXT_global_priority` is the plan.
+
+## The share a tenant pays for: enforced on the worker's GPU turn (both vendors)
+
+MPS gave a fixed SM slice per client, Linux-only and CUDA-only, and could neither let a tenant
+burst into an idle neighbour's slice nor guarantee time. The worker now enforces the share as a
+share of the card's TIME at the one point every exchange passes: the GPU mutex. A start-time fair
+queue (`GpuScheduler` in `worker.cu`) orders waiting links by virtual time = card-seconds held /
+share, lifts a link that joins after idling to the running tenant's virtual time (idle earns no
+credit, a solo burst leaves no debt), and hands the card outright to a lone waiter. The share is
+the link's HELLO reservation over the budget (`SHIELDED_SHARE_DEFAULT` for a 4-byte HELLO);
+the metered turn covers the kernel and both copies of the legacy doorbell path (the one-frame
+exchange is a single turn already). `SHIELDED_FAIR_SHARE=0` restores plain mutex order.
+
+`fair_share_test.py`: tenant A reserves 75% of the budget, B 25%, four links each, one process per
+link, raw exchange frames (0.54 G-MAC each) as fast as the worker answers; then each tenant alone.
+Exchange rates from the clients, card time and waiting from the worker's own close log:
+
+| | A : B contending | on the card, A : B | waiting per turn, A : B | A alone | B alone | A+B vs solo |
+|---|---|---|---|---|---|---|
+| CUDA worker, Tesla V100 | 2392/s : 812/s = **2.95 : 1** | 13.8 s : 4.9 s | 0.25 ms : 0.90 ms | 3240/s | 3220/s | 3204/s vs 3240/s |
+| Vulkan worker, Tesla V100 | 1580/s : 520/s = **3.04 : 1** | 14.1 s : 4.8 s | 0.39 ms : 1.42 ms | 2248/s | 1607/s | 2100/s vs 2248/s |
+
+The contended split is the paid share to within 2%, the sum under contention equals one tenant's
+solo rate (the card is saturated and nothing is wasted), and a tenant alone gets the whole card:
+the burst into unused capacity. The B-alone Vulkan row was measured while another process was
+using that card. What this does not do: fence Enclave's tenants from the host's own use (queue
+priority, not wired yet) or limit memory (the reservation ledger does).
+
+Bugs found on the way, all fixed: the Vulkan shim's arena recovered a freed allocation's length
+from its neighbours and freed live memory once tenants churned; the shim's immediate stream and
+maps were shared across connection threads without a lock (SIGSEGV in the NVIDIA driver with
+eight links); SET_TENSOR held the GPU mutex before taking the turn (self-deadlock).
 
 ## Next
 

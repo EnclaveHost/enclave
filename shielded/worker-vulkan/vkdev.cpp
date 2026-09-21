@@ -35,6 +35,10 @@ static PFN_vkGetInstanceProcAddr gipa;
   X(vkGetFenceStatus) X(vkQueueWaitIdle) X(vkDeviceWaitIdle)
 VKFN(vkCreateInstance) VK_INSTANCE_FNS(VKFN) VK_DEVICE_FNS(VKFN)
 
+/* Vulkan objects need external synchronization and the worker calls in from one thread per link:
+ * one process-wide lock around every entry point. Compute is serialized by the worker anyway. */
+static std::recursive_mutex g_api;
+#define API_LOCK std::lock_guard<std::recursive_mutex> api_lk_(g_api)
 static void fatal(const char *m, int code = 75) { fprintf(stderr, "[shielded-worker] vulkan: %s\n", m); exit(code); }
 static cudaError_t g_last = cudaSuccess;
 static cudaError_t fail(cudaError_t e) { g_last = e; return e; }
@@ -113,6 +117,7 @@ static void flush(VkStreamImpl *s) {
 struct Block {
     VkBuffer buf = VK_NULL_HANDLE; VkDeviceMemory mem = VK_NULL_HANDLE; uint64_t base = 0; size_t size = 0;
     std::vector<std::pair<size_t, size_t>> free;        /* (offset, length), sorted, coalesced */
+    std::map<size_t, size_t> live;                        /* offset -> length of every live allocation */
     size_t used = 0;
 };
 static std::map<uint64_t, Block *> g_blocks;             /* by base address */
@@ -150,12 +155,12 @@ static void *arena_alloc(size_t n) {
         for (size_t i = 0; i < b->free.size(); i++) if (b->free[i].second >= n) {
             const size_t off = b->free[i].first;
             if (b->free[i].second == n) b->free.erase(b->free.begin() + i); else { b->free[i].first += n; b->free[i].second -= n; }
-            b->used += n; return (void *)(uintptr_t)(b->base + off);
+            b->used += n; b->live[off] = n; return (void *)(uintptr_t)(b->base + off);
         }
     }
     Block *b = new_block(std::max(n, BLOCK_MIN)); if (!b) return nullptr;
     b->free[0].first += n; b->free[0].second -= n; if (b->free[0].second == 0) b->free.clear();
-    b->used += n; return (void *)(uintptr_t)b->base;
+    b->used += n; b->live[0] = n; return (void *)(uintptr_t)b->base;
 }
 /* (block, offset) of a device address, or nullptr. */
 static Block *find_block(uint64_t addr, size_t *off) {
@@ -164,9 +169,9 @@ static Block *find_block(uint64_t addr, size_t *off) {
 }
 static void arena_free(void *p) {
     size_t off; Block *b = find_block((uint64_t)(uintptr_t)p, &off); if (!b) return;
-    /* The length is recovered from the neighbours: allocations are contiguous between free ranges. */
-    size_t end = b->size; for (auto &f : b->free) if (f.first > off) { end = f.first; break; }
-    size_t len = end - off; b->free.push_back({off, len}); b->used -= std::min(b->used, len);
+    auto it = b->live.find(off); if (it == b->live.end()) return;   /* not an allocation start: ignore, as cudaFree would refuse */
+    const size_t len = it->second; b->live.erase(it);
+    b->free.push_back({off, len}); b->used -= std::min(b->used, len);
     std::sort(b->free.begin(), b->free.end());
     std::vector<std::pair<size_t, size_t>> m;
     for (auto &f : b->free) { if (!m.empty() && m.back().first + m.back().second == f.first) m.back().second += f.second; else m.push_back(f); }
@@ -337,18 +342,18 @@ const char *vk_device_name() { return D.name.c_str(); }
 int vk_cu_count() { return D.cus; }
 
 /* ---- the CUDA runtime subset ------------------------------------------------------------- */
-cudaError_t cudaSetDevice(int) { return cudaSuccess; }
-cudaError_t cudaSetDeviceFlags(unsigned) { return cudaSuccess; }
-cudaError_t cudaGetDeviceCount(int *n) { *n = D.dev ? 1 : 0; return cudaSuccess; }
-cudaError_t cudaGetDeviceProperties(cudaDeviceProp *p, int) {
+cudaError_t cudaSetDevice(int) { API_LOCK; return cudaSuccess; }
+cudaError_t cudaSetDeviceFlags(unsigned) { API_LOCK; return cudaSuccess; }
+cudaError_t cudaGetDeviceCount(int *n) { API_LOCK; *n = D.dev ? 1 : 0; return cudaSuccess; }
+cudaError_t cudaGetDeviceProperties(cudaDeviceProp *p, int) { API_LOCK;
     memset(p, 0, sizeof *p); snprintf(p->name, sizeof p->name, "%s", D.name.c_str()); p->totalGlobalMem = D.total_local; p->multiProcessorCount = D.cus; return cudaSuccess;
 }
-cudaError_t cudaDeviceSynchronize() { flush(g_immediate); vkDeviceWaitIdle(D.dev); return cudaSuccess; }
-cudaError_t cudaGetLastError() { cudaError_t e = g_last; g_last = cudaSuccess; return e; }
+cudaError_t cudaDeviceSynchronize() { API_LOCK; flush(g_immediate); vkDeviceWaitIdle(D.dev); return cudaSuccess; }
+cudaError_t cudaGetLastError() { API_LOCK; cudaError_t e = g_last; g_last = cudaSuccess; return e; }
 const char *cudaGetErrorString(cudaError_t e) {
     switch (e) { case cudaSuccess: return "no error"; case cudaErrorMemoryAllocation: return "out of memory"; case cudaErrorInvalidValue: return "invalid value"; default: return "vulkan error"; }
 }
-cudaError_t cudaMemGetInfo(size_t *free_bytes, size_t *total_bytes) {
+cudaError_t cudaMemGetInfo(size_t *free_bytes, size_t *total_bytes) { API_LOCK;
     *total_bytes = D.total_local; *free_bytes = D.total_local;
     if (D.budget_ext) {
         VkPhysicalDeviceMemoryBudgetPropertiesEXT b{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT};
@@ -360,44 +365,44 @@ cudaError_t cudaMemGetInfo(size_t *free_bytes, size_t *total_bytes) {
     return cudaSuccess;
 }
 
-cudaError_t cudaStreamCreateWithFlags(cudaStream_t *s, unsigned) { *s = new_stream(); return cudaSuccess; }
-cudaError_t cudaStreamDestroy(cudaStream_t s) {
+cudaError_t cudaStreamCreateWithFlags(cudaStream_t *s, unsigned) { API_LOCK; *s = new_stream(); return cudaSuccess; }
+cudaError_t cudaStreamDestroy(cudaStream_t s) { API_LOCK;
     if (!s) return cudaSuccess; flush(s); if (s->open) { vkEndCommandBuffer(s->open); vkFreeCommandBuffers(D.dev, s->pool, 1, &s->open); }
     vkDestroyFence(D.dev, s->fence, nullptr); vkDestroyCommandPool(D.dev, s->pool, nullptr); delete s; return cudaSuccess;
 }
-cudaError_t cudaStreamSynchronize(cudaStream_t s) { flush(stream_of(s)); return cudaSuccess; }
-cudaError_t cudaStreamBeginCapture(cudaStream_t s, cudaStreamCaptureMode) {
+cudaError_t cudaStreamSynchronize(cudaStream_t s) { API_LOCK; flush(stream_of(s)); return cudaSuccess; }
+cudaError_t cudaStreamBeginCapture(cudaStream_t s, cudaStreamCaptureMode) { API_LOCK;
     VkStreamImpl *st = stream_of(s); flush(st); st->capturing = true; (void)cb_of(st); return cudaSuccess;
 }
-cudaError_t cudaStreamEndCapture(cudaStream_t s, cudaGraph_t *g) {
+cudaError_t cudaStreamEndCapture(cudaStream_t s, cudaGraph_t *g) { API_LOCK;
     VkStreamImpl *st = stream_of(s); *g = nullptr;
     if (!st->capturing) return fail(cudaErrorStreamCaptureInvalidated);
     st->capturing = false; VkCommandBuffer cb = st->open; st->open = VK_NULL_HANDLE;
     if (vkEndCommandBuffer(cb) != VK_SUCCESS) { vkFreeCommandBuffers(D.dev, st->pool, 1, &cb); return fail(cudaErrorStreamCaptureInvalidated); }
     VkGraphImpl *gr = new VkGraphImpl; gr->cb = cb; gr->pool = st->pool; *g = gr; return cudaSuccess;
 }
-cudaError_t cudaGraphInstantiate(cudaGraphExec_t *ge, cudaGraph_t g, unsigned long long) { *ge = g; return cudaSuccess; }   /* the graph IS its executable */
-cudaError_t cudaGraphDestroy(cudaGraph_t) { return cudaSuccess; }                                                            /* ownership moved to the exec */
-cudaError_t cudaGraphExecDestroy(cudaGraphExec_t g) { if (g) { vkFreeCommandBuffers(D.dev, g->pool, 1, &g->cb); delete g; } return cudaSuccess; }
-cudaError_t cudaGraphLaunch(cudaGraphExec_t g, cudaStream_t s) { VkStreamImpl *st = stream_of(s); flush(st); submit(st, g->cb, true); return cudaSuccess; }
+cudaError_t cudaGraphInstantiate(cudaGraphExec_t *ge, cudaGraph_t g, unsigned long long) { API_LOCK; *ge = g; return cudaSuccess; }   /* the graph IS its executable */
+cudaError_t cudaGraphDestroy(cudaGraph_t) { API_LOCK; return cudaSuccess; }                                                            /* ownership moved to the exec */
+cudaError_t cudaGraphExecDestroy(cudaGraphExec_t g) { API_LOCK; if (g) { vkFreeCommandBuffers(D.dev, g->pool, 1, &g->cb); delete g; } return cudaSuccess; }
+cudaError_t cudaGraphLaunch(cudaGraphExec_t g, cudaStream_t s) { API_LOCK; VkStreamImpl *st = stream_of(s); flush(st); submit(st, g->cb, true); return cudaSuccess; }
 
-cudaError_t cudaMallocAsync(void **p, size_t n, cudaStream_t) { std::lock_guard<std::mutex> lk(g_mem_mu); *p = arena_alloc(n); return *p ? cudaSuccess : fail(cudaErrorMemoryAllocation); }
-cudaError_t cudaFreeAsync(void *p, cudaStream_t s) { flush(stream_of(s)); std::lock_guard<std::mutex> lk(g_mem_mu); arena_free(p); return cudaSuccess; }
-cudaError_t cudaDeviceGetDefaultMemPool(cudaMemPool_t *pool, int) { *pool = (cudaMemPool_t)1; return cudaSuccess; }
-cudaError_t cudaMemPoolGetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) {
+cudaError_t cudaMallocAsync(void **p, size_t n, cudaStream_t) { API_LOCK; std::lock_guard<std::mutex> lk(g_mem_mu); *p = arena_alloc(n); return *p ? cudaSuccess : fail(cudaErrorMemoryAllocation); }
+cudaError_t cudaFreeAsync(void *p, cudaStream_t s) { API_LOCK; flush(stream_of(s)); std::lock_guard<std::mutex> lk(g_mem_mu); arena_free(p); return cudaSuccess; }
+cudaError_t cudaDeviceGetDefaultMemPool(cudaMemPool_t *pool, int) { API_LOCK; *pool = (cudaMemPool_t)1; return cudaSuccess; }
+cudaError_t cudaMemPoolGetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) { API_LOCK;
     std::lock_guard<std::mutex> lk(g_mem_mu);
     if (a == cudaMemPoolAttrReservedMemCurrent) *(cuuint64_t *)v = reserved_now(); else if (a == cudaMemPoolAttrReleaseThreshold) *(cuuint64_t *)v = g_threshold; return cudaSuccess;
 }
-cudaError_t cudaMemPoolSetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) { std::lock_guard<std::mutex> lk(g_mem_mu); if (a == cudaMemPoolAttrReleaseThreshold) g_threshold = *(cuuint64_t *)v; return cudaSuccess; }
-cudaError_t cudaMemPoolTrimTo(cudaMemPool_t, size_t keep) { std::lock_guard<std::mutex> lk(g_mem_mu); trim_to(keep); return cudaSuccess; }
+cudaError_t cudaMemPoolSetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) { API_LOCK; std::lock_guard<std::mutex> lk(g_mem_mu); if (a == cudaMemPoolAttrReleaseThreshold) g_threshold = *(cuuint64_t *)v; return cudaSuccess; }
+cudaError_t cudaMemPoolTrimTo(cudaMemPool_t, size_t keep) { API_LOCK; std::lock_guard<std::mutex> lk(g_mem_mu); trim_to(keep); return cudaSuccess; }
 
-cudaError_t cudaMemcpyAsync(void *dst, const void *src, size_t n, cudaMemcpyKind k, cudaStream_t s) {
+cudaError_t cudaMemcpyAsync(void *dst, const void *src, size_t n, cudaMemcpyKind k, cudaStream_t s) { API_LOCK;
     VkStreamImpl *st = stream_of(s); std::vector<HostBuf> staging;
     if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue);
     if (!staging.empty()) { if (st->capturing) fatal("pageable copy inside a captured graph"); flush(st); for (auto &h : staging) staging_put(h); }
     return cudaSuccess;
 }
-cudaError_t cudaMemcpy(void *dst, const void *src, size_t n, cudaMemcpyKind k) {
+cudaError_t cudaMemcpy(void *dst, const void *src, size_t n, cudaMemcpyKind k) { API_LOCK;
     VkStreamImpl *st = g_immediate; std::vector<HostBuf> staging;
     if (k == cudaMemcpyDeviceToHost) {
         size_t hoff; if (find_host(dst, &hoff)) { if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue); flush(st); return cudaSuccess; }
@@ -409,7 +414,7 @@ cudaError_t cudaMemcpy(void *dst, const void *src, size_t n, cudaMemcpyKind k) {
     if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue);
     flush(st); for (auto &h : staging) staging_put(h); return cudaSuccess;
 }
-cudaError_t cudaMemset(void *dst, int byte, size_t n) {
+cudaError_t cudaMemset(void *dst, int byte, size_t n) { API_LOCK;
     size_t off; Block *b = find_block((uint64_t)(uintptr_t)dst, &off); if (!b) return fail(cudaErrorInvalidValue);
     const uint32_t word = (uint32_t)(byte & 0xff) * 0x01010101u; VkCommandBuffer cb = cb_of(g_immediate);
     const size_t head = (4 - (off & 3)) & 3, mid = (n - std::min(n, head)) & ~(size_t)3, tail = n - std::min(n, head) - mid;
@@ -420,23 +425,23 @@ cudaError_t cudaMemset(void *dst, int byte, size_t n) {
         cmd_barrier(cb); flush(g_immediate); staging_put(st); return cudaSuccess; }
     cmd_barrier(cb); flush(g_immediate); return cudaSuccess;
 }
-cudaError_t cudaHostAlloc(void **p, size_t n, unsigned flags) {
+cudaError_t cudaHostAlloc(void **p, size_t n, unsigned flags) { API_LOCK;
     HostBuf h; if (!host_alloc(n, flags & cudaHostAllocMapped, &h)) return fail(cudaErrorMemoryAllocation);
     g_host[(uintptr_t)h.map] = h; *p = h.map; return cudaSuccess;
 }
-cudaError_t cudaFreeHost(void *p) { auto it = g_host.find((uintptr_t)p); if (it == g_host.end()) return fail(cudaErrorInvalidValue); flush(g_immediate); host_free(it->second); g_host.erase(it); return cudaSuccess; }
-cudaError_t cudaHostGetDevicePointer(void **dev, void *host, unsigned) { size_t off; HostBuf *h = find_host(host, &off); if (!h) return fail(cudaErrorInvalidValue); *dev = (void *)(uintptr_t)(h->addr + off); return cudaSuccess; }
+cudaError_t cudaFreeHost(void *p) { API_LOCK; auto it = g_host.find((uintptr_t)p); if (it == g_host.end()) return fail(cudaErrorInvalidValue); flush(g_immediate); host_free(it->second); g_host.erase(it); return cudaSuccess; }
+cudaError_t cudaHostGetDevicePointer(void **dev, void *host, unsigned) { API_LOCK; size_t off; HostBuf *h = find_host(host, &off); if (!h) return fail(cudaErrorInvalidValue); *dev = (void *)(uintptr_t)(h->addr + off); return cudaSuccess; }
 
 struct VkEventImpl { std::chrono::steady_clock::time_point t; };
-cudaError_t cudaEventCreate(cudaEvent_t *e) { *e = new VkEventImpl; return cudaSuccess; }
-cudaError_t cudaEventDestroy(cudaEvent_t e) { delete e; return cudaSuccess; }
-cudaError_t cudaEventRecord(cudaEvent_t e, cudaStream_t s) { flush(stream_of(s)); e->t = std::chrono::steady_clock::now(); return cudaSuccess; }
-cudaError_t cudaEventRecordWithFlags(cudaEvent_t e, cudaStream_t s, unsigned) { if (!stream_of(s)->capturing) return cudaEventRecord(e, s); return cudaSuccess; }
-cudaError_t cudaEventSynchronize(cudaEvent_t) { return cudaSuccess; }
-cudaError_t cudaEventElapsedTime(float *ms, cudaEvent_t a, cudaEvent_t b) { *ms = (float)std::chrono::duration<double, std::milli>(b->t - a->t).count(); return cudaSuccess; }
+cudaError_t cudaEventCreate(cudaEvent_t *e) { API_LOCK; *e = new VkEventImpl; return cudaSuccess; }
+cudaError_t cudaEventDestroy(cudaEvent_t e) { API_LOCK; delete e; return cudaSuccess; }
+cudaError_t cudaEventRecord(cudaEvent_t e, cudaStream_t s) { API_LOCK; flush(stream_of(s)); e->t = std::chrono::steady_clock::now(); return cudaSuccess; }
+cudaError_t cudaEventRecordWithFlags(cudaEvent_t e, cudaStream_t s, unsigned) { API_LOCK; if (!stream_of(s)->capturing) return cudaEventRecord(e, s); return cudaSuccess; }
+cudaError_t cudaEventSynchronize(cudaEvent_t) { API_LOCK; return cudaSuccess; }
+cudaError_t cudaEventElapsedTime(float *ms, cudaEvent_t a, cudaEvent_t b) { API_LOCK; *ms = (float)std::chrono::duration<double, std::milli>(b->t - a->t).count(); return cudaSuccess; }
 
 /* ---- the kernels ------------------------------------------------------------------------- */
-void vk_launch_gemm(int mr, int g, const GemmTab &tab, int nblocks, int K, const int8_t *X, long long xstride, long long pstride, cudaStream_t s) {
+void vk_launch_gemm(int mr, int g, const GemmTab &tab, int nblocks, int K, const int8_t *X, long long xstride, long long pstride, cudaStream_t s) { API_LOCK;
     PC pc; memset(&pc, 0, sizeof pc);
     for (int i = 0; i < 8; i++) { pc.W[i] = (uint64_t)(uintptr_t)tab.W[i]; pc.Y[i] = (uint64_t)(uintptr_t)tab.Y[i]; pc.N[i] = tab.N[i]; pc.blk0[i] = tab.blk0[i]; }
     pc.X = (uint64_t)(uintptr_t)X; pc.K = K; pc.xs16 = (int)(xstride >> 4); pc.ps16 = (int)(pstride >> 4); pc.n = tab.n; pc.pack = tab.pack;
@@ -445,7 +450,7 @@ void vk_launch_gemm(int mr, int g, const GemmTab &tab, int nblocks, int K, const
     vkCmdPushConstants(cb, g_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
     vkCmdDispatch(cb, (uint32_t)nblocks, 1, 1); cmd_barrier(cb);
 }
-void vk_launch_pack24(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) {
+void vk_launch_pack24(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) { API_LOCK;
     PCpack pc{(uint64_t)(uintptr_t)y, (uint64_t)(uintptr_t)o, (int32_t)E}; VkCommandBuffer cb = cb_of(stream_of(s));
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, g_pack);
     vkCmdPushConstants(cb, g_layout_pack, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
