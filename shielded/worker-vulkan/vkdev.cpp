@@ -202,6 +202,18 @@ static bool host_alloc(size_t n, bool mapped, HostBuf *out) {
 }
 static void host_free(HostBuf &h) { vkUnmapMemory(D.dev, h.mem); vkDestroyBuffer(D.dev, h.buf, nullptr); vkFreeMemory(D.dev, h.mem, nullptr); }
 
+/* Staging buffers for pageable copies, cached: a fresh VkBuffer + allocation + map per copy cost
+ * more than the copy on the legacy doorbell path (SET_TENSOR / GET_TENSOR per node). */
+static std::vector<HostBuf> g_staging_free;
+static HostBuf staging_get(size_t n) {
+    for (size_t i = 0; i < g_staging_free.size(); i++) if (g_staging_free[i].size >= n) { HostBuf h = g_staging_free[i]; g_staging_free.erase(g_staging_free.begin() + i); return h; }
+    HostBuf h; size_t want = n < (1u << 20) ? (1u << 20) : n; if (!host_alloc(want, false, &h)) fatal("staging allocation");
+    return h;
+}
+static void staging_put(HostBuf h) {
+    if (g_staging_free.size() >= 8) { host_free(g_staging_free.front()); g_staging_free.erase(g_staging_free.begin()); }
+    g_staging_free.push_back(h);
+}
 /* ---- copies and fills, recorded on a stream ---------------------------------------------- */
 static bool cmd_copy(VkStreamImpl *s, void *dst, const void *src, size_t n, cudaMemcpyKind kind, std::vector<HostBuf> *staging) {
     if (!n) return true;
@@ -210,12 +222,12 @@ static bool cmd_copy(VkStreamImpl *s, void *dst, const void *src, size_t n, cuda
         Block *b = find_block((uint64_t)(uintptr_t)dst, &dofs); if (!b) return false; db = b->buf;
         size_t hoff; HostBuf *h = find_host(src, &hoff);
         if (h) { sb = h->buf; so = hoff; }
-        else { HostBuf st; if (!host_alloc(n, false, &st)) return false; memcpy(st.map, src, n); staging->push_back(st); sb = st.buf; so = 0; }
+        else { HostBuf st = staging_get(n); memcpy(st.map, src, n); staging->push_back(st); sb = st.buf; so = 0; }
     } else if (kind == cudaMemcpyDeviceToHost) {
         Block *b = find_block((uint64_t)(uintptr_t)src, &so); if (!b) return false; sb = b->buf;
         size_t hoff; HostBuf *h = find_host(dst, &hoff);
         if (h) { db = h->buf; dofs = hoff; }
-        else { HostBuf st; if (!host_alloc(n, false, &st)) return false; staging->push_back(st); db = st.buf; dofs = 0; }
+        else { HostBuf st = staging_get(n); staging->push_back(st); db = st.buf; dofs = 0; }
     } else {
         Block *b1 = find_block((uint64_t)(uintptr_t)src, &so), *b2 = find_block((uint64_t)(uintptr_t)dst, &dofs); if (!b1 || !b2) return false; sb = b1->buf; db = b2->buf;
     }
@@ -382,30 +394,30 @@ cudaError_t cudaMemPoolTrimTo(cudaMemPool_t, size_t keep) { std::lock_guard<std:
 cudaError_t cudaMemcpyAsync(void *dst, const void *src, size_t n, cudaMemcpyKind k, cudaStream_t s) {
     VkStreamImpl *st = stream_of(s); std::vector<HostBuf> staging;
     if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue);
-    if (!staging.empty()) { if (st->capturing) fatal("pageable copy inside a captured graph"); flush(st); for (auto &h : staging) host_free(h); }
+    if (!staging.empty()) { if (st->capturing) fatal("pageable copy inside a captured graph"); flush(st); for (auto &h : staging) staging_put(h); }
     return cudaSuccess;
 }
 cudaError_t cudaMemcpy(void *dst, const void *src, size_t n, cudaMemcpyKind k) {
     VkStreamImpl *st = g_immediate; std::vector<HostBuf> staging;
     if (k == cudaMemcpyDeviceToHost) {
         size_t hoff; if (find_host(dst, &hoff)) { if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue); flush(st); return cudaSuccess; }
-        HostBuf tmp; if (!host_alloc(n, false, &tmp)) return fail(cudaErrorMemoryAllocation);
-        size_t so; Block *b = find_block((uint64_t)(uintptr_t)src, &so); if (!b) { host_free(tmp); return fail(cudaErrorInvalidValue); }
+        HostBuf tmp = staging_get(n);
+        size_t so; Block *b = find_block((uint64_t)(uintptr_t)src, &so); if (!b) { staging_put(tmp); return fail(cudaErrorInvalidValue); }
         VkCommandBuffer cb = cb_of(st); VkBufferCopy c{so, 0, n}; vkCmdCopyBuffer(cb, b->buf, tmp.buf, 1, &c); cmd_barrier(cb); flush(st);
-        memcpy(dst, tmp.map, n); host_free(tmp); return cudaSuccess;
+        memcpy(dst, tmp.map, n); staging_put(tmp); return cudaSuccess;
     }
     if (!cmd_copy(st, dst, src, n, k, &staging)) return fail(cudaErrorInvalidValue);
-    flush(st); for (auto &h : staging) host_free(h); return cudaSuccess;
+    flush(st); for (auto &h : staging) staging_put(h); return cudaSuccess;
 }
 cudaError_t cudaMemset(void *dst, int byte, size_t n) {
     size_t off; Block *b = find_block((uint64_t)(uintptr_t)dst, &off); if (!b) return fail(cudaErrorInvalidValue);
     const uint32_t word = (uint32_t)(byte & 0xff) * 0x01010101u; VkCommandBuffer cb = cb_of(g_immediate);
     const size_t head = (4 - (off & 3)) & 3, mid = (n - std::min(n, head)) & ~(size_t)3, tail = n - std::min(n, head) - mid;
     if (mid) vkCmdFillBuffer(cb, b->buf, off + head, mid, word);
-    if (head || tail) { std::vector<uint8_t> bytes(4, (uint8_t)byte); HostBuf st; if (!host_alloc(4, false, &st)) return fail(cudaErrorMemoryAllocation); memcpy(st.map, bytes.data(), 4);
+    if (head || tail) { std::vector<uint8_t> bytes(4, (uint8_t)byte); HostBuf st = staging_get(4); memcpy(st.map, bytes.data(), 4);
         if (head) { VkBufferCopy c{0, off, std::min(head, n)}; vkCmdCopyBuffer(cb, st.buf, b->buf, 1, &c); }
         if (tail) { VkBufferCopy c{0, off + head + mid, tail}; vkCmdCopyBuffer(cb, st.buf, b->buf, 1, &c); }
-        cmd_barrier(cb); flush(g_immediate); host_free(st); return cudaSuccess; }
+        cmd_barrier(cb); flush(g_immediate); staging_put(st); return cudaSuccess; }
     cmd_barrier(cb); flush(g_immediate); return cudaSuccess;
 }
 cudaError_t cudaHostAlloc(void **p, size_t n, unsigned flags) {

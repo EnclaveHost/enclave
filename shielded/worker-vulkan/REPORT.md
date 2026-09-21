@@ -69,8 +69,25 @@ vendor's card through the driver's Vulkan loader. No CUDA toolkit anywhere in th
 
 The exchange test (`synth_exchange.py`, 4 rounds of gate|up shared-x at m = 1 and 4 plus a down
 projection) drives the legacy doorbell path: SET_TENSOR, RECOMPUTE, GET_TENSOR. Every reply
-passed the TEE's Freivalds check and matched `x . w_fixed` computed locally. The full-model
-run (`e2e.py`, the bit-identical GPU-vs-local token streams) is in the section below.
+passed the TEE's Freivalds check and matched `x . w_fixed` computed locally.
+
+**The full-model run** (`../e2e.py`, Qwen2.5-0.5B-Instruct q8 pack, 3 prompts x 16 tokens, each
+prompt generated once with the GPU attached and once with the offload replaced by a local
+integer matmul, the two token streams required to be identical):
+
+| worker | identical token streams | masked exchanges | round trips | offloaded | verify failures | wire term per token |
+|---|---|---|---|---|---|---|
+| Tesla V100, Linux, **Vulkan** | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 657 ms (first build; re-measured below) |
+| Tesla V100, Linux, CUDA | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 70 ms |
+| Radeon 780M, **Windows 11, Vulkan, over the LAN** | 3 of 3 | 11492 | 6596 | 49.69 GMAC | 0 | 1059 ms |
+
+Same outputs, same exchange counts, same peak |y| (2.1e6 against M/2 = 7.2e6) on all three.
+The wire term is the Python TEE's per-node doorbell path, three round trips per node; on
+Vulkan each of those is a submit plus a fence wait (and, in the first build, a fresh staging
+buffer per pageable copy, since replaced by a cache). The engine's one-frame exchange, the
+production path, batches a whole step into one pre-recorded command buffer and one submit, so
+the doorbell figure is a bound on the legacy path, not on decode. The three runs overlapped on
+one CPU, so the TEE-side terms (refill, mask, verify) are not comparable between rows.
 
 What the device layer does differently, and what it does not do yet:
 - Device pointers are buffer device addresses; the pool is an arena of 64 MiB-minimum blocks,
