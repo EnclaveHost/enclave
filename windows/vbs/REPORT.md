@@ -16,7 +16,8 @@ parser, verifier, TPM readers), `enclave/` (the minimal enclave + host + benchma
    from the measured-boot log** (RSA-PSS, SHA-256, salt 32).
 2. **The chain closes to the TPM**: a TPM quote over PCRs 7/12/13/14 (with our nonce) verifies,
    and the log replays to exactly the quoted values. PCR 0 does NOT replay from this firmware's
-   log; the verifier pins it instead. The quoting key is not yet bound to the EK (section 8).
+   log; the verifier pins it instead. The quoting key is bound to the EK by a MakeCredential /
+   ActivateCredential round trip, proven on the box (section 10, 2026-09-21).
 3. **The AMD fTPM's EK certificate chains to AMD's root** (`CN=AMDTPM`, fingerprint in section
    5), and the certificate names the manufacturer, so "on-die only" is an enforceable check.
 4. **Memory-encryption state is not visible in the Windows boot log**, nor anywhere else a
@@ -224,18 +225,17 @@ reads). The non-PRO 8945HS product page lists no Memory Guard.
 - **Production signing.** Everything here is test-signed. The AuthorId in the report is derived
   from our OpenSSL certificate; a Trusted Signing (now "Artifact Signing") VBS-enclave profile
   replaces it and removes the test-signing/Secure-Boot-off requirement.
-- **EK binding of the quoting key.** The quote proves the log; nothing yet proves the quoting
-  key lives in the TPM whose EK we checked. `TPM2_MakeCredential` (verifier) /
-  `TPM2_ActivateCredential` (node) closes it; needs a policy session on the persisted EK
-  (endorsement hierarchy). Marked as a warning in the verifier.
+- **EK binding of the quoting key: CLOSED** (section 10). `TPM2_MakeCredential` (verifier,
+  `tools/makecredential.py`) / `TPM2_ActivateCredential` (node, `windows/node/tpmattest.c`) round
+  trip proven on this box; the verifier's warning is a real check with `--credential`.
 - **PCR 0.** Pinned per firmware version, not replayed. A firmware update changes it.
 - **Memory encryption and DRTM.** Negative on this platform (section 4).
 - **The GPU half.** Untested here; the masked worker needs CUDA on a discrete card.
 - **Enclave lifetime.** `DeleteEnclave` without `TerminateEnclave` returns 0; the benchmark host
   does it right.
 
-Next steps in order: ActivateCredential; a node agent that emits {log, quote, EK, report} as one
-evidence bundle; turn Secure Boot on and confirm the log flips `SecureBoot=1` and the
+Next steps in order: a node agent that emits {log, quote, EK, report, credential} as one
+evidence bundle (the TPM half is `windows/node/tpmattest.c`); turn Secure Boot on and confirm the log flips `SecureBoot=1` and the
 `HYPERVISOR_BOOT_DMA_PROTECTION` bit once `RequirePlatformSecurityFeatures` is set; run the
 recipe on a Home machine; Artifact Signing.
 
@@ -246,10 +246,13 @@ recipe on a Home machine; Artifact Signing.
 | `tools/tcglog.py` | TCG log parser: replay, SIPA decode (wbcl.h names), IDK/IDKS extraction, digest recomputation |
 | `tools/verify_vbs_report.py` | the verifier (sections 3, 5); `--allow-testsigning`, `--pin-pcr0` |
 | `tools/pcrread.c`, `tools/tpmquote.c` | raw TPM 2.0 over Windows TBS: PCR read; CreatePrimary + Quote |
+| `../node/tpmattest.c`, `../node/build-tpmattest.cmd`, `../node/README.md` | the node's TPM tool (keys / activate / quote / pcr / log over stdin), its build, the grammar |
+| `tools/makecredential.py` | `TPM2_MakeCredential` reference, pure Python (`--selftest`) |
+| `tools/credential_roundtrip.py` | drives tpmattest.exe end to end; wrote `evidence/credential-roundtrip.txt` |
 | `enclave/rawenclave.c` | the enclave: `__enclave_config`, `GetReport`, `Bench` |
 | `enclave/rawhost.c`, `enclave/benchhost.c`, `enclave/benchkern.h` | host apps: attestation round trip; VTL1 vs VTL0 bandwidth |
 | `enclave/build.cmd`, `enclave/test-cert.cnf` | the build/sign recipe and the test certificate template |
-| `evidence/` | boot 64 of the test box: log, live PCRs, EK cert + AMD chain, quote, enclave report + nonce |
+| `evidence/` | boot 64 of the test box: log, live PCRs, EK cert + AMD chain, quote, enclave report + nonce; `credential-roundtrip.txt` and the `credential-quote-*` / `credential-aik-tpmt-public.bin` files from section 10 |
 
 Re-run the verifier on the evidence:
 ```
@@ -258,3 +261,99 @@ python3 tools/verify_vbs_report.py --log evidence/measuredboot-64.log --report e
   --quote-nonce evidence/quote-nonce.bin --aik evidence/quote-key-tpmt-public.bin --ek evidence/ek-cert.der \
   --ek-roots evidence/amd-ftpm-ek-chain.pem --allow-testsigning --pin-pcr0 711c1943ccff765a589a31b0347ce1b7356b0661f9ef7dabfbe9c622340b0433
 ```
+
+## 10. EK binding closed: ActivateCredential (2026-09-21, still boot 64)
+
+Section 8's first open item. The quoting key now provably lives in the TPM whose EK certificate the
+verifier checks: the verifier wraps a random secret for (EK public, Name of the quoting key) with
+`TPM2_MakeCredential`; only the TPM that holds that EK's private half, and only for that exact key,
+can unwrap it with `TPM2_ActivateCredential`; the node returns the secret. Built and run on the box
+of section 1 (boot 64, the boot `evidence/` comes from), elevated over SSH.
+
+Pieces:
+- `windows/node/tpmattest.c`: the node-side tool the agent drives over stdin/stdout (`keys`,
+  `activate`, `quote`, `pcr`, `log`; grammar at the top of the file and in `windows/node/README.md`),
+  raw TPM 2.0 over TBS, built with `windows/node/build-tpmattest.cmd`. The AIK is a restricted
+  RSA-2048 signing key from `CreatePrimary` in the NULL hierarchy, made at startup and kept loaded.
+- `tools/makecredential.py`: `TPM2_MakeCredential` reference in pure Python (RSA-OAEP-SHA256 with
+  label `IDENTITY\0`, KDFa `STORAGE` / `INTEGRITY`, AES-128-CFB iv 0, HMAC-SHA256). `--selftest`
+  checks the AES against FIPS-197 C.1 and, where `cryptography` is installed, CFB and OAEP
+  against it; `openssl pkeyutl` decrypts its OAEP output with that label.
+- `tools/credential_roundtrip.py`: the proof, driving the tool exactly as the agent will; the
+  transcript is `evidence/credential-roundtrip.txt` (25 checks, VERDICT PASS).
+
+Facts established on the box:
+
+1. **The EK certificate is not in TPM NV on this AMD fTPM.** `TPM2_NV_ReadPublic(0x01C00002)`
+   returns `TPM_RC_HANDLE` (rc `0x8b`); the TPM's NV index list is `0x01410001-3, 0x01800100,
+   0x01810008, 0x01820002, 0x01880001, 0x01880011`, nothing under `0x01C0xxxx`. Windows fetched
+   the certificate from AMD's service at provisioning (the certificate's AIA and CRL point at
+   `ftpm.amd.com`) and keeps it in the registry cert store
+   `HKLM\SYSTEM\CurrentControlSet\Services\TPM\WMI\Endorsement\EKCertStore`
+   (`Get-TpmEndorsementKeyInfo` lists it under `AdditionalCertificates`; `ManufacturerCertificates`
+   is empty). The platform crypto provider's `PCP_EKCERT` property is an `HCERTSTORE` onto that
+   store (8 bytes, not DER); the tool enumerates it with crypt32 and takes the certificate whose
+   DER carries the persisted EK's modulus (`ReadPublic 0x81010001`). The bytes are identical to
+   `evidence/ek-cert.der` (sha256 `86b95e8a…`). The verifier need not trust this path: it accepts
+   the certificate because it chains to AMD's root and because of fact 4. Also seen: persistent
+   handles `0x81000001, 0x81000002, 0x81000009, 0x81010001` (the EK); `TPM_PT_NV_BUFFER_MAX` 1024.
+2. **Endorsement auth.** `Tbsi_Get_OwnerAuth(TBS_OWNERAUTH_TYPE_ENDORSEMENT_20)` returns a 20-byte
+   value to an elevated caller (the tool prints only the length; the registry's `EndorsementAuth`
+   string is empty, so it is not stored there in the clear). The TPM accepted it:
+   `TPM2_CreatePrimary` under `TPM_RH_ENDORSEMENT` with the TCG default template (RSA-2048,
+   SHA-256 name, attributes `0x000300B2`, policy `8371…69aa`, AES-128-CFB, unique = 256 zero
+   bytes) -> rc 0, EK Name `000b71ce…0506`, and the key's modulus is the certificate's
+   (`ek-cert-match yes`), which also shows this template is the one the certificate was issued
+   against. The persistent-handle fallback was not needed.
+3. **PolicySecret + ActivateCredential.** Unsalted, unbound SHA-256 policy session;
+   `TPM2_PolicySecret(TPM_RH_ENDORSEMENT)` with that auth -> rc 0;
+   `TPM2_ActivateCredential(AIK: password session with the empty auth; EK: the policy session with
+   an empty hmac field)` -> rc 0, and the recovered 32 bytes equal the credential
+   `makecredential.py` wrapped (`d17976ff…fc0f` in the recorded run; an earlier run with
+   `fd0d8a22…6627` passed the same way). The empty hmac field is what Part 1 19.6.5 allows for
+   an empty HMAC key; the tool's fallback (HMAC with the empty key over cpHash) never ran.
+4. **Negative.** The same credential wrapped for a different Name -> `TPM2_ActivateCredential`
+   rc `0x9f` = `TPM_RC_INTEGRITY`. The blob is bound to the quoting key's Name, so a node cannot
+   answer with any key other than the one it quotes with.
+5. **Quote, verified two ways.** Random 32-byte extraData; the RSASSA-PKCS1v15-SHA256 signature
+   verifies with the AIK public (integer arithmetic in the driver); `TPMS_ATTEST` magic/type
+   right; PCR selection sha256 {0,7,12,13,14}; `pcrDigest` == sha256 of the PCRs read live through
+   the same tool; `qualifiedSigner` == `0x000B || sha256(TPM_RH_NULL || Name(AIK))`, which pins
+   the quoting key to the NULL hierarchy (a verifier can require this). Then
+   `tools/verify_vbs_report.py` on that quote against the boot-64 log, with the new
+   `--credential` / `--credential-expected` flags: ACCEPT, 32 checks; "quoting key is bound to
+   the EK" is a PASS instead of a warning.
+6. **Return codes seen.** TPM: `0x8b` (NV_ReadPublic on the absent index), `0x9f` (the deliberate
+   foreign-name activation); everything else 0. TBS: none (`Tbsi_Get_OwnerAuth` succeeded). In
+   every run the AIK Name the TPM returned from CreatePrimary equalled sha256 of the TPMT_PUBLIC
+   (the tool refuses to start otherwise).
+
+Command lines (box: `ssh minipc-zt`, PowerShell 5.1, elevated; everything under
+`C:\Users\claude\vbs\tpm\`):
+```
+scp windows/node/tpmattest.c windows/node/build-tpmattest.cmd windows/vbs/tools/makecredential.py \
+    windows/vbs/tools/credential_roundtrip.py minipc-zt:C:/Users/claude/vbs/tpm/
+ssh minipc-zt 'cmd /c C:\Users\claude\vbs\tpm\build-tpmattest.cmd'
+ssh minipc-zt 'python C:\Users\claude\vbs\tpm\credential_roundtrip.py --exe C:\Users\claude\vbs\tpm\tpmattest.exe --out C:\Users\claude\vbs\tpm\credential-roundtrip.txt'
+scp minipc-zt:C:/Users/claude/vbs/tpm/credential-roundtrip.txt windows/vbs/evidence/credential-roundtrip.txt
+```
+Local re-verification of the recorded quote (its attest, signature, nonce and AIK public extracted
+from the transcript into `evidence/credential-quote-*.bin` and `evidence/credential-aik-tpmt-public.bin`):
+```
+python3 tools/makecredential.py --selftest
+python3 tools/verify_vbs_report.py --log evidence/measuredboot-64.log --report evidence/enclave-report.bin \
+  --nonce evidence/enclave-nonce.bin --quote evidence/credential-quote-attest.bin --quote-sig evidence/credential-quote-sig.bin \
+  --quote-nonce evidence/credential-quote-nonce.bin --aik evidence/credential-aik-tpmt-public.bin --ek evidence/ek-cert.der \
+  --ek-roots evidence/amd-ftpm-ek-chain.pem --allow-testsigning --pin-pcr0 711c1943ccff765a589a31b0347ce1b7356b0661f9ef7dabfbe9c622340b0433 \
+  --credential d17976ff0e22dff21b5bebe5c47e59929d3112b6834d63b5709606807a6dfc0f \
+  --credential-expected d17976ff0e22dff21b5bebe5c47e59929d3112b6834d63b5709606807a6dfc0f
+```
+
+What this still does not establish:
+- The relay's JavaScript `TPM2_MakeCredential` (`relay/vbs-verify.mjs`, not touched here) has to
+  produce blobs this TPM accepts; `makecredential.py` is the reference and its `--json` output
+  with a fixed credential is the fixture to compare against. Nothing here exercises the relay.
+- Only this AMD fTPM was tested. Intel PTT keeps the certificate in NV `0x01C00002`, which is the
+  tool's first path and is untested; the cert-store path is what AMD boxes will use.
+- The AIK is ephemeral by design (NULL hierarchy, one per process, nothing persisted, nothing to
+  steal); every agent session redoes `keys` and `activate`.

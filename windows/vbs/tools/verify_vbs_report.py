@@ -5,7 +5,8 @@
 Every check prints PASS/FAIL and the script exits non-zero if any required check fails.  Policy knobs at the top.
 Usage: verify_vbs_report.py --log mb.log --report report.bin --nonce nonce.bin
                             [--quote quoted.bin --quote-sig quote_sig.bin --quote-nonce quote_nonce.bin --aik aik_pub.bin]
-                            [--ek ek.der --ek-roots amd-ek-root.pem] [--allow-testsigning] [--pin-pcr0 HEX]"""
+                            [--ek ek.der --ek-roots amd-ek-root.pem] [--allow-testsigning] [--pin-pcr0 HEX]
+                            [--credential HEX --credential-expected HEX]   (the ActivateCredential round trip, see makecredential.py)"""
 import argparse, hashlib, struct, subprocess, sys, tempfile, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tcglog
@@ -37,6 +38,7 @@ def main():
     ap = argparse.ArgumentParser(); a = ap.add_argument
     a('--log', required=True); a('--report', required=True); a('--nonce', required=True)
     a('--quote'); a('--quote-sig'); a('--quote-nonce'); a('--aik'); a('--ek'); a('--ek-roots'); a('--allow-testsigning', action='store_true'); a('--pin-pcr0')
+    a('--credential'); a('--credential-expected')
     args = ap.parse_args()
     events = tcglog.parse(open(args.log, 'rb').read()); pcrs = tcglog.replay(events); f12 = tcglog.sipa_fields(events, 12)
 
@@ -66,7 +68,9 @@ def main():
         missing = [p for p in sel if p not in rep]
         check('quoted PCR digest == replayed log (PCRs %s)' % sel, not missing and hashlib.sha256(b''.join(rep[p] for p in sel)).digest() == digest,
               'PCR0 needs --pin-pcr0 on firmware that does not log its early measurements' if 0 in sel and not args.pin_pcr0 else '')
-        check('quoting key is bound to the EK (ActivateCredential)', False, 'NOT IMPLEMENTED YET: TPM2_MakeCredential/ActivateCredential round trip', required=False)
+        if args.credential and args.credential_expected:   # the node returned what TPM2_ActivateCredential(AIK, EK) recovered from our TPM2_MakeCredential(EK, name(AIK))
+            check('quoting key is bound to the EK (ActivateCredential)', args.credential.lower() == args.credential_expected.lower())
+        else: check('quoting key is bound to the EK (ActivateCredential)', False, 'no --credential/--credential-expected given (windows/node/tpmattest.c activate + tools/makecredential.py)', required=False)
     else: check('TPM quote supplied', False, 'no --quote given', required=False)
 
     print('3. Platform state from the measured boot log (PCR 12 / PCR 7)')
