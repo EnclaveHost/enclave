@@ -357,3 +357,52 @@ What this still does not establish:
   tool's first path and is untested; the cert-store path is what AMD boxes will use.
 - The AIK is ephemeral by design (NULL hierarchy, one per process, nothing persisted, nothing to
   steal); every agent session redoes `keys` and `activate`.
+
+## 10. Relay: mode vbs
+
+The relay side of `windows-vbs-enclave/v1` (EVIDENCE.md), a port of `tools/verify_vbs_report.py`
+to Node's crypto, plus the credential round the Python verifier could only warn about.
+
+| path | what |
+|---|---|
+| `relay/vbs-tcglog.mjs` | TCG log parser, PCR replay, SIPA walker, IDK/IDKS extraction, Secure Boot from PCR 7. Every field reader takes only events whose SHA-256 recomputes from their data (section 3's tamper); `unhashedEvents()` names the rest. CLI: `node relay/vbs-tcglog.mjs LOG [--dump]` (same output as `tcglog.py`) |
+| `relay/vbs-verify.mjs` | `verifyVbsEvidence({ evidence, nonce, transportKeySpki, padKeyHex, expectedCredential, mintedFor }, policy)` -> `{ ok, measurement, reasons, tier, checks, warnings, identity }`; the 9 numbered checks of EVIDENCE.md as ~38 named PASS/FAIL lines; TPMT_PUBLIC / TPMS_ATTEST / VBS_ENCLAVE_REPORT parsers, bounded; EK chain to a pinned root; `vbsBinding()` (the transcript). CLI: `node relay/vbs-verify.mjs <evidence.json> --nonce <b64> [...]` |
+| `relay/vbs-credential.mjs` | TPM2_MakeCredential (Part 1 sec. 24, B.10.3; KDFa 11.4.10): `makeCredential(ekPublic, aikName, credential) -> { credentialBlob, secret }`; `activateCredential()` is the software counterpart for tests. CLI: `node relay/vbs-credential.mjs make <ek-cert.der \| ekpub.der \| tpmt_public.bin> <aikName hex> [--credential hex] [--seed hex]` prints JSON with hex fields for a hand test against the box's ActivateCredential |
+| `relay/vbs-policy.mjs` | `vbsPolicyFromEnv(env)`: `METAL_VBS_ENCLAVE_MEASUREMENTS` (comma list of `sha256(FamilyId\|\|ImageId\|\|AuthorId)`; empty = mode off), `METAL_VBS_MIN_SVN` (1), `METAL_VBS_PCR0` (allowed PCR 0 per firmware), `METAL_VBS_EK_ROOTS` (default `relay/fixtures/tpm-roots.pem`), `METAL_VBS_ALLOW_TESTSIGNING=1` (tier `vbs-dev`). Malformed = throws at startup |
+| `relay/fixtures/tpm-roots.pem` | the pinned AMD fTPM chain (`CN=AMDTPM` root `67bd2472...d0c6a1` + `CN=PRG-HPT`), from `evidence/amd-ftpm-ek-chain.pem` |
+| `relay/tunnel.js` | the `vbs-keys` -> `vbs-credential` round before `attest` (state per pending attach, the same 15 s timer, one credential per attach, compared on `attest`); mode `vbs`, `via: attestation(vbs)` / `attestation(vbs-dev)`, the pad key retained (both keys are inside the signed transcript); the row and `info()` carry `tier` |
+| `relay/api-relay.js` | `VBS_ATTEST = vbsPolicyFromEnv(process.env)` passed as `attest.vbs` |
+| `site/js/core/pricing.js`, `site/components/fleet-list/fleet-list.js` | `teeCpuOf`: `windows-vbs-enclave` / mode `vbs` is the consumer tier; the pill reads "vbs enclave" (or "vbs enclave (dev)") with the copy "VBS enclave on a consumer PC: protects against the owner's software, not physical possession" |
+| `test/vbs-verify.test.mjs`, `test/vbs-credential.test.mjs`, `test/tunnel.test.mjs` (the `vbs:` case), `test/pricing.test.mjs` | the tests |
+| `test/fixtures/vbs/boot64-evidence.json` | boot 64 of this box as one attest body (the log is gitignored as `*.log`, so the bundle is the committed copy), with the raw nonces the spike tools used |
+| `test/fixtures/vbs/make-credential-kat.json` | MakeCredential known answer (deterministic `credentialBlob` for a fixed seed); `activated` is for the TPM agent to fill from a real ActivateCredential |
+| `test/fixtures/vbs-synthetic.mjs` | a whole synthetic node from generated keys (log, quote, report, EK chain via openssl) for the transcript, credential and tunnel tests |
+
+Run the tests (from the repo root; the suite is `test/*.test.mjs`, there is no `relay/test/`):
+```
+node --test test/vbs-verify.test.mjs test/vbs-credential.test.mjs test/tunnel.test.mjs test/pricing.test.mjs
+```
+Verify this box's evidence by hand (capture mode: the spike report and quote carry raw nonces, not a transcript):
+```
+node -e 'const f=require("./test/fixtures/vbs/boot64-evidence.json");require("fs").writeFileSync("/tmp/body.json",JSON.stringify(f.body))'
+node relay/vbs-verify.mjs /tmp/body.json --measurements c8b8cf8f33836ce8411cff3151c6c2acc0b68694079e70c5e6e2446029de40b2 \
+  --pcr0 711c1943ccff765a589a31b0347ce1b7356b0661f9ef7dabfbe9c622340b0433 --allow-testsigning \
+  --capture-report-data @windows/vbs/evidence/enclave-nonce.bin --capture-quote-nonce @windows/vbs/evidence/quote-nonce.bin
+```
+It prints every check and `VERDICT: ACCEPT tier=vbs-dev` (TESTSIGNING=1 and Secure Boot off are the two dev-tier facts); without
+`--allow-testsigning` it is `REJECT` naming both. A live node's evidence (the attest frame's `rad`) is checked with
+`node relay/vbs-verify.mjs rad.json --nonce <the hub's b64 nonce> --credential <hex minted>` under the `METAL_VBS_*` env.
+
+Where the port departs from EVIDENCE.md, and why:
+- Secure Boot on (PCR 7 `SecureBoot`, recomputed like a SIPA record) is required for tier `vbs` and relaxed to `vbs-dev` with
+  the rest; the contract lists PCR 12 fields only, but a boot chain outside Secure Boot can log anything it likes.
+- A quote without PCR 0, or PCR 0 with no pin configured, demotes to `vbs-dev` instead of failing outright (both selections
+  are handled; production still requires PCR 0 quoted and pinned).
+- `EnclaveData[0:32] == challenge` is checked as written; the trailing 32 bytes are not required to be zero (this box's
+  spike report carries 64 nonce bytes there).
+- The AIK attribute check also requires `decrypt` clear. AMD's EK certificate encodes `critical=FALSE` explicitly, so the
+  SAN is read with a tolerant extension walker, not avf-verify's strict one.
+- Freshness (check 9) compares the log's `BOOTCOUNTER` with the quote's `resetCount` and only warns: this fTPM's clockInfo
+  decodes to `3691145829` against boot counter 228.
+- The credential round trip and the transport binding cannot be exercised by this box's evidence (captured before either
+  existed); the synthetic node in the tests covers both, and `make-credential-kat.json` waits for the hardware answer.

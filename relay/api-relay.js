@@ -94,6 +94,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
+import { vbsPolicyFromEnv } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
@@ -132,6 +133,13 @@ const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
 // METAL_AVF_PAD_CODE_HASHES. Either needs METAL_AVF_AUTHORITY_HASHES. All are
 // empty by default. The verifier pins Google's roots itself.
 const AVF_ATTEST = avfPolicyFromEnv(process.env);
+// Windows consumer nodes running a VBS enclave (windows/vbs/EVIDENCE.md): the
+// enclave builds admitted (sha256(FamilyId||ImageId||AuthorId)), minimum SVN,
+// pinned PCR 0 per firmware, the pinned TPM EK roots, and the lab-only
+// test-signing switch. Empty METAL_VBS_ENCLAVE_MEASUREMENTS = mode vbs off. A
+// malformed value throws here, at startup, rather than admitting or refusing
+// quietly later.
+const VBS_ATTEST = vbsPolicyFromEnv(process.env);
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;
@@ -178,7 +186,9 @@ function padsRoutes() {
 }
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}) } : null,
+  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
+    : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
   // key that registered its endpoint on chain, instead of a token whose hash

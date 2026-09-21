@@ -668,6 +668,15 @@ test("TEE CPU is badged from evidence, never from the box having no card", () =>
   // a token-attached tunnel proved nothing about its CPU
   t = teeCpuOf({ tunnel: true, mode: "avf", availability: { gpu: true } });
   assert.equal(t.real, true); assert.equal(t.technology, "android-avf-pvm"); assert.equal(t.source, "relay");
+  assert.equal(t.consumer, false);
+  // the relay verified a Windows VBS-enclave attestation: real, and the CONSUMER
+  // tier, whose copy names the weaker boundary; the dev tier says so too
+  t = teeCpuOf({ tunnel: true, mode: "vbs", tier: "vbs", availability: { gpu: true } });
+  assert.equal(t.real, true); assert.equal(t.technology, "windows-vbs-enclave"); assert.equal(t.source, "relay");
+  assert.equal(t.consumer, true); assert.match(t.note, /owner/); assert.equal(t.tier, "vbs"); assert.equal(t.dev, null);
+  t = teeCpuOf({ tunnel: true, mode: "vbs", availability: { gpu: true, teeCpu: "windows-vbs-enclave", tier: "vbs-dev" } });
+  assert.equal(t.real, true); assert.equal(t.consumer, true); assert.equal(t.source, "attestation"); assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);
+  assert.equal(t.label, "Windows VBS enclave");
   t = teeCpuOf({ tunnel: true, mode: "", availability: { gpu: false } });
   assert.equal(t.real, false); assert.equal(t.known, false);
   // a metal dev box says so in its format: a known NO, not an unknown
