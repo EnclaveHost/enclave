@@ -30,7 +30,10 @@ SPIR-V, so one Windows binary serves NVIDIA, AMD and Intel cards through the dri
 Vulkan loader. Verified on the Radeon 780M: self-test passes, 172 G-MAC/s, listens. The
 compat header grew the GCC spellings and POSIX calls that build needs (`__attribute__`,
 `__builtin_cpu_supports`, the ring's `__atomic_*`, `readlink`, `setenv`, `open`, a
-Winsock-starting `socket()`), still without touching `worker.cu`.
+Winsock-starting `socket()`), still without touching `worker.cu`. Background mode (2026-09-21)
+added one hook the same way: `SH_OWNER_SHELL_PROBE()` wraps `SHQueryUserNotificationState`, so
+the Windows worker also yields the card when the shell says a fullscreen or presentation
+application is up; `worker.cu` defaults the hook to "no shell" where the header is not included.
 
 ## How it works
 
