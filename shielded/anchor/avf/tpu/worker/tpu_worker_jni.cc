@@ -75,7 +75,13 @@ extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nati
     auto t0 = Clock::now(); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
     // 0xE7: rows of int16.  0xE8: DIGIT-SPLIT, 2*rows of int8 (hi rows then lo rows) against a graph whose weights
     // the compiler therefore keeps at one byte instead of two. The reply carries both halves; the VM recombines.
-    const bool ds = hdr[0] == 0xE8;
+    if (hdr[0] == 0xE9) {                                                  /* link ping: reply with (hdr[2] | hdr[3]<<8) * 64 bytes, no TPU */
+    const size_t want = (size_t)((uint32_t)hdr[2] | ((uint32_t)hdr[3] << 8)) * 64;
+    static std::vector<uint8_t> zeros; if (zeros.size() < want) zeros.assign(want, 0);
+    if (!wr_all(fd, zeros.data(), want)) return -1;
+    continue;
+  }
+  const bool ds = hdr[0] == 0xE8;
     if ((hdr[0] != 0xE7 && !ds) || hdr[1] >= w->layers.size() || hdr[2] > 3 || hdr[3] < 1 || hdr[3] > w->rows) { err = "malformed exchange header"; break; }
     Sig& s = w->layers[hdr[1]].sig[hdr[2]]; if (!s.present) { err = "no such signature"; break; }
     const size_t rows = hdr[3], wire_rows = ds ? 2 * rows : rows, max_wire = ds ? 2 * (size_t)w->rows : (size_t)w->rows;

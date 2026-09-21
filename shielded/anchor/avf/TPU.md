@@ -432,3 +432,30 @@ boot image. **So the QPR2 kernel gate opening does not open this path on a locke
 needs a Google-signed EL2 reset handler for the TPU, which exists for no Tensor, including Pixel 11. We
 have built one (`pkvm_tpu_da.ko`); it cannot be loaded without unlocking, and unlocking turns
 `verifiedbootstate` yellow, which is the signal a tenant checks.
+
+### What the link is, measured rather than assumed (2026-09-21)
+
+Two payload sizes through the real path separate its two terms. Subtracting the worker's own measured
+time from the link at one row (32 KB) and at five rows (159 KB):
+
+**transport = 0.74 ms of latency + 0.045 ms/KB (22 MB/s).** At one row the bytes are 66 % of it.
+
+That says the reply size is the lever, and two attempts to pull it failed for instructive reasons:
+
+- **int16 instead of digit-split** halves the reply (1716 against 3432 KB/token) and measured WORSE,
+  0.98 against 1.22 tok/s, because it doubles the weights the TPU streams (3865 against 1872 MB). The
+  same at five rows, where the byte saving is five times larger: 1.20 against 1.18, inside the noise.
+- **A wider vsock credit window.** 22 MB/s at a 0.74 ms round trip is what a 16 KB window would give
+  (16 KB / 0.74 ms = 21.6 MB/s), which looked like flow control rather than a copy cost. It is not:
+  the window was already **262144 bytes**, and raising it to 1 MB changed nothing (`SO_VM_SOCKETS_
+  BUFFER_SIZE`, reported on the turn line). At 256 KB and 0.74 ms the window would allow 354 MB/s, so
+  the 22 MB/s is real per-byte work -- the SWIOTLB bounce copies and cache maintenance a protected VM
+  requires. The setsockopt is kept because it costs nothing and the reported numbers are the evidence.
+
+Also measured: **1.4-2.3 read() calls per exchange**, so the reply is not arriving in many small chunks
+and the cost is not a syscall storm.
+
+**The floor this sets.** Give the accelerator, the mask, the unmask and every other VM cost away for
+free, and send the smallest payload an int16 single row can be (~16 KB): 0.74 + 0.72 = 1.46 ms per
+exchange, 205 ms per token, **4.9 tok/s.** That is the ceiling for masked decode on a 35-block model
+over this link, and it is 3.3x short of the bar before anything actually computes anything.

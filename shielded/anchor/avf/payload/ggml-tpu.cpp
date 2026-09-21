@@ -50,6 +50,7 @@
 #include <string>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <linux/vm_sockets.h>
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <thread>
@@ -87,7 +88,8 @@ struct state {
 };
 state &S() { static state s; return s; }
 
-bool rd_all(int fd, void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char *)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; } return true; }
+static std::atomic<uint64_t> g_rx_calls{0}, g_rx_bytes{0};
+bool rd_all(int fd, void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char *)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; g_rx_calls.fetch_add(1, std::memory_order_relaxed); } return true; }
 bool wr_all(int fd, const void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char *)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 int64_t now_us() { return ggml_time_us(); }
 
@@ -115,7 +117,7 @@ bool rd_all_spin(int fd, void *p, size_t n, uint64_t *spun_us) {
         const int64_t t0 = now_us(), deadline = t0 + win;
         while (o < n) {
             ssize_t r = recv(fd, (char *)p + o, n - o, MSG_DONTWAIT);
-            if (r > 0) { o += (size_t)r; continue; }
+            if (r > 0) { o += (size_t)r; g_rx_calls.fetch_add(1, std::memory_order_relaxed); continue; }
             if (r == 0) return false;
             if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
             if (now_us() >= deadline) break;
@@ -237,6 +239,29 @@ static void mint_window(int64_t deadline_us) {
         s.st.pads_refilled += fresh.size(); s.st.window_mint_us += (uint64_t)(now_us() - b0);
     }
 }
+/* Is the 2.18 ms round trip LATENCY or BYTES? Everything downstream turns on it: if it is latency, only
+ * fewer exchanges help and batching rows is the lever; if it is bytes, the reply size is. The decode
+ * numbers cannot separate them because the TPU's own time moves with the same variable. So: a frame the
+ * worker answers immediately with `bytes` of nothing, timed through the REAL path -- same socket, same
+ * bounce buffers, same wakes -- with the TPU out of it entirely.
+ *   <- u8 0xE9, u8 0, u16 reply bytes/64        -> that many bytes
+ * Writes "PING <bytes> <n> <median us>" through TPU_LOG for each size. */
+extern "C" void ggml_backend_tpu_ping_bench(int reps) {
+    state &s = S(); if (s.link < 0) return; if (reps < 1) reps = 50;
+    static const int sizes[] = { 64, 4096, 24576, 122880 };
+    for (int si = 0; si < 4; si++) {
+        const int want = sizes[si]; std::vector<uint8_t> rx((size_t)want); std::vector<double> us((size_t)reps);
+        uint8_t hdr[4] = { 0xE9, 0, (uint8_t)((want / 64) & 0xff), (uint8_t)((want / 64) >> 8) };
+        for (int i = 0; i < reps; i++) {
+            const int64_t t0 = now_us();
+            if (!wr_all(s.link, hdr, 4) || !rd_all(s.link, rx.data(), rx.size())) { TPU_LOG("PING link failed at %d B\n", want); return; }
+            us[(size_t)i] = (double)(now_us() - t0);
+        }
+        std::sort(us.begin(), us.end());
+        TPU_LOG("PING %6d B: median %7.1f us  min %7.1f us  (n=%d)\n", want, us[(size_t)reps / 2], us[0], reps);
+    }
+}
+
 extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
     g_window_target.store(target < 0 ? 0 : target, std::memory_order_relaxed);
     if (chunk >= 1 && chunk <= 64) g_window_chunk.store((unsigned)chunk, std::memory_order_relaxed);
@@ -279,7 +304,7 @@ struct corr_job {
 };
 static corr_job g_cj;
 static int corr_threads() {
-    static const int v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREADS"); int n = e ? atoi(e) : 2; return n < 1 ? 1 : n > 5 ? 5 : n; }();
+    static const int v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREADS"); int n = e ? atoi(e) : 1; return n < 1 ? 1 : n > 5 ? 5 : n; }();
     return v;
 }
 static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
@@ -427,6 +452,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
+    s.st.rx_calls = g_rx_calls.load(std::memory_order_relaxed);
 }
 
 bool claimable(const ggml_tensor *op) {
@@ -542,7 +568,35 @@ extern "C" double ggml_backend_tpu_warm_bundle(int threads, int *locked) {
     if (mlock(s.map, s.map_len) == 0) { if (locked) *locked = 1; } else TPU_LOG("bundle mlock: %s (the pages stay evictable)\n", strerror(errno));
     return (now_us() - t0) / 1e6;
 }
-extern "C" void ggml_backend_tpu_set_link(int fd, int rows_max) { S().link = fd; if (rows_max >= 1 && rows_max <= 64) S().rows_max = rows_max; }
+/* vsock is credit-flow-controlled by a per-socket buffer, and the measured link looks exactly like a small
+ * window rather than a slow copy: 0.74 ms round-trip latency and 22 MB/s, and 16 KB / 0.74 ms = 21.6 MB/s.
+ * If that is what it is, the buffer is a tunable and not a floor, and the byte term - 66% of the transport
+ * at one row, and the thing that makes speculative rows break even instead of win - collapses.
+ * SO_VM_SOCKETS_BUFFER_SIZE (level AF_VSOCK) is best-effort: the fd is already connected, the guest may
+ * clamp to its MAX, and the peer has its own window. Logged either way, because a silent no-op here would
+ * look exactly like "the link is simply slow". ANCHOR_TPU_VSOCK_BUF=0 leaves it alone. */
+static uint64_t g_link_buf_before = 0, g_link_buf_after = 0;
+static void link_widen(int fd) {
+    const char *e = getenv("ANCHOR_TPU_VSOCK_BUF");
+    const unsigned long want = e ? strtoul(e, nullptr, 0) : 1u << 20;
+    if (!want) return;
+#ifndef SO_VM_SOCKETS_BUFFER_SIZE
+#define SO_VM_SOCKETS_BUFFER_SIZE 0
+#define SO_VM_SOCKETS_BUFFER_MAX_SIZE 2
+#endif
+    uint64_t before = 0, after = 0, maxb = 0; socklen_t n = sizeof before;
+    getsockopt(fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &before, &n);
+    n = sizeof maxb; getsockopt(fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &maxb, &n);
+    uint64_t mx = want; if (setsockopt(fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &mx, sizeof mx) != 0) { /* may be refused; the SIZE set below is what matters */ }
+    uint64_t sz = want; const int rc = setsockopt(fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &sz, sizeof sz);
+    n = sizeof after; getsockopt(fd, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &after, &n);
+    g_link_buf_before = before; g_link_buf_after = after;
+    TPU_LOG("link buffer: was %llu, max %llu, asked %llu -> now %llu (%s)\n",
+            (unsigned long long)before, (unsigned long long)maxb, (unsigned long long)want,
+            (unsigned long long)after, rc == 0 ? "accepted" : strerror(errno));
+}
+extern "C" void ggml_backend_tpu_link_buf(uint64_t *before, uint64_t *after) { if (before) *before = g_link_buf_before; if (after) *after = g_link_buf_after; }
+extern "C" void ggml_backend_tpu_set_link(int fd, int rows_max) { S().link = fd; if (rows_max >= 1 && rows_max <= 64) S().rows_max = rows_max; link_widen(fd); }
 extern "C" int ggml_backend_tpu_claims(const char *tensor_name) { return S().by_name.count(tensor_name) ? 1 : 0; }
 /* Work for the minters: (group, at most one batch of pads), largest first, so threads finish together. */
 static void mint_items(int threads, const std::vector<std::pair<group *, size_t>> &items, bool scalar, bool keep) {
