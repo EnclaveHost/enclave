@@ -1,0 +1,214 @@
+// windows/node/agent.mjs -- the Windows consumer node's agent (untrusted plumbing, like the phone's host app).
+//
+// Runs three processes and one tunnel:
+//   shielded-worker.exe   the GPU half (Vulkan), on 127.0.0.1:WORKER_PORT, untrusted by design
+//   ee-host.exe           the VTL0 host of the enclave engine (windows/enclave-engine), serving keys/attest/gen on 127.0.0.1:HOST_PORT
+//   tpmattest.exe         the TPM half (windows/node/tpmattest.c), driven over stdin/stdout
+//   wss fleet tunnel      the relay's /v1/fleet-tunnel, attach by evidence per windows/vbs/EVIDENCE.md, then serve req frames
+// Nothing here is trusted: the enclave refuses to attest keys it does not hold, the verifier recomputes every
+// digest from the log, and the worker only ever sees masked activations.
+//
+// Configuration (environment, all optional except the model):
+//   NODE_NAME            the tunnel name (x-metal-name), default the hostname lower-cased
+//   RELAY_URL            wss://api.enclave.host/v1/fleet-tunnel
+//   NODE_DIR             where the binaries live (default: this file's directory)
+//   MODEL, CALIB         the GGUF and its calibration (required)
+//   WORKER_EXE, WORKER_PORT (9595), WORKER_VRAM_GB (2), SHIELDED_VK_DEVICE, SHIELDED_CARD_TFLOPS (8)
+//   HOST_EXE, ENCLAVE_DLL, HOST_PORT (9596), THREADS (8), CTX (1024)
+//   TPMATTEST_EXE, PUBLIC_URL (the https://<relay>/t/<name> route a registered seller claims)
+//   NODE_OPERATOR_KEY    hex private key of the on-chain operator, to sign the attach challenge when the name is registered
+import { spawn } from 'node:child_process';
+import net from 'node:net';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+const WebSocket = createRequire(import.meta.url)('ws');
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const DIR = process.env.NODE_DIR || HERE;
+const NAME = (process.env.NODE_NAME || os.hostname()).toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 64);
+const RELAY_URL = process.env.RELAY_URL || 'wss://api.enclave.host/v1/fleet-tunnel';
+const MODEL = process.env.MODEL, CALIB = process.env.CALIB;
+const WORKER_EXE = process.env.WORKER_EXE || path.join(DIR, 'shielded-worker.exe');
+const WORKER_PORT = Number(process.env.WORKER_PORT || 9595), WORKER_VRAM_GB = process.env.WORKER_VRAM_GB || '2';
+const HOST_EXE = process.env.HOST_EXE || path.join(DIR, 'ee-host.exe');
+const ENCLAVE_DLL = process.env.ENCLAVE_DLL || path.join(DIR, 'ee-engine.dll');
+const HOST_PORT = Number(process.env.HOST_PORT || 9596), THREADS = process.env.THREADS || '8', CTX = process.env.CTX || '1024';
+const TPMATTEST_EXE = process.env.TPMATTEST_EXE || path.join(DIR, 'tpmattest.exe');
+const PUBLIC_URL = process.env.PUBLIC_URL || '';
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
+if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); process.exit(2); }
+
+// ---- the three processes -----------------------------------------------------------------
+const children = {};
+function run(name, exe, args, env) {
+  const p = spawn(exe, args, { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  p.stdout.on('data', (d) => process.stdout.write(`[${name}] ${d}`));
+  p.stderr.on('data', (d) => process.stderr.write(`[${name}] ${d}`));
+  p.on('exit', (code, sig) => { log(`${name} exited (${code ?? sig})`); children[name] = null; });
+  children[name] = p; return p;
+}
+const waitPort = (port, ms = 120_000) => new Promise((res, rej) => {
+  const t0 = Date.now();
+  const tick = () => { const s = net.connect(port, '127.0.0.1'); s.once('connect', () => { s.destroy(); res(); }); s.once('error', () => { s.destroy(); if (Date.now() - t0 > ms) rej(new Error(`port ${port} never opened`)); else setTimeout(tick, 500); }); };
+  tick();
+});
+async function startWorker() {
+  if (process.env.WORKER_EXE === 'none') return;
+  run('worker', WORKER_EXE, ['--port', String(WORKER_PORT), '--vram-gb', WORKER_VRAM_GB, '--quiet'],
+      { SHIELDED_VK_SHADERS: process.env.SHIELDED_VK_SHADERS || path.join(path.dirname(WORKER_EXE), 'shaders'), SHIELDED_CARD_TFLOPS: process.env.SHIELDED_CARD_TFLOPS || '8' });
+  await waitPort(WORKER_PORT); log(`worker up on ${WORKER_PORT}`);
+}
+async function startHost() {
+  const args = ['--enclave', ENCLAVE_DLL, '--model', MODEL, '--env', 'SHIELDED_HOST=127.0.0.1', '--env', `SHIELDED_PORT=${WORKER_PORT}`,
+                '--threads', THREADS, '--ctx', CTX, '--serve', String(HOST_PORT), '--quiet', '--log', path.join(DIR, 'enclave.log')];
+  if (CALIB) args.push('--calib', CALIB);
+  for (const [k, v] of Object.entries(process.env)) if (k.startsWith('SHIELDED_') && !['SHIELDED_HOST', 'SHIELDED_PORT', 'SHIELDED_VK_SHADERS', 'SHIELDED_CARD_TFLOPS', 'SHIELDED_VK_DEVICE'].includes(k)) args.push('--env', `${k}=${v}`);
+  run('host', HOST_EXE, args, {});
+  await waitPort(HOST_PORT, 600_000); log(`enclave host up on ${HOST_PORT}`);
+}
+// one line in, one line out, serialized
+let hostQueue = Promise.resolve();
+function hostCmd(line) {
+  const job = () => new Promise((res, rej) => {
+    const s = net.connect(HOST_PORT, '127.0.0.1'); let buf = '';
+    s.setTimeout(600_000, () => { s.destroy(); rej(new Error('host timeout')); });
+    s.once('connect', () => s.write(line + '\n'));
+    s.on('data', (d) => { buf += d; const i = buf.indexOf('\n'); if (i >= 0) { s.destroy(); const r = buf.slice(0, i); r.startsWith('ok') ? res(r.slice(3).trim()) : rej(new Error(r)); } });
+    s.once('error', rej);
+  });
+  return (hostQueue = hostQueue.then(job, job));
+}
+// ---- the TPM tool ---------------------------------------------------------------------------
+let tpm = null, tpmBuf = '', tpmWaiters = [];
+function startTpm() {
+  tpm = spawn(TPMATTEST_EXE, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  tpm.stderr.on('data', (d) => process.stderr.write(`[tpm] ${d}`));
+  tpm.stdout.on('data', (d) => { tpmBuf += d; let i; while ((i = tpmBuf.indexOf('\n')) >= 0) { const line = tpmBuf.slice(0, i).replace(/\r$/, ''); tpmBuf = tpmBuf.slice(i + 1); const w = tpmWaiters[0]; if (!w) { log(`tpm: ${line}`); continue; } if (line === 'ok' || line.startsWith('err ')) { tpmWaiters.shift(); line === 'ok' ? w.res(w.lines) : w.rej(new Error(line)); } else { const sp = line.indexOf(' '); if (sp > 0) w.lines[line.slice(0, sp)] = line.slice(sp + 1); } } });
+  tpm.on('exit', (c) => { log(`tpm exited (${c})`); tpm = null; });
+  return new Promise((res) => { tpmWaiters.push({ lines: {}, res, rej: res }); setTimeout(res, 15_000); });   // "ready" is not terminated by ok; the first command's reply resolves it
+}
+function tpmCmd(cmd) { return new Promise((res, rej) => { if (!tpm) return rej(new Error('tpm tool not running')); tpmWaiters.push({ lines: {}, res, rej }); tpm.stdin.write(cmd + '\n'); }); }
+
+// ---- evidence -------------------------------------------------------------------------------
+const hex = (b) => Buffer.from(b).toString('hex'), b64 = (b) => Buffer.from(b).toString('base64');
+const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+const DOMAIN = Buffer.from('enclave-vbs-bind-v1\n');
+async function platformInfo() {
+  const out = { osBuild: os.release(), hostname: os.hostname(), cpus: os.cpus().length, ramGb: Math.round(os.totalmem() / 2 ** 30) };
+  try { const r = fs.readFileSync(path.join(DIR, 'platform.json'), 'utf8'); Object.assign(out, JSON.parse(r)); } catch {}
+  return out;
+}
+// step 3: the TPM's keys, sent before the credential comes back
+async function keysFrame() {
+  const k = await tpmCmd('keys');
+  return { t: 'vbs-keys', ek: b64(Buffer.from(k['ek-cert'], 'hex')), ekChain: [], aikPub: b64(Buffer.from(k['aik-pub'], 'hex')), aikName: b64(Buffer.from(k['aik-name'], 'hex')) };
+}
+// step 5-6: transcript, enclave report, credential activation, quote, log
+async function attestFrame(nonceB64, credentialBlobB64, secretB64) {
+  const nonce = Buffer.from(nonceB64, 'base64'); if (nonce.length !== 32) throw new Error('nonce must be 32 bytes');
+  const [signPk, boxPk] = (await hostCmd('keys')).split(' ').map((h) => Buffer.from(h, 'hex'));
+  const spki = Buffer.concat([ED25519_SPKI_PREFIX, signPk]);
+  const bound = Buffer.concat([DOMAIN, spki, boxPk, nonce]);
+  const att = (await hostCmd(`attest ${hex(bound)}`)).split(' ');                     // challenge signature report
+  const challenge = Buffer.from(att[0], 'hex'), signature = Buffer.from(att[1], 'hex'), report = Buffer.from(att[2], 'hex');
+  if (!challenge.equals(createHash('sha256').update(bound).digest())) throw new Error('enclave challenge mismatch');
+  const act = await tpmCmd(`activate ${hex(Buffer.from(credentialBlobB64, 'base64'))} ${hex(Buffer.from(secretB64, 'base64'))}`);
+  const q = await tpmCmd(`quote ${hex(challenge)}`);
+  const pcr0 = (await tpmCmd('pcr 0'))['pcr 0'] || '';
+  const logPath = (await tpmCmd('log')).log;
+  const bootLog = fs.readFileSync(logPath);
+  const evidence = {
+    report: b64(report), signature: b64(signature), log: b64(bootLog),
+    quote: { attest: b64(Buffer.from(q.attest, 'hex')), sig: b64(Buffer.from(q.sig, 'hex')), aikPub: b64(Buffer.from(q['aik-pub'], 'hex')) },
+    credential: b64(Buffer.from(act.credential, 'hex')),
+    ek: { cert: b64(Buffer.from((await tpmCmd('keys'))['ek-cert'], 'hex')), chain: [] },
+    pcr0, platform: await platformInfo(),
+  };
+  return { frame: { t: 'attest', rad: { format: 'windows-vbs-enclave/v1', transportKey: b64(spki), padKey: hex(boxPk), body: b64(Buffer.from(JSON.stringify(evidence))) } }, spki, boxPk };
+}
+async function operatorSig(nonceB64) {
+  const key = process.env.NODE_OPERATOR_KEY; if (!key) return null;
+  try { const { ethers } = await import('ethers'); const w = new ethers.Wallet(key); return await w.signMessage(`enclave-tunnel-attach:${NAME}:${nonceB64}`); } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
+}
+
+// ---- the public surface over the tunnel ------------------------------------------------------
+let gpuName = process.env.GPU_NAME || 'Vulkan device', tier = '', attachedAt = 0, spkiFp = '';
+async function handle(frame) {
+  const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
+  const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, gpu: true, maxShare: 0, gpuShareFree: 0, cpuShareFree: 0, nodeVcpus: 0, nodeRamGb: 0,
+    teeCpu: 'windows-vbs-enclave', tier: tier || 'unattested', shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), device: gpuName }, model: path.basename(MODEL), attachedAt });
+  if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
+  if (p === '/v1/completions' && method === 'POST') {
+    let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
+    const prompt = String(body.prompt || ''); const n = Math.max(1, Math.min(512, Number(body.max_tokens || 16)));
+    if (!prompt) return json(400, { error: 'prompt required' });
+    try {
+      const r = (await hostCmd(`gen ${n} ${hex(Buffer.from(prompt, 'utf8'))}`)).split(' ');
+      const text = Buffer.from(r[0], 'hex').toString('utf8');
+      return json(200, { id: `cmpl-${Date.now()}`, object: 'text_completion', model: path.basename(MODEL), choices: [{ index: 0, text, finish_reason: 'length' }],
+                         usage: { completion_tokens: Number(r[1]) }, timing: { prompt_us: Number(r[2]), decode_us: Number(r[3]) }, shielded: { offloaded: Number(r[4]), local: Number(r[5]), macs: Number(r[6]), verify_fail: Number(r[7]) } });
+    } catch (e) { return json(500, { error: e.message }); }
+  }
+  return json(404, { error: 'not_found' });
+}
+
+// ---- the tunnel ----------------------------------------------------------------------------
+function connect() {
+  let ws, pending = null;   // pending: { nonce } between challenge and attest-result
+  const dial = () => {
+    log(`dialing ${RELAY_URL} as ${NAME}`);
+    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4 });
+    const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
+    let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
+    ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
+    ws.on('message', async (data) => {
+      last = Date.now(); let f; try { f = JSON.parse(data); } catch { return; }
+      try {
+        if (f.t === 'challenge') { pending = { nonce: f.nonce }; send(await keysFrame()); log('sent TPM keys'); }
+        else if (f.t === 'vbs-credential') {
+          if (!pending) return;
+          const { frame, spki } = await attestFrame(pending.nonce, f.credentialBlob, f.secret);
+          spkiFp = createHash('sha256').update(spki).digest('hex');
+          const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
+          send(frame); log('sent evidence (report, quote, credential, log)');
+        } else if (f.t === 'attest-result') {
+          if (f.ok) { tier = f.tier || 'vbs'; attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
+          else log(`attach REJECTED: ${f.reason}`);
+        } else if (f.t === 'ping') send({ t: 'pong' });
+        else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
+        else if (f.t === 's+') send({ t: 's=', sid: f.sid, ok: false, err: 'windows node carries no streams' });
+      } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: 'windows-vbs-enclave/v1', body: '' } }); }
+    });
+    ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
+    ws.on('close', () => { clearInterval(live); attachedAt = 0; log('tunnel closed'); setTimeout(dial, 5000); });
+    ws.on('error', (e) => { log(`tunnel error: ${e.message}`); try { ws.terminate(); } catch {} });
+  };
+  dial();
+}
+
+// LOCAL_HTTP_PORT: the same surface the tunnel serves, on loopback, for tests without a relay
+function localHttp(port) {
+  const http = requireHttp();
+  http.createServer(async (req, res) => {
+    const chunks = []; for await (const c of req) chunks.push(c);
+    const r = await handle({ path: req.url, method: req.method, body: Buffer.concat(chunks).toString('base64') });
+    res.writeHead(r.status, r.headers); res.end(r.body);
+  }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
+}
+function requireHttp() { return createRequire(import.meta.url)('node:http'); }
+(async () => {
+  await startWorker();
+  await startHost();
+  await startTpm();
+  const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
+  if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
+  const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
+  if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
+  if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
+})().catch((e) => { console.error(e); process.exit(1); });
+process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

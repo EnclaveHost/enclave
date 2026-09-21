@@ -9,6 +9,7 @@
 extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
+#include "shielded-wide.h"
 }
 #include "shielded-source-quant.h"
 
@@ -798,7 +799,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
         s.weight_cache_failed = true;
         return false;
     }
-    if (K <= 0 || N <= 0 || (__int128)K*N + (__int128)sh_max_m()*(3*(__int128)K + 4*(__int128)N) > INT64_MAX)
+    if (!sh_layout_fits(K, N, sh_max_m()))
         return false;
     if (K % SH_QK != 0) return false;
     /* Same pair of gates supports_op applied; registration re-checks them
