@@ -438,7 +438,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
               return deny("that name is held by another enclave");
             clearTimeout(timer); settled = true;
-            try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement })); } catch {}
+            try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isVbs && res.tier ? { tier: res.tier } : {}) })); } catch {}
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
             const padKey = (!isAvf || avfV2) && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";

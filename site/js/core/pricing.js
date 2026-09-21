@@ -349,7 +349,11 @@ export const CPU_TEE_DEV_TIERS = { "vbs-dev": "development, unsigned" };
 export function teeCpuOf(row){
   const a = (row && row.availability) || {};
   const tech = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
-  const tier = typeof a.tier === "string" && a.tier ? a.tier : (row && typeof row.tier === "string" && row.tier) || null;
+  // The tier is the RELAY's verdict (row.tier, written when it verified the attestation), and the
+  // box's own copy only fills in for an older relay that recorded none. A node must not be able to
+  // promote itself out of the development tier by saying so in its own /availability, which is the
+  // same rule payoutWallet follows in the registry: never believe a box quoting itself.
+  const tier = (row && typeof row.tier === "string" && row.tier) ? row.tier : (typeof a.tier === "string" && a.tier ? a.tier : null);
   const real = (technology, source) => ({ real: true, known: true, technology, label: CPU_TEE_TECHNOLOGIES[technology], source,
                                           consumer: !!CPU_TEE_CONSUMER[technology], note: CPU_TEE_CONSUMER[technology] || null,
                                           tier: CPU_TEE_CONSUMER[technology] ? tier : null, dev: CPU_TEE_DEV_TIERS[tier] || null });

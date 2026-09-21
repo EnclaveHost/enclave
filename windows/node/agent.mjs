@@ -42,12 +42,18 @@ const PUBLIC_URL = process.env.PUBLIC_URL || '';
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node]', ...a);
 if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); process.exit(2); }
 
+let gpuName = process.env.GPU_NAME || '', tier = '', attachedAt = 0, spkiFp = '';
 // ---- the three processes -----------------------------------------------------------------
 const children = {};
 function run(name, exe, args, env) {
   const p = spawn(exe, args, { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-  p.stdout.on('data', (d) => process.stdout.write(`[${name}] ${d}`));
-  p.stderr.on('data', (d) => process.stderr.write(`[${name}] ${d}`));
+  const watch = (d) => {
+    // the worker names its card on its first line; the row on the site reads that, not a guess
+    const m = String(d).match(/vulkan: ([^,]+), queue family/);
+    if (m && m[1]) gpuName = m[1].trim();
+  };
+  p.stdout.on('data', (d) => { watch(d); process.stdout.write(`[${name}] ${d}`); });
+  p.stderr.on('data', (d) => { watch(d); process.stderr.write(`[${name}] ${d}`); });
   p.on('exit', (code, sig) => { log(`${name} exited (${code ?? sig})`); children[name] = null; });
   children[name] = p; return p;
 }
@@ -146,12 +152,11 @@ async function operatorSig(nonceB64) {
 }
 
 // ---- the public surface over the tunnel ------------------------------------------------------
-let gpuName = process.env.GPU_NAME || 'Vulkan device', tier = '', attachedAt = 0, spkiFp = '';
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
   if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, gpu: true, maxShare: 0, gpuShareFree: 0, cpuShareFree: 0, nodeVcpus: 0, nodeRamGb: 0,
-    teeCpu: 'windows-vbs-enclave', tier: tier || 'unattested', shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), device: gpuName }, model: path.basename(MODEL), attachedAt });
+    teeCpu: 'windows-vbs-enclave', tier: tier || null, shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), ...(gpuName ? { device: gpuName } : {}) }, model: path.basename(MODEL), attachedAt });
   if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
@@ -194,7 +199,8 @@ function connect() {
           const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
           send(frame); log('sent evidence (report, quote, credential, log)');
         } else if (f.t === 'attest-result') {
-          if (f.ok) { tier = f.tier || 'vbs'; attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
+          if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }

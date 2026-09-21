@@ -26,7 +26,14 @@ class FleetList extends EnclaveElement {
     // non-claiming box (relay row serving:false) is operational truth, not
     // sellable capacity - listing it would advertise hardware nobody can buy.
     // Rows from an older relay carry no verdict and stay visible.
-    const rows = (this.rows || []).filter((e) => e.serving !== false);
+    // A CONSUMER NODE (a gamer's PC attested as a VBS enclave, teeCpuOf) is the one
+    // exception. It can never be "serving": it hosts a model inside its enclave rather
+    // than the app shares this list meters, so the relay records serving:false for it
+    // exactly as it does for a relay box. Hiding it would say the tier does not exist
+    // while a real, attested node is attached, so it is shown as what it is, with no
+    // capacity bars and no price. A relay row stays hidden: it sells nothing at all.
+    const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
+    const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -65,6 +72,16 @@ class FleetList extends EnclaveElement {
           // "metal0"); the endpoint-derived fallback covers older relays — and
           // strips ANY scheme, so a tunnel:// row never renders as a pseudo-URL
           const name = e.name || String(e.endpoint || "").replace(/^[a-z]+:\/\//, "").split(".")[0] || "enclave";
+          // THE CONSUMER PILL, needed by two row kinds below, so it is built once here.
+          // The tier earned its pill with real evidence against a weaker threat model, and
+          // the pill says which: "vbs enclave", never "tee cpu"; a dev-tier row (a relay
+          // that admitted a test-signed build) says "development, unsigned".
+          const tc = teeCpuOf(e);
+          const consumerBadge = !tc.consumer ? '' :
+            '<span class="ap-badge ' + (tc.dev ? 'warn' : 'ok') + '" title="' + esc(tc.label) + ': ' + esc(tc.note)
+              + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
+              + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
+              + '">' + (tc.dev ? 'vbs enclave (dev)' : 'vbs enclave') + '</span>';
           // Any host may also CARRY traffic; one with no resources at all only
           // carries it, and that is what this badge reads — no capacity, so
           // nothing to sell and nothing to meter. Empty CPU/GPU bars would say
@@ -85,6 +102,26 @@ class FleetList extends EnclaveElement {
               + (svc.length ? 'carries ' + svc.map(esc).join(" · ") : 'carries no declared services')
               + (r.ports ? ' · ports ' + esc(r.ports) : '')
               + (r.v6Prefix ? ' · ' + esc(r.v6Prefix) : '')
+              + '</span>'
+              + '</div>';
+          }
+          // The consumer node's row: what it RUNS, not what it sells. Empty share meters
+          // would read as "full", which is the opposite of the truth, so the row names the
+          // model it hosts and the card its enclave offloads to without trusting it.
+          if (consumerNode(e)) {
+            const shn = a.shielded || {};
+            const parts = [];
+            if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
+            if (shn.device) parts.push('masked offload to ' + esc(shn.device)
+              + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : ''));
+            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
+              + '<span class="fleet-head">'
+              + consumerBadge
+              + '<span class="fleet-name">' + esc(name) + '</span>'
+              + '</span>'
+              + '<span class="fleet-relay-note">'
+              + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
+              + ' \u00b7 serves its own inference, not app deployments'
               + '</span>'
               + '</div>';
           }
@@ -115,16 +152,8 @@ class FleetList extends EnclaveElement {
           // those boxes must not inherit a green pill they did not prove: amber
           // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
           // box), plain "CPU" when it has not said.
-          const tc = teeCpuOf(e);
-          // The consumer tier (a Windows VBS enclave, teeCpuOf) earned its pill
-          // with real evidence, but against a weaker threat model, and its pill
-          // says which: "vbs enclave", never "tee cpu". A dev-tier row (a lab
-          // relay admitted a test-signed build) says "development, unsigned".
           const teeCpuBadge = tc.real && tc.consumer
-            ? '<span class="ap-badge ' + (tc.dev ? 'warn' : 'ok') + '" title="' + esc(tc.label) + ': ' + esc(tc.note)
-              + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
-              + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
-              + '">' + (tc.dev ? 'vbs enclave (dev)' : 'vbs enclave') + '</span>'
+            ? consumerBadge
             : tc.real
             ? '<span class="ap-badge ok" title="' + esc(tc.label) + ' confidential VM: '
               + (tc.source === "relay"

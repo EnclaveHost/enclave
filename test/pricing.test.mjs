@@ -676,6 +676,9 @@ test("TEE CPU is badged from evidence, never from the box having no card", () =>
   assert.equal(t.consumer, true); assert.match(t.note, /owner/); assert.equal(t.tier, "vbs"); assert.equal(t.dev, null);
   t = teeCpuOf({ tunnel: true, mode: "vbs", availability: { gpu: true, teeCpu: "windows-vbs-enclave", tier: "vbs-dev" } });
   assert.equal(t.real, true); assert.equal(t.consumer, true); assert.equal(t.source, "attestation"); assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);
+  // a node that claims a better tier than the relay verified is held to the relay's verdict
+  t = teeCpuOf({ tunnel: true, mode: "vbs", tier: "vbs-dev", availability: { gpu: true, teeCpu: "windows-vbs-enclave", tier: "vbs" } });
+  assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);
   assert.equal(t.label, "Windows VBS enclave");
   t = teeCpuOf({ tunnel: true, mode: "", availability: { gpu: false } });
   assert.equal(t.real, false); assert.equal(t.known, false);
