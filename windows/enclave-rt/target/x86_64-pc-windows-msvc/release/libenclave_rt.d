@@ -1,1 +1,0 @@
-/home/steven/Projects/enclave/windows/enclave-rt/target/x86_64-pc-windows-msvc/release/libenclave_rt.rlib: /home/steven/Projects/enclave/windows/enclave-rt/src/lib.rs /home/steven/Projects/enclave/windows/enclave-rt/wit/app.wit

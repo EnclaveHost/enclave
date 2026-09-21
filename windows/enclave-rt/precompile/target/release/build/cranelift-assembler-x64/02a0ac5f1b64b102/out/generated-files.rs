@@ -1,3 +1,0 @@
-vec![
-  "/home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-assembler-x64/02a0ac5f1b64b102/out/assembler.rs".into(),
-]
