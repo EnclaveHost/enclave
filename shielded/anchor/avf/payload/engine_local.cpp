@@ -219,10 +219,14 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (warm) { int locked = 0; const double sec = warm(n_threads, &locked); outf("LOCAL tpu: lane bundle paged in from the encrypted store in %.1f s (%s) | %s", sec, locked ? "locked in memory" : "NOT locked: it can be evicted", mem_line().c_str()); }
         if (mint && g_tpu_bank > 0) { const double sec = mint(g_tpu_bank, n_threads); outf("LOCAL tpu: minted %d pad positions per group in %.1f s (%.1f positions per second on %d threads) | %s", g_tpu_bank, sec, g_tpu_bank / sec, n_threads, mem_line().c_str());
                               /* opt-in: minting while decoding keeps the vCPUs busy, and busy vCPUs slow the link (measured 4.3 -> 7.7 ms per exchange with 4 minters) */
-                              if (refill && g_tpu_refill > 0) { refill(g_tpu_bank, g_tpu_refill); outf("LOCAL tpu: %d background minters keep the bank at %d positions", g_tpu_refill, g_tpu_bank); }
+                              /* tpu_refill encodes both minting placements: 0..8 background threads, and >= 9 adds window minting
+                               * (target = the bank) with refill-9 threads, so 9 is "mint only in the link window, no thread". */
+                              const int nthr = g_tpu_refill >= 9 ? g_tpu_refill - 9 : g_tpu_refill, wtarget = g_tpu_refill >= 9 ? g_tpu_bank : 0;
+                              if (refill && nthr > 0) { refill(g_tpu_bank, nthr); outf("LOCAL tpu: %d background minters keep the bank at %d positions", nthr, g_tpu_bank); }
                               /* the link window is idle for about 3.9 ms of every exchange and a pad depends on nothing,
                                * so decode mints its own there; with this on, g_tpu_refill 0 costs the worker no cores */
-                              if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(g_tpu_bank, 8); outf("LOCAL tpu: minting inside the link window to a bank of %d positions", g_tpu_bank); } } }
+                              if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(wtarget, 8);
+                                  if (wtarget) outf("LOCAL tpu: minting inside the link window to a bank of %d positions", wtarget); } } }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
     /* the drafter: its own context in MTP mode, sharing the target's memory (llama.cpp's speculative helper does the rest) */
