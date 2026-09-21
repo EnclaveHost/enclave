@@ -216,7 +216,11 @@ test("manager /health carries `set`, supervisor forwards it, the relay ANDs it",
     "the supervisor forwards the manager's probed answer, never its own guess");
   assert.match(sup, /\.\.\.cth, \.\.\.setc, /, "and folds it into /availability after coopThreads");
   const relay = fs.readFileSync(path.join(REPO, "relay", "api-relay.js"), "utf8");
-  assert.match(relay, /set: serving\.length > 0 && serving\.every\(\(e\) => e\.availability\?\.set === true\)/,
+    // `offered` is the SERVING set minus the boxes that publish fullService:false, and it is
+    // still an AND: a partial box must not switch a capability off for the whole platform,
+    // and a full-service box that lacks it still does (relay/api-relay.js
+    // fullServiceEnclaves, test/fleet-partial-capability.test.mjs).
+  assert.match(relay, /set: offered\.length > 0 && offered\.every\(\(e\) => e\.availability\?\.set === true\)/,
     "the relay must AND it across the claiming fleet, same as every capability");
 });
 
