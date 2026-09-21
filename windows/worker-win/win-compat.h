@@ -68,6 +68,10 @@
 #include <windows.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <intrin.h>
+#include <io.h>        /* before the read/write/close macros below: corecrt_io.h declares those names */
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <stddef.h>
 
@@ -168,6 +172,13 @@ static inline int sh_win_poll(struct pollfd *fds, unsigned long nfds, int timeou
     return r;
 }
 
+/* Winsock must be started once before the first socket(); nothing in worker.cu knows that. */
+static inline int sh_win_socket(int af, int type, int proto) {
+    static int started = 0;
+    if (!started) { if (sh_win_startup()) { sh_win_seterr(); return -1; } started = 1; }
+    const SOCKET s = socket(af, type, proto); if (s == INVALID_SOCKET) { sh_win_seterr(); return -1; } return (int)s;
+}
+#define socket(af, type, proto)   sh_win_socket((af), (type), (proto))
 #define read(fd, buf, n)          sh_win_read((fd), (buf), (n))
 #define write(fd, buf, n)         sh_win_write((fd), (buf), (n))
 #define recv(fd, buf, n, flags)   sh_win_recv((fd), (buf), (n), (flags))
@@ -178,6 +189,47 @@ static inline int sh_win_poll(struct pollfd *fds, unsigned long nfds, int timeou
 #ifndef _SSIZE_T_DEFINED
 typedef ptrdiff_t ssize_t;
 #define _SSIZE_T_DEFINED
+#endif
+
+/* ------------------------------------------------------------------------ */
+/* GCC/clang spellings worker.cu uses on the host side, for MSVC.           */
+/* ------------------------------------------------------------------------ */
+/* __attribute__((target("ssse3"))): MSVC emits SSSE3 intrinsics without a target attribute. */
+#define __attribute__(x)
+/* __builtin_cpu_supports("ssse3"): CPUID.1:ECX bit 9. Only that one string is ever asked. */
+static inline void __builtin_cpu_init(void) {}
+static inline int __builtin_cpu_supports(const char *feature) {
+    int r[4]; __cpuid(r, 1);
+    (void)feature; return (r[2] >> 9) & 1;
+}
+/* The ring's acquire/release 64-bit loads and stores. x86 loads and stores of aligned 64-bit
+ * values are atomic; the compiler barrier keeps their order, as the GCC builtins do. */
+#define __ATOMIC_ACQUIRE 2
+#define __ATOMIC_RELEASE 3
+#define __atomic_load_n(p, order)     sh_win_atomic_load64((const volatile unsigned long long *)(p))
+#define __atomic_store_n(p, v, order) sh_win_atomic_store64((volatile unsigned long long *)(p), (unsigned long long)(v))
+static inline unsigned long long sh_win_atomic_load64(const volatile unsigned long long *p) { const unsigned long long v = *p; _ReadWriteBarrier(); return v; }
+static inline void sh_win_atomic_store64(volatile unsigned long long *p, unsigned long long v) { _ReadWriteBarrier(); *p = v; }
+/* setsockopt takes const char* on Winsock; worker.cu passes int*. */
+static inline int sh_win_setsockopt(int fd, int level, int name, const void *val, int len) {
+    const int r = setsockopt((SOCKET)fd, level, name, (const char *)val, len); if (r) sh_win_seterr(); return r;
+}
+#define setsockopt(fd, level, name, val, len) sh_win_setsockopt((fd), (level), (name), (val), (int)(len))
+/* readlink("/proc/self/exe"): the only path asked, answered with the module file name. */
+static inline ptrdiff_t readlink(const char *path, char *buf, size_t n) {
+    (void)path; const DWORD r = GetModuleFileNameA(NULL, buf, (DWORD)n); if (!r || r >= n) return -1;
+    for (DWORD i = 0; i < r; i++) if (buf[i] == '\\') buf[i] = '/';
+    return (ptrdiff_t)r;
+}
+static inline int setenv(const char *name, const char *value, int overwrite) {
+    if (!overwrite && getenv(name)) return 0; return _putenv_s(name, value) ? -1 : 0;
+}
+/* The shm ring file: opened for the mmap stub that refuses it (no ring on Windows). */
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
+#ifndef open
+#define open(path, flags, ...) _open((path), (flags) | _O_BINARY)
 #endif
 
 /* ------------------------------------------------------------------------ */

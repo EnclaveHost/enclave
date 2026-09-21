@@ -198,6 +198,9 @@ static int fp16_flops_per_sm_clock(int major, int minor) {
     }
 }
 static double rated_fp16_tflops(const cudaDeviceProp &p) {
+    /* SHIELDED_CARD_TFLOPS states the rated figure outright: the Vulkan build has no compute
+     * capability or clock to derive it from, and an operator may know the card's sheet better. */
+    if (const char *e = getenv("SHIELDED_CARD_TFLOPS")) { const double v = atof(e); if (v > 0) return v; }
     const int per = fp16_flops_per_sm_clock(p.major, p.minor);
     if (!per) return 0.0;
     return (double)p.multiProcessorCount * per * ((double)p.clockRate * 1e3) / 1e12;
