@@ -431,7 +431,8 @@ METAL_VBS_ALLOW_TESTSIGNING=1`.
 
 What separates this from **enclave.host itself**: the hosted relay must get relay commit dad54c98
 deployed (relay/deploy.sh) with those two environment keys, and the name registered on chain for
-the operator-signed attach; both are production actions that were not taken here. And two honest
-limits: sessions are plaintext to the relay and the host until the phone's boxed-session design is
-ported (the enclave already mints and attests the key for it), and the tier stays `vbs-dev` until
-Artifact Signing replaces the test certificate and Secure Boot goes back on.
+the operator-signed attach; both are production actions that were not taken here. Sessions are
+sealed end to end (`windows/node/client.mjs` boxes the prompt to the pad key the hub attested and
+opens the enclave's boxed reply; the relay and the node's host carry ciphertext), so the one honest
+limit left is the tier: `vbs-dev` until Artifact Signing replaces the test certificate and Secure
+Boot goes back on.

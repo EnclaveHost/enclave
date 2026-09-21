@@ -27,6 +27,7 @@ the VBS report, and answering completions over the fleet tunnel. Measured on 202
 | first prompt after load (pad pool warm-up) / later prompts | 8.2 s / 0.23 s |
 | attach to a fleet-tunnel hub over ZeroTier (windows/vbs/EVIDENCE.md handshake: TPM keys -> minted credential -> transcript, enclave report, quote, credential, boot log) | ACCEPTED, `attestation(vbs-dev)`, mode vbs, transport and pad keys recorded |
 | completions routed through the hub (`POST /t/nucbox-k11/v1/completions`) | same texts, 12 tokens / 1.07 s decode, 1606 nodes offloaded, 0 failures |
+| **sealed sessions** (`windows/node/client.mjs`: prompt boxed to the pad key the hub attested, reply boxed back; hub and host carry ciphertext only) | same texts, 8 tokens / 9.0 s (first, warm-up) and 12 tokens / 1.3 s; opens only under the client's key |
 
 Three-way identity: the enclave alone, the enclave + GPU worker, and the Linux engine produce the
 same tokens. The offloaded path is exact (Slalom recovery in Z_M), so anything else would have
@@ -75,7 +76,8 @@ been a bug.
 `EeInit` (runtime + Ed25519 transport key + X25519 pad key, public halves out), `EeLoad` (model,
 context, persistent threadpool), `EeGenerate` (greedy, first index on ties, same rule as
 `shielded-run`), `EeAttest` (refuses any transcript that does not name its own keys; report over
-`sha256(bound)`; Ed25519 signature over `bound`), `EeThread` (host-entered thread body).
+`sha256(bound)`; Ed25519 signature over `bound`), `EeSession` (a boxed request in, a boxed reply
+out, see ee-rt.h), `EeThread` (host-entered thread body).
 
 ## Build and run
 `./sync.sh` copies the sources to the box and runs `build.cmd` (cl: ggml, ggml-cpu, llama + models,
@@ -88,9 +90,11 @@ ee-host.exe … --serve 9596        # keys / attest <bound hex> / gen <n> <promp
 ```
 
 ## Not done here, stated plainly
-- **Sessions are not yet end-to-end encrypted to the enclave**: a prompt through the tunnel is
-  plaintext to the relay and the host. The phone's design (requests boxed to the attested key) is
-  the next step; the transport key is already minted inside and bound by the report.
+- **Sessions**: `EeSession` opens a request boxed to the attested X25519 pad key (client key ||
+  nonce || crypto_box) and boxes the reply to the client's key; the host's `session` command and the
+  agent's `/v1/session` carry the bytes opaquely, `/v1/completions` stays as the plaintext path for
+  tests. The pad key doubles as the session key for now (the dealer's seeds would share it); a
+  separate session key is a one-line change in `EeInit` once the dealer flow lands on Windows.
 - **Tier is vbs-dev**: test-signed, Secure Boot off, `TESTSIGNING=1` in the log. Production signing
   and the flip to tier vbs are windows/vbs/SIGNING.md (needs the company's Azure account).
 - Weights are copied into the enclave (2 GB image, fine for 0.5B–1B); the benchmark shows the

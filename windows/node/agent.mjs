@@ -164,6 +164,13 @@ async function handle(frame) {
                          usage: { completion_tokens: Number(r[1]) }, timing: { prompt_us: Number(r[2]), decode_us: Number(r[3]) }, shielded: { offloaded: Number(r[4]), local: Number(r[5]), macs: Number(r[6]), verify_fail: Number(r[7]) } });
     } catch (e) { return json(500, { error: e.message }); }
   }
+  if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
+  if (p === '/v1/session' && method === 'POST') {           // opaque bytes in, opaque bytes out: sealed to the enclave's attested pad key
+    const blob = Buffer.from(frame.body || '', 'base64'); if (blob.length < 76) return json(400, { error: 'blob too short' });
+    try { const r = (await hostCmd(`session ${hex(blob)}`)).split(' ');
+          return json(200, { blob: Buffer.from(r[0], 'hex').toString('base64'), usage: { completion_tokens: Number(r[1]) }, timing: { prompt_us: Number(r[2]), decode_us: Number(r[3]) }, shielded: { offloaded: Number(r[4]), local: Number(r[5]), macs: Number(r[6]), verify_fail: Number(r[7]) } }); }
+    catch (e) { return json(500, { error: e.message }); }
+  }
   return json(404, { error: 'not_found' });
 }
 

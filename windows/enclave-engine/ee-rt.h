@@ -52,6 +52,14 @@ typedef struct ee_attest_params {
     uint8_t signature[64]; uint8_t challenge[32];
     int32_t status; int32_t hr; char error[256];
 } ee_attest_params;
+/* A boxed session (windows/node/client.mjs): in = client_pk(32) || nonce(24) || crypto_box(request) where
+ * request = max_tokens u32 LE || prompt utf-8, sealed to the enclave's attested X25519 pad key; out =
+ * nonce(24) || crypto_box(reply) sealed to client_pk, reply = n_tokens u32 LE || text utf-8. The host and
+ * the agent carry these bytes without being able to read them. */
+typedef struct ee_session_params {
+    uint32_t size; const uint8_t *in; uint64_t in_len; uint8_t *out; uint64_t out_cap; uint64_t out_len;
+    int32_t status; char error[256]; int32_t n_tokens; int64_t prompt_us, decode_us; uint64_t offloaded, local, macs, verify_fail;
+} ee_session_params;
 /* runtime services for the shims (ee-rt.c) */
 void ee_logv(const char *fmt, va_list ap);
 void ee_log(const char *fmt, ...);
