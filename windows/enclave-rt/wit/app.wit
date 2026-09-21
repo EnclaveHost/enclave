@@ -1,0 +1,42 @@
+// The enclave app world, phase 1.
+//
+// Deliberately POOR in host imports: every import is something the VTL1 side has to implement by
+// hand, and the enclave has no sockets, no files, no clock of its own and no async runtime. So the
+// contract is a function call, not a server: the VTL0 agent owns the socket, hands the bytes in
+// through the enclave gate, and the app's code and memory never leave VTL1.
+package enclave:app@0.1.0;
+
+interface types {
+  record header { name: string, value: string }
+  record request {
+    method: string,
+    path: string,
+    headers: list<header>,
+    body: list<u8>,
+  }
+  record response {
+    status: u16,
+    headers: list<header>,
+    body: list<u8>,
+  }
+}
+
+// What the enclave provides. Nothing that can reach outside the enclave: the model lives here too,
+// so an app's inference is a call into VTL1 rather than a socket back out to VTL0.
+interface host {
+  use types.{response};
+  // milliseconds since the unix epoch, read from the host at gate-crossing time
+  now-ms: func() -> u64;
+  // cryptographic randomness, from the enclave's own source
+  random: func(len: u32) -> list<u8>;
+  // a line for the deployment log the operator and the tenant can both read
+  log: func(line: string);
+  // the model in this enclave, sealed inside it: prompt in, completion out
+  generate: func(prompt: string, max-tokens: u32) -> string;
+}
+
+world app {
+  use types.{request, response};
+  import host;
+  export handle: func(req: request) -> response;
+}

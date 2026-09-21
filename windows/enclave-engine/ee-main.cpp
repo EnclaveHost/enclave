@@ -170,6 +170,24 @@ extern "C" __declspec(dllexport) void *WINAPI EeSession(void *param) {
     return (void *)1;
 }
 
+/* The app runtime's `generate` import (ee-app.cpp): a tenant's app calling the model that lives in
+ * this same enclave. The prompt and the completion exist in the clear only inside VTL1, and the
+ * card underneath still only ever sees masked activations, so an app here gets the enclave's
+ * inference without the enclave's model or its pads ever crossing to VTL0. */
+extern "C" int ee_engine_generate(const char *prompt, size_t plen, int n_predict,
+                                  char *out, size_t cap, size_t *out_len) {
+    if (!g_ctx) return -1;
+    if (!prompt || !plen || plen > (1u << 20) || !out || !cap || !out_len) return -2;
+    std::string p(prompt, plen), text;
+    ee_session_params st{};
+    const int rc = generate_text(p, n_predict, text, &st);
+    if (rc && rc != -5) return rc;
+    const size_t k = text.size() < cap ? text.size() : cap;
+    memcpy(out, text.data(), k);
+    *out_len = k;
+    return 0;
+}
+
 /* The binding transcript (windows/vbs/EVIDENCE.md): "enclave-vbs-bind-v1\n" || spki(44) || padKey(32) || nonce(32).
  * The enclave rebuilds the key part from ITS OWN keys and refuses anything else: the host cannot make
  * it attest a key it does not hold. challenge = sha256(bound) goes into the report's EnclaveData. */

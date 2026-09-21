@@ -22,7 +22,7 @@ const dep = (o = {}) => ({ id: "0x" + "a".repeat(64), owner: STRANGER, appRef: "
 // Room for it: three slots, three quarters of a node, 80 GB.
 const roomy = { slots: 4, slotsFree: 3, cpuShareFree: 0.75, ramMbFree: 81920, cpuGflops: 1000 };
 const ctx = (o = {}) => ({ ownerAllow: OWNER, enclaveId: ENCLAVE, appsEnabled: true, capacity: roomy, ...o });
-const version = (o = {}) => ({ cid: "bafy", version: "1.0.0", memMb: 512, cpuGflops: 10, config: "", ...o });
+const version = (o = {}) => ({ cid: "bafy", version: "1.0.0", memMb: 512, cpuGflops: 10, config: "", approval: 1, yanked: false, ...o });
 
 test("market scope takes a stranger's public deployment; owner-only does not", () => {
   assert.equal(claimPolicy(dep(), ctx()), null, "the default scope is the market: any wallet's");
@@ -94,6 +94,21 @@ test("the card: refused unless the owner or the publisher said it is soft", () =
   // gpu.optional on a deployment that bought no card is a misunderstanding, and refused as one.
   assert.match(String(claimPolicy(dep({ configCid: JSON.stringify({ gpu: { optional: true } }) }), ctx())),
                /applies only to a deployment that bought GPU share/);
+});
+
+test("approval: rejected and yanked never run, pending runs only for the box owner", () => {
+  // Mirrored from the platform runner deliberately: a box that reads the catalog's approval state
+  // differently from the rest of the fleet is how an unapproved app ends up serving the public.
+  const approved = version({ approval: 1 });
+  assert.equal(claimPolicy(dep(), ctx({ version: approved })), null);
+  assert.match(String(claimPolicy(dep(), ctx({ version: version({ approval: 2 }) }))), /rejected by the catalog owner/);
+  assert.match(String(claimPolicy(dep(), ctx({ version: version({ approval: 1, yanked: true }) }))), /yanked by its publisher/);
+  // Pending: refused for a stranger...
+  assert.match(String(claimPolicy(dep(), ctx({ version: version({ approval: 0 }) }))), /awaiting the catalog owner's approval/);
+  // ...allowed for the box owner's own deployment, which is the publisher testing their own app on
+  // their own machine. The fleet's equivalent is dev mode on a PRIVATE deployment, which this box
+  // cannot offer because it refuses private deployments.
+  assert.equal(claimPolicy(dep({ owner: OWNER }), ctx({ version: version({ approval: 0 }) })), null);
 });
 
 test("capacity refusals carry the numbers they were decided on", () => {

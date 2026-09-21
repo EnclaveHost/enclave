@@ -1,0 +1,14 @@
+[package]
+# The reference app for the enclave:app world: it runs INSIDE the VBS enclave, and the only
+# things it can reach are the enclave's own host functions (wit/../enclave-rt/wit/app.wit).
+name = "enclave-app-hello"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.48", default-features = false, features = ["macros"] }
+
+[workspace]

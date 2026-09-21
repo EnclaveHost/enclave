@@ -26,13 +26,14 @@ class FleetList extends EnclaveElement {
     // non-claiming box (relay row serving:false) is operational truth, not
     // sellable capacity - listing it would advertise hardware nobody can buy.
     // Rows from an older relay carry no verdict and stay visible.
-    // A CONSUMER NODE (a gamer's PC attested as a VBS enclave, teeCpuOf) is the one
-    // exception. It can never be "serving": it hosts a model inside its enclave rather
-    // than the app shares this list meters, so the relay records serving:false for it
-    // exactly as it does for a relay box. Hiding it would say the tier does not exist
-    // while a real, attested node is attached, so it is shown as what it is, with no
-    // capacity bars and no price. A relay row stays hidden: it sells nothing at all.
+    // A CONSUMER NODE (a PC attested as a VBS enclave, teeCpuOf) has two states. While it
+    // sells nothing the relay records serving:false, exactly as for a relay box, and hiding
+    // it would say the tier does not exist while a real attested node is attached - so it is
+    // shown as what it is, with no capacity bars and no price. Once it claims (claimEnabled)
+    // it is a seller like any other box and gets the ordinary row: pool, share, price.
+    // A relay row stays hidden either way: it sells nothing at all.
     const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
+    const sells = (e) => e.serving === true || e.availability?.claimEnabled === true;
     const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
@@ -111,7 +112,7 @@ class FleetList extends EnclaveElement {
           // The consumer node's row: what it RUNS, not what it sells. Empty share meters
           // would read as "full", which is the opposite of the truth, so the row names the
           // model it hosts and the card its enclave offloads to without trusting it.
-          if (consumerNode(e)) {
+          if (consumerNode(e) && !sells(e)) {
             const shn = a.shielded || {};
             const parts = [];
             if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
@@ -123,7 +124,7 @@ class FleetList extends EnclaveElement {
             const ap = a.apps;
             if (ap && ap.running > 0)
               parts.push(esc(String(ap.running)) + ' app' + (ap.running === 1 ? '' : 's')
-                + ' on the host' + (ap.inTee === false ? ', outside the enclave' : ''));
+                + (ap.inTee === true ? ' inside its enclave' : ' on the host, outside the enclave'));
             return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
               + '<span class="fleet-head">'
               + consumerBadge

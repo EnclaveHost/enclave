@@ -1,0 +1,21 @@
+[package]
+name = "ee-precompile"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Compile a component to Pulley bytecode for the enclave to interpret. Runs OUTSIDE."
+
+# Cranelift lives HERE, in VTL0, and nowhere else. It turns a tenant's component into Pulley
+# bytecode, which is data: the enclave loads it without ever needing a page it can execute, which
+# is what makes running an app inside a VBS enclave possible at all.
+#
+# The version must match windows/enclave-rt's wasmtime EXACTLY. A cwasm carries the engine version
+# and its compiler settings, and the runtime refuses a mismatch rather than misinterpreting it,
+# which is the behaviour you want but a confusing failure if the two halves drift.
+[dependencies]
+wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley", "std", "cranelift"] }
+
+[workspace]
+
+[profile.release]
+opt-level = 2

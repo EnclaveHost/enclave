@@ -10,6 +10,8 @@ set GG=C:\Users\claude\vbs\ee\ggml-shielded
 set LL=C:\Users\claude\vbs\llama.cpp
 set MSVC=C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231
 set KITS=C:\Program Files (x86)\Windows Kits\10
+rem the in-enclave app runtime (windows/enclave-rt, built by its own build-win.cmd)
+set RT=C:\Users\claude\vbs\enclave-rt
 set OBJ=%EE%\obj
 if not exist %OBJ% mkdir %OBJ%
 cd /d %EE%
@@ -53,10 +55,16 @@ cl %CCFLAGS% /Fo:%OBJ%\ee-rt.obj %EE%\ee-rt.c || set FAIL=1
 cl %CXXFLAGS% /Fo:%OBJ%\ee-stl.obj %EE%\ee-stl.cpp || set FAIL=1
 cl %CXXFLAGS% /Fo:%OBJ%\ee-backend-reg.obj %EE%\ee-backend-reg.cpp || set FAIL=1
 cl %CXXFLAGS% /Fo:%OBJ%\ee-main.obj %EE%\ee-main.cpp || set FAIL=1
+echo === app runtime (a tenant's app inside the enclave: ee-app.cpp + enclave_rt.lib)
+rem EE_ENCLAVE_TLS: the two TLS slots wasmtime asks for become ordinary globals in here. The gate
+rem admits one call per app at a time, so there is one wasm thread and a global IS its slot; an
+rem enclave image cannot lean on a TLS directory.
+cl %CCFLAGS% /DEE_ENCLAVE_TLS /Fo:%OBJ%\ee-platform.obj %RT%\host\ee-platform.c || set FAIL=1
+cl %CXXFLAGS% /Fo:%OBJ%\ee-app.obj %EE%\ee-app.cpp || set FAIL=1
 if "%FAIL%"=="1" (echo === COMPILE FAILED & exit /b 1)
 :link
 echo === link enclave
-link /NOLOGO /DLL /OUT:%EE%\ee-engine.dll %OBJ%\*.obj "%MSVC%\lib\x64\enclave\libcmt.lib" "%MSVC%\lib\x64\enclave\libvcruntime.lib" "%KITS%\Lib\10.0.26100.0\ucrt_enclave\x64\ucrt.lib" vertdll.lib bcrypt.lib /NODEFAULTLIB /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /ENCLAVE /INTEGRITYCHECK /GUARD:MIXED /OPT:REF /OPT:ICF /IGNORE:4210 || (echo === LINK FAILED & exit /b 1)
+link /NOLOGO /DLL /OUT:%EE%\ee-engine.dll %OBJ%\*.obj "%RT%\enclave_rt.lib" "%MSVC%\lib\x64\enclave\libcmt.lib" "%MSVC%\lib\x64\enclave\libvcruntime.lib" "%KITS%\Lib\10.0.26100.0\ucrt_enclave\x64\ucrt.lib" vertdll.lib bcrypt.lib /NODEFAULTLIB /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /ENCLAVE /INTEGRITYCHECK /GUARD:MIXED /OPT:REF /OPT:ICF /IGNORE:4210 || (echo === LINK FAILED & exit /b 1)
 echo === veiid
 "%KITS%\bin\10.0.26100.0\x64\veiid.exe" %EE%\ee-engine.dll || exit /b 1
 echo === sign (test certificate)

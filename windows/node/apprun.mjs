@@ -5,19 +5,24 @@
 // CID and VERIFY it against that CID, run it as `wasmtime serve` on a loopback port, watch it,
 // keep its last log lines, and restart it with backoff.
 //
-// WHERE THE APP RUNS, stated plainly because the whole tier turns on it: in VTL0, the ordinary
-// Windows session, NOT inside the VBS enclave. The enclave holds the model, its pads and the keys;
-// an app is a wasm component and wasmtime cannot run in VTL1 (no JIT, no mmap, no Rust std there).
-// So the owner of this PC can read a hosted app's memory. The node says so in /availability and on
-// its row, and it claims only its OWNER's deployments, so nobody is sold a protection they do not
-// get. The app's INFERENCE is a different matter: that goes to the enclave over loopback and the
-// card only ever sees masked activations.
+// WHERE AN APP RUNS. There are two paths on this box, and only the first one is sold:
+//
+//  1. INSIDE THE ENCLAVE (class EnclaveApp below, windows/enclave-rt, windows/enclave-engine/
+//     ee-app.cpp). An app built for the enclave:app world is compiled to Pulley bytecode and
+//     interpreted inside VTL1 by a no_std wasmtime linked into the enclave image. Its code, its
+//     memory and its model calls never leave the enclave. This is what a lease gets.
+//  2. IN VTL0 under stock `wasmtime serve` (class App below). wasmtime cannot run in VTL1 - no
+//     JIT, no mmap, no Rust std - so this path is the ordinary Windows session, where the owner
+//     of the PC can read the app's memory. It is kept for the box owner's own bring-up on the
+//     loopback surface (host.mjs runUnleased) and is NEVER given to a tenant's lease: selling it
+//     would be selling app hosting the enclave does not cover.
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { encodeRequest, decodeResponse } from "./appframe.mjs";
 const execFileAsync = promisify(execFile);
 
 const LOG_LINES = 400;
@@ -190,4 +195,79 @@ export function missingHostInterfaces(file) {
   if (bytes.includes("wasi:nn/")) needs.push("wasi-nn (the platform's in-enclave inference interface, which needs a patched wasmtime and an attested model volume)");
   if (bytes.includes("enclave:set/") || bytes.includes("wasi:threads/")) needs.push("guest threads (SET spawn, which needs the platform's patched wasmtime)");
   return needs;
+}
+
+/**
+ * An app running INSIDE the enclave.
+ *
+ * Same surface as `App` above (start/stop/alive/logs/state) so host.mjs treats the two the same,
+ * but there is no process, no port and no restart loop: the app is bytecode loaded into VTL1 and a
+ * request is a call through the enclave gate. If the enclave goes, every app in it goes with it,
+ * which is the honest failure mode - they live in its memory.
+ *
+ * `hostCmd` is the agent's line protocol to the enclave host (ee-host.c on loopback). Everything
+ * this class does is four commands: appabi, appopen, apphandle, appclose.
+ */
+export class EnclaveApp {
+  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0 }) {
+    this.id = id; this.cwasmPath = cwasmPath; this.hostCmd = hostCmd; this.log = log;
+    this.memMb = memMb;
+    this.slot = 0; this.state = "stopped"; this.lines = []; this.loadUs = 0;
+    this.inTee = true;                       // what host.mjs records and /availability publishes
+  }
+  #say(m) {
+    this.lines.push(`${new Date().toISOString()} ${m}`);
+    if (this.lines.length > LOG_LINES) this.lines.splice(0, this.lines.length - LOG_LINES);
+    this.log(m);
+  }
+  logs(n = 200) { return this.lines.slice(-n); }
+  /** Load the bytecode into the enclave. The enclave copies it in and answers with a slot. */
+  async start() {
+    this.state = "starting";
+    const r = await this.hostCmd(`appopen ${this.cwasmPath}`);
+    const [slot, us] = String(r).trim().split(/\s+/);
+    this.slot = Number(slot) || 0;
+    this.loadUs = Number(us) || 0;
+    if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
+    this.state = "running";
+    this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms`);
+    return this;
+  }
+  async stop() {
+    if (this.slot) { try { await this.hostCmd(`appclose ${this.slot}`); } catch (e) { this.#say(`appclose: ${e.message}`); } }
+    this.slot = 0; this.state = "stopped";
+  }
+  /** Is the enclave still carrying this app? The gate answering at all is the liveness signal. */
+  async alive() {
+    if (!this.slot) return false;
+    try { return Number(await this.hostCmd("appabi")) >= 1; } catch { return false; }
+  }
+  /**
+   * One request, in and out through the gate. Returns the same shape the VTL0 proxy path returns,
+   * so /x/<id> does not care which kind of app answered.
+   */
+  async handle({ method = "GET", pathRest = "/", headers = {}, body = Buffer.alloc(0) } = {}) {
+    if (!this.slot) return { status: 503, headers: { "content-type": "application/json" },
+                             body: Buffer.from(JSON.stringify({ error: "not_loaded", id: this.id })) };
+    const frame = encodeRequest({ method, path: pathRest, headers, body });
+    const r = await this.hostCmd(`apphandle ${this.slot} ${frame.toString("hex")}`);
+    const [hex, us] = String(r).trim().split(/\s+/);
+    const resp = decodeResponse(Buffer.from(hex, "hex"));
+    this.lastUs = Number(us) || 0;
+    return { status: resp.status, headers: resp.headers, body: resp.body, inTee: true, enclaveUs: this.lastUs };
+  }
+}
+
+/**
+ * Compile a component to the bytecode the enclave interprets (windows/enclave-rt/precompile).
+ * Cranelift runs HERE, in VTL0, and never inside the enclave: what crosses the gate is data for a
+ * target that has no machine code at all, which is what makes an enclave able to run it.
+ */
+export async function precompile({ wasmPath, outPath, exe, log = () => {} }) {
+  if (!fs.existsSync(exe)) throw new Error(`no bytecode compiler at ${exe} (windows/enclave-rt/build-win.cmd)`);
+  const t0 = Date.now();
+  const { stdout } = await execFileAsync(exe, [wasmPath, outPath], { maxBuffer: 4 << 20 });
+  log(`bytecode: ${String(stdout).trim()} in ${Date.now() - t0} ms`);
+  if (!fs.existsSync(outPath) || fs.statSync(outPath).size < 64) throw new Error("the compiler produced no bytecode");
+  return outPath;
 }

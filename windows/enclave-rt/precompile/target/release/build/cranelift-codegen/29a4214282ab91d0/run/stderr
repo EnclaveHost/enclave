@@ -1,0 +1,26 @@
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/settings.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/types.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/opcodes.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/inst_builder.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/settings-pulley.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/settings-pulley.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/settings-x86.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/numerics.isle
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_numerics.rs
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/clif_opt.isle
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/clif_lower.isle
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/assembler.isle
+Writing generated file: /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/assembler-isle-macro.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_opt.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_opt.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_x64.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_x64.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_aarch64.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_aarch64.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_s390x.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_s390x.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_riscv64.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_riscv64.rs
+Rebuilding /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_pulley_shared.rs
+Writing ISLE-generated Rust code to /home/steven/Projects/enclave/windows/enclave-rt/precompile/target/release/build/cranelift-codegen/29a4214282ab91d0/out/isle_pulley_shared.rs
+fatal: not a git repository (or any of the parent directories): .git
