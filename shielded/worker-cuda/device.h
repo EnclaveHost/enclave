@@ -21,8 +21,19 @@
  * the range note above crt3). A saturating fallback would change results. */
 #pragma once
 
-#if defined(__HIP_PLATFORM_AMD__) || defined(__HIP__)
+#if defined(SH_VULKAN)
+/* Vulkan: the CUDA runtime subset is implemented on Vulkan in ../worker-vulkan/vkdev.cpp; the
+ * kernels are SPIR-V. worker.cu compiles as plain C++ against it. */
+#include "vkdev.h"
+#define SH_WORKER_NAME "shielded/worker-vulkan"
+/* Vulkan has no sticky-context errors as CUDA does: a device loss surfaces as a failed submit,
+ * which vkdev.cpp treats as fatal itself. These are the codes it can hand back. */
+static inline bool sh_fatal_error(cudaError_t e) {
+    switch (e) { case cudaErrorIllegalAddress: case cudaErrorLaunchFailure: case cudaErrorUnknown: return true; default: return false; }
+}
+#elif defined(__HIP_PLATFORM_AMD__) || defined(__HIP__)
 #define SH_HIP 1
+#define SH_WORKER_NAME "shielded/worker-hip"
 #include <hip/hip_runtime.h>
 /* The worker guards host-only code with __CUDA_ARCH__; give the HIP device pass the same
  * signal (the ggml convention, an arch no NVIDIA part has). */
@@ -131,6 +142,7 @@ __device__ __forceinline__ int dp4a(int a, int b, int c) {
 
 #else  /* ---- CUDA ---- */
 #include <cuda_runtime.h>
+#define SH_WORKER_NAME "shielded/worker-cuda"
 static inline bool sh_fatal_error(cudaError_t e) {
     switch (e) {
         case cudaErrorIllegalAddress: case cudaErrorLaunchFailure: case cudaErrorAssert:
