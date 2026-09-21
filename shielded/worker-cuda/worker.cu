@@ -266,6 +266,7 @@ static void ck(cudaError_t e, const char *what) {
 #define KINV01  217   /* inv(251 mod 241) mod 241 -- checked against the host at startup */
 #define KINV012 10    /* inv(251*241 mod 239) mod 239 */
 
+#ifndef SH_VULKAN
 /* Garner, entirely in int32: r0 + 251*t1 < 60491 and the final value is
  * below M = 14457349, so nothing here needs 64 bits (a 64-bit remainder is a
  * ~100-instruction library call on the card, and this runs once per output). */
@@ -286,6 +287,8 @@ __device__ __forceinline__ int32_t crt3(int32_t a0, int32_t a1, int32_t a2) {
 /* The nodes of one launch, by value in parameter space. blk0[i] is the first
  * block belonging to node i. Indexed only with compile-time constants inside
  * the kernel (see the unrolled selects) so nothing is copied to local memory. */
+#ifndef SH_VULKAN
+#endif
 static const int GEMM_TAB_NODES = 8;
 struct GemmTab {
     const int8_t *W[GEMM_TAB_NODES];   /* (N,K) int8 */
@@ -295,7 +298,9 @@ struct GemmTab {
     int n;
     int pack;                          /* FIELD_GEMM24: the epilogue writes int24 (see pack24 below) */
 };
+#endif
 
+#ifndef SH_VULKAN
 /* Row-blocking per activation-row count: WR = 4 weight rows per warp at once
  * for every m (swept 1/2/4/8 per class on the 0.5B and 4B shapes; 4 won or
  * tied everywhere), 3 x MR x 4 accumulators. The launch bound asks for two
@@ -313,8 +318,11 @@ template <int MR> struct RowsFor {
     static const int MINB = MR <= 4 ? 2 : 1;
 #endif
 };
-static inline int gemm_rows_per_block(int mr, int g) { (void)mr; return GEMM_WR * g; }
+#endif
+static const int GEMM_WR_HOST = 4;
+static inline int gemm_rows_per_block(int mr, int g) { (void)mr; return GEMM_WR_HOST * g; }
 
+#ifndef SH_VULKAN
 /* Reduce NV (a power of two, <= 32) per-lane partial sums across the warp
  * at once. Each stage swaps half of the live values with the partner lane and
  * halves the live count, so 32 values cost 16+8+4+2+1 = 31 shuffles instead of
@@ -528,11 +536,16 @@ __global__ void pack24_kernel(const int32_t *__restrict__ y, uint32_t *__restric
     }
     o[k] = w;
 }
+#endif
 static void pack24_launch(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) {
+#ifdef SH_VULKAN
+    vk_launch_pack24(y, o, E, s);
+#else
     const long long nw = (3 * E + 3) / 4;
     const int blocks = (int)((nw + 255) / 256);
     pack24_kernel<<<blocks, 256, 0, s>>>(y, (uint32_t *)o, E);
     ck(cudaGetLastError(), "pack launch");
+#endif
 }
 
 /* The host-side pack, for the CPU form and the self-test's reference:
@@ -606,7 +619,11 @@ static PackMode pack_mode() {
 template <int MR, int G>
 static void launch_g(const GemmTab &tab, int nblocks, int K, const int8_t *X,
                      long long xstride, long long pstride, cudaStream_t s) {
+#ifdef SH_VULKAN
+    vk_launch_gemm(MR, G, tab, nblocks, K, X, xstride, pstride, s);
+#else
     field_gemm_kernel<MR, RowsFor<MR>::WR, G><<<nblocks, 256, 0, s>>>(tab, K, X, xstride, pstride);
+#endif
 }
 
 /* One planned launch: <= 8 nodes, <= 8 activation rows, a common G. */
@@ -1352,7 +1369,7 @@ struct Conn {
                    "\"vram_budget\":%lld,\"vram_reserved\":%lld,\"vram_reserve\":%lld,"
                    "\"sm_count\":%d,\"capability\":\"%d.%d\","
                    "\"clock_khz\":%d,\"card_tflops\":%.1f,"
-                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"worker\":\"shielded/worker-cuda\"}",
+                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"worker\":\"" SH_WORKER_NAME "\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
                    g_vram_budget, g_reserved, reserve, g_props.multiProcessorCount, g_props.major, g_props.minor,
@@ -2025,6 +2042,10 @@ static void load_conf_beside_binary(void) {
 
 int main(int argc, char **argv) {
     load_conf_beside_binary();
+#ifdef SH_VULKAN
+    vk_init(argv[0]);
+    g_sm_count = vk_cu_count();
+#endif
     if (!sh_graph_cache_limit(getenv("SHIELDED_GRAPH_CACHE_ENTRIES"), &g_graph_cache_entries)) {
         fprintf(stderr, "SHIELDED_GRAPH_CACHE_ENTRIES must be an integer between 1 and 4096\n");
         return 2;
