@@ -1715,3 +1715,111 @@ this section and 14.5, the fixed drop, `nnShieldedRefillBatch: 64`,
 `nnRsSeq: 2`, the same model decodes at 10.2 plain and 12.7-13.4 tok/s with
 drafting on this box's loopback. The CVM's vhost-vsock exchange (152 us against
 46 here) is the term that will not transfer one to one.
+
+## 15. Toward 20 tok/s on the 27B (2026-09-21)
+
+Section 14 left the token at 87 ms with the wire, the CPU half and the
+shielded backend's own arithmetic in roughly a 37 / 33 / 13 ms split. This
+section attacks all three. Same rig and harness as section 14, with the ring
+transport (`/dev/shm` ring files on the host, the transport the CVM uses) and
+the engine drop that honours `ENCLAVE_GGML_EXTRA_BUFTS`.
+
+### 15.1 One thread was copying the recurrent state
+
+An instrumented `ggml-cpu` built from the engine's own commit
+(`ENCLAVE_OP_PROFILE=1`, per-op totals and the worst instance's shape) put
+**11.3 ms of every 87 ms token in `GET_ROWS`** across 197 calls, and named the
+shape: `[786432, 1, 1, 1]`, 3 MB, gathered as ONE row. ggml partitions
+`get_rows` over the gathered rows, so a gather of one row runs on thread zero
+while the other seven wait at the barrier. That is the hybrid model's
+recurrent state, read several times per delta-net layer.
+
+Splitting a long row across threads when there are fewer rows than threads
+(`ops.cpp`, `ggml_compute_forward_get_rows_f32`, 20 lines) takes the same copy
+from 57.2 us to 23.2 us and the whole CPU-side graph from 2184 ms to 1516 ms
+over the run:
+
+| build | plain tok/s | spec k=1 | GET_ROWS in the profile |
+|---|---|---|---|
+| stock kernel | 11.27-11.55 (87-89 ms) | 12.53 | 765 ms, 57.2 us mean |
+| long rows split across threads | 12.26-12.53 (80-82 ms) | **14.20** | 310 ms, 23.2 us mean |
+
+`CONCAT` has the same shape of bug (distributed over `ne2`, which is 1 at
+decode, and copied element by element): 273 ms over the run, worst instance
+`conv_input [20, 10240]`. Both are ordinary llama.cpp patches, in the same
+family as the repo's existing `llamacpp-parallel-copy.patch`.
+
+### 15.2 Both cards on every exchange: built, and it does not pay
+
+A token walks the layers in order, so a layer-sharded placement uses ONE card
+at a time: the other V100 is idle for half the token. The repo's own kernel
+experiment (`docs/research-archive-2026-09/shielded-27b/v100-two-card-confirmation.md`)
+measured 35-49% off each exchange at one row by splitting every output into
+32-column-aligned halves across both cards, and nobody had built it.
+
+It is built now (a scratch backend, `SHIELDED_SPLIT_COLS=1`): every card
+registers a contiguous slice of every weight's output columns, each draws its
+OWN pad for the same activation, checks its own slice with its own Freivalds
+vectors, and writes its own columns straight into the full-width product row
+through a new strided entry point (`sh_link_gemm_stride`). The cards run
+concurrently, one worker thread per non-primary card, and each does its own
+unmask, verification and descale, so the backend's per-row work parallelises
+for free. Text is identical to the unsplit run and no product fails
+verification.
+
+Decode only, 64 tokens, same build and same CPU module:
+
+| | plain tok/s | ms/token | exchanges/token | wire per exchange |
+|---|---|---|---|---|
+| layer-sharded (one card per exchange) | 12.65 | 79.1 | 241 | 149 us |
+| column split (both cards per exchange) | 12.04 | 83.1 | 241 per card | 131 us |
+
+The mechanism works -- the wall wire time per token falls from 36 ms to about
+32 ms, and the engine-side terms (mask, unmask, Freivalds, descale) overlap
+instead of summing. What does not hold is the premise: **halving a node's
+columns takes only 12% off its exchange, not 50%.** At one row the card is not
+purely bandwidth-bound; a 2560-column GEMV does not fill a V100 any better
+than a 5120-column one, so the saving is far smaller than the archive's
+full-pass benchmark suggested. What is left over -- a second dispatch and join
+per exchange, and waiting for the slower of two unequal cards -- costs more
+than the 4 ms it saves.
+
+Kept as a measured negative with the code in the session's scratch tree. It
+would pay if the card ever became bandwidth-bound at one row, which is exactly
+what a 4-bit weight lane would do (section 15.3).
+
+### 15.3 Where the token stands, and what 20 tok/s would take
+
+Decode only, 64 tokens, the configuration of 15.1 (both kernel fixes, ring
+transport, refill batch 64, pool 64, unit 16, `MAX_M` 64, 8 threads):
+
+| term | ms/token | what it is |
+|---|---|---|
+| wire | 36.0 | 241 exchanges at 149 us; about 24 ms of weight streaming, 12 ms of fixed per-exchange cost |
+| CPU graph | 22.0 | the enclave's half: 6.4 gated-delta-net, 5.2 state gather, 2.6 copies, 1.2 concat, the rest spread over ~1500 small nodes |
+| link, beyond the wire | 6.3 | mask, unmask, Freivalds, pad take, framing |
+| post + encode | 3.1 | outlier term, per-column descale, activation encode |
+| scheduler and the rest | ~7 | remainder |
+
+The weight streaming is the floor and it is set by ONE number: the cards hold
+the int8 field encoding, 1 byte per weight, so a 27B q4 file becomes 21.6 GB
+on the cards and every token reads all of it. Two V100s at 900 GB/s read that
+in 24 ms when they alternate by layer, 12 ms if they ever read concurrently at
+full efficiency -- which 15.2 shows they do not at one row.
+
+So the two things that would move this materially are both below the backend:
+
+1. **A 4-bit weight lane on the card.** 0.5625 bytes per weight against the
+   present 1.0625 takes the streaming from 24 ms to 13 ms. The model file is
+   already q4_K, so almost nothing is lost relative to the source. The kernel
+   research exists (section 2, "The 4-bit weight path", verified exact in the
+   Triton prototype) but nothing is implemented in the production worker, the
+   field encoder or the AVX-512 refill; it is a wire-format change with a
+   security-critical arithmetic path, not a tuning knob.
+2. **Kernel occupancy at narrow N**, which is what 15.2 ran into: with a 4-bit
+   lane the card becomes bandwidth-bound at one row, and the column split
+   (already built and correct) would then deliver the halving it promises.
+
+Together those are worth roughly 24 ms -> 12 ms of streaming and would put the
+token near 60 ms, i.e. about 17 tok/s plain and 19-20 with drafting. Nothing
+else measured in sections 14 and 15 is worth more than a few percent.
