@@ -24,6 +24,11 @@
 #if defined(__HIP_PLATFORM_AMD__) || defined(__HIP__)
 #define SH_HIP 1
 #include <hip/hip_runtime.h>
+/* The worker guards host-only code with __CUDA_ARCH__; give the HIP device pass the same
+ * signal (the ggml convention, an arch no NVIDIA part has). */
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(__CUDA_ARCH__)
+#define __CUDA_ARCH__ 1300
+#endif
 
 #define cudaDeviceGetDefaultMemPool      hipDeviceGetDefaultMemPool
 #define cudaDeviceMapHost                hipDeviceMapHost
@@ -31,20 +36,6 @@
 #define cudaDeviceScheduleSpin           hipDeviceScheduleSpin
 #define cudaDeviceSynchronize            hipDeviceSynchronize
 #define cudaError_t                      hipError_t
-#define cudaErrorAssert                  hipErrorAssert
-#define cudaErrorDeviceUninitialized     hipErrorDeviceUninitialized
-#define cudaErrorECCUncorrectable        hipErrorECCNotCorrectable
-#define cudaErrorHardwareStackError      hipErrorUnknown
-#define cudaErrorIllegalAddress          hipErrorIllegalAddress
-#define cudaErrorIllegalInstruction      hipErrorIllegalInstruction
-#define cudaErrorInvalidAddressSpace     hipErrorInvalidAddressSpace
-#define cudaErrorInvalidPc               hipErrorInvalidPc
-#define cudaErrorLaunchFailure           hipErrorLaunchFailure
-#define cudaErrorMisalignedAddress       hipErrorMisalignedAddress
-#define cudaErrorMpsConnectionFailed     hipErrorUnknown
-#define cudaErrorMpsRpcFailure           hipErrorUnknown
-#define cudaErrorMpsServerNotReady       hipErrorUnknown
-#define cudaErrorUnknown                 hipErrorUnknown
 #define cudaEventCreate                  hipEventCreate
 #define cudaEventDestroy                 hipEventDestroy
 #define cudaEventElapsedTime             hipEventElapsedTime
@@ -60,7 +51,6 @@
 #define cudaGraphDestroy                 hipGraphDestroy
 #define cudaGraphExecDestroy             hipGraphExecDestroy
 #define cudaGraphExec_t                  hipGraphExec_t
-#define cudaGraphInstantiate             hipGraphInstantiate
 #define cudaGraphLaunch                  hipGraphLaunch
 #define cudaGraph_t                      hipGraph_t
 #define cudaHostAlloc                    hipHostMalloc
@@ -93,16 +83,30 @@
 #define cudaSuccess                      hipSuccess
 typedef unsigned long long cuuint64_t;
 
+/* A broken context kills the process (the worker restarts clean); everything else is a refused
+ * request. HIP has fewer distinct sticky codes than CUDA, and no MPS. */
+static inline bool sh_fatal_error(hipError_t e) {
+    switch (e) {
+        case hipErrorIllegalAddress: case hipErrorLaunchFailure: case hipErrorAssert:
+        case hipErrorECCNotCorrectable: case hipErrorUnknown: case hipErrorDeinitialized:
+            return true;
+        default: return false;
+    }
+}
+
 /* External events inside a captured graph mark the profile's timestamps; HIP grew
  * hipEventRecordWithFlags + hipEventRecordExternal in ROCm 6.x. Older runtimes get a
  * plain record, which the capture then owns -- the profile is then absent, nothing else. */
-#if defined(hipEventRecordExternal)
+#include <hip/hip_version.h>
+#if HIP_VERSION_MAJOR > 6 || (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR >= 4)
 #define cudaEventRecordExternal          hipEventRecordExternal
 #define cudaEventRecordWithFlags         hipEventRecordWithFlags
 #else
 #define cudaEventRecordExternal          0
 #define cudaEventRecordWithFlags(ev, st, fl) hipEventRecord((ev), (st))
 #endif
+/* HIP kept CUDA 11's five-argument instantiate; the worker uses CUDA 12's three. */
+#define cudaGraphInstantiate(exec, graph, flags) hipGraphInstantiate((exec), (graph), nullptr, nullptr, 0)
 
 #define WARP_SIZE 32
 /* Declared for both compilation passes (clang parses device code in the host pass too);
@@ -127,6 +131,18 @@ __device__ __forceinline__ int dp4a(int a, int b, int c) {
 
 #else  /* ---- CUDA ---- */
 #include <cuda_runtime.h>
+static inline bool sh_fatal_error(cudaError_t e) {
+    switch (e) {
+        case cudaErrorIllegalAddress: case cudaErrorLaunchFailure: case cudaErrorAssert:
+        case cudaErrorHardwareStackError: case cudaErrorIllegalInstruction:
+        case cudaErrorMisalignedAddress: case cudaErrorInvalidAddressSpace:
+        case cudaErrorInvalidPc: case cudaErrorECCUncorrectable: case cudaErrorMpsRpcFailure:
+        case cudaErrorMpsServerNotReady: case cudaErrorMpsConnectionFailed:
+        case cudaErrorUnknown: case cudaErrorDeviceUninitialized:
+            return true;
+        default: return false;
+    }
+}
 #define WARP_SIZE 32
 __device__ __forceinline__ int shfl_xor(int v, int mask) { return __shfl_xor_sync(0xffffffffu, v, mask); }
 __device__ __forceinline__ int dp4a(int a, int b, int c) { return __dp4a(a, b, c); }
