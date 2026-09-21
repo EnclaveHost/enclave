@@ -342,11 +342,22 @@ purely by construction order. Moved between the write and the read:
 | | mask | link | unmask | per exchange | tok/s |
 |---|---|---|---|---|---|
 | before | 0.033 | 4.284 | 2.884 | 7.20 | 0.93 |
-| correction in the window | 0.026 | 5.632 (corr 1.671, wait 3.887) | 0.028 | 5.69 | **1.17** |
+| correction in the window, inline | 0.026 | 5.632 (corr 1.671, wait 3.887) | 0.028 | 5.69 | 1.17 |
 | + pads in the window, bank 8 | 0.028 | 6.297 (corr 1.770, mint 0.809, wait 3.617) | 0.030 | 6.36 | 1.05 |
+| correction on a HELPER vCPU | 0.233 | 4.604 (corr 0.056, wait 4.429) | 0.181 | 5.02 | **1.22** |
+| helper pool of 2, one row | 0.178 | 5.528 (corr 0.068, wait 5.347) | 0.126 | 5.83 | 1.08 |
 
-Unmask collapses to 0.028 ms: nothing is left in it but the pad subtraction. **1.17 tok/s is the fastest
-masked decode measured on this phone, and it is the SECURE recipe** -- the leaky statistical k=8 lane
+**Placement matters as much as the hoist.** Run inline the correction occupies the core the app's TPU
+worker wants, and the reply that arrived 4.28 ms after publish arrives at 5.56. Moved to a single
+persistent helper -- the decode thread goes straight to sleep on the socket, the correction runs on one
+of the five otherwise-idle vCPUs -- the reply comes back to 4.49 ms and the worker's own counters
+improve from the other side: tpu-run 2.026 -> 1.815, recv 0.134 -> 0.079, output-read 0.404 -> 0.317.
+A pool of two is WORSE at one row (1.08): there are only one to three items to split and this phone
+charges for every extra runnable thread. The pool exists for speculative rows, where the correction
+scales with them.
+
+Unmask collapses to 0.028 ms: nothing is left in it but the pad subtraction. **1.22 tok/s is the fastest
+masked decode measured on this phone by any recipe, and it is the SECURE one** -- the leaky statistical k=8 lane
 that modular pads replaced was 1.20. Text is identical to baseline on both turns.
 
 It is not free: the reply now arrives 5.56 ms after publish instead of 4.28, because the correction
