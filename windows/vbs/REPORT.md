@@ -459,7 +459,7 @@ Verified live, end to end:
 | | |
 |---|---|
 | `GET https://api.enclave.host/enclaves` | row `nucbox-k11`, mode vbs, tier `vbs-dev`, teeCpu `windows-vbs-enclave`, device `AMD Radeon 780M Graphics`, `serving:false` |
-| `https://enclave.host/host` (rendered) | `VBS ENCLAVE (DEV) nucbox-k11 hosts qwen2.5-0.5b-q8 · masked offload to AMD Radeon 780M Graphics (2 GiB) · serves its own inference, not app deployments` |
+| `https://enclave.host/host` (rendered) | `VBS ENCLAVE (DEV) nucbox-k11 hosts qwen2.5-0.5b-q8 · masked offload to AMD Radeon 780M Graphics (2 GiB) · 1 app on the host, outside the enclave · takes app work only from its own owner` (the app clause appeared once it began hosting, section 13) |
 | `POST /t/nucbox-k11/v1/completions` (plaintext path) | ` Paris. It is the largest city in`, 657 nodes offloaded, 0 verification failures, 10.0 s cold / 1.3 s warm |
 | `node windows/node/client.mjs https://api.enclave.host nucbox-k11 "..."` (sealed) | same text, 1.7 s and 2.1 s; the prompt and the answer are `crypto_box` to the row's attested pad key, so the relay and the node's host carry ciphertext |
 
@@ -475,3 +475,36 @@ range, an uncalibrated site or the pad pool; `SHIELDED_PROFILE=1` on the node wo
 Still open, in one line each: tier stays `vbs-dev` until Artifact Signing (SIGNING.md) and Secure
 Boot; the name is not registered on chain, so the row carries no on-chain id and the node earns
 nothing; dealt pads are not wired on Windows.
+
+## 13. It hosts an app (2026-09-21, later the same day)
+
+Steven: "I don't just want it attached to production. I want it to be able to start hosting apps."
+It does, within a scope the code enforces. The whole of it is in windows/node/REPORT.md; the short
+version:
+
+- **On the registry**: `https://api.enclave.host/t/nucbox-k11`, id `0xd497d065...`, operator
+  `0x389C3f03...` (a key generated on the box, holding only a gas tank), proof key published, and the
+  measurement field carries `0xce450a96...`, the same enclave build the relay verifies at attach.
+- **Holding a lease**: deployment `0xca141665...` = hello-world 1.0.4 from the on-chain catalog,
+  claimed by this box, rate **0** because the box declared its owner's payout wallet.
+- **Serving it**: `https://api.enclave.host/x/0xca1416.../` returns `Hello World!` in 0.70 s, through
+  the relay, at the platform's own app path. The artifact was fetched by CID and verified against
+  that CID with the platform's own verifier, refused if it is not a component, and runs under stock
+  wasmtime 49 (53 ms cold, 5 ms warm). Killing its process: back in 1 s, visible in the app's own log
+  through `/v1/deployments/<id>/logs`. Renewing the 30-minute lease works from the box's own key.
+- **Where an app runs**: VTL0, the ordinary Windows session, NOT the enclave, because wasmtime cannot
+  run in VTL1. The enclave still holds the model, the pads and the keys, and an app's inference goes
+  to it over loopback, so the card only ever sees masked activations. The node publishes
+  `apps.inTee: false` and the fleet row says "1 app on the host, outside the enclave".
+- **Scope, in code and not in prose** (chain.mjs `claimPolicy`): owner-only, public-only, no GPU
+  share, and no options envelope it cannot honour. Its own `/v1/deployments` lists the refusals with
+  their reasons.
+- **Why it stays out of the serving set**: `aggregateAvailability()` ANDs `waf`, `configOverride`,
+  `configEdit`, `shareResize`, `cpuFallback`, `gpuOptional`, `networkOptions`, `secrets` and more
+  across every serving box. A minimal host that joined would turn those off for every customer on
+  the platform. That capability set, the loopback wall (which needs a patched wasmtime for Windows)
+  and the streaming path are what stand between this node and hosting a stranger's app.
+
+One relay bug came out of it: `sticky()`, which answers `/v1/auth`, `/v1/pricing` and `/v1/version`,
+picked any live box reporting a card. This node reported one, became the platform's control plane
+and 404'd it. It now picks from the serving set and answers a clear 503 when there is none.
