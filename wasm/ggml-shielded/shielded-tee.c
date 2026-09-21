@@ -352,7 +352,7 @@ struct sh_link {
     pthread_cond_t  pool_filled;   /* a pad was published (start waits on it) */
     pthread_t *threads; int n_threads; bool threads_running, stop;
     int threads_env;               /* SHIELDED_REFILL_THREADS, or -1 = derive from the weights */
-    int pool_depth, refill_batch, target_ms, warm_ms, pad_wait_us, refill_cost_priority;
+    int pool_depth, refill_batch, refill_unit, target_ms, warm_ms, pad_wait_us, refill_cost_priority;
     int64_t Kmax, Nmax, ulen_max;
 
     /* request-path scratch (caller thread) */
@@ -483,6 +483,14 @@ sh_link *sh_link_open(const char *host, int port, bool verify, int *err) {
     l->threads_env  = env_int("SHIELDED_REFILL_THREADS", -1, 0, 64);
     l->pool_depth   = env_int("SHIELDED_POOL_DEPTH", -1, -1, 4096);   /* -1: 4 x the widest max_m, within [16, 32] */
     l->refill_batch = env_int("SHIELDED_REFILL_BATCH", 4, 1, 64);
+    /* The refill unit (pick_refill_group): a group short of this many pads is
+     * refilled at once, one missing at least this many is topped up. Bounded
+     * by the batch, so the default batch of 4 is untouched. With a 64-row
+     * batch and a 64-deep pool on the 27B (2026-09-21, k = 3 drafting):
+     * unit 8 -> 8.4 plain / 10.0 spec tok/s, 16 -> 9.2 / 11.0, 32 -> 9.2 /
+     * 10.9 with pads starting to miss. 16 streams the weights once per 16
+     * pads; a pool should hold at least twice the unit. */
+    l->refill_unit  = env_int("SHIELDED_REFILL_UNIT", 16, 1, 64);
     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
     l->pad_wait_us  = env_int("SHIELDED_PAD_WAIT_US", 0, 0, 50000);
@@ -892,10 +900,10 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
     int best_low = -1;
     double best_score = -1;
     *deficit = 0;
-    /* The refill unit is min(B, 8) pads, not the whole batch B. A group with
+    /* The refill unit is min(B, refill_unit) pads, not the whole batch B. A group with
      * fewer than that coming is LOW and refilled at once with whatever fits;
      * a group missing at least that many is topped up (b = min(deficit, B))
-     * even though it is not low. B <= 8 is exactly the old rule. With the
+     * even though it is not low. B <= the unit is exactly the old rule. With the
      * batch raised to 64 for prefill on the card (SHIELDED_REFILL_BATCH=64:
      * one weight pass per 64 pads instead of per 4) the old rule made every
      * group with a 64-deep pool permanently low, so each token's single
@@ -906,7 +914,7 @@ static sh_group *pick_refill_group(sh_link *l, int B, int *deficit) {
      * against 25 s for a 492-token prompt. Eight-at-a-time keeps both: decode
      * refills in 8-row passes, prefill finds the pool topped up. (27B,
      * 2026-09-21.) */
-    const int unit = B < 8 ? B : 8;
+    const int unit = B < l->refill_unit ? B : l->refill_unit;
     for (size_t i = 0; i < l->n_groups; i++) {
         sh_group *c = &l->groups[i];
         const int d = group_deficit(c);

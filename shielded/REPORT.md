@@ -1622,3 +1622,51 @@ Not applied, with the measurement that closed each:
   step). The prefill result is their strongest argument: minted pads make
   on-card prefill cost a weight pass per 64 rows even with the wide batch, and
   dealt pads would make it cost nothing.
+
+### 14.6 The wall was the repack, and the target is met (2026-09-21)
+
+Every number in 14.1-14.5 was taken through an engine drop that predates the
+`ENCLAVE_GGML_EXTRA_BUFTS` read (the fix shipped in v0.5.779; the local drop in
+`q4-calib-work/enclave-llamacpp-linux-x64-gpu` has no reference to the symbol,
+`q4-calib-work/ell-new/...` has). Under that drop the q4_K and iq4_nl tensors of the
+UD mix are repacked at load, refused at the claim gate, and computed in the
+enclave: the per-op profile of the CPU backend (an instrumented `ggml-cpu` built
+from the engine's own commit, `ENCLAVE_OP_PROFILE=1`) put **170 MUL_MATs per
+token on the CPU at 286 us each, 49 ms of the 137 ms token**, and the scheduler
+dump showed them scattered by layer exactly where the file's q4_K tensors are (24
+of 48 `attn_qkv`, 15 `ffn_gate`, 7 `ffn_up`, 7 `ffn_down`, 6 `attn_q`).
+
+On the drop that honours the switch, 401 weights register on the cards (from
+~320), zero repack lines, and:
+
+| configuration (fixed drop, refill batch 64, pool 64, MAX_M 64) | plain tok/s | spec tok/s |
+|---|---|---|
+| refill unit 8, k = 1 | 10.15-10.18 (98 ms) | **12.7-13.4** |
+| refill unit 8, k = 2 | 10.35 | 11.5 |
+| refill unit 8, k = 3 | 10.1-10.2 | 11.1-11.3 |
+| refill unit 16, k = 3 | 10.32 | 12.2 |
+| refill unit 8, k = 4 | 9.7 | 9.2 |
+
+The remaining CPU-backend time is ~32 ms per token of recurrent-state traffic
+(GET_ROWS 11 ms at 57 us per 3 MB state row, CPY 6, GATED_DELTA_NET 6, CONCAT 4),
+all bandwidth-bound; the wire is ~55 ms (125 exchanges, ~0.17 ms of card each);
+the backend's own mask/unmask/verify ~15 ms. A verify row now costs ~28 ms, which
+is why k = 1 wins.
+
+Two more refill results on the old drop, kept because they transfer: the refill
+unit (min(batch, unit) pads per top-up) at 16 beats 8 by 8% on both plain and
+spec (9.2 / 11.0 against 8.4 / 10.0 at k = 3) and 32 gains nothing more while
+pads start to miss; 16 is now the engine default (`SHIELDED_REFILL_UNIT`
+overrides; batches of 4 are untouched). The shared-memory ring transport, run on
+the loopback through a scratch build that accepts a `/dev/shm` path, equals TCP
+here (8.5-8.8 against 8.55 plain): the loopback socket was never the cost, and
+production already uses the ring. Rewind depth 0-4 costs nothing at m = 1.
+
+What this says for production: the 27B at 4 tok/s in the CVM had the repack
+(fixed since v0.5.779, never re-measured), the 16 + 8 thread oversubscription
+(14.5), a 4-pad refill batch and no drafting. With the three engine changes in
+this section and 14.5, the fixed drop, `nnShieldedRefillBatch: 64`,
+`nnShieldedPoolDepth: 64`, `nnShieldedMaxM: 64` and `draft_tokens: 2` /
+`nnRsSeq: 2`, the same model decodes at 10.2 plain and 12.7-13.4 tok/s with
+drafting on this box's loopback. The CVM's vhost-vsock exchange (152 us against
+46 here) is the term that will not transfer one to one.
