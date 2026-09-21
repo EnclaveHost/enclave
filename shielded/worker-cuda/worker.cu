@@ -206,18 +206,7 @@ static double rated_fp16_tflops(const cudaDeviceProp &p) {
 /* ---------------------------------------------------------------------------
  * CUDA errors. A bad request is refused; a broken context kills the process.
  * ------------------------------------------------------------------------ */
-static bool fatal_cuda(cudaError_t e) {
-    switch (e) {
-        case cudaErrorIllegalAddress: case cudaErrorLaunchFailure: case cudaErrorAssert:
-        case cudaErrorHardwareStackError: case cudaErrorIllegalInstruction:
-        case cudaErrorMisalignedAddress: case cudaErrorInvalidAddressSpace:
-        case cudaErrorInvalidPc: case cudaErrorECCUncorrectable: case cudaErrorMpsRpcFailure:
-        case cudaErrorMpsServerNotReady: case cudaErrorMpsConnectionFailed:
-        case cudaErrorUnknown: case cudaErrorDeviceUninitialized:
-            return true;
-        default: return false;
-    }
-}
+static bool fatal_cuda(cudaError_t e) { return sh_fatal_error(e); }   /* the per-vendor list lives in device.h */
 static void ck(cudaError_t e, const char *what) {
     if (e == cudaSuccess) return;
     const char *msg = cudaGetErrorString(e);
@@ -550,6 +539,11 @@ static void pack24_launch(const int32_t *y, uint8_t *o, long long E, cudaStream_
  * E int32 values -> 3E bytes, little-endian two's complement. Four values
  * per 16-byte shuffle where SSSE3 is there; the last groups and a machine
  * without it take the byte loop. */
+/* Host-only x86 code. The HIP device pass parses host functions too and rejects x86 target
+ * builtins outright (clang-CUDA tolerates them), so the device pass sees a stub. */
+#if defined(__HIP_DEVICE_COMPILE__)
+static void pack24_host_ssse3(const int32_t *y, uint8_t *o, long long E) { (void)y; (void)o; (void)E; }
+#else
 __attribute__((target("ssse3")))
 static void pack24_host_ssse3(const int32_t *y, uint8_t *o, long long E) {
     const __m128i shuf = _mm_setr_epi8(0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, -1, -1, -1, -1);
@@ -560,6 +554,7 @@ static void pack24_host_ssse3(const int32_t *y, uint8_t *o, long long E) {
         _mm_storeu_si128((__m128i *)(o + 3 * i), _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(y + i)), shuf));
     for (; i < E; i++) { const int32_t v = y[i]; o[3 * i] = (uint8_t)v; o[3 * i + 1] = (uint8_t)(v >> 8); o[3 * i + 2] = (uint8_t)(v >> 16); }
 }
+#endif
 static void pack24_host(const int32_t *y, uint8_t *o, long long E) {
     static int ssse3 = -1;
 #if defined(__CUDA_ARCH__)
