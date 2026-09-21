@@ -211,6 +211,36 @@ void mint_batch(group &g, size_t want, std::vector<pad> &out, bool scalar = fals
     }
 }
 
+/* Minting inside the link window. After the out-of-lane correction there is still ~3.9 ms per exchange in which this
+ * thread has nothing to do but wait for the worker, and a pad depends on NOTHING -- not the request, not the reply --
+ * so it is the ideal filler. One position (a pad for each of the 140 groups) costs about 48 ms on one vCPU, against
+ * 545 ms of window per token, so decode's own demand fits in the window many times over and the background minter
+ * thread, which competes with the worker for the same six cores, can be switched off entirely.
+ *
+ * Emptiest group first, a few pads at a time (mint_batch rounds a small ask up to 4), with the deadline checked
+ * BETWEEN batches: a batch cannot be preempted, so the chunk is kept small rather than trying to predict its cost.
+ * Overrunning only delays a read whose data is already sitting in the socket. */
+static std::atomic<int> g_window_target{0};
+static std::atomic<unsigned> g_window_chunk{8};
+static void mint_window(int64_t deadline_us) {
+    const int target = g_window_target.load(std::memory_order_relaxed); if (target <= 0) return;
+    state &s = S(); const size_t chunk = g_window_chunk.load(std::memory_order_relaxed);
+    while (now_us() < deadline_us) {
+        group *low = nullptr; size_t low_n = (size_t)target;
+        for (group *g : s.groups) { std::lock_guard<std::mutex> lk(g->bank_mu); const size_t n = g->bank.size() + g->minting; if (n < low_n) { low_n = n; low = g; } }
+        if (!low) return;                                                  /* every bank is at target */
+        const size_t ask = std::min<size_t>((size_t)target - low_n, chunk);
+        { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting += ask; }
+        const int64_t b0 = now_us(); std::vector<pad> fresh; mint_batch(*low, ask, fresh);
+        { std::lock_guard<std::mutex> lk(low->bank_mu); low->minting -= ask; for (pad &p : fresh) low->bank.push_back(std::move(p)); }
+        s.st.pads_refilled += fresh.size(); s.st.window_mint_us += (uint64_t)(now_us() - b0);
+    }
+}
+extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
+    g_window_target.store(target < 0 ? 0 : target, std::memory_order_relaxed);
+    if (chunk >= 1 && chunk <= 64) g_window_chunk.store((unsigned)chunk, std::memory_order_relaxed);
+}
+
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
     std::vector<pad> pads; pads.reserve(rows + 3);
@@ -296,8 +326,14 @@ void exchange(group &g, const float *x, uint32_t rows) {
         }
     }
     const int64_t t_corr = now_us();
+    /* whatever is left of the window goes to pads: three quarters of the wait this link has been showing, so a batch
+     * that runs long still lands inside it. The estimate starts at 3 ms and follows the measurement. */
+    static double wait_ewma_us = 3000.0;
+    mint_window(t_corr + (int64_t)(wait_ewma_us * 0.75));
+    const int64_t t_mint = now_us();
     if (!rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed waiting for the reply (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     const int64_t t2 = now_us();
+    wait_ewma_us += 0.05 * ((double)(t2 - t_corr) - wait_ewma_us);
     /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
     const int16_t *rx = s.rxbuf.data();
     for (size_t p = 0; p < g.projs.size(); p++) {
@@ -327,7 +363,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     const int64_t t3 = now_us();
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
-    s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_corr);
+    s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
 }
 
 bool claimable(const ggml_tensor *op) {

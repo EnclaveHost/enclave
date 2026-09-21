@@ -325,3 +325,48 @@ So on this phone the masked TPU path is worse than the pVM's own CPU on every ax
 to justify it: 14-20x slower, 15-20x more CPU energy per token, and a weaker boundary (the host sees
 masked activations; on the CPU path it sees nothing). It remains the right tool for PREFILL, where
 one invocation amortises over 128 rows, and it stays in the tree behind its flags.
+
+## Filling the link window with the work that was waiting on it (2026-09-20)
+
+The engine's own masking work had two optimisations worth testing here. One transfers and one does not.
+
+**`eb45aa4e`, "Fill the ring's spin window with the work that was waiting on it", transfers, and it is
+worth 26 %.** That commit's observation is that a decode round is serialised on one thread -- mask,
+publish, spin for the reply, unmask, next -- and that the socket path had always handed that thread the
+Freivalds RHS while the request was in flight, because the RHS depends only on the REQUEST. This round
+has the same shape and was doing the thing it fixes: publish, idle 4.3 ms, then spend 2.9 ms unmasking.
+The expensive half of that unmask is the out-of-lane correction, and it is a pure function of the
+request (`outl[]` is built while masking; the walk reads only `Wq`, `sw`, `s_in`). It ran after the reply
+purely by construction order. Moved between the write and the read:
+
+| | mask | link | unmask | per exchange | tok/s |
+|---|---|---|---|---|---|
+| before | 0.033 | 4.284 | 2.884 | 7.20 | 0.93 |
+| correction in the window | 0.026 | 5.632 (corr 1.671, wait 3.887) | 0.028 | 5.69 | **1.17** |
+| + pads in the window, bank 8 | 0.028 | 6.297 (corr 1.770, mint 0.809, wait 3.617) | 0.030 | 6.36 | 1.05 |
+
+Unmask collapses to 0.028 ms: nothing is left in it but the pad subtraction. **1.17 tok/s is the fastest
+masked decode measured on this phone, and it is the SECURE recipe** -- the leaky statistical k=8 lane
+that modular pads replaced was 1.20. Text is identical to baseline on both turns.
+
+It is not free: the reply now arrives 5.56 ms after publish instead of 4.28, because the correction
+occupies a core the worker wants -- the same contention that made the reply spin worse. It trades 1.3 ms
+of worker delay for 2.9 ms of serial work, so it wins, but the window cannot be filled indefinitely.
+
+**Pads in the window.** 3.6-3.9 ms of window remains after the correction, and a pad depends on nothing
+at all, so decode can mint its own instead of keeping a large pre-minted bank or a background thread
+(four scalar minters once took the link from 4.3 to 7.7 ms). With `ggml_backend_tpu_window_mint` the
+bank holds at **8 positions with zero inline mints over a 43-token turn** (`bank_min 10`), which frees
+about 200 MB in the VM, at 1.05 against 1.17 tok/s. Total mint work per token is fixed by consumption,
+so this is a placement choice, not a saving: the window is simply the cheapest place to put it. Use the
+large bank for short turns and the window for sustained generation.
+
+**LPN-structured pads (`shielded/lpn`) do NOT transfer.** The construction is sound and its REPORT.md
+names this case as one where it pays -- "a TEE that cannot batch pads at all (a per-token dealer mint, a
+phone anchor filling one pad at a time), where the 2-3.6x byte figure is real". That premise is out of
+date: the batched minter (2026-09-18) took this phone from 12.7 to 78.8 positions per second, and one
+position is exactly one token's worth of pads. Decode at 0.93 tok/s spends **4.5 % of ONE vCPU** on
+minting, 0.7 % of the path's measured CPU; at the 15 tok/s target it would be 73 % of one vCPU. Applying
+LPN's best batched factor (1.2x) removes 8 core-ms of 6641 per token; even the unbatched 3.6x removes 35.
+The phone is in the same regime the report finds the CVM tier to be in -- the uniform path's bytes fall
+as 1/B and the gather's do not -- and it arrived there by batching, exactly as the report predicts.
