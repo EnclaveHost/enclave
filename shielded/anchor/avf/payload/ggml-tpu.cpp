@@ -248,46 +248,70 @@ extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
  * the five vCPUs that are otherwise idle. So: a single persistent helper, posted after the write and joined after the
  * read. One helper, not a pool: four scalar minters once took the link from 4.3 to 7.7 ms, and this phone punishes
  * every extra runnable thread. ANCHOR_TPU_CORR_THREAD=0 puts it back inline. */
-struct corr_job {
-    std::mutex mu; std::condition_variable cv_go, cv_done;
-    group *g = nullptr; const std::vector<std::vector<std::pair<uint32_t, int32_t>>> *outl = nullptr;
-    uint32_t rows = 0; bool pending = false, stop = false; std::thread th;
-};
-static corr_job g_cj;
+/* One (projection, row) is an independent piece of the correction: it writes its own slice of the cache and reads
+ * only public weights, so it parallelises with no sharing at all. That matters for speculative rows, where the work
+ * scales with them -- one row's correction fits the link window with room over, five rows' does not. */
+static void corr_one(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows, size_t p, uint32_t r) {
+    const proj &pr = g.projs[p]; (void)rows;
+    float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
+    for (const auto &o : outl[r]) {
+        const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
+        if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
+        else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
+    }
+    if (first) std::fill(y, y + pr.n_out, 0.0f);
+}
 static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
     g.cache.resize(g.projs.size());
-    for (size_t p = 0; p < g.projs.size(); p++) {
-        const proj &pr = g.projs[p]; g.cache[p].resize((size_t)rows * pr.n_out);
-        for (uint32_t r = 0; r < rows; r++) {
-            float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
-            for (const auto &o : outl[r]) {
-                const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
-                if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
-                else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
-            }
-            if (first) std::fill(y, y + pr.n_out, 0.0f);
-        }
-    }
+    for (size_t p = 0; p < g.projs.size(); p++) g.cache[p].resize((size_t)rows * g.projs[p].n_out);
+    for (size_t p = 0; p < g.projs.size(); p++) for (uint32_t r = 0; r < rows; r++) corr_one(g, outl, rows, p, r);
 }
 static bool corr_threaded() {
     static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
     return v;
 }
+struct corr_job {
+    std::mutex mu; std::condition_variable cv_go, cv_done;
+    group *g = nullptr; const std::vector<std::vector<std::pair<uint32_t, int32_t>>> *outl = nullptr;
+    uint32_t rows = 0; bool stop = false, pending = false;
+    std::vector<std::thread> pool; size_t nthreads = 0, done = 0;
+    std::atomic<size_t> next{0}; uint64_t gen = 0;      /* gen is bumped per post; each worker remembers its OWN last seen */
+};
+static corr_job g_cj;
+static int corr_threads() {
+    static const int v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREADS"); int n = e ? atoi(e) : 2; return n < 1 ? 1 : n > 5 ? 5 : n; }();
+    return v;
+}
 static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
     std::unique_lock<std::mutex> lk(g_cj.mu);
-    if (!g_cj.th.joinable()) g_cj.th = std::thread([] {
-        std::unique_lock<std::mutex> lk(g_cj.mu);
-        for (;;) { g_cj.cv_go.wait(lk, [] { return g_cj.pending || g_cj.stop; });
-            if (g_cj.stop) return;
-            group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows;
-            lk.unlock(); corr_run(*g, *ol, rw); lk.lock();
-            g_cj.pending = false; g_cj.cv_done.notify_one(); } });
-    g_cj.g = &g; g_cj.outl = &outl; g_cj.rows = rows; g_cj.pending = true; g_cj.cv_go.notify_one();
+    if (g_cj.pool.empty()) {
+        g_cj.nthreads = (size_t)corr_threads();
+        for (size_t t = 0; t < g_cj.nthreads; t++) g_cj.pool.emplace_back([] {
+            uint64_t seen = 0;                                             /* per-thread, so no worker can consume another's wakeup */
+            for (;;) {
+                std::unique_lock<std::mutex> lk(g_cj.mu);
+                g_cj.cv_go.wait(lk, [&] { return g_cj.gen != seen || g_cj.stop; });
+                if (g_cj.stop) return;
+                seen = g_cj.gen; group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows;
+                const size_t total = g->projs.size() * (size_t)rw;
+                lk.unlock();
+                for (;;) { const size_t i = g_cj.next.fetch_add(1, std::memory_order_relaxed); if (i >= total) break;
+                           corr_one(*g, *ol, rw, i / rw, (uint32_t)(i % rw)); }
+                lk.lock();
+                if (++g_cj.done == g_cj.nthreads) { g_cj.pending = false; g_cj.cv_done.notify_all(); }
+            } });
+    }
+    /* the cache is sized HERE, before the workers are released, so each one only ever writes its own slice */
+    g.cache.resize(g.projs.size());
+    for (size_t p = 0; p < g.projs.size(); p++) g.cache[p].resize((size_t)rows * g.projs[p].n_out);
+    g_cj.g = &g; g_cj.outl = &outl; g_cj.rows = rows;
+    g_cj.next.store(0, std::memory_order_relaxed); g_cj.done = 0; g_cj.pending = true; g_cj.gen++;
+    g_cj.cv_go.notify_all();
 }
 static void corr_join() { std::unique_lock<std::mutex> lk(g_cj.mu); g_cj.cv_done.wait(lk, [] { return !g_cj.pending; }); }
 extern "C" void ggml_backend_tpu_corr_stop(void) {
-    { std::lock_guard<std::mutex> lk(g_cj.mu); if (!g_cj.th.joinable()) return; g_cj.stop = true; g_cj.cv_go.notify_one(); }
-    g_cj.th.join();
+    { std::lock_guard<std::mutex> lk(g_cj.mu); if (g_cj.pool.empty()) return; g_cj.stop = true; g_cj.cv_go.notify_all(); }
+    for (auto &t : g_cj.pool) t.join(); g_cj.pool.clear();
 }
 
 void exchange(group &g, const float *x, uint32_t rows) {
