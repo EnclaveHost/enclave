@@ -53,7 +53,7 @@
  * dead CUDA context terminates the PROCESS (exit 70) so the launcher can build a
  * fresh one -- see the note in worker.py about the MPS server going away.
  */
-#include <cuda_runtime.h>
+#include "device.h"
 #include <immintrin.h>
 
 #include <arpa/inet.h>
@@ -346,11 +346,11 @@ __device__ __forceinline__ void warp_reduce_stage(int (&v)[NVP], int lane) {
             for (int i = 0; i < h; i++) {
                 const int send = up ? v[OFF + i] : v[OFF + i + h];
                 const int keep = up ? v[OFF + i + h] : v[OFF + i];
-                v[OFF + i] = keep + __shfl_xor_sync(0xffffffffu, send, O);
+                v[OFF + i] = keep + shfl_xor(send, O);
             }
             warp_reduce_stage<OFF, h, O / 2>(v, lane);
         } else {
-            v[OFF] += __shfl_xor_sync(0xffffffffu, v[OFF], O);
+            v[OFF] += shfl_xor(v[OFF], O);
             warp_reduce_stage<OFF, 1, O / 2>(v, lane);
         }
     }
@@ -426,10 +426,10 @@ field_gemm_kernel(const GemmTab tab, int K,
 #pragma unroll
                     for (int w = 0; w < WR; w++) {
                         int a = acc[(p * MR + r) * WR + w];
-                        a = __dp4a(wv[w].x, x.x, a); a = __dp4a(wv[w].y, x.y, a);
-                        a = __dp4a(wv[w].z, x.z, a); a = __dp4a(wv[w].w, x.w, a);
-                        a = __dp4a(wv2[w].x, x2.x, a); a = __dp4a(wv2[w].y, x2.y, a);
-                        a = __dp4a(wv2[w].z, x2.z, a); a = __dp4a(wv2[w].w, x2.w, a);
+                        a = dp4a(wv[w].x, x.x, a); a = dp4a(wv[w].y, x.y, a);
+                        a = dp4a(wv[w].z, x.z, a); a = dp4a(wv[w].w, x.w, a);
+                        a = dp4a(wv2[w].x, x2.x, a); a = dp4a(wv2[w].y, x2.y, a);
+                        a = dp4a(wv2[w].z, x2.z, a); a = dp4a(wv2[w].w, x2.w, a);
                         acc[(p * MR + r) * WR + w] = a;
                     }
                 }
@@ -447,8 +447,8 @@ field_gemm_kernel(const GemmTab tab, int K,
 #pragma unroll
                 for (int w = 0; w < WR; w++) {
                     int a = acc[(p * MR + r) * WR + w];
-                    a = __dp4a(wv[w].x, x.x, a); a = __dp4a(wv[w].y, x.y, a);
-                    a = __dp4a(wv[w].z, x.z, a); a = __dp4a(wv[w].w, x.w, a);
+                    a = dp4a(wv[w].x, x.x, a); a = dp4a(wv[w].y, x.y, a);
+                    a = dp4a(wv[w].z, x.z, a); a = dp4a(wv[w].w, x.w, a);
                     acc[(p * MR + r) * WR + w] = a;
                 }
             }
