@@ -168,3 +168,26 @@ export function wasmLayer(file) {
   if (b.subarray(0, 4).toString("binary") !== "\0asm") throw new Error("not a wasm file");
   return b.readUInt16LE(6);
 }
+
+/**
+ * The host interfaces an artifact needs that this box cannot provide, found BEFORE it is launched.
+ *
+ * Import names live in a component as plain strings, so a scan for them is exact enough for the
+ * one question being asked: does this artifact want something only the platform's own patched
+ * runtime has. It exists because the alternative is what actually happened - the box claimed a
+ * lease on the platform's wasi-nn inference app, stock wasmtime refused the import, and the lease
+ * sat there restarting every 60 seconds while the tenant's row read "running on nucbox-k11".
+ *
+ * wasi:nn is the platform's in-enclave inference interface, served by a PATCHED wasmtime against
+ * an attested model volume (memory: enclave-ggml-backend, nan-model-volumes). This box has
+ * neither: stock wasmtime 49, and the one model here is the enclave's own, reachable over
+ * loopback at ENCLAVE_INFERENCE_URL. An app built for wasi-nn cannot use that instead - it is a
+ * different contract - so the honest answer is to refuse the work and let the lease go.
+ */
+export function missingHostInterfaces(file) {
+  const bytes = fs.readFileSync(file);
+  const needs = [];
+  if (bytes.includes("wasi:nn/")) needs.push("wasi-nn (the platform's in-enclave inference interface, which needs a patched wasmtime and an attested model volume)");
+  if (bytes.includes("enclave:set/") || bytes.includes("wasi:threads/")) needs.push("guest threads (SET spawn, which needs the platform's patched wasmtime)");
+  return needs;
+}

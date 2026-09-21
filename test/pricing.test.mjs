@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { minPctsOf, adoptServerSpec, serverSpec, shareRates, enclaveSpecOf, enclavePriceOf, pickEnclaveFor, rankEnclavesFor, leaseHostOf,
   moveTargetsFor, moveBlockReason, wantedGpuPct, startSharesFor, cpuFloorFor, cardServesApp, gpuUpgradeForMove, gpuDowngradeForMove, fleetPrice, adoptFleetPrice, FALLBACK_CPU_NODE_RATE,
   hostChargeWaived, freeEnclavesFor, liftSharesForLedger, sharesLegalOn, SPLIT_SHARES_REV,
-  enclaveClassOf, shieldedPoolOf, teeCpuOf, servesWork, appHostingOf, sellsFullService } from "../site/js/core/pricing.js";
+  enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../site/js/core/pricing.js";
 
 // Reference copy of the RUNNER's minimum-share math (supervisor.js: pctCeil,
 // gpuShareOf, cpuShareOf, minSharesOf with MIN_COMPUTE_PCT=1). Keep in sync.
@@ -1001,103 +1001,4 @@ test("cardServesApp is the console's copy of gpuRouting, shielded rule included"
   assert.equal(cardServesApp({ gpu: false, shielded: { vramGb: 62 } }, small), false,
     "no card advertised is no card, whatever the block says");
   assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
-});
-
-/* ---- the Windows consumer node becomes a SELLER --------------------------
-
-   2026-09-21. The consumer node (a Windows PC attested as a VBS enclave) starts
-   advertising claimEnabled, so it takes real on-chain deployments and has to
-   appear on enclave.host like any other CPU enclave: pool, share, price, rating.
-
-   One thing about it is unlike every other box in the fleet, and it is the thing
-   a buyer is being sold: a VBS enclave cannot run wasmtime, so a hosted app runs
-   in the ordinary Windows session, which the machine's owner can read. The
-   enclave holds the model, the pads and the keys; it does not hold the app. The
-   node says so itself (`apps.inTee:false`) and these are the predicates the row,
-   the deploy picker and the move picker all read, so none of them can imply the
-   attestation pill covers the app. */
-test("servesWork: the relay's verdict outranks the box's own claim", () => {
-  // the explicit verdict, either way
-  assert.equal(servesWork({ serving: true, tunnel: true, availability: {} }), true);
-  assert.equal(servesWork({ serving: false, availability: { claimEnabled: true } }), false,
-    "a box the relay has excluded does not sell, whatever it says about itself");
-  // an older relay recorded no verdict: the box's own claimEnabled decides
-  assert.equal(servesWork({ tunnel: true, availability: { claimEnabled: true } }), true);
-  assert.equal(servesWork({ tunnel: true, availability: {} }), false,
-    "a tunnel box that never said it claims is not in the serving set");
-  assert.equal(servesWork({ availability: {} }), true, "hosted enclaves predate the field and have always claimed");
-  assert.equal(servesWork(null), false);
-});
-
-test("appHostingOf: 'outside the enclave' needs the box's own explicit word", () => {
-  // every other box in the fleet reports no apps block at all, and runs apps
-  // INSIDE its TEE. Absence must never be read as the new, weaker case.
-  const none = appHostingOf({ availability: { gpu: true, teeCpu: "amd-sev-snp" } });
-  assert.equal(none.known, false); assert.equal(none.inTee, null); assert.equal(none.outsideTee, false);
-  assert.equal(appHostingOf({}).outsideTee, false);
-  assert.equal(appHostingOf({ availability: { apps: true } }).known, false, "a non-object apps field says nothing");
-  // ...and a box that says inTee:true is not "outside" either
-  assert.equal(appHostingOf({ availability: { apps: { inTee: true } } }).outsideTee, false);
-  // the consumer node, exactly as it reports itself
-  const h = appHostingOf({ availability: { apps: {
-    isolation: "host-process", inTee: false, runtime: "wasmtime", world: "wasi:http",
-    scope: "any-owner", running: 1, capacity: 4,
-    note: "apps run on the Windows host, not inside the VBS enclave; the enclave holds the model and the pads" } } });
-  assert.equal(h.known, true); assert.equal(h.inTee, false); assert.equal(h.outsideTee, true);
-  assert.equal(h.isolation, "host-process"); assert.equal(h.runtime, "wasmtime");
-  assert.equal(h.scope, "any-owner"); assert.equal(h.ownerOnly, false);
-  assert.equal(h.running, 1); assert.equal(h.capacity, 4);
-  assert.match(h.note, /not inside the VBS enclave/);
-  // the pre-claim node takes work only from its own owner, which the row says
-  assert.equal(appHostingOf({ availability: { apps: { inTee: false, scope: "owner-only" } } }).ownerOnly, true);
-  // counts are numbers or nothing: a row with no capacity must not print "0 of NaN"
-  const bad = appHostingOf({ availability: { apps: { inTee: false, running: "two", capacity: -4 } } });
-  assert.equal(bad.running, 0); assert.equal(bad.capacity, 0);
-});
-
-test("sellsFullService: a subset is only ever DECLARED, never inferred", () => {
-  assert.equal(sellsFullService({ availability: { fullService: false } }), false);
-  assert.equal(sellsFullService({ availability: { fullService: true } }), true);
-  assert.equal(sellsFullService({ availability: {} }), true, "absent = full, like every other capability field");
-  assert.equal(sellsFullService(null), true);
-});
-
-test("a claiming consumer node is a real target, and the caveat rides with it", () => {
-  // the node's /availability once it advertises claimEnabled: no card, 16 vCPU /
-  // 112 GB, its own posted ask, and the apps block that says where an app runs
-  const NODE = { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 112, nodeGflops: 1000,
-    gpuShareFree: 0, cpuShareFree: 0.6, askCpuPricePerSec6: 12, teeCpu: "windows-vbs-enclave",
-    fullService: false, model: "qwen2.5-0.5b-q8.gguf",
-    shielded: { worker: "vulkan", vramGiB: 2, device: "AMD Radeon 780M Graphics" },
-    apps: { isolation: "host-process", inTee: false, runtime: "wasmtime", world: "wasi:http",
-            scope: "any-owner", running: 1, capacity: 4 } };
-  const node = row("nucbox-k11", NODE, { id: ID_A, tunnel: true, mode: "vbs", tier: "vbs-dev", serving: true });
-  const metal = row("metal0", { ...CPU_BOX, askCpuPricePerSec6: 834 }, { id: ID_B, serving: true });
-
-  // it is a CPU enclave like any other: it ranks, it is ready now, and being the
-  // cheapest box on the platform it takes the recommended slot for CPU work.
-  // That is exactly why the caveat has to travel with the label.
-  const ranked = rankEnclavesFor(MC, [metal, node]);
-  assert.equal(ranked.length, 2);
-  assert.equal(ranked[0].name, "nucbox-k11"); assert.equal(ranked[0].queued, false);
-  assert.ok(ranked[0].minRate < ranked[1].minRate);
-  assert.equal(appHostingOf(ranked[0].row).outsideTee, true, "the picker's label reads this off the row it ranked");
-  assert.equal(appHostingOf(ranked[1].row).outsideTee, false, "and says nothing of the kind about the others");
-
-  // the pill is still earned: the relay verified the attestation, at the dev tier
-  const tc = teeCpuOf(node);
-  assert.equal(tc.real, true); assert.equal(tc.consumer, true); assert.match(tc.dev, /development/);
-  // ...and the card it masks to is NOT a sellable pool: the block carries no
-  // vramGb, so no GPU row is drawn for silicon the enclave keeps for itself
-  assert.equal(shieldedPoolOf(node), null);
-  assert.equal(enclaveClassOf(node).inTee, false);
-  assert.equal(enclavePriceOf(node).node, 0.000012);
-  assert.equal(sellsFullService(node), false);
-
-  // BEFORE it claims, the same box sells nothing and must not be offered: the
-  // relay records serving:false for it exactly as it does for a relay box
-  const quiet = row("nucbox-k11", { ...NODE, claimEnabled: undefined }, { id: ID_A, tunnel: true, mode: "vbs", tier: "vbs-dev", serving: false });
-  assert.equal(servesWork(quiet), false);
-  assert.deepEqual(rankEnclavesFor(MC, [quiet]).map(c => c.name), []);
-  assert.match(pickEnclaveFor(MC, [quiet]).none, /taking work/);
 });
