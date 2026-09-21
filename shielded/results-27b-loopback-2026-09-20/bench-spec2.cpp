@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
     llama_set_n_threads((llama_context *)ctx, threads, threads);
     const int depth = ell_rewind_depth(ctx);
     fprintf(stderr, "[bench] rewind_depth=%d (need >= %d)\n", depth, K);
-    if (ell_model_recurrent(model) && depth < K) {
+    if (!env_int("PLAIN_ONLY", 0) && ell_model_recurrent(model) && depth < K) {
         fprintf(stderr, "hybrid model without enough rewind depth: the no-branch verify cannot rewind K rejected tokens\n");
         return 2;
     }
@@ -158,6 +158,20 @@ int main(int argc, char **argv) {
         ell_seq_remove(ctx, seq);
     }
     const int plain_gen = (int)plain.size();
+    if (env_int("PLAIN_ONLY", 0)) {
+        /* PLAIN_ONLY=1: no speculative phase, so ENCLAVE_GGML_N_RS_SEQ may be 0
+         * (no rewind snapshots) and the plain phase measures decode as a
+         * deployment without nnRsSeq runs it. */
+        printf("{\"prefill_warm_ms\":%.1f,\"prefill_reps\":%d,\"label\":\"%s\",\"k\":0,\"p_min\":0,\"rewind_depth\":%d,\"prompt_tokens\":%d,"
+               "\"generated\":0,\"rounds\":0,\"drafted\":0,\"accepted\":0,\"mean_accepted_per_round\":0,\"mean_tokens_per_round\":0,\"acceptance_rate\":0,"
+               "\"draft_ms_per_round\":0,\"verify_ms_per_round\":0,\"spec_prefill_ms\":0,\"decode_ms_per_tok\":0,\"decode_tok_s\":0,"
+               "\"plain_generated\":%d,\"plain_prefill_ms\":%.1f,\"plain_ms_per_tok\":%.3f,\"plain_tok_s\":%.2f,\"speedup\":0,\"obs_fail\":0,\"text_identical\":true,\"first_diff_token\":-1,\"text\":\"\"}\n",
+               prefill_warm_ms, prefill_reps, getenv("LABEL") ? getenv("LABEL") : "?", depth, n,
+               plain_gen, plain_prefill_ms, plain_gen > 1 ? plain_ms / (plain_gen - 1) : 0, plain_gen > 1 ? (plain_gen - 1) * 1e3 / plain_ms : 0);
+        fflush(stdout);
+        ell_free_context(ctx); ell_free_model(model);
+        return 0;
+    }
 
     /* ---- 2. speculative ---- */
     void *mtp = ell_mtp_new(model, ctx, n_ctx, n_batch, n_seqs, 0, 0, 0);
