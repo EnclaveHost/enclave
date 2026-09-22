@@ -133,6 +133,28 @@ mutants still pass (release/entry window, host-lied-about-spawn, `done` ordering
 capacity and release-barrier work, and the fact that an atomic racing an ordinary access can tear
 here where hardware would not.
 
+## The shared-memory budget is one global, and nothing gives it back
+
+`SHARED_RESERVE` (`enclave-rt/src/lib.rs`) is a single process-wide number, written from
+`ENCLAVE_MEM_MB` by *whichever app opens last*, and read by every shared memory any app creates
+afterwards. This enclave hosts five deployments, so one tenant's declared RAM is the ceiling on the
+next tenant's shared memory — cross-tenant by construction, and invisible until an app is refused
+memory it paid for. It happens to have worked here only because a shared memory's capacity is
+fixed when it is created and the opens are serialised, so each app's own memory is sized while its
+own value is still installed.
+
+The budget is also a per-memory ceiling with no running total: `new_memory` reserves
+`min(declared max, budget)` for each shared memory, so two of them each reserve the whole enclave,
+and dropping one refunds nothing because there is nothing to refund to. What we log today reads
+reassuringly and means less than it looks: `memory.grow: 634 MiB -> 1274 MiB (capacity 23940 MiB)`
+names the WHOLE budget as one memory's capacity.
+
+The fix is a claim/release pair rather than a getter — `wasmtime_shared_reserve_claim(want, min)`
+answering what was actually granted out of what is left, and a release on `MallocMemory`'s drop —
+which means touching `memory.rs` and `malloc.rs` in the `wasmtime-set` tree, plus per-app budgets
+keyed by slot instead of one static. Not done here: it needs an engine rebuild, and the rebuild
+costs the running risc-box instance a ~12 minute snapshot restore.
+
 ## A trap worth keeping: catalog declarations are wrong in both directions
 
 `s3-ipfs-adapter:1.0.10` declares `set: true` and `threads: true` and runs perfectly well without
@@ -149,3 +171,39 @@ deployment cannot come back here. `risc-box:0.6.15` declares neither and its art
 reads the declaration; only the compiler reads the bytes. So the gate refuses apps that would work,
 and admits apps that cannot — and the second one had this box holding a lease it could never honour
 until a compile failure naming a missing feature was made permanent.
+
+## The page serves; the machine inside does not run
+
+`e64f7cba` answers on its own hostname — HTTP 200, 31046 bytes, 2.7 s, on a real ZeroSSL
+certificate (`CN=e64f7cba.app.enclave.host`, ECC DV, verified, expires 2026-12-21) — and the
+emulator is genuinely executing Pulley bytecode in VTL1. The GUEST is another matter, and the
+page loading says nothing about it.
+
+Measured on the restored instance, six samples 25 s apart:
+
+```
+instret 411.6M -> 477.6M : +13.2M every 25 s, five times, to the digit
+cursorUpdates 14         : unchanged
+gpu flushes 9570         : unchanged, scanSum unchanged
+net tx 0 rx 0            : no frame in either direction
+consoleBytes 0           : nothing on the console, ever
+```
+
+A `POST /hid` move to the far corner is ACCEPTED (`{"ok":true,"events":1}`) and changes nothing:
+the emulator's own `cursor.updates` stays 14 and `/fb.png` comes back byte-identical (md5
+`7e34e7944bff`). A newline through `/input`, with the console stream held open for 180 s, draws
+nothing. So the Fluxbox desktop in the screenshot is the picture the SNAPSHOT contained, not
+something being drawn now.
+
+Instruction retirement that constant, with no device activity of any kind, is a machine parked in
+one place — a `wfi` spin is the obvious shape — and every symptom follows from interrupts not
+being delivered after a snapshot restore: no timer tick, so no scheduler, so X never redraws; and
+the virtio-input event has no IRQ to arrive on, which is why an accepted `/hid` never lands. Stated
+as the likely mechanism, not a proven one: what is measured is that the guest executes and is
+inert.
+
+Two things this closes out. `/exec` cannot be the probe here — it caps its prompt wait at
+`(timeout/2).min(10s)` while this UART polls once per ~230k ticks, about a byte a second at 0.5
+MIPS — and this snapshot (`risc-perf-agent/warm960-palette.snap`) has no getty on ttyS0 at all.
+And the restore is not cheap: 663 s, during which the app answers no HTTP, so "restoring" and
+"wedged" look identical from outside.
