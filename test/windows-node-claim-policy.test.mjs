@@ -127,6 +127,27 @@ test("approval: rejected and yanked never run, pending runs only for the box own
   assert.equal(claimPolicy(dep({ owner: OWNER }), ctx({ version: version({ approval: 0 }) })), null);
 });
 
+test("what a version DECLARES it needs is checked before the gas, not after the compile", () => {
+  // The platform stamps routing keys into a version's config. Reading them here is the difference
+  // between "not taken, because this box has no shared-everything threads" and claiming a lease,
+  // fetching three megabytes and failing at the compiler - which is what risc-box:0.6.15 (set:true)
+  // actually did before this check existed.
+  const features = { set: false, coopThreads: false, mem64: false, p3: false, volumes: [] };
+  const needs = (cfg) => claimPolicy(dep(), ctx({ version: version({ config: JSON.stringify(cfg) }), features }));
+  assert.match(String(needs({ wasi: "0.2", set: true })), /shared-everything threads/);
+  assert.match(String(needs({ threads: true })), /cooperative threads/);
+  assert.match(String(needs({ mem64: true })), /64-bit memory/);
+  assert.match(String(needs({ wasi: "0.3" })), /wasi 0.3/);
+  assert.match(String(needs({ volumes: ["qwen3.8-27b"] })), /attested model volume qwen3.8-27b/);
+  // A version that declares none of them, or a box that offers what it asks for, is fine.
+  assert.equal(needs({ wasi: "0.2" }), null);
+  assert.equal(claimPolicy(dep(), ctx({ version: version({ config: JSON.stringify({ set: true }) }),
+                                        features: { ...features, set: true } })), null);
+  // And with no features handed in (a policy check before the box knows itself) nothing is
+  // invented: the other rules still apply, this one stays quiet.
+  assert.equal(claimPolicy(dep(), ctx({ version: version({ config: JSON.stringify({ set: true }) }) })), null);
+});
+
 test("capacity refusals carry the numbers they were decided on", () => {
   const full = { ...roomy, slotsFree: 0 };
   assert.match(String(claimPolicy(dep(), ctx({ capacity: full }))), /4 app slots already/);

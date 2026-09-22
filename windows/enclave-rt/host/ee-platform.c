@@ -28,7 +28,7 @@
  * app threads, not a pool, and a fixed table needs no allocator on a path wasmtime takes on every
  * call into the guest. A row is claimed with an interlocked compare-and-swap, so two threads
  * racing for their first row cannot take the same one. */
-#define EE_TLS_THREADS 16
+#define EE_TLS_THREADS 64
 static struct { volatile LONG tid; void *slot[EE_TLS_SLOTS]; } g_tls[EE_TLS_THREADS];
 
 static void **tls_row(void) {
@@ -37,6 +37,23 @@ static void **tls_row(void) {
     for (int i = 0; i < EE_TLS_THREADS; i++)
         if (InterlockedCompareExchange(&g_tls[i].tid, me, 0) == 0) return g_tls[i].slot;
     return NULL;                       /* out of rows: the caller's get returns NULL, which traps */
+}
+
+/* Give this thread's row back, which a thread that is about to exit MUST do.
+ *
+ * Every app run is a new host thread entering the enclave, and a row that is never released is a
+ * row lost for the life of the enclave. After sixteen app restarts the table was full, the next
+ * thread got no row, wasmtime_tls_get answered NULL, and its activation list came apart on the way
+ * out of a call: "assertion failed: core::ptr::eq(head, self)", which __fastfails the enclave and
+ * takes every app in it down with it. Found exactly that way. */
+void ee_tls_release(void) {
+    const LONG me = (LONG)GetCurrentThreadId();
+    for (int i = 0; i < EE_TLS_THREADS; i++) {
+        if (g_tls[i].tid != me) continue;
+        for (int k = 0; k < EE_TLS_SLOTS; k++) g_tls[i].slot[k] = NULL;
+        InterlockedExchange(&g_tls[i].tid, 0);
+        return;
+    }
 }
 void *wasmtime_tls_get(size_t slot) {
     void **row = tls_row();

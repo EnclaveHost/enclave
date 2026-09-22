@@ -165,6 +165,7 @@ unsigned int ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int wor
 unsigned int ee_rt_worlds(void);
 int          ee_rt_run(unsigned int id);
 int          ee_rt_stop(unsigned int id);
+void         ee_tls_release(void);       /* the app thread's wasmtime TLS row (ee-platform.c) */
 int          ee_rt_handle(unsigned int id, const unsigned char *req, size_t req_len,
                           unsigned char *out, size_t out_cap, size_t *out_len);
 int          ee_rt_close(unsigned int id);
@@ -263,6 +264,10 @@ __declspec(dllexport) void *WINAPI EeAppRun(void *param) {
     const int64_t t0 = ee_now_us();
     ee_log("[app] running app %u (it serves its own socket)\n", p->id);
     const int rc = ee_rt_run(p->id);
+    /* This thread is about to leave the enclave for good, so its TLS row goes back: a row that is
+     * never released is gone for the life of the enclave, and the table running dry takes the
+     * whole enclave down (ee-platform.c ee_tls_release says how that was found). */
+    ee_tls_release();
     p->ran_us = ee_now_us() - t0;
     p->status = rc;
     if (rc) app_err(p->error, "the app stopped");

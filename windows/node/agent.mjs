@@ -112,6 +112,11 @@ if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); 
 let gpuName = process.env.GPU_NAME || '', tier = '', attachedAt = 0, spkiFp = '';
 // ---- the three processes -----------------------------------------------------------------
 const children = {};
+// Set when the agent is shutting down on purpose, so a child's exit is not a crash to recover.
+let stopping = false;
+// How to start each supervised child again, filled in where they are first started.
+const start = {};
+
 function run(name, exe, args, env) {
   const p = spawn(exe, args, { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   const watch = (d) => {
@@ -121,7 +126,21 @@ function run(name, exe, args, env) {
   };
   p.stdout.on('data', (d) => { watch(d); process.stdout.write(`[${name}] ${d}`); });
   p.stderr.on('data', (d) => { watch(d); process.stderr.write(`[${name}] ${d}`); });
-  p.on('exit', (code, sig) => { log(`${name} exited (${code ?? sig})`); children[name] = null; });
+  p.on('exit', (code, sig) => {
+    log(`${name} exited (${code ?? sig})`);
+    children[name] = null;
+    // RESTART IT. The enclave host holds the model, the keys and every app in the box; when it
+    // died the node kept answering /availability and serving nothing, which is the worst of both.
+    // A crash loop is bounded by the delay, and each restart re-enters the enclave and reloads
+    // the apps from the leases this box still holds (host.tick).
+    if (!stopping && (name === 'host' || name === 'worker')) {
+      setTimeout(() => {
+        if (children[name] || stopping) return;
+        log(`restarting ${name}`);
+        try { start[name] && start[name](); } catch (e) { log(`restart ${name} failed: ${e.message}`); }
+      }, 5000);
+    }
+  });
   children[name] = p; return p;
 }
 const waitPort = (port, ms = 120_000) => new Promise((res, rej) => {
@@ -131,8 +150,9 @@ const waitPort = (port, ms = 120_000) => new Promise((res, rej) => {
 });
 async function startWorker() {
   if (process.env.WORKER_EXE === 'none') return;
-  run('worker', WORKER_EXE, ['--port', String(WORKER_PORT), '--vram-gb', WORKER_VRAM_GB, '--quiet'],
+  start.worker = () => run('worker', WORKER_EXE, ['--port', String(WORKER_PORT), '--vram-gb', WORKER_VRAM_GB, '--quiet'],
       { SHIELDED_VK_SHADERS: process.env.SHIELDED_VK_SHADERS || path.join(path.dirname(WORKER_EXE), 'shaders'), SHIELDED_CARD_TFLOPS: process.env.SHIELDED_CARD_TFLOPS || '8' });
+  start.worker();
   await waitPort(WORKER_PORT); log(`worker up on ${WORKER_PORT}`);
 }
 async function startHost() {
@@ -143,7 +163,17 @@ async function startHost() {
   // The app runtime's own socket tracing, if the operator asked for it: every accept, read, write
   // and close from inside the enclave, in the enclave's log.
   if (process.env.ENCLAVE_RT_TRACE) args.push('--env', `ENCLAVE_RT_TRACE=${process.env.ENCLAVE_RT_TRACE}`);
-  run('host', HOST_EXE, args, {});
+  start.host = () => {
+    // A restarted enclave is a NEW enclave: its keys are per boot and every app that was in it is
+    // gone. The apps come back on the next tick from the leases this box still holds; the keys are
+    // re-attested on the next tunnel handshake, which is what the relay's row already expects.
+    run('host', HOST_EXE, args, {});
+    waitPort(HOST_PORT, 600_000).then(() => {
+      log(`enclave host up on ${HOST_PORT}`);
+      if (host && host.cfg && host.cfg.appsEnabled) { host.apps.clear(); }   // they died with it
+    }).catch((e) => log(`enclave host did not come up: ${e.message}`));
+  };
+  start.host();
   await waitPort(HOST_PORT, 600_000); log(`enclave host up on ${HOST_PORT}`);
 }
 // one line in, one line out, serialized
@@ -419,6 +449,10 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
       // What the tunnel socket is still holding, so a streaming response applies backpressure
       // rather than filling this process's memory.
       pressure: () => tunnelBuffered(),
+      // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
+      // terminating TLS here and carrying the request through the gate, the same frame the /x/
+      // path uses.
+      serveHttp: (id, req) => host.proxy(id, req),
       log: (m) => log(`[app-zone] ${m}`),
     });
     try {
