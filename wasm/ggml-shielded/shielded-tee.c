@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "shielded-tee.h"
+#include "shielded-idle.h"
 #include "shielded-parwork.h"
 #include "shielded-source-profile.h"
 #include "shielded-pads.h"
@@ -355,7 +356,7 @@ struct sh_link {
      * run's tokens. Folding the delta in after every exchange survives that:
      * a value lower than the last one seen means a fresh pipe, so the delta is
      * the new value itself. */
-    uint64_t   idle_ns, idle_n, idle_last_ns, idle_last_n;
+    sh_idle_acc idle;
     /* Bytes per reply value: 4 (FIELD_GEMM, protocol 1.1) or 3 (FIELD_GEMM24,
      * 1.2). Decided at start from the worker's HELLO; SHIELDED_REPLY32=1
      * forces the wide form against a worker that offers both. */
@@ -460,7 +461,7 @@ void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out) {
     /* The idle spin lives on the pipe, not the link: it is measured where the
      * waiting happens. Folded in here so one snapshot answers "how much window
      * is left" without a second accessor at every call site. */
-    if (l) { out->idle_ms = (double)l->idle_ns / 1e6; out->idle_n = l->idle_n; }
+    if (l) { out->idle_ms = (double)l->idle.total_ns / 1e6; out->idle_n = l->idle.total_n; }
 }
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
     if (!l) return;
@@ -1662,6 +1663,7 @@ int sh_link_start(sh_link *l) {
     const int binding = dealt_bind(l);
     if (binding != SH_OK) return binding;  /* no connect, upload or reservation */
     if (l->pipe) { sh_pipe_close(l->pipe); l->pipe = NULL; }
+    sh_idle_new_pipe(&l->idle);   /* the next sample comes from a counter starting at zero */
     /* vsock first when the guest was told the worker listens on one, TCP as the
      * fallback: a guest without the vsock driver, or a host without the
      * device, still reaches the card over slirp -- more slowly, not not at all. */
@@ -2205,10 +2207,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
             rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep,
                                             overlap ? sh_verify_rhs : (l->idle_fn ? sh_idle_only : NULL), &work);
             { double ms = 0; uint64_t nn = 0; sh_pipe_idle(l->pipe, &ms, &nn);
-              const uint64_t ns = (uint64_t)(ms * 1e6);
-              l->idle_ns += (ns >= l->idle_last_ns) ? ns - l->idle_last_ns : ns;
-              l->idle_n  += (nn >= l->idle_last_n)  ? nn - l->idle_last_n  : nn;
-              l->idle_last_ns = ns; l->idle_last_n = nn; }
+              sh_idle_fold(&l->idle, (uint64_t)(ms * 1e6), nn); }
         } else {
             rc = SH_ERR_IO;
         }
