@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# run-all.sh -- every offline check for the Shielded-TPU lane. No device, no compiler, no model.
+#
+# These exist because each one pins a defect that a green result had previously hidden:
+#   quality checks     a regex match was reported as task correctness, and model-written code was
+#                      executed unisolated with a forgeable verdict
+#   bundle markers     the writer labelled a two-input bundle with the one-input marker the payload
+#                      ACCEPTS, and the test that "covered" it only regex-scanned the source
+#   verify RMS         the divisor was wrong by sqrt(2) and every real run produced zeros, so no
+#                      measurement could have shown it
+#   linkbench          a hung-up peer spun forever on POLLHUP; a failed phase was dropped and its
+#                      streams reused
+#   digit split        a left shift of a negative value, UB in C++17, in three separate places
+#   error bound        the derivation the deployed measurement is compared against
+#
+# The last one reads the shipped bundle and takes about a minute; pass --fast to skip it.
+set -uo pipefail
+cd "$(dirname "$0")/../.."
+pass=0; fail=0
+run() { printf '%-36s ' "$1"; if eval "$2" >/dev/null 2>&1; then echo ok; pass=$((pass+1)); else echo FAIL; fail=$((fail+1)); fi; }
+
+run "quality checks"            "python3 host/test_quality_checks.py"
+run "bundle markers"            "python3 tpu/test/bundle-marker-test.py"
+run "verify RMS divisor"        "cc -std=c11 -O1 -Ipayload tpu/test/verify-rms-test.c -lm -o /tmp/vr.$$ && /tmp/vr.$$"
+run "linkbench failure modes"   "cc -std=c11 -O1 -pthread tpu/test/linkbench-test.c -o /tmp/lb.$$ && timeout 300 /tmp/lb.$$"
+run "digit split under UBSan"   "clang++ -std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all tpu/test/digit-split-test.cpp -o /tmp/ds.$$ && /tmp/ds.$$"
+[ "${1:-}" = "--fast" ] || run "error bound derivation" \
+  "timeout 900 python3 tpu/test/error_bound.py ${BUNDLE:-/home/steven/gguf-e2b/tpu/graphs-h4-ds/lanes.etpu} 3 23"
+rm -f /tmp/vr.$$ /tmp/lb.$$ /tmp/ds.$$
+echo; echo "$pass passed, $fail failed"
+exit $((fail ? 1 : 0))
