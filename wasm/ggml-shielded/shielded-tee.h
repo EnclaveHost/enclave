@@ -219,6 +219,9 @@ typedef struct {
      * ~9 ms/pass that sh_link_gemm_stride does not otherwise account for
      * stops being a subtraction. */
     double check_ms, pads_ms;
+    /* Spin left over AFTER the overlapped RHS: the budget any further
+     * overlap would have to fit into. */
+    double idle_ms; uint64_t idle_n;
     uint64_t completed_calls, missed_pads, used_pads;
 } sh_link_profile;
 void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out);

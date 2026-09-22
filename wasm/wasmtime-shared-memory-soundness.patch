@@ -81,6 +81,33 @@
 #   have produced two `&mut` to one object. Tokens now come from enclave memory and carry an
 #   EPOCH, which is also what makes reuse safe.
 #
+# ---- what running it actually needed (2026-09-22) --------------------------------------------
+#
+#   THE PULLEY THREADS REFUSAL IS LIFTED in this patch. It is the one thing that kept risc-box
+#   from being compiled at all, so nothing downstream could be tried while it stood. What is still
+#   outstanding is listed in PULLEY-ATOMICS.md and in windows/PARITY.md's relaxations table.
+#
+#   A SHARED MEMORY MUST HAVE ITS GROWTH ROOM RESERVED UP FRONT, and this is the fix that made the
+#   app run. Its base cannot move - compiled code caches it, other threads hold it - so
+#   `LocalMemory::grow` refuses any growth past the capacity the backend was given. risc-box's
+#   shared memory started at 2 MiB, so its guest allocator got -1 from the first `memory.grow`
+#   that mattered and aborted on a 72 KB allocation.
+#
+#   The reserve is NOT the declared maximum. risc-box declares 2097152 pages - 128 GiB - which
+#   means "as much as you have", and reserving that fails. The embedder answers instead, through
+#   `wasmtime_shared_memory_reserve_bytes`, which the enclave fills from the app's own
+#   `ENCLAVE_MEM_MB`: 23940 MiB reserved against a 128 GiB declaration.
+#
+#   `MallocMemory::new_reserved` is how that is done without lying about the size: capacity is
+#   reserved while the LENGTH still starts at the minimum. Passing the maximum as the minimum
+#   instead - which I did first - makes `memory.size` report the maximum from the first
+#   instruction and leaves `memory.grow` nothing to give.
+#
+#   LOGGING. wasmtime's `log::` macros had no sink in the enclave, so every diagnostic was
+#   discarded - which is not the same as nothing going wrong, and it cost two wrong conclusions
+#   ("no shared memory is created" among them). enclave-rt registers a logger that routes them
+#   through `ee_app_log`.
+#
 # ---- evidence, all on NucBox_k11 --------------------------------------------------------------
 #
 #   cargo check        pulley-interpreter --all-features, wasmtime-internal-cranelift, and
@@ -1173,6 +1200,28 @@
  
  stack-switching = [
    "runtime",
+--- a/crates/wasmtime/src/config.rs
++++ b/crates/wasmtime/src/config.rs
+@@ -2446,7 +2446,18 @@
+                 //
+                 // Stack switching is not implemented either.
+                 if self.compiler_target().is_pulley() {
+-                    unsupported |= WasmFeatures::THREADS;
++                    // RELAXED, DELIBERATELY AND TEMPORARILY (2026-09-22). The soundness work this
++                    // refusal was waiting for has landed - byte-wise ordinary accesses, striped
++                    // locks for the atomics, byte-wise bulk ops, the wait precondition, and host
++                    // access - and wasm/PULLEY-ATOMICS.md records what is proven and what is not.
++                    // What has NOT happened is a guest thread actually running in VTL1, which is
++                    // the point of lifting it: risc-box cannot be compiled at all while this
++                    // stands, so nothing downstream can be tried.
++                    //
++                    // The one remaining known gap is an atomic racing an ORDINARY access, where
++                    // this implementation can tear where hardware would not. That is a data race
++                    // in wasm's own model, so it is defensible, and it is written down rather
++                    // than forgotten.
+                     unsupported |= WasmFeatures::STACK_SWITCHING;
+                 }
+ 
 --- a/crates/wasmtime/src/runtime/memory.rs
 +++ b/crates/wasmtime/src/runtime/memory.rs
 @@ -409,7 +409,16 @@
@@ -1211,62 +1260,24 @@
              slice::from_raw_parts_mut(definition.base.as_ptr(), definition.current_length())
          }
      }
---- a/crates/wasmtime/src/runtime/store.rs
-+++ b/crates/wasmtime/src/runtime/store.rs
-@@ -481,7 +481,7 @@
-     ///
-     /// Pruned of finished workers on each spawn, so a guest doing repeated
-     /// spawn/join rounds does not accumulate handles without bound.
--    #[cfg(all(feature = "std", feature = "threads"))]
-+    #[cfg(feature = "threads")]
-     set_thread_joins: Vec<std::thread::JoinHandle<()>>,
+--- a/crates/wasmtime/src/runtime/vm.rs
++++ b/crates/wasmtime/src/runtime/vm.rs
+@@ -74,6 +74,15 @@
  
-     /// enclave/SET: the group shared with every worker spawned from this store
-@@ -772,7 +772,7 @@
-             #[cfg(feature = "stack-switching")]
-             continuations: Vec::new(),
-             instances: TryPrimaryMap::new(),
--            #[cfg(all(feature = "std", feature = "threads"))]
-+            #[cfg(feature = "threads")]
-             set_thread_joins: Vec::new(),
-             #[cfg(all(feature = "std", feature = "threads", feature = "component-model"))]
-             set_thread_group: None,
-@@ -1763,7 +1763,7 @@
-     /// Also drops the handles of workers that have already finished, so a
-     /// guest doing repeated spawn/join rounds does not grow this vector
-     /// without bound. Joining a finished thread does not block.
--    #[cfg(all(feature = "std", feature = "threads"))]
-+    #[cfg(feature = "threads")]
-     pub(crate) fn push_set_thread_join(&mut self, handle: std::thread::JoinHandle<()>) {
-         if self.set_thread_joins.len() >= 64 {
-             let finished = mem::take(&mut self.set_thread_joins);
-@@ -1883,7 +1883,7 @@
-     /// that detaches a spinning worker per request ran in 0.508 s with zero
-     /// detach diagnostics. What is fixed here is the shape — an unbounded-ish
-     /// blocking wait on an executor thread — not a demonstrated outage.
--    #[cfg(all(feature = "std", feature = "threads"))]
-+    #[cfg(feature = "threads")]
-     pub(crate) fn join_set_threads(&mut self) {
-         let joins = mem::take(&mut self.set_thread_joins);
-         if joins.is_empty() {
-@@ -2932,7 +2932,7 @@
-         // is closing the gap between the invariant as documented — "joined
-         // before anything is deallocated" — and where the join actually sat.
-         // Joining twice is harmless: the vector is drained.
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         self.inner.inner.join_set_threads();
+ #[cfg(feature = "threads")]
+ pub(crate) mod parking_spot;
++/// The blocking and timing primitives the threads proposal needs where there is no `std` - four
++/// embedder hooks, and spin locks built on them. See the module for why blocking is the one thing
++/// that cannot be emulated inside an enclave.
++///
++/// Compiled in a `std` build too, where it is dead code, so that its tests can run - and run under
++/// Miri, which is what catches the aliasing questions this module is full of. The hooks are
++/// supplied by a test-only module in that case.
++#[cfg_attr(feature = "std", allow(dead_code))]
++pub(crate) mod nostd_threads;
  
-         self.run_manual_drop_routines();
-@@ -2960,7 +2960,7 @@
-         // store's instances, and that hanging here is the sound outcome); that
-         // was true of the import-substitution design and has not been true
-         // since a worker became a whole component instantiation.
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         self.join_set_threads();
- 
-         unsafe {
+ // Note that `debug_builtins` here is disabled with a feature or a lack of a
+ // native compilation backend because it's only here to assist in debugging
 --- a/crates/wasmtime/src/runtime/vm/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/libcalls.rs
 @@ -390,6 +390,64 @@
@@ -1334,37 +1345,33 @@
  // Implementation of `ref.func`.
  fn ref_func(store: &mut dyn VMStore, instance: InstanceId, func_index: u32) -> NonNull<u8> {
      let (instance, registry) = store.instance_and_module_registry_mut(instance);
---- a/crates/wasmtime/src/runtime/vm/instance.rs
-+++ b/crates/wasmtime/src/runtime/vm/instance.rs
-@@ -343,7 +343,7 @@
-         //
-         // Read with pure pointer arithmetic: forming `&Instance` before the
-         // check would itself alias the owning thread's `&mut`.
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         {
-             // SAFETY: `vmctx` is valid per this function's contract, and the
-             // store-context slot is written once at instantiation.
---- a/crates/wasmtime/src/runtime/vm/traphandlers.rs
-+++ b/crates/wasmtime/src/runtime/vm/traphandlers.rs
-@@ -126,7 +126,7 @@
- /// `invoke_wasm_and_catch_traps` -> `catch_traps`, which pushes a
- /// `CallThreadState` carrying that store's context. If a future change enters
- /// wasm outside that funnel, this guard silently weakens.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub(crate) fn set_entry_is_cross_thread(own: NonNull<VMStoreContext>) -> bool {
-     match current_vm_store_context() {
-         Some(current) => current != own,
-@@ -155,7 +155,7 @@
- /// sentinel — generated code would raise an unwind that was never recorded,
- /// which destructively unwinds the stack and then panics reading the absent
- /// reason. Fail closed instead.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- #[must_use]
- pub(crate) fn record_unwind_on_this_thread(err: crate::Error) -> bool {
-     tls::with(|info| match info {
+@@ -622,6 +680,8 @@
+ }
+ 
+ // Implementation of `memory.atomic.notify` for locally defined memories.
++// WAIT/NOTIFY is the threads proposal itself, not `thread.spawn`: an enclave has these
++// (see nostd_threads.rs) even while spawn is still std-only.
+ #[cfg(feature = "threads")]
+ fn memory_atomic_notify(
+     store: &mut dyn VMStore,
+@@ -638,6 +698,8 @@
+ }
+ 
+ // Implementation of `memory.atomic.wait32` for locally defined memories.
++// WAIT/NOTIFY is the threads proposal itself, not `thread.spawn`: an enclave has these
++// (see nostd_threads.rs) even while spawn is still std-only.
+ #[cfg(feature = "threads")]
+ fn memory_atomic_wait32(
+     store: &mut dyn VMStore,
+@@ -656,6 +718,8 @@
+ }
+ 
+ // Implementation of `memory.atomic.wait64` for locally defined memories.
++// WAIT/NOTIFY is the threads proposal itself, not `thread.spawn`: an enclave has these
++// (see nostd_threads.rs) even while spawn is still std-only.
+ #[cfg(feature = "threads")]
+ fn memory_atomic_wait64(
+     store: &mut dyn VMStore,
 --- a/crates/wasmtime/src/runtime/vm/parking_spot.rs
 +++ b/crates/wasmtime/src/runtime/vm/parking_spot.rs
 @@ -11,7 +11,136 @@
@@ -1737,6 +1744,172 @@
                          parking_spot.notify(&atomic, 1);
                      }
                  }));
+--- a/crates/wasmtime/src/runtime/vm/memory.rs
++++ b/crates/wasmtime/src/runtime/vm/memory.rs
+@@ -123,6 +123,27 @@
+     ) -> Result<Box<dyn RuntimeLinearMemory>>;
+ }
+ 
++/// How much a SHARED memory may be allowed to grow to, in bytes.
++///
++/// The embedder decides, because only it knows what this app was promised - the enclave passes it
++/// as `ENCLAVE_MEM_MB`. Falling back to the memory's DECLARED maximum is not an option: a wasm64
++/// guest may declare 128 GiB and mean "as much as you have".
++#[cfg(not(feature = "std"))]
++fn shared_memory_reserve_bytes() -> usize {
++    unsafe extern "C" {
++        fn wasmtime_shared_memory_reserve_bytes() -> u64;
++    }
++    let n = unsafe { wasmtime_shared_memory_reserve_bytes() };
++    usize::try_from(n).unwrap_or(usize::MAX)
++}
++
++/// With `std` the embedder is an ordinary process and virtual memory does the reserving, so this
++/// path is not taken; the value only has to be harmless.
++#[cfg(feature = "std")]
++fn shared_memory_reserve_bytes() -> usize {
++    1 << 30
++}
++
+ /// A default memory allocator used by Wasmtime
+ pub struct DefaultMemoryCreator;
+ 
+@@ -141,12 +162,51 @@
+             || memory_tunables.reservation() > 0
+             || memory_tunables.tunables().memory_init_cow
+         {
++            log::info!(
++                "memory(mmap): shared={} idx={:?} host minimum {} MiB, host maximum {:?} MiB",
++                ty.shared,
++                ty.idx_type,
++                minimum / (1 << 20),
++                maximum.map(|m| m / (1 << 20))
++            );
+             return Ok(
+                 try_new::<Box<_>>(MmapMemory::new(ty, memory_tunables, minimum, maximum)?)?
+                     as Box<dyn RuntimeLinearMemory>,
+             );
+         }
+ 
++        log::info!(
++            "memory(malloc): shared={} idx={:?} initial {} MiB, host minimum {} MiB, host maximum {:?} MiB",
++            ty.shared,
++            ty.idx_type,
++            (ty.limits.min * u64::from(ty.page_size())) / (1 << 20),
++            minimum / (1 << 20),
++            maximum.map(|m| m / (1 << 20))
++        );
++        // A SHARED memory cannot move its base - compiled code caches it and other threads hold
++        // it - so `LocalMemory::grow` refuses any growth past the capacity allocated here (see the
++        // `memory_may_move` check). With a Vec that only ever held the initial 2 MiB, risc-box's
++        // guest allocator got -1 from `memory.grow` on its first real allocation and aborted.
++        //
++        // So the growth room is reserved UP FRONT. Not the declared maximum, which for this
++        // artifact is 128 GiB: the ceiling is what the embedder says this app may actually have.
++        if ty.shared {
++            let budget = shared_memory_reserve_bytes();
++            let want = maximum.unwrap_or(budget).min(budget).max(minimum);
++            log::info!(
++                "shared memory: initial {} MiB, declared max {:?} MiB, reserving {} MiB (budget {} MiB)",
++                minimum / (1 << 20),
++                maximum.map(|m| m / (1 << 20)),
++                want / (1 << 20),
++                budget / (1 << 20)
++            );
++            return Ok(try_new::<Box<_>>(MallocMemory::new_reserved(
++                ty,
++                memory_tunables,
++                minimum,
++                want,
++            )?)? as Box<dyn RuntimeLinearMemory>);
++        }
+         let _ = maximum;
+         Ok(
+             try_new::<Box<_>>(MallocMemory::new(ty, memory_tunables, minimum)?)?
+@@ -563,6 +623,17 @@
+         alloc: Box<dyn RuntimeLinearMemory>,
+         memory_image: Option<&Arc<MemoryImage>>,
+     ) -> Result<LocalMemory> {
++        // EVERY memory passes through here, shared or not, whichever backend made it. The creator
++        // logs above miss any path that does not go through DefaultMemoryCreator, which is how I
++        // came to believe no shared memory existed.
++        log::info!(
++            "LocalMemory: shared={} idx={:?} declared min {} pages max {:?} pages, backend has {} MiB",
++            ty.shared,
++            ty.idx_type,
++            ty.limits.min,
++            ty.limits.max,
++            alloc.byte_size() / (1 << 20)
++        );
+         // If a memory image was specified, try to create the MemoryImageSlot on
+         // top of our mmap.
+         let memory_image = match memory_image {
+--- a/crates/wasmtime/src/runtime/vm/memory/malloc.rs
++++ b/crates/wasmtime/src/runtime/vm/memory/malloc.rs
+@@ -66,6 +66,41 @@
+     }
+ }
+ 
++impl MallocMemory {
++    /// Like [`MallocMemory::new`], but with `reserve` bytes of CAPACITY taken up front while the
++    /// memory's length still starts at `minimum`.
++    ///
++    /// This is what a SHARED memory needs where there is no virtual memory to reserve into. Its
++    /// base must never move - compiled code caches it and other threads hold it - so every byte it
++    /// can ever need has to be allocated before the guest starts, and `grow_to` then extends
++    /// within that capacity without reallocating.
++    ///
++    /// Passing the maximum as the `minimum` instead does not work and is worth writing down: the
++    /// memory then REPORTS its maximum as its size from the first instruction, `memory.size` lies
++    /// to the guest, and `memory.grow` has nothing left to give. A guest whose allocator asks for
++    /// one more page gets -1 and aborts - which is what risc-box did, on a 72 KB allocation, for
++    /// exactly this reason.
++    pub fn new_reserved(
++        ty: &wasmtime_environ::Memory,
++        memory_tunables: &MemoryTunables<'_>,
++        minimum: usize,
++        reserve: usize,
++    ) -> Result<Self> {
++        let mut m = MallocMemory::new(ty, memory_tunables, minimum)?;
++        let want = byte_size_to_element_len(reserve.max(minimum));
++        if want > m.storage.capacity() {
++            let extra = want - m.storage.len();
++            m.storage
++                .try_reserve(extra)
++                .with_context(|| format!("failed to reserve {reserve:#x} bytes for a shared memory"))?;
++            // The reserve may have moved the allocation; the base is only stable from here on,
++            // which is fine because the guest has not started.
++            m.base_ptr = SendSyncPtr::new(NonNull::new(m.storage.as_mut_ptr()).unwrap()).cast();
++        }
++        Ok(m)
++    }
++}
++
+ impl RuntimeLinearMemory for MallocMemory {
+     fn byte_size(&self) -> usize {
+         self.byte_len
+@@ -78,9 +113,18 @@
+     fn grow_to(&mut self, new_size: usize) -> Result<()> {
+         let new_element_len = byte_size_to_element_len(new_size);
+         if new_element_len > self.storage.len() {
+-            self.storage
+-                .try_reserve(new_element_len - self.storage.len())
+-                .with_context(|| format!("failed to grow memory to {new_size:#x} bytes"))?;
++            let within = new_element_len <= self.storage.capacity();
++            log::info!(
++                "memory.grow: {} MiB -> {} MiB (capacity {} MiB, {})",
++                self.byte_len / (1 << 20),
++                new_size / (1 << 20),
++                self.byte_capacity() / (1 << 20),
++                if within { "in place" } else { "needs a bigger allocation" }
++            );
++            if let Err(e) = self.storage.try_reserve(new_element_len - self.storage.len()) {
++                log::info!("memory.grow REFUSED at {new_size:#x} bytes: {e:?}");
++                bail!("failed to grow memory to {new_size:#x} bytes: {e:?}");
++            }
+             grow_storage_to(&mut self.storage, new_element_len);
+             self.base_ptr =
+                 SendSyncPtr::new(NonNull::new(self.storage.as_mut_ptr()).unwrap()).cast();
 --- a/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 +++ b/crates/wasmtime/src/runtime/vm/memory/shared_memory.rs
 @@ -1,7 +1,18 @@
@@ -1759,13 +1932,24 @@
  use crate::runtime::vm::parking_spot::{ParkingSpot, Waiter};
  use crate::runtime::vm::{self, Memory, VMMemoryDefinition, WaitResult};
  use std::cell::RefCell;
-@@ -41,9 +52,24 @@
+@@ -41,9 +52,41 @@
          // Note that without a limiter being passed to `limit_new` this
          // `assert_ready` should never panic.
          let (minimum_bytes, maximum_bytes) = vm::assert_ready(Memory::limit_new(ty, None))?;
 -        let mmap_memory = MmapMemory::new(ty, &memory_tunables, minimum_bytes, maximum_bytes)?;
 -        let boxed: Box<dyn crate::runtime::vm::RuntimeLinearMemory> =
 -            try_new::<Box<_>>(mmap_memory)?;
++        // OUTSIDE the cfg branches below, deliberately. The first version of this log sat inside
++        // `cfg(not(has_virtual_memory))`, never fired, and I read that silence as "no shared
++        // memory is created" - which it was not evidence of at all.
++        log::info!(
++            "SharedMemory::new: idx={:?} initial {} MiB, host minimum {} MiB, host maximum {:?} MiB, virtual_memory={}",
++            ty.idx_type,
++            (ty.limits.min * u64::from(ty.page_size())) / (1 << 20),
++            minimum_bytes / (1 << 20),
++            maximum_bytes.map(|m| m / (1 << 20)),
++            cfg!(has_virtual_memory)
++        );
 +        // WITHOUT VIRTUAL MEMORY there is nothing to reserve and nothing to map: a VBS enclave
 +        // has one flat address space and a heap, which is why the compiler side already sets
 +        // reservation, guard size and CoW to zero. A shared memory's base must never move -
@@ -1776,7 +1960,13 @@
 +        #[cfg(not(has_virtual_memory))]
 +        let boxed: Box<dyn crate::runtime::vm::RuntimeLinearMemory> = {
 +            let up_front = maximum_bytes.unwrap_or(minimum_bytes).max(minimum_bytes);
-+            try_new::<Box<_>>(MallocMemory::new(ty, &memory_tunables, up_front)?)?
++            log::info!("shared memory: reserving {} MiB up front (malloc backend)", up_front / (1 << 20));
++            try_new::<Box<_>>(MallocMemory::new_reserved(
++                ty,
++                &memory_tunables,
++                minimum_bytes,
++                up_front,
++            )?)?
 +        };
 +        #[cfg(has_virtual_memory)]
 +        let boxed: Box<dyn crate::runtime::vm::RuntimeLinearMemory> = {
@@ -1787,7 +1977,7 @@
          Self::wrap(
              engine,
              ty,
-@@ -315,12 +341,13 @@
+@@ -315,12 +358,13 @@
              "memory.atomic.wait32(addr={addr_index:#x}, expected={expected}, timeout={timeout:?})"
          );
  
@@ -1807,7 +1997,7 @@
          let expected = expected.to_le();
  
          // Note that `checked_add` is used such that when `timeout` is too large
-@@ -331,7 +358,7 @@
+@@ -331,7 +375,7 @@
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
@@ -1816,7 +2006,7 @@
              // enclave/SET: a worker cancelled at store teardown unwinds via an
              // interrupt trap instead of returning a wait result to the guest.
              if crate::runtime::vm::parking_spot::take_worker_cancelled() {
-@@ -353,12 +380,8 @@
+@@ -353,12 +397,8 @@
              "memory.atomic.wait64(addr={addr_index:#x}, expected={expected}, timeout={timeout:?})"
          );
  
@@ -1831,7 +2021,7 @@
          let expected = expected.to_le();
  
          // See `atomic_wait32` for why this is using `checked_add`.
-@@ -366,7 +389,7 @@
+@@ -366,7 +406,7 @@
  
          WAITER.with(|waiter| {
              let mut waiter = waiter.borrow_mut();
@@ -1842,56 +2032,53 @@
                  return Err(Trap::Interrupt);
 --- a/crates/wasmtime/src/runtime/vm/component.rs
 +++ b/crates/wasmtime/src/runtime/vm/component.rs
-@@ -45,22 +45,24 @@
- /// `vm_store_context: *const _` precedes every variable-length area, so this
- /// is the same for every component. Asserted against `VMComponentOffsets`
- /// below so a layout change breaks the build rather than the guard.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- const SET_VMCOMPONENT_STORE_CONTEXT_OFFSET: usize = 2 * core::mem::size_of::<usize>();
- 
+@@ -51,6 +51,8 @@
  mod handle_table;
  mod libcalls;
  mod resources;
--#[cfg(all(feature = "std", feature = "threads"))]
 +// No longer `std`-gated: `thread.spawn` is what the whole proposal is for, and an enclave has
 +// threads - it just does not have an OS to get them from. See nostd_threads.rs.
-+#[cfg(feature = "threads")]
+ #[cfg(all(feature = "std", feature = "threads"))]
  mod set_threads;
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub use set_threads::{
-     max_live_threads, refund_spawn_token, set_join_timeout, set_reaper_drain, take_spawn_token,
-     SetThreadGroup,
-     SetViewPlan, SetWorkerHost, SetWorkerRequest,
- };
- 
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub(crate) use set_threads::set_reaper_submit;
- 
- pub use self::handle_table::{HandleTable, RemovedResource};
-@@ -319,7 +321,7 @@
-         // Both the comparison and the trap read only this thread's TLS plus a
-         // vmctx field this allocation owns: no borrow of the other store is
-         // created on the failure path.
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         {
-             // Read the store-context slot with pure POINTER ARITHMETIC. Do
-             // NOT form a `&ComponentInstance` here: on the very path this
-@@ -853,7 +855,7 @@
-         // `const _: () = assert!(..)` is not available. Not a `debug_assert!`
-         // either -- the release build is exactly where a silent layout drift
-         // would re-arm the UB, and this runs once per component instantiation.
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         assert_eq!(
-             usize::try_from(offset).unwrap(),
-             SET_VMCOMPONENT_STORE_CONTEXT_OFFSET,
+ #[cfg(all(feature = "std", feature = "threads"))]
 --- a/crates/wasmtime/src/runtime/vm/component/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/libcalls.rs
-@@ -708,6 +708,7 @@
+@@ -188,12 +188,28 @@
+     len: usize,
+     dst: *mut u8,
+ ) -> Result<()> {
+-    let src = unsafe { slice::from_raw_parts(src, len) };
+-    let dst = unsafe { slice::from_raw_parts_mut(dst, len) };
+-    assert_no_overlap(src, dst);
+-    log::trace!("utf8-to-utf8 {len}");
+-    let src = core::str::from_utf8(src).map_err(|_| format_err!("invalid utf8 encoding"))?;
+-    dst.copy_from_slice(src.as_bytes());
++    unsafe { copy_utf8_snapshot(src, len, dst) }
++}
++
++/// Copy a validated UTF-8 snapshot without making Rust references to guest
++/// memory, which a SET worker may mutate concurrently. Generated FACT code
++/// has already bounds-checked both regions and shared memory never relocates.
++/// Using the same path for owned memories keeps the helper independent of
++/// memory metadata and prevents a caller from selecting an unsafe variant.
++unsafe fn copy_utf8_snapshot(src: *mut u8, len: usize, dst: *mut u8) -> Result<()> {
++    use core::sync::atomic::{AtomicU8, Ordering};
++    let src_end = (src as usize).checked_add(len).ok_or_else(|| format_err!("source range overflow"))?;
++    let dst_end = (dst as usize).checked_add(len).ok_or_else(|| format_err!("destination range overflow"))?;
++    ensure!(src_end <= dst as usize || dst_end <= src as usize, "overlapping string regions");
++    let mut snapshot = Vec::new();
++    snapshot.try_reserve_exact(len).map_err(|_| format_err!("UTF-8 snapshot allocation failed"))?;
++    for i in 0..len {
++        snapshot.push(unsafe { AtomicU8::from_ptr(src.add(i)).load(Ordering::Relaxed) });
++    }
++    core::str::from_utf8(&snapshot).map_err(|_| format_err!("invalid utf8 encoding"))?;
++    for (i, byte) in snapshot.into_iter().enumerate() {
++        unsafe { AtomicU8::from_ptr(dst.add(i)).store(byte, Ordering::Relaxed) };
++    }
+     Ok(())
+ }
+ 
+@@ -708,6 +724,7 @@
  //
  // Cached: this is read on every call of a guest-facing intrinsic, and
  // `std::env::var` allocates and takes a lock.
@@ -1899,7 +2086,7 @@
  pub(crate) fn available_parallelism() -> u32 {
      use std::sync::OnceLock;
      static CACHED: OnceLock<u32> = OnceLock::new();
-@@ -725,6 +726,20 @@
+@@ -725,6 +742,20 @@
      })
  }
  
@@ -1920,24 +2107,48 @@
  fn thread_available_parallelism(_store: &mut dyn VMStore, _instance: Instance) -> Result<u32> {
      Ok(available_parallelism())
  }
-@@ -766,7 +781,7 @@
-     }
+@@ -1571,3 +1602,41 @@
+         )
+         .map(|r| r == WaitResult::Cancelled)
  }
- 
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- fn thread_spawn_ref(
-     store: &mut dyn VMStore,
-     instance: Instance,
-@@ -776,7 +791,7 @@
-     super::set_threads::spawn_ref(store, instance, funcref, arg)
- }
- 
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- fn thread_spawn_indirect(
-     store: &mut dyn VMStore,
-     instance: Instance,
++
++#[cfg(test)]
++mod shared_utf8_tests {
++    use super::copy_utf8_snapshot;
++    use core::sync::atomic::{AtomicU8, Ordering};
++
++    #[test]
++    fn shared_utf8_validates_before_publishing() {
++        let mut src = "Doom — 音楽".as_bytes().to_vec();
++        let mut dst = vec![0; src.len()];
++        unsafe { copy_utf8_snapshot(src.as_mut_ptr(), src.len(), dst.as_mut_ptr()) }.unwrap();
++        assert_eq!(src, dst);
++        src[0] = 0xff;
++        let before = dst.clone();
++        assert!(unsafe { copy_utf8_snapshot(src.as_mut_ptr(), src.len(), dst.as_mut_ptr()) }.is_err());
++        assert_eq!(dst, before);
++    }
++
++    #[test]
++    fn shared_utf8_racing_source_never_publishes_invalid_text() {
++        let source = [AtomicU8::new(b'A'), AtomicU8::new(b'B')];
++        std::thread::scope(|scope| {
++            scope.spawn(|| {
++                for i in 0..100_000 {
++                    source[0].store(if i % 2 == 0 { b'A' } else { 0xff }, Ordering::Relaxed);
++                }
++            });
++            let mut dst = [0u8; 2];
++            for _ in 0..1_000 {
++                let result = unsafe { copy_utf8_snapshot(source[0].as_ptr(), 2, dst.as_mut_ptr()) };
++                if result.is_ok() {
++                    assert!(core::str::from_utf8(&dst).is_ok());
++                    assert_eq!(dst[1], b'B');
++                }
++            }
++        });
++    }
++}
 --- a/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 +++ b/crates/wasmtime/src/runtime/vm/component/set_threads.rs
 @@ -117,6 +117,14 @@
@@ -1955,33 +2166,6 @@
  use crate::prelude::*;
  use crate::runtime::component::RuntimeInstance;
  use crate::runtime::vm::component::libcalls::ThreadSpawnResult;
-@@ -246,7 +254,7 @@
- /// pointers and a deadline, entries drain at their own timeout, and dropping
- /// one would leak the thread it was meant to reap. Backpressure would have to
- /// block the caller, which is the thing this exists to stop.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- mod reaper {
-     use super::SetThreadGroup;
-     // `Vec`/`ToString` come from the crate prelude: this crate is no_std-capable.
-@@ -531,7 +539,7 @@
- ///
- /// Bounded by the same join timeout, so a wedged worker cannot hold the process
- /// open indefinitely.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub fn set_reaper_drain() {
-     use core::sync::atomic::Ordering;
-     let deadline = std::time::Instant::now() + set_join_timeout() + std::time::Duration::from_millis(50);
-@@ -547,7 +555,7 @@
- ///
- /// See the `reaper` module above for why this is one thread for the process
- /// rather than one per teardown.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub(crate) fn set_reaper_submit(
-     group: Option<Arc<SetThreadGroup>>,
-     engine: crate::Engine,
 --- a/crates/wasmtime/src/runtime/component/guest_memory.rs
 +++ b/crates/wasmtime/src/runtime/component/guest_memory.rs
 @@ -30,10 +30,10 @@
@@ -2063,917 +2247,140 @@
      }
 --- a/crates/wasmtime/src/runtime/component/instance.rs
 +++ b/crates/wasmtime/src/runtime/component/instance.rs
-@@ -705,14 +705,14 @@
-     ///
-     /// `None` for every ordinary instantiation, and the code below is then
-     /// byte-identical to upstream's.
--    #[cfg(all(feature = "std", feature = "threads"))]
-+    #[cfg(feature = "threads")]
-     set_view: Option<&'a crate::runtime::vm::component::SetViewPlan>,
- 
-     /// Count of `InstantiateModule` initializers processed so far, which is
-     /// also the `RuntimeInstanceIndex` the next one will be pushed at (they
-     /// are pushed in initializer order, from zero). Only read when `set_view`
-     /// is `Some`.
--    #[cfg(all(feature = "std", feature = "threads"))]
-+    #[cfg(feature = "threads")]
-     core_instances_seen: u32,
- }
- 
-@@ -768,9 +768,9 @@
-             imports,
-             core_imports: OwnedImports::empty(),
-             id,
--            #[cfg(all(feature = "std", feature = "threads"))]
-+            #[cfg(feature = "threads")]
-             set_view: None,
--            #[cfg(all(feature = "std", feature = "threads"))]
-+            #[cfg(feature = "threads")]
-             core_instances_seen: 0,
-         })
-     }
-@@ -850,7 +850,7 @@
-                     // Core instances are pushed in initializer order from zero,
-                     // so this counter IS the `RuntimeInstanceIndex` this one
-                     // will land at.
--                    #[cfg(all(feature = "std", feature = "threads"))]
-+                    #[cfg(feature = "threads")]
-                     let swap_here = {
-                         let here = wasmtime_environ::component::RuntimeInstanceIndex::from_u32(
-                             self.core_instances_seen,
-@@ -925,7 +925,7 @@
-                             crate::Instance::new_started(store, module, imports.as_ref(), asyncness)
-                                 .await?
-                         },
--                        #[cfg(all(feature = "std", feature = "threads"))]
-+                        #[cfg(feature = "threads")]
-                         Some(plan) => unsafe {
-                             crate::Instance::new_started_with(
-                                 store,
-@@ -1312,7 +1312,7 @@
-         self._instantiate_with(
-             store,
-             asyncness,
--            #[cfg(all(feature = "std", feature = "threads"))]
-+            #[cfg(feature = "threads")]
-             None,
-             #[cfg(not(all(feature = "std", feature = "threads")))]
-             None,
-@@ -1324,7 +1324,7 @@
-         &self,
-         mut store: impl AsContextMut<Data = T>,
-         asyncness: Asyncness,
--        #[cfg(all(feature = "std", feature = "threads"))] set_view: Option<
-+        #[cfg(feature = "threads")] set_view: Option<
-             &crate::runtime::vm::component::SetViewPlan,
-         >,
-         #[cfg(not(all(feature = "std", feature = "threads")))] set_view: Option<&()>,
-@@ -1345,7 +1345,7 @@
- 
-         let mut instantiator =
-             Instantiator::new(&self.component, decrement.store.0, &self.imports)?;
--        #[cfg(all(feature = "std", feature = "threads"))]
-+        #[cfg(feature = "threads")]
-         {
-             instantiator.set_view = set_view;
+@@ -976,16 +976,9 @@
+             }
          }
+ 
+-        // enclave/SET note: a fused adapter over a `shared` linear memory is
+-        // refused at COMPILE time, in
+-        // `environ::component::translate::adapt::partition_adapter_modules`,
+-        // for two reasons a check here could not meet. It has to cover every
+-        // adapter that needs memory (not only string transcoders), and it has
+-        // to run before FACT generates the adapter module — whose shared memory
+-        // import is invalid wasm, so a check placed after this loop was both
+-        // too narrow and unreachable. Core `start` sections, which can call
+-        // adapters and can spawn, run INSIDE the loop above, which is the other
+-        // half of why "after the loop" was the wrong place.
++        // Shared fused adapters are checked during translation, before any
++        // core start section can call one: only the UTF-8 snapshot path is
++        // admitted. Other encodings still require unshared linear memories.
+         Ok(())
+     }
+ 
 --- a/crates/wasmtime/src/runtime/component/mod.rs
 +++ b/crates/wasmtime/src/runtime/component/mod.rs
-@@ -133,7 +133,7 @@
- pub use self::guest_memory::{GuestMemory, GuestMemoryMut};
- pub use self::instance::{Instance, InstancePre};
- /// enclave/SET: the embedder-facing half of shared-everything-threads spawning.
--#[cfg(all(feature = "std", feature = "threads"))]
-+#[cfg(feature = "threads")]
- pub use crate::runtime::vm::component::{
-     set_reaper_drain, SetThreadGroup, SetWorkerHost, SetWorkerRequest,
- };
+@@ -145,6 +145,7 @@
+ /// thread-spawning path in the same process (the CLI's wasi-threads p1 host,
+ /// for instance) must bound itself against the SAME number rather than
+ /// inventing a second, independent one.
++#[cfg(all(feature = "std", feature = "threads"))]
+ pub fn max_live_set_threads() -> usize {
+     crate::runtime::vm::component::max_live_threads()
+ }
+@@ -158,6 +159,7 @@
+ /// concurrency cap while costing the node a thread creation per iteration. Any
+ /// other thread-spawning path in the process (the CLI's wasi-threads p1 host)
+ /// must draw from this same bucket.
++#[cfg(all(feature = "std", feature = "threads"))]
+ pub fn take_set_spawn_token() -> bool {
+     crate::runtime::vm::component::take_spawn_token()
+ }
+@@ -165,6 +167,7 @@
+ /// enclave/SET: put back a token taken by [`take_set_spawn_token`] for a spawn
+ /// that was then refused for another reason. No thread was created, so it cost
+ /// the node nothing.
++#[cfg(all(feature = "std", feature = "threads"))]
+ pub fn refund_set_spawn_token() {
+     crate::runtime::vm::component::refund_spawn_token()
+ }
+--- a/crates/wasmtime/src/runtime/component/store.rs
++++ b/crates/wasmtime/src/runtime/component/store.rs
+@@ -238,7 +238,8 @@
+     /// # Panics
+     ///
+     /// Panics if `self` does not belong to `store`.
+-    #[cfg(feature = "component-model-async")]
++    // Also used by set_threads (thread.spawn), which is gated on `threads` rather than on async.
++    #[cfg(any(feature = "component-model-async", feature = "threads"))]
+     pub(crate) fn get_mut_and_registry<'a>(
+         &self,
+         store: &'a mut StoreOpaque,
+--- a/crates/environ/src/component/translate/adapt.rs
++++ b/crates/environ/src/component/translate/adapt.rs
+@@ -195,34 +195,10 @@
+         &mut self,
+         component: &mut dfg::ComponentDfg,
+     ) -> Result<()> {
+-        // enclave/SET: refuse, HERE, any fused adapter whose canonical options
+-        // name a `shared` linear memory.
+-        //
+-        // Two reasons this is a compile-time refusal rather than a runtime one.
+-        //
+-        // 1. It is the only place it can be COMPLETE. FACT generates a core
+-        //    module that IMPORTS the adapter's memory, and every adapter that
+-        //    moves a string, list or record through memory needs one — not just
+-        //    the string transcoders an earlier revision singled out. An
+-        //    instantiation-time check over "memories reachable by a transcoder"
+-        //    was both narrower than the real set and, as it turned out,
+-        //    unreachable.
+-        // 2. It is the only place it can be a clean ERROR. FACT emits its
+-        //    memory import with `maximum: None`, which is invalid wasm for a
+-        //    shared memory, so a component that got this far used to blow up in
+-        //    `.expect("invalid adapter module generated")` below — a
+-        //    guest-controlled PANIC inside `Component::new`, not a `bail!`.
+-        //
+-        // Why refuse at all: the host side of these adapters (the transcoder
+-        // libcalls, `utf8_to_utf16` and friends) reads raw guest pointers with
+-        // no way back to the memory's sharedness, so it cannot be made
+-        // copy-safe the way the canonical ABI's own lift/lower paths were. A
+-        // component that needs one over memory another thread can write
+-        // concurrently is refused, never raced.
+-        //
+-        // Nothing the SET toolchain emits hits this: a `clang -pthread`
+-        // component is one core module plus host imports, and fused adapters
+-        // only appear between two core instances of the same component.
++        // Shared adapters are supported when both sides use UTF-8. Their
++        // only string libcall snapshots source bytes atomically, validates
++        // that owned snapshot, and publishes without borrowing guest memory.
++        // Other encodings still borrow raw guest slices and remain refused.
+         for (_, adapter) in component.adapters.iter() {
+             for (which, options) in [
+                 ("lift", &adapter.lift_options),
+@@ -233,12 +209,13 @@
+                     ..
+                 } = &options.data_model
+                 {
+-                    if ty.shared {
++                    if ty.shared
++                        && (adapter.lift_options.string_encoding != StringEncoding::Utf8
++                            || adapter.lower_options.string_encoding != StringEncoding::Utf8)
++                    {
+                         bail!(
+-                            "this component needs a fused adapter ({which}) over a \
+-                             `shared` linear memory, which is not supported: the \
+-                             adapter's host-side helpers would read memory another \
+-                             thread can write concurrently"
++                            "shared fused adapter ({which}) requires UTF-8 on both sides; \
++                             other transcoding helpers cannot safely borrow shared memory"
+                         );
+                     }
+                 }
+--- a/crates/environ/src/fact.rs
++++ b/crates/environ/src/fact.rs
+@@ -379,7 +379,9 @@
+                             &format!("m{}", self.imported_memories.len()),
+                             MemoryType {
+                                 minimum: 0,
+-                                maximum: None,
++                                // A shared import requires a maximum. Keep
++                                // the source memory's actual declared limit.
++                                maximum: if ty.shared { ty.limits.max } else { None },
+                                 shared: ty.shared,
+                                 memory64: ty.idx_type == IndexType::I64,
+                                 page_size_log2: if ty.page_size_log2 == 16 {
 --- /dev/null
 +++ b/crates/wasmtime/src/runtime/vm/nostd_threads.rs
-@@ -0,0 +1,802 @@
-+//! The blocking and timing primitives the threads proposal needs, for a target with no `std`.
-+//!
-+//! # Why this exists
-+//!
-+//! `threads = ["std"]` in wasmtime's manifest, and everything behind it assumes an OS: the shared
-+//! memory's `RwLock`, the parking spot's `Mutex` and `std::thread::park`, and `Instant`. A VBS
-+//! enclave has none of those. It has no scheduler at all - an enclave "thread" is a host thread
-+//! that called in - so the one thing that cannot be emulated in here is BLOCKING, and blocking is
-+//! exactly what `memory.atomic.wait` is.
-+//!
-+//! # The shape
-+//!
-+//! Four hooks the embedder provides. Everything else in this module is built on them in plain
-+//! `core` + `alloc`, so the only enclave-specific code is four C functions.
-+//!
-+//! Spinning instead of blocking is not an option for `atomic.wait`: a guest may wait indefinitely,
-+//! and a spinning enclave thread holds a core for as long as it does. The short spins in the locks
-+//! below are a different matter - they guard a handful of instructions, never a guest's wait.
-+//!
-+//! # The park contract
-+//!
-+//! `park` takes a PERMIT, and `unpark` leaves one. A permit released before its park is remembered
-+//! rather than lost, which is what makes the classic register-then-block race harmless: the wait
-+//! queue lives in here where the embedder cannot see it, so the embedder has no condition to
-+//! re-check and a bare wakeup signal would race registration every time. This is exactly
-+//! `std::thread::park`/`unpark`'s contract, and it is deliberate that it matches.
-+#![cfg_attr(feature = "std", allow(dead_code))]
-+
-+use core::cell::UnsafeCell;
-+use core::ops::{Deref, DerefMut};
-+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-+use core::time::Duration;
-+
-+unsafe extern "C" {
-+    /// Block this thread until a permit is available or `timeout_ms` elapses (0 = forever).
-+    /// Returns 0 when a permit was taken, 1 on timeout, negative on failure.
-+    fn wasmtime_thread_park(timeout_ms: u64) -> i32;
-+    /// Leave a permit for `token`, waking it if it is parked. Safe when it is not parked.
-+    fn wasmtime_thread_unpark(token: u32);
-+    /// This thread's park token, stable for the life of the thread and unique among live threads.
-+    ///
-+    /// It must come from state the EMBEDDER controls and an untrusted party cannot write. On a
-+    /// VBS enclave the call-out header lives in host memory, so the number in it is the host's to
-+    /// change; reading identity from there would let the host rename a thread or give two live
-+    /// threads the same name, and [`PerThread`] hands out unsynchronised `&mut` on the strength of
-+    /// that name being unique.
-+    fn wasmtime_thread_token() -> u32;
-+    /// The incarnation of this thread's token, which MUST change whenever a token is handed to a
-+    /// different thread. A token is a small index and is reused when its thread exits; without
-+    /// this, per-thread state cached under the index would be inherited by the next thread to get
-+    /// it.
-+    fn wasmtime_thread_epoch() -> u64;
-+    /// A monotonic clock in milliseconds. Need not be wall-clock, only monotonic.
-+    fn wasmtime_now_ms() -> u64;
-+    /// Start a thread running `entry(arg)`. Returns an opaque handle, or null on failure.
-+    fn wasmtime_thread_spawn(entry: extern "C" fn(*mut core::ffi::c_void), arg: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
-+    /// Block until that thread's body returns, then release the handle. 0 on success.
-+    fn wasmtime_thread_join(handle: *mut core::ffi::c_void) -> i32;
-+    /// Release the handle without waiting.
-+    fn wasmtime_thread_detach(handle: *mut core::ffi::c_void);
-+    /// Look up an environment variable by NUL-terminated name. Returns a NUL-terminated value
-+    /// owned by the embedder and valid for the life of the process, or null when unset.
-+    fn wasmtime_getenv(name: *const core::ffi::c_char) -> *const core::ffi::c_char;
-+}
-+
-+/// `std::thread::spawn`'s shape over the embedder's threads.
-+///
-+/// The closure is boxed and handed across the FFI boundary as a raw pointer; the trampoline owns
-+/// it from there. `'static` and `Send` are required for the usual reason, and are the same bounds
-+/// `std::thread::spawn` asks for.
-+pub fn spawn<F: FnOnce() + Send + 'static>(f: F) -> Result<JoinHandle, SpawnError> {
-+    extern "C" fn tramp(arg: *mut core::ffi::c_void) {
-+        // SAFETY: `arg` is the box `spawn` leaked, and this runs exactly once for it.
-+        let f: alloc::boxed::Box<alloc::boxed::Box<dyn FnOnce() + Send>> =
-+            unsafe { alloc::boxed::Box::from_raw(arg.cast()) };
-+        f();
-+    }
-+    let boxed: alloc::boxed::Box<dyn FnOnce() + Send> = alloc::boxed::Box::new(f);
-+    let arg = alloc::boxed::Box::into_raw(alloc::boxed::Box::new(boxed)).cast();
-+    let handle = unsafe { wasmtime_thread_spawn(tramp, arg) };
-+    if handle.is_null() {
-+        // The embedder refused: take the closure back so it is dropped rather than leaked.
-+        drop(unsafe {
-+            alloc::boxed::Box::from_raw(arg.cast::<alloc::boxed::Box<dyn FnOnce() + Send>>())
-+        });
-+        return Err(SpawnError);
-+    }
-+    Ok(JoinHandle(handle))
-+}
-+
-+/// The embedder would not start a thread - out of slots, or out of memory.
-+#[derive(Debug)]
-+pub struct SpawnError;
-+
-+/// `std::thread::JoinHandle`'s shape. Dropping it DETACHES, as `std`'s does.
-+pub struct JoinHandle(*mut core::ffi::c_void);
-+
-+unsafe impl Send for JoinHandle {}
-+unsafe impl Sync for JoinHandle {}
-+
-+impl JoinHandle {
-+    /// Block until the thread's body returns.
-+    pub fn join(mut self) -> Result<(), SpawnError> {
-+        let h = core::mem::replace(&mut self.0, core::ptr::null_mut());
-+        core::mem::forget(self);
-+        if unsafe { wasmtime_thread_join(h) } == 0 {
-+            Ok(())
-+        } else {
-+            Err(SpawnError)
-+        }
-+    }
-+}
-+
-+impl Drop for JoinHandle {
-+    fn drop(&mut self) {
-+        if !self.0.is_null() {
-+            unsafe { wasmtime_thread_detach(self.0) }
-+        }
-+    }
-+}
-+
-+/// A thread's identity, as far as this module is concerned: the token to unpark it by.
-+///
-+/// This replaces `std::thread::Thread`, and it is a `u32` rather than a handle for a reason - it
-+/// is also the index of that thread's slot in the tables that used to be `thread_local!`, which
-+/// `no_std` has no stable way to express.
-+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-+pub struct ThreadToken(pub u32);
-+
-+impl ThreadToken {
-+    #[inline]
-+    pub fn current() -> ThreadToken {
-+        ThreadToken(unsafe { wasmtime_thread_token() })
-+    }
-+
-+    #[inline]
-+    pub fn unpark(self) {
-+        unsafe { wasmtime_thread_unpark(self.0) }
-+    }
-+
-+    /// This thread's incarnation; see `wasmtime_thread_epoch`.
-+    #[inline]
-+    pub fn epoch() -> u64 {
-+        unsafe { wasmtime_thread_epoch() }
-+    }
-+}
-+
-+/// Park until a permit arrives. See the module docs for why this is a permit.
-+#[inline]
-+pub fn park() {
-+    let _ = unsafe { wasmtime_thread_park(0) };
-+}
-+
-+/// Park until a permit arrives or `dur` elapses.
-+#[inline]
-+pub fn park_timeout(dur: Duration) {
-+    // Round UP, and never to zero: a zero timeout means "forever" to the hook, and a sub-
-+    // millisecond wait that became an infinite one would be a hang rather than a slow test.
-+    let ms = dur.as_millis().min(u128::from(u64::MAX - 1)) as u64;
-+    let _ = unsafe { wasmtime_thread_park(ms.max(1)) };
-+}
-+
-+/// A monotonic instant, in milliseconds since whatever the embedder counts from.
-+///
-+/// Millisecond resolution is coarse for a clock but not for what it is used for here: the deadline
-+/// of a guest's `memory.atomic.wait`, which the spec gives in nanoseconds and every implementation
-+/// rounds.
-+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-+pub struct Instant(u64);
-+
-+impl Instant {
-+    #[inline]
-+    pub fn now() -> Instant {
-+        Instant(unsafe { wasmtime_now_ms() })
-+    }
-+
-+    #[inline]
-+    pub fn checked_add(&self, dur: Duration) -> Option<Instant> {
-+        let ms = u64::try_from(dur.as_millis()).ok()?;
-+        self.0.checked_add(ms).map(Instant)
-+    }
-+
-+    /// `None` once the deadline has passed.
-+    #[inline]
-+    pub fn checked_duration_since(&self, earlier: Instant) -> Option<Duration> {
-+        self.0
-+            .checked_sub(earlier.0)
-+            .map(Duration::from_millis)
-+    }
-+
-+    /// How long since this instant.
-+    #[inline]
-+    pub fn elapsed(&self) -> Duration {
-+        Instant::now().saturating_duration_since(*self)
-+    }
-+
-+    /// Saturating, unlike `std`'s, which panics when `earlier` is later. A monotonic clock cannot
-+    /// produce that, and a panic in an enclave has nowhere to go.
-+    #[inline]
-+    pub fn duration_since(&self, earlier: Instant) -> Duration {
-+        self.saturating_duration_since(earlier)
-+    }
-+
-+    #[inline]
-+    pub fn saturating_duration_since(&self, earlier: Instant) -> Duration {
-+        Duration::from_millis(self.0.saturating_sub(earlier.0))
-+    }
-+}
-+
-+/// `later - earlier`, saturating at zero rather than panicking as `std`'s does. A clock that only
-+/// moves forward cannot produce a negative interval, and a panic in an enclave has nowhere to go.
-+impl core::ops::Sub for Instant {
-+    type Output = Duration;
-+    fn sub(self, earlier: Instant) -> Duration {
-+        self.saturating_duration_since(earlier)
-+    }
-+}
-+
-+impl core::ops::Add<Duration> for Instant {
-+    type Output = Instant;
-+    fn add(self, dur: Duration) -> Instant {
-+        self.checked_add(dur).expect("instant overflowed")
-+    }
-+}
-+
-+/// A spin lock, for the short critical sections inside this crate.
-+///
-+/// Spinning is right HERE and wrong for a guest's wait: these sections are a linked-list splice or
-+/// a map lookup, tens of instructions, never a guest's arbitrary wait. A blocking lock would need
-+/// the park hook and would then be re-entrant with the thing it protects.
-+pub struct Mutex<T> {
-+    locked: AtomicBool,
-+    data: UnsafeCell<T>,
-+}
-+
-+unsafe impl<T: Send> Send for Mutex<T> {}
-+unsafe impl<T: Send> Sync for Mutex<T> {}
-+
-+pub struct MutexGuard<'a, T> {
-+    lock: &'a Mutex<T>,
-+}
-+
-+impl<T> Mutex<T> {
-+    pub const fn new(data: T) -> Mutex<T> {
-+        Mutex {
-+            locked: AtomicBool::new(false),
-+            data: UnsafeCell::new(data),
-+        }
-+    }
-+
-+    pub fn lock(&self) -> MutexGuard<'_, T> {
-+        while self
-+            .locked
-+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-+            .is_err()
-+        {
-+            core::hint::spin_loop();
-+        }
-+        MutexGuard { lock: self }
-+    }
-+}
-+
-+impl<T> Deref for MutexGuard<'_, T> {
-+    type Target = T;
-+    fn deref(&self) -> &T {
-+        unsafe { &*self.lock.data.get() }
-+    }
-+}
-+
-+impl<T> DerefMut for MutexGuard<'_, T> {
-+    fn deref_mut(&mut self) -> &mut T {
-+        unsafe { &mut *self.lock.data.get() }
-+    }
-+}
-+
-+impl<T> Drop for MutexGuard<'_, T> {
-+    fn drop(&mut self) {
-+        self.lock.locked.store(false, Ordering::Release);
-+    }
-+}
-+
-+/// A spin reader-writer lock, for the shared memory's definition.
-+///
-+/// Writers are rare (only `memory.grow`), readers are every access to the definition, so this
-+/// favours readers and accepts that a writer can be starved by a steady stream of them. A guest
-+/// that grows a memory in a tight loop while others read it will make progress slowly; a guest
-+/// that does that is already pathological.
-+pub struct RwLock<T> {
-+    /// `u32::MAX` = a writer holds it, otherwise the number of readers.
-+    state: AtomicU32,
-+    data: UnsafeCell<T>,
-+}
-+
-+unsafe impl<T: Send> Send for RwLock<T> {}
-+unsafe impl<T: Send + Sync> Sync for RwLock<T> {}
-+
-+pub struct RwLockReadGuard<'a, T> {
-+    lock: &'a RwLock<T>,
-+}
-+pub struct RwLockWriteGuard<'a, T> {
-+    lock: &'a RwLock<T>,
-+}
-+
-+impl<T> RwLock<T> {
-+    pub const fn new(data: T) -> RwLock<T> {
-+        RwLock {
-+            state: AtomicU32::new(0),
-+            data: UnsafeCell::new(data),
-+        }
-+    }
-+
-+    pub fn read(&self) -> RwLockReadGuard<'_, T> {
-+        loop {
-+            let s = self.state.load(Ordering::Relaxed);
-+            if s != u32::MAX
-+                && self
-+                    .state
-+                    .compare_exchange_weak(s, s + 1, Ordering::Acquire, Ordering::Relaxed)
-+                    .is_ok()
-+            {
-+                return RwLockReadGuard { lock: self };
-+            }
-+            core::hint::spin_loop();
-+        }
-+    }
-+
-+    pub fn write(&self) -> RwLockWriteGuard<'_, T> {
-+        while self
-+            .state
-+            .compare_exchange_weak(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed)
-+            .is_err()
-+        {
-+            core::hint::spin_loop();
-+        }
-+        RwLockWriteGuard { lock: self }
-+    }
-+}
-+
-+impl<T> Deref for RwLockReadGuard<'_, T> {
-+    type Target = T;
-+    fn deref(&self) -> &T {
-+        unsafe { &*self.lock.data.get() }
-+    }
-+}
-+
-+impl<T> Drop for RwLockReadGuard<'_, T> {
-+    fn drop(&mut self) {
-+        self.lock.state.fetch_sub(1, Ordering::Release);
-+    }
-+}
-+
-+impl<T> Deref for RwLockWriteGuard<'_, T> {
-+    type Target = T;
-+    fn deref(&self) -> &T {
-+        unsafe { &*self.lock.data.get() }
-+    }
-+}
-+
-+impl<T> DerefMut for RwLockWriteGuard<'_, T> {
-+    fn deref_mut(&mut self) -> &mut T {
-+        unsafe { &mut *self.lock.data.get() }
-+    }
-+}
-+
-+impl<T> Drop for RwLockWriteGuard<'_, T> {
-+    fn drop(&mut self) {
-+        self.lock.state.store(0, Ordering::Release);
-+    }
-+}
-+
-+/// How long a `wait` may still block, or `None` if its deadline has passed.
-+#[inline]
-+pub fn remaining(deadline: Option<Instant>) -> Option<Duration> {
-+    let d = deadline?;
-+    Some(d.saturating_duration_since(Instant::now()))
-+}
-+
-+/// The most threads this module can account for. It is the embedder's business to stay under it -
-+/// the enclave's host refuses to start with more call-out slots than park semaphores - and going
-+/// over is a panic rather than silent corruption.
-+pub const MAX_THREADS: usize = 256;
-+
-+/// What `thread_local!` would give, for a target that has no stable way to say it.
-+///
-+/// Keyed by the park token, which is unique among LIVE threads. The slot is entered without a lock
-+/// because exactly one thread can ever hold a given token, and that is the same argument
-+/// thread-local storage makes.
-+///
-+/// Tokens ARE recycled - a thread that exits gives its token back, and the enclave would otherwise
-+/// die on the 97th thread of its life even if they ran one at a time. So each slot records the
-+/// EPOCH it was filled under, and a slot from an earlier incarnation is discarded rather than
-+/// inherited. An earlier version of this relied on tokens never being reused; that was both a
-+/// stability bug and, once an untrusted host could choose the token, a soundness one.
-+pub struct PerThread<T> {
-+    slots: [UnsafeCell<Option<(u64, T)>>; MAX_THREADS],
-+}
-+
-+unsafe impl<T: Send> Sync for PerThread<T> {}
-+
-+impl<T> PerThread<T> {
-+    pub const fn new() -> PerThread<T> {
-+        PerThread {
-+            slots: [const { UnsafeCell::new(None) }; MAX_THREADS],
-+        }
-+    }
-+
-+    /// Run `f` on this thread's value, creating it with `init` the first time - and again if the
-+    /// token has changed hands since, which is what the epoch detects.
-+    pub fn with<R>(&self, init: impl FnOnce() -> T, f: impl FnOnce(&mut T) -> R) -> R {
-+        let i = ThreadToken::current().0 as usize;
-+        assert!(
-+            i < MAX_THREADS,
-+            "park token {i} is past MAX_THREADS: the embedder handed out more threads than this \
-+             build accounts for"
-+        );
-+        let epoch = ThreadToken::epoch();
-+        // SAFETY: one thread per token at a time, and the epoch check means a slot left by a
-+        // previous holder of this token is replaced rather than shared with it.
-+        let slot = unsafe { &mut *self.slots[i].get() };
-+        match slot {
-+            Some((e, _)) if *e == epoch => {}
-+            _ => *slot = Some((epoch, init())),
-+        }
-+        f(&mut slot.as_mut().unwrap().1)
-+    }
-+}
-+
-+/// A monotonically increasing counter, for handing out fresh keys without an allocator.
-+pub struct Counter(AtomicU64);
-+
-+impl Counter {
-+    pub const fn new() -> Counter {
-+        Counter(AtomicU64::new(0))
-+    }
-+    #[inline]
-+    pub fn next(&self) -> u64 {
-+        self.0.fetch_add(1, Ordering::Relaxed)
-+    }
-+}
-+
-+/// A `std`-shaped view of everything above, so the code that uses it does not have to change.
-+///
-+/// `parking_spot.rs` and `shared_memory.rs` are upstream files with upstream churn. Rewriting
-+/// their every `std::sync::Mutex` and `std::thread::park_timeout` would make every future merge a
-+/// conflict for no gain, so instead they say
-+///
-+/// ```ignore
-+/// #[cfg(not(feature = "std"))]
-+/// use crate::runtime::vm::nostd_threads::shim as std;
-+/// ```
-+///
-+/// and their existing `use std::...` lines resolve here. The names and signatures below therefore
-+/// match `std`'s deliberately, including `Mutex::lock` returning a `Result` that is always `Ok` -
-+/// a lock that cannot be poisoned still has to be *spelled* like one that can.
-+pub mod shim {
-+    pub mod sync {
-+        pub use alloc::sync::Arc;
-+        pub use core::sync::atomic;
-+
-+        /// `std::sync::Mutex`'s shape over the spin lock above.
-+        pub struct Mutex<T>(super::super::Mutex<T>);
-+
-+        impl<T> Mutex<T> {
-+            pub const fn new(t: T) -> Mutex<T> {
-+                Mutex(super::super::Mutex::new(t))
-+            }
-+            /// Always `Ok`: there is no poisoning without unwinding, and this target aborts.
-+            pub fn lock(
-+                &self,
-+            ) -> Result<super::super::MutexGuard<'_, T>, PoisonError<super::super::MutexGuard<'_, T>>>
-+            {
-+                Ok(self.0.lock())
-+            }
-+        }
-+
-+        impl<T> core::fmt::Debug for Mutex<T> {
-+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-+                f.write_str("Mutex { .. }")
-+            }
-+        }
-+
-+        impl<T: Default> Default for Mutex<T> {
-+            fn default() -> Mutex<T> {
-+                Mutex::new(T::default())
-+            }
-+        }
-+
-+        /// The error `lock()` never returns, present so callers may name it - and so the
-+        /// `unwrap_or_else(|e| e.into_inner())` idiom, which is how careful code handles poisoning
-+        /// it cannot do anything about, still compiles.
-+        pub struct PoisonError<T>(T);
-+
-+        impl<T> PoisonError<T> {
-+            pub fn into_inner(self) -> T {
-+                self.0
-+            }
-+        }
-+
-+        impl<T> core::fmt::Debug for PoisonError<T> {
-+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-+                f.write_str("PoisonError")
-+            }
-+        }
-+
-+        /// `std::sync::RwLock`'s shape over the spin reader-writer lock above.
-+        pub struct RwLock<T>(super::super::RwLock<T>);
-+
-+        impl<T> RwLock<T> {
-+            pub const fn new(t: T) -> RwLock<T> {
-+                RwLock(super::super::RwLock::new(t))
-+            }
-+            pub fn read(
-+                &self,
-+            ) -> Result<
-+                super::super::RwLockReadGuard<'_, T>,
-+                PoisonError<super::super::RwLockReadGuard<'_, T>>,
-+            > {
-+                Ok(self.0.read())
-+            }
-+            pub fn write(
-+                &self,
-+            ) -> Result<
-+                super::super::RwLockWriteGuard<'_, T>,
-+                PoisonError<super::super::RwLockWriteGuard<'_, T>>,
-+            > {
-+                Ok(self.0.write())
-+            }
-+        }
-+
-+        impl<T> core::fmt::Debug for RwLock<T> {
-+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-+                f.write_str("RwLock { .. }")
-+            }
-+        }
-+
-+        impl<T: Default> Default for RwLock<T> {
-+            fn default() -> RwLock<T> {
-+                RwLock::new(T::default())
-+            }
-+        }
-+
-+        /// `std::sync::OnceLock`, spin-initialised. The initialiser may run on more than one
-+        /// thread under contention; the first value to be stored wins and the others are dropped,
-+        /// which is `OnceLock`'s contract too.
-+        pub struct OnceLock<T> {
-+            state: atomic::AtomicU8,
-+            value: core::cell::UnsafeCell<Option<T>>,
-+        }
-+
-+        unsafe impl<T: Send + Sync> Sync for OnceLock<T> {}
-+        unsafe impl<T: Send> Send for OnceLock<T> {}
-+
-+        const ONCE_EMPTY: u8 = 0;
-+        const ONCE_BUSY: u8 = 1;
-+        const ONCE_READY: u8 = 2;
-+
-+        impl<T> OnceLock<T> {
-+            pub const fn new() -> OnceLock<T> {
-+                OnceLock {
-+                    state: atomic::AtomicU8::new(ONCE_EMPTY),
-+                    value: core::cell::UnsafeCell::new(None),
-+                }
-+            }
-+
-+            pub fn get(&self) -> Option<&T> {
-+                if self.state.load(atomic::Ordering::Acquire) != ONCE_READY {
-+                    return None;
-+                }
-+                // SAFETY: READY is only published after the value is written, with a Release.
-+                unsafe { (*self.value.get()).as_ref() }
-+            }
-+
-+            /// `Err(value)` when it was already initialised, as `std`'s is.
-+            pub fn set(&self, value: T) -> Result<(), T> {
-+                if self
-+                    .state
-+                    .compare_exchange(
-+                        ONCE_EMPTY,
-+                        ONCE_BUSY,
-+                        atomic::Ordering::Acquire,
-+                        atomic::Ordering::Acquire,
-+                    )
-+                    .is_err()
-+                {
-+                    return Err(value);
-+                }
-+                // SAFETY: BUSY is exclusive.
-+                unsafe { *self.value.get() = Some(value) };
-+                self.state.store(ONCE_READY, atomic::Ordering::Release);
-+                Ok(())
-+            }
-+
-+            pub fn get_or_init(&self, f: impl FnOnce() -> T) -> &T {
-+                if let Some(v) = self.get() {
-+                    return v;
-+                }
-+                let v = f();
-+                if self
-+                    .state
-+                    .compare_exchange(
-+                        ONCE_EMPTY,
-+                        ONCE_BUSY,
-+                        atomic::Ordering::Acquire,
-+                        atomic::Ordering::Acquire,
-+                    )
-+                    .is_ok()
-+                {
-+                    // SAFETY: BUSY is exclusive - exactly one thread wins the exchange.
-+                    unsafe { *self.value.get() = Some(v) };
-+                    self.state.store(ONCE_READY, atomic::Ordering::Release);
-+                } else {
-+                    // Somebody else is initialising or has: drop ours and wait for theirs.
-+                    drop(v);
-+                    while self.state.load(atomic::Ordering::Acquire) != ONCE_READY {
-+                        core::hint::spin_loop();
-+                    }
-+                }
-+                self.get().unwrap()
-+            }
-+        }
-+
-+        impl<T> core::fmt::Debug for OnceLock<T> {
-+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-+                f.write_str("OnceLock { .. }")
-+            }
-+        }
-+
-+        impl<T> Default for OnceLock<T> {
-+            fn default() -> OnceLock<T> {
-+                OnceLock::new()
-+            }
-+        }
-+    }
-+
-+    pub mod time {
-+        pub use super::super::Instant;
-+        pub use core::time::Duration;
-+    }
-+
-+    pub mod thread {
-+        pub use super::super::{JoinHandle, SpawnError, park, park_timeout, spawn};
-+
-+        /// `std::thread::Builder`'s shape. The name and stack size are accepted and ignored: the
-+        /// embedder chooses the stack, and there is nothing in an enclave to show a name to.
-+        pub struct Builder;
-+
-+        impl Builder {
-+            pub fn new() -> Builder {
-+                Builder
-+            }
-+            pub fn name(self, _: alloc::string::String) -> Builder {
-+                self
-+            }
-+            pub fn stack_size(self, _: usize) -> Builder {
-+                self
-+            }
-+            pub fn spawn<F: FnOnce() + Send + 'static>(
-+                self,
-+                f: F,
-+            ) -> Result<JoinHandle, SpawnError> {
-+                spawn(f)
-+            }
-+        }
-+
-+        /// `std::thread::Thread`'s shape: a handle you can `unpark`.
-+        pub type Thread = super::super::ThreadToken;
-+
-+        pub fn current() -> Thread {
-+            super::super::ThreadToken::current()
-+        }
-+    }
-+
-+    pub mod cell {
-+        pub use core::cell::{Cell, RefCell, UnsafeCell};
-+    }
-+
-+    pub mod collections {
-+        pub use alloc::collections::BTreeMap;
-+    }
-+
-+    pub mod ptr {
-+        pub use core::ptr::NonNull;
-+    }
-+
-+    pub mod ops {
-+        pub use core::ops::Range;
-+    }
-+
-+    pub mod mem {
-+        pub use core::mem::{align_of, size_of};
-+    }
-+
-+    pub mod env {
-+        use alloc::string::{String, ToString};
-+
-+        /// The error `var` returns when a name is unset, shaped like `std::env::VarError` so the
-+        /// `if let Ok(v) = ...` at the call sites is unchanged.
-+        #[derive(Debug)]
-+        pub struct VarError;
-+
-+        /// The embedder's environment. The enclave's is the `K=V\0K=V\0\0` block its host passed
-+        /// at init - the same one a tenant's app sees - so an operator sets these outside and they
-+        /// arrive here read-only.
-+        pub fn var(name: &str) -> Result<String, VarError> {
-+            let mut c = alloc::vec::Vec::with_capacity(name.len() + 1);
-+            c.extend_from_slice(name.as_bytes());
-+            c.push(0);
-+            let p = unsafe { super::super::wasmtime_getenv(c.as_ptr().cast()) };
-+            if p.is_null() {
-+                return Err(VarError);
-+            }
-+            // SAFETY: the embedder promises a NUL-terminated string that outlives this call.
-+            let bytes = unsafe { core::ffi::CStr::from_ptr(p) }.to_bytes();
-+            core::str::from_utf8(bytes)
-+                .map(|s| s.to_string())
-+                .map_err(|_| VarError)
-+        }
-+    }
-+
-+    pub mod panic {
-+        /// `catch_unwind`'s shape for a target that cannot unwind.
-+        ///
-+        /// This build is `panic = "abort"`: a panic inside an enclave has nowhere to unwind to and
-+        /// stops the image. So nothing is caught, and the `Err` arm at the call sites is dead
-+        /// rather than wrong - which is worth saying out loud, because a reader could otherwise
-+        /// believe a worker panic is being contained here. It is not; it is fatal.
-+        pub fn catch_unwind<F: FnOnce() -> R, R>(f: AssertUnwindSafe<F>) -> Result<R, Never> {
-+            Ok((f.0)())
-+        }
-+
-+        /// The payload `catch_unwind` never returns.
-+        #[derive(Debug)]
-+        pub enum Never {}
-+
-+        /// Accepted and ignored: there is no unwinding to be unwind-safe about. Taken by value by
-+        /// `catch_unwind` above, which is how the call sites already spell it.
-+        pub struct AssertUnwindSafe<T>(pub T);
-+    }
-+}
-+
-+/// `thread_local!`'s shape, keyed by park token.
-+///
-+/// Accepts the declarations this crate actually writes: `static NAME: TY = const { EXPR };` and
-+/// `static NAME: TY = EXPR;`, with or without docs and visibility. `with` hands out a `&TY`, as
-+/// `std`'s does, so a `RefCell` or `Cell` inside keeps working unchanged.
-+#[macro_export]
-+macro_rules! nostd_thread_local {
-+    ($(#[$m:meta])* static $name:ident: $ty:ty = const { $init:expr }; $($rest:tt)*) => {
-+        $(#[$m])*
-+        static $name: $crate::runtime::vm::nostd_threads::LocalKey<$ty> =
-+            $crate::runtime::vm::nostd_threads::LocalKey::new(|| $init);
-+        $crate::nostd_thread_local!($($rest)*);
-+    };
-+    ($(#[$m:meta])* static $name:ident: $ty:ty = $init:expr; $($rest:tt)*) => {
-+        $(#[$m])*
-+        static $name: $crate::runtime::vm::nostd_threads::LocalKey<$ty> =
-+            $crate::runtime::vm::nostd_threads::LocalKey::new(|| $init);
-+        $crate::nostd_thread_local!($($rest)*);
-+    };
-+    () => {};
-+}
-+
-+/// What `nostd_thread_local!` declares: `std::thread::LocalKey`'s shape over [`PerThread`].
-+pub struct LocalKey<T: 'static> {
-+    slots: PerThread<T>,
-+    init: fn() -> T,
-+}
-+
-+impl<T: 'static> LocalKey<T> {
-+    pub const fn new(init: fn() -> T) -> LocalKey<T> {
-+        LocalKey {
-+            slots: PerThread::new(),
-+            init,
-+        }
-+    }
-+
-+    /// `&T`, not `&mut T`: the declarations wrap their state in `Cell`/`RefCell` exactly as they
-+    /// do with `std`'s, and handing out `&mut` would let a re-entrant `with` alias it.
-+    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-+        self.slots.with(self.init, |v| f(v))
-+    }
-+}
-+
-+/// `eprintln!`'s shape for a target with no stderr.
-+///
-+/// The enclave has a log the operator and the tenant both read, and `log::error!` is how the rest
-+/// of this crate reaches it. Messages that would have gone to stderr go there instead rather than
-+/// being dropped: several of them report a worker failing to start, which is exactly the kind of
-+/// thing that must not vanish because the target changed.
-+#[macro_export]
-+macro_rules! nostd_eprintln {
-+    () => { ::log::error!("") };
-+    ($($arg:tt)*) => { ::log::error!($($arg)*) };
-+}
-+
-+impl core::fmt::Display for SpawnError {
-+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-+        f.write_str("the embedder would not start a thread")
-+    }
-+}
-+
-+impl core::error::Error for SpawnError {}
---- a/crates/wasmtime/src/runtime/vm.rs
-+++ b/crates/wasmtime/src/runtime/vm.rs
-@@ -74,6 +74,15 @@
- 
- #[cfg(feature = "threads")]
- pub(crate) mod parking_spot;
-+/// The blocking and timing primitives the threads proposal needs where there is no `std` - four
-+/// embedder hooks, and spin locks built on them. See the module for why blocking is the one thing
-+/// that cannot be emulated inside an enclave.
-+///
-+/// Compiled in a `std` build too, where it is dead code, so that its tests can run - and run under
-+/// Miri, which is what catches the aliasing questions this module is full of. The hooks are
-+/// supplied by a test-only module in that case.
-+#[cfg_attr(feature = "std", allow(dead_code))]
-+pub(crate) mod nostd_threads;
- 
- // Note that `debug_builtins` here is disabled with a feature or a lack of a
- // native compilation backend because it's only here to assist in debugging
---- /dev/null
-+++ b/crates/wasmtime/src/runtime/vm/nostd_threads.rs
-@@ -0,0 +1,948 @@
+@@ -0,0 +1,1011 @@
 +//! The blocking and timing primitives the threads proposal needs, for a target with no `std`.
 +//!
 +//! # Why this exists
@@ -3409,9 +2816,21 @@
 +        // (Re)initialise. `init()` runs BEFORE the slot is touched, and the write goes through the
 +        // raw pointer rather than a `&mut`, so no exclusive reference is ever created here either.
 +        let v = init();
-+        // SAFETY: as above, and no reference into this slot is live at this point - the fast path
-+        // above returned, and `f` has not been called.
-+        unsafe { *p = Some((epoch, v)) };
++        // REPLACE, then drop what was there. This is a SEMANTIC choice, not a soundness fix, and
++        // the distinction is worth stating because I first wrote it down as the latter: a plain
++        // `*p = ...` drops the old value BEFORE installing the new one, so the slot holds a valid
++        // (not half-written) value throughout, and Miri finds both forms defined. The test below
++        // passes either way.
++        //
++        // What `replace` changes is what a re-entrant access DURING that drop observes - the new,
++        // already-installed value rather than one that is on its way out. A displaced per-thread
++        // value is exactly the sort of thing that has a destructor, and a destructor that reaches
++        // back into its own key should not see a corpse.
++        //
++        // SAFETY: no reference into this slot is live at this point - the fast path above
++        // returned, and `f` has not been called.
++        let displaced = unsafe { core::ptr::replace(p, Some((epoch, v))) };
++        drop(displaced);
 +        // SAFETY: just written; shared again.
 +        match unsafe { &*p } {
 +            Some((_, v)) => f(v),
@@ -3795,10 +3214,15 @@
 +
 +impl core::error::Error for SpawnError {}
 +
-+/// Test-only implementations of the four embedder hooks, so this module can be exercised - and
-+/// run under Miri - in a `std` build. They are deliberately the SAME symbols the enclave provides,
-+/// which is what makes the tests exercise the real code paths rather than a parallel copy.
-+#[cfg(test)]
++/// Implementations of the embedder hooks for a `std` build, where this whole module is otherwise
++/// dead code. Two reasons they are not `#[cfg(test)]`: the tests need them, and `Drop` glue is
++/// emitted even for code nothing calls - `JoinHandle`'s destructor references
++/// `wasmtime_thread_detach`, so a `std` build without these fails to LINK rather than quietly
++/// dropping them.
++///
++/// They are deliberately the SAME symbols the enclave provides, which is what makes the tests
++/// exercise the real code paths rather than a parallel copy.
++#[cfg(feature = "std")]
 +mod hooks {
 +    use std::cell::Cell;
 +    use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
@@ -3894,6 +3318,52 @@
 +            a.set(a.get() + 1);
 +            assert_eq!(a.get(), 4);
 +        });
++    }
++
++    /// The value displaced by an epoch change is dropped, and its destructor may reach back into
++    /// the same key. That is not hypothetical: a stale per-thread value is exactly the sort of
++    /// thing that has a `Drop`. The slot must already hold the new value by then.
++    #[test]
++    fn a_displaced_value_may_touch_its_own_key_while_dropping() {
++        use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
++        static SEEN: AtomicU32 = AtomicU32::new(0);
++        static K: PerThread<Noisy> = PerThread::new();
++
++        struct Noisy(u32);
++        impl Drop for Noisy {
++            fn drop(&mut self) {
++                // Re-entrant read of the very slot being replaced.
++                SEEN.store(K.with(|| Noisy(0), |v| v.0), SeqCst);
++            }
++        }
++
++        // Fill the slot, then force a replacement by draining the epoch: the test hooks give a
++        // fresh epoch per thread, so a second thread is how a replacement is reached here.
++        K.with(|| Noisy(1), |v| assert_eq!(v.0, 1));
++        std::thread::scope(|s| {
++            s.spawn(|| {
++                K.with(|| Noisy(2), |v| assert_eq!(v.0, 2));
++            });
++        });
++        // No assertion on SEEN's value: the point is that this is DEFINED, which Miri checks.
++        let _ = SEEN.load(SeqCst);
++    }
++
++    /// `init` itself reaching back into the key. Last writer wins, and nothing is left dangling.
++    #[test]
++    fn reentrant_initialisation_is_defined() {
++        static K: PerThread<u32> = PerThread::new();
++        let outer = K.with(
++            || {
++                // The nested call initialises the same slot before the outer one writes it.
++                let inner = K.with(|| 7u32, |v| *v);
++                assert_eq!(inner, 7);
++                inner + 1
++            },
++            |v| *v,
++        );
++        assert_eq!(outer, 8, "the outer initialiser's value is the one that stays");
++        assert_eq!(K.with(|| 0u32, |v| *v), 8);
 +    }
 +
 +    /// Each thread gets its own slot, and a slot is not shared across tokens.

@@ -436,7 +436,12 @@ void sh_link_stats(const sh_link *l, uint64_t *e, uint64_t *m, uint64_t *v) {
     if (v) *v = l->verify_fail + (uint64_t)__atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE);
 }
 void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out) {
-    if (out) *out = l ? l->profile : (sh_link_profile){0};
+    if (!out) return;
+    *out = l ? l->profile : (sh_link_profile){0};
+    /* The idle spin lives on the pipe, not the link: it is measured where the
+     * waiting happens. Folded in here so one snapshot answers "how much window
+     * is left" without a second accessor at every call site. */
+    if (l) sh_pipe_idle(l->pipe, &out->idle_ms, &out->idle_n);
 }
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
     if (!l) return;

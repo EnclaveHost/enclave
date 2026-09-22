@@ -539,12 +539,12 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                     (unsigned long long)bf, bb / 1e6, bst, berr[0] ? "; " : "", berr);
         }
         fprintf(stderr, "[shielded] profile: exchanges=%llu nodes=%llu (completions=%llu served=%llu) | link: mask=%.1fms wire=%.1fms "
-                        "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms check=%.1fms pads=%.1fms total=%.1fms | backend: encode=%.1fms "
+                        "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms check=%.1fms pads=%.1fms idle=%.1fms/%lluex total=%.1fms | backend: encode=%.1fms "
                         "post=%.1fms graph_compute=%.1fms | split: gemm=%.1fms post=%.1fms join=%.1fms | pads used=%llu missed=%llu waited=%llu wait=%.1fms | contended=%d events=%llu | simd=%s refill_threads=%d refill_priority=%s omp_spincount=%s\n",
                 (unsigned long long)s.exchanges, (unsigned long long)s.offloaded_nodes,
                 (unsigned long long)s.completed, (unsigned long long)s.served,
                 lp.mask_ms, lp.wire_ms, lp.refill_ms, lp.unmask_lhs_ms, lp.rhs_ms,
-                lp.check_ms, lp.pads_ms, s.t_link,
+                lp.check_ms, lp.pads_ms, lp.idle_ms, (unsigned long long)lp.idle_n, s.t_link,
                 s.t_encode, s.t_post, s.t_graph, s.t_split_gemm, s.t_split_post, s.t_split_join,
                 (unsigned long long)used, (unsigned long long)missed,
                 (unsigned long long)waited, wait_ms,

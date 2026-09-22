@@ -46,6 +46,12 @@
 struct sh_pipe {
     int  fd;
     char err[256];
+    /* The exploitable overlap budget, measured. The work callback below runs
+     * BEFORE this spin, so whatever the spin then costs is window that is
+     * still idle after the Freivalds RHS has taken its share -- which is
+     * exactly what any further overlap has to fit into. Measured rather than
+     * modelled, because every estimate of it so far has been a projection. */
+    uint64_t spin_ns, spin_n;
     /* The reply buffer: grows to the largest reply ever seen, never shrinks,
      * and is reused by every exchange. Before this each decode exchange paid a
      * malloc and a free of the reply (608 KB for one lm_head row of the 0.5B)
@@ -707,6 +713,12 @@ int sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *
     return sh_pipe_ring_exchange_work(p, f, want, out, NULL, NULL);
 }
 
+void sh_pipe_idle(const sh_pipe *p, double *ms, uint64_t *n) {
+    if (!p) { if (ms) *ms = 0; if (n) *n = 0; return; }
+    if (ms) *ms = (double)p->spin_ns / 1e6;
+    if (n)  *n  = p->spin_n;
+}
+
 int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
                                sh_pipe_work_fn work, void *ctx) {
     if (!p || !p->ring) return SH_ERR_IO;
@@ -738,7 +750,12 @@ int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_re
     const int budget = ring_spin_us();
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int spins = 0;; spins++) {
-        if (ld_acq(r + SH_RING_OFF_REP) == seq) break;
+        if (ld_acq(r + SH_RING_OFF_REP) == seq) {
+            struct timespec te; clock_gettime(CLOCK_MONOTONIC, &te);
+            p->spin_ns += (uint64_t)((te.tv_sec - t0.tv_sec) * 1000000000LL + (te.tv_nsec - t0.tv_nsec));
+            p->spin_n++;
+            break;
+        }
         SH_CPU_RELAX();
         if ((spins & 255) == 255) {
             clock_gettime(CLOCK_MONOTONIC, &t1);
