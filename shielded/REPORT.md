@@ -2413,3 +2413,159 @@ that aligns the two threads on a barrier shows the bad outcome on ~14% of
 500,000 trials unfenced and 0 in 2,000,000 fenced. Fixed with paired seq_cst
 fences behind one macro that both halves and the litmus share, so deleting the
 fence fails the test (74181f43).
+
+## 18. Three arithmetic changes, and a divergence that was never the arithmetic (2026-09-22)
+
+Section 17 closed at 19.01 spec with C stuck at 35 ms and named the reply range
+check as the best-evidenced lever. This section spends that lever and two more
+like it, measures what they were actually worth, and then spends most of its
+length on a correctness question that turned out to matter more.
+
+### 18.1 Two range checks were paying for the wrong translation unit
+
+shielded-tee.c is compiled once, at baseline ISA. shielded-simd.c is compiled
+twice, with the arch flags -- that is what the table is for. Two security
+checks were written to vectorise (unsigned range reduction so INT32_MIN/MAX
+cannot overflow, an OR reduction rather than an early exit, no data-dependent
+branch) and were sitting in the wrong file:
+
+| check | scans per pass | before | after |
+|---|---|---|---|
+| `sh_reply32_balanced`, every int32 reply value | ~8 MB | 3.50 ms | 0.22 ms |
+| `sh_values_within`, the activation bound | ~9.9 MB | ~3.2 ms | ~1.1 ms |
+
+Neither guarantee moved. Both are the same predicate on the same values, and
+both stay SEPARATE passes that complete before any kernel runs. In particular
+the reply check was NOT fused into the unmask, though the unmask reads the same
+bytes and fusing would have removed the traversal outright: the unmask is the
+first thing that writes the caller's output, and the contract asserted in
+shielded-overlap-verify.c is that an out-of-range reply leaves that output
+untouched. Checking while unmasking would commit part of it before finding a
+bad value later in the buffer. 0.22 ms is not worth that.
+
+The local fallback also rescanned the same activation once per node of a group
+(every node in a group reads the SAME x); it advances a `checked` offset now,
+so each element is examined once and the order in which PROTO and VERIFY are
+reported is unchanged -- which matters, because VERIFY retires the link.
+
+### 18.2 A reduction that could never have changed anything
+
+`mask_planes` reduced x+r modulo M before reducing modulo each Q. M = Q0*Q1*Q2,
+so ((x+r) mod M) mod Q == (x+r) mod Q, and the three planes ARE those residues.
+The mod-M step cost an int64->double convert, a multiply, an int64
+multiply-subtract and two corrections per element, and could not affect the
+output. The tuned NEON path had dropped it years of reasoning ago; nothing in
+that reasoning was ARM-specific.
+
+These planes CROSS to the untrusted worker, so the standard is not "tests
+pass". The kernel's contract bounds x+r to about 1.5e8 values, which is
+exhaustible, and test/shielded-mask-planes.test.mjs exhausts it: **148,675,078
+values, old formula against new, per plane**, then both tables' real kernels
+against the old formula over random and boundary (x, r).
+
+Codegen says it worked -- 979 instructions and 64 vpmullq/vcvtqq2pd/vmulpd
+became 745 and zero. The clock says it barely mattered: **-0.34 ms/pass**. The
+kernel is dominated by the lane-crossing permutes that narrow int64 x to int32
+and pack int32 to int8, not by arithmetic. x_field is int64 across the whole
+link API even though the contract is |x| < 2^26; that, not the modular
+reduction, is what mask_planes costs.
+
+### 18.3 What the three were worth
+
+Medians, n=3-4, gated on a quiet box, one diverged run excluded (see 18.5):
+
+| | plain | spec |
+|---|---|---|
+| before | 17.58 | 18.96 |
+| after | **18.76** | **19.72** |
+
+Counter attribution: check -2.37, activation bound -2.1, mask -0.34 ms/pass.
+C falls 35.0 -> ~31.5. It is the first time in this campaign that C moved.
+
+### 18.4 C, finally accounted for
+
+The op profile this campaign kept deferring, differenced over token count so
+the ~30 s weight-registration prefill cancels (192-token minus 64-token):
+
+    CPU graph, decode only: 12.45 ms/token
+      GATED_DELTA_NET  4.105  33%
+      CPY              1.295  10%    165 calls/token, worst = the SSM conv state
+      CONCAT           1.079   9%     76 calls/token, conv_input [20,10240] 800 KB
+      RMS_NORM         0.938
+      UNARY            0.904
+      FLASH_ATTN_EXT   0.881
+      MUL_MAT          0.853
+      SSM_CONV         0.582
+
+So C ~= 31.5 = 12.45 (graph) + ~19 (exchange path), and nothing is unexplained
+any more. Note MUL_MAT: in the undifferenced 64-token run it reads 1114 ms and
+looks like a mass of un-offloaded matmuls. It is prefill. Differencing is the
+whole reason that reading did not become a fourth wrong hypothesis.
+
+**The best remaining lever is CPY + CONCAT = 2.37 ms/token**: the SSM conv
+state concatenated with the new token and copied back, per layer per token.
+That is structurally what 16.3 fixed for the delta-net RECURRENT state, where
+it was worth 6.4 ms. The conv state never got the same treatment.
+
+### 18.5 The divergence: pre-existing, and not the arithmetic
+
+3 of 39 runs produced speculative output that differed from the plain
+reference, with verify_fail=0 throughout. It reproduces on the PRE-change build
+(rs-before-1, acceptance 0.939), so it is not these changes -- which is what
+bit-identity already implied and this demonstrates.
+
+It is also not the rs-alias graph-reuse trap of 16.4: that audit reports
+VIOLATIONS 0. Hypothesis, measured, discarded.
+
+The anchor session proposed the test that settled it: if this is fallback
+rounding it must be pad-independent at equal fallback counts. Grouping all 39
+runs by locally-computed node count:
+
+    local=111: 1 run, 1 text   <- diverged        local=127: 2 runs, 1 text
+    local=124: 1 run, 1 text                      local=128: 5 runs, 1 text
+    local=125: 7 runs, 1 text                     local=130: 16 runs, 1 text
+    local=126: 5 runs, 1 text                     local=131: 1 run, 1 text  <- diverged
+    OVERALL: 2 distinct texts across 39 runs, with FRESH PADS every run.
+
+Every group is internally consistent, so the output is pad-independent and the
+ring arithmetic cancels exactly. The only nondeterminism is WHICH nodes fall
+back, and ggml-shielded.cpp says why that matters: the fallback "rounds like
+the CPU backend (fp32 accumulate) rather than like the field". Both diverged
+runs produced the SAME divergent text despite different pads, different builds
+and different counts -- one near-tied token at position 1 flipping, with greedy
+decoding deterministic after it.
+
+Root cause is a startup race. Line 2005 sends a group to the fp32 CPU path when
+`!live`, and the link is not live until the ~13.9 s weight upload finishes, so
+the count depends on timing. Those nodes land in prefill.
+
+**Not fixed.** SHIELDED_LOCAL_EXACT=1 exists for exactly this -- it keeps the
+int64 field path so the fallback's output IS the worker's -- and it is
+INCOMPATIBLE WITH THE COLUMN SPLIT. It works by skipping the safe whole-tensor
+CPU path, and under a split a link holds only a column slice, so it computes a
+partial product and Freivalds refuses:
+
+    split verify: blk.1.ffn_down.weight: verification FAILED
+    split probe: card 0 node 8 cols 0..2560   local rc=-10
+    split probe: card 1 node 8 cols 2560..5120 local rc=-10
+
+Reproduced twice on fresh workers with a clean default run immediately before
+each. Low severity -- diagnostic knob, default off, fails closed -- but the
+combination is broken, and the split's own fallback comment already explains
+why: "this card's own nodes are only a SLICE of each weight". Fixing the
+divergence means making that fallback produce field values under a split, or
+not decoding until every card is live.
+
+### 18.6 25 tok/s is not reachable on this hardware, and here is the arithmetic
+
+    round = W + 2C + draft, 1.83 tokens/round
+    now:  W 20.7  C 31.5  draft 5.7  -> 19.7 tok/s
+    25 tok/s needs a 73.2 ms round -> C = 23.4, i.e. -8.1 ms
+
+Every identified lever, spent perfectly: the conv state (-2.37) and the
+delta-net kernel (bf16 state, maybe -2, and a quality risk) come to ~4.4 ms,
+landing near 22.7. There is no remaining single item of the required size. W is
+GPU streaming that more cards do not help (16.6) and a narrower lane cannot
+buy (15.5). What would change the picture is a different shape of work --
+batching across requests, which is per-PASS and untouched -- or different
+hardware.
