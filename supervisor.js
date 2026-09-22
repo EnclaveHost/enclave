@@ -6008,7 +6008,24 @@ const _domainOwner = new Map();      // hostname -> dep id (reverse index: ACME 
 // relay has been asked, and must not be dropped for that. No DOMAINS_API =
 // there are no custom names to learn, so the answer is known at once.
 let _domainsKnown = !DOMAINS_API;
-const _certReports = new Map();      // hostname -> { ok, ca, error } queued for the next fetch
+const _certReports = new Map();      // hostname -> { owner, ok, ca, error } queued for the next fetch
+
+// The reports waiting for ONE deployment. Both this map and acmeRetry below are keyed by hostname
+// across the whole box, but what they are ABOUT is a (deployment, hostname) pair: a custom domain
+// can be detached from one deployment and attached to another at any moment, and when it moves it
+// must take neither the previous owner's CA backoff nor their pending report with it. Without the
+// owner check the previous tenant's ACME error - which names their zone and their DNS - was
+// delivered to the new owner's console as though it were about them.
+const pendingReports = (idL, names) => {
+  const out = [];
+  for (const h of names) {
+    const r = _certReports.get(h);
+    if (!r || r.owner !== idL) continue;
+    const { owner, ...rest } = r;
+    out.push({ hostname: h, ...rest });
+  }
+  return out;
+};
 
 function reindexDomains() {
   _domainOwner.clear();
@@ -6036,8 +6053,7 @@ async function fetchDepDomains(id) {
     // report only on the names this deployment owns, and clear them as they go:
     // a report that fails to send is retried by the next tick, not lost.
     const mine = _depDomains.get(idL) || [];
-    const report = [];
-    for (const h of mine) { const r = _certReports.get(h); if (r) report.push({ hostname: h, ...r }); }
+    const report = pendingReports(idL, mine);
     const r = await fetch(`${DOMAINS_API}/v1/domains/fetch`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: idL, endpoint: _advertisedEndpoint, ts, sig,
@@ -6050,7 +6066,8 @@ async function fetchDepDomains(id) {
       throw new Error(`HTTP ${r.status}`);
     }
     const b = await r.json();
-    for (const item of report) _certReports.delete(item.hostname);        // delivered
+    // delivered - and ours to clear only while it is still ours
+    for (const item of report) if (_certReports.get(item.hostname)?.owner === idL) _certReports.delete(item.hostname);
     const hosts = (Array.isArray(b.domains) ? b.domains : [])
       .map((h) => String(h).toLowerCase().replace(/\.+$/, ""))
       .filter((h) => /^[a-z0-9.-]{1,253}$/.test(h));
@@ -6945,7 +6962,16 @@ if (TLS_BRIDGE_CTX) console.log(`[tls-bridge] in-enclave TLS termination enabled
 // on /tls/) gets a CA-signed cert whose key never left this CVM.
 // ============================================================================
 const acmeCerts = new Map();   // name -> { keyPem, certPem, ctx, expiresAt, renewAt, issuer, cached }
-const acmeRetry = new Map();   // name -> { failures, nextAt } (per-name backoff)
+const acmeRetry = new Map();   // name -> { owner, failures, nextAt } (per-name backoff)
+
+// A backoff belongs to the deployment that EARNED it. Read by name alone, one deployment's
+// rate-limited order suppressed the next owner's first attempt ever - for up to the hour cap - and
+// the escalating failure count carried over with it, so the new owner's domain sat uncertified
+// while the CA would have said yes. `owner` is null for the platform's own names, which is what
+// customDomainOwner returns for them, so their backoff behaves exactly as before.
+const acmeMine = (name) => { const rt = acmeRetry.get(name); return rt && rt.owner === customDomainOwner(name) ? rt : null; };
+const acmeBackoffUntil = (name) => acmeMine(name)?.nextAt || 0;
+const acmeFailures = (name) => acmeMine(name)?.failures || 0;
 const acmeQueue = [];          // names awaiting issuance, FIFO, deduped
 let _acmePumping = false;
 const sleepMs = (ms) => new Promise((r) => { const t = setTimeout(r, ms); if (t.unref) t.unref(); });
@@ -7281,7 +7307,7 @@ function acmeReconcile() {
     if (r.status !== "running" && r.status !== "claimed") continue;
     for (const name of desiredCertNames(r)) {
       if (acmeCerts.get(name)?.renewAt > now) continue;       // held and still fresh
-      if (acmeRetry.get(name)?.nextAt > now)  continue;       // failing; wait out the backoff
+      if (acmeBackoffUntil(name) > now)      continue;       // failing; wait out the backoff (OURS)
       if (!acmeQueue.includes(name)) acmeQueue.push(name);
       desired.add(name);
     }
@@ -7358,22 +7384,22 @@ async function acmePump() {
         acmeStore()?.putCert(name, issued);                   // replaces the previous record for the name
         // A customer's domain: tell the relay, which is the only path by which
         // the person who owns that name learns their certificate exists.
-        if (customDomainOwner(name)) _certReports.set(name, { ok: true, ca: issued.issuer });
+        if (customDomainOwner(name)) _certReports.set(name, { owner: customDomainOwner(name), ok: true, ca: issued.issuer });
         console.log(`[acme] issued ${name} via ${issued.issuer}${issued.cached ? " [cached]" : ""} (expires ${new Date(issued.expiresAt).toISOString()})`);
       } catch (e) {
         // Three kinds of failure, three kinds of wait (acmeRetryPlan says
         // which and why): a platform deferral retries when the service said
         // and counts no failure; a cooling slot retries the moment it is back;
         // name-level rejection everywhere gets the doubling backoff.
-        const prev = acmeRetry.get(name)?.failures || 0;
+        const prev = acmeFailures(name);
         const { failures, nextAt, why } = acmeRetryPlan(e, prev, acmeSlotsFor(name).map((ca) => ca.downUntil));
-        acmeRetry.set(name, { failures, nextAt });
+        acmeRetry.set(name, { failures, nextAt, owner: customDomainOwner(name) });
         acmeReconcileAt(nextAt);
         const inSec = Math.round((nextAt - Date.now()) / 1000);
         if (why === "deferred") { console.log(`[acme] deferred ${name}: ${e.message} (asking again in ${inSec}s)`); await sleepMs(2000); continue; }
         // …and the same on failure. "Your domain has no certificate and here is
         // the CA's reason" is the single most useful thing this feature can say.
-        if (customDomainOwner(name)) _certReports.set(name, { ok: false, error: `${e.message} (attempt ${failures})` });
+        if (customDomainOwner(name)) _certReports.set(name, { owner: customDomainOwner(name), ok: false, error: `${e.message} (attempt ${failures})` });
         console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${inSec}s${why === "cooling" ? ", when a cooling slot is back" : ""})`);
       }
       await sleepMs(2000);
@@ -7456,6 +7482,29 @@ const internalAppServer = http.createServer((req, res) => {
   req.url = `/x/${fullId}${req.url.startsWith("/") ? "" : "/"}${req.url}`;
   app(req, res);                                              // the express app is a plain (req,res) function
 });
+// DOMAIN_CARRYOVER_SELFTEST=1 - a custom hostname moves between deployments, and the per-name
+// state its previous owner left behind must stop applying the moment it moves. Same contract as
+// the ACME_SELFTEST seams above: one JSON line, then exit, before any boot side effect. It calls
+// the production helpers (pendingReports, acmeBackoffUntil, acmeFailures) and the production
+// index (reindexDomains), because a seam that reimplemented the ownership check would go green
+// whatever this file did - which is exactly how the Windows node's own copy of this bug survived.
+if (process.env.DOMAIN_CARRYOVER_SELFTEST) {
+  const NAME = "shop.example.com", A = "0x" + "aa".repeat(32), B = "0x" + "bb".repeat(32);
+  const look = (id) => ({ blocked: acmeBackoffUntil(NAME) > Date.now(),
+                          failures: acmeFailures(NAME),
+                          report: pendingReports(id, [NAME]) });
+  _depDomains.set(A, [NAME]); reindexDomains();
+  // A asks, its CA refuses six times running, and A is in the hour-long cap.
+  acmeRetry.set(NAME, { failures: 6, nextAt: Date.now() + 3600_000, owner: customDomainOwner(NAME) });
+  _certReports.set(NAME, { owner: customDomainOwner(NAME), ok: false,
+                           error: "dns-01 lookup failed for a zone A controls" });
+  const asA = look(A);
+  // The customer detaches the name from A and attaches it to B.
+  _depDomains.delete(A); _depDomains.set(B, [NAME]); reindexDomains();
+  console.log(JSON.stringify({ owner: customDomainOwner(NAME), asA, asB: look(B) }));
+  process.exit(0);
+}
+
 internalAppServer.keepAliveTimeout = 180_000;                 // match the data path's idle allowance
 internalAppServer.headersTimeout   = 185_000;                 // must exceed keepAliveTimeout (Node's slowloris guard)
 internalAppServer.requestTimeout   = 0;                       // streaming request/response bodies can be long-lived
