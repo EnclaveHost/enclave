@@ -904,3 +904,47 @@ Three claims from the adversarial validation were overstated and are corrected h
 * **What coherent output proves.** Mode 2 completing at 1.45 tok/s with readable text, having rejected 3360
   false rails over 3414 recomputations, is evidence the reject path runs and does not wedge. It is not
   evidence of numerical correctness; only a comparison against a reference is that.
+
+## Halving the reply on the TPU: three constructions, one compiler crash (2026-09-22)
+
+The reply is the larger half of the link by a wide margin -- 3432 KB per token against 1039 out -- and all
+of that excess is digit-split: the TPU returns `W.hi` and `W.lo` as separate int16 rows and the VM forms
+`256*hi + lo` itself. If the TPU did the recombination, the reply would halve, the per-row cost `C` would
+halve with it, and the asymptotic ceiling that `C` sets would move from about 4.7 to about 9.4 tok/s.
+That is the only lever found so far that moves the CEILING rather than closing distance to it, so it is
+worth being exact about why it is unavailable.
+
+**First, a correction.** `a8w4/probe_combine.py` was written to answer this and its result was recorded as
+"the compiler accepted it". It did not. The probe checked `os.path.exists(dst)`, and `apply.sh` creates
+the destination BEFORE compiling, so an empty file read as success: `comb_slice_add_g5.tflite` and
+`comb_split_add_g5.tflite` have been sitting on disk at **zero bytes** since 2026-09-19 while the notes
+said otherwise. The check now requires a non-zero size and prints the compiler's own tail.
+
+With that fixed, three different ways of saying "add the first R rows to the last R rows" were tried
+against the Tensor G5 AOT compiler, at the real shape (`[10, 2048]` int8 in, int4 weights, `[5, 8192]`
+int16 out):
+
+| construction | ops after the FC | result |
+|---|---|---|
+| none (ship today) | -- | compiles, 8.6 MB |
+| split_add | STRIDED_SLICE x2 + ADD | **INTERNAL compiler error, 0 bytes** |
+| slice_add | SLICE x2 + ADD | **INTERNAL compiler error, 0 bytes** |
+| split_op | SPLIT + ADD | **INTERNAL compiler error, 0 bytes** |
+
+All three fail identically at `apply_plugin.cc:455` with `error type: INTERNAL`, which is a compiler crash
+and not a rejection -- the ops are individually compilable (`sh_split`, `sh_reduce_sum`, `op_add_*` all
+build), and it is combining them with the FC's int16 output that trips it. So this is a defect to report
+upstream rather than a statement about what the silicon can do.
+
+The alternatives do not rescue it either, and both fail for the same structural reason:
+
+* **Two FCs against one weight tensor** lets the TPU add the results, but emits the weights twice
+  (35.6 -> 71.9 MB on a real layer). Weight streaming is what `tpu-run` spends its time on (1.948 ms per
+  exchange, 273 ms per token), so doubling it costs about +273 ms to save about 78 ms. Strictly worse.
+* **Folding the 256 into the weights** -- laying the input out as `[R, 2*n_in]` with `[256*W; W]` stacked
+  -- needs a different scale for two blocks of INPUT columns. Quantised FULLY_CONNECTED has per-OUTPUT-
+  channel weight scales and nothing per input block, so it cannot be expressed. This, not preference, is
+  why the digits are stacked as rows and the VM does the recombination.
+
+So the reply stays doubled, `C` stays at about 1.515 ms per row per exchange, and the ceiling stays where
+the row sweep put it.
