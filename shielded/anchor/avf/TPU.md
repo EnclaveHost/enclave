@@ -2683,3 +2683,38 @@ for inference in a pVM, the Pixel 11 TPU context for a guest to own an accelerat
 commits loading NPU drivers into Microdroid. Every piece is first-party. A third-party app gets a pVM
 with an empty device list and no route to any of it -- on `android17-release`, on `main`, and on the
 build installed here.
+
+## The one topology that meets the intent -- and what it gives up (2026-09-22)
+
+Every route above assumes the accelerator is THIS phone's TPU and the only trusted domain is THIS pVM.
+Drop the first assumption and a different topology appears, the one Apple uses for Private Cloud
+Compute: the phone pVM stays the root of trust, and before it releases any secret it ATTESTS a remote
+accelerator that is itself inside a hardware TEE. The model then runs whole, in plaintext, inside that
+TEE; tokens stream back over one attested connection. No masking, no 140 crossings per token, and the
+phone's CPU does almost nothing.
+
+**Is there a confidential TPU anywhere?** No. Google Cloud's documentation says flatly that TPUs cannot
+be attached to Confidential VM instances, and its June 2026 confidential-computing announcement lists
+NVIDIA GPUs only -- Hopper generally available in Confidential Space, RTX PRO 6000 Blackwell in preview
+on Confidential G4 VMs, and Blackwell serving Apple Private Cloud Compute on Google Cloud. So the remote
+accelerator in this topology is a confidential GPU, and that is the first requirement it relaxes.
+
+Against the three requirements, honestly:
+
+| | this topology |
+|---|---|
+| pVM as root of trust | yes -- it holds the keys and attests the remote before releasing anything |
+| heavy compute off the phone CPU | yes -- entirely remote |
+| >= 15 tok/s | yes, by a wide margin -- a confidential H100/H200 serves a model this size far faster |
+| "the TPU" | **no** -- no confidential TPU exists; it is a confidential GPU |
+| "all secrets inside" the pVM | **partly** -- inside attested TEEs throughout, but they leave the phone for a second one |
+
+It also depends on the network, which the on-device designs do not.
+
+The pieces largely exist here already: `RelayAttach` attests the phone pVM to the relay as
+`android-avf-pvm/v2` with its own key, and the platform runs models inside confidential GPU TEEs with
+in-enclave TLS termination. What is missing is the reverse direction -- the pVM verifying the REMOTE
+TEE's attestation and holding a channel that terminates inside it.
+
+This does not satisfy the goal as written; it satisfies what the goal is FOR. Whether trading "the TPU"
+for "an attested remote accelerator" is acceptable is not a technical question.
