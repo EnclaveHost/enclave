@@ -31,19 +31,23 @@ ap.add_argument('--no-graphs', action='store_true', help='write only the lane bu
 ap.add_argument('--mod-headroom', type=float, default=1.0, help='modular: modulus = next power of two above headroom*(2*sig_q+1). '
                 'Security is IDENTICAL for every value (the pad is uniform on the modulus either way); this only trades '
                 'resolution against the VM-side wrap correction, whose density falls as 1/headroom.')
-ap.add_argument('--digit-combine', action='store_true', help='RECOMBINE the digits on the TPU: hi and lo go in as '
-                'two int8 tensors, two FULLY_CONNECTEDs share ONE weight buffer at scales differing by 256, and an '
-                'elementwise ADD returns 256*hi + lo as ONE int16 row per logical row. Halves the reply (3432 -> 1716 '
-                'KB/token) and is more accurate, because the hi rounding is no longer multiplied by 256 on the way '
-                'out (simulated 1.000/0.409 max/rms output LSB against the stacked design 1.254/0.722). Implies '
-                '--digit-split. Needs a worker that binds TWO inputs, and the bundle magic becomes ETPUB003.')
+ap.add_argument('--digit-combine', action='store_true', help='EXPERIMENTAL, NOT DEPLOYABLE. Recombine the digits '
+                'on the TPU: hi and lo as two int8 input tensors, two FULLY_CONNECTEDs whose weight tensors share one '
+                'buffer at scales differing by 256, and an elementwise ADD returning one int16 row per logical row. '
+                'Bundle magic ETPUB003, which every current payload REFUSES -- deliberately, because nothing has '
+                'validated the two-input contract end to end: the app-side worker binds exactly one input '
+                '(tpu_worker_jni.cc, in->size() != 1) and the VM still recombines. WHETHER IT EVEN COMPILES IS '
+                'UNKNOWN: the AOT compiler is not deterministic here and currently fails on the shipped known-good '
+                'layer too, so neither the earlier claim that this works nor the retraction that it does not is '
+                'evidence. Any saving (reply 3432 -> 1716 KB/token) and any accuracy change are SIMULATED and '
+                'unmeasured on silicon. Implies --digit-split.')
 ap.add_argument('--digit-split', action='store_true', help='send each masked row as TWO int8 digits, q = 256*hi + lo, instead of one '
                 'int16 row, stacked as rows: hi in [0, rows), lo in [rows, 2*rows). Same bytes OUT and the same weights, but the '
                 'compiler no longer stores every weight at two bytes to feed an int16 activation: measured on a real layer, '
                 '74.9 -> 36.4 MB compiled, i.e. HALF the bytes the TPU streams per token, which is 338 of the 722 ms a token costs. '
                 'Rows are free on this TPU, so one FULLY_CONNECTED still does it. The VM recombines 256*hi + lo, which doubles the '
                 'reply; recombining on the TPU instead needs two FCs and MEASURED 71.9 MB - the second FC emits the weights again and '
-                'cancels the saving. Bundle magic becomes ETPUB002 so a payload that does not digit-split refuses it loudly.')
+                'cancels the saving (but see --digit-combine: the "weights emitted twice" measurement behind that claim does NOT hold -- the compiler deduplicates by content). Bundle magic ETPUB002 so a payload that does not digit-split refuses it loudly.')
 A = ap.parse_args()
 if A.digit_combine:
     A.digit_split = True          # combining is a variant of digit-split, not an alternative to it
@@ -193,9 +197,16 @@ for L in want:
     if not A.no_graphs: fu.write_model(b.m, f'{A.outdir}/L{L}.tflite')
     print(f'L{L}: {(os.path.getsize(f"{A.outdir}/L{L}.tflite") >> 20) if not A.no_graphs else 0} MB, ' + ', '.join(f"{KINDS[g['kind']][1]}[{'+'.join(p['name'].split('.')[2] for p in g['projs'])}] s_in={g['s_in']:.3g}" for g in groups[-4:]), flush=True)
 with open(f'{A.outdir}/lanes.etpu', 'wb') as f:
-    # ETPUB002 marks a digit-split bundle: the payload must send two int8 digit rows, not one int16 row.
-    # A mismatched pair must fail loudly rather than decode plausible nonsense (see the modular-lane lesson).
-    f.write((b'ETPUB002' if A.digit_split else b'ETPUB001') + struct.pack('<I', len(groups))); pad8(f)
+    # The marker is the ONLY thing standing between a payload and a bundle whose graphs expect a different
+    # wire contract, and a mismatch decodes to plausible nonsense rather than failing (the modular-lane
+    # lesson). So each contract gets its own:
+    #   ETPUB001  one int16 row per logical row, ONE graph input
+    #   ETPUB002  two int8 digit rows stacked, ONE graph input, the VM recombines
+    #   ETPUB003  two int8 digit rows as TWO graph inputs, the accelerator recombines, reply is one row
+    # A combine bundle previously wrote ETPUB002, which an ETPUB002 payload ACCEPTS while its graphs take
+    # a different number of inputs entirely. That is exactly the silent mismatch this field exists to stop.
+    magic = b'ETPUB003' if A.digit_combine else (b'ETPUB002' if A.digit_split else b'ETPUB001')
+    f.write(magic + struct.pack('<I', len(groups))); pad8(f)
     for g in groups:
         f.write(struct.pack('<HBBIff', g['layer'], g['kind'], len(g['projs']), g['n_in'], float(g['s_in']), -1.0 if A.modular else A.k))
         f.write(g['s'].tobytes()); f.write(g['sig_q'].tobytes()); f.write(g['r_amp'].tobytes()); pad8(f)
