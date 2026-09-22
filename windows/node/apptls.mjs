@@ -145,9 +145,19 @@ const RENEW_BEFORE_MS = 21 * 24 * 3600 * 1000;      // a 90-day certificate, ren
  * the CA's rate limit for the same name and leave the app unreachable in the meantime. The key is
  * written with the file, which is the exposure this module's header is about.
  */
-export async function ensureCert({ id, endpoint, sign, base, dir, zone = "app.enclave.host", log = () => {} }) {
-  const name = appHostFor(id, zone);
-  const file = path.join(dir, `apptls-${labelFor(id)}.json`);
+export async function ensureCert({ id, endpoint, sign, base, dir, zone = "app.enclave.host",
+                                  hostname = null, log = () => {} }) {
+  // `hostname` is a CUSTOM DOMAIN the deployment's owner attached and the relay has proven for it
+  // (relay/domains.js). Everything below is identical for either kind of name - the certificate
+  // service authorizes both, one because the platform owns the zone and the other because the
+  // owner proved the DNS - so the only thing that changes is which name is asked for and where the
+  // key is filed. Absent, this is the app's own subdomain exactly as before.
+  const name = hostname ? String(hostname).toLowerCase().replace(/\.+$/, "") : appHostFor(id, zone);
+  // One file per NAME, not per deployment: a deployment with three hostnames has three keys and
+  // three orders in flight, and filing them together would have each one overwrite the last -
+  // which is the orphaned-order failure this function's next comment exists to prevent.
+  const slug = hostname ? `${labelFor(id)}-${name.replace(/[^a-z0-9.-]/g, "_")}` : labelFor(id);
+  const file = path.join(dir, `apptls-${slug}.json`);
   let have = null;
   try { have = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
   if (have && have.name === name && have.certPem && have.keyPem
