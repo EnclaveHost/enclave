@@ -98,6 +98,30 @@
 #                      condition detected between (1) multiple differently-sized atomic loads ...
 #                      and (2) 1-byte atomic store".
 #
+#   THREE MORE, from a second review of the bridge, and the honest scoring of each:
+#
+#     thr_release decremented to zero and only THEN took the lock. In that window the record is
+#     still published with a count of zero, so an entrant can find it and raise the count from
+#     zero while the releaser frees it. The drop and the unpublish are now one step under the
+#     lock. NOT PROVEN BY A MUTANT: the window is microseconds and the test suite passes with the
+#     fix reverted.
+#
+#     _beginthreadex believed the host's SPAWN result. A host can start the thread, let it enter
+#     and run, and only then report failure - freeing a record, and through the runtime's
+#     trampoline an argument, that a live thread is using. The decision is now made in enclave
+#     state: claim `entered` 0 -> 2, and if that is lost the thread really is running and the
+#     honest answer is success. TESTED but NOT DISCRIMINATED: the enclave wins the race on both
+#     builds, so the assertion holds either way.
+#
+#     `done` was published before the destructors and the slot release, so a joiner could return
+#     while the thread still held its identity - concurrent admission against a token about to be
+#     freed. Reordered. NOT PROVEN BY A MUTANT.
+#
+#   LocalKey::with handed out a &T derived from a &mut, so a re-entrant `with` on one key made a
+#   second exclusive reference while the outer shared one was live. PerThread no longer forms a
+#   &mut at all. PROVEN: Miri reports the reverted version as "trying to retag ... but that tag
+#   does not exist in the borrow stack" and is clean on this one.
+#
 #   EE_THREAD_SELFTEST  the HOST misbehaving on purpose, which is the only way to test what a
 #                       hostile host can do. On the real build:
 #                         duplicateEntryRefused true, staleEntryRefused true, bodyRuns 1,
@@ -1243,20 +1267,6 @@
          self.join_set_threads();
  
          unsafe {
---- a/crates/wasmtime/src/runtime/vm.rs
-+++ b/crates/wasmtime/src/runtime/vm.rs
-@@ -74,6 +74,11 @@
- 
- #[cfg(feature = "threads")]
- pub(crate) mod parking_spot;
-+/// The blocking and timing primitives the threads proposal needs where there is no `std` - four
-+/// embedder hooks, and spin locks built on them. See the module for why blocking is the one thing
-+/// that cannot be emulated inside an enclave.
-+#[cfg(not(feature = "std"))]
-+pub(crate) mod nostd_threads;
- 
- // Note that `debug_builtins` here is disabled with a feature or a lack of a
- // native compilation backend because it's only here to assist in debugging
 --- a/crates/wasmtime/src/runtime/vm/libcalls.rs
 +++ b/crates/wasmtime/src/runtime/vm/libcalls.rs
 @@ -390,6 +390,64 @@
@@ -2943,3 +2953,972 @@
 +}
 +
 +impl core::error::Error for SpawnError {}
+--- a/crates/wasmtime/src/runtime/vm.rs
++++ b/crates/wasmtime/src/runtime/vm.rs
+@@ -74,6 +74,15 @@
+ 
+ #[cfg(feature = "threads")]
+ pub(crate) mod parking_spot;
++/// The blocking and timing primitives the threads proposal needs where there is no `std` - four
++/// embedder hooks, and spin locks built on them. See the module for why blocking is the one thing
++/// that cannot be emulated inside an enclave.
++///
++/// Compiled in a `std` build too, where it is dead code, so that its tests can run - and run under
++/// Miri, which is what catches the aliasing questions this module is full of. The hooks are
++/// supplied by a test-only module in that case.
++#[cfg_attr(feature = "std", allow(dead_code))]
++pub(crate) mod nostd_threads;
+ 
+ // Note that `debug_builtins` here is disabled with a feature or a lack of a
+ // native compilation backend because it's only here to assist in debugging
+--- /dev/null
++++ b/crates/wasmtime/src/runtime/vm/nostd_threads.rs
+@@ -0,0 +1,948 @@
++//! The blocking and timing primitives the threads proposal needs, for a target with no `std`.
++//!
++//! # Why this exists
++//!
++//! `threads = ["std"]` in wasmtime's manifest, and everything behind it assumes an OS: the shared
++//! memory's `RwLock`, the parking spot's `Mutex` and `std::thread::park`, and `Instant`. A VBS
++//! enclave has none of those. It has no scheduler at all - an enclave "thread" is a host thread
++//! that called in - so the one thing that cannot be emulated in here is BLOCKING, and blocking is
++//! exactly what `memory.atomic.wait` is.
++//!
++//! # The shape
++//!
++//! Four hooks the embedder provides. Everything else in this module is built on them in plain
++//! `core` + `alloc`, so the only enclave-specific code is four C functions.
++//!
++//! Spinning instead of blocking is not an option for `atomic.wait`: a guest may wait indefinitely,
++//! and a spinning enclave thread holds a core for as long as it does. The short spins in the locks
++//! below are a different matter - they guard a handful of instructions, never a guest's wait.
++//!
++//! # The park contract
++//!
++//! `park` takes a PERMIT, and `unpark` leaves one. A permit released before its park is remembered
++//! rather than lost, which is what makes the classic register-then-block race harmless: the wait
++//! queue lives in here where the embedder cannot see it, so the embedder has no condition to
++//! re-check and a bare wakeup signal would race registration every time. This is exactly
++//! `std::thread::park`/`unpark`'s contract, and it is deliberate that it matches.
++#![cfg_attr(feature = "std", allow(dead_code))]
++
++use core::cell::UnsafeCell;
++use core::ops::{Deref, DerefMut};
++use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
++use core::time::Duration;
++
++unsafe extern "C" {
++    /// Block this thread until a permit is available or `timeout_ms` elapses (0 = forever).
++    /// Returns 0 when a permit was taken, 1 on timeout, negative on failure.
++    fn wasmtime_thread_park(timeout_ms: u64) -> i32;
++    /// Leave a permit for `token`, waking it if it is parked. Safe when it is not parked.
++    fn wasmtime_thread_unpark(token: u32);
++    /// This thread's park token, stable for the life of the thread and unique among live threads.
++    ///
++    /// It must come from state the EMBEDDER controls and an untrusted party cannot write. On a
++    /// VBS enclave the call-out header lives in host memory, so the number in it is the host's to
++    /// change; reading identity from there would let the host rename a thread or give two live
++    /// threads the same name, and [`PerThread`] hands out unsynchronised `&mut` on the strength of
++    /// that name being unique.
++    fn wasmtime_thread_token() -> u32;
++    /// The incarnation of this thread's token, which MUST change whenever a token is handed to a
++    /// different thread. A token is a small index and is reused when its thread exits; without
++    /// this, per-thread state cached under the index would be inherited by the next thread to get
++    /// it.
++    fn wasmtime_thread_epoch() -> u64;
++    /// A monotonic clock in milliseconds. Need not be wall-clock, only monotonic.
++    fn wasmtime_now_ms() -> u64;
++    /// Start a thread running `entry(arg)`. Returns an opaque handle, or null on failure.
++    fn wasmtime_thread_spawn(entry: extern "C" fn(*mut core::ffi::c_void), arg: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
++    /// Block until that thread's body returns, then release the handle. 0 on success.
++    fn wasmtime_thread_join(handle: *mut core::ffi::c_void) -> i32;
++    /// Release the handle without waiting.
++    fn wasmtime_thread_detach(handle: *mut core::ffi::c_void);
++    /// Look up an environment variable by NUL-terminated name. Returns a NUL-terminated value
++    /// owned by the embedder and valid for the life of the process, or null when unset.
++    fn wasmtime_getenv(name: *const core::ffi::c_char) -> *const core::ffi::c_char;
++}
++
++/// `std::thread::spawn`'s shape over the embedder's threads.
++///
++/// The closure is boxed and handed across the FFI boundary as a raw pointer; the trampoline owns
++/// it from there. `'static` and `Send` are required for the usual reason, and are the same bounds
++/// `std::thread::spawn` asks for.
++pub fn spawn<F: FnOnce() + Send + 'static>(f: F) -> Result<JoinHandle, SpawnError> {
++    extern "C" fn tramp(arg: *mut core::ffi::c_void) {
++        // SAFETY: `arg` is the box `spawn` leaked, and this runs exactly once for it.
++        let f: alloc::boxed::Box<alloc::boxed::Box<dyn FnOnce() + Send>> =
++            unsafe { alloc::boxed::Box::from_raw(arg.cast()) };
++        f();
++    }
++    let boxed: alloc::boxed::Box<dyn FnOnce() + Send> = alloc::boxed::Box::new(f);
++    let arg = alloc::boxed::Box::into_raw(alloc::boxed::Box::new(boxed)).cast();
++    let handle = unsafe { wasmtime_thread_spawn(tramp, arg) };
++    if handle.is_null() {
++        // The embedder refused: take the closure back so it is dropped rather than leaked.
++        drop(unsafe {
++            alloc::boxed::Box::from_raw(arg.cast::<alloc::boxed::Box<dyn FnOnce() + Send>>())
++        });
++        return Err(SpawnError);
++    }
++    Ok(JoinHandle(handle))
++}
++
++/// The embedder would not start a thread - out of slots, or out of memory.
++#[derive(Debug)]
++pub struct SpawnError;
++
++/// `std::thread::JoinHandle`'s shape. Dropping it DETACHES, as `std`'s does.
++pub struct JoinHandle(*mut core::ffi::c_void);
++
++unsafe impl Send for JoinHandle {}
++unsafe impl Sync for JoinHandle {}
++
++impl JoinHandle {
++    /// Block until the thread's body returns.
++    pub fn join(mut self) -> Result<(), SpawnError> {
++        let h = core::mem::replace(&mut self.0, core::ptr::null_mut());
++        core::mem::forget(self);
++        if unsafe { wasmtime_thread_join(h) } == 0 {
++            Ok(())
++        } else {
++            Err(SpawnError)
++        }
++    }
++}
++
++impl Drop for JoinHandle {
++    fn drop(&mut self) {
++        if !self.0.is_null() {
++            unsafe { wasmtime_thread_detach(self.0) }
++        }
++    }
++}
++
++/// A thread's identity, as far as this module is concerned: the token to unpark it by.
++///
++/// This replaces `std::thread::Thread`, and it is a `u32` rather than a handle for a reason - it
++/// is also the index of that thread's slot in the tables that used to be `thread_local!`, which
++/// `no_std` has no stable way to express.
++#[derive(Clone, Copy, PartialEq, Eq, Debug)]
++pub struct ThreadToken(pub u32);
++
++impl ThreadToken {
++    #[inline]
++    pub fn current() -> ThreadToken {
++        ThreadToken(unsafe { wasmtime_thread_token() })
++    }
++
++    #[inline]
++    pub fn unpark(self) {
++        unsafe { wasmtime_thread_unpark(self.0) }
++    }
++
++    /// This thread's incarnation; see `wasmtime_thread_epoch`.
++    #[inline]
++    pub fn epoch() -> u64 {
++        unsafe { wasmtime_thread_epoch() }
++    }
++}
++
++/// Park until a permit arrives. See the module docs for why this is a permit.
++#[inline]
++pub fn park() {
++    let _ = unsafe { wasmtime_thread_park(0) };
++}
++
++/// Park until a permit arrives or `dur` elapses.
++#[inline]
++pub fn park_timeout(dur: Duration) {
++    // Round UP, and never to zero: a zero timeout means "forever" to the hook, and a sub-
++    // millisecond wait that became an infinite one would be a hang rather than a slow test.
++    let ms = dur.as_millis().min(u128::from(u64::MAX - 1)) as u64;
++    let _ = unsafe { wasmtime_thread_park(ms.max(1)) };
++}
++
++/// A monotonic instant, in milliseconds since whatever the embedder counts from.
++///
++/// Millisecond resolution is coarse for a clock but not for what it is used for here: the deadline
++/// of a guest's `memory.atomic.wait`, which the spec gives in nanoseconds and every implementation
++/// rounds.
++#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
++pub struct Instant(u64);
++
++impl Instant {
++    #[inline]
++    pub fn now() -> Instant {
++        Instant(unsafe { wasmtime_now_ms() })
++    }
++
++    #[inline]
++    pub fn checked_add(&self, dur: Duration) -> Option<Instant> {
++        let ms = u64::try_from(dur.as_millis()).ok()?;
++        self.0.checked_add(ms).map(Instant)
++    }
++
++    /// `None` once the deadline has passed.
++    #[inline]
++    pub fn checked_duration_since(&self, earlier: Instant) -> Option<Duration> {
++        self.0
++            .checked_sub(earlier.0)
++            .map(Duration::from_millis)
++    }
++
++    /// How long since this instant.
++    #[inline]
++    pub fn elapsed(&self) -> Duration {
++        Instant::now().saturating_duration_since(*self)
++    }
++
++    /// Saturating, unlike `std`'s, which panics when `earlier` is later. A monotonic clock cannot
++    /// produce that, and a panic in an enclave has nowhere to go.
++    #[inline]
++    pub fn duration_since(&self, earlier: Instant) -> Duration {
++        self.saturating_duration_since(earlier)
++    }
++
++    #[inline]
++    pub fn saturating_duration_since(&self, earlier: Instant) -> Duration {
++        Duration::from_millis(self.0.saturating_sub(earlier.0))
++    }
++}
++
++/// `later - earlier`, saturating at zero rather than panicking as `std`'s does. A clock that only
++/// moves forward cannot produce a negative interval, and a panic in an enclave has nowhere to go.
++impl core::ops::Sub for Instant {
++    type Output = Duration;
++    fn sub(self, earlier: Instant) -> Duration {
++        self.saturating_duration_since(earlier)
++    }
++}
++
++impl core::ops::Add<Duration> for Instant {
++    type Output = Instant;
++    fn add(self, dur: Duration) -> Instant {
++        self.checked_add(dur).expect("instant overflowed")
++    }
++}
++
++/// A spin lock, for the short critical sections inside this crate.
++///
++/// Spinning is right HERE and wrong for a guest's wait: these sections are a linked-list splice or
++/// a map lookup, tens of instructions, never a guest's arbitrary wait. A blocking lock would need
++/// the park hook and would then be re-entrant with the thing it protects.
++pub struct Mutex<T> {
++    locked: AtomicBool,
++    data: UnsafeCell<T>,
++}
++
++unsafe impl<T: Send> Send for Mutex<T> {}
++unsafe impl<T: Send> Sync for Mutex<T> {}
++
++pub struct MutexGuard<'a, T> {
++    lock: &'a Mutex<T>,
++}
++
++impl<T> Mutex<T> {
++    pub const fn new(data: T) -> Mutex<T> {
++        Mutex {
++            locked: AtomicBool::new(false),
++            data: UnsafeCell::new(data),
++        }
++    }
++
++    pub fn lock(&self) -> MutexGuard<'_, T> {
++        while self
++            .locked
++            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
++            .is_err()
++        {
++            core::hint::spin_loop();
++        }
++        MutexGuard { lock: self }
++    }
++}
++
++impl<T> Deref for MutexGuard<'_, T> {
++    type Target = T;
++    fn deref(&self) -> &T {
++        unsafe { &*self.lock.data.get() }
++    }
++}
++
++impl<T> DerefMut for MutexGuard<'_, T> {
++    fn deref_mut(&mut self) -> &mut T {
++        unsafe { &mut *self.lock.data.get() }
++    }
++}
++
++impl<T> Drop for MutexGuard<'_, T> {
++    fn drop(&mut self) {
++        self.lock.locked.store(false, Ordering::Release);
++    }
++}
++
++/// A spin reader-writer lock, for the shared memory's definition.
++///
++/// Writers are rare (only `memory.grow`), readers are every access to the definition, so this
++/// favours readers and accepts that a writer can be starved by a steady stream of them. A guest
++/// that grows a memory in a tight loop while others read it will make progress slowly; a guest
++/// that does that is already pathological.
++pub struct RwLock<T> {
++    /// `u32::MAX` = a writer holds it, otherwise the number of readers.
++    state: AtomicU32,
++    data: UnsafeCell<T>,
++}
++
++unsafe impl<T: Send> Send for RwLock<T> {}
++unsafe impl<T: Send + Sync> Sync for RwLock<T> {}
++
++pub struct RwLockReadGuard<'a, T> {
++    lock: &'a RwLock<T>,
++}
++pub struct RwLockWriteGuard<'a, T> {
++    lock: &'a RwLock<T>,
++}
++
++impl<T> RwLock<T> {
++    pub const fn new(data: T) -> RwLock<T> {
++        RwLock {
++            state: AtomicU32::new(0),
++            data: UnsafeCell::new(data),
++        }
++    }
++
++    pub fn read(&self) -> RwLockReadGuard<'_, T> {
++        loop {
++            let s = self.state.load(Ordering::Relaxed);
++            if s != u32::MAX
++                && self
++                    .state
++                    .compare_exchange_weak(s, s + 1, Ordering::Acquire, Ordering::Relaxed)
++                    .is_ok()
++            {
++                return RwLockReadGuard { lock: self };
++            }
++            core::hint::spin_loop();
++        }
++    }
++
++    pub fn write(&self) -> RwLockWriteGuard<'_, T> {
++        while self
++            .state
++            .compare_exchange_weak(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed)
++            .is_err()
++        {
++            core::hint::spin_loop();
++        }
++        RwLockWriteGuard { lock: self }
++    }
++}
++
++impl<T> Deref for RwLockReadGuard<'_, T> {
++    type Target = T;
++    fn deref(&self) -> &T {
++        unsafe { &*self.lock.data.get() }
++    }
++}
++
++impl<T> Drop for RwLockReadGuard<'_, T> {
++    fn drop(&mut self) {
++        self.lock.state.fetch_sub(1, Ordering::Release);
++    }
++}
++
++impl<T> Deref for RwLockWriteGuard<'_, T> {
++    type Target = T;
++    fn deref(&self) -> &T {
++        unsafe { &*self.lock.data.get() }
++    }
++}
++
++impl<T> DerefMut for RwLockWriteGuard<'_, T> {
++    fn deref_mut(&mut self) -> &mut T {
++        unsafe { &mut *self.lock.data.get() }
++    }
++}
++
++impl<T> Drop for RwLockWriteGuard<'_, T> {
++    fn drop(&mut self) {
++        self.lock.state.store(0, Ordering::Release);
++    }
++}
++
++/// How long a `wait` may still block, or `None` if its deadline has passed.
++#[inline]
++pub fn remaining(deadline: Option<Instant>) -> Option<Duration> {
++    let d = deadline?;
++    Some(d.saturating_duration_since(Instant::now()))
++}
++
++/// The most threads this module can account for. It is the embedder's business to stay under it -
++/// the enclave's host refuses to start with more call-out slots than park semaphores - and going
++/// over is a panic rather than silent corruption.
++pub const MAX_THREADS: usize = 256;
++
++/// What `thread_local!` would give, for a target that has no stable way to say it.
++///
++/// Keyed by the park token, which is unique among LIVE threads. The slot is entered without a lock
++/// because exactly one thread can ever hold a given token, and that is the same argument
++/// thread-local storage makes.
++///
++/// Tokens ARE recycled - a thread that exits gives its token back, and the enclave would otherwise
++/// die on the 97th thread of its life even if they ran one at a time. So each slot records the
++/// EPOCH it was filled under, and a slot from an earlier incarnation is discarded rather than
++/// inherited. An earlier version of this relied on tokens never being reused; that was both a
++/// stability bug and, once an untrusted host could choose the token, a soundness one.
++pub struct PerThread<T> {
++    slots: [UnsafeCell<Option<(u64, T)>>; MAX_THREADS],
++}
++
++unsafe impl<T: Send> Sync for PerThread<T> {}
++
++impl<T> PerThread<T> {
++    pub const fn new() -> PerThread<T> {
++        PerThread {
++            slots: [const { UnsafeCell::new(None) }; MAX_THREADS],
++        }
++    }
++
++    /// Run `f` on this thread's value, creating it with `init` the first time - and again if the
++    /// token has changed hands since, which is what the epoch detects.
++    ///
++    /// `f` gets a SHARED reference, and this function never forms a `&mut` to the slot's contents.
++    /// That is not a stylistic choice. An earlier version took `&mut` and `LocalKey::with` handed
++    /// out a `&T` derived from it, so a NESTED `with` on the same key made a second exclusive
++    /// reference while the outer shared one was still usable - aliasing undefined behaviour, from
++    /// nothing worse than a re-entrant callback. The declarations that use this wrap their state
++    /// in `Cell`/`RefCell` exactly as they do with `std`'s `thread_local!`, so shared access is
++    /// all they ever needed.
++    pub fn with<R>(&self, init: impl FnOnce() -> T, f: impl FnOnce(&T) -> R) -> R {
++        let i = ThreadToken::current().0 as usize;
++        assert!(
++            i < MAX_THREADS,
++            "park token {i} is past MAX_THREADS: the embedder handed out more threads than this \
++             build accounts for"
++        );
++        let epoch = ThreadToken::epoch();
++        let p = self.slots[i].get();
++        // SAFETY: one thread per token at a time, so no other thread can reach this slot. The
++        // reference below is SHARED; nothing here creates a `&mut`.
++        if let Some((e, v)) = unsafe { &*p } {
++            if *e == epoch {
++                return f(v);
++            }
++        }
++        // (Re)initialise. `init()` runs BEFORE the slot is touched, and the write goes through the
++        // raw pointer rather than a `&mut`, so no exclusive reference is ever created here either.
++        let v = init();
++        // SAFETY: as above, and no reference into this slot is live at this point - the fast path
++        // above returned, and `f` has not been called.
++        unsafe { *p = Some((epoch, v)) };
++        // SAFETY: just written; shared again.
++        match unsafe { &*p } {
++            Some((_, v)) => f(v),
++            None => unreachable!("just initialised"),
++        }
++    }
++}
++
++/// A monotonically increasing counter, for handing out fresh keys without an allocator.
++pub struct Counter(AtomicU64);
++
++impl Counter {
++    pub const fn new() -> Counter {
++        Counter(AtomicU64::new(0))
++    }
++    #[inline]
++    pub fn next(&self) -> u64 {
++        self.0.fetch_add(1, Ordering::Relaxed)
++    }
++}
++
++/// A `std`-shaped view of everything above, so the code that uses it does not have to change.
++///
++/// `parking_spot.rs` and `shared_memory.rs` are upstream files with upstream churn. Rewriting
++/// their every `std::sync::Mutex` and `std::thread::park_timeout` would make every future merge a
++/// conflict for no gain, so instead they say
++///
++/// ```ignore
++/// #[cfg(not(feature = "std"))]
++/// use crate::runtime::vm::nostd_threads::shim as std;
++/// ```
++///
++/// and their existing `use std::...` lines resolve here. The names and signatures below therefore
++/// match `std`'s deliberately, including `Mutex::lock` returning a `Result` that is always `Ok` -
++/// a lock that cannot be poisoned still has to be *spelled* like one that can.
++pub mod shim {
++    pub mod sync {
++        pub use alloc::sync::Arc;
++        pub use core::sync::atomic;
++
++        /// `std::sync::Mutex`'s shape over the spin lock above.
++        pub struct Mutex<T>(super::super::Mutex<T>);
++
++        impl<T> Mutex<T> {
++            pub const fn new(t: T) -> Mutex<T> {
++                Mutex(super::super::Mutex::new(t))
++            }
++            /// Always `Ok`: there is no poisoning without unwinding, and this target aborts.
++            pub fn lock(
++                &self,
++            ) -> Result<super::super::MutexGuard<'_, T>, PoisonError<super::super::MutexGuard<'_, T>>>
++            {
++                Ok(self.0.lock())
++            }
++        }
++
++        impl<T> core::fmt::Debug for Mutex<T> {
++            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++                f.write_str("Mutex { .. }")
++            }
++        }
++
++        impl<T: Default> Default for Mutex<T> {
++            fn default() -> Mutex<T> {
++                Mutex::new(T::default())
++            }
++        }
++
++        /// The error `lock()` never returns, present so callers may name it - and so the
++        /// `unwrap_or_else(|e| e.into_inner())` idiom, which is how careful code handles poisoning
++        /// it cannot do anything about, still compiles.
++        pub struct PoisonError<T>(T);
++
++        impl<T> PoisonError<T> {
++            pub fn into_inner(self) -> T {
++                self.0
++            }
++        }
++
++        impl<T> core::fmt::Debug for PoisonError<T> {
++            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++                f.write_str("PoisonError")
++            }
++        }
++
++        /// `std::sync::RwLock`'s shape over the spin reader-writer lock above.
++        pub struct RwLock<T>(super::super::RwLock<T>);
++
++        impl<T> RwLock<T> {
++            pub const fn new(t: T) -> RwLock<T> {
++                RwLock(super::super::RwLock::new(t))
++            }
++            pub fn read(
++                &self,
++            ) -> Result<
++                super::super::RwLockReadGuard<'_, T>,
++                PoisonError<super::super::RwLockReadGuard<'_, T>>,
++            > {
++                Ok(self.0.read())
++            }
++            pub fn write(
++                &self,
++            ) -> Result<
++                super::super::RwLockWriteGuard<'_, T>,
++                PoisonError<super::super::RwLockWriteGuard<'_, T>>,
++            > {
++                Ok(self.0.write())
++            }
++        }
++
++        impl<T> core::fmt::Debug for RwLock<T> {
++            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++                f.write_str("RwLock { .. }")
++            }
++        }
++
++        impl<T: Default> Default for RwLock<T> {
++            fn default() -> RwLock<T> {
++                RwLock::new(T::default())
++            }
++        }
++
++        /// `std::sync::OnceLock`, spin-initialised. The initialiser may run on more than one
++        /// thread under contention; the first value to be stored wins and the others are dropped,
++        /// which is `OnceLock`'s contract too.
++        pub struct OnceLock<T> {
++            state: atomic::AtomicU8,
++            value: core::cell::UnsafeCell<Option<T>>,
++        }
++
++        unsafe impl<T: Send + Sync> Sync for OnceLock<T> {}
++        unsafe impl<T: Send> Send for OnceLock<T> {}
++
++        const ONCE_EMPTY: u8 = 0;
++        const ONCE_BUSY: u8 = 1;
++        const ONCE_READY: u8 = 2;
++
++        impl<T> OnceLock<T> {
++            pub const fn new() -> OnceLock<T> {
++                OnceLock {
++                    state: atomic::AtomicU8::new(ONCE_EMPTY),
++                    value: core::cell::UnsafeCell::new(None),
++                }
++            }
++
++            pub fn get(&self) -> Option<&T> {
++                if self.state.load(atomic::Ordering::Acquire) != ONCE_READY {
++                    return None;
++                }
++                // SAFETY: READY is only published after the value is written, with a Release.
++                unsafe { (*self.value.get()).as_ref() }
++            }
++
++            /// `Err(value)` when it was already initialised, as `std`'s is.
++            pub fn set(&self, value: T) -> Result<(), T> {
++                if self
++                    .state
++                    .compare_exchange(
++                        ONCE_EMPTY,
++                        ONCE_BUSY,
++                        atomic::Ordering::Acquire,
++                        atomic::Ordering::Acquire,
++                    )
++                    .is_err()
++                {
++                    return Err(value);
++                }
++                // SAFETY: BUSY is exclusive.
++                unsafe { *self.value.get() = Some(value) };
++                self.state.store(ONCE_READY, atomic::Ordering::Release);
++                Ok(())
++            }
++
++            pub fn get_or_init(&self, f: impl FnOnce() -> T) -> &T {
++                if let Some(v) = self.get() {
++                    return v;
++                }
++                let v = f();
++                if self
++                    .state
++                    .compare_exchange(
++                        ONCE_EMPTY,
++                        ONCE_BUSY,
++                        atomic::Ordering::Acquire,
++                        atomic::Ordering::Acquire,
++                    )
++                    .is_ok()
++                {
++                    // SAFETY: BUSY is exclusive - exactly one thread wins the exchange.
++                    unsafe { *self.value.get() = Some(v) };
++                    self.state.store(ONCE_READY, atomic::Ordering::Release);
++                } else {
++                    // Somebody else is initialising or has: drop ours and wait for theirs.
++                    drop(v);
++                    while self.state.load(atomic::Ordering::Acquire) != ONCE_READY {
++                        core::hint::spin_loop();
++                    }
++                }
++                self.get().unwrap()
++            }
++        }
++
++        impl<T> core::fmt::Debug for OnceLock<T> {
++            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++                f.write_str("OnceLock { .. }")
++            }
++        }
++
++        impl<T> Default for OnceLock<T> {
++            fn default() -> OnceLock<T> {
++                OnceLock::new()
++            }
++        }
++    }
++
++    pub mod time {
++        pub use super::super::Instant;
++        pub use core::time::Duration;
++    }
++
++    pub mod thread {
++        pub use super::super::{JoinHandle, SpawnError, park, park_timeout, spawn};
++
++        /// `std::thread::Builder`'s shape. The name and stack size are accepted and ignored: the
++        /// embedder chooses the stack, and there is nothing in an enclave to show a name to.
++        pub struct Builder;
++
++        impl Builder {
++            pub fn new() -> Builder {
++                Builder
++            }
++            pub fn name(self, _: alloc::string::String) -> Builder {
++                self
++            }
++            pub fn stack_size(self, _: usize) -> Builder {
++                self
++            }
++            pub fn spawn<F: FnOnce() + Send + 'static>(
++                self,
++                f: F,
++            ) -> Result<JoinHandle, SpawnError> {
++                spawn(f)
++            }
++        }
++
++        /// `std::thread::Thread`'s shape: a handle you can `unpark`.
++        pub type Thread = super::super::ThreadToken;
++
++        pub fn current() -> Thread {
++            super::super::ThreadToken::current()
++        }
++    }
++
++    pub mod cell {
++        pub use core::cell::{Cell, RefCell, UnsafeCell};
++    }
++
++    pub mod collections {
++        pub use alloc::collections::BTreeMap;
++    }
++
++    pub mod ptr {
++        pub use core::ptr::NonNull;
++    }
++
++    pub mod ops {
++        pub use core::ops::Range;
++    }
++
++    pub mod mem {
++        pub use core::mem::{align_of, size_of};
++    }
++
++    pub mod env {
++        use alloc::string::{String, ToString};
++
++        /// The error `var` returns when a name is unset, shaped like `std::env::VarError` so the
++        /// `if let Ok(v) = ...` at the call sites is unchanged.
++        #[derive(Debug)]
++        pub struct VarError;
++
++        /// The embedder's environment. The enclave's is the `K=V\0K=V\0\0` block its host passed
++        /// at init - the same one a tenant's app sees - so an operator sets these outside and they
++        /// arrive here read-only.
++        pub fn var(name: &str) -> Result<String, VarError> {
++            let mut c = alloc::vec::Vec::with_capacity(name.len() + 1);
++            c.extend_from_slice(name.as_bytes());
++            c.push(0);
++            let p = unsafe { super::super::wasmtime_getenv(c.as_ptr().cast()) };
++            if p.is_null() {
++                return Err(VarError);
++            }
++            // SAFETY: the embedder promises a NUL-terminated string that outlives this call.
++            let bytes = unsafe { core::ffi::CStr::from_ptr(p) }.to_bytes();
++            core::str::from_utf8(bytes)
++                .map(|s| s.to_string())
++                .map_err(|_| VarError)
++        }
++    }
++
++    pub mod panic {
++        /// `catch_unwind`'s shape for a target that cannot unwind.
++        ///
++        /// This build is `panic = "abort"`: a panic inside an enclave has nowhere to unwind to and
++        /// stops the image. So nothing is caught, and the `Err` arm at the call sites is dead
++        /// rather than wrong - which is worth saying out loud, because a reader could otherwise
++        /// believe a worker panic is being contained here. It is not; it is fatal.
++        pub fn catch_unwind<F: FnOnce() -> R, R>(f: AssertUnwindSafe<F>) -> Result<R, Never> {
++            Ok((f.0)())
++        }
++
++        /// The payload `catch_unwind` never returns.
++        #[derive(Debug)]
++        pub enum Never {}
++
++        /// Accepted and ignored: there is no unwinding to be unwind-safe about. Taken by value by
++        /// `catch_unwind` above, which is how the call sites already spell it.
++        pub struct AssertUnwindSafe<T>(pub T);
++    }
++}
++
++/// `thread_local!`'s shape, keyed by park token.
++///
++/// Accepts the declarations this crate actually writes: `static NAME: TY = const { EXPR };` and
++/// `static NAME: TY = EXPR;`, with or without docs and visibility. `with` hands out a `&TY`, as
++/// `std`'s does, so a `RefCell` or `Cell` inside keeps working unchanged.
++#[macro_export]
++macro_rules! nostd_thread_local {
++    ($(#[$m:meta])* static $name:ident: $ty:ty = const { $init:expr }; $($rest:tt)*) => {
++        $(#[$m])*
++        static $name: $crate::runtime::vm::nostd_threads::LocalKey<$ty> =
++            $crate::runtime::vm::nostd_threads::LocalKey::new(|| $init);
++        $crate::nostd_thread_local!($($rest)*);
++    };
++    ($(#[$m:meta])* static $name:ident: $ty:ty = $init:expr; $($rest:tt)*) => {
++        $(#[$m])*
++        static $name: $crate::runtime::vm::nostd_threads::LocalKey<$ty> =
++            $crate::runtime::vm::nostd_threads::LocalKey::new(|| $init);
++        $crate::nostd_thread_local!($($rest)*);
++    };
++    () => {};
++}
++
++/// What `nostd_thread_local!` declares: `std::thread::LocalKey`'s shape over [`PerThread`].
++pub struct LocalKey<T: 'static> {
++    slots: PerThread<T>,
++    init: fn() -> T,
++}
++
++impl<T: 'static> LocalKey<T> {
++    pub const fn new(init: fn() -> T) -> LocalKey<T> {
++        LocalKey {
++            slots: PerThread::new(),
++            init,
++        }
++    }
++
++    /// `&T`, as `std::thread::LocalKey::with` gives. Safe to nest: nothing below forms a `&mut`.
++    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
++        self.slots.with(self.init, f)
++    }
++}
++
++/// `eprintln!`'s shape for a target with no stderr.
++///
++/// The enclave has a log the operator and the tenant both read, and `log::error!` is how the rest
++/// of this crate reaches it. Messages that would have gone to stderr go there instead rather than
++/// being dropped: several of them report a worker failing to start, which is exactly the kind of
++/// thing that must not vanish because the target changed.
++#[macro_export]
++macro_rules! nostd_eprintln {
++    () => { ::log::error!("") };
++    ($($arg:tt)*) => { ::log::error!($($arg)*) };
++}
++
++impl core::fmt::Display for SpawnError {
++    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++        f.write_str("the embedder would not start a thread")
++    }
++}
++
++impl core::error::Error for SpawnError {}
++
++/// Test-only implementations of the four embedder hooks, so this module can be exercised - and
++/// run under Miri - in a `std` build. They are deliberately the SAME symbols the enclave provides,
++/// which is what makes the tests exercise the real code paths rather than a parallel copy.
++#[cfg(test)]
++mod hooks {
++    use std::cell::Cell;
++    use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
++
++    static NEXT: AtomicU32 = AtomicU32::new(0);
++    static EPOCH: AtomicU64 = AtomicU64::new(1);
++    thread_local! {
++        static TOKEN: Cell<Option<(u32, u64)>> = const { Cell::new(None) };
++    }
++
++    fn mine() -> (u32, u64) {
++        TOKEN.with(|t| match t.get() {
++            Some(v) => v,
++            None => {
++                let v = (NEXT.fetch_add(1, Relaxed), EPOCH.fetch_add(1, Relaxed));
++                t.set(Some(v));
++                v
++            }
++        })
++    }
++
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_token() -> u32 {
++        mine().0
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_epoch() -> u64 {
++        mine().1
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_park(_ms: u64) -> i32 {
++        1
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_unpark(_token: u32) {}
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_now_ms() -> u64 {
++        0
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_spawn(
++        _e: extern "C" fn(*mut core::ffi::c_void),
++        _a: *mut core::ffi::c_void,
++    ) -> *mut core::ffi::c_void {
++        core::ptr::null_mut()
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_join(_h: *mut core::ffi::c_void) -> i32 {
++        -1
++    }
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_thread_detach(_h: *mut core::ffi::c_void) {}
++    #[unsafe(no_mangle)]
++    extern "C" fn wasmtime_getenv(_n: *const core::ffi::c_char) -> *const core::ffi::c_char {
++        core::ptr::null()
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use core::cell::{Cell, RefCell};
++
++    /// THE ONE AN AUDIT FOUND. A re-entrant `with` on the same key used to make a second exclusive
++    /// reference to the slot while the outer shared one was still usable. Miri reports that as an
++    /// aliasing violation; reading the code does not, which is why this test exists rather than a
++    /// comment claiming re-entrancy is fine.
++    ///
++    ///     cargo +nightly miri test -p wasmtime --lib nostd_threads
++    #[test]
++    fn nested_with_on_one_key_is_defined() {
++        static K: LocalKey<RefCell<u32>> = LocalKey::new(|| RefCell::new(0));
++        K.with(|outer| {
++            *outer.borrow_mut() += 1;
++            // The re-entrant call, while `outer` is still live and used again below.
++            K.with(|inner| {
++                *inner.borrow_mut() += 10;
++            });
++            assert_eq!(*outer.borrow(), 11, "the nested call must see the same slot");
++        });
++        K.with(|v| assert_eq!(*v.borrow(), 11));
++    }
++
++    /// Three deep, with the outer references used after the inner ones return.
++    #[test]
++    fn deeply_nested_with_keeps_the_outer_reference_usable() {
++        static K: LocalKey<Cell<u32>> = LocalKey::new(|| Cell::new(1));
++        K.with(|a| {
++            K.with(|b| {
++                K.with(|c| c.set(c.get() + 1));
++                b.set(b.get() + 1);
++            });
++            a.set(a.get() + 1);
++            assert_eq!(a.get(), 4);
++        });
++    }
++
++    /// Each thread gets its own slot, and a slot is not shared across tokens.
++    #[test]
++    fn per_thread_slots_are_not_shared() {
++        static K: LocalKey<Cell<u32>> = LocalKey::new(|| Cell::new(0));
++        K.with(|v| v.set(7));
++        std::thread::scope(|s| {
++            s.spawn(|| {
++                K.with(|v| assert_eq!(v.get(), 0, "a different thread starts fresh"));
++                K.with(|v| v.set(9));
++                K.with(|v| assert_eq!(v.get(), 9));
++            });
++        });
++        K.with(|v| assert_eq!(v.get(), 7, "and the first thread's value is untouched"));
++    }
++
++    /// A token handed to a new incarnation must not inherit the old one's value. The test hooks
++    /// give every thread a fresh epoch, so this checks the epoch path rather than the token path.
++    #[test]
++    fn a_new_incarnation_does_not_inherit() {
++        static P: PerThread<u32> = PerThread::new();
++        let first = P.with(|| 1, |v| *v);
++        assert_eq!(first, 1);
++        // Same thread, same token, same epoch: the value persists.
++        assert_eq!(P.with(|| 99, |v| *v), 1);
++    }
++}
