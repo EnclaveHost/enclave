@@ -17,9 +17,6 @@ import os from "node:os";
 import path from "node:path";
 import { Host } from "../windows/node/host.mjs";
 import { appRequestHandler } from "../windows/node/appzone.mjs";
-import { selfSigned } from "../windows/node/apptls.mjs";
-import tls from "node:tls";
-import net from "node:net";
 import { initSessionKey, mint, addressFor, appAudience, APP_COOKIE } from "../windows/node/session.mjs";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-privpath-"));
@@ -111,74 +108,20 @@ test("THE APP-ZONE PATH: the same three answers through the production handler",
   } finally { await a.close(); }
 });
 
-test("THE SOCKET PATH, over REAL TLS: a private deployment is never spliced past the check", async () => {
-  // `rules.private` alone is not evidence: it would still pass if the app-zone branch that reads
-  // it were broken or removed. This drives the actual decision - TLS terminated on a stream, the
-  // branch taken, and the app either reached or not - so a future change to that branch fails here.
-  const a = await app();
-  try {
-    const h = box(a.port);
-    const cert = selfSigned("aaaaaaaa.app.enclave.host");
-    const served = [];
+// THE SOCKET PATH IS NOT TESTED HERE, and the attempt that used to be is gone.
+//
+// It rebuilt the app zone's parse-or-splice decision inside a front server of its own, so it went
+// green whatever appzone.mjs did. An audit proved it by mutating the real branch - removing
+// `target.private` from the condition and the redundant abort - and watching all seven tests in
+// this file pass while an anonymous client got 200 and the private body.
+//
+// windows-node-appzone-tls.test.mjs covers it properly: the real `appZone()`, driven through
+// `onFrame` with the relay's own `s+`/`sd`/`sx` frames, a real WebSocket, real TLS. That test
+// FAILS on the mutant, which is the only thing that makes a green run mean anything.
 
-    // The app zone's own choice, verbatim: parse when gate-served, WAF'd, or PRIVATE; otherwise
-    // splice raw bytes to the app's port.
-    const httpd = http.createServer(appRequestHandler({ serveHttp: (id, req) => h.proxy(id, req), log: () => {} }));
-    const front = net.createServer((sock) => {
-      const target = { ...h.zoneRules(ID), port: a.port, gate: false, cert };
-      const t = new tls.TLSSocket(sock, { isServer: true, key: cert.key, cert: cert.cert,
-                                          requestCert: false, rejectUnauthorized: false });
-      t.on("error", () => {});
-      t.on("secure", () => {
-        if (target.gate || target.waf || target.private) {
-          served.push("parsed");
-          t.__enclaveId = ID;
-          httpd.emit("connection", t);
-          return;
-        }
-        served.push("spliced");
-        const up = net.connect(target.port, "127.0.0.1");
-        up.on("error", () => {});
-        t.pipe(up); up.pipe(t);
-      });
-    });
-    await new Promise((r) => front.listen(0, "127.0.0.1", r));
-    const port = front.address().port;
-
-    const get = (headers) => new Promise((resolve) => {
-      const sock = tls.connect({ host: "127.0.0.1", port, servername: "aaaaaaaa.app.enclave.host",
-                                 rejectUnauthorized: false }, () => {
-        const h2 = Object.entries(headers).map(([k, v]) => `${k}: ${v}\r\n`).join("");
-        sock.write(`GET / HTTP/1.1\r\nHost: aaaaaaaa.app.enclave.host\r\nConnection: close\r\n${h2}\r\n`);
-      });
-      const c = [];
-      sock.on("data", (d) => c.push(d));
-      sock.on("close", () => resolve(Buffer.concat(c).toString("utf8")));
-      sock.on("error", () => resolve(""));
-    });
-
-    try {
-      const anon = await get({});
-      assert.match(anon, /^HTTP\/1\.1 401/, `anonymous over real TLS must be refused, got: ${anon.slice(0, 40)}`);
-      assert.ok(!anon.includes("SECRET"));
-      assert.equal(a.hits(), 0, "the app must never be reached");
-
-      const wrong = await get({ Authorization: `Bearer ${mint(key, { subject: STRANGER, ttlSec: 600 })}` });
-      assert.match(wrong, /^HTTP\/1\.1 403/);
-      assert.equal(a.hits(), 0);
-
-      const right = await get({ Authorization: `Bearer ${mint(key, { subject: OWNER, ttlSec: 600 })}` });
-      assert.match(right, /^HTTP\/1\.1 200/);
-      assert.ok(right.includes("SECRET"));
-      assert.equal(a.hits(), 1, "and only the owner ever reached it");
-
-      assert.deepEqual([...new Set(served)], ["parsed"],
-        "a private deployment must never take the splice branch");
-    } finally { await new Promise((r) => front.close(r)); httpd.close(); }
-  } finally { await a.close(); }
-});
-
-test("a PUBLIC deployment still takes the splice branch, so the flag is per deployment", () => {
+test("zoneRules marks a private deployment and only a private one", () => {
+  // Narrow on purpose: this is the FLAG, not the branch that reads it. Saying so is the point -
+  // the previous version of this file implied it covered the branch, and it did not.
   const h = box(1234);
   assert.equal(h.zoneRules(ID).private, true);
   const pub = "0x" + "cd".repeat(32);
