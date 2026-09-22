@@ -1448,3 +1448,36 @@ token against a measured 893, so roughly 1.13 -> 1.21 tok/s, and it moves the pe
 about 3.1 to about 4.5 tok/s. It is the first thing found in this campaign that moves a FLOOR rather than
 closing distance to one. It does not approach 15 tok/s, because TPU compute alone is 273 ms against a
 67 ms budget, and nothing about this touches that.
+
+## The cleanest form of the impossibility, for the record (2026-09-22)
+
+Three floors have been quoted against the 67 ms/token that 15 tok/s requires, and two of them are about
+the accelerator. This one is not, and it is the one to keep, because it survives any improvement to the
+TPU, the bytes, the masking or the VM.
+
+    exchanges per token   = 4 per block x 35 blocks = 140
+    round-trip latency    = 0.74 ms, measured
+    latency alone         = 140 x 0.74 = 104 ms per token
+
+**104 ms > 67 ms.** With a free accelerator, zero bytes on the wire and zero work in the VM, the shipped
+model cannot reach 15 tok/s through this boundary.
+
+Each input to that is load-bearing and each has been checked rather than assumed:
+
+* **4 exchanges per block** is the security contract, not an implementation. A modular mask survives an
+  RMSNorm by deferral, and provably does not survive GELU-gating or attention. Merging `o` into `gu`
+  would need the TPU to apply a normalisation scale that depends on the unmasked value it is about to
+  produce, which is circular. Merging across attention would need the mask to survive a softmax.
+* **0.74 ms** is the guest/host wake, and BOTH attempts to remove it made things worse: spinning on the
+  reply took decode from 0.91 to 0.70 tok/s because the vCPUs and the worker share six big cores with no
+  spare one, and boosting the worker left the link unchanged at 4.28 ms because the residual is the
+  GUEST's wake, not the worker's.
+* **35 blocks** is the model. Fewer blocks is a different product, not a faster one.
+
+Turning it around: latency alone allows at most 22 blocks even if everything else were free, and the
+measured per-block cost of 24.2 ms allows 1.2. The gap between those two numbers is the whole campaign.
+
+So the answer to "is there a viable option" is: not through a masked worker outside the boundary, at any
+model size worth serving. The accelerator has to be INSIDE the pVM, which is a platform gate --
+`Assignable devices: []`, `VFIO-platform is not supported`, kernel 6.6.118 — and re-checked on the device
+today rather than recalled.
