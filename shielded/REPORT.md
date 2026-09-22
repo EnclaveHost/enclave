@@ -2684,3 +2684,32 @@ across the whole link API though its contract is |x| < 2^26, which is what
 makes mask_planes permute-bound; and the conv state fix is the same shape as
 16.3, which was worth 6.4 ms when it was found. Batching across requests is
 per-PASS and untouched, but it changes the workload rather than this metric.
+
+### 18.7 The join is real, and GOMP_SPINCOUNT is still the wrong lever
+
+`join` -- the primary card waiting for the other card's worker -- has a median
+of ~4.2 ms/pass while the two cards differ by only ~4% in wire time (~0.9
+ms/pass). Most of that gap is scheduling: the split worker competes with eight
+OMP decode threads that SPIN while the main thread is inside the exchange and
+has nothing for them to do. Section 16 lists GOMP_SPINCOUNT as a dead end, but
+that was measured before the column split existed, so the thread whose
+starvation this hypothesis names had not been created yet. Re-measured, at a
+16 GB reservation, three runs per arm:
+
+| GOMP_SPINCOUNT | plain | spec | join | gemm | wire |
+|---|---|---|---|---|---|
+| default | 18.58 | **20.80** | 4.15 | 33.98 | 22.32 |
+| 1000 | 17.26 | 17.63 | **3.87** | 33.75 | 20.81 |
+| 30000 | 18.73 | 19.97 | 4.13 | 35.00 | 22.99 |
+
+The hypothesis is PARTLY right and the remedy is still wrong. Parking the
+decode threads does relieve the split worker: join falls 4.15 -> 3.87 and wire
+22.32 -> 20.81, so the exchange path genuinely gets faster. Throughput falls
+15% anyway, because those same threads run the CPU graph -- 12.45 ms/token of
+it -- and now pay a futex wake per op. What the exchange recovers, the graph
+loses several times over.
+
+So section 16's entry stands, for a reason it did not give, and the ~4.2 ms of
+join is not recoverable by making the decode threads sleep. Recovering it would
+mean giving the split worker its own core rather than taking one away from the
+graph -- placement, not spin policy -- which is a code change and untested.
