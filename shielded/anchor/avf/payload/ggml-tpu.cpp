@@ -289,13 +289,22 @@ extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
  * scales with them -- one row's correction fits the link window with room over, five rows' does not. */
 static void corr_one(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows, size_t p, uint32_t r) {
     const proj &pr = g.projs[p]; (void)rows;
-    float *y = g.cache[p].data() + (size_t)r * pr.n_out; bool first = true;
+    float *y = g.cache[p].data() + (size_t)r * pr.n_out;
+    /* Accumulate the correction as INTEGERS and scale once. The term is s_in * sw[j] * sum_i delta_i *
+     * W[j][i], and that sum is exact in int64 -- so it is independent of how many out-of-lane entries
+     * there are and of the order they are added in. That matters because the count is PAD-DEPENDENT: a
+     * modular wrap is a function of the pad, so three runs of the same prompt kept 394433 / 394590 /
+     * 394756 entries, and in float32 that is a different rounding each time. Two runs agreed and the
+     * third flipped a token at a near-tie (95 % identical, diverging at the same character the clipped
+     * runs did). Integer accumulation removes that source: same inputs, same bytes, whatever pad. */
+    static thread_local std::vector<int64_t> acc; if (acc.size() < pr.n_out) acc.assign(pr.n_out, 0);
+    std::fill(acc.begin(), acc.begin() + pr.n_out, (int64_t)0);
     for (const auto &o : outl[r]) {
-        const float xo = (float)o.second * g.s_in; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
-        if (first) { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j]  = xo * pr.sw[j] * (float)w[(size_t)j * stride]; } first = false; }
-        else       { for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0); y[j] += xo * pr.sw[j] * (float)w[(size_t)j * stride]; } }
+        const int64_t d = (int64_t)o.second; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
+        for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0);
+            acc[j] += d * (int64_t)w[(size_t)j * stride]; }
     }
-    if (first) std::fill(y, y + pr.n_out, 0.0f);
+    for (uint32_t j = 0; j < pr.n_out; j++) y[j] = (float)((double)acc[j] * (double)g.s_in * (double)pr.sw[j]);
 }
 static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
     g.cache.resize(g.projs.size());
@@ -313,12 +322,51 @@ static constexpr bool kRepairClips = true;
  * repair the rare case, and if a single exchange rails more than an eighth of its outputs (three orders
  * of magnitude above the natural rate) say so, and abort if it persists. Same precedent as mint_batch's
  * 8-consecutive-bad-draws abort. */
-static constexpr uint32_t kClipFloodShift = 3;      /* flood = more than n_out >> 3 clips in one exchange */
-static constexpr int kClipFloodRuns = 8;            /* consecutive flooded exchanges before giving up */
+/* A WORK BUDGET, spent before the expensive dot rather than audited after it.
+ *
+ * Two things were wrong with the first attempt. It counted genuine clips, so a worker returning rails
+ * for in-range products forced every recomputation and incremented nothing. And it was a consecutive-
+ * exchange run-length trigger, so alternating a full flood with one normal exchange reset it forever
+ * while still forcing unbounded total work. Both are fixed by gating the COST itself: every rail-
+ * triggered recomputation must take a token from a leaky bucket before it may run, whatever the
+ * trusted value turns out to be.
+ *
+ * The bucket refills per exchange, so a genuine burst is absorbed, but the long-run average is capped
+ * at kRailRefill dots per exchange regardless of the pattern the worker chooses. Natural rate is about
+ * 0.006 rails per exchange, so 4 is ~600x headroom and still bounds the forced work to ~0.2 % of the
+ * MACs the exchange already costs. Exhaustion is a protocol violation: the element cannot be trusted
+ * and cannot be repaired within budget, so the run stops rather than consuming it. */
+static constexpr int64_t kRailRefill = 4;           /* tokens added per exchange */
+static constexpr int64_t kRailBucketCap = 4096;     /* burst allowance */
+static int64_t g_rail_bucket = kRailBucketCap;
+static inline bool rail_budget_take(ggml_backend_tpu_stats_t &st, group &g) {
+    if (g_rail_bucket <= 0) {
+        TPU_LOG("blk.%d kind %d: rail-recomputation budget exhausted (cap %lld, refill %lld/exchange). A worker "
+                "returning rails faster than this is forcing the VM to redo its work: refusing rather than "
+                "consuming unverified replies\n", g.layer, g.kind, (long long)kRailBucketCap, (long long)kRailRefill);
+        return false;
+    }
+    --g_rail_bucket; st.rail_recomp_total++; return true;
+}
 /* The sampled kernel verification recomputes elements on the CRITICAL PATH. It is a validation tool,
  * not free: off by default, on for audits. (The rail test itself IS free -- a predicate on values the
  * unmask has already loaded, with no second pass to fuse.) */
 static constexpr bool kVerifyKernel = false;
+/* FAULT INJECTION on the real backend path: rewrite the reply the worker sent, before the unmask sees
+ * it, exactly as a malicious or broken worker could. This is how the integrity claims are tested rather
+ * than argued -- a bound that is never driven is a bound nobody has checked.
+ *   0  off (shipping)
+ *   1  ALL-FALSE-RAILS: every reply value becomes +32767 though the trusted products are in range
+ *   2  SPARSE false rails: one element in 997, so the bound is NOT hit and the repair must still reject
+ *   3  FLOOD/NORMAL: alternate exchanges between all-rails and untouched, to test recovery not just trip
+ * Injection happens after the read and before any interpretation, so everything downstream -- detection,
+ * recomputation, the DoS bound, the repair -- runs on data indistinguishable from a hostile worker's. */
+static constexpr int kInjectFault = 0;
+static void inject_fault(int16_t *rx, size_t n, uint64_t exchange) {
+    if (kInjectFault == 1) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
+    else if (kInjectFault == 2) { for (size_t i = 0; i < n; i += 997) rx[i] = 32767; }
+    else if (kInjectFault == 3 && (exchange & 1)) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
+}
 static bool corr_threaded() {
     static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
     return v;
@@ -362,6 +410,15 @@ static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t
     g_cj.cv_go.notify_all();
 }
 static void corr_join() { std::unique_lock<std::mutex> lk(g_cj.mu); g_cj.cv_done.wait(lk, [] { return !g_cj.pending; }); }
+/* What this binary actually does, printed into the run's own log. Filenames and my say-so are not
+ * evidence of which arm produced a result: two runs recorded "REPAIRED" while the repair was compiled
+ * OUT, because the label was a literal rather than the flag. */
+extern "C" const char *ggml_backend_tpu_config(void) {
+    static char b[160];
+    snprintf(b, sizeof b, "repair=%d verify=%d inject=%d corr_threads=%d spin_us=%d (built " __DATE__ " " __TIME__ ")",
+             kRepairClips ? 1 : 0, kVerifyKernel ? 1 : 0, kInjectFault, corr_threads(), link_spin_us());
+    return b;
+}
 extern "C" void ggml_backend_tpu_corr_stop(void) {
     { std::lock_guard<std::mutex> lk(g_cj.mu); if (g_cj.pool.empty()) return; g_cj.stop = true; g_cj.cv_go.notify_all(); }
     for (auto &t : g_cj.pool) t.join(); g_cj.pool.clear();
@@ -443,7 +500,8 @@ void exchange(group &g, const float *x, uint32_t rows) {
     }
     { const uint8_t hdr[4] = { (uint8_t)(s_digit_split ? 0xE8 : 0xE7), (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
       memcpy(s.frame.data(), hdr, 4); }
-    const uint64_t clips_before = s.st.sat_clipped;
+    uint64_t rail_recomp = 0;   /* rail-triggered exact recomputations THIS exchange */
+    g_rail_bucket = g_rail_bucket + kRailRefill > kRailBucketCap ? kRailBucketCap : g_rail_bucket + kRailRefill;
     s.rxbuf.resize((size_t)wire_rows * n_out_total);
     if (!wr_all(s.link, s.frame.data(), s.frame.size())) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     const int64_t t_pub = now_us();
@@ -466,6 +524,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     mint_window(t_corr + (int64_t)(wait_ewma_us * 0.75));
     const int64_t t_mint = now_us();
     if (!rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed waiting for the reply (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
+    if (kInjectFault) inject_fault(s.rxbuf.data(), s.rxbuf.size(), s.st.exchanges);
     if (ct) corr_join();                                                   /* the cache must be complete before the reply is added to it */
     const int64_t t2 = now_us();
     wait_ewma_us += 0.05 * ((double)(t2 - t_corr) - wait_ewma_us);
@@ -504,68 +563,79 @@ void exchange(group &g, const float *x, uint32_t rows) {
                         if (db > s.st.ver_max) s.st.ver_max = db;
                         if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
                     }
-                    if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {   /* both rails, both clamp conventions */
+                    if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {
+                        /* A RETURNED RAIL IS NOT EVIDENCE OF ANYTHING. The worker is untrusted, so the rail is
+                         * only a trigger to recompute; the recomputed value is the trusted one and is used
+                         * UNCONDITIONALLY. The previous shape -- recompute, but only substitute when the trusted
+                         * value was itself out of range -- let a worker return 32767 for an ordinary in-range
+                         * product, pay for the recompute, increment no clip counter (so it evaded the flood
+                         * bound), and then FALL THROUGH and consume the false rail. That was worker-injectable
+                         * corruption, and it was mine. Using the exact value in every case closes it: a genuine
+                         * clip is repaired, a legitimate rail is unchanged (exact == returned), and a false rail
+                         * is rejected. */
                         s.st.saturated++;
-                        /* WHICH rail value the backend actually returns, counted where every rail is seen -- the
-                         * sampled verification above can never answer it (a few hundred rails in ~190M elements).
-                         * This is what says whether the hardware clamps negatives at -32768 or, like the reference,
-                         * at -32767, and therefore whether the original narrow test was missing clips. */
+                        if (!rail_budget_take(s.st, g)) abort();          /* budget is taken BEFORE the dots below */
+                        rail_recomp++;
                         if (a == -32768 || b2 == -32768) s.st.rail_m32768++;
                         if (a == -32767 || b2 == -32767) s.st.rail_m32767++;
                         if (a == 32767 || b2 == 32767) s.st.rail_p32767++;
                         /* Associate EXACTLY as ggml_backend_tpu_reference_worker does -- (acc * M) * mscale, not
-                         * acc * (M * mscale). Floating multiply is not associative, so the two can differ by an ulp
-                         * and this is meant to be the same expression, not merely the same value. */
+                         * acc * (M * mscale). Floating multiply is not associative and this is meant to be the
+                         * same expression, not merely the same value. */
                         const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
                         const int64_t ea = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, true) * pr.M[j] * 102.4);
                         const int64_t eb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, false) * pr.M[j] * 102.4);
                         const int64_t xa = ea > 32767 ? ea - 32767 : (ea < -32768 ? -32768 - ea : 0);
                         const int64_t xb = eb > 32767 ? eb - 32767 : (eb < -32768 ? -32768 - eb : 0);
-                        if (xa || xb) { s.st.sat_clipped++; if (xa) s.st.sat_hi++; if (xb) s.st.sat_lo++;
+                        if (xa || xb) {                                   /* genuine clip: the hardware saturated */
+                            s.st.sat_clipped++; if (xa) s.st.sat_hi++; if (xb) s.st.sat_lo++;
                             const int64_t ex = xa > xb ? xa : xb; if ((uint64_t)ex > s.st.sat_max_excess) s.st.sat_max_excess = (uint64_t)ex;
-                            /* the error this clip WOULD have put into y, in units of the output LSB, had we used it */
                             const double err = fabs(s_d * (double)(256 * (ea - (int64_t)a) + (eb - (int64_t)b2))) / (double)pr.s_out;
                             if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err;
-                            /* REPAIR. The chip saturates rather than wraps, so a railed reply is a corrupted product,
-                             * not a large one -- measured, every rail hit here is a genuine clip, exceeding by up to
-                             * 39700 quanta (more than the whole int16 range) and worth up to 388 output LSBs of error.
-                             * The exact value is already in hand from the SAME arithmetic the reference worker uses,
-                             * computed from public weights and the VM's own masked row, so use it. Nothing crosses the
-                             * link and nothing about the lane contract changes: this is the out-of-lane correction's
-                             * remedy applied to the output side instead of the input side. */
-                            s.st.sat_repaired = kRepairClips ? 1 : 0;
-                            if (kRepairClips) { y[j] += s_d * (float)(256.0 * (double)ea + (double)eb) - pr.s_out * (float)P[j]; continue; }
+                        } else if (ea != (int64_t)a || eb != (int64_t)b2) {
+                            s.st.false_rails++;                           /* in-range product returned as a rail: the worker is lying */
                         }
+                        s.st.sat_repaired = kRepairClips ? 1 : 0;
+                        if (kRepairClips) { y[j] += (float)((double)s_d * (256.0 * (double)ea + (double)eb) - (double)pr.s_out * (double)P[j]); continue; }
                     }
-                    y[j] += s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
+                    /* CANCELLATION. y = s_d*(256a+b) - s_out*P subtracts two LARGE pad-dependent quantities
+                     * whose difference is small: the reply carries the pad, P IS the pad, and only the signal
+                     * survives. In float32 each operand rounds at 2^-24 of ITS OWN magnitude, not of the
+                     * difference, so the residual error is a function of the pad -- exactly the dependence being
+                     * hunted. The plain path never had this (it subtracts v-P in int32 first); the digit path
+                     * cannot, because DIGIT_OUT_DIV is 102.4 rather than a power of two. Doing the cancellation
+                     * in double costs nothing and shrinks the error by about 2^29. The diagnostic records how
+                     * far the float form WOULD have been, in output LSBs, so this is measured not assumed. */
+                    const double yd = (double)s_d * (double)(256 * (int32_t)a + (int32_t)b2) - (double)pr.s_out * (double)P[j];
+                    { const double yf = (double)(s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j]);
+                      const double dd = fabs(yf - yd) / (double)pr.s_out;
+                      if (dd > s.st.cancel_max_lsb) s.st.cancel_max_lsb = dd;
+                      s.st.cancel_sq += dd * dd; s.st.cancel_n++; }
+                    y[j] += (float)yd;
                 }
             } else
             for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j];
                 if (v >= 32767 || v <= -32767) { s.st.saturated++;
+                    /* Same contract as the digit path: the rail is only a TRIGGER, the recomputed value is the
+                     * trusted one and is used unconditionally, and the budget is taken before the dot. This
+                     * branch previously substituted only when the trusted value was itself out of range, so a
+                     * worker could return a rail for an in-range product, force the dot, increment nothing, and
+                     * have the false rail consumed. Association matches the reference: (acc * M), not (M * acc). */
+                    if (!rail_budget_take(s.st, g)) abort();
+                    rail_recomp++;
                     const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
-                    const int64_t ev = llround(pr.M[j] * (double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, qr, g.n_in));
+                    const int64_t ev = llround((double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, qr, g.n_in) * pr.M[j]);
                     const int64_t ex = ev > 32767 ? ev - 32767 : (ev < -32768 ? -32768 - ev : 0);
                     if (ex) { s.st.sat_clipped++; if ((uint64_t)ex > s.st.sat_max_excess) s.st.sat_max_excess = (uint64_t)ex;
-                              const double err = fabs((double)(ev - (int64_t)v)); if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err;
-                              y[j] += pr.s_out * (float)((double)ev - (double)P[j]); continue; } }   /* repair: see the digit path */
+                              const double err = fabs((double)(ev - (int64_t)v)); if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err; }
+                    else if (ev != (int64_t)v) s.st.false_rails++;
+                    if (kRepairClips) { y[j] += pr.s_out * (float)((double)ev - (double)P[j]); continue; } }
                 y[j] += pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
             rx += pr.n_out;
         }
         if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
     }
     const int64_t t3 = now_us();
-    {   /* a flooded exchange means the worker is railing deliberately or the lane recipe is wrong for
-         * this group; either way the offload is not happening and silence would hide it */
-        static int flood_runs = 0; const uint64_t clips = s.st.sat_clipped - clips_before;
-        uint32_t widest = 0; for (const proj &pp : g.projs) if (pp.n_out > widest) widest = pp.n_out;
-        if (clips > (uint64_t)(widest >> kClipFloodShift)) {
-            if (++flood_runs == 1 || flood_runs == kClipFloodRuns)
-                TPU_LOG("blk.%d kind %d railed %llu of %u outputs in ONE exchange (%d in a row): the worker is "
-                        "railing replies or the lane recipe is wrong for this group\n",
-                        g.layer, g.kind, (unsigned long long)clips, widest, flood_runs);
-            if (flood_runs >= kClipFloodRuns) { TPU_LOG("giving up: %d consecutive flooded exchanges\n", flood_runs); abort(); }
-        } else flood_runs = 0;
-    }
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);

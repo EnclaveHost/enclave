@@ -16,6 +16,9 @@ typedef struct {
     uint64_t ver_n, ver_bad, ver_max;                /* backend-vs-reference: elements compared, disagreements, worst |diff| in LSB */
     double   ver_sq;                                 /* sum of squared differences, for an RMS */
     uint64_t rail_m32768, rail_m32767, rail_p32767;  /* which rail values the backend ACTUALLY returns */
+    uint64_t cancel_n;                               /* elements where float-vs-double cancellation was compared */
+    double   cancel_max_lsb, cancel_sq;              /* worst and sum-of-squares of the float form's error, in output LSBs */
+    uint64_t false_rails, rail_recomp_total;         /* rails whose TRUSTED value was in range (worker lying), and every rail-triggered recompute */
     uint64_t sat_repaired;                           /* 1 when the build actually substitutes the exact value (kRepairClips) */
     double   sat_max_err_lsb;                        /* the worst error a clip put into y, in output LSBs */             /* entries kept in the VM (beyond their lane) | replies on the int16 rail */
     uint64_t bank_min;                               /* pads left in the emptiest group */
@@ -37,6 +40,7 @@ double ggml_backend_tpu_mint_bench(int positions, int threads, int scalar); /* m
 void   ggml_backend_tpu_refill_start(int target, int threads); /* keep every bank at `target` pads from background threads */
 void   ggml_backend_tpu_refill_stop(void);
 void   ggml_backend_tpu_window_mint(int target, int chunk);
+const char *ggml_backend_tpu_config(void);      /* what this binary does: repair/verify/inject switches, for self-attesting logs */
 void   ggml_backend_tpu_link_buf(uint64_t *before, uint64_t *after);  /* the vsock credit window, before and after widening */
 void   ggml_backend_tpu_ping_bench(int reps);   /* reply-size sweep through the real link, TPU excluded */  /* mint inside the link window: bank target, pads per batch (0 = off) */
 void   ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset);
