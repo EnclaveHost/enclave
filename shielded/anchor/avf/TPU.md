@@ -1551,3 +1551,37 @@ working and a known-good file compiles alongside whatever is being tested.
 session, immediately before drawing any conclusion from a compile that fails. `a8w4/probe_*.py` should
 carry that control rather than leaving it to whoever runs them, and until they do, treat their CRASH rows
 as unverified.
+
+### Diagnosing it: what the compiler failure is NOT (2026-09-22)
+
+The failure is sharper than "flaky", and worth recording so the next person does not repeat the search.
+
+**It fails in 21 ms on a 624-byte single-FC graph, 0 for 5**, having compiled the same inputs earlier the
+same evening. The log gets as far as loading the plugin, partitioning the model and printing
+`Compiling model...`, then returns `INTERNAL` with empty debug info. It never creates its `/tmp` working
+directory and never extracts the 156 MB worker binary it forks (earlier runs left
+`/tmp/compiler_worker_*` and `/tmp/compiler_*/input_model.tflite`; today's leave nothing), so it dies
+before doing any work.
+
+Ruled out, each checked rather than assumed:
+
+| candidate | checked |
+|---|---|
+| memory / over-commit | Committed_AS 156.9 -> 116.1 GB against a 146.4 GB limit, still fails. **This was my first diagnosis and it was wrong** |
+| disk | 13 GB free on /tmp; TMPDIR on a 1.2 TB filesystem changes nothing |
+| tmpfs inodes | 11 % of 1048576 used; `mkdtemp` in /tmp works |
+| `noexec` | /tmp and /vm are both plain `rw`; the bundled RISC-V clang runs and prints its version |
+| fds / processes / IPC | 12899 open of no limit, 680 pids of 4194304, 3 shm segments |
+| SDK damage from the 09-20 move to /vm | 2323 files, 970 MB, none zero-length, all executable bits intact |
+| a beta licence expiry | no licence or token files; no expiry strings in either .so |
+| a mid-session system upgrade | no pacman upgrades on 09-21 or 09-22 |
+
+So: environmental, reproducible, and unexplained. The honest label is that the toolchain is down rather
+than that the graphs are wrong, and anything depending on a compile is parked until a known-good file
+compiles again.
+
+**Two wrong diagnoses on the way to that**, both of the same kind: a plausible correlation asserted as a
+cause. The first was that a probe's `-128` weights crashed the compiler (they did, but symmetric weights
+compile, and `make_graphs.py` already clips to [-127, 127], so it never applied to the real layer). The
+second was over-commit, which I believed firmly enough to tell a colleague their benchmark was starving
+my work. It was not. In both cases the check that refuted it was one command.
