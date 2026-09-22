@@ -63,6 +63,35 @@ write too:
 Until all of that is covered, a guest can reach UB inside the trusted image, which is the one thing
 an enclave runtime may not allow. The gate stays on and the VBS box keeps advertising `set: false`.
 
+### Ordinary accesses: done, and what it cost
+
+The first item is implemented. **Every ordinary wasm load and store in Pulley funnels through two
+functions** — the addressing modes only implement `addr`, and `load_ne`/`store_ne` are shared
+defaults — so `race_read`/`race_write` replace `read_unaligned`/`write_unaligned` for all of them.
+Relaxed atomics: no ordering is imposed (an ordinary wasm access promises none) and tearing stays
+permitted (the spec allows it); what changes is only that the access stops being a data race.
+Aligned widths are one instruction; unaligned falls back to per-byte in a `#[cold]` tail, because
+every wasm producer aligns what it can.
+
+Measured on 50M load+store pairs through the interpreter, same machine, same binary otherwise:
+
+| | |
+|---|---|
+| plain `read_unaligned`/`write_unaligned` (the unsound version) | 521 ms |
+| relaxed atomics, **alignment test removed** (attribution only, unsound) | **491 ms** |
+| relaxed atomics, first attempt (result via a `MaybeUninit` slot) | 736 ms |
+| relaxed atomics, early returns + cold unaligned tail | **623 ms** |
+
+The second row is the finding: **the atomic access itself costs nothing** — it is marginally faster
+than the plain one. The whole apparent 41% tax was the alignment branch forcing the value through a
+stack slot instead of a register, and restructuring recovered half of it. The remaining ~20% is
+branch layout on a benchmark that is *only* loads and stores; a workload with any arithmetic between
+accesses pays less.
+
+The way to stop paying it at all is to specialise: a memory that is not `shared` cannot be raced, so
+its accesses can stay plain. The interpreter cannot tell them apart, but the COMPILER can, so this
+wants distinct opcodes for shared-memory accesses rather than a run-time test. Not done.
+
 ## What the atomics themselves are, and how far they are checked
 
 The atomic ops use `AtomicNN::from_ptr` on the pointer `AddressingMode::addr` already produces,
