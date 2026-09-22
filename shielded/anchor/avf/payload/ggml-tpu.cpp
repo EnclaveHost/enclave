@@ -371,7 +371,11 @@ static constexpr bool kVerifyKernel = false;
 static constexpr int kInjectFault = 0;
 static void inject_fault(int16_t *rx, size_t n, uint64_t exchange) {
     if (kInjectFault == 1) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
-    else if (kInjectFault == 2) { for (size_t i = 0; i < n; i += 200000) rx[i] = 32767; }   /* ~0.2 per exchange: BELOW the refill rate, so the repair must reject them unaided */
+    /* The loop starts at i=0, so this is EXACTLY ONE false rail per non-empty exchange for every reply this
+     * lane produces (the largest is far below 200000 elements) -- not the "~0.2 per exchange" an earlier
+     * comment here claimed. One is still below the refill rate of kRailRefill, which is the property the
+     * experiment needs: the budget must never fire, so the repair has to reject the rails on its own. */
+    else if (kInjectFault == 2) { for (size_t i = 0; i < n; i += 200000) rx[i] = 32767; }
     else if (kInjectFault == 3 && (exchange & 1)) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
 }
 static bool corr_threaded() {

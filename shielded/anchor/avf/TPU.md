@@ -812,3 +812,95 @@ are a property of masked quantised offload, not a bug.
 Two hypotheses were eliminated by measurement before this one was confirmed, and both had looked
 plausible. Neither "the outputs look similar" nor "two runs matched" identified a cause; only measuring
 the magnitude of each candidate did.
+
+## The decode error: what is derived, what is simulated, and what is neither (2026-09-22)
+
+The previous section ended at "the criterion is a BOUND, not equality" without saying what the bound is.
+`tpu/test/error_bound.py` now derives it and checks it. The three statements below are deliberately
+separated, because they have very different standing and an earlier write-up ran them together.
+
+**Derived, and it holds for every exchange this lane can produce.** In output LSBs, with
+`D = DIGIT_OUT_DIV = 102.4`, the whole decode error of a non-clipping exchange is
+
+    err = (256*ea + eb)/D - ep
+
+where `ea`, `eb` are the backend's deviations from the ideal product on the two digits and `ep` is the
+rounding in the minted pad. The out-of-lane and wrap terms are exact integers and contribute nothing.
+With an ideal round-half backend that gives
+
+    |err| <= (256/2 + 1/2)/102.4 + 1/2 = **1.7548828125 output LSB**
+
+and the 256 is digit-split's price: the `hi` digit's rounding is multiplied by 256 on recombination and
+`D` buys back only 102.4 of it. This figure was independently re-derived during the audit and agrees.
+
+**Simulated, on the design rather than on the silicon.** Real weights and real lane widths out of the
+shipped bundle, synthetic in-lane activations, one projection each from six groups sampled across the
+depth (blocks 0, 6, 9, 17, 26, 30; all four projection kinds), ideal backend, no TPU invoked and no reply
+read:
+
+| | max | rms |
+|---|---|---|
+| simulated error, 14848 elements | **1.737** | **0.778** |
+| analytic ideal bound | 1.7549 | -- |
+| extra from evaluating the reconstruction in float32 rather than f64 | 1.06e-3 | -- |
+
+The last row is the separate accounting the audit asked for: the production path reconstructs in float,
+and that choice costs about a thousandth of an LSB, so it is not a term worth reasoning about further.
+
+**Neither derived nor measured: the 4.26 figure.** Feeding `|delta| <= 1` on both digits through the same
+algebra gives 4.2646484375 LSB, and that number appeared earlier as though it were a production worst
+case. It is not. It is CONDITIONAL on a premise that has never been established: what was actually
+observed is that on two sampled kernels, 5 elements in 117k differed from the reference by exactly one
+LSB and none by more. That is consistent with `|delta| <= 1`; it is not a proof of it for unsampled
+layers, activations or pads. A real worst case needs an adversarial or exhaustive characterisation of the
+backend, which has not been done.
+
+**And none of it is a measurement of the deployed kernel.** Every number in the table comes from NumPy.
+A deployed figure would have to come from replies captured off the device and compared against the same
+reference, which is a different experiment. The honest summary is: the design's error is bounded at about
+1.75 output LSB and sits at about 0.78 rms; whether the silicon stays inside that is supported by a
+117k-element sample and nothing stronger.
+
+## The build could package a binary the source did not describe (2026-09-22)
+
+`libggml-tpu.so`, `liblocalengine.so` and `libengine.so` are built ONLY by `./build.sh engine-pvm`. The
+`anchor` target packages whatever it finds in `out/engine-pvm/`. So editing `payload/ggml-tpu.cpp` and
+running `./build.sh anchor` produced a correctly signed APK containing the PREVIOUS backend, silently.
+
+This is not hypothetical: a quality comparison was started against a binary still carrying
+`kInjectFault = 1` from a fault-injection experiment, with the source on disk reading `0`. Nothing in the
+build, the install or the filenames showed it. What caught it was the payload's own line
+
+    VSOCK LOCAL tpu: build config repair=1 verify=0 inject=1 corr_threads=1 spin_us=0 (built Sep 22 2026 02:00:17)
+
+which prints the switches AS COMPILED plus `__DATE__`/`__TIME__`. That line exists because an earlier
+audit round found logs labelled REPAIRED that had been produced with the repair compiled out; it has now
+paid for itself twice, and the lesson generalises past this repo: a measurement harness should make the
+binary state its own identity, because every cheaper proxy -- filename, directory, build order, memory --
+has now failed at least once here.
+
+Two changes followed. `build.sh anchor` REFUSES when `payload/ggml-tpu.cpp` or `payload/engine_local.cpp`
+is newer than the library it is about to package, naming the source and the fix. And
+`host/quality-compare.sh` writes the sha256 of each packaged library and the compiled switch values into
+a `BUILD` file beside the results, so a result carries its binary's identity rather than sitting next to
+it.
+
+A second trap in the same area, for the record: without `ANCHOR_TPU_LIBS` pointing at the prebuilt
+`libanchortpu.so` and `libLiteRtDispatch_GoogleTensor.so`, the APK builds, signs and installs happily and
+then fails at run time with "TPU worker library not in this APK". The build now documents the full order
+in its header: `./build.sh engine-pvm && ANCHOR_TPU_LIBS=<dir> ./build.sh anchor`.
+
+## Corrections to the fault-injection write-up (2026-09-22)
+
+Three claims from the adversarial validation were overstated and are corrected here.
+
+* **Mode 2's rate.** The injector's loop starts at `i = 0`, and the largest reply this lane produces is far
+  below its 200000 stride, so mode 2 injects EXACTLY ONE false rail per non-empty exchange -- not the
+  "~0.2 per exchange" the comment and the write-up claimed. The experiment's premise survives, because one
+  is still below `kRailRefill = 4` and so the budget must never fire; but the stated rate was wrong by 5x.
+* **Mode 3's evidence.** Mode 1's refusal message was captured verbatim. Mode 3's saved log shows only the
+  SIGABRT, not a reason-specific line, so "mode 3 refused" rests on the exit and not on retained evidence.
+  It needs a re-run under the widened `tpu-run.sh` filter before it can be called diagnosed.
+* **What coherent output proves.** Mode 2 completing at 1.45 tok/s with readable text, having rejected 3360
+  false rails over 3414 recomputations, is evidence the reject path runs and does not wedge. It is not
+  evidence of numerical correctness; only a comparison against a reference is that.
