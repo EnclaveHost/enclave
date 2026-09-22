@@ -9,6 +9,7 @@
 extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
+#include "shielded-parwork.h"
 #include "shielded-wide.h"
 }
 #include "shielded-source-quant.h"
@@ -28,6 +29,9 @@ extern "C" {
 #include <mutex>
 #include <set>
 #include <string>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <thread>
 #include <vector>
 
@@ -209,6 +213,15 @@ struct sh_state {
      * never move, so the link may borrow `w` for its lifetime. */
     struct entry {
         int node = -1;
+        /* Column-split placement (SHIELDED_SPLIT_COLS): this card's link holds
+         * the output columns [col0, col0 + ncols) of the weight; N stays the
+         * FULL width, because the caller's y row and this entry's descale and
+         * outlier tables are full-width. ncols == 0 means the whole weight,
+         * which is the ordinary single-owner placement. On the PRIMARY card's
+         * entry the part_* vectors name every card's slice of this weight. */
+        int64_t col0 = 0, ncols = 0;
+        std::vector<int> part_cards, part_nodes;
+        std::vector<int64_t> part_col0;
         std::string name;
         std::vector<int> f_w;           /* one exponent per output column */
         int64_t K = 0, N = 0;
@@ -299,6 +312,7 @@ struct sh_pool {
     std::vector<std::unique_ptr<sh_state>> extra;
     std::vector<sh_state *> cards;
     std::map<std::string, ggml_tensor> pending;
+    std::vector<struct sh_split_worker *> split_workers;   /* one per non-primary card; process-lifetime */
     std::map<std::string, int> owners;       // activation group -> card, -1 = CPU
     std::map<std::string, int> layers;
 };
@@ -314,6 +328,7 @@ static int sh_owner(sh_pool &p, const ggml_tensor *w) {
     return it == p.owners.end() ? -1 : it->second;
 }
 static void sh_plan(sh_pool &p);
+static bool sh_split_cols();
 
 int ggml_backend_shielded_set_weight_verifier(ggml_shielded_weight_verifier verifier, void *ctx) {
     sh_pool &p = sh_pool_get();
@@ -641,7 +656,16 @@ static void sh_pool_init(sh_pool &p) {
         auto s = std::make_unique<sh_state>();
         sh_env_defaults(*s);
         if (parts.size() == 6) {
-            const std::string prefix = "/dev/enclave-shielded-shm/card-";
+            /* The ring lives at ONE fixed, root-owned location in the CVM, so a
+             * worker's config string can never point the trusted half at a
+             * path it chose. A bench box has no such directory, so the harness
+             * build (and only that build) also accepts the same layout under
+             * /dev/shm -- which is world-writable, hence not a production
+             * option even though the ring's contents are masked and checked. */
+            std::string prefix = "/dev/enclave-shielded-shm/card-";
+#ifdef SHIELDED_ALLOW_DEV_SHM_RINGS
+            if (parts[4].compare(0, prefix.size(), prefix) != 0) prefix = "/dev/shm/enclave-shielded-shm/card-";
+#endif
             if (parts[4].compare(0, prefix.size(), prefix) != 0) { reject(); return; }
             const std::string id = parts[4].substr(prefix.size());
             if (id.empty() || id.size() > 2 || id.find_first_not_of("0123456789") != std::string::npos ||
@@ -779,7 +803,8 @@ static int sh_required_cache_read(void *ctx, uint64_t, uint8_t *, size_t) {
 }
 
 static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *prefetch = nullptr,
-                        const ggml_tensor *next_source = nullptr) {
+                        const ggml_tensor *next_source = nullptr,
+                        int64_t split_col0 = 0, int64_t split_ncols = 0) {
     if (s.weight_cache_failed || s.source_verification_failed) return false;
     const std::string name = ggml_get_name(w);
     if (s.weights.count(name)) return true;
@@ -837,7 +862,9 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
      * O(K*N) encoding below, so a weight that will not fit costs nothing. This
      * is what makes a partial offload settle instead of overflowing the worker
      * (see sh_state::reserve_cap). */
-    const int64_t dev_add = K * N + (int64_t)sh_max_m() * (3 * K + N * 4);
+    /* A column-split card is charged for the columns it actually receives. */
+    const int64_t reg_N = (split_ncols > 0 && split_ncols <= N) ? split_ncols : N;
+    const int64_t dev_add = K * reg_N + (int64_t)sh_max_m() * (3 * K + reg_N * 4);
     if (s.reserve_cap > 0 && s.device_bytes + dev_add > s.reserve_cap) {
         if (!s.budget_full_logged) {
             SH_LOG("reservation full: %lld of %lld device bytes placed; %s and later "
@@ -960,11 +987,19 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
      * those channels zeroed -- so the channels that would have broken Z_M are
      * exactly the ones the field never has to hold. */
     const size_t nout = site->outliers.size();
-    e.out_cols.resize(nout * (size_t)N);
-    for (size_t c = 0; c < nout; c++) {
+    /* Only the card that owns column 0 keeps the full-width outlier and
+     * descale tables: they are read once per exchange over the WHOLE row,
+     * from the entry the caller holds, which is that card's. */
+    const bool split_primary = split_ncols == 0 || split_col0 == 0;
+    e.out_cols.resize(split_primary ? nout * (size_t)N : 0);
+    for (size_t c = 0; split_primary && c < nout; c++) {
         const int64_t k = site->outliers[c];
         if (k < 0 || k >= K) { SH_LOG("%s: outlier channel %lld out of range\n", name.c_str(), (long long)k); s.refused.insert(name); return false; }
         for (int64_t j = 0; j < N; j++) e.out_cols[c * (size_t)N + j] = e.w[(size_t)j * K + k];
+    }
+    for (size_t c = 0; !split_primary && c < nout; c++) {
+        const int64_t k = site->outliers[c];
+        if (k < 0 || k >= K) { SH_LOG("%s: outlier channel %lld out of range\n", name.c_str(), (long long)k); s.refused.insert(name); return false; }
     }
     const int64_t af = (int64_t)site->act_frac + sh_af_delta(s);
     if (af < -149 || af > 127) {
@@ -983,9 +1018,9 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     }
     if (limit < (uint64_t)SH_FV_X_LIMIT) { s.refused.insert(name); return false; }
     e.encode_limit = (float)limit;
-    e.inv.resize((size_t)N);
+    e.inv.resize(split_primary ? (size_t)N : 0);
     const double worst_y = (double)SH_HALF_M + (double)nout * SH_WEIGHT_BYTE_LIMIT * (double)limit;
-    for (int64_t j = 0; j < N; j++) {
+    for (int64_t j = 0; split_primary && j < N; j++) {
         const int64_t exponent = -(af + (int64_t)e.f_w[j]);
         const float inv = exponent < -149 || exponent > 127 ? 0 : ldexpf(1.0f, (int)exponent);
         if (!(inv > 0) || !std::isfinite(inv) || (double)inv * worst_y > (double)FLT_MAX / 2) {
@@ -1031,12 +1066,24 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     }
 
     const double t_cache = profile_registration ? sh_now_ms() : 0;
+    /* A column-split card registers ONLY its slice of the rows. The encoding is
+     * row-per-output-column, so the slice is contiguous and the link needs no
+     * notion of the split at all: it sees a narrower weight. */
+    if (split_ncols > 0 && split_ncols < N) {
+        if (split_col0 < 0 || split_col0 + split_ncols > N) { s.refused.insert(name); return false; }
+        std::vector<int8_t> slice(e.w.begin() + (size_t)split_col0 * K,
+                                  e.w.begin() + (size_t)(split_col0 + split_ncols) * K);
+        e.w.swap(slice);
+        e.f_w.assign(e.f_w.begin() + split_col0, e.f_w.begin() + split_col0 + split_ncols);
+    }
+    const int64_t link_N = (split_ncols > 0 && split_ncols <= N) ? split_ncols : N;
     sh_state::entry &stored = s.weights[name];
     stored = std::move(e);
     stored.name = name;
+    stored.col0 = split_col0; stored.ncols = split_ncols;
     auto gf = s.group_first.find(stored.group);
     const int share = gf == s.group_first.end() ? -1 : gf->second;
-    const int node = sh_link_add_weight(s.link, name.c_str(), stored.w.data(), K, N, sh_max_m(), share);
+    const int node = sh_link_add_weight(s.link, name.c_str(), stored.w.data(), K, link_N, sh_max_m(), share);
     if (node < 0) {
         SH_LOG("%s: %s\n", name.c_str(), sh_link_last_error(s.link));
         s.weights.erase(name); s.refused.insert(name);
@@ -1139,6 +1186,74 @@ static void sh_plan(sh_pool &p) {
         }
         return best;
     };
+    if (sh_split_cols() && p.cards.size() > 1) {
+        /* Column split: card c holds columns [n_c, n_{c+1}) of EVERY weight, so
+         * one exchange occupies every card. Boundaries are 32-column aligned
+         * (the worker's kernel plans in column blocks) and the last card takes
+         * the remainder. Owner 0 is nominal: the graph walker hands the whole
+         * run to card 0, which fans each exchange out. */
+        const size_t nc = p.cards.size();
+        for (auto &layer : layers) for (auto &grp : layer.second) {
+            p.owners[grp.first] = 0;
+            for (auto *w : grp.second) {
+                const int64_t N = w->ne[1];
+                const std::string wname = ggml_get_name(w);
+                /* SHIELDED_SPLIT_WEIGHTS: relative shares, e.g. "53,47" for a
+                 * pair of cards whose bandwidth differs. Absent = equal. */
+                static std::vector<int> share = []{
+                    std::vector<int> v;
+                    const char *e = getenv("SHIELDED_SPLIT_WEIGHTS");
+                    for (const char *p = e; p && *p; ) {
+                        char *end = nullptr; long x = strtol(p, &end, 10);
+                        if (end == p || x <= 0 || x > 1000) { v.clear(); break; }
+                        v.push_back((int)x); p = *end ? end + 1 : end;
+                    }
+                    return v;
+                }();
+                const bool weighted = share.size() == nc;
+                int64_t share_total = 0;
+                for (size_t c = 0; weighted && c < nc; c++) share_total += share[c];
+                std::vector<int64_t> edge(nc + 1, 0);
+                for (size_t c = 1; c < nc; c++) {
+                    int64_t cum = 0;
+                    if (weighted) for (size_t d = 0; d < c; d++) cum += share[d];
+                    int64_t e = weighted ? ((N * cum / share_total) & ~(int64_t)31)
+                                         : ((N * (int64_t)c / (int64_t)nc) & ~(int64_t)31);
+                    if (e < edge[c - 1]) e = edge[c - 1];
+                    if (e > N) e = N;
+                    edge[c] = e;
+                }
+                edge[nc] = N;
+                bool ok = true;
+                for (size_t c = 0; c < nc && ok; c++) {
+                    const int64_t ncols = edge[c + 1] - edge[c];
+                    if (ncols <= 0) { ok = false; break; }
+                    ok = sh_register(*p.cards[c], w, nullptr, nullptr, edge[c], ncols);
+                    if (!ok) SH_LOG("split: %s slice %lld..%lld refused on card %zu\n", wname.c_str(),
+                                    (long long)edge[c], (long long)edge[c + 1], c);
+                    if (p.cards[c]->weight_cache_failed || p.cards[c]->source_verification_failed) { p.pending.clear(); return; }
+                }
+                auto pit = p.cards[0]->weights.find(wname);
+                if (!ok || pit == p.cards[0]->weights.end()) {
+                    /* Any card refusing its slice makes the whole weight local:
+                     * a half-registered weight has no complete product. */
+                    for (size_t c = 0; c < nc; c++) p.cards[c]->weights.erase(wname);
+                    p.owners.erase(grp.first);
+                    continue;
+                }
+                pit->second.part_cards.clear(); pit->second.part_nodes.clear(); pit->second.part_col0.clear();
+                for (size_t c = 0; c < nc; c++) {
+                    auto it = p.cards[c]->weights.find(wname);
+                    pit->second.part_cards.push_back((int)c);
+                    pit->second.part_nodes.push_back(it->second.node);
+                    pit->second.part_col0.push_back(it->second.col0);
+                }
+                SH_LOG("split placement %s over %zu cards (N=%lld)\n", wname.c_str(), nc, (long long)N);
+            }
+        }
+        p.pending.clear();
+        return;
+    }
     for (auto &layer : layers) {
         int64_t total = 0;
         for (auto &g : layer.second) for (auto *w : g.second) total += sh_weight_bytes(*w);
@@ -1223,6 +1338,219 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
     if (!g_weight_verifier && p.owners.count(sh_group_key(nm)) && owner < 0) return false;
     if (!g_weight_verifier && owner >= 0 && p.cards[owner]->contention.contended && sh_group_key(nm) != p.cards[owner]->probe_group) return false;
     return true;
+}
+
+/* Column-split placement: every card holds a slice of every weight's output
+ * columns, so one exchange runs on all cards AT ONCE. The alternative (a whole
+ * weight per card) uses the cards one at a time, because a token walks the
+ * layers in order: the 27B's decode had one V100 idle while the other worked.
+ * Each card draws its own pad for the same activation, checks its own slice
+ * with its own Freivalds vectors, and writes its own columns of the row. */
+static bool sh_split_cols() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_SPLIT_COLS", 0); return v != 0; }
+
+/* One worker per non-primary card: the request thread runs card 0's exchange
+ * itself and hands the others to these, so the cards overlap. Created on the
+ * first split exchange, parked on a condition variable between them. */
+/* The per-exchange work that follows the product, for ONE card's columns: the
+ * TEE-side outlier term and the per-column descale into the caller's f32
+ * tensor. Running it on the card's own worker makes it parallel at no extra
+ * synchronisation: at m = 1 these loops are a single thread over a whole row
+ * (4 ms per token on the 27B), because there is only one row to spread. */
+struct sh_split_post {
+    const sh_simd *simd = nullptr;
+    const int64_t *x_tee = nullptr;
+    size_t nout = 0;
+    int32_t m = 0;
+    std::vector<int64_t *> y;            /* full-width product row for each visible member */
+    std::vector<float *> dst;
+    std::vector<const float *> inv;
+    std::vector<const int8_t *> out_cols;
+    std::vector<int64_t> N;
+    std::vector<size_t> xi;              /* each member's position in xents, which is what the slice arrays index */
+};
+static void sh_split_post_slice(const sh_split_post &p, const int64_t *col0, const int64_t *ncols) {
+    /* Each member has its own width, so each has its own slice boundary. */
+    for (size_t t = 0; t < p.y.size(); t++) {
+        const int64_t N = p.N[t];
+        const size_t xi = p.xi[t];
+        const int64_t c0 = col0[xi], nc = ncols[xi];
+        if (nc <= 0 || c0 < 0 || c0 + nc > N) continue;
+        for (int32_t r = 0; r < p.m; r++) {
+            int64_t *yr = p.y[t] + (size_t)r * N;
+            for (size_t c = 0; c < p.nout; c++) {
+                const int64_t xv = p.x_tee[(size_t)r * p.nout + c];
+                const int8_t *wc = p.out_cols[t] + (size_t)c * N + c0;
+                int64_t *yy = yr + c0;
+                for (int64_t j = 0; j < nc; j++) yy[j] += xv * wc[j];
+            }
+            p.simd->descale(yr + c0, p.inv[t] + c0, (size_t)nc, p.dst[t] + (size_t)r * N + c0);
+        }
+    }
+}
+
+/* The handoff is on the token's critical path 241 times, so it spins rather
+ * than parking: a condition-variable round trip cost ~28 us per exchange,
+ * which is most of what a split saves (the kernel itself halves cleanly --
+ * 208 -> 107 us for half a gate|up -- so the dispatch was the whole problem).
+ * The worker spins for SHIELDED_SPLIT_SPIN_US before falling back to the
+ * condition variable, so an idle link does not burn a core. */
+struct sh_split_worker {
+    std::thread th;
+    std::mutex mu; std::condition_variable cv;
+    std::atomic<uint64_t> gen{0}, done{0};
+    bool quit = false;
+    sh_link *link = nullptr; const int *nodes = nullptr; size_t n = 0;
+    const int64_t *x = nullptr; int32_t m = 0; int64_t **y = nullptr; const int64_t *stride = nullptr;
+    const sh_split_post *post = nullptr; const int64_t *col0 = nullptr, *ncols = nullptr;
+    int rc = SH_OK;
+    uint64_t seen = 0;
+};
+static int sh_split_spin_us() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_SPLIT_SPIN_US", 2000); return v; }
+static void sh_split_worker_main(sh_split_worker *w) {
+    for (;;) {
+        const uint64_t want = w->seen + 1;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (;;) {
+            if (w->gen.load(std::memory_order_acquire) >= want) break;
+            if (w->quit) return;
+            if (std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - t0).count() > sh_split_spin_us()) {
+                std::unique_lock<std::mutex> lk(w->mu);
+                w->cv.wait_for(lk, std::chrono::milliseconds(50), [w, want] {
+                    return w->quit || w->gen.load(std::memory_order_acquire) >= want; });
+                if (w->quit) return;
+                if (w->gen.load(std::memory_order_acquire) >= want) break;
+            }
+            #if defined(__x86_64__)
+            __builtin_ia32_pause();
+            #endif
+        }
+        w->seen = want;
+        const int rc = sh_link_gemm_stride(w->link, w->nodes, w->n, w->x, w->m, w->y, w->stride);
+        if (rc == SH_OK && w->post) sh_split_post_slice(*w->post, w->col0, w->ncols);
+        w->rc = rc;
+        w->done.store(want, std::memory_order_release);
+    }
+}
+
+/* One exchange, every card at once. Each card masks the same activation with
+ * its OWN pad, computes its own columns, verifies its own slice, and writes
+ * straight into this row of the caller's full-width y. */
+static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
+                             std::vector<int64_t *> &yp, const int64_t *x, int32_t m,
+                             const sh_split_post *post) {
+    const sh_state::entry &e0 = *xents[0];
+    const size_t nparts = e0.part_cards.size();
+    if (nparts < 2) return SH_ERR_PROTO;
+    static std::vector<std::vector<int>> pnodes;
+    static std::vector<std::vector<int64_t *>> pyp;
+    static std::vector<std::vector<int64_t>> pstride, pcol0, pncols;
+    pnodes.resize(nparts); pyp.resize(nparts); pstride.resize(nparts); pcol0.resize(nparts); pncols.resize(nparts);
+    for (size_t c = 0; c < nparts; c++) {
+        pnodes[c].clear(); pyp[c].clear(); pstride[c].clear(); pcol0[c].clear(); pncols[c].clear();
+        for (size_t t = 0; t < xents.size(); t++) {
+            const sh_state::entry &e = *xents[t];
+            if (e.part_cards.size() != nparts) return SH_ERR_PROTO;
+            const int64_t c0 = e.part_col0[c];
+            const int64_t c1 = c + 1 < nparts ? e.part_col0[c + 1] : e.N;
+            pnodes[c].push_back(e.part_nodes[c]);
+            pyp[c].push_back(yp[t] + c0);
+            pstride[c].push_back(e.N);
+            pcol0[c].push_back(c0);
+            pncols[c].push_back(c1 - c0);
+        }
+    }
+    /* SHIELDED_SPLIT_PROBE=n: before the first n exchanges, recompute every
+     * card's slice IN THE ENCLAVE and run its own integrity check on it. A
+     * slice that fails here has inconsistent check vectors; one that passes
+     * here and fails against the worker means the worker holds other bytes. */
+    static const int probe_n = sh_env_int("SHIELDED_SPLIT_PROBE", 0);
+    static int probed = 0;
+    if (probed < probe_n) {
+        probed++;
+        for (size_t c = 0; c < nparts; c++) {
+            sh_state *card = p.cards[e0.part_cards[c]];
+            for (size_t t = 0; t < xents.size(); t++) {
+                const int nid = pnodes[c][t];
+                const int64_t nc = pncols[c][t];
+                std::vector<int64_t> scratch((size_t)m * nc, 0);
+                int64_t *sp = scratch.data();
+                const int lrc = sh_link_gemm_local(card->link, &nid, 1, x, m, &sp);
+                const bool ok = lrc == SH_OK && sh_link_verify(card->link, nid, x, scratch.data(), m);
+                if (!ok) {
+                    /* Exact integer product, unreduced: a peak above M/2 is a
+                     * field wrap (which the integer check is meant to catch),
+                     * anything else means the check vectors disagree with the
+                     * weight this link holds. */
+                    const int8_t *W = sh_link_weight(card->link, nid);
+                    const int64_t K_ = xents[t]->K;
+                    long double peak = 0; int64_t peak_j = -1;
+                    if (W) for (int64_t j = 0; j < nc; j++) {
+                        long double acc = 0;
+                        for (int64_t k2 = 0; k2 < K_; k2++) acc += (long double)x[k2] * W[j * K_ + k2];
+                        if (acc < 0 ? -acc > peak : acc > peak) { peak = acc < 0 ? -acc : acc; peak_j = j; }
+                    }
+                    fprintf(stderr, "[shielded] probe: %s card %zu exact peak |y| = %.0Lf at col %lld (field M/2 = %lld)\n",
+                            xents[t]->name.c_str(), c, peak, (long long)peak_j, (long long)(SH_M_MOD / 2));
+                }
+                fprintf(stderr, "[shielded] probe: %s card %zu node %d cols %lld+%lld local rc=%d verify=%d y0=%lld\n",
+                        xents[t]->name.c_str(), c, nid, (long long)pcol0[c][t], (long long)nc, lrc, (int)ok,
+                        (long long)scratch[0]);
+            }
+        }
+    }
+
+    /* SHIELDED_SPLIT_SERIAL=1: same slices, one card after the other on this
+     * thread. Isolates the split's arithmetic from its concurrency. */
+    static const bool serial = sh_env_int("SHIELDED_SPLIT_SERIAL", 0) != 0;
+    if (serial) {
+        int rc = SH_OK;
+        for (size_t c = 0; c < nparts; c++) {
+            sh_state *card = p.cards[e0.part_cards[c]];
+            const int r = sh_link_gemm_stride(card->link, pnodes[c].data(), pnodes[c].size(), x, m, pyp[c].data(), pstride[c].data());
+            if (r == SH_OK && post) sh_split_post_slice(*post, pcol0[c].data(), pncols[c].data());
+            if (rc == SH_OK) rc = r;
+            if (c > 0 && r == SH_OK) card->exchanges++;
+        }
+        return rc;
+    }
+    while (p.split_workers.size() < nparts - 1) {
+        sh_split_worker *w = new sh_split_worker();
+        w->th = std::thread(sh_split_worker_main, w);
+        p.split_workers.push_back(w);
+    }
+    for (size_t c = 1; c < nparts; c++) {
+        sh_split_worker *w = p.split_workers[c - 1];
+        sh_state *card = p.cards[e0.part_cards[c]];
+        w->link = card->link; w->nodes = pnodes[c].data(); w->n = pnodes[c].size();
+        w->x = x; w->m = m; w->y = pyp[c].data(); w->stride = pstride[c].data();
+        w->post = post; w->col0 = pcol0[c].data(); w->ncols = pncols[c].data();
+        w->rc = SH_OK;
+        const uint64_t g = w->gen.load(std::memory_order_relaxed) + 1;
+        w->gen.store(g, std::memory_order_release);
+        { std::lock_guard<std::mutex> lk(w->mu); w->cv.notify_one(); }   /* only matters if it parked */
+    }
+    sh_state *card0 = p.cards[e0.part_cards[0]];
+    int rc = sh_link_gemm_stride(card0->link, pnodes[0].data(), pnodes[0].size(), x, m, pyp[0].data(), pstride[0].data());
+    if (rc == SH_OK && post) sh_split_post_slice(*post, pcol0[0].data(), pncols[0].data());
+    for (size_t c = 1; c < nparts; c++) {
+        sh_split_worker *w = p.split_workers[c - 1];
+        const uint64_t want = w->gen.load(std::memory_order_relaxed);
+        while (w->done.load(std::memory_order_acquire) < want) {
+            #if defined(__x86_64__)
+            __builtin_ia32_pause();
+            #endif
+        }
+        if (rc == SH_OK) rc = w->rc;
+        else if (w->rc == SH_ERR_VERIFY) rc = SH_ERR_VERIFY;
+    }
+    if (rc == SH_OK) {
+        for (size_t c = 1; c < nparts; c++) {
+            sh_state *card = p.cards[e0.part_cards[c]];
+            card->exchanges++;
+        }
+    }
+    return rc;
 }
 
 static bool sh_local_islands_enabled() {
@@ -1513,6 +1841,36 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         s.dirty = false;
     }
 
+    /* A column-split graph reaches only THIS card's compute path, so the other
+     * cards' links would never be opened, and every split exchange would fall
+     * back to the enclave. Start them here, with the same rules. */
+    if (sh_split_cols()) {
+        sh_pool &pool = sh_pool_get();
+        for (sh_state *o : pool.cards) {
+            if (o == &s || !o->link) continue;
+            std::lock_guard<std::mutex> olk(o->mu);
+            if (o->link_failed && sh_now_ms() >= o->link_retry_at) { o->link_failed = false; o->dirty = true; }
+            if (!o->dirty || o->link_failed) continue;
+            const double t0 = sh_now_ms();
+            const int rc = sh_link_start(o->link);
+            if (rc == SH_ERR_VERIFY) {
+                o->verify_fail++;
+                fprintf(stderr, "[shielded] integrity failure during start of %s:%d: %s\n", o->host.c_str(), o->port, sh_link_last_error(o->link));
+                return GGML_STATUS_FAILED;
+            }
+            if (rc != SH_OK) {
+                SH_LOG("split: card %s:%d unavailable (%s); retrying in %.0f s\n", o->host.c_str(), o->port,
+                       sh_link_last_error(o->link), o->link_backoff_ms / 1000);
+                sh_link_down(*o);
+            } else {
+                SH_LOG("split: card %s:%d live with %zu weight slices (%.0f ms)\n", o->host.c_str(), o->port,
+                       o->weights.size(), sh_now_ms() - t0);
+                o->link_backoff_ms = 1000;
+            }
+            o->dirty = false;
+        }
+    }
+
     std::vector<char> &done = s.done;
     done.assign((size_t)n, 0);
     {
@@ -1589,7 +1947,18 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         const double te0 = sh_now_ms();
         std::vector<int64_t> &x_gpu = s.x_gpu, &x_tee = s.x_tee;
         if (x_gpu.size() < (size_t)m * K) x_gpu.resize((size_t)m * K);
-        if (!simd->encode_checked((const float *)a->data, (size_t)m * K, e0.act_scale, e0.encode_limit, x_gpu.data())) {
+        /* Also a pure map over m*K, on the same serialized thread as the
+         * mask; SHIELDED_FIELD_THREADS spreads it (width 1 = one call). */
+        struct sh_enc_range {
+            const sh_simd *simd; const float *src; float scale, limit; int64_t *dst;
+            std::atomic<int> bad;
+        } er = { simd, (const float *)a->data, e0.act_scale, e0.encode_limit, x_gpu.data(), {0} };
+        sh_par_for((int64_t)m * K, 1024, [](void *ctx, int64_t lo, int64_t hi) {
+            auto *e = (sh_enc_range *)ctx;
+            if (!e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale, e->limit, e->dst + lo))
+                e->bad.store(1, std::memory_order_relaxed);
+        }, &er);
+        if (er.bad.load(std::memory_order_relaxed)) {
             fprintf(stderr, "[shielded] %s: nonfinite or unsupported activation range; aborting the graph\n", ggml_get_name(node->src[0]));
             return GGML_STATUS_FAILED;
         }
@@ -1651,6 +2020,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
         const double tl0 = sh_now_ms();
         int rc;
+        bool split_post_done = false;   /* the cards' workers already descaled their columns */
         if (served) {
             /* Copied out rather than pointed at: the post-processing below
              * adds the outlier term in place, and a member may be served again
@@ -1661,6 +2031,97 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             }
             rc = SH_OK;
             s.offloaded_nodes += members.size(); s.served += members.size();
+        } else if (live && !xents.empty() && xents[0]->part_cards.size() > 1) {
+            sh_pool &pool = sh_pool_get();
+            bool all_live = true;
+            for (int ci : xents[0]->part_cards) {
+                sh_state *card = pool.cards[ci];
+                if (!card->link || card->link_failed || !sh_link_is_live(card->link)) all_live = false;
+            }
+            sh_split_post post;
+            post.simd = simd; post.x_tee = x_tee.data(); post.nout = nout; post.m = m;
+            for (size_t t = 0; t < members.size(); t++) {
+                const sh_state::entry &e = *ents[t];
+                size_t xi = 0;
+                while (xi < xents.size() && xents[xi] != ents[t]) xi++;
+                if (xi >= xents.size() || e.inv.size() != (size_t)e.N) { post.y.clear(); break; }
+                post.y.push_back(yp[xi]);
+                post.xi.push_back(xi);
+                post.dst.push_back((float *)members[t]->data);
+                post.inv.push_back(e.inv.data());
+                post.out_cols.push_back(e.out_cols.data());
+                post.N.push_back(e.N);
+            }
+            static const bool no_slice_post = sh_env_int("SHIELDED_SPLIT_NOPOST", 0) != 0;
+            const bool post_ok = !no_slice_post && post.y.size() == members.size();
+            rc = all_live ? sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr) : SH_ERR_IO;
+            split_post_done = post_ok && rc == SH_OK;
+            if (rc == SH_ERR_VERIFY) {
+                s.verify_fail++;
+                for (int ci : xents[0]->part_cards) {
+                    sh_state *card = pool.cards[ci];
+                    fprintf(stderr, "[shielded] split verify: card %d %s:%d says: %s\n", ci, card->host.c_str(), card->port,
+                            card->link ? sh_link_last_error(card->link) : "(no link)");
+                }
+                /* Recompute each card's slice in the enclave and check THAT:
+                 * a local product that also fails names the check vectors, one
+                 * that passes names the worker's copy of the weights. */
+                for (size_t c = 0; c < xents[0]->part_cards.size(); c++) {
+                    sh_state *card = pool.cards[xents[0]->part_cards[c]];
+                    const int nid = xents[0]->part_nodes[c];
+                    const int64_t nc = (c + 1 < xents[0]->part_col0.size() ? xents[0]->part_col0[c + 1] : xents[0]->N) - xents[0]->part_col0[c];
+                    std::vector<int64_t> scratch((size_t)m * nc, 0);
+                    int64_t *sp = scratch.data();
+                    const int lrc = sh_link_gemm_local(card->link, &nid, 1, x_gpu.data(), m, &sp);
+                    const bool ok = lrc == SH_OK && sh_link_verify(card->link, nid, x_gpu.data(), scratch.data(), m);
+                    fprintf(stderr, "[shielded] split probe: card %zu node %d cols %lld..%lld local rc=%d verify=%d first=%lld,%lld\n",
+                            c, nid, (long long)xents[0]->part_col0[c], (long long)(xents[0]->part_col0[c] + nc), lrc, (int)ok,
+                            (long long)scratch[0], (long long)(nc > 1 ? scratch[1] : 0));
+                }
+                fprintf(stderr, "[shielded] split verify: group %s m=%d members=%zu xents=%zu K=%lld\n",
+                        e0.group.c_str(), (int)m, members.size(), xents.size(), (long long)K);
+                for (size_t t = 0; t < xents.size(); t++)
+                    fprintf(stderr, "[shielded]   member %s N=%lld cols:%lld+%lld / %lld+%lld\n", xents[t]->name.c_str(),
+                            (long long)xents[t]->N, (long long)xents[t]->part_col0[0],
+                            (long long)(xents[t]->part_col0.size() > 1 ? xents[t]->part_col0[1] - xents[t]->part_col0[0] : 0),
+                            (long long)(xents[t]->part_col0.size() > 1 ? xents[t]->part_col0[1] : 0),
+                            (long long)(xents[t]->part_col0.size() > 1 ? xents[t]->N - xents[t]->part_col0[1] : 0));
+                return GGML_STATUS_FAILED;
+            }
+            if (rc != SH_OK) {
+                /* A card that is not live cannot produce its columns, and this
+                 * card's own nodes are only a SLICE of each weight -- so the
+                 * local fallback is the whole-tensor one, straight from the
+                 * public ggml weights, not this link's products. */
+                static bool told = false;
+                if (!told) {
+                    told = true;
+                    fprintf(stderr, "[shielded] split exchange unavailable (rc %d, all_live %d); computing in the enclave\n", rc, (int)all_live);
+                    for (int ci : xents[0]->part_cards) {
+                        sh_state *card = pool.cards[ci];
+                        fprintf(stderr, "[shielded]   card %d %s:%d link=%p failed=%d live=%d\n", ci, card->host.c_str(), card->port,
+                                (void *)card->link, (int)card->link_failed, (int)(card->link && sh_link_is_live(card->link)));
+                    }
+                }
+                for (size_t t = 0; t < members.size(); t++) sh_plain_mul_mat(members[t]->src[0], a, members[t]);
+                s.local_nodes += members.size();
+                s.t_link += sh_now_ms() - tl0;
+                continue;
+            } else {
+                s.offloaded_nodes += members.size(); s.exchanges++;
+                s.m_hist[m < 1 ? 0 : m > 9 ? 9 : m]++;
+                if (xents.size() > members.size()) {
+                    s.completed++;
+                    gc->m = m;
+                    gc->x.assign(x_gpu.begin(), x_gpu.begin() + (size_t)m * K);
+                    gc->y.clear();
+                    for (size_t t = 0; t < xents.size(); t++) {
+                        bool visible = false;
+                        for (size_t v = 0; v < ents.size(); v++) visible = visible || ents[v] == xents[t];
+                        if (!visible) gc->y[xents[t]->name].assign(yp[t], yp[t] + (size_t)m * xents[t]->N);
+                    }
+                }
+            }
         } else if (live) {
             rc = sh_link_gemm(s.link, nodes.data(), nodes.size(), x_gpu.data(), m, yp.data());
             if (rc == SH_ERR_VERIFY) {
@@ -1748,7 +2209,9 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
 
         const double tp0 = sh_now_ms();
-        for (size_t t = 0; t < members.size(); t++) {
+        for (size_t t = 0; split_post_done && t < members.size(); t++)
+            s.macs += (uint64_t)m * (uint64_t)K * (uint64_t)ents[t]->N;
+        for (size_t t = 0; !split_post_done && t < members.size(); t++) {
             const sh_state::entry &e = *ents[t];
             const int64_t N = e.N;
             float *dst = (float *)members[t]->data;
