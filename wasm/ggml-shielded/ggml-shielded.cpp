@@ -1666,8 +1666,62 @@ static int sh_overlap_cpu_mode() {
     return m;
 }
 static bool sh_overlap_cpu_enabled() { return sh_overlap_cpu_mode() != 0; }
+/* Phase-trace records, buffered. Written once, at exit, so nothing in the
+ * measured path does I/O.
+ *
+ * LIFETIME. The first version held the records in a function-local static
+ * vector and registered atexit(flush) from a DIFFERENT function-local static
+ * initialiser. Exit handlers and static destructors run in reverse order of
+ * registration, and the vector was constructed second, so it was destroyed
+ * BEFORE the flush ran: a heap-use-after-free on every normal exit, which an
+ * independent ASan harness reproduced. The buffer is now a deliberately leaked
+ * allocation with no destructor, so it is valid for the whole life of the
+ * process including exit handlers.
+ *
+ * THREADS. Appends are guarded. graph_compute is expected to run on one
+ * scheduler thread, but "expected" is how the readiness rule went wrong, and
+ * an uncontended mutex costs ~20 ns against ~35k records.
+ *
+ * CAPACITY. Drops are COUNTED and reported. A truncated trace that does not
+ * say it is truncated would let a window claim to cover a phase it does not. */
+struct sh_trace_rec { int card; double t; int m; uint64_t graphs, nodes, ex; double idle, link, graph; };
+struct sh_trace_state {
+    std::vector<sh_trace_rec> v;
+    std::mutex mu;
+    uint64_t dropped = 0;
+};
+static sh_trace_state *sh_trace_st() {
+    static sh_trace_state *st = [] {           /* leaked on purpose: no destructor */
+        auto *p = new sh_trace_state();
+        p->v.reserve(1u << 17);
+        return p;
+    }();
+    return st;
+}
+static void sh_trace_push(int card, double t, int m, uint64_t graphs, uint64_t nodes,
+                          uint64_t ex, double idle, double link, double graph) {
+    sh_trace_state *st = sh_trace_st();
+    std::lock_guard<std::mutex> lk(st->mu);
+    if (st->v.size() < st->v.capacity()) st->v.push_back({card, t, m, graphs, nodes, ex, idle, link, graph});
+    else st->dropped++;
+}
+static void sh_trace_flush() {
+    sh_trace_state *st = sh_trace_st();
+    std::lock_guard<std::mutex> lk(st->mu);
+    for (const auto &r : st->v)
+        fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f\n",
+                r.card, r.t / 1000.0, r.m, (unsigned long long)r.graphs, (unsigned long long)r.nodes,
+                (unsigned long long)r.ex, r.idle, r.link, r.graph);
+    if (!st->v.empty() || st->dropped)
+        fprintf(stderr, "[ph] flushed %zu records, DROPPED %llu (capacity %zu)\n",
+                st->v.size(), (unsigned long long)st->dropped, st->v.capacity());
+}
 static bool sh_phase_trace() {
-    static const bool on = sh_env_int("SHIELDED_PHASE_TRACE", 0) != 0;
+    static const bool on = [] {
+        const bool v = sh_env_int("SHIELDED_PHASE_TRACE", 0) != 0;
+        if (v) { sh_trace_st(); atexit(sh_trace_flush); }   /* construct BEFORE registering */
+        return v;
+    }();
     return on;
 }
 struct sh_idle_batch {
@@ -2451,11 +2505,13 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
      *   link     ms inside the exchange path so far, this card
      *   graph    ms inside this backend's graph_compute so far, this card */
     if (sh_phase_trace()) {
+        /* Recorded, not printed. The first version called fprintf here, inside
+         * the wall time the benchmark measures, so the residual it was used to
+         * compute included its own trace I/O. Appending to a reserved vector is
+         * a few stores; the file is written once at exit. */
         sh_link_profile lp{}; sh_link_profile_snapshot(s.link, &lp);
-        fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f\n",
-                s.card_index, sh_now_ms() / 1000.0, trace_m,
-                (unsigned long long)s.graph_calls, (unsigned long long)s.offloaded_nodes,
-                (unsigned long long)s.exchanges, lp.idle_ms, s.t_link, s.t_graph);
+        sh_trace_push(s.card_index, sh_now_ms(), trace_m, s.graph_calls,
+                      s.offloaded_nodes, s.exchanges, lp.idle_ms, s.t_link, s.t_graph);
     }
     /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
      * at the end: the engine inside a CVM never calls the stats entry point,
