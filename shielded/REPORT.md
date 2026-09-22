@@ -3101,3 +3101,78 @@ here is ~53.6. Finding 13.6 ms inside C means removing all of GATED_DELTA_NET,
 CPY, CONCAT, MUL_MAT and FLASH_ATTN_EXT together, which is not an optimisation
 but a different model. C alone cannot pay for it, exactly as the shielded side
 alone could not. That is now measured on both halves rather than argued on one.
+
+### 18.14 Decode threads: 8 is already past the knee, so C is not compute-bound
+
+The bench has always run llama.cpp with THREADS=8 on a box with 16 physical
+cores and 32 logical, and nobody had swept it -- the sweeps on record,
+SHIELDED_FIELD_THREADS and SHIELDED_REFILL_THREADS, are different pools. After
+pinning showed the workload is throughput-bound on logical CPUs, 8 looked low.
+The prediction was written before the run and it decides a class of work:
+
+  C scales with threads  -> compute-bound, per-op kernel work can pay
+  C flat or worse        -> memory-bound, and every kernel idea that does not
+                            reduce BYTES MOVED is dead before it is written
+
+Three alternating matched pairs, op profile on both arms, no intruders in any
+of the six:
+
+| threads | spec tok/s | median |
+|---|---|---|
+| 8 | 19.37, 19.47, 19.92 | **19.47** |
+| 16 | 11.18, 8.67, 12.37 | **11.18** |
+
+Doubling the decode threads costs 43%. Both arms held local=0 constant,
+identical=True and diverged=0, so this is a throughput result and not a
+correctness one. (th08-2's PLAIN pass was transiently slowed to 185 ms/token
+while its spec pass was normal at 19.47; the plain median for that arm is
+therefore not usable, the spec comparison is three clean matched pairs.)
+
+So C is memory-bound, and 8 threads is at or past the knee -- consistent with
+16 decode threads oversubscribing 16 physical cores against the 8-thread refill
+pool and the split workers. What this retires is larger than what it found:
+any per-op kernel idea that makes arithmetic cheaper without moving fewer bytes
+cannot pay, and that covers most of what "optimise GATED_DELTA_NET" would
+mean.
+
+Where the bytes are, from the same profile: the delta-net recurrent state is
+786432 floats -- 3 MB per layer -- and the worst CPY observed is a 6 MB
+`cache_s_l61 (view) (copy of (view))`. CPY at 1.312 ms/token and CONCAT at
+1.186 are 20% of C in pure movement, against 48 delta-net layers of state.
+That is the only part of C with a lever shape left, and it is worth at most
+2.5 ms of the 13.6 needed.
+
+### 18.15 Both halves are now measured, and neither can pay
+
+| | ms/token (marginal, 64->192 context) |
+|---|---|
+| decode wall | 53.6 |
+| shielded backend (wall) | 29.0-35.8 |
+| CPU backend ops (C) | 12.3 |
+| in neither counter | 6.1-11.7 |
+
+25 tok/s needs 40 ms. Finding 13.6 ms in the shielded half was already shown
+impossible: everything still touchable there (join 2.7, rhs 2.0, mask 1.7,
+unmask 1.4, check 0.14) sums under 8 even at zero. Finding it in C needs
+delta-net, CPY, CONCAT, MUL_MAT and attention together, and C is memory-bound
+so they do not yield to better kernels. Both halves are now measured rather
+than one argued.
+
+What the arithmetic does say is that C is almost exactly the gap: 53.6 - 12.3
+= 41.3 ms is 24.2 tok/s, and at the N=64 token (48.5 ms) removing C gives 36.2
+ms, or 27.6 tok/s. So the target is reachable if C is HIDDEN rather than
+removed -- overlapped with the exchange, which is GPU-latency-bound and uses a
+different resource entirely.
+
+That is not available today and the reason is structural, not a missing knob.
+Within a layer the order is exchange(QKV) -> CPU(rope, attention) ->
+exchange(O) -> CPU(norm, residual) -> exchange(gate,up) -> CPU(swiglu) ->
+exchange(down), strictly alternating by data dependency, and the ggml scheduler
+runs each backend's subgraph in that order. There is no independent CPU work to
+run during an exchange within a token, and speculative decoding does not
+supply any either: the draft for round N+1 needs the token round N verified.
+Overlap would need cross-layer pipelining, which is a scheduler change and
+changes the order of computation, and it is the only remaining item of the
+required size that does not touch the model, the precision, the workload or
+the protections. The unexamined "neither" bucket at 6-12 ms/token is the other
+place of that size and is next.
