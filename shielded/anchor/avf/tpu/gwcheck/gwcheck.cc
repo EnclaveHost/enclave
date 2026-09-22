@@ -1,7 +1,11 @@
 // gwcheck -- run ONE compiled graph on the NPU with deterministic int8 inputs and dump the int16 output,
 // so a host reference can say whether the compiled graph computes what it was built to compute.
 // Compiling is not correctness: this exists because "the compiler accepted it" has been wrong here before.
-//   gwcheck <dispatch_dir> <model.tflite> <out_prefix> <seed>
+//   gwcheck <dispatch_dir> <model.tflite> <out_prefix> <seed> [timed_runs] [perf_mode] [gap_us]
+//     perf_mode: -1 leave the runtime default, else a Google Tensor PerformanceMode (0 ExtremePowerSaver,
+//                1 PowerSaver, 2 Balanced -- the documented default, 3 HighPerformance, 4 Sustained, 5 Burst)
+//     gap_us:    idle time between timed Runs. The real exchange is always Run, gap, Run, and a Run after a
+//                3 ms gap measured 30-50 % slower than back to back, so back-to-back timing alone hides it.
 // writes <out_prefix>.in<k> (int8, one per input, in signature order) and <out_prefix>.out (int16).
 #include <chrono>
 #include <algorithm>
@@ -15,6 +19,9 @@
 #include "litert/cc/litert_environment_options.h"
 #include "litert/cc/litert_model.h"
 #include "litert/cc/litert_tensor_buffer.h"
+#include "litert/cc/litert_options.h"
+#include "litert/cc/options/litert_google_tensor_options.h"
+#include <thread>
 
 static uint32_t lcg(uint32_t& s) { s = s * 1664525u + 1013904223u; return s; }
 static bool dump(const std::string& p, const void* d, size_t n) {
@@ -30,7 +37,16 @@ int main(int argc, char** argv) {
   opts.push_back({litert::EnvironmentOptions::Tag::kDispatchLibraryDir, dispatch.c_str()});
   auto env = litert::Environment::Create(litert::EnvironmentOptions(opts));
   if (!env) { fprintf(stderr, "FAIL environment: %s\n", env.Error().Message().c_str()); return 3; }
-  auto cm = litert::CompiledModel::Create(*env, path, litert::HwAccelerators::kNpu);
+  const int perf = argc > 6 ? atoi(argv[6]) : -1;
+  auto copts = litert::Options::Create();
+  if (!copts) { fprintf(stderr, "FAIL options\n"); return 14; }
+  copts->SetHardwareAccelerators(litert::HwAccelerators::kNpu);
+  if (perf >= 0) {
+    auto gt = copts->GetGoogleTensorOptions();
+    if (!gt) { fprintf(stderr, "FAIL google tensor options\n"); return 15; }
+    gt->SetPerformanceMode(static_cast<litert::google_tensor::GoogleTensorOptions::PerformanceMode>(perf));
+  }
+  auto cm = litert::CompiledModel::Create(*env, path, *copts);
   if (!cm) { fprintf(stderr, "FAIL compile/load: %s\n", cm.Error().Message().c_str()); return 4; }
   auto in = cm->CreateInputBuffers(size_t(0)); auto out = cm->CreateOutputBuffers(size_t(0));
   if (!in || !out || out->size() != 1) { fprintf(stderr, "FAIL buffers\n"); return 5; }
@@ -53,14 +69,16 @@ int main(int argc, char** argv) {
   // optional 5th arg: time N back-to-back Runs on the same resident model (min and median, ms)
   if (argc > 5) {
     const int N = atoi(argv[5]); std::vector<double> t;
+    const int gap_us = argc > 7 ? atoi(argv[7]) : 0;
     for (int i = -5; i < N; i++) {
+      if (gap_us > 0) std::this_thread::sleep_for(std::chrono::microseconds(gap_us));
       auto a = std::chrono::steady_clock::now();
       if (auto r = cm->Run(size_t(0), *in, *out); !r) { fprintf(stderr, "FAIL timed run\n"); return 13; }
       double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count();
       if (i >= 0) t.push_back(ms);
     }
     std::sort(t.begin(), t.end());
-    printf("TIME n=%d min=%.3f median=%.3f ms\n", N, t.front(), t[t.size() / 2]);
+    printf("TIME n=%d perf=%d gap_us=%d min=%.3f median=%.3f ms\n", N, perf, gap_us, t.front(), t[t.size() / 2]);
   }
   return 0;
 }

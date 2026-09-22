@@ -9,5 +9,7 @@ cc_binary(
         "@litert//litert/cc:litert_environment_options",
         "@litert//litert/cc:litert_model",
         "@litert//litert/cc:litert_tensor_buffer",
+        "@litert//litert/cc:litert_options",
+        "@litert//litert/cc/options:litert_google_tensor_options",
     ],
 )

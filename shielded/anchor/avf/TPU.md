@@ -2804,3 +2804,25 @@ and the lo digit's contribution rounds to **0 LSB**, so the check cannot tell wh
 at all. That is a scale I chose badly, not a property of the construction: in a properly scaled lane lo
 carries up to about 256 LSB. Lo-branch correctness, and the precision cost of recombining into one int16
 at full range, are UNVERIFIED -- and since the lever roughly breaks even on speed, not pursued.
+
+## The TPU's idle-gap penalty does not answer to its performance mode (2026-09-22)
+
+A Run after a 3 ms idle gap is slower than back to back, and the real exchange is always Run, gap, Run
+-- which is why the TPU term measured 293 ms per token against the ~229 the dispatch fit predicts. The
+obvious control is LiteRT's Google Tensor performance mode (`GoogleTensorOptions::SetPerformanceMode`:
+ExtremePowerSaver, PowerSaver, Balanced -- the documented default -- HighPerformance, Sustained, Burst).
+The worker sets none. `gwcheck` now takes a mode and an inter-Run gap; measured on a REAL compiled layer
+(L20 of the shipped set), 3 interleaved passes, all 30 cells cool and uncapped (`results/perfmode`):
+
+| mode | back to back | after a 3 ms gap | gap penalty |
+|---|---|---|---|
+| runtime default | 1.710 ms | 2.085 ms | +22 % |
+| Balanced | 1.819 | 2.070 | +14 % |
+| HighPerformance | 1.881 | 2.055 | +9 % |
+| Sustained | 1.669 | 2.120 | +27 % |
+| Burst | 1.626 | 2.130 | +31 % |
+
+After a gap every mode lands within 2 % of the default. HighPerformance's smaller penalty is only its
+slower back-to-back time. So the ~0.35-0.5 ms a Run loses after idling is not controlled by the one API
+that sets TPU clocks, and the likelier cause is on the host side -- the dispatching thread and its core
+idle through the same gap. Not a lever through this API; closed.
