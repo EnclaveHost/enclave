@@ -3477,19 +3477,37 @@ One run, 64 tokens, spec 19.21 tok/s, identical=True, local=0, no refusals:
 | idle spin after the RHS | 850.2 ms | 912.5 ms |
 | per exchange | 85.8 us | 92.1 us |
 
-Read carefully, because the number is easy to inflate. These are PER-CARD wall
-times and the two cards wait CONCURRENTLY, so they must not be added as if they
-were sequential. Across the whole run (both phases, 128 token-generations) card
-0's idle is ~6.6 ms per generated token, with card 1's overlapping it -- so the
-wall-clock window is about 6.6 ms/token, not the ~14 ms I had been projecting
-from wire. It also includes descheduling and clock overhead, and it omits
-exchanges that timed out and fell back to the socket, which are not counted at
-all.
+CORRECTION: the per-token figure first written here (~6.6 ms/token) was wrong
+and is withdrawn. The counters live on the PIPE, and the pipe is recreated
+between the plain and speculative phases, so they reset mid-run: idle_n tracks
+exchanges to 16382 at exchanges=16384, then restarts and ends at 9904 while the
+backend's own exchange total reaches 27638. The final 850.2/912.5 ms is one
+pipe's lifetime, not the run's, and dividing it by the 128 tokens both phases
+generated divides a part by the whole.
 
-So the honest budget for further overlap is roughly half of C (13.25 ms/token),
-before any question of whether independent work exists to put in it. That is a
-smaller window than the modelling assumed, and it is the first number here that
-was measured rather than derived.
+What survives is the per-exchange figure, and it survives well because it is
+consistent across the two independent pipe lifetimes: 1385.1 ms over 16382
+exchanges in the first (84.6 us) against 850.2 ms over 9904 in the second
+(85.8 us). So **the idle window is 85-92 us per exchange**, and that is the
+measured result.
+
+Converting it to a per-token budget needs decode-only exchange counts bound to
+a phase, which these counters do not provide -- they are not bound to prefill,
+warmup, pipe lifetime or generated count. Until they are, there is no justified
+per-token idle figure, and the ~14 ms projected from wire is not replaced by a
+number, only shown to have been a projection.
+
+These are also PER-CARD wall times and the two cards wait CONCURRENTLY, so they
+must never be added as if sequential. They include descheduling and clock
+overhead, and they omit exchanges that timed out onto the socket entirely.
+
+Instrumentation cost, measured rather than assumed: clock_gettime(CLOCK_MONOTONIC)
+is 20.7 ns per call on this box over 2e6 calls, and the change adds exactly one
+call per exchange (t0 already existed), so 9904 exchanges cost 0.24 ms.
+
+So the honest statement is: 85-92 us of idle per exchange, measured, and no
+defensible per-token total until the counters are phase-bound. That is less
+than I claimed and more than I could previously support.
 
 ### 18.22 A silent rejection cost forty minutes, and now it names a reason
 
