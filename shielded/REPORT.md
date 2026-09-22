@@ -3291,23 +3291,36 @@ local fallback, verify_fail, obs_fail, output equality, and the same workload
 Two of four favour the change, mean -0.24 tok/s. No effect. REVERTED, with the
 result recorded at the call site so the next person does not retry it.
 
-**The spread is the more useful result.** Paired SD is 1.35 tok/s on a 19 tok/s
-baseline -- 7% -- so what this rig can resolve is:
+**The spread is useful for planning.** Paired SD across these four pairs is
+1.35 tok/s on a 19 tok/s baseline. Taking that at face value, and assuming
+roughly normal paired differences with n ~ (2*SD/effect)^2 -- about 95%
+confidence at ~50% power, which is a rough planning rule and not a proper
+power calculation:
 
-| effect | paired runs needed | bench time |
+| effect | paired runs, order of | bench time |
 |---|---|---|
 | 2% (0.38 tok/s) | ~50 | 3.3 h |
 | 5% (0.95) | ~8 | 0.5 h |
 | 10% (1.90) | ~2 | 0.1 h |
 
-That is a hard constraint on strategy, not a complaint about noise. The gap to
-25 is 22%. If it had to be assembled from ten 2% improvements, each would cost
-three hours to establish and none could be confirmed in isolation -- and a
-stack of individually-unmeasurable changes is not an engineering result, it is
-a hope. So the path to 25, if there is one, is ONE change worth double digits,
-or a very small number of 5% ones.
+SCOPE, because an earlier draft of this section overstated it. An SD from four
+pairs has three degrees of freedom and its own confidence interval is wide, so
+this is a rough estimate of variability on this box under tonight's conditions,
+NOT a fixed hardware noise floor. It does not forbid small improvements, and
+failing to detect one does not show it is absent -- the chunking change may be
+worth something I cannot see from four pairs. The table is guidance for
+choosing what to spend bench time on, not an impossibility bound.
 
-Of everything measured this session, exactly one candidate is that size:
-hiding C under the exchange, at 13.25 ms of a 50.23 ms token. Every other item
-found -- the reply check at 0.3%, the join at 5.7%, thread counts, pinning,
-chunking -- is below the floor this rig can even see.
+What it does say is that measuring a 2% change individually is expensive here,
+so the cheaper route for small candidates is to combine several into one
+prototype and test the COMBINATION against a correctness-checked baseline,
+rather than demanding each constituent clear significance alone. Larger effects
+remain the better place to start, and the gap to 25 is 22%.
+
+The largest single candidate measured this session is hiding C under the
+exchange, at 13.25 ms of a 50.23 ms token. That 13.25 is an upper bound on what
+overlap could hide and must not be assumed wholly hideable: it counts CPU work
+that may have no exchange in flight beside it, and any realised saving has to
+be measured, not subtracted. The other items found -- the reply check at 0.3%,
+the join at 5.7%, thread counts, pinning, chunking -- are individually small
+enough that they are better evaluated combined than one at a time.
