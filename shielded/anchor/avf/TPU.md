@@ -2103,3 +2103,42 @@ which is, to the docstring, what the masked TPU path produced for the same promp
 
 `host/google-lane-run.sh` runs the same task-scored prompt file through it and captures each reply and
 decode rate, so the comparison uses one prompt set and one set of contracts across all three lanes.
+
+## Three lanes, one prompt set, one set of contracts (2026-09-22)
+
+The parity comparison, finally done properly: the same eight task-scored prompts through the masked TPU
+lane, the in-VM CPU lane and Google's own NPU lane, scored by the same semantic checks
+(`host/quality_checks.py`), on the same phone in the same session.
+
+| lane | task correctness | decode, median | range |
+|---|---|---|---|
+| masked TPU, inside the pVM | **6/8**, 2 REVIEW | **1.06 tok/s** | 0.96-1.15 |
+| in-VM CPU, inside the pVM | **6/8**, 2 REVIEW | **15.37** | 13.75-15.87 |
+| Google NPU (its own runtime, package and tokenizer) | **6/8**, 2 REVIEW | **15.73** | 12.39-18.57 |
+
+**All three lanes score identically**, and the two REVIEWs are the same two prompts in every lane -- the
+haiku and the sky explanation, neither of which an automatic check can score. The masked path's answers
+agree with the CPU path's byte-for-byte on 4 of 8, differing on the rest at a single early token in the
+way greedy decoding does.
+
+**What this establishes.** The masking arithmetic does not damage answers: a lane that quantises to int8
+digits, adds a modular one-time pad, ships the row to an untrusted accelerator and reconstructs the
+product gets the same tasks right as the same model computed in the clear, and as Google's own lane.
+
+**What it does NOT establish.** Eight prompts with short bare answers is a smoke test, not parity. The
+three lanes are not the same model: Google's package carries its own quantisation and tokenizer, the
+masked lane is a8w8 digit-split over a Q4_0 GGUF, and the CPU lane is that same GGUF dequantised. So
+agreement is evidence that none of them is broken, not that they are equivalent. And these rates are
+per-turn on short generations, which includes warm-up: the CPU lane measured **13.29 tok/s sustained**
+over 315 tokens earlier in this file, below its 15.37 median here.
+
+### And the number that matters for the brief
+
+The in-VM CPU lane medians **15.37 tok/s** on this set, and Google's NPU lane -- the unmasked reference,
+on hardware doing exactly what the brief asks an accelerator to do -- medians **15.73**. They are the
+same speed within their spreads.
+
+That reframes the target. The bar was never "the TPU is needed to reach 15 tok/s"; the pVM's own CPU
+reaches it on this workload, at matching quality, with a STRONGER boundary (the host sees nothing at all
+rather than masked activations). What the TPU path buys is the CPU-sparing property the brief actually
+wanted -- and measured, it costs 15x MORE phone CPU per token, not less.
