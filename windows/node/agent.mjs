@@ -28,6 +28,8 @@ import { createRequire } from 'node:module';
 import { Host } from './host.mjs';
 import { appZone } from './appzone.mjs';
 import { shieldedCard, shieldedProof } from './shieldedcard.mjs';
+import { clientIp as wafClientIp } from './waf.mjs';
+import { parseAbiReply } from './appframe.mjs';
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -109,10 +111,11 @@ const host = new Host({
   // An OPTIONAL ceiling on a single app, below the enclave's own size. Zero means no extra cap:
   // the budget is the enclave less what the engine holds.
   enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 0),
-  // Measured at startup from the enclave itself (the host protocol's `mem`), before any app is
-  // claimed: the model, its KV cache and the pads. Never configured - a guess here either oversells
-  // the enclave or hides most of it.
-  engineHeldMb: 0,
+  // Measured from the enclave itself (the host protocol's `mem`), before any app is claimed: the
+  // model, its KV cache and the pads. Never configured - a guess here either oversells the enclave
+  // or hides most of it. NULL means "not measured yet", which is not the same as zero and must not
+  // be read as one: an unmeasured box admits no new work (host.capacity).
+  engineHeldMb: null,
   // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
   enclaveAppAbi: 0,
   enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http | 4 wasi:cli
@@ -194,6 +197,9 @@ async function startWorker() {
   await readCard();
   if (card) log(`shielded card: ${card.device}, ${card.vramFreeGb}/${card.vramBudgetGb} GB free, ${card.gmacPerSec || '?'} G-MAC/s, protocol ${card.protocol}`);
   setInterval(() => { readCard().catch(() => {}); }, 30_000);
+  // Keep trying to measure what the engine holds of the enclave. Until it answers the box admits
+  // no new app, so a single failed probe must not idle the box for its whole life.
+  setInterval(() => { measureEngineHold().catch(() => {}); }, 30_000);
   // The proof, once, in the background: it runs a real masked GEMM on the card and must not hold
   // up the box coming online. A failure leaves the verdict absent, which is the honest state.
   shieldedProof({ probe: PROBE, port: WORKER_PORT }).then((p) => {
@@ -306,6 +312,30 @@ async function operatorSig(nonceB64) {
   } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
 }
 
+/**
+ * Ask the enclave what the engine holds of it, and keep asking until it answers.
+ *
+ * The first reading is the honest one - taken before any app is claimed, so it is the model, its
+ * KV cache and the pads alone. Once taken it is kept: later readings would include tenants' apps
+ * and would shrink the pool by charging their memory twice.
+ *
+ * Until it succeeds the box admits NO NEW WORK (host.capacity refuses on an unmeasured engine),
+ * so this retries on the tick rather than leaving a box that failed one probe permanently idle.
+ */
+async function measureEngineHold() {
+  if (!APPS || host.cfg.engineHeldMb !== null) return;
+  try {
+    const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
+    if (!(privB > 0)) throw new Error(`the enclave reported ${privB} bytes`);
+    host.cfg.engineHeldMb = Math.ceil(privB / (1024 * 1024));
+    log(`enclave memory: the engine holds ${host.cfg.engineHeldMb} MB of ${host.cfg.enclaveGb} GB`
+      + `; ${host.capacity().ramMbFree} MB is free for apps`);
+  } catch (e) {
+    log(`enclave memory unreadable (${e.message}): this box will take no NEW app until it can measure`
+      + ` what its engine holds; retrying`);
+  }
+}
+
 // ---- the public surface over the tunnel ------------------------------------------------------
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
@@ -394,8 +424,11 @@ async function handle(frame) {
   if (APPS && /^\/x\/0x[0-9a-fA-F]{64}(\/|$)/.test(p)) {
     const id = p.split('/')[2].toLowerCase();
     const rest = p.slice(('/x/' + id).length) || '/';
+    // The caller's address, as the relay forwarded it. It is what the deployment's rate and
+    // concurrency limits count, so it is passed explicitly rather than guessed at the far end.
     const r = await host.proxy(id, { method, pathRest: rest + (String(frame.path || '').includes('?') ? '?' + String(frame.path).split('?')[1] : ''),
-                                     headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null });
+                                     headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null,
+                                     ip: wafClientIp(frame.headers) });
     return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
   if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
@@ -490,28 +523,19 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
   // whether it sells app hosting at all (host.mjs appsInTee).
   try {
-    const [abiStr, worldsStr, featStr] = String(await hostCmd('appabi')).trim().split(/\s+/);
-    const abi = Number(abiStr) || 0;
-    const worlds = Number(worldsStr) || (abi >= 1 ? 1 : 0);
-    // The WASM features this image really enables (1 mem64 | 2 set | 4 p3 | 8 coop threads). An
-    // older enclave says nothing here, which reads as none - the safe direction.
+    // Parsed by appframe.parseAbiReply, which is the tested article: both directions of version
+    // mismatch fail closed there (an older enclave's two-word reply means no features at all).
+    const { abi, worlds, features } = parseAbiReply(await hostCmd('appabi'));
     host.cfg.enclaveAppAbi = abi; host.cfg.enclaveAppWorlds = worlds;
-    // Parsed STRICTLY, because this word decides what the box sells. A negative value would set
-    // every bit through the bitwise tests downstream - including `set`, which this image cannot do
-    // - so anything that is not a plain non-negative integer reads as no features at all.
-    const feat = Number(featStr);
-    host.cfg.enclaveAppFeatures = Number.isInteger(feat) && feat >= 0 ? feat : 0;
+    host.cfg.enclaveAppFeatures = features;
     const names = [worlds & 1 ? 'enclave:app@0.1.0' : null, worlds & 2 ? 'wasi:http@0.2' : null,
                    worlds & 4 ? 'wasi:cli@0.2' : null].filter(Boolean);
-    // WHAT THE ENGINE HOLDS OF THE ENCLAVE, measured here and only here: this is the one moment
-    // the enclave contains the model, its KV cache and the pads and NOTHING ELSE, because no app
-    // has been claimed yet. Everything left of the enclave's fixed size is what the box may
-    // promise a tenant, so this reading is what makes the RAM pool a real figure instead of a
-    // fraction of the share ledger.
-    try {
-      const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
-      if (privB > 0) host.cfg.engineHeldMb = Math.ceil(privB / (1024 * 1024));
-    } catch (e) { log(`enclave memory unreadable: ${e.message}`); }
+    // WHAT THE ENGINE HOLDS OF THE ENCLAVE, measured here: this is the one moment the enclave
+    // contains the model, its KV cache and the pads and NOTHING ELSE, because no app has been
+    // claimed yet. Everything left of the enclave's fixed size is what the box may promise a
+    // tenant, so this reading is what makes the RAM pool a real figure instead of a fraction of
+    // the share ledger.
+    await measureEngineHold();
     log(abi >= 1
       ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}`
         + `${host.cfg.enclaveAppFeatures ? ', features ' + [[1,'mem64'],[2,'set'],[4,'p3'],[8,'threads']]

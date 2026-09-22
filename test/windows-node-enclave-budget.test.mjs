@@ -71,10 +71,31 @@ test("an owner's optional per-app ceiling narrows the budget but never widens it
   assert.equal(silly.ramMbFree, 64 * 1024 - 1879, "a ceiling above the enclave is not a promotion");
 });
 
-test("no measurement of the engine yet means the whole enclave reads as free, and that is stated", () => {
-  // engineHeldMb is 0 until the node has asked the enclave (`mem`). It is a startup window, not a
-  // steady state, and it errs toward offering MORE - so it is worth knowing that is what happens.
+test("an UNMEASURED engine admits nothing new - unknown is not zero", () => {
+  // `engineHeldMb` is null until the node has asked the enclave (the host protocol's `mem`).
+  // Reading that as "the engine holds nothing" would offer a tenant the WHOLE enclave including
+  // the part the engine is already sitting in, and the app admitted on that figure does not fit.
+  const cap = box({ engineHeldMb: null }).capacity();
+  assert.equal(cap.ramMeasured, false, "and it SAYS it does not know, rather than quoting a number");
+  assert.equal(cap.ramMbFree, 0, "so nothing new is admitted while the answer is unknown");
+  assert.equal(cap.ramMbPool, 64 * 1024, "the pool is still the enclave's real size");
+});
+
+test("a box that has never measured still reports what it is RUNNING", () => {
+  // Failing closed is about ADMISSION. An app already running must not be disturbed by the node
+  // not knowing the engine's footprint - that would turn a missing measurement into an outage.
+  const h = box({ engineHeldMb: null });
+  record(h, "0xaa", 3072);
+  const cap = h.capacity();
+  assert.equal(cap.ramMbFree, 0);
+  assert.equal(cap.slotsFree, 7, "the slot ledger is unaffected");
+  assert.equal([...h.records.values()].filter((r) => r.status === "running").length, 1);
+});
+
+test("a measurement of zero is a MEASUREMENT, and is treated as one", () => {
+  // Distinct from null on purpose: an enclave that genuinely holds nothing (no model loaded) is a
+  // real answer, and refusing work on it would be as wrong as over-admitting on an unknown.
   const cap = box({ engineHeldMb: 0 }).capacity();
+  assert.equal(cap.ramMeasured, true);
   assert.equal(cap.ramMbFree, 64 * 1024);
-  assert.equal(cap.ramMbEngine, 0);
 });

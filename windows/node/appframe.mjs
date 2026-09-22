@@ -81,3 +81,38 @@ export function worldOf(bytes) {
   if (b.includes("wasi:http/")) return "wasi-http";
   return "unknown";
 }
+
+/**
+ * Read the enclave gate's `appabi` reply: "<abi> <worlds> <features>".
+ *
+ * Lives here, beside the frame codec, because it is the same kind of thing - the wire between the
+ * node and the enclave - and because it has to be TESTABLE without starting an agent. A copy of
+ * this logic in a test proves only that the copy works.
+ *
+ * Both directions of version mismatch fail CLOSED. An older enclave answers with two words and the
+ * features read as none, so the box advertises less than it can do rather than more. The features
+ * word is parsed STRICTLY: it decides what this box SELLS, and a negative value would set every
+ * bit in the flag tests downstream - including shared-everything threads, which this image cannot
+ * do. Anything that is not a plain non-negative integer is no features at all.
+ */
+export function parseAbiReply(reply) {
+  const [abiStr, worldsStr, featStr] = String(reply || "").trim().split(/\s+/);
+  const abi = Number(abiStr) || 0;
+  const feat = Number(featStr);
+  return {
+    abi,
+    worlds: Number(worldsStr) || (abi >= 1 ? 1 : 0),
+    features: Number.isInteger(feat) && feat >= 0 ? feat : 0,
+  };
+}
+
+/** The wasm features an enclave runtime can report (windows/enclave-rt/src/lib.rs). */
+export const FEATURES = { mem64: 1, set: 2, p3: 4, coopThreads: 8 };
+
+/** That bitmask as the platform's capability flags, which is what a box advertises. */
+export function featureFlags(mask) {
+  const m = Number.isInteger(Number(mask)) && Number(mask) >= 0 ? Number(mask) : 0;
+  const out = {};
+  for (const [name, bit] of Object.entries(FEATURES)) out[name] = !!(m & bit);
+  return out;
+}
