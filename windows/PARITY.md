@@ -8,7 +8,7 @@ is false, because the relay AND-folds these across the fleet and clients act on 
 Evidence is one of: **measured** on the box, **cross-checked** against the platform runner's own
 self-test seam, or **live** (the thing is running now).
 
-## Done — 16 of 21
+## Done — 18 of 21
 
 | capability | what it means on metal0 | on nucbox-k11 | evidence |
 |---|---|---|---|
@@ -28,6 +28,8 @@ self-test seam, or **live** (the thing is running now).
 | `mem64` | 64-bit linear memories | same | measured in VTL1: 4 GiB grow, store/load at byte `0x1_0000_0000`, OOB traps, memory released |
 | `customDomains` | owner-attached hostnames, certified, `ENCLAVE_HOSTS` | same; certificate chosen by SNI | live: the fetch runs each tick; failure path proved itself on its first timeout |
 | `selfHostFree` | the declared payout wallet's own deployments run free | same | live |
+| **private deployments** | served to the owner alone, proved by an ES256 session | same; SIWE routes byte-compatible with the platform's | live: signed in over the tunnel, replay refused, tampering refused |
+| `devDeploy` | a PENDING catalog version runs on a PRIVATE deployment | same; public deployments of a pending version stay refused | tested |
 
 ## Not done — 5, with the actual blocker
 
@@ -37,7 +39,6 @@ self-test seam, or **live** (the thing is running now).
 | `p3` | wasip3 in the enclave runtime: a second WASI host surface against the p3 WITs. No design blocker, not started. |
 | `coopThreads` | cooperative threads. Same shape as p3: runtime work, no design blocker. |
 | `volumes` | attested model volumes. metal0 puts an ext4+dm-verity digest in SNP `HOST_DATA`; VBS has no equivalent, so this needs a Merkle-verified read-only file provider **inside** VTL1, plus a real `wasi:filesystem` (today it is empty and refusing). The design is clear; it is the largest remaining item. |
-| `devDeploy` | depends on PRIVATE deployments, which this box refuses because it verifies no session token. That needs an ES256 session key minted in the enclave, a JWKS endpoint, the SIWE hand-off and an app-origin cookie. Security-sensitive; deliberately not rushed. |
 
 ## Differences that are NOT capability gaps, and are published rather than implied
 
@@ -54,6 +55,12 @@ self-test seam, or **live** (the thing is running now).
   engine holds (measured, asked of the enclave before any app is claimed).
 - **The card is outside the enclave.** It is used by masked offload and the row says `gpu`, not
   `tee gpu`.
+- **The session key is in VTL0.** metal0 mints it inside the measured guest, so its operator cannot
+  forge a session for somebody else's wallet. Here it is in the agent's process, so a session is
+  worth what the machine owner's word is worth. That is the SAME bar this box already publishes for
+  app traffic — the owner already carries every byte and holds the key that terminates its TLS — so
+  it adds no new exposure, but it is a real difference and `/availability` carries it
+  (`session.keyIn`). Moving it into VTL1 is the same piece of work as moving the TLS key.
 
 ## A trap worth keeping: catalog declarations are wrong in both directions
 

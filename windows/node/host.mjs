@@ -243,6 +243,7 @@ export class Host {
                                           version: v, capacity: this.capacity(),
                                           listedAt: this.listedAt(), invited: invited || force,
                                           legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
+                                          privateOk: !!this.cfg.sessionKid,
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     this.tracked.add(id); this.#saveTracked();
@@ -421,7 +422,9 @@ export class Host {
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
-                                   cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000 });
+                                   cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
+                                   // What the data-path gate needs, from the ledger and nowhere else.
+                                   isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
     if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
@@ -777,7 +780,8 @@ export class Host {
       const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
                                             legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
-                                          features: this.features() });
+                                            privateOk: !!this.cfg.sessionKid,
+                                            features: this.features() });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
         // the console reads it off /v1/deployments. Only a CHANGE is worth a line.
@@ -833,7 +837,8 @@ export class Host {
         }
       }
       this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6),
-                         cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000 });
+                         cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
+                         isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
       // THE OWNER'S EDIT, reaching an app that is already running. The envelope is mutable on the
       // ledger (setConfig) and used to be read only at claim time, so an owner who changed their
       // app's configuration or its protection rules saw nothing happen until the lease turned over.
@@ -1086,6 +1091,15 @@ export class Host {
       // key lives. On a confidential VM the key is minted inside the measured guest; here it is in
       // the agent's process in VTL0, which is the same place the /x/ path's plaintext already
       // passes through. Published rather than implied.
+      // WHERE THE SESSION KEY LIVES, published for the same reason appTls.keyIn is. On a
+      // confidential VM this key is minted inside the measured guest, so the operator cannot forge
+      // a session for somebody else's wallet. Here it is in the agent's process in VTL0, so on
+      // this box a session is worth what the machine owner's word is worth - which is the SAME bar
+      // this box already publishes for app traffic, not a new one.
+      session: this.cfg.sessionKid
+        ? { kid: this.cfg.sessionKid, alg: "ES256", keyIn: "host-process", jwks: "/v1/session-jwks",
+            note: "private deployments are served to their owner; the key that proves it is in the agent's process, not inside the enclave" }
+        : null,
       appTls: {
         served: this.appsInTee() && Number(this.cfg.enclaveAppWorlds || 0) & 4 ? true : false,
         zone: this.cfg.appZone, keyIn: "host-process", terminatesIn: "host-process",
@@ -1183,7 +1197,10 @@ export class Host {
       // fetch with, because then it cannot learn the names at all and a lease landing here would
       // leave the customer's domain dark with nothing on the dashboard to explain it.
       customDomains: !!this.cfg.secretsSign && this.cfg.customDomains !== false,
-      devDeploy: false,       // pending catalog versions stay refused, public or not
+      // A PENDING catalog version may run on a PRIVATE deployment - a publisher testing their own
+      // app before the catalog owner has approved it. Public deployments of a pending version stay
+      // refused, here as on the fleet. Both depend on being able to verify who is asking.
+      devDeploy: !!this.cfg.sessionKid,
       // The wasm features, READ OFF THE ENCLAVE (the runtime's own ee_rt_features, carried out
       // through `appabi`). Never a config value: these are compile-time engine features recorded
       // in every cwasm, so a box that advertised one its image does not build would take a lease
@@ -1367,6 +1384,20 @@ export class Host {
       this.domainFails.delete(h);
     }
     this.domains.delete(key);
+  }
+
+  /**
+   * The wallet that may reach this deployment, if it is PRIVATE - otherwise null.
+   *
+   * Read from the ledger record this box already holds, so the answer cannot drift from the
+   * deployment's own state. A record this box does not have returns null, which means "not
+   * private here": the caller is about to get a 404 from the app path anyway, and pretending a
+   * deployment we do not serve is private would leak that it exists somewhere.
+   */
+  privateOwner(id) {
+    const rec = this.records.get(String(id).toLowerCase());
+    if (!rec || rec.isPublic !== false) return null;
+    return String(rec.owner || "").toLowerCase() || null;
   }
 
   /** Every hostname a deployment answers on: its own subdomain first, then the customer's. */
