@@ -3031,3 +3031,73 @@ if it went to zero.
 The habit that produced this: I quoted a percentage without naming its
 denominator, then reasoned about the percentage. Shares need their denominator
 attached every time they are written down, not just where they are computed.
+
+### 18.13 The CPU decode path, measured, and two more broken denominators
+
+The shielded counter cannot see C, so C was measured directly: two
+`ENCLAVE_OP_PROFILE=1` pairs at N=64 and N=192, differenced, both paying the
+same one-time prefill. Graph counts are identical between reps (34530 graphs /
+152070 nodes at 64, 99738 / 439470 at 192), so the subtraction is clean.
+
+**C = 12.29 ms/token** (11.57 per forward pass), 11.92 and 12.66 across the
+two reps:
+
+| op | ms/token | share of C |
+|---|---|---|
+| GATED_DELTA_NET | 4.154 | 34.1% |
+| CPY | 1.312 | 10.8% |
+| CONCAT | 1.186 | 9.7% |
+| MUL_MAT | 0.926 | 7.6% |
+| FLASH_ATTN_EXT | 0.924 | 7.6% |
+| RMS_NORM | 0.818 | 6.7% |
+| UNARY | 0.798 | 6.6% |
+| SSM_CONV | 0.586 | 4.8% |
+| GLU, GET_ROWS, ADD, L2_NORM, MUL, ROPE, rest | 1.15 | 9.4% |
+
+I wrote the prediction down before running it -- GATED_DELTA_NET still largest
+at 30-35%, C still 12-13 ms/token -- and both held, so nothing moved underneath
+the earlier figure.
+
+**Two instruments were wrong, both in the divisor.**
+
+`opdiff.py` divided by (192-64)=128 and called the result ms/token, while the
+delta it divides spans BOTH the plain and the speculative path: 256 extra
+tokens over 272 extra forward passes. Its own TOTAL line said "summed over the
+plain AND spec paths" -- the qualifier sat one line from the number it
+qualified. Every per-op figure it printed was 2x high. `opdelta.py` replaces
+it, derives every divisor from the run's own JSON, prints both units, and
+refuses on fewer than two pairs. This was caught only because enclave-c6
+described an RMS understated by exactly sqrt(2) from a sample counter that
+counted twice per output; an instrument's output cannot validate the
+instrument.
+
+And 18.12 corrected the denominator of the shielded shares but not far enough.
+`t_link` is a SUM over the concurrent card threads; `t_graph` is WALL time for
+the enclosing callback. In one of these two reps the link delta (8250 ms)
+EXCEEDS the shielded backend delta (7419 ms), which is impossible for a
+contained quantity and is the proof that they are not the same kind of number.
+So "link is 93% of graph_compute" was comparing a concurrent sum to a wall
+clock and means less than it appeared to. The shares WITHIN the link (join,
+rhs, mask, check) are still comparable to each other, because they are all
+sums; they were never comparable to the wall.
+
+**The token, end to end**, from the same runs (the differential measures the
+marginal token between 64 and 192 of context, which is slower than the average
+-- 52.6 and 54.5 ms against 48.3-48.8 at N=64):
+
+| | rep 1 | rep 2 |
+|---|---|---|
+| decode wall | 52.61 | 54.54 ms/token |
+| shielded backend (wall) | 28.98 | 35.78 |
+| CPU backend ops | 11.92 | 12.66 |
+| in neither counter | 11.70 | 6.10 |
+
+The shielded wall figure is the noisy one, 23% apart between reps, and the
+"neither" bucket inherits that noise. What is solid is C at ~12.3 and the
+shielded side being the majority of the token.
+
+**What this says about 25 tok/s.** 40 ms/token is needed and the marginal token
+here is ~53.6. Finding 13.6 ms inside C means removing all of GATED_DELTA_NET,
+CPY, CONCAT, MUL_MAT and FLASH_ATTN_EXT together, which is not an optimisation
+but a different model. C alone cannot pay for it, exactly as the shielded side
+alone could not. That is now measured on both halves rather than argued on one.
