@@ -55,10 +55,40 @@ So: making the atomics atomic was **necessary and not sufficient**. What remains
 honestly come off is that every ORDINARY access to a shared memory must stop being a plain read or
 write too:
 
-  - aligned ordinary loads/stores → relaxed atomics;
-  - unaligned ones → byte-wise relaxed atomics (each byte is aligned), branching at run time;
-  - the bulk operations (`memory.copy`, `memory.fill`, `memory.init`) over a shared memory;
+  - aligned ordinary loads/stores → relaxed atomics; **done**, see below;
+  - unaligned ones → byte-wise relaxed atomics (each byte is aligned); **done**;
+  - **partially overlapping accesses of DIFFERENT WIDTHS** — not done, and the hard one;
+  - the bulk operations (`memory.copy`, `memory.fill`, `memory.init`) over a shared memory, and
+    host accesses to guest memory generally;
   - growth and lifetime — `SharedMemory` must not move a base another thread holds.
+
+### The one that does not have an obvious fix: mixed-width overlap
+
+Making every access atomic removes the non-atomic race and **does not remove this**:
+
+    thread A:  i32.load    at p      ->  AtomicU32::load  at p
+    thread B:  i32.store8  at p + 1  ->  AtomicU8::store  at p + 1
+
+Both atomic, both aligned *for their own width*, overlapping, different sizes. Rust's model defines
+atomic accesses only between operations of the **same size at the same address**; a partially
+overlapping differently-sized pair is not covered. WebAssembly explicitly permits it. The same
+applies between two genuine guest atomic ops of different widths, so it is not a consequence of the
+ordinary-access work — it was there already.
+
+Alignment does not help (both accesses are aligned). Byte-wise atomics everywhere would fix the
+overlap but break the guest: a wasm *atomic* op must be INDIVISIBLE, and four one-byte accesses are
+not — trading a host-model violation for one the guest can actually observe. Widening the narrow
+access to a read-modify-write of the containing word writes bytes the guest did not write.
+
+What would work is leaving Rust's typed atomics behind for guest memory — inline assembly with the
+right constraints, where the access is opaque to the compiler and the hardware guarantee (an aligned
+`mov` is atomic on x86-64 and aarch64) is what is relied on. That is target-specific, which cuts
+against a portable interpreter, and is a larger change than anything here.
+
+`tools/parallelism-probe/mixed-width/` is the reduced reproducer, standalone so it can be handed to
+a checker: `cargo +nightly miri run`. **Not yet run** — miri is not installed on this machine and
+installing it needs a build window. The reasoning above stands on the cited model documentation;
+the checker run is the confirmation, not the argument.
 
 Until all of that is covered, a guest can reach UB inside the trusted image, which is the one thing
 an enclave runtime may not allow. The gate stays on and the VBS box keeps advertising `set: false`.
