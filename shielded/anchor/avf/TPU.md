@@ -1747,3 +1747,31 @@ Three probes in a row on this question disagreed with the artifact, each for a d
 thought mattered: zero weights (they deduplicate), `-128` weights (asymmetric int8 crashes the compiler
 where the real quantiser clips to +-127), and now constant per-channel scales. The artifact was buildable
 every time.
+
+## The Google NPU comparison: the runner builds, the packages do not match it (2026-09-22)
+
+The task-level comparison against Google's own NPU lane has been outstanding since the quality work, and
+the blocker was always "no runner". That blocker is gone, and a different one is now in its place.
+
+**The runner builds.** `//runtime/engine:litert_lm_main` and `litert_lm_advanced_main` compile for
+arm64 from the LiteRT-LM tree. The earlier failure -- "Unable to find a CC toolchain using toolchain
+resolution" -- was simply `ANDROID_NDK_HOME` being unset; the tree has an `android_ndk_env.bzl` whose
+entire job is to check for it. Two binaries, 33.5 MB, plus `libGemmaModelConstraintProvider.so` from the
+tree's `prebuilt/android_arm64`, run on the phone and print their flags.
+
+**The packages on the device do not match it.** All four `.litertlm` files fail, in two distinct ways:
+
+| package | backend | failure |
+|---|---|---|
+| `gemma-x`, `gemma-l0`, `gemma-tiny` | npu | `Invalid begin and size` -- node 323/324, a SLICE, fails to invoke |
+| `enclave-tensor-npu-1/model` | npu | `Node number 1 (DELEGATE) failed to prepare` / `Failed to allocate tensors` |
+| `enclave-tensor-npu-1/model` | cpu | `Input tensor not found` (it is an NPU-only package) |
+
+`prefill_chunk_size` at 128 and 256 changes nothing for the last one. These packages were built against
+runtime v35 (see the multi-context note); what built here is whatever this tree is at now, and a decoder
+graph whose SLICE bounds no longer line up is what a version skew looks like from the outside.
+
+So the comparison needs a matching pair, which is one of: the v35 runtime sources, a package rebuilt
+against this tree (the ODC bucket build, which is not cheap), or a prebuilt runner of the right vintage.
+None of those is a phone measurement, and none of them changes throughput -- this is quality evidence.
+It stays outstanding, with the blocker now named precisely rather than as "no runner".
