@@ -38,7 +38,6 @@ PROMPTS="${1:?usage: $0 prompts.txt}"
 # there is no errexit. A hot phone therefore ran the whole batch and reported nocool=0. So the fatal
 # handler is defined before anything can need it, and the gate itself moved into the row loop.
 _cg_adb() { "${ADB[@]}" "$@"; }                # ADB is an ARRAY here; the shared gate calls this
-. "$(cd "$(dirname "$0")" && pwd)/coolgate.sh"
 mkdir -p "$OUT"
 
 

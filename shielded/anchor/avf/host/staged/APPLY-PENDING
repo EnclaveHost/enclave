@@ -20,10 +20,17 @@ directory, and the general fix is below.
                       moved INTO the row loop: one gate before 24 rows says nothing about rows 2..24.
                       gate=per-row is in the settings string and therefore in every key, so batch-gated
                       results cannot be served as per-row-gated ones.
-  quality-compare.sh  FREEZES the harness. The runners are copied into $OUT/harness once, digested
-                      there, and invoked from there for every row, so an edit to the checkout cannot
-                      reach a run in progress. harness=frozen is in the key. The frozen copy stays
-                      beside the results as the exact thing that produced them.
+  quality-compare.sh  FREEZES the harness, CONTENT-ADDRESSED. Two defects in the first attempt, both
+                      reproduced independently: only the CPU arm ran the frozen copy (the TPU arm still
+                      invoked ./tpu-run.sh live, so row 01 tagged SOURCE=ORIGINAL and row 02
+                      SOURCE=EDITED-LIVE under one identity), and `rm -rf $OUT/harness` destroyed the
+                      earlier run's frozen copy on reuse and could delete one another invocation was
+                      executing from. Now: staged into a private directory, digested BY BASENAME, and
+                      published at $OUT/harness/<RUNNERS_ID>. Same harness -> same directory, verified
+                      and reused; different harness -> its own directory, the older one untouched.
+                      Nothing is deleted. BOTH arms execute the frozen copies. harness=frozen is in the
+                      key. A .producer.lock is taken BEFORE BUILD or MANIFEST is truncated, so two runs
+                      cannot share an OUT and erase each other; a lock from a dead pid is reclaimed.
 
 Enforced by tpu/test/{coolgate,key-binding,runners-matched,google-gate}-test.sh, which check this
 directory while this marker exists and host/ once it is gone.
