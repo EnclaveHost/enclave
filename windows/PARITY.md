@@ -249,10 +249,12 @@ And the restore is not cheap: 663 s, during which the app answers no HTTP, so "r
 
 ## Two traps that cost hours, and the wall we are on now
 
-`GET /status` CAN KILL THE TENANT. `status_json` does `&self.machines[mi]`, which panics when the
-machine list is momentarily empty during a (re)start; polling it through a boot trapped the wasm
-and stopped the app (`app 3 stopped ... wasm backtrace: risc_box::App::status_json`). Poll `/ping`
-while a machine is coming up.
+CORRECTION: `GET /status` does NOT kill the tenant. The "trap in `status_json`" read as a panic was
+`status -4` - how `ee_rt_run` reports an app interrupted by the STOP EPOCH - and it landed ~830 s
+into the enclave, exactly when the expired leases made the node stop its apps. The backtrace only
+shows where risc-box was (serving a poll) when the stop arrived; a Rust panic would have printed
+`panicked at`, and none did. The later "trap" in `clock_nanosleep` is the same thing. Polling
+`/status` is safe; a `status -4` backtrace means "stopped", not "crashed".
 
 `/status`'s `instret` IS NOT INSTRUCTIONS RETIRED. It is the dispatched step budget - every turn
 adds its whole batch, and `cpu::run` consumes a burst in WFI without executing - so a parked guest
