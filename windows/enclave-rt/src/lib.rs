@@ -57,6 +57,32 @@ extern "C" {
     fn ee_app_abort(msg: *const u8, len: usize) -> !;
 }
 
+/// The runtime's `log::` macros, routed to the enclave's own log.
+///
+/// Without a registered logger every `log::warn!` inside wasmtime is discarded, and a diagnostic
+/// that cannot be seen is indistinguishable from a thing that did not happen. This is how the
+/// shared-memory sizing below became evidence rather than a guess.
+struct EeLogger;
+
+impl log::Log for EeLogger {
+    fn enabled(&self, m: &log::Metadata) -> bool {
+        m.level() <= log::Level::Info
+    }
+    fn log(&self, r: &log::Record) {
+        if !self.enabled(r.metadata()) {
+            return;
+        }
+        // One formatted line, bounded: the log crossing is a call-out and the enclave has no
+        // business spending a page on a message.
+        let mut buf = alloc::string::String::new();
+        let _ = core::fmt::write(&mut buf, format_args!("[rt] {} {}\n", r.level(), r.args()));
+        unsafe { ee_app_log(buf.as_ptr(), buf.len()) };
+    }
+    fn flush(&self) {}
+}
+
+static EE_LOGGER: EeLogger = EeLogger;
+
 struct EnclaveHeap;
 unsafe impl GlobalAlloc for EnclaveHeap {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
@@ -265,6 +291,9 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
     // The interpreter target, and the artifact must match it: a cwasm carrying machine code for a
     // real ISA is refused here rather than mapped executable, which is the point.
     if config.target("pulley64").is_err() { set_err("pulley64 target unavailable"); return 0; }
+    // Registered once; a second call is an error and is ignored on purpose.
+    let _ = log::set_logger(&EE_LOGGER);
+    log::set_max_level(log::LevelFilter::Info);
     config.wasm_component_model(true);
     // What this side can actually do, stated rather than defaulted. There is no virtual memory in
     // VTL1: nothing to map a guest's data image from, nothing to reserve and grow into, no guard
@@ -284,6 +313,21 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
     // records the features it was compiled with. 64-bit memories are what an app with more than
     // 4 GiB of guest state needs (the catalog calls it `mem64`).
     config.wasm_memory64(true);
+    // The COMPONENT-model half of 64-bit memories. A wasm64 app plugged under a wasm32 proxy -
+    // which is what risc-box is - carries one at the component level too, and the loader refuses
+    // it by name without this.
+    config.wasm_component_model_memory64(true);
+    // SHARED-EVERYTHING THREADS. Two flags: `wasm_threads` is what makes a `shared` memory
+    // loadable at all, and the second allows `shared` on anything else plus the spawn intrinsics.
+    // A cwasm records the features it was compiled with and the runtime refuses a mismatch, so
+    // these must agree with ee-precompile exactly - "compiled with support for ... but it is not
+    // enabled for the host" is that refusal, and it is right.
+    config.wasm_threads(true);
+    config.wasm_shared_everything_threads(true);
+    // ...and the engine has to be WILLING to make one. The two above say the bytecode may contain
+    // a shared memory; this says the runtime will allocate it. Without it the artifact loads and
+    // then fails at instantiate, which reads like a different problem.
+    config.shared_memory(true);
     let engine = match Engine::new(&config) { Ok(e) => e, Err(_) => { set_err("engine"); return 0; } };
     // SAFETY: deserialize trusts its input the way a loader trusts an image. The bytes came from
     // this box's own host half, through the enclave gate, and the enclave's threat model does not
@@ -523,10 +567,13 @@ pub const FEAT_P3: u32 = 4;            // wasip3 (catalog `wasi: "0.3"`)
 pub const FEAT_COOP_THREADS: u32 = 8;  // cooperative threads (catalog `threads`)
 #[no_mangle]
 pub extern "C" fn ee_rt_features() -> u32 {
-    // SET is NOT here and cannot be until Pulley grows atomics: wasmtime refuses the threads
-    // proposal outright for a pulley target ("Pulley at this time fundamentally doesn't support
-    // the `threads` proposal"), and with that gate lifted the compiler stops at the first
-    // `atomic_rmw` for want of a lowering. Until those instructions exist, a box that advertised
-    // `set` would take a lease it must then hand back.
-    FEAT_MEM64
+    // SET is here now: Pulley has the atomics, ordinary accesses are byte-wise, the wasm atomic
+    // instructions take striped locks, bulk operations and the wait precondition go the same way,
+    // and the threading the proposal needs is built on four enclave hooks rather than on `std`.
+    //
+    // WHAT IS NOT HERE: `thread.spawn`. wasmtime's set_threads module is still std-only (mpsc,
+    // io, process::abort), so a guest that spawns traps instead of running. A guest that only
+    // needs a SHARED MEMORY and atomics - which is what the artifacts in the catalog actually
+    // carry - runs. This is a deliberate, temporary limitation and windows/PARITY.md records it.
+    FEAT_MEM64 | FEAT_SET
 }

@@ -484,6 +484,13 @@ export class Host {
     // them without re-parsing the envelope. claimPolicy already refused anything unreadable.
     this.#record(id, { waf: wafRules, envelope: String(d?.configCid || "") });
     gpuSoft = gpuSoft || chain.gpuOptionalOfConfig(v && v.config);
+    // TEMPORARY OPERATOR OVERRIDE (ENCLAVE_ALLOW_CARD_WITHOUT_MODEL), for the risc-box milestone.
+    // The rule below is right in general - a card share here buys the MODEL, and an app that
+    // cannot reach `generate` would be paying for silicon it cannot address - but risc-box bought
+    // 1% of the card and wants the enclave for its own compute, not for inference. Until the
+    // publisher declares `gpuOptional` on the version, this lets the operator say "I know, run it
+    // anyway". Off unless set; windows/PARITY.md lists it with the other relaxations.
+    gpuSoft = gpuSoft || this.cfg.allowCardWithoutModel === true;
     // Bought the card, but built for a world that cannot reach it. The model in this enclave is
     // offered through the enclave:app world's `generate` and nowhere else: a wasi:http or wasi:cli
     // artifact has no import that reaches it, so its card share would buy it nothing. Say so and
@@ -495,7 +502,23 @@ export class Host {
     let app = this.apps.get(id);
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
     if (!app) {
-      const memMb = floor.memMb;
+      // WHAT THE APP'S OWN CONFIG ASKS FOR, when that is more than the catalog's declared floor.
+      //
+      // risc-box declares memMb 3072 in the catalog and `ramMiB: 21764` in its config - the guest
+      // machine it boots. Given the floor it started, listened, and then died on a 72 KB
+      // allocation, which reads as a corrupt app rather than a budget. The config is the app's own
+      // statement of what it needs and the node already resolves it for everything else, so it is
+      // honoured here too, bounded by what the enclave actually has left.
+      let memMb = floor.memMb;
+      try {
+        const want = Number(JSON.parse(String(await this.appConfigResolved(d, v) || "{}")).ramMiB) || 0;
+        // A little headroom: ramMiB is the GUEST's memory and the app needs its own on top.
+        if (want > 0 && Math.round(want * 1.1) > memMb) memMb = Math.round(want * 1.1);
+      } catch { /* a config that will not parse is the resolver's problem, not this one's */ }
+      if (memMb !== floor.memMb)
+        this.log(`${id.slice(0, 10)}: the version declares ${floor.memMb} MB but its config asks for`
+          + ` a ${Math.round(memMb / 1.1)} MiB guest; giving it ${memMb} MB`);
+      this.#record(id, { memMb });
       // Against the budget capacity() computed, not a config number: the enclave is a fixed size
       // and what is left of it is the enclave's size less what the engine holds less what the
       // other apps were promised. A version bigger than that cannot fit however the file is set.

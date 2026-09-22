@@ -29,6 +29,7 @@ static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi, g_EeAppRun,
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
 static volatile LONG g_spawn_lie;              /* EE_THREAD_SELFTEST: see EE_OP_SPAWN */
+static volatile uint32_t *g_lie_seen;          /* the barrier flag the lie waits for */
 /* One binary semaphore per park token (an enclave call-out slot index). Lazily created under the
  * same lock the socket table uses; EE_MAX_PARK is the ceiling on enclave threads. */
 #define EE_MAX_PARK 256
@@ -113,7 +114,15 @@ static void *WINAPI host_callout(void *param) {
         /* EE_THREAD_SELFTEST only: spawn the thread and then LIE about it. A hostile host can do
          * exactly this, and the enclave used to believe the answer and free a record its own live
          * thread was using. */
-        if (g_spawn_lie) { g_spawn_lie = 0; c->ret = -11; break; }
+        if (g_spawn_lie) {
+            g_spawn_lie = 0;
+            /* WAIT FOR THE BODY TO BE INSIDE before lying about the spawn. Without this the
+             * enclave cancels first and the interleaving under test never happens - which is
+             * exactly what the first version of this test measured, and it reported that it had
+             * proved nothing rather than passing. */
+            if (g_lie_seen) for (int i = 0; i < 5000 && !*g_lie_seen; i++) Sleep(1);
+            c->ret = -11; break;
+        }
         c->ret = 0; break; }
     case EE_OP_CONNECT: {
         char host[256]; size_t n = c->len < sizeof host ? (size_t)c->len : sizeof host - 1; memcpy(host, c->data, n); host[n] = 0;
@@ -441,7 +450,12 @@ static void serve(int port) {
                     if (!f) snprintf(reply, sizeof reply, "err cannot open %s\n", path);
                     else {
                         fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
-                        uint8_t *bytes = (n > 0 && n <= (64L << 20)) ? (uint8_t *)malloc((size_t)n) : NULL;
+                        /* 512 MB, matching ee-app.cpp's own ceiling. 64 was enough until risc-box:
+                         * a 23.7 MB wasm64 + SET component compiles to 85 MB of Pulley bytecode,
+                         * because an interpreter's encoding is larger than machine code. The two
+                         * checks have to agree or the app is refused HERE with a different
+                         * message than the enclave would have given. */
+                        uint8_t *bytes = (n > 0 && n <= (512L << 20)) ? (uint8_t *)malloc((size_t)n) : NULL;
                         if (!bytes) { snprintf(reply, sizeof reply, "err bytecode size %ld\n", n); fclose(f); }
                         else if (fread(bytes, 1, (size_t)n, f) != (size_t)n) { strcpy(reply, "err short read\n"); fclose(f); free(bytes); }
                         else {
@@ -496,6 +510,7 @@ static void serve(int port) {
 
 int main(int argc, char **argv) {
     const char *dll = "ee-engine.dll", *model = NULL, *calib = NULL, *prompt = "The capital of France is", *logpath = NULL;
+    const char *load_cwasm = NULL; uint32_t load_world = 4; int load_run = 0;
     int n_predict = 8, threads = 8, n_ctx = 1024, serve_port = 0; SIZE_T size = (SIZE_T)0x1000000000ULL;  /* 64 GB, must match the image's EnclaveSize (ee-main.cpp) */ DWORD nthreads = 64;
     char env[16384]; size_t envlen = 0;
     #define ENV(kv) do { size_t l = strlen(kv); if (envlen + l + 2 < sizeof env) { memcpy(env + envlen, kv, l + 1); envlen += l + 1; } } while (0)
@@ -512,6 +527,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--log") && i + 1 < argc) logpath = argv[++i];
         else if (!strcmp(argv[i], "--size-mb") && i + 1 < argc) size = (SIZE_T)atoi(argv[++i]) << 20;
         else if (!strcmp(argv[i], "--quiet")) g_quiet = 1;
+        else if (!strcmp(argv[i], "--load-cwasm") && i + 1 < argc) load_cwasm = argv[++i];
+        else if (!strcmp(argv[i], "--world") && i + 1 < argc) load_world = (uint32_t)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--app-run")) load_run = 1;
         else { say("unknown argument %s\n", argv[i]); say("usage: ee-host --model M.gguf --calib M.calib [--enclave ee-engine.dll] [--env K=V]... [--threads N] [--ctx N] [--n N] [--prompt T] [--serve PORT] [--log F] [--quiet]\n"); return 2; }
     }
     if (!model) { say("--model is required\n"); return 2; }
@@ -541,6 +559,32 @@ int main(int argc, char **argv) {
     if (cbytes) { g_init.files[1].name = calibname; g_init.files[1].data = cbytes; g_init.files[1].len = clen; g_init.n_files = 2; }
     if (call(g_EeInit, &g_init) || g_init.status) { say("[host] EeInit failed: %d %s\n", g_init.status, g_init.error); return 5; }
     memcpy(g_sign_pk, g_init.sign_pk, 32); memcpy(g_box_pk, g_init.box_pk, 32);
+
+    /* --load-cwasm: open one precompiled app in the enclave and say what happened, without the
+     * node. It is how a new artifact gets its first answer - "does this thing load at all" - on a
+     * box that is serving, since the test image runs beside the production pair. With --app-run
+     * the app is entered on a thread of its own and this process stays up so it can be reached. */
+    if (load_cwasm) {
+        FILE *cf = fopen(load_cwasm, "rb");
+        if (!cf) { say("[host] cannot open %s\n", load_cwasm); return 7; }
+        fseek(cf, 0, SEEK_END); long clen = ftell(cf); fseek(cf, 0, SEEK_SET);
+        uint8_t *cb = (uint8_t *)malloc((size_t)clen);
+        if (!cb || fread(cb, 1, (size_t)clen, cf) != (size_t)clen) { say("[host] short read\n"); return 7; }
+        fclose(cf);
+        char aerr[256] = {0}; uint32_t aid = 0; long long alus = 0;
+        const int st = do_app_open(cb, (size_t)clen, load_world, (const uint8_t *)env, envlen, &aid, &alus, aerr);
+        printf("{\"opened\":%s,\"status\":%d,\"id\":%u,\"loadMs\":%.1f,\"bytes\":%ld,\"world\":%u,\"error\":\"%s\"}\n",
+               st == 0 ? "true" : "false", st, aid, (double)alus / 1000.0, clen, load_world, aerr);
+        fflush(stdout);
+        if (st != 0) return 8;
+        if (load_run) {
+            char rerr[256] = {0};
+            if (do_app_run(aid, rerr)) { say("[host] run failed: %s\n", rerr); return 9; }
+            say("[host] app %u entered; serving. Ctrl-C to stop.\n", aid);
+            for (;;) Sleep(1000);
+        }
+        return 0;
+    }
 
     /* EE_THREAD_SELFTEST -- the HOST misbehaving on purpose, which is the only way to test what a
      * hostile host can do to the enclave's thread identity and entry. One JSON line, then exit,
@@ -614,6 +658,53 @@ int main(int argc, char **argv) {
           churn_held = ch.token; churn_fail = ch.runs;
           ok_churn = ch.status == 0 && ch.token < 16; }
 
+        /* (7-10) THE DETERMINISTIC INTERLEAVINGS. Each arms a barrier inside the real transition
+         * and drives the racing side once the barrier reports it has been reached, so the order is
+         * certain rather than hoped for. `*_seen` is the proof the barrier was actually hit; a
+         * test whose barrier never fired proves nothing and says so. */
+        int ok_hold = 0, ok_resurrect = 0, ok_join = 0, ok_admit = 0;
+        uint32_t hold_seen = 0, hold_freed = 0, res_seen = 0, res_count = 0;
+        uint32_t join_seen = 0, join_early = 0, admit_spawned = 0;
+        { ee_thr_test x; memset(&x, 0, sizeof x); x.op = 8;
+          g_lie_seen = &x.seen;
+          InterlockedExchange(&g_spawn_lie, 1);
+          call(g_EeThreadTest, &x);
+          InterlockedExchange(&g_spawn_lie, 0);
+          g_lie_seen = NULL;
+          hold_seen = x.seen; hold_freed = x.freed_live;
+          ok_hold = x.status == 0 && x.seen != 0 && x.freed_live == 0; }
+        uint32_t res_timeout = 0;
+        { ee_thr_test x; memset(&x, 0, sizeof x); x.op = 9;
+          call(g_EeThreadTest, &x);
+          res_seen = x.seen; res_count = x.resurrect; res_timeout = x.freed_live;
+          /* A hold that ENDED ON A TIMEOUT was not driven by this test, so the interleaving it
+           * claims to have created did not happen. Reaching the barrier is necessary and not
+           * sufficient. */
+          ok_resurrect = x.status == 0 && x.seen != 0 && res_timeout == 0 && x.resurrect == 0; }
+        { ee_thr_test x; memset(&x, 0, sizeof x); x.op = 10;
+          call(g_EeThreadTest, &x);
+          join_seen = x.seen; join_early = x.joined;
+          ok_join = x.status == 0 && x.seen != 0 && x.joined == 0; }
+        uint32_t admit_held0 = 0, admit_again = 0, admit_full = 0; const uint32_t ADMIT_N = 8;
+        { ee_thr_test x; memset(&x, 0, sizeof x); x.op = 11; x.n = ADMIT_N;
+          call(g_EeThreadTest, &x);
+          admit_spawned = x.spawned; admit_held0 = x.token; admit_again = x.joined;
+          admit_full = x.resurrect;
+          /* THREE things, none of which depends on a baseline holding still:
+           *   the pool is EXACTLY full when admission stops - the ceiling was really met;
+           *   a refusal happened - fewer got in than were offered, so EAGAIN was returned rather
+           *     than the enclave dying;
+           *   the second round admits the same number - a refused spawn gave its reservation
+           *     back instead of leaking it. */
+          ok_admit = x.status == 0
+                     /* the pool reached exactly the CAPACITY that was set (held0 + N), which is
+                      * the ceiling being met. Comparing it against held0 + admitted instead was
+                      * my arithmetic, not the code: a straggler can take one between the
+                      * measurement and the loop, and it did. */
+                     && admit_full == admit_held0 + ADMIT_N
+                     && x.spawned > 0 && x.spawned < ADMIT_N + 4
+                     && x.joined == x.spawned; }
+
         uint32_t held_after = 0;
         { ee_thr_test m; memset(&m, 0, sizeof m); m.op = 4; m.n = 200; call(g_EeThreadTest, &m);
           many_status = m.status; held_after = m.token;
@@ -626,15 +717,26 @@ int main(int argc, char **argv) {
                "\"tokensSurviveHostScribble\":%s,\"sequentialSpawnJoin200\":%s,\"tokensHeldAfter200\":%u,"
                "\"hostLiedAboutSpawn\":%s,\"lieBodyRuns\":%u,\"lieReportedSuccess\":%u,"
                "\"concurrentSpawnJoin\":%s,\"concurrentHeld\":%u,\"concurrentFailures\":%u,"
+               "\"heldBodyNotFreed\":%s,\"holdBarrierHit\":%u,\"freedLive\":%u,"
+               "\"releaseNotResurrected\":%s,\"releaseBarrierHit\":%u,\"resurrected\":%u,"
+               "\"joinWaitsForCleanup\":%s,\"dtorBarrierHit\":%u,\"joinedEarly\":%u,"
+               "\"releaseHoldTimedOut\":%u,"
+               "\"admissionRecoverable\":%s,\"tokensHeldBefore\":%u,\"admittedAtCap\":%u,"
+               "\"poolFullAtRefusal\":%u,\"admittedAgainAfterRelease\":%u,"
                "\"manyStatus\":%d}\n",
                ok_replay ? "true" : "false", ok_stale ? "true" : "false", runs_after_replay,
                ok_tokens ? "true" : "false", ok_many ? "true" : "false", held_after,
                ok_lie ? "true" : "false", lie_runs, lie_reported,
                ok_churn ? "true" : "false", churn_held, churn_fail,
+               ok_hold ? "true" : "false", hold_seen, hold_freed,
+               ok_resurrect ? "true" : "false", res_seen, res_count,
+               ok_join ? "true" : "false", join_seen, join_early,
+               res_timeout,
+               ok_admit ? "true" : "false", admit_held0, admit_spawned, admit_full, admit_again,
                many_status);
         fflush(stdout);
         return (ok_replay && ok_stale && runs_after_replay == 1 && ok_tokens && ok_many
-                && ok_lie && ok_churn) ? 0 : 9;
+                && ok_lie && ok_churn && ok_hold && ok_resurrect && ok_join && ok_admit) ? 0 : 9;
     }
     { char h1[65], h2[65]; hex(h1, g_sign_pk, 32); hex(h2, g_box_pk, 32); say("[host] enclave keys: transport %s pad %s\n", h1, h2); }
     ee_load_params *lp = (ee_load_params *)calloc(1, sizeof *lp); lp->size = sizeof *lp; lp->model = "model.gguf"; lp->n_threads = threads; lp->n_ctx = n_ctx; lp->n_batch = 512;

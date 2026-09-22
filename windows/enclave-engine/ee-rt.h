@@ -185,6 +185,12 @@ typedef struct ee_thr_test {
     volatile uint32_t gate; /* the host sets this to 1 to let the body finish */
     volatile uint32_t runs; /* how many times the body actually ran */
     uint32_t token;         /* out, op 3 */
+    uint32_t bar;           /* in, ops 8-10: which barrier to arm */
+    volatile uint32_t seen; /* out: the barrier was reached */
+    uint32_t freed_live;    /* out: records freed while their body was running */
+    uint32_t resurrect;     /* out: entries that raised a count from zero */
+    uint32_t joined;        /* out: whether a join finished while the barrier was held */
+    uint32_t spawned;       /* out: how many spawns succeeded before admission ran out */
     int32_t  status;        /* 0 ok */
 } ee_thr_test;
 

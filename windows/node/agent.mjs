@@ -162,6 +162,9 @@ const host = new Host({
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
   portBase: Number(process.env.APP_PORT_BASE || 9700),
   appSlots: Number(process.env.APP_SLOTS || 4),
+  // TEMPORARY: see host.mjs. Lets an app that bought a card share run even though its world
+  // has no import that reaches the enclave's model.
+  allowCardWithoutModel: /^(1|true|on)$/i.test(process.env.ENCLAVE_ALLOW_CARD_WITHOUT_MODEL || ''),
   inferenceUrl: `http://127.0.0.1:${process.env.LOCAL_HTTP_PORT || 9600}/v1/completions`,
   log: (m) => log('[host]', m),
 });

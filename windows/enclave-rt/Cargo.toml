@@ -20,7 +20,19 @@ crate-type = ["staticlib", "rlib"]
 # No "std": there is no OS in here. Measured on the built .lib, this needs ZERO Windows API
 # imports - only malloc/free, the mem* intrinsics and two libm functions, all of which the
 # enclave-flavoured CRT already provides.
-wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley"] }
+# The LOCAL wasmtime-set tree, not crates.io 47. The path is relative to where this BUILDS - the
+# box, C:\Users\claude\vbs\{enclave-rt,wasmtime-set} - not to this repository, which keeps the
+# tree elsewhere. build-win.cmd runs on the box and nothing builds this crate here. SET lives there (the atomics in Pulley, the
+# shared-memory soundness work, the no_std threading bridge, the fused adapters over a shared
+# memory). `threads` is what makes a `shared` memory instantiable at all, and it no longer drags
+# in `std` - see crates/wasmtime/src/runtime/vm/nostd_threads.rs.
+wasmtime = { path = "../wasmtime-set/crates/wasmtime", default-features = false, features = ["runtime", "component-model", "pulley", "threads"] }
+# So the runtime's own log:: macros have somewhere to go. Without a registered logger every
+# log::warn! in wasmtime is silently discarded, which is not the same as nothing going wrong.
+log = { version = "0.4", default-features = false }
+
+[patch.crates-io]
+wasmparser = { path = "../wasmtime-set/vendor/wasmparser" }
 
 [workspace]
 
