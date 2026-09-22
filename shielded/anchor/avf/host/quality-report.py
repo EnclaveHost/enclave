@@ -72,6 +72,35 @@ def load_manifest(d):
     return rows, expect_rows
 
 
+def load_adjudication(d):
+    """Human judgements, read from ADJUDICATION.tsv and kept STRICTLY separate.
+
+    A person reading the actual replies can settle what no contract here can -- whether a haiku is a
+    haiku, whether two sentences really assert Rayleigh scattering. That judgement is evidence, and it
+    is also not reproducible by this program, so it is never folded into the automatic totals, never
+    changes a row's automatic verdict, and is printed in its own section with who made it. The
+    automatic number stays exactly what the checks produced, which is the only number that can be
+    re-derived from the logs.
+
+        id <TAB> arm <TAB> verdict <TAB> who <TAB> note
+    """
+    f = os.path.join(d, "ADJUDICATION.tsv")
+    if not os.path.exists(f):
+        return []
+    out = []
+    for line in open(f, errors="replace"):
+        line = line.rstrip("\n")
+        if not line.strip() or line.startswith("#"):
+            continue
+        c = line.split("\t")
+        if len(c) < 5:
+            out.append(dict(id=(c[0] if c else "??"), arm="?", verdict="MALFORMED",
+                            who="?", note="malformed adjudication row"))
+            continue
+        out.append(dict(id=c[0], arm=c[1], verdict=c[2], who=c[3], note=c[4]))
+    return out
+
+
 def read(path):
     return open(path, errors="replace").read() if os.path.exists(path) else None
 
@@ -191,6 +220,14 @@ def main():
         print(f"DECODE AGREEMENT, out of {agree_den} comparable pairs: {agree_ident} identical")
     print("\nSMOKE and REVIEW are NOT correctness. A truncated or missing reply is a failure, not an "
           "excluded row.")
+
+    adj = load_adjudication(D)
+    if adj:
+        print("\nMANUAL ADJUDICATION -- read from ADJUDICATION.tsv, NOT included in any number above.")
+        print("A person read these replies and judged them. That is evidence this program cannot")
+        print("reproduce, so it is reported here and nowhere else; the totals stay as the checks scored them.")
+        for a in adj:
+            print(f"  {a['id']:>3} {a['arm']:>4} {a['verdict']:>8}  ({a['who']})  {a['note']}")
 
     for i, prompt, a, b, k in details:
         print(f"\n--- {i}  {prompt}")

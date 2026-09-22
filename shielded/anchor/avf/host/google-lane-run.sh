@@ -28,6 +28,14 @@ LIBS="${LIBS:-/data/local/tmp/d15}"
 DISPATCH="$MODELDIR/libLiteRtDispatch_GoogleTensor.so"
 REMOTE_PROMPT=/data/local/tmp/.glr_prompt.txt
 PROMPTS="${1:?usage: $0 prompts.txt}"
+
+# Same thermal gate as the two in-VM arms, and for the same reason: this lane's decode rate is being
+# compared against theirs, and a rate from a hot or capped phone is not a comparable measurement. It
+# refuses rather than falling through; NOCOOL=1 bypasses it, says so, and is folded into the key.
+. "$(cd "$(dirname "$0")" && pwd)/coolgate.sh"
+ADB_SAVE="${ADB[*]}"; ADB="${ADB[*]}"          # coolgate.sh uses $ADB as a word-split string
+cool_gate || die "the phone is not in a comparable thermal state"
+ADB=("${ADB_SAVE}")
 mkdir -p "$OUT"
 
 die() { echo "REFUSING: $*" >&2; exit 2; }
@@ -91,7 +99,7 @@ if [ "$SAMPLER" != model ]; then
   SAMPLER_FLAG="--sampler=$SAMPLER"
   [ -n "${TEMPERATURE:-}" ] && SAMPLER_FLAG="$SAMPLER_FLAG --temperature=$TEMPERATURE"
 fi
-SETTINGS="sampler=$SAMPLER${TEMPERATURE:+ temp=$TEMPERATURE} max_new=runner-default backend=npu"
+SETTINGS="sampler=$SAMPLER${TEMPERATURE:+ temp=$TEMPERATURE} max_new=runner-default backend=npu nocool=${NOCOOL:-0}"
 {
   echo "# google NPU lane, $(date -Is)"
   echo "runner        $RUNNER  sha256:$R_ID"

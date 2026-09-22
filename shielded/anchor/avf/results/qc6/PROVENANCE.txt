@@ -1,0 +1,25 @@
+qc6 -- the 24-prompt masked-TPU vs in-VM-CPU comparison, 2026-09-22.
+
+PRESERVED AS PRODUCED. Nothing in this directory has been regenerated, re-scored into, or edited.
+MANIFEST.sha256 digests every file; MANIFEST.tsv is the producer's own row binding; BUILD carries the
+binary, bundle and graph identities that were in force; PRODUCER.log is the run's console output.
+
+WHAT THIS RUN IS
+  Masked TPU decode against the unmasked CPU decode of the SAME GGUF, inside the same protected VM,
+  one turn per row, greedy, no drafter, MAXNEW=48.
+
+WHAT IT IS NOT
+  * Not Google parity. Google's NPU lane is a different model package (LiteRT-LM, its own
+    quantisation and tokenizer). Nothing here compares against it.
+  * Not a controlled RATE measurement. The two arms were not matched when this ran: local-run.sh
+    gated on a cool, uncapped phone and tpu-run.sh did not gate at all, and the TPU arm runs first --
+    so the CPU arm was handed a cool phone and the masked arm was handed whatever the previous row
+    left. The VMs also differed in size (8192 MiB against mode local's 7168 default). Rates from this
+    directory are DESCRIPTIVE of those conditions and are not controlled comparisons, however large a
+    gap looks. The thermal gate in force was also fail-open: it looped and then measured anyway.
+  * Not free of a token-budget artefact. MAXNEW=48 binds on the code and prose rows; those are
+    counted as failures on both arms, which is correct but pessimistic and symmetric.
+
+The harness repairs that answer all three of those landed AFTER this run and are not applied to it.
+A later run at an adequate budget, with matched arms, supersedes this one for rates; this one is kept
+because its per-row answers are evidence and its provenance is exact.

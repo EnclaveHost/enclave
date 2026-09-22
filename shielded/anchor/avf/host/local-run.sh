@@ -6,16 +6,18 @@ set -uo pipefail
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
 P=host.enclave.anchor.avf; VMNAME="${VMNAME:-anchorlocal}"; MODEL="${MODEL:-/data/user/0/$P/files/model.gguf}"
 ASK="${ASK:-${1:-Say hello in three languages.|Write a 250-word essay about the history of the bicycle.}}"
-if [ "${NOCOOL:-0}" != 1 ]; then
-  for _ in $(seq 1 90); do st=$($ADB shell "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'" | tr -d '\r'); mx=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq | tr -d '\r'); top=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq | tr -d '\r')
-    [ "$st" = "Thermal Status: 0" ] && [ "$mx" = "$top" ] && break; sleep 10; done; echo "cool gate: $st cap=$mx"
-fi
+# The gate is SOURCED, not copied, so the two arms cannot drift apart again. It refuses rather
+# than falling through; see coolgate.sh for what the previous one did instead.
+. "$(cd "$(dirname "$0")" && pwd)/coolgate.sh"
+cool_gate || exit 4
 $ADB logcat -c
 $ADB shell "am force-stop $P; sleep 1; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard"; sleep 2
 [ "$($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')" -ge 1 ] || { echo "PHONE NOT AWAKE: refusing to measure"; exit 1; }
+# mem is passed EXPLICITLY and defaults to the SAME 8192 as tpu-run.sh: mode local otherwise
+# defaults it to 7168 (Main.java), so the two arms ran VMs a gigabyte apart in page cache.
 # max_new is passed EXPLICITLY: without it the payload uses its own default (512) while tpu-run.sh passes
 # MAXNEW, so the two arms silently generated different lengths and no comparison between them was matched.
-$ADB shell "am start -n $P/.Main --es mode local --es vmname $VMNAME --es model $MODEL --ei max_new ${MAXNEW:-48} ${EXTRA:-} --es ask '$ASK' >/dev/null"
+$ADB shell "am start -n $P/.Main --es mode local --es vmname $VMNAME --ei mem ${MEM:-8192} --es model $MODEL --ei max_new ${MAXNEW:-48} ${EXTRA:-} --es ask '$ASK' >/dev/null"
 for _ in $(seq 1 360); do sleep 5; $ADB logcat -d -s anchor-host:I | grep -q -E "LOCAL (done|failed)|HOST FAIL|CONTROL closed|VM error|VM stopped" && break; done
 $ADB logcat -d -s anchor-host:I | sed 's/.*anchor-host: //' | grep -E "^(HOST FAIL|MODEL (already|streamed)|LOCAL (ready|turn [0-9]+ (STATS|A:)|failed|done)|VSOCK (LOCAL (verified|context|refused)|MODEL (ok|fail)))" | cut -c1-${WIDTH:-260}
 echo "awake at end: $($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')  cap: $($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq | tr -d '\r')"

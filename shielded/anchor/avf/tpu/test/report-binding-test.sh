@@ -31,6 +31,10 @@ hasnt() { if grep -qF "$2" <<<"$1"; then printf '  FAIL %s (found %q, should not
 W=$(mktemp -d); [ "${KEEP:-0}" = 1 ] && echo "KEEPING $W" || trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/host" "$W/bin"
 cp "$HERE/host/quality-compare.sh" "$HERE/host/quality-report.py" "$HERE/host/quality_checks.py" "$HERE/host/safe_py.py" "$W/host/"
+# coolgate.sh is part of the harness identity now: the producer requires every runner file to exist
+# and to digest cleanly before it will form a cache key at all. Staging a subset is refused, which is
+# the guard working -- so the stage has to be complete.
+cp "$HERE/host/coolgate.sh" "$W/host/"
 LIBID=1111111111111111111111111111111111111111111111111111111111111111
 
 # ---- the fakes. Each one is the narrowest thing that satisfies the producer's contract. ----
