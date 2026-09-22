@@ -2266,3 +2266,150 @@ benchmark before assuming it holds on a card where bandwidth is the harder
 constraint. With it, the software levers for this model on this hardware are
 finished: 17.98 tok/s median with the ring write, 19.95 peak, against an
 unmasked 30.36.
+
+## 17. The 27B at 19 tok/s: two real fixes, three wrong guesses, and why C did not move (2026-09-22)
+
+Section 16 left the 27B at 17.98 tok/s median with the software levers called
+finished, and a handoff asking for 25. This session did not get there. It got
+to **19.01 spec / 18.12 plain median**, it fixed two real defects on the way,
+and -- more useful than either -- it replaced the subtraction that was standing
+in for a cost model with measured parts. What follows includes the wrong turns,
+because two of them were wrong for reasons that will recur.
+
+### 17.1 The column split was in a scratchpad, not the repo
+
+16.1 measured the column split and 16.5 tabulated it, but it was never
+committed: it lived in a session scratch directory under /tmp that would have
+gone with the next clean-up. Porting it was the first job and it is now
+`SHIELDED_SPLIT_COLS=1` in the tree (90d7a2ce). The scratch build also carried
+a relaxation letting the ring live under `/dev/shm`, which a bench box needs
+and production must not accept; that second prefix is behind
+`SHIELDED_ALLOW_DEV_SHM_RINGS` and only a bench build defines it.
+
+### 17.2 The Freivalds overlap: a defect, not a tuning decision
+
+The handoff listed "fix the Freivalds overlap" as worth ~6% and recorded that
+it "fails verification with AND without the split, so the gate excluding it is
+load-bearing and the path has never worked."
+
+The gate was hiding a bug. `sh_pipe_ring_exchange_work` refuses a frame BEFORE
+it publishes when the frame will not fit its slots -- the 27B's prefill
+`lm_head` reply is 17 x 248320 x 4 = 16.9 MB against a 6 MiB slot -- and the
+work callback then never runs. The caller set `rhs_done` from `overlap` alone,
+so the socket fallback was told the RHS had already been computed when it had
+not, and the unmask compared its LHS against an uninitialised `fv_rhs`. A
+verification failure against an entirely honest worker, on the first pass.
+
+Asking the work item whether it ran, instead of assuming, removes the gate:
+
+    W (per pass)   23.4 ms  ->  18.2 ms
+
+`test/fixtures/shielded-overlap-verify.c::ring_refusal_case` covers it, and
+fails when the defect is reintroduced. The existing ring cases could not reach
+it: ring_mode 1 answers on the ring and ring_mode 2 publishes then times out,
+so in both the callback DID run. The uncovered path was "refuses before
+publishing", which is where the bug lived.
+
+### 17.3 Three hypotheses about the 19.5 ms, all wrong
+
+`t_link` minus the phase counters was 19.48 ms/pass. In order:
+
+1. **The scalar outlier loop.** `sh_split_post_slice` hand-rolled
+   `y[j] += xv * w[j]` where the whole-tensor path calls a blocked,
+   double-accumulating kernel that its own comment measures as ~4x cheaper.
+   The traffic argument looked decisive -- until the calibration was read.
+   **180 of 262 sites have ZERO outliers**, mean 3.83, not the 16 extrapolated
+   from one site. Measured post: 2.46 ms/pass. The kernel change is
+   bit-identical (test/shielded-outlier-stride.test.mjs) and stays because it
+   is the right kernel, but it is not a measured win.
+2. **The refill threads are spare capacity.** A live thread sample showed the
+   16 refill threads ~13% busy while 8 others sat at 97.5%, and
+   `derive_threads` says in a comment that idle threads "cost nothing".
+   `SHIELDED_REFILL_THREADS=8` produced **279 missed pads and 992 ms of
+   on-path minting**; with field helpers as well, 592 missed and 1780 ms. They
+   are provisioned for BURST, not average, and 13% average utilisation says
+   nothing about that.
+3. **The join is the split worker's condvar round trip.** 241 exchanges at the
+   ~28 us that cost measures would be 6.7 ms, most of the join.
+   `SHIELDED_SPLIT_SPIN_US=60000` moved join 5.49 -> 4.98 and spec 19.01 ->
+   17.48. Across six runs join ranged **2.47 to 5.63** while gemm+post+join
+   held at 45.8-48.4: the join is jitter between two threads, and the total is
+   what is stable. There was no structure to find.
+
+### 17.4 What a pass actually costs (measured, not subtracted)
+
+    gemm  ~40 ms/pass   the primary card's own exchange
+      wire         21.0   spin for the worker's reply
+      mask          5.1   activation -> three byte planes
+      rhs           4.4   Freivalds RHS, now inside the spin window
+      check         3.5   balanced-range scan over EVERY reply value
+      unmask+lhs    3.2
+      pads          0.1
+    post   ~3 ms/pass   TEE-side outlier term + descale
+    join   2.5-5.6      waiting for the other card (noise)
+
+`check` is the finding: a second full traversal of megabytes that the unmask is
+about to read anyway. It is a security check and it stays -- an out-of-range
+reply breaks the field arithmetic downstream -- but it does not have to be its
+own pass. ~7% of a token, and fusing it preserves the check exactly.
+
+### 17.5 W moved, C did not, and C is the whole gap
+
+    plain = W + C    W 18.2   C 35.0
+    round = W + 2C + draft, 1.83 tokens
+
+Everything this session bought came out of W. **C has not moved from 35.0 ms
+since section 16 measured it**, and 25 tok/s needs C ~= 24.7. More cards, a
+narrower lane and a faster card all buy a share of W and none of C; so, it
+turns out, do thread counts, spin windows and helper pools.
+
+### 17.6 The pad-independence invariant
+
+Every run draws FRESH pads for the same prompt, so if the pad cancels exactly
+the output cannot depend on it. Hashing the generated text across **25 runs and
+every configuration tested** -- split on, overlap on and off, field widths 2
+and 4, halved refill, 60 ms spin window, scalar and SIMD outlier, and the
+pre-change build -- gives **one sha256**. This is strictly stronger than the
+bench's `text_identical`, which compares the speculative output against the
+plain reference within a single run and therefore holds the pad fixed: a
+pad-dependent path is invisible to it. (Owed to the anchor session, which found
+a clamp on its own path that made decode a function of the secret pad.)
+
+### 17.7 Dead ends measured here, so they are not re-measured
+
+| lever | result |
+|---|---|
+| `SHIELDED_REFILL_THREADS=8` (from 16) | 279 missed pads, 992 ms on-path minting |
+| the same + `FIELD_THREADS=2` | 592 missed, 1780 ms, plain 13.44 |
+| `SHIELDED_FIELD_THREADS=2` | plain 16.78 vs 18.01 base -- harmful on a quiet box |
+| `SHIELDED_FIELD_THREADS=4` | plain 11.49 -- 2 card threads x 3 helpers oversubscribes |
+| `SHIELDED_SPLIT_SPIN_US=60000` | spec 17.48 vs 19.01 |
+| scalar -> blocked SIMD outlier term | bit-identical, no measured gain (post is 2.46 ms) |
+
+### 17.8 What is actually left
+
+1. **Fuse the balanced-range scan into the unmask.** 3.5 ms/pass, measured,
+   preserves the check, touches no security property. Time the worker's own
+   counters as well as the pass removed: the anchor session found that moving
+   work off a decode thread cost more on the other side than it saved.
+2. **Batching (m > 1).** Still untouched. W is per-PASS, so the 21.6 GB weight
+   stream amortises across users; every number here is single-stream latency.
+3. **One pad shared by both cards**, instead of one each. Halves the mask and
+   halves pad demand -- which is what forces 16 refill threads. A colluding
+   host would see ONE masked copy where it now sees two (and can difference
+   them), so the direction looks favourable, but this changes the masking
+   construction and belongs to a SECURITY.md review, not a performance patch.
+
+### 17.9 Concurrency defect in the helper pool
+
+`sh_par_for`'s park/dispatch handshake could lose a wakeup: the dispatcher
+stores `gen` then loads `parked` while the worker stores `parked` then loads
+`gen`, and release/acquire on two different atomics permits both loads to
+return the pre-store value -- nobody signals, and on the untimed wait that was,
+the owner spins forever. Found by review, not by the stress test: a 3000
+-dispatch boundary regression against helpers forced to park on their first
+miss does NOT catch it, because the window is nanoseconds wide. A litmus test
+that aligns the two threads on a barrier shows the bad outcome on ~14% of
+500,000 trials unfenced and 0 in 2,000,000 fenced. Fixed with paired seq_cst
+fences behind one macro that both halves and the litmus share, so deleting the
+fence fails the test (74181f43).
