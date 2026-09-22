@@ -1047,16 +1047,37 @@ static void tpu_link_bench(int want) {
         close(ls);
         return;
     }
+    /* Each phase is run REPS times and the MEDIAN reported. A single pair was badly misleading: repeated
+     * externally, the one-link baseline alone moved between 44.7 and 70.8 MB/s and the two-link scaling
+     * between 0.79x and 1.92x, so the first measurement taken (1.92x) was the high tail of a noisy
+     * distribution rather than the effect. The phases also alternate, so any drift over the run (thermal,
+     * or the model still settling to disk) lands on both rather than on the second. */
     const size_t TOTAL = 8u << 20;
-    const double a = bench_ms(fd, have, 1, TOTAL);
-    const double b = bench_ms(fd, have, have, TOTAL);
+    bench_compare_result res;
+    if (bench_compare(fd, have, TOTAL, 7, &res) != 0) {
+        OUT("LOCAL linkbench: ABANDONED after %d complete pair(s): the %d-link phase of repetition %d did "
+            "not finish. The streams are not resynchronised after a failed phase -- a peer may still be "
+            "sending bytes announced for it -- so no number is reported rather than one from mismatched "
+            "samples", res.n, res.failed_phase, res.failed_rep);
+        for (int i = 0; i < have; i++) close(fd[i]);
+        close(ls);
+        return;
+    }
+    double one_s[16], many_s[16];
+    for (int i = 0; i < res.n; i++) { one_s[i] = res.one[i]; many_s[i] = res.many[i]; }
+    const double a = bench_median(one_s, res.n), b = bench_median(many_s, res.n);
     if (a > 0 && b > 0)
-        OUT("LOCAL linkbench: %u MiB over ONE link %.0f ms (%.1f MB/s); the SAME %u MiB split over %d links "
-            "%.0f ms (%.1f MB/s); scaling %.2fx (1.00 means the boundary serialises, %.2f means it is fully "
-            "per-connection)", (unsigned)(TOTAL >> 20), a, (double)TOTAL / 1e6 / (a / 1000.0),
-            (unsigned)(TOTAL >> 20), have, b, (double)TOTAL / 1e6 / (b / 1000.0), a / b, (double)have);
+        OUT("LOCAL linkbench: %u MiB, medians of %d COMPLETE alternating pairs (a failed phase abandons the "
+            "comparison, so these are not selected timings). ONE link %.0f ms (%.1f MB/s, spread %.0f-%.0f); "
+            "the SAME %u MiB split over %d links %.0f ms (%.1f MB/s, spread %.0f-%.0f); scaling %.2fx "
+            "(1.00 means the boundary serialises, %.2f means it is fully per-connection). TRANSPORT ONLY: "
+            "this is not the masked exchange path and says nothing yet about decode",
+            (unsigned)(TOTAL >> 20), res.n,
+            a, (double)TOTAL / 1e6 / (a / 1000.0), one_s[0], one_s[res.n - 1],
+            (unsigned)(TOTAL >> 20), have, b, (double)TOTAL / 1e6 / (b / 1000.0), many_s[0], many_s[res.n - 1],
+            a / b, (double)have);
     else
-        OUT("LOCAL linkbench: the transfer failed (one link %.0f ms, %d links %.0f ms)", a, have, b);
+        OUT("LOCAL linkbench: medians could not be formed from %d pairs", res.n);
     for (int i = 0; i < have; i++) close(fd[i]);
     close(ls);
 }
