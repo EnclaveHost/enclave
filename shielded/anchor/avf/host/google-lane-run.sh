@@ -94,7 +94,14 @@ SAMPLER="${SAMPLER:-model}"
 case "$SAMPLER" in model|greedy) ;; *) die "SAMPLER must be model or greedy, got '$SAMPLER'";; esac
 SAMPLER_FLAG=""
 if [ "$SAMPLER" != model ]; then
-  "${ADB[@]}" shell "LD_LIBRARY_PATH=$LIBS $RUNNER --helpfull 2>&1" < /dev/null | grep -q -- '--sampler' \
+  # Capture first, THEN grep. Piping adb into `grep -q` makes grep exit on the first match, adb take
+  # SIGPIPE, and `set -o pipefail` report 141 -- so a runner that DOES expose the flag was rejected
+  # for having answered too well.
+  # --helpfull exits NON-ZERO (absl prints help and returns 1), so its status says nothing about
+  # whether the flag exists. The text does. A runner that is missing or will not start prints nothing
+  # and fails the grep, which is the same refusal by a different route.
+  helptxt=$("${ADB[@]}" shell "LD_LIBRARY_PATH=$LIBS $RUNNER --helpfull 2>&1" < /dev/null 2>/dev/null || true)
+  printf '%s' "$helptxt" | grep -q -- '--sampler' \
     || die "SAMPLER=$SAMPLER needs a runner that exposes --sampler; $RUNNER does not (use lm15s)"
   SAMPLER_FLAG="--sampler=$SAMPLER"
   [ -n "${TEMPERATURE:-}" ] && SAMPLER_FLAG="$SAMPLER_FLAG --temperature=$TEMPERATURE"

@@ -1,0 +1,14 @@
+```python
+def reverse_string(s):
+  """
+  Reverses the input string.
+
+  Args:
+    s: The string to be reversed.
+
+  Returns:
+    The reversed string.
+  """
+  return s[::-1]
+```
+

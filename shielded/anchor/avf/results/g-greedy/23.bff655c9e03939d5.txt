@@ -1,0 +1,14 @@
+```python
+def shout(text):
+  """
+  Returns the argument uppercased with an exclamation mark appended.
+
+  Args:
+    text: The string to be shouted.
+
+  Returns:
+    The uppercased string with an exclamation mark appended.
+  """
+  return text.upper() + "!"
+```
+
