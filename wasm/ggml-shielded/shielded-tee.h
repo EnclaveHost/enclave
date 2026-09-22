@@ -224,6 +224,10 @@ typedef struct {
     double idle_ms; uint64_t idle_n;
     uint64_t completed_calls, missed_pads, used_pads;
 } sh_link_profile;
+/* Register trusted work to run in the exchange's idle window (opt-in). The
+ * callee must not read reply bytes, must not touch the link's pipe, and must
+ * be safe to run exactly once per exchange. Pass NULL to clear. */
+void sh_link_set_idle_work(sh_link *l, void (*fn)(void *), void *ctx);
 void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out);
 
 /* Dealt pads. The group table this link would bind a shipment against

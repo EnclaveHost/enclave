@@ -34,6 +34,7 @@ extern "C" {
 #include <condition_variable>
 #include <thread>
 #include <vector>
+#include <unordered_map>
 
 #define SH_LOG(...) do { if (sh_verbose()) fprintf(stderr, "[shielded] " __VA_ARGS__); } while (0)
 
@@ -281,6 +282,7 @@ struct sh_state {
      * millisecond once already. */
     double t_split_gemm = 0, t_split_post = 0, t_split_join = 0;
     uint64_t local_island_ops = 0;
+    uint64_t idle_islands = 0;      /* islands computed inside an exchange window */
     double t_local_island = 0;
     std::vector<float> local_inv_rms;
 
@@ -554,6 +556,9 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
         if (s.local_island_ops)
             fprintf(stderr, "[shielded] local residual/norm islands: ops=%llu time=%.1fms (no product-weight fusion)\n",
                     (unsigned long long)s.local_island_ops, s.t_local_island);
+        if (s.idle_islands)
+            fprintf(stderr, "[shielded] overlap pilot: %llu islands computed inside an exchange window\n",
+                    (unsigned long long)s.idle_islands);
         // Identify the groups delaying GPU submission. Aggregate misses alone
         // cannot distinguish a large output head from an undersized whole pool.
         struct stalled_group { std::string name; uint64_t used, missed; double ms; };
@@ -1627,6 +1632,43 @@ static bool sh_compute_local_island(sh_state &s, const ggml_tensor *op, const sh
     return true;
 }
 
+/* PILOT (SHIELDED_OVERLAP_CPU=1, off by default): trusted work scheduled into
+ * the exchange's idle window.
+ *
+ * Only local islands whose MUL_MAT is ALREADY COMPUTED are eligible. That is
+ * the whole safety argument and it is a property of the selection, not of the
+ * timing: such an island reads a product that has already been unmasked and
+ * Freivalds-verified, so running it early cannot consume an unverified reply.
+ * It never reads the reply in flight, never touches the pipe, and writes only
+ * its own scheduler-allocated output.
+ *
+ * Registered on the PRIMARY card's link only. With a column split the other
+ * card's helper is running concurrently, and one owner for the deferred set
+ * keeps it single-threaded rather than needing a claim protocol. */
+static int sh_overlap_cpu_mode() {
+    /* 0 off, 1 select and compute, 2 select but compute NOTHING -- mode 2
+     * separates "the hook fires" from "the work ran early" when the pilot
+     * misbehaves, without changing selection. */
+    static const int m = sh_env_int("SHIELDED_OVERLAP_CPU", 0);
+    return m;
+}
+static bool sh_overlap_cpu_enabled() { return sh_overlap_cpu_mode() != 0; }
+struct sh_idle_batch {
+    sh_state *st = nullptr;
+    std::vector<std::pair<ggml_tensor *, sh_fusion_pattern>> items;
+    size_t done_n = 0;               /* how many of `items` actually completed */
+};
+static void sh_idle_run(void *ctx) {
+    sh_idle_batch *b = (sh_idle_batch *)ctx;
+    { static int shout = 0; if (shout < 3) { shout++; fprintf(stderr, "[shielded] pilot: window fired, %zu items (mode %d)\n", b->items.size(), sh_overlap_cpu_mode()); } }
+    if (sh_overlap_cpu_mode() == 2) return;                 /* selected, deliberately not computed */
+    for (auto &it : b->items) {
+        if (!sh_compute_local_island(*b->st, it.first, it.second)) return;  /* stop; the rest stay undone */
+        b->done_n++;
+        b->st->idle_islands++;
+    }
+}
+
 static int sh_graph_node_owner(sh_pool &p, const ggml_tensor *node) {
     if (node->op == GGML_OP_MUL_MAT) return sh_owner(p, node->src[0]);
     sh_fusion_pattern pattern;
@@ -1902,6 +1944,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
         if (widest > 0) s.graph_w[widest <= 1 ? 0 : widest <= 4 ? 1 : widest <= 8 ? 2 : 3]++;
     }
+    std::unordered_map<const ggml_tensor *, int> idx_of;   /* built lazily; only the overlap pilot uses it */
     for (int i = 0; i < n; i++) {
         if (done[i]) continue;
         ggml_tensor *node = ggml_graph_node(cgraph, i);
@@ -2080,7 +2123,80 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             }
             static const bool no_slice_post = sh_env_int("SHIELDED_SPLIT_NOPOST", 0) != 0;
             const bool post_ok = !no_slice_post && post.y.size() == members.size();
+            /* PILOT: fill this exchange's idle window with islands whose
+             * matmul is already computed. Eligibility is checked here, in
+             * graph order, where `done` says exactly what has been produced. */
+            sh_idle_batch idle; idle.st = &s;
+            if (sh_overlap_cpu_enabled() && all_live) {
+                /* Index map, built once for the graph. The first version
+                 * scanned the node array for every candidate and every tensor
+                 * it reads -- O(n^2) per exchange, which on a 3799-node graph
+                 * over 321 exchanges is tens of billions of comparisons and
+                 * killed the run before a single island was scheduled. An
+                 * eligibility test that costs more than the work it schedules
+                 * is not an optimisation. */
+                if (idx_of.empty()) {
+                    idx_of.reserve((size_t)n * 2);
+                    for (int q = 0; q < n; q++) idx_of[ggml_graph_node(cgraph, q)] = q;
+                }
+                for (int j = i + 1; j < n; j++) {
+                    if (done[j]) continue;
+                    ggml_tensor *nj = ggml_graph_node(cgraph, j);
+                    if (sh_is_meta(nj) || nj->op == GGML_OP_MUL_MAT) continue;
+                    sh_fusion_pattern pat;
+                    if (!sh_local_island_pattern(nj, pat)) continue;
+                    /* EVERY tensor the island reads must already be produced,
+                     * not just the matmul it fuses. The first version checked
+                     * pat.first alone and the graph failed closed on warm
+                     * prefill, because the residual side of the add can be
+                     * produced by a node this split has not reached. A pointer
+                     * edge says what is read; it does not say it is ready. */
+                    const ggml_tensor *reads[] = { pat.first, pat.residual, pat.add, pat.norm, pat.scaled };
+                    bool ready = true;
+                    for (const ggml_tensor *rt : reads) {
+                        if (!rt || rt == nj) continue;
+                        auto f = idx_of.find(rt);
+                        if (f != idx_of.end() && !done[f->second]) { ready = false; break; }
+                    }
+                    if (!ready) continue;
+                    /* Dependencies are not enough. ggml's allocator reuses
+                     * tensor memory on the assumption that nodes run in graph
+                     * order, so a node moved earlier can write into a range
+                     * that is still live for something else -- in particular
+                     * for an output this very exchange is about to fill.
+                     * Refuse anything whose bytes overlap a y this exchange
+                     * writes. Necessary, and NOT sufficient: a third tensor
+                     * could be live in that range and the allocator does not
+                     * expose its liveness. */
+                    bool aliases = false;
+                    const char *nb = (const char *)nj->data;
+                    const char *ne_ = nb + ggml_nbytes(nj);
+                    for (size_t t = 0; t < members.size() && !aliases; t++) {
+                        const char *yb = (const char *)members[t]->data;
+                        if (!yb || !nb) continue;
+                        if (nb < yb + ggml_nbytes(members[t]) && yb < ne_) aliases = true;
+                    }
+                    if (aliases) continue;
+                    idle.items.emplace_back(nj, pat);
+                }
+                if (!idle.items.empty()) {
+                    static int shout = 0;
+                    if (shout < 3) { shout++; fprintf(stderr, "[shielded] pilot: batch=%zu at node %d m=%d\n", idle.items.size(), i, (int)m); }
+                    sh_link_set_idle_work(s.link, sh_idle_run, &idle);
+                }
+            }
             rc = all_live ? sh_split_exchange(pool, xents, yp, x_gpu.data(), m, post_ok ? &post : nullptr) : SH_ERR_IO;
+            if (!idle.items.empty()) {
+                sh_link_set_idle_work(s.link, nullptr, nullptr);
+                /* Mark only what actually completed. A pilot must not be able
+                 * to fail the graph: if an island did not compute, it is left
+                 * for the main loop to do in its normal place, which is the
+                 * behaviour with the pilot switched off. */
+                for (size_t k = 0; k < idle.done_n; k++) {
+                    auto f = idx_of.find(idle.items[k].first);
+                    if (f != idx_of.end()) done[f->second] = 1;
+                }
+            }
             split_post_done = post_ok && rc == SH_OK;
             if (rc == SH_ERR_VERIFY) {
                 s.verify_fail++;
