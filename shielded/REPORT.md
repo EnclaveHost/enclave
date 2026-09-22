@@ -2757,27 +2757,80 @@ So "the pool holds 31.977 against 16.0 reserved" is a failed SECOND claim with
 g_reserved printed post-rollback: one link held 16 GB, this claim asked for
 16 GB more, target was 32 GB, and the pool stopped 22,626,304 bytes short.
 
-HYPOTHESIS, source-supported and not yet measured: the loop fails when the
-remaining delta is smaller than the pool's allocation granularity. This file's
-own comment says "The pool releases in whole chunks (32 MiB on this driver)",
-and a sub-chunk cudaMallocAsync can be served from cached free space without
-growing ReservedMemCurrent -- so `have` never advances, the 16-iteration cap
-runs out, and a claim fails with ample driver memory free. Every shortfall
-observed is under one chunk:
+CONFIRMED BY TRACE, and then fixed. The hypothesis was that the loop fails
+when the remaining delta is smaller than the pool's 32 MiB allocation
+granularity. The first support for it was arithmetic that needed no
+instrumentation: every pool figure at a refusal is an EXACT chunk multiple,
+and every target lands a fraction of a chunk above it.
 
-| held | target | shortfall | < 32 MiB |
-|---|---|---|---|
-| 31,977,373,696 | 32,000,000,000 | 22,626,304 | yes |
-| 31,776,047,104 | 31,800,000,000 | 23,952,896 | yes |
-| 30,970,740,736 | 31,000,000,000 | 29,259,264 | yes |
-| 29,997,662,208 | 30,000,000,000 | 2,337,792 | yes |
+| held | chunks | target | chunks | shortfall | < 32 MiB |
+|---|---|---|---|---|---|
+| 31,977,373,696 | 953.0000 | 32,000,000,000 | 953.6743 | 22,626,304 | yes |
+| 31,776,047,104 | 947.0000 | 31,800,000,000 | 947.7139 | 23,952,896 | yes |
+| 30,970,740,736 | 923.0000 | 31,000,000,000 | 923.8720 | 29,259,264 | yes |
+| 29,997,662,208 | 894.0000 | 30,000,000,000 | 894.0697 | 2,337,792 | yes |
 
-That also explains what sizing could not: the gap is a pool-granularity
-artifact, so no reservation size removes it, and it is intermittent because it
-depends on the pool's cache state rather than on timing. Confirming it needs
-instrumentation inside claim_reservation -- ledger before and after, target,
-pool Used and Reserved, iteration count, CUDA status per iteration -- and that
-is the next step, not an assertion.
+I then instrumented claim_reservation behind `SHIELDED_CLAIM_TRACE=1` (off by
+default) and reproduced it on the first run of the same configuration that had
+fired in 2 of 10. The failing claim, card 1, verbatim:
+
+    [claim] hello peer=127.0.0.1:59442 want=15500000000 reserved=15500000000 floating=0 reservers=1
+    [claim] iter=0 gap=15497852416 have=15502147584 -> 28219277312 grew=12717129728 status=cudaSuccess
+    [claim] iter=1 gap=2780722688  have=28219277312 -> 30769414144 grew=2550136832  status=cudaSuccess
+    [claim] iter=2 gap=230585856   have=30769414144 -> 30937186304 grew=167772160   status=cudaSuccess
+    [claim] iter=3 gap=62813696    have=30937186304 -> 30970740736 grew=33554432    status=cudaSuccess
+    [claim] iter=4 gap=29259264    have=30970740736 -> 30970740736 grew=0           status=cudaSuccess
+    ... iterations 5 through 15, identical ...
+    [claim] FAIL R=15500000000 reserved_before=15500000000 target=31000000000
+            held=30970740736 short=29259264 iters=16 holds=16
+            pool_used=11615177728 driver_free=2666528768 floating=0
+
+Three things are settled by those lines. `reservers=1` at the HELLO: it is the
+SECOND claim, two tenants and not three, so the retraction above was right and
+there is no release race to look for. `status=cudaSuccess` with `grew=0`,
+twelve times: the allocations SUCCEED, they just come out of the pool's free
+space, so ReservedMemCurrent never moves and the next iteration computes the
+same gap. And `driver_free=2666528768`: the card had 2.67 GB the pool declined
+to take.
+
+The per-iteration arithmetic shows why it converges there. Growth is the
+request minus whatever free space the pool could reuse, so the gap shrinks to
+the reusable free space each time -- 15.50 GB, 2.78 GB, 230 MB, 62.8 MB, 29.3
+MB -- and then sits at the fixed point where the free space exactly covers it.
+That free space is not spare: it is the FIRST tenant's reserved-but-unallocated
+room, which is why the failure is intermittent and why no reservation size
+removes it.
+
+The same trace also shows the fix. At iter=0 a 15.50 GB request grew the pool
+by 12.72 GB, reusing the 2.78 GB that was free -- one allocation draws on free
+space and on new chunks together. So asking for the gap PLUS the pool's free
+figure gives a request the pool cannot cover from what it holds, and costs the
+driver only the gap:
+
+    const long long gap    = target - have;
+    const long long freein = pool_free_now();          // Reserved - Used
+    long long want_now = gap + (freein > 0 ? freein : 0);
+    last = cudaMallocAsync(&p, (size_t)want_now, 0);
+    if (last != cudaSuccess && want_now != gap) {       // too large: ask for the gap
+        cudaGetLastError(); want_now = gap;
+        last = cudaMallocAsync(&p, (size_t)want_now, 0);
+    }
+
+The fallback makes it strictly a superset of the old behaviour: anything that
+succeeded before still succeeds. Nothing about admission changes -- the budget
+check in `hello`, the post-condition `held < target`, and the rollback are all
+untouched. It makes a claim that should have succeeded succeed; it does not
+relax what is enforced.
+
+Same configuration after the fix, card 0:
+
+    [claim] iter=0 gap=15497852416 asked=18331003392 free=2833150976 have=15502147584 -> 30970740736 grew=15468593152
+    [claim] iter=1 gap=29259264    asked=76021760    free=46762496   have=30970740736 -> 31071404032 grew=100663296
+    [claim] OK R=15500000000 target=31000000000 held=31071404032 short=-71404032 iters=2 holds=2
+
+It reaches 30,970,740,736 -- the exact figure that was the dead end -- and
+clears it on the next iteration instead of spinning twelve times. The 71 MB of
+overshoot is returned by pool_trim when the link closes.
 
 Across 17 runs at 16.0, 15.9 and 15.5 GB the correspondence is exact in
 DIRECTION, though not in count -- an earlier draft of this section said
