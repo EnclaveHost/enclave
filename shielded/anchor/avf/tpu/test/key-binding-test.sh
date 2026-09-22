@@ -35,10 +35,19 @@ if [[ "$cmd" == *tflite* ]]; then echo "$FAKE_CONTENT  g0.tflite"; else echo "$F
 echo "__RC__0"
 EOF
 for r in tpu-run local-run; do printf '#!/usr/bin/env bash\necho "status=eos"\necho "LOCAL turn 1 A: 391"\necho "LOCAL done"\n' > "$W/host/$r.sh"; done
-chmod +x "$W/bin/adb" "$W/host"/*.sh
+cat > "$W/bin/sha256sum" <<'EOF'
+#!/usr/bin/env bash
+# FAKE_SHA_FAIL_FOR=<file>: print a perfectly valid 64-hex digest for that file and then FAIL.
+# Valid-looking output with a failure status is the shape this suite exists to catch.
+if [ -n "${FAKE_SHA_FAIL_FOR:-}" ] && [ "${1:-}" = "$FAKE_SHA_FAIL_FOR" ]; then
+  echo "0000000000000000000000000000000000000000000000000000000000000000  $1"; exit 42
+fi
+exec /usr/bin/sha256sum "$@"
+EOF
+chmod +x "$W/bin/adb" "$W/bin/sha256sum" "$W/host"/*.sh
 printf 'What is 17 times 23? Reply with only the number.\tnumeric=391\n' > "$W/p.txt"
 
-go() { env FAKE_CONTENT="$CONTENT" ADB="$W/bin/adb" OUT="$W/out" "$@" \
+go() { env PATH="$W/bin:$PATH" FAKE_CONTENT="$CONTENT" ADB="$W/bin/adb" OUT="$W/out" "$@" \
        bash "$W/host/quality-compare.sh" "$W/p.txt" > "$W/log" 2>&1; echo $?; }
 cached() { grep -c 'cached' "$W/log"; }
 keyof() { awk -F'\t' '$1=="01"{print $2}' "$W/out/MANIFEST.tsv" | tail -1; }
@@ -62,6 +71,22 @@ ck "  and gets a different key"         "$([ "$(keyof)" != "$K2" ] && echo diff)
 printf '\n# a change to the shared gate\n' >> "$W/host/coolgate.sh"
 K3=$(keyof); go MAXNEW=48 MEM=8192 >/dev/null; ck "an edited thermal gate is not cached" "$(cached)" 0
 ck "  and gets a different key"         "$([ "$(keyof)" != "$K3" ] && echo diff)" diff
+
+echo "== the harness has no identity unless EVERY runner digests cleanly =="
+rm -rf "$W/out"
+ck "a MISSING runner is refused" "$(mv "$W/host/coolgate.sh" "$W/gate.bak"; go MAXNEW=48 MEM=8192)" 3
+ck "  and no manifest is written" "$(ls "$W/out/MANIFEST.tsv" 2>/dev/null | wc -l)" 0
+mv "$W/gate.bak" "$W/host/coolgate.sh"
+rm -rf "$W/out"; chmod 000 "$W/host/coolgate.sh"
+ck "an UNREADABLE runner is refused" "$(go MAXNEW=48 MEM=8192)" 3
+chmod 644 "$W/host/coolgate.sh"
+rm -rf "$W/out"
+ck "a FAILING digest that prints a valid hash is refused" \
+   "$(go MAXNEW=48 MEM=8192 FAKE_SHA_FAIL_FOR=coolgate.sh)" 3
+ck "  and no manifest is written" "$(ls "$W/out/MANIFEST.tsv" 2>/dev/null | wc -l)" 0
+ck "a failing digest on the ARM runner is refused too" \
+   "$(rm -rf "$W/out"; go MAXNEW=48 MEM=8192 FAKE_SHA_FAIL_FOR=tpu-run.sh)" 3
+rm -rf "$W/out"; ck "and a clean set still runs" "$(go MAXNEW=48 MEM=8192)" 0
 
 echo "== the settings that were in force are RECORDED, not just keyed =="
 go MAXNEW=48 MEM=8192 >/dev/null
