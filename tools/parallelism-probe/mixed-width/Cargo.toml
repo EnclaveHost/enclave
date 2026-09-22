@@ -1,0 +1,13 @@
+# Standalone on purpose: it is a reproducer to hand to a UB checker, not part of any build.
+#   cargo +nightly miri run
+[package]
+name = "mixed-width-repro"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "mixed-width-repro"
+path = "main.rs"
+
+[workspace]
