@@ -68,6 +68,14 @@ grep -vP '^02\tk2\tok\tok' "$W/m/MANIFEST.tsv" > "$W/t" && mv "$W/t" "$W/m/MANIF
 has "$OUT" "masked TPU 1/2" "the malformed row scores as a failure"
 has "$OUT" "malformed manifest row" "and is shown as malformed rather than dropped"
 
+echo "== a row missing on ONE lane does not degrade the others =="
+fresh; grep -v '^02' "$W/m/MANIFEST.tsv" > "$W/t" && mv "$W/t" "$W/m/MANIFEST.tsv"; OUT=$(rpt)
+has "$OUT" "Google NPU 2/2" "google still scores its complete run"
+has "$OUT" "masked TPU 1/2"  "  while the short masked run loses that row"
+# the defect: the placeholder text of a missing row matched no spec, so the OTHER lane's good answer
+# was scored against an empty contract and came back REVIEW
+hasnt "$OUT" "Google NPU 1/2" "  and google is not dragged down with it"
+
 echo "== the denominator comes from the DECLARED count, not from the rows present =="
 fresh; grep -v '^02' "$W/m/MANIFEST.tsv" > "$W/t" && mv "$W/t" "$W/m/MANIFEST.tsv"
 grep -v '^02' "$W/g/MANIFEST.tsv" > "$W/t" && mv "$W/t" "$W/g/MANIFEST.tsv"; OUT=$(rpt)
