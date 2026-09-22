@@ -25,6 +25,16 @@ COUNTRY_SET = ("exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,
 
 # (name, spec, reply, verdict that must NOT come back, verdicts that are acceptable)
 FALSE_POSITIVES = [
+    # "A safe builtin" is not the same thing as "a consumer a list can stand in for". Both of these
+    # were PASS when the predicate was SAFE_BUILTINS: len() has no meaning on a generator (Python
+    # raises TypeError, the list answers 2), and an EMPTY generator is truthy where an empty list is
+    # falsy, so bool() flips. The contracts below are the ones the MATERIALISED answer satisfies.
+    ("len() of a generator, which Python refuses", "pyfunc=f|aa->2",
+     "def f(s):\n    return len(1 for c in s)", PASS, {REVIEW, FAIL}),
+    ("an empty generator is truthy, an empty list is not", "pyfunc=f|aa->False",
+     "def f(s):\n    return str(bool(c for c in s if False))", PASS, {REVIEW, FAIL}),
+    ("reversed() of a generator, which Python refuses", "pyfunc=f|aa->['a', 'a']",
+     "def f(s):\n    return list(reversed(c for c in s))", PASS, {REVIEW, FAIL}),
     # A generator is a ONE-SHOT lazy iterator. Materialising one as a list makes it reusable, and that
     # was a reproducible false PASS: real Python exhausts g in the first sum, so this returns 2, but
     # the interpreter returned 4 and the spec "aa->4" was scored correct. Immediate consumption is
@@ -136,6 +146,13 @@ TRUE_POSITIVES = [
     # interpreter still declines rather than guessing. Understating is allowed; inventing is not.
     ("a reused generator under its correct contract", "pyfunc=f|aa->2",
      "def f(s):\n    g = (1 for c in s)\n    return sum(g) + sum(g)", REVIEW),
+    # The positive controls for the allowlist: every consumer kept on it must still evaluate.
+    ("sum(genexp), the immediate positive control", "pyfunc=f|aa->2|abc->3|->0",
+     "def f(s):\n    return sum(1 for c in s)", PASS),
+    ("any(genexp)", "pyfunc=f|aa->True|xy->False",
+     "def f(s):\n    return str(any(c == 'a' for c in s))", PASS),
+    ("str.join(genexp)", "pyfunc=f|aa->aa|->",
+     "def f(s):\n    return ''.join(c for c in s)", PASS),
     ("three real countries", COUNTRY_SET, "Brazil, Argentina and Peru", PASS),
     ("ten primes in order", PRIMES, "2, 3, 5, 7, 11, 13, 17, 19, 23, 29", PASS),
     # An import that is never USED is never evaluated either -- module-level statements are not run at

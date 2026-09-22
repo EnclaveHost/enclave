@@ -1,0 +1,21 @@
+Staged, NOT applied. Apply these three files over host/ only when no run is in progress, then delete
+this marker:
+
+    cp host/staged/{tpu-run.sh,local-run.sh,quality-compare.sh} host/ && rm host/staged/APPLY-PENDING
+
+Why they are staged rather than edited in place: a 24-prompt run was mid-flight when the defect was
+found, and quality-compare.sh invokes the runners fresh for every row. Editing them would have put
+rows 1-7 under one configuration and rows 8-24 under another, inside one result set.
+
+What they change, and nothing else:
+  tpu-run.sh        gains local-run.sh's thermal gate verbatim (Thermal Status 0 AND the big cores at
+                    their full cpuinfo_max_freq), honouring NOCOOL, plus the same end-of-run clock
+                    report. It had NO thermal gate, and quality-compare.sh runs the TPU arm first, so
+                    the CPU arm was guaranteed a cool uncapped phone and the masked arm was not.
+  local-run.sh      passes --ei mem ${MEM:-8192}. It passed none, and mode local defaults mem to 7168
+                    (Main.java), so the two arms ran VMs a gigabyte apart in page cache while
+                    tpu-run.sh asked for 8192.
+  quality-compare.sh hands the SAME MEM and NOCOOL to both arms and defaults MEM to 8192.
+
+tpu/test/runners-matched-test.sh enforces the properties, against this directory while the marker
+exists and against host/ once it is gone.

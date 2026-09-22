@@ -2293,11 +2293,14 @@ prompts cost, they are not costing TPU exchanges.
   favours the masked arm, so the two biases do not cancel and neither is bounded.
   (`threads` is 6 on both, by the same default, so that at least is matched.)
 
-**So what stands and what does not.** Task CORRECTNESS from this harness is unaffected: decoding is
-greedy, and clocks and page cache do not move an argmax. Every quality and parity result reported from
-these runs stands. Every RATE comparison BETWEEN the two arms from this harness is confounded and
-should not be quoted, including the 2.1-2.7x prefill gap above -- it is the direction the unmatched
-gate would produce anyway.
+**So what stands and what does not.** Narrowly: each row's task verdict is a property of the reply
+that was actually produced and recorded, and those verdicts do not depend on clocks or page cache,
+because decoding is greedy and neither moves an argmax. That is the claim, and it is the only one --
+NOT a blanket "every parity result stands". What is not established by these runs is anything that
+compares the arms by RATE. Those comparisons are confounded, should not be quoted, and that includes
+the 2.1-2.7x prefill gap above, which is precisely the direction the unmatched gate would produce on
+its own. A rate measured under unmatched conditions is descriptive of those conditions; it is not a
+controlled comparison, however large the apparent gap.
 
 What that leaves is: the prefill claim was never measured, the only data bearing on it points the other
 way, and that data is not clean enough to settle it either. Both statements should come out of this
