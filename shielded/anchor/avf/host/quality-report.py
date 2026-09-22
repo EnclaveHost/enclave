@@ -50,16 +50,26 @@ def load_manifest(d):
     that. A directory without one is refused rather than guessed at."""
     mf = os.path.join(d, "MANIFEST.tsv")
     if not os.path.exists(mf):
-        return None
-    rows = []
+        return None, None
+    rows, expect_rows = [], None
     for line in open(mf, errors="replace"):
-        if line.startswith("#") or not line.strip():
+        line = line.rstrip("\n")
+        if not line.strip():
             continue
-        f = line.rstrip("\n").split("\t")
+        if line.startswith("#"):
+            f = line.split("\t")
+            if f[0].strip() == "# expect_rows" and len(f) > 1 and f[1].strip().isdigit():
+                expect_rows = int(f[1].strip())
+            continue
+        f = line.split("\t")
         if len(f) < 6:
+            # NOT skipped. A truncated line is a row whose result is unknown, and dropping it shrinks the
+            # denominator -- the same arithmetic that turns an abandoned run into a flattering score.
+            rows.append(dict(id=(f[0] if f else "??"), key="", tpu="malformed", cpu="malformed",
+                             prompt=(f[4] if len(f) > 4 else "<malformed manifest row>"), expect=""))
             continue
         rows.append(dict(id=f[0], key=f[1], tpu=f[2], cpu=f[3], prompt=f[4], expect=f[5]))
-    return rows
+    return rows, expect_rows
 
 
 def read(path):
@@ -83,16 +93,32 @@ def answer(path):
 
 
 def main():
-    rows_mf = load_manifest(D)
+    rows_mf, expect_rows = load_manifest(D)
     if rows_mf is None:
         print(f"REFUSING: no MANIFEST.tsv in {D}.\n"
               f"Which log belongs to which prompt is not inferable from filenames, and guessing it by\n"
               f"sort order produced a false PASS once already. Re-run host/quality-compare.sh, which\n"
               f"writes the manifest.")
         return 2
-    if not rows_mf:
+    if expect_rows is None:
+        print(f"REFUSING: {D}/MANIFEST.tsv declares no expect_rows.\n"
+              f"Without the count fixed before the run, a manifest cut short by an interrupted or failed\n"
+              f"run is indistinguishable from a complete one, and scoring only the rows present turns an\n"
+              f"abandoned run into a flattering total. Re-run host/quality-compare.sh.")
+        return 2
+    if not rows_mf and expect_rows == 0:
         print(f"no rows in {D}/MANIFEST.tsv")
         return 1
+    # Every prompt the run SET OUT to do stays in the denominator. A row the producer never reached is a
+    # failure with a stated reason, never an excluded row.
+    seen = {r["id"] for r in rows_mf}
+    for k in range(1, expect_rows + 1):
+        i = f"{k:02d}"
+        if i not in seen:
+            rows_mf.append(dict(id=i, key="", tpu="missing", cpu="missing",
+                                prompt="<row missing from the manifest: the run did not reach it>",
+                                expect=""))
+    rows_mf.sort(key=lambda r: r["id"])
     build = read(os.path.join(D, "BUILD"))
     if build:
         print("binary identity recorded with these results:")
@@ -105,7 +131,7 @@ def main():
         i, prompt = r["id"], r["prompt"]
         spec = SPECS.get(prompt, r["expect"])
         def arm(which):
-            if r[which] != "ok":                       # the producer recorded this arm as failed
+            if r[which] != "ok":        # failed / missing / malformed -- all are failures, none are skips
                 return None, "failed", f"the producer recorded this arm as {r[which]}"
             return answer(os.path.join(D, f"{i}.{r['key']}.{which}.log"))
         a, sa, ea = arm("tpu")

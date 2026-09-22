@@ -28,7 +28,7 @@ has() { if grep -qF "$2" <<<"$1"; then printf '  ok   %s\n' "$3"; pass=$((pass+1
 hasnt() { if grep -qF "$2" <<<"$1"; then printf '  FAIL %s (found %q, should not be there)\n' "$3" "$2"; fail=$((fail+1));
           else printf '  ok   %s\n' "$3"; pass=$((pass+1)); fi; }
 
-W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
+W=$(mktemp -d); [ "${KEEP:-0}" = 1 ] && echo "KEEPING $W" || trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/host" "$W/bin"
 cp "$HERE/host/quality-compare.sh" "$HERE/host/quality-report.py" "$HERE/host/quality_checks.py" "$HERE/host/safe_py.py" "$W/host/"
 LIBID=1111111111111111111111111111111111111111111111111111111111111111
@@ -36,8 +36,19 @@ LIBID=1111111111111111111111111111111111111111111111111111111111111111
 # ---- the fakes. Each one is the narrowest thing that satisfies the producer's contract. ----
 cat > "$W/bin/adb" <<'EOF'
 #!/usr/bin/env bash
-# every sha256sum the producer asks the device for answers with the current fake content id
-echo "$FAKE_CONTENT  -"
+# Speaks the producer's dev_run protocol: output, then the remote status marker. The failure modes below
+# are the ones that LOOK like success -- plausible 64-hex output with a failing status.
+cmd="$*"
+if [ "${FAKE_EMPTY_HASH:-0}" = 1 ]; then
+  # what `cat missing/*.tflite | sha256sum` returns: the hash of nothing
+  echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  -"
+  echo "__RC__0"; exit 0
+fi
+if [ "${FAKE_NO_GRAPHS:-0}" = 1 ] && [[ "$cmd" == *tflite* ]]; then echo "__RC__0"; exit 0; fi
+if [[ "$cmd" == *tflite* ]]; then echo "$FAKE_CONTENT  g0.tflite"; echo "$FAKE_CONTENT  g1.tflite"
+else echo "$FAKE_CONTENT  -"; fi
+echo "__RC__${FAKE_REMOTE_RC:-0}"
+exit "${FAKE_ADB_RC:-0}"
 EOF
 cat > "$W/host/build-identity.sh" <<EOF
 #!/usr/bin/env bash
@@ -70,16 +81,19 @@ EOF
 # The producer's own key formula, so the test can CHOOSE content ids that put the stale log last in sort
 # order. Without this the mutant would only reproduce the false PASS about half the time, and a test that
 # passes by coin flip is not a test.
+gid_for() { printf '%s  g0.tflite\n%s  g1.tflite\n' "$1" "$1" | sort | sha256sum | awk '{print $1}'; }
 key_for() { printf '%s|%s|%s|%s|%s' \
-  "What is 17 times 23? Reply with only the number." 48 "$1" "$1" "$LIBID" | sha256sum | cut -c1-16; }
+  "What is 17 times 23? Reply with only the number." 48 "$(gid_for "$1")" "$1" "$LIBID" | sha256sum | cut -c1-16; }
 OLD_C=""; NEW_C=""
 for i in $(seq 1 400); do
-  a=$(printf 'a%062d' "$i"); b=$(printf 'b%062d' "$i")
+  a=$(printf 'a%063d' "$i"); b=$(printf 'b%063d' "$i")
   if [[ "$(key_for "$a")" > "$(key_for "$b")" ]]; then OLD_C=$a; NEW_C=$b; break; fi
 done
 [ -n "$OLD_C" ] || { echo "FAIL: could not pick content ids (sha256 search exhausted)"; exit 1; }
 
 run_producer() { FAKE_CONTENT="$1" FAKE_ANSWER="$2" FAKE_RC="${3:-0}" \
+  FAKE_ADB_RC="${FAKE_ADB_RC:-0}" FAKE_REMOTE_RC="${FAKE_REMOTE_RC:-0}" \
+  FAKE_EMPTY_HASH="${FAKE_EMPTY_HASH:-0}" FAKE_NO_GRAPHS="${FAKE_NO_GRAPHS:-0}" \
   ADB="$W/bin/adb" OUT="$W/out" MAXNEW=48 bash "$W/host/quality-compare.sh" "$W/prompts.txt" >"$W/prod.log" 2>&1; echo $?; }
 report() { python3 "${2:-$W/host/quality-report.py}" "$W/out" "$W/prompts.txt" 2>&1; }
 
@@ -125,6 +139,49 @@ k2=$(awk -F'\t' '$1=="01"{print $2}' "$W/out/MANIFEST.tsv" | tail -1)
 if [ "$k1" != "$k2" ]; then printf '  ok   %s\n' "replaced bundle contents change the key (paths are not identity)"; pass=$((pass+1));
 else printf '  FAIL %s\n' "same key for different bundle bytes"; fail=$((fail+1)); fi
 ck "and the row is re-run rather than served from cache" "$(grep -c 'cached' "$W/prod.log")" 0
+
+# Mutation-checked 2026-09-22: reverting the transport-status check, the remote-status check, the
+# empty-input-hash rejection, the expect_rows denominator, or the malformed-row handling each makes this
+# suite fail. The "no readable graphs" property is enforced by TWO lines (the count check and the
+# per-digest loop); removing either alone still refuses, so only removing both is detectable. That is
+# redundancy, not a vacuous test -- verified by mutating both together.
+echo "== output that LOOKS like a digest is not an identity =="
+# Exactly the audit's staging: every content-digest call emits 64 hex and then exits 42.
+rm -rf "$W/out"; rc=$(FAKE_ADB_RC=42 run_producer "$OLD_C" 391)
+ck "producer refuses when the digest ADB call fails the transport" "$rc" 3
+ck "and scores nothing" "$(ls "$W/out/MANIFEST.tsv" 2>/dev/null | wc -l)" 0
+rm -rf "$W/out"; rc=$(FAKE_REMOTE_RC=7 run_producer "$OLD_C" 391)
+ck "producer refuses when the REMOTE digest command fails" "$rc" 3
+rm -rf "$W/out"; rc=$(FAKE_EMPTY_HASH=1 run_producer "$OLD_C" 391)
+ck "producer refuses the hash of EMPTY input (cat of nothing)" "$rc" 3
+rm -rf "$W/out"; rc=$(FAKE_NO_GRAPHS=1 run_producer "$OLD_C" 391)
+ck "producer refuses an empty graph list" "$rc" 3
+
+echo "== an interrupted manifest cannot shrink the denominator =="
+rm -rf "$W/out"; run_producer "$OLD_C" 391 >/dev/null
+# simulate a run cut short: the producer declared 1 row but only reached 0 of them
+python3 - "$W/out/MANIFEST.tsv" <<'PY'
+import sys
+p=sys.argv[1]; keep=[l for l in open(p) if l.startswith("#")]
+keep.insert(0, "# expect_rows\t8\n") if False else None
+open(p,"w").writelines(keep)
+PY
+sed -i 's/^# expect_rows\t1$/# expect_rows\t8/' "$W/out/MANIFEST.tsv"
+OUT_S=$(report)
+has "$OUT_S" "out of 8 prompts" "the denominator is the DECLARED count, not the rows present"
+has "$OUT_S" "tpu 0/8" "rows the run never reached are failures, not exclusions"
+echo "== a malformed manifest row is a failure, not a skip =="
+rm -rf "$W/out"; run_producer "$OLD_C" 391 >/dev/null
+printf '02\tdeadbeef\tok\n' >> "$W/out/MANIFEST.tsv"
+sed -i 's/^# expect_rows\t1$/# expect_rows\t2/' "$W/out/MANIFEST.tsv"
+OUT_M=$(report)
+has "$OUT_M" "out of 2 prompts" "the malformed row stays in the denominator"
+has "$OUT_M" "malformed" "and is reported as malformed"
+
+echo "== a manifest with no declared count is refused =="
+rm -rf "$W/out"; run_producer "$OLD_C" 391 >/dev/null
+grep -v '^# expect_rows' "$W/out/MANIFEST.tsv" > "$W/m.tmp" && mv "$W/m.tmp" "$W/out/MANIFEST.tsv"
+report >/dev/null 2>&1; ck "report refuses a manifest with no expect_rows (exit 2)" "$?" 2
 
 echo "== a directory with no manifest is refused, not guessed at =="
 rm -rf "$W/out2"; mkdir -p "$W/out2"

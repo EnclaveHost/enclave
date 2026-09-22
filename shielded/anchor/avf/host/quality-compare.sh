@@ -41,17 +41,55 @@ RUN_IDENT=$(grep -oE '^[a-z-]+\.so sha256  [0-9a-f]+' "$OUT/BUILD" | head -1 | a
 [ -n "$RUN_IDENT" ] || { echo "REFUSING: no library digest in $OUT/BUILD; an unknown binary is not an identity" >&2; exit 3; }
 # The bundle and graphs are keyed by CONTENT, not by path: the same path can hold different bytes.
 F_DIR=/data/user/0/host.enclave.anchor.avf/files
-dev_sha() { "${ADB[@]}" shell "run-as host.enclave.anchor.avf sha256sum $1 2>/dev/null" < /dev/null | tr -d '\r' | awk '{print $1}' | head -1; }
-BUNDLE_ID=$(dev_sha "$F_DIR/${BUNDLE:-tpu/lanes-h4ds.etpu}")
-GRAPHS_ID=$("${ADB[@]}" shell "run-as host.enclave.anchor.avf sh -c 'cat $F_DIR/${GRAPHS:-tpu/g5-h4ds}/*.tflite 2>/dev/null | sha256sum'" < /dev/null | tr -d '\r' | awk '{print $1}' | head -1)
-[ -n "$BUNDLE_ID" ] && [ -n "$GRAPHS_ID" ] || { echo "REFUSING: could not digest the bundle or graphs on the device" >&2; exit 3; }
+# Digesting the artifacts is itself an evidence path, and it had the SAME defect twice fixed elsewhere:
+# the command status was never read, so anything that printed 64 hex characters was accepted as an
+# identity. Three ways that produces a confident wrong answer:
+#   - adb exits nonzero (device gone, run-as denied) having already printed something plausible;
+#   - the remote command fails but the pipeline's LAST stage succeeds -- `cat missing/*.tflite | sha256sum`
+#     hashes EMPTY INPUT and returns e3b0c442..., which is a valid-looking digest of nothing, the exact
+#     shape of the bug that once recorded the SHA256 of zero bytes as the installed binary's identity;
+#   - a concatenation hides the file list, so one graph missing, renamed or reordered can hash the same.
+# So: both statuses are checked, the digest must be 64 hex and must not be the empty-input hash, the
+# graph list must be non-empty and readable, and the graphs identity is the hash of a SORTED list of
+# per-file digests and names rather than of a concatenated byte stream.
+SHA_EMPTY=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+dev_run() {   # dev_run '<remote sh script>' -> stdout; nonzero if EITHER the transport or the remote failed
+  local out rc rrc
+  out=$("${ADB[@]}" shell "run-as host.enclave.anchor.avf sh -c '$1'; echo __RC__\$?" < /dev/null 2>/dev/null); rc=$?
+  if [ "$rc" -ne 0 ]; then echo "adb transport failed (rc=$rc)" >&2; return 1; fi
+  out=$(printf '%s' "$out" | tr -d '\r')
+  rrc=$(printf '%s\n' "$out" | sed -n 's/^__RC__\([0-9][0-9]*\)$/\1/p' | tail -1)
+  if [ -z "$rrc" ]; then echo "no remote status marker in the reply" >&2; return 1; fi
+  if [ "$rrc" -ne 0 ]; then echo "remote command failed (rc=$rrc)" >&2; return 1; fi
+  printf '%s\n' "$out" | sed '/^__RC__[0-9][0-9]*$/d'
+}
+valid_sha() { case "$1" in *[!0-9a-f]*|"") return 1;; esac; [ ${#1} -eq 64 ] && [ "$1" != "$SHA_EMPTY" ]; }
+BPATH="$F_DIR/${BUNDLE:-tpu/lanes-h4ds.etpu}"; GPATH="$F_DIR/${GRAPHS:-tpu/g5-h4ds}"
+raw=$(dev_run "sha256sum \"$BPATH\"") || { echo "REFUSING: could not digest the bundle on the device" >&2; exit 3; }
+BUNDLE_ID=$(printf '%s\n' "$raw" | awk 'NF{print $1; exit}')
+valid_sha "$BUNDLE_ID" || { echo "REFUSING: bundle digest is not a usable identity: '${BUNDLE_ID:-<empty>}'" >&2; exit 3; }
+# per-file digests, so a missing or renamed graph cannot hash the same as a complete set
+raw=$(dev_run "cd \"$GPATH\" && sha256sum *.tflite") || { echo "REFUSING: could not list/digest the graphs on the device" >&2; exit 3; }
+GLIST=$(printf '%s\n' "$raw" | awk 'NF>=2 {print $1"  "$2}' | sort)
+GN=$(printf '%s\n' "$GLIST" | grep -c . || true)
+[ "${GN:-0}" -ge 1 ] || { echo "REFUSING: no readable .tflite graphs at $GPATH" >&2; exit 3; }
+while read -r d _; do valid_sha "$d" || { echo "REFUSING: bad per-graph digest '$d'" >&2; exit 3; }; done <<< "$GLIST"
+GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha256sum | awk '{print $1}')
+valid_sha "$GRAPHS_ID" || { echo "REFUSING: graphs identity is not usable" >&2; exit 3; }
+echo "graphs: $GN file(s) digested individually"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"; } >> "$OUT/BUILD"
-MANIFEST="$OUT/MANIFEST.tsv"
-printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n' > "$MANIFEST"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # The prompt list is read into an ARRAY first. Reading it with `while read < file` and running adb inside the
 # loop silently ran ONE prompt and stopped: adb consumes stdin, so it ate the rest of the file.
 mapfile -t PLIST < "$PROMPTS"
+# The DENOMINATOR is fixed before any row runs. A manifest is written row by row, so a run that is
+# interrupted -- or that dies on row 3 of 8 -- leaves a SHORT manifest, and a reader that scores only the
+# rows it finds turns an abandoned run into a flattering 2/2. The expected count is declared up front and
+# the report scores against it, counting anything missing as a failure.
+EXPECT_ROWS=0
+for p in "${PLIST[@]}"; do [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac; EXPECT_ROWS=$((EXPECT_ROWS+1)); done
+MANIFEST="$OUT/MANIFEST.tsv"
+{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"; printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
 n=0; failed=0
 for p in "${PLIST[@]}"; do
   [ -z "$p" ] && continue
