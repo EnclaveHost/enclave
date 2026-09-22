@@ -2656,3 +2656,30 @@ theirs are quantisation-aware-trained and these would not be. What it would buy 
 the lane's weight streaming falls from about 156 to about 80 ms per token. With 140 invocations that is
 a floor near 153 ms, 6.5 tok/s, before transport or masking -- which still stand at about 791 ms. It is
 a real improvement to the smallest of the three terms and it does not bring 15 tok/s within reach.
+
+## The architecture that would work exists on this phone -- for Google (2026-09-22)
+
+Checked on the device, because it is the one topology that escapes every floor above: inference inside a
+pVM that ITSELF has the TPU, so the whole graph runs in one invocation per token with nothing masked and
+nothing crossing a boundary 140 times.
+
+    /system/etc/init/aisealhostservice.rc
+      service aisealhostservice /system/bin/aisealhostservice
+      # AiSeal hosts multiple performance sensitive services like AppSearch or AI inference
+      interface aidl aiseal_host
+      disabled
+      on property:sys.boot_completed=1 && property:service.aiseal.enable=1  -> enable
+
+So Google's platform has a service whose stated purpose includes AI inference inside its pVM framework.
+On this build it is `disabled`, `service.aiseal.enable` is unset, the property carries its own SELinux
+type (`aiseal_prop`) rather than one a shell or app can write, and the interface is `aiseal_host`, a
+system AIDL with no third-party entry point. The only pVM actually running is AppSearch's
+(`crosvm_isolated_storage_service_vm`). AICore, which serves Gemini Nano on this TPU today, runs as an
+ISOLATED PROCESS in the normal world -- `com.google.android.aicore:isolated_service`, with no crosvm --
+not inside a pVM.
+
+That completes the picture of the platform side. The capability the goal needs is being built: AiSeal
+for inference in a pVM, the Pixel 11 TPU context for a guest to own an accelerator, the android16-6.12
+commits loading NPU drivers into Microdroid. Every piece is first-party. A third-party app gets a pVM
+with an empty device list and no route to any of it -- on `android17-release`, on `main`, and on the
+build installed here.
