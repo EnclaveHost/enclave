@@ -2588,3 +2588,71 @@ scales and nothing per group of input columns, and the construction that works a
 input, sum partial products -- is the one the G5 compiler crashes on. That crash is now the single
 highest-value blocked item in this campaign, and it is worth saying plainly that it is a toolchain
 limit rather than a property of the accelerator.
+
+## Group-wise int4 works on this TPU -- and does not pay (2026-09-22)
+
+Two records in this file were wrong, and this section corrects both. It also closes the lever I had
+just named as the highest-value blocked item, in the opposite direction from the one I expected.
+
+### 1. Group-wise int4 IS expressible, compiles, and computes correctly
+
+This file said group-wise int4 "cannot be expressed" because FULLY_CONNECTED carries per-output-channel
+scales only and the workaround -- slice the input, sum partial products -- is what the G5 compiler
+crashes on. The crash is real, but it belongs to SLICE: `op_slice_g5.tflite` compiles to 0 bytes on its
+own, and so do SPLIT, RESHAPE and REDUCE_SUM. The slice is only needed if the groups arrive as ONE
+tensor. Sent as G separate graph inputs, nothing is sliced: G FULLY_CONNECTEDs over disjoint input
+column blocks, each with its own per-output-channel scales, then an ADD tree. Per-(output channel,
+group) scales is exactly group-wise quantisation, and the weight blocks are disjoint so nothing is
+duplicated. Every piece was already known to compile -- `ds_two_copies` and `np2`/`np3` are multi-input
+FC+ADD graphs -- it had simply never been assembled this way.
+
+`~/pixel10-platform/a8w4/probe_groupwise.py`, at the real shape `[5, 2048] -> [5, 8192]`, with a
+DIFFERENT weight block and scale vector per group so the compiler cannot deduplicate, all compile with
+no error: per-row control 8.63 MB, 2/4/16 groups 8.78/8.95/9.93 MB, against int8 17.0 MB.
+
+Then run on the TPU with `gwcheck`, a small runner built on the worker's own LiteRT calls, and compared
+against a host reference regenerated from the same seeds. **16 groups of 128: max error 1 LSB, rms 0.01,
+on outputs averaging 320 LSB.** The test discriminates: group k's scales were set near (1 + k/2) x base,
+so a graph that applied one scale to every group -- silently falling back to per-row -- would be off by
+up to 1488 LSB. It is off by 1.
+
+### 2. But it is slow at the group sizes that are accurate, and barely more accurate
+
+Timed on the TPU, 6 interleaved passes x 300 Runs, all 36 on a cool uncapped phone:
+
+| graph | group | median | vs int8 |
+|---|---|---|---|
+| int8 | -- | 3.47 ms | -- |
+| int4 per-row | 2048 | 2.19 ms | 37 % faster |
+| int4, 4 groups | 512 | 2.35 ms | 32 % faster |
+| int4, 16 groups | 128 | 3.25 ms | **6 % faster** |
+
+Sixteen FCs and fifteen ADDs cost nearly all of what the smaller weights save.
+
+And on accuracy, the second correction. The recorded rejection said int4 per-row is **18.1x** the int8
+weight error. That figure gave per-row NO clip search (`clip=1.0`) while giving the grouped variants
+the best of five, so it was not a like-for-like comparison. With the same search for every setting,
+across 12 real tensors spread over depth:
+
+| | relative RMS weight error | vs int8 |
+|---|---|---|
+| int8 per-row (shipped) | 1.004e-02 | 1.0x |
+| int4 per-row | 1.288e-01 | **12.8x** |
+| int4 group 512 | 1.260e-01 | 12.6x |
+| int4 group 128 | 1.208e-01 | 12.0x |
+| int4 group 32 | 1.010e-01 | 10.1x |
+
+The curve is flat until very small groups. Grouping buys 6 % accuracy at group 128 and costs 31 points
+of speed to get it.
+
+### So
+
+**Per-row int4 is the int4 lever worth having**: the fastest option, already compilable, and within
+7 % of group-128's accuracy. Group-wise works and is closed on the merits, not on the compiler.
+
+Whether 12.8x the int8 weight error is acceptable is an empirical question about task quality that a
+weight-error ratio cannot settle -- Google ships 4-bit weights scoring 21/24 on these contracts, but
+theirs are quantisation-aware-trained and these would not be. What it would buy if it were acceptable:
+the lane's weight streaming falls from about 156 to about 80 ms per token. With 140 invocations that is
+a floor near 153 ms, 6.5 tok/s, before transport or masking -- which still stand at about 791 ms. It is
+a real improvement to the smallest of the three terms and it does not bring 15 tok/s within reach.
