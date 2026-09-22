@@ -63,6 +63,12 @@ export class Host {
     /// truth: `domains` is the list the relay last told us, `hostCerts` the certificate per name,
     /// and `certReports` what to tell the customer about names that did NOT get one.
     this.domains = new Map();        // id -> [hostname]
+    /// hostname -> the deployment id that owns it, GLOBAL and live. `contextFor` consults this
+    /// rather than a list captured when the connection opened: certificates are keyed by hostname
+    /// across the whole box, so a name that moves between deployments would otherwise let the old
+    /// owner keep serving it - with the NEW owner's certificate - for as long as a captured array
+    /// survived. The window is small and the consequence is another tenant's identity.
+    this.domainOwner = new Map();
     this.hostCerts = new Map();      // hostname -> { cert, ctx }
     this.certReports = new Map();    // hostname -> { ok, error?, message?, at }
     this.domainFails = new Map();    // hostname -> retry-after epoch ms
@@ -540,28 +546,17 @@ export class Host {
       if (!this.secrets.has(id)) {
         await this.loadSecrets(id).catch((e) => this.log(`secrets ${id.slice(0, 10)}: ${e.message}`));
       }
-      const env = {
-        // The same environment the platform gives an app on a confidential VM.
-        // RESOLVED against this deployment's secrets, which is what the platform's runner hands a
-        // guest. An app whose config says "$S3_ENDPOINT" must receive the endpoint, not the word.
-        ENCLAVE_CONFIG: await this.appConfigResolved(d, v),
-        ENCLAVE_MEM_MB: String(memMb),
-        // THE CARD SHARE THIS DEPLOYMENT BOUGHT, read off the ledger record and carried into VTL1,
-        // where the runtime gates the model on it: `generate` answers a deployment that bought a
-        // share of this box's card and refuses one that did not (windows/enclave-rt HostState).
-        // The tenant never supplies this value; the only lie available to this side is giving its
-        // own card away.
-        ENCLAVE_GPU_MILLI: String(Number(d.gpuMilli) || 0),
-        // Every hostname this deployment answers on: its own subdomain first, then whatever its
-        // owner attached. An app that generates absolute URLs or checks the Host header needs to
-        // know its customer's name, and this is how the platform tells it.
-        ENCLAVE_HOSTS: this.hostsFor(id).join(","),
-        ...(want === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
-        // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
-        // it. They are fetched as the LEASE HOLDER (secrets.mjs) and injected into the enclave,
-        // never written to disk and never given to the VTL0 side beyond this call.
-        ...(this.secrets.get(id) || {}),
-      };
+      // ...and the custom hostnames, HERE, before the environment is built. The platform runner
+      // does the same thing in the same place (supervisor.js launchSpec calls fetchDepDomains
+      // before launchSpecFrom), and for the same reason: ENCLAVE_HOSTS is a LAUNCH-TIME SNAPSHOT,
+      // so a box that only learned the names on its next tick would hand every cold-started guest
+      // a list missing the very domain its owner attached. The tick keeps certificates and SNI
+      // serving current after that; the guest's own copy changes when it next starts, which is
+      // also what happens on a platform box.
+      await this.refreshDomains(id, { forLaunch: true })
+        .catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
+      const env = this.appEnvFor(id, d, v, { memMb, port, world: want, declared,
+                                             config: await this.appConfigResolved(d, v) });
       app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
                              log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
@@ -639,6 +634,39 @@ export class Host {
     let parsed;
     try { parsed = JSON.parse(text); } catch { return text; }
     return JSON.stringify(walk(parsed));
+  }
+
+  /**
+   * The environment a guest is started with: the same one the platform gives an app on a
+   * confidential VM.
+   *
+   * Its own method so it can be READ. What a guest receives is a contract - an app reads its
+   * config, its hostnames and its card share from here and has no other way to learn them - and a
+   * contract that can only be observed by starting a real enclave is a contract nobody checks.
+   */
+  appEnvFor(id, d, v, { memMb, port = 0, world = 1, declared = 8080, config }) {
+    return {
+      // The same environment the platform gives an app on a confidential VM.
+      // RESOLVED against this deployment's secrets, which is what the platform's runner hands a
+      // guest. An app whose config says "$S3_ENDPOINT" must receive the endpoint, not the word.
+      ENCLAVE_CONFIG: config,
+      ENCLAVE_MEM_MB: String(memMb),
+      // THE CARD SHARE THIS DEPLOYMENT BOUGHT, read off the ledger record and carried into VTL1,
+      // where the runtime gates the model on it: `generate` answers a deployment that bought a
+      // share of this box's card and refuses one that did not (windows/enclave-rt HostState).
+      // The tenant never supplies this value; the only lie available to this side is giving its
+      // own card away.
+      ENCLAVE_GPU_MILLI: String(Number(d.gpuMilli) || 0),
+      // Every hostname this deployment answers on: its own subdomain first, then whatever its
+      // owner attached. An app that generates absolute URLs or checks the Host header needs to
+      // know its customer's name, and this is how the platform tells it.
+      ENCLAVE_HOSTS: this.hostsFor(id).join(","),
+      ...(world === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
+      // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
+      // it. They are fetched as the LEASE HOLDER (secrets.mjs) and injected into the enclave,
+      // never written to disk and never given to the VTL0 side beyond this call.
+      ...(this.secrets.get(id) || {}),
+    };
   }
 
   async appConfig(d, v) {
@@ -848,6 +876,7 @@ export class Host {
     // returning tenant with a bucket their own traffic emptied an hour ago.
     waf.forget(id);
     this.secrets.delete(id);
+    this.forgetDomains(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "failed", reason: why, port: null });
@@ -868,8 +897,7 @@ export class Host {
     waf.forget(id);
     this.secrets.delete(id);                           // they belong to the lease, not to this box
     this.appCerts.delete(id); this.appCertFails.delete(id);
-    for (const h of this.domains.get(id) || []) { this.hostCerts.delete(h); this.certReports.delete(h); this.domainFails.delete(h); }
-    this.domains.delete(id);
+    this.forgetDomains(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "stopped", reason: why });
@@ -1223,10 +1251,12 @@ export class Host {
    * the reasoning): an authoritative "none" clears the list, but an unreachable relay KEEPS it,
    * because forgetting a hostname is an outage on a name the customer owns.
    */
-  async refreshDomains(id) {
+  async refreshDomains(id, { forLaunch = false } = {}) {
     if (!this.cfg.secretsSign || !this.cfg.customDomains) return;
     const rec = this.records.get(id);
-    if (!rec || rec.status !== "running") return;
+    // `forLaunch` is the cold-start call, made while the record is still "provisioning": the names
+    // have to be known BEFORE the environment is built, or the guest starts without them.
+    if (!rec || (!forLaunch && rec.status !== "running")) return;
     const previous = this.domains.get(id) || [];
     // What to tell the customer about names that did not get a certificate. This is the only way
     // somebody learns a CA refused their domain, so it rides on the next fetch and is cleared only
@@ -1245,10 +1275,23 @@ export class Host {
     }
     const before = previous.join(",");
     this.domains.set(id, r.hosts);
+    // The global index, updated BEFORE anything else acts on the new list: a name this deployment
+    // now owns must resolve to it immediately, and one it has lost must stop resolving here. A
+    // name that has been REASSIGNED to another deployment is left alone - it is not ours to take
+    // out of the index any more.
+    for (const h of r.hosts) this.domainOwner.set(h, id);
+    for (const h of previous) if (!r.hosts.includes(h) && this.domainOwner.get(h) === id) this.domainOwner.delete(h);
     if (before !== r.hosts.join(",")) {
       // A name that has gone away stops being served AND stops being certified: its key is dropped
       // here rather than left on disk answering for a domain this deployment no longer owns.
-      for (const h of previous) if (!r.hosts.includes(h)) { this.hostCerts.delete(h); this.certReports.delete(h); this.domainFails.delete(h); }
+      for (const h of previous) {
+        if (r.hosts.includes(h)) continue;
+        // Same rule as forgetDomains: a detached name whose certificate now belongs to another
+        // deployment is not ours to delete.
+        if (this.hostCerts.get(h)?.owner === id) this.hostCerts.delete(h);
+        if (this.domainOwner.get(h) === id) this.certReports.delete(h);
+        this.domainFails.delete(h);
+      }
       this.log(`domains ${id.slice(0, 10)}: ${r.hosts.length ? r.hosts.join(", ") : "no custom domains"}`);
       this.#record(id, { domains: r.hosts, domainWhy: null });
     }
@@ -1257,15 +1300,35 @@ export class Host {
 
   /** One custom hostname's certificate, with its own backoff and its own report to the customer. */
   async #certifyHost(id, hostname) {
+    const key = String(id).toLowerCase();
     const have = this.hostCerts.get(hostname);
-    if (have?.cert && new Date(have.cert.notAfter).getTime() - Date.now() > 7 * 24 * 3600 * 1000) return;
+    // Reused only if it was minted FOR THIS DEPLOYMENT. A name that has moved between deployments
+    // gets a fresh certificate for its new owner rather than inheriting the old one: the entry is
+    // keyed by hostname across the whole box, and handing B a certificate obtained on A's behalf
+    // would have this box assert an identity B never proved. Found by the test - the index said B
+    // and the cached entry still said A, so nobody could serve the name at all.
+    if (have?.cert && have.owner === key
+        && new Date(have.cert.notAfter).getTime() - Date.now() > 7 * 24 * 3600 * 1000) return;
+    if (have && have.owner !== key) {
+      this.log(`custom domain ${hostname}: moved to ${key.slice(0, 10)}; getting its own certificate`);
+      this.domainFails.delete(hostname);
+    }
     const fail = this.domainFails.get(hostname);
     if (fail && Date.now() < fail) return;
     try {
-      const cert = await ensureCert({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
-                                      base: this.cfg.relayBase, dir: this.cfg.dir,
-                                      hostname, log: (m) => this.log(m) });
-      this.hostCerts.set(hostname, { cert, ctx: tls.createSecureContext({ key: cert.key, cert: cert.cert }) });
+      // `issueCert` is injectable so a test can drive the REAL bookkeeping below - the ownership
+      // stamp, the index, the teardown - with the certificate authority stubbed out. A test that
+      // wrote into hostCerts itself would be reimplementing the very thing it is checking.
+      const issue = this.cfg.issueCert || ensureCert;
+      const cert = await issue({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
+                                 base: this.cfg.relayBase, dir: this.cfg.dir,
+                                 hostname, log: (m) => this.log(m) });
+      // The entry carries its OWNER. The map is keyed by hostname across the whole box, so a
+      // context found under a name is not by itself evidence that this deployment may present it:
+      // belt and braces with the live index below, because between them is another tenant's
+      // identity.
+      this.hostCerts.set(hostname, { cert, ctx: tls.createSecureContext({ key: cert.key, cert: cert.cert }),
+                                     owner: String(id).toLowerCase() });
       this.certReports.set(hostname, { ok: true, notAfter: cert.notAfter, at: new Date().toISOString() });
       this.domainFails.delete(hostname);
       this.log(`${id.slice(0, 10)} custom domain ready: https://${hostname}/`);
@@ -1278,6 +1341,32 @@ export class Host {
                                        at: new Date().toISOString() });
       this.log(`custom domain ${hostname}: ${e.message} (retrying in ${Math.round(wait / 1000)}s)`);
     }
+  }
+
+  /**
+   * Drop every hostname this deployment answered on, with its key and its pending report.
+   *
+   * One function so that losing a lease, giving one up and a name being detached all converge -
+   * and so a test can exercise the REAL cleanup instead of repeating it, which would go green
+   * against a regression in the thing it is meant to guard.
+   *
+   * A hostname is only released from the global index if THIS deployment still owns it: a name
+   * already reassigned belongs to somebody else, and taking it out on the old owner's teardown
+   * would leave the new one unable to serve it.
+   */
+  forgetDomains(id) {
+    const key = String(id).toLowerCase();
+    for (const h of this.domains.get(key) || []) {
+      // Only what this deployment STILL owns. A name already reassigned belongs to somebody else,
+      // and taking its certificate out on the old owner's teardown would leave the new one unable
+      // to serve a domain it legitimately holds - found by the test, not by reading.
+      if (this.domainOwner.get(h) !== key) continue;
+      this.domainOwner.delete(h);
+      if (this.hostCerts.get(h)?.owner === key) this.hostCerts.delete(h);
+      this.certReports.delete(h);
+      this.domainFails.delete(h);
+    }
+    this.domains.delete(key);
   }
 
   /** Every hostname a deployment answers on: its own subdomain first, then the customer's. */
@@ -1306,15 +1395,20 @@ export class Host {
     // of a deployment's hostnames a browser asked for until the ClientHello arrives, so the choice
     // is a callback rather than a field. An unknown name answers null and the default is served,
     // which gives the browser a name mismatch it can explain rather than a reset.
-    const hostCerts = this.hostCerts, mine = this.domains.get(key) || [];
     return {
       waf: w, bodyLimit: waf.bodyLimit(w),
       contextFor: (name) => {
         const h = String(name || "").toLowerCase().replace(/\.+$/, "");
-        // Only names THIS deployment owns: the map is global to the box, and serving another
-        // tenant's certificate off this socket would be a cross-tenant leak of nothing secret but
-        // of the wrong identity.
-        return mine.includes(h) ? hostCerts.get(h)?.ctx || null : null;
+        // Asked of the LIVE index at handshake time, not of a list captured when this object was
+        // built. Certificates are keyed by hostname across the whole box, so a name that moves
+        // between deployments would otherwise let the OLD owner keep serving it - presenting the
+        // NEW owner's certificate - for as long as the captured array survived, and a connection
+        // can sit between `resolve` and its ClientHello for as long as a client cares to take.
+        if (this.domainOwner.get(h) !== key) return null;
+        const e = this.hostCerts.get(h);
+        // BOTH must agree. The index says who owns the name now; the entry says who the context
+        // was minted for. A disagreement is a name mid-move, and mid-move nobody serves it.
+        return e && e.owner === key ? e.ctx : null;
       },
     };
   }
