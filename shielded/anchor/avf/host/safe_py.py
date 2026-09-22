@@ -39,6 +39,25 @@ class Bounded(Exception):
     pass
 
 
+MAX_INT_BITS = 1 << 16   # integers may not grow past this many bits
+
+
+def _size(v):
+    return len(v) if isinstance(v, (str, list, tuple, bytes, set, dict)) else None
+
+
+def _check_size(n, what):
+    """Refuse BEFORE allocating. An audit built a 120000-element list past a 100000 limit because the
+    check ran on the return value of `list.extend`, which is None, rather than on the growth itself."""
+    if n is not None and n > MAX_LEN:
+        raise Bounded("%s would reach %d elements, past %d" % (what, n, MAX_LEN))
+
+
+def _check_int_bits(bits, what):
+    if bits > MAX_INT_BITS:
+        raise Bounded("%s would reach a %d-bit integer" % (what, bits))
+
+
 SAFE_STR_METHODS = {"join", "split", "strip", "lower", "upper", "replace", "startswith", "endswith",
                     "find", "rfind", "rstrip", "lstrip", "isdigit", "isalpha", "count", "index", "title"}
 SAFE_LIST_METHODS = {"append", "extend", "pop", "insert", "reverse", "sort", "index", "count"}
@@ -80,6 +99,44 @@ class Interp:
         self.steps += 1
         if self.steps > MAX_STEPS:
             raise Bounded("the code did not finish within %d steps" % MAX_STEPS)
+
+    def precheck_bin(self, op, a, b):
+        """Estimate the result BEFORE computing it. Covers both operand orders: `3 * "ab"` grows exactly
+        as `"ab" * 3` does, and an earlier version only looked at the first."""
+        sa, sb = _size(a), _size(b)
+        if isinstance(op, ast.Mult):
+            if sa is not None and isinstance(b, int):
+                _check_size(sa * max(b, 0), "repetition")
+            elif sb is not None and isinstance(a, int):
+                _check_size(sb * max(a, 0), "repetition")
+            elif isinstance(a, int) and isinstance(b, int):
+                _check_int_bits(a.bit_length() + b.bit_length(), "multiplication")
+        elif isinstance(op, ast.Add):
+            if sa is not None and sb is not None:
+                _check_size(sa + sb, "concatenation")
+            elif isinstance(a, int) and isinstance(b, int):
+                _check_int_bits(max(a.bit_length(), b.bit_length()) + 1, "addition")
+
+    def precheck_method(self, obj, attr, args):
+        """The growing str and list methods, checked before they run rather than after."""
+        n = _size(obj)
+        if attr == "append" and n is not None:
+            _check_size(n + 1, "append")
+        elif attr == "extend" and n is not None:
+            _check_size(n + (_size(args[0]) if args and _size(args[0]) is not None else 1), "extend")
+        elif attr == "insert" and n is not None:
+            _check_size(n + 1, "insert")
+        elif attr == "join" and isinstance(obj, str) and args:
+            parts = args[0]
+            if isinstance(parts, (list, tuple)):
+                total = sum(_size(x) or 0 for x in parts) + len(obj) * max(len(parts) - 1, 0)
+                _check_size(total, "join")
+        elif attr == "replace" and isinstance(obj, str) and len(args) >= 2:
+            old, new = args[0], args[1]
+            if isinstance(old, str) and isinstance(new, str):
+                grow = len(new) - len(old)
+                cnt = obj.count(old) if old else len(obj) + 1
+                _check_size(len(obj) + max(grow, 0) * cnt, "replace")
 
     def guard(self, v):
         if isinstance(v, (str, list, tuple, bytes, set, dict)) and len(v) > MAX_LEN:
@@ -158,7 +215,10 @@ class Interp:
         if isinstance(n, ast.Continue):
             raise _Continue()
         if isinstance(n, ast.FunctionDef):
-            self.funcs[n.name] = n           # a nested def is fine; it is interpreted like any other
+            # A nested def binds LOCALLY. Putting it in the module table let a later `rev = 0` in the same
+            # body be ignored at the call site, so `rev(s)` still reached the function where real Python
+            # raises TypeError: 'int' object is not callable.
+            env[n.name] = ("__fn__", n)
             return
         raise UnsupportedCode("statement %s" % type(n).__name__)
 
@@ -189,21 +249,23 @@ class Interp:
         if isinstance(n, ast.Name):
             if n.id in env:
                 return env[n.id]
-            if n.id in self.funcs or n.id in SAFE_BUILTINS:
-                return ("__fn__", n.id)
+            if n.id in self.funcs:
+                return ("__fn__", self.funcs[n.id])
+            if n.id in SAFE_BUILTINS:
+                return ("__builtin__", n.id)
             raise UnsupportedCode("name %r is not available here" % n.id)
         if isinstance(n, ast.BinOp):
             a, b = self.expr(n.left, env), self.expr(n.right, env)
             if isinstance(n.op, ast.Pow):
                 if not isinstance(b, int) or b > MAX_POW or b < 0:
                     raise Bounded("exponent out of range")
+                if isinstance(a, int) and a.bit_length() * max(b, 1) > MAX_INT_BITS:
+                    raise Bounded("exponentiation would reach a %d-bit integer" % (a.bit_length() * b))
                 return self.guard(a ** b)
             op = _BIN.get(type(n.op))
             if op is None:
                 raise UnsupportedCode("operator %s" % type(n.op).__name__)
-            if isinstance(n.op, ast.Mult) and isinstance(a, (str, list)) and isinstance(b, int) \
-                    and len(a) * max(b, 0) > MAX_LEN:
-                raise Bounded("repetition past %d elements" % MAX_LEN)
+            self.precheck_bin(n.op, a, b)
             return self.guard(op(a, b))
         if isinstance(n, ast.UnaryOp):
             v = self.expr(n.operand, env)
@@ -294,8 +356,17 @@ class Interp:
                 SAFE_LIST_METHODS if isinstance(obj, list) else set())
             if f.attr not in allowed:
                 raise UnsupportedCode("method %s.%s" % (type(obj).__name__, f.attr))
-            return self.guard(getattr(obj, f.attr)(*args))
+            self.precheck_method(obj, f.attr, args)
+            r = getattr(obj, f.attr)(*args)
+            self.guard(obj)          # the RECEIVER is what a mutating method grew, not its return value
+            return self.guard(r)
         if isinstance(f, ast.Name):
+            if f.id in env:                       # a local binding SHADOWS the module-level def
+                v = env[f.id]
+                if isinstance(v, tuple) and len(v) == 2 and v[0] == "__fn__":
+                    return self.invoke(v[1], args)
+                raise UnsupportedCode("%r is bound to a %s here, which Python would refuse to call"
+                                      % (f.id, type(v).__name__))
             if f.id in self.funcs:
                 return self.invoke(self.funcs[f.id], args)
             if f.id in SAFE_BUILTINS:
