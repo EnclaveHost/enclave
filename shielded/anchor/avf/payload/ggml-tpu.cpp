@@ -62,7 +62,14 @@
 #include <arm_neon.h>
 #endif
 
-#define TPU_LOG(...) do { fprintf(stderr, "[tpu] " __VA_ARGS__); } while (0)
+/* stderr is NOT relayed out of the VM, so every TPU_LOG so far has been invisible to anyone reading a
+ * run -- including "bundle malformed", the minter's abort, and the rail budget's refusal. A refusal
+ * nobody can see is not a refusal anybody can verify. The engine installs a sink that reaches the
+ * control channel; until it does, stderr is the fallback. */
+static void (*g_log_sink)(const char *) = nullptr;
+#define TPU_LOG(...) do { \
+    if (g_log_sink) { char _b[512]; snprintf(_b, sizeof _b, "tpu: " __VA_ARGS__); g_log_sink(_b); } \
+    else fprintf(stderr, "[tpu] " __VA_ARGS__); } while (0)
 
 namespace {
 struct proj { const char *name; uint32_t n_out; float s_out; int32_t budget; const float *sw; const int8_t *Wq; std::vector<double> M; };
@@ -357,14 +364,14 @@ static constexpr bool kVerifyKernel = false;
  * than argued -- a bound that is never driven is a bound nobody has checked.
  *   0  off (shipping)
  *   1  ALL-FALSE-RAILS: every reply value becomes +32767 though the trusted products are in range
- *   2  SPARSE false rails: one element in 997, so the bound is NOT hit and the repair must still reject
+ *   2  SPARSE false rails: ~0.2 per exchange, so the bound is NOT hit and the repair must still reject
  *   3  FLOOD/NORMAL: alternate exchanges between all-rails and untouched, to test recovery not just trip
  * Injection happens after the read and before any interpretation, so everything downstream -- detection,
  * recomputation, the DoS bound, the repair -- runs on data indistinguishable from a hostile worker's. */
 static constexpr int kInjectFault = 0;
 static void inject_fault(int16_t *rx, size_t n, uint64_t exchange) {
     if (kInjectFault == 1) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
-    else if (kInjectFault == 2) { for (size_t i = 0; i < n; i += 997) rx[i] = 32767; }
+    else if (kInjectFault == 2) { for (size_t i = 0; i < n; i += 200000) rx[i] = 32767; }   /* ~0.2 per exchange: BELOW the refill rate, so the repair must reject them unaided */
     else if (kInjectFault == 3 && (exchange & 1)) { for (size_t i = 0; i < n; i++) rx[i] = 32767; }
 }
 static bool corr_threaded() {
@@ -413,6 +420,7 @@ static void corr_join() { std::unique_lock<std::mutex> lk(g_cj.mu); g_cj.cv_done
 /* What this binary actually does, printed into the run's own log. Filenames and my say-so are not
  * evidence of which arm produced a result: two runs recorded "REPAIRED" while the repair was compiled
  * OUT, because the label was a literal rather than the flag. */
+extern "C" void ggml_backend_tpu_set_logger(void (*sink)(const char *)) { g_log_sink = sink; }
 extern "C" const char *ggml_backend_tpu_config(void) {
     static char b[160];
     snprintf(b, sizeof b, "repair=%d verify=%d inject=%d corr_threads=%d spin_us=%d (built " __DATE__ " " __TIME__ ")",

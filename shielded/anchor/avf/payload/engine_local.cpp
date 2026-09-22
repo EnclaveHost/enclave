@@ -226,6 +226,7 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                               if (refill && nthr > 0) { refill(g_tpu_bank, nthr); outf("LOCAL tpu: %d background minters keep the bank at %d positions", nthr, g_tpu_bank); }
                               /* the link window is idle for about 3.9 ms of every exchange and a pad depends on nothing,
                                * so decode mints its own there; with this on, g_tpu_refill 0 costs the worker no cores */
+                              if (auto setlog = (void (*)(void (*)(const char *)))dlsym(th, "ggml_backend_tpu_set_logger")) setlog(+[](const char *m) { outf("%s", m); });
                               if (auto cfg = (const char *(*)(void))dlsym(th, "ggml_backend_tpu_config")) outf("LOCAL tpu: build config %s", cfg());
                               if (auto lbuf = (void (*)(uint64_t *, uint64_t *))dlsym(th, "ggml_backend_tpu_link_buf")) { uint64_t b = 0, a = 0; lbuf(&b, &a);
                                   outf("LOCAL tpu: vsock credit window %llu -> %llu bytes", (unsigned long long)b, (unsigned long long)a); }
