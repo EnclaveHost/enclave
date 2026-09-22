@@ -11,7 +11,9 @@
 #include <windows.h>
 #include <bcrypt.h>
 
-unsigned int  ee_rt_open(const unsigned char *cwasm, size_t len);
+unsigned int  ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int world,
+                         const unsigned char *env, size_t env_len);
+unsigned int  ee_rt_worlds(void);
 int           ee_rt_handle(unsigned int id, const unsigned char *req, size_t req_len,
                            unsigned char *out, size_t out_cap, size_t *out_len);
 int           ee_rt_close(unsigned int id);
@@ -19,6 +21,10 @@ size_t        ee_rt_last_error(unsigned char *out, size_t cap);
 unsigned int  ee_rt_abi(void);
 
 /* ---- the four things the app may ask of the enclave ------------------------------------- */
+unsigned long long ee_app_now_us(void) {
+    LARGE_INTEGER f, c; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c);
+    return (unsigned long long)(c.QuadPart * 1000000LL / f.QuadPart);
+}
 unsigned long long ee_app_now_ms(void) {
     FILETIME ft; GetSystemTimeAsFileTime(&ft);
     unsigned long long t = ((unsigned long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
@@ -50,8 +56,18 @@ static unsigned char *put_str(unsigned char *p, const char *s) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: ee-apptest <app.cwasm> [path]\n"); return 2; }
+    if (argc < 2) { fprintf(stderr, "usage: ee-apptest <app.cwasm> [path] [world] [K=V ...]\n"); return 2; }
     const char *path = argc > 2 ? argv[2] : "/hello?name=enclave";
+    const unsigned int world = argc > 3 ? (unsigned int)atoi(argv[3]) : 1;
+    /* "K=V\0K=V\0\0", the same shape the enclave gate takes: this is how an ordinary app reads
+     * its ENCLAVE_CONFIG, so the harness has to be able to pass one. */
+    static unsigned char env[64 * 1024]; size_t env_len = 0;
+    for (int i = 4; i < argc; i++) {
+        const size_t n = strlen(argv[i]);
+        if (env_len + n + 2 > sizeof env) break;
+        memcpy(env + env_len, argv[i], n); env_len += n; env[env_len++] = 0;
+    }
+    if (env_len) env[env_len++] = 0;
     FILE *f = fopen(argv[1], "rb");
     if (!f) { fprintf(stderr, "cannot open %s\n", argv[1]); return 2; }
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
@@ -59,10 +75,11 @@ int main(int argc, char **argv) {
     if (fread(bytes, 1, n, f) != (size_t)n) { fprintf(stderr, "short read\n"); return 2; }
     fclose(f);
 
-    printf("enclave-rt abi %u, %ld bytes of bytecode\n", ee_rt_abi(), n);
+    printf("enclave-rt abi %u, worlds 0x%x, %ld bytes of bytecode, world %u\n",
+           ee_rt_abi(), ee_rt_worlds(), n, world);
     LARGE_INTEGER freq, t0, t1, t2; QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&t0);
-    unsigned int id = ee_rt_open(bytes, (size_t)n);
+    unsigned int id = ee_rt_open(bytes, (size_t)n, world, env_len ? env : NULL, env_len);
     QueryPerformanceCounter(&t1);
     if (!id) {
         unsigned char err[256]; size_t e = ee_rt_last_error(err, sizeof err);

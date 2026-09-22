@@ -58,15 +58,26 @@ export function decodeResponse(buf) {
 /**
  * Which world an artifact was built for, from the bytes rather than from a claim beside them.
  *
- * `enclave-app` imports enclave:app/host and runs INSIDE the enclave. `wasi-http` is the
- * platform's ordinary world, which needs a socket, a poll loop and a host implementation of
- * wasi:io - none of which exist in VTL1 - so on this box it is not something to run in the
- * enclave, and this function saying so is what keeps that decision honest.
+ * Three answers, and the difference decides where a deployment can run:
+ *   enclave-app  imports enclave:app/host: written for this box's own world.
+ *   wasi-http    an ordinary wasi:http component (the platform's `wasmtime serve` shape). The
+ *                enclave serves this world now: windows/enclave-rt/src/wasihost.rs implements
+ *                wasi:io, wasi:http/types, wasi:cli, wasi:clocks and wasi:random inside VTL1.
+ *   wasi-cli     a command that binds its OWN TCP port through wasi:sockets (the `wasmtime run`
+ *                shape, and most of this catalog). An enclave has no socket to bind and no
+ *                reactor to poll, so that shape needs brokered sockets and a guest thread, which
+ *                are not built. Saying so by name is what keeps the refusal honest.
  */
 export function worldOf(bytes) {
   const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   if (b.includes("enclave:app/host")) return "enclave-app";
+  // ORDER MATTERS. Most of this catalog is the second shape: a wasi:cli command that binds its
+  // own TCP port through wasi:sockets (dead-drop, ballot, pixelboard, hookbin, the s3-ipfs
+  // adapter). Those import wasi:cli/run and wasi:sockets and NO wasi:http, and an enclave has
+  // neither a socket to bind nor a reactor to poll, so they are a different problem from a
+  // wasi:http component and have to be told apart before the looser match below.
+  if (b.includes("wasi:sockets/") || b.includes("wasi:cli/run")) return "wasi-cli";
+  if (b.includes("wasi:http/incoming-handler")) return "wasi-http";
   if (b.includes("wasi:http/")) return "wasi-http";
-  if (b.includes("wasi:cli/")) return "wasi-cli";
   return "unknown";
 }

@@ -1,0 +1,36 @@
+// The world this enclave serves to an ORDINARY platform app.
+//
+// The deps beside this file are the official WASI interface definitions, vendored verbatim from
+// wasmtime-wasi-http 47.0.4 (`wit/deps`), because the host side implemented in src/wasi.rs has to
+// match them exactly. They are 0.2.12; a 0.2.4/0.2.6 guest is served by the same implementation,
+// which is how the platform's own runner serves every app it has.
+//
+// What is NOT here: wasi:sockets, and the outbound half of wasi:http. An enclave has no network of
+// its own, and the honest answer for an app that calls out is an error code saying so rather than
+// a socket the host would have to read on its behalf. Brokering egress as opaque bytes through the
+// host, with the app's own TLS inside the enclave, is the next piece of work.
+package enclave:host;
+
+world app-http {
+  import wasi:io/poll@0.2.12;
+  import wasi:io/error@0.2.12;
+  import wasi:io/streams@0.2.12;
+  import wasi:clocks/monotonic-clock@0.2.12;
+  import wasi:clocks/wall-clock@0.2.12;
+  import wasi:random/random@0.2.12;
+  import wasi:random/insecure@0.2.12;
+  import wasi:random/insecure-seed@0.2.12;
+  import wasi:cli/environment@0.2.12;
+  import wasi:cli/exit@0.2.12;
+  import wasi:cli/stdin@0.2.12;
+  import wasi:cli/stdout@0.2.12;
+  import wasi:cli/stderr@0.2.12;
+  import wasi:cli/terminal-input@0.2.12;
+  import wasi:cli/terminal-output@0.2.12;
+  import wasi:cli/terminal-stdin@0.2.12;
+  import wasi:cli/terminal-stdout@0.2.12;
+  import wasi:cli/terminal-stderr@0.2.12;
+  import wasi:http/types@0.2.12;
+  import wasi:http/outgoing-handler@0.2.12;
+  export wasi:http/incoming-handler@0.2.12;
+}

@@ -5,6 +5,22 @@ on-chain catalog, claimed as an ordinary deployment, runs inside VTL1 and answer
 `https://api.enclave.host/x/<id>/…`. Its code and memory are inside the enclave; so is the model
 it can call.
 
+**Two worlds, and the second one is the platform's own.** `enclave:app@0.1.0` (wit/app.wit) is
+written for this box. `wasi:http` is what every `wasmtime serve` app in the catalog already is, and
+`src/wasihost.rs` implements its host side - wasi:io, wasi:http/types, wasi:cli, wasi:clocks,
+wasi:random - inside the enclave, so such an app runs UNCHANGED. Proven with the platform's own
+`hello-world:1.0.4`: its approved artifact, its existing deployment, its existing URL, now served
+from inside a VBS enclave.
+
+**What still cannot run here, exactly.** Most of this catalog is not wasi:http at all: dead-drop,
+ballot, pixelboard, hookbin, handoff, tipline and the s3-ipfs-adapter are `wasi:cli/run` commands
+that bind their own TCP port through `wasi:sockets`. An enclave has no socket to bind and no
+reactor to poll, so that shape needs three things that are not built: brokered sockets (the host
+carrying opaque bytes, with the guest's own TLS inside the enclave), a guest thread for a run loop
+that never returns, and secrets delivered into VTL1. Until then those deployments are refused by
+name. That is why publishing is still down: `ipfs.enclave.host` is served by the s3-ipfs-adapter,
+which is exactly that shape, and the fleet has no confidential VM online to run it.
+
 ## The problem this solves
 
 `wasmtime serve` cannot run in a VBS enclave. It needs a JIT (VTL1 has no page it may execute,
@@ -37,6 +53,7 @@ no guard pages and no signal handler, which is what lets it live in an enclave a
 | compile (cranelift, VTL0) | 294 ms for a 47 KB component -> 101 KB of bytecode |
 | load into the enclave | 16-21 ms |
 | request handled in VTL1 | **0.28-0.32 ms** (first call 21 ms: the staging buffer grows once) |
+| the platform's hello-world (wasi:http) in VTL1 | **0.069 ms** a request, 0.8 ms to load |
 | the same app in VTL0 | 0.22 ms, so the enclave costs ~30% on this path |
 | through the relay and the tunnel | 0.7-0.9 s round trip, which is the network, not the enclave |
 | an app calling the model in VTL1 | 10.6 s for 16 tokens of qwen2.5-0.5b through the shielded path |
