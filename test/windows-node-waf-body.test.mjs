@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { Host } from "../windows/node/host.mjs";
-import { readBounded } from "../windows/node/appzone.mjs";
+import { readBounded, readOrRefuse } from "../windows/node/appzone.mjs";
 import { parseWaf, bodyLimit } from "../windows/node/waf.mjs";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-body-"));
@@ -153,6 +153,53 @@ test("an app that answers without end is cut off, not buffered", async () => {
     // It stopped near the cap rather than running to the safety net.
     assert.ok(sent < 16 * 1048576, `the proxy pulled ${sent} bytes before cutting off`);
   } finally { stopped = true; await new Promise((r) => server.close(r)); }
+});
+
+test("an oversized CHUNKED request gets a real 413 back, with a reason", async () => {
+  // THE audit's case, over a real socket with real chunked framing and no content-length at all -
+  // the framing under which the limit previously did not exist.
+  //
+  // What this does NOT test, stated so nobody reads more into it: the close ORDERING. I checked,
+  // and the earlier ordering (destroy the request right after res.end) delivers the 413 too on
+  // node 22, so this passes either way. The ordering in readOrRefuse is the version that does not
+  // depend on a flush winning a race, not a fix for a failure anyone observed.
+  let delivered = null;
+  const server = http.createServer(async (req, res) => {
+    const body = await readOrRefuse(req, res, 1024);
+    if (body === null) return;                       // refused: it answered already
+    delivered = body.length;
+    res.end("ok");
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = server.address().port;
+  const post = (bytes, chunked) => new Promise((resolve) => {
+    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/",
+                               headers: chunked ? { "transfer-encoding": "chunked" }
+                                                : { "content-length": String(bytes) } }, (res) => {
+      const c = []; res.on("data", (x) => c.push(x));
+      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(c).toString("utf8") }));
+    });
+    req.on("error", (e) => resolve({ status: 0, body: `ERROR ${e.code || e.message}` }));
+    let left = bytes;
+    const pump = () => {
+      if (left <= 0) return req.end();
+      const n = Math.min(4096, left); left -= n;
+      if (req.write(Buffer.alloc(n, 0x68))) setImmediate(pump); else req.once("drain", pump);
+    };
+    pump();
+  });
+  try {
+    delivered = null;
+    const over = await post(64 * 1024, true);       // chunked: NO content-length at all
+    assert.equal(over.status, 413, `a chunked oversized body must be told, not reset (got ${over.body})`);
+    assert.match(over.body, /waf_body/, "and told WHY");
+    assert.equal(delivered, null, "the handler never saw a body");
+
+    delivered = null;
+    const ok = await post(512, true);
+    assert.equal(ok.status, 200);
+    assert.equal(delivered, 512, "a legitimate chunked body still arrives whole");
+  } finally { await new Promise((r) => server.close(r)); }
 });
 
 test("the limit handed to the app zone is the deployment's own, when it set one", () => {

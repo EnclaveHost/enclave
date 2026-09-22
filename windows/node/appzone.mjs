@@ -130,6 +130,31 @@ export async function readBounded(req, limit) {
   return { body: Buffer.concat(chunks), over: false, seen };
 }
 
+/**
+ * Read a bounded body, or answer 413 and close. Returns the body, or null when it refused.
+ *
+ * The order is: stop reading, answer, then close once the answer has FLUSHED (`res.finish`),
+ * with `connection: close` so the peer does not try to reuse the socket.
+ *
+ * Measured, because I first wrote it the other way round and then claimed a failure I had not
+ * seen: destroying the request stream immediately after `res.end()` ALSO delivers the 413 on node
+ * 22 - the response is already on its way out. So this ordering is not a bug fix, it is simply the
+ * version that does not depend on that timing. Waiting for `finish` is unambiguous; racing a flush
+ * against a destroy is the kind of thing that works until a body is one packet larger.
+ */
+export async function readOrRefuse(req, res, limit, onRefuse = () => {}) {
+  const r = await readBounded(req, limit);
+  if (!r.over) return r.body;
+  req.pause();
+  onRefuse(limit);
+  res.writeHead(413, { "content-type": "application/json", "connection": "close" });
+  res.end(JSON.stringify({ error: "waf_body",
+    message: `Request body exceeds the ${(limit / 1048576).toFixed(3)} MB limit for this deployment.` }));
+  // Only now, and only once the bytes are out.
+  res.once("finish", () => { try { req.socket?.destroy(); } catch {} });
+  return null;
+}
+
 const clientIpOf = (req) => {
   const xs = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
   return xs[xs.length - 1] || "app-zone";
@@ -148,17 +173,9 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
     // enclave's request buffer can carry at all. Reading past it would spend exactly the memory
     // the rule exists to protect, and a refusal afterwards would arrive too late to matter.
     const limit = req.socket.__enclaveBodyLimit || GATE_BODY_LIMIT;
-    const { body, over } = await readBounded(req, limit);
-    if (over) {
-      // Stop reading AND stop the peer sending: without destroying the socket the client keeps
-      // streaming into a connection nobody is draining.
-      res.writeHead(413, { "content-type": "application/json", "connection": "close" });
-      res.end(JSON.stringify({ error: "waf_body",
-        message: `Request body exceeds the ${(limit / 1048576).toFixed(3)} MB limit for this deployment.` }));
-      log(`app-zone ${String(id).slice(0, 10)}: request body over ${limit} bytes, refused and closed`);
-      try { req.destroy(); } catch {}
-      return;
-    }
+    const body = await readOrRefuse(req, res, limit,
+      (n) => log(`app-zone ${String(id).slice(0, 10)}: request body over ${n} bytes, refused and closed`));
+    if (body === null) return;
     try {
       const r = await serveHttp(id, { method: req.method, pathRest: req.url,
                                       headers: req.headers, body,
