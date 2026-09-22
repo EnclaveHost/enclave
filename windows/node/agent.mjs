@@ -59,11 +59,17 @@ let zone = null;
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
 let tunnelSend = () => {};
+let tunnelBuffered = () => 0;
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
+  // CLAIM_LEGACY=1: take deployments created BEFORE this box was listed, which otherwise wait for
+  // their owner to pick this enclave. Only an operator with the standing to consent for those
+  // owners should set it; on this fleet that is the platform's own governance wallet and the box
+  // owner's, and the box owner asked for it (chain.mjs claimPolicy has the reasoning).
+  claimLegacy: /^(1|true|yes)$/i.test(String(process.env.CLAIM_LEGACY || '')),
   // Does a hosted app run INSIDE the VBS enclave? No, until the in-enclave runtime lands: stock
   // wasmtime needs a JIT, mmap and Rust std, none of which exist in VTL1. While this is false the
   // box advertises no claimEnabled, sells no app hosting, and runs only its owner's own apps.
@@ -319,6 +325,7 @@ function connect() {
     ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     tunnelSend = send;
+    tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
@@ -409,6 +416,9 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
     zone = appZone({
       send: (o) => tunnelSend(o),
       resolve: (id) => host.appZoneTarget(id),
+      // What the tunnel socket is still holding, so a streaming response applies backpressure
+      // rather than filling this process's memory.
+      pressure: () => tunnelBuffered(),
       log: (m) => log(`[app-zone] ${m}`),
     });
     try {

@@ -378,10 +378,12 @@ impl self::wasi::io::streams::HostOutputStream for WasiState {
                         self.table.push(IoError { msg: format!("socket write failed ({n})") })?)));
                 }
                 if (n as usize) < contents.len() {
-                    // The host took part of it. WASI has no partial-write answer, so this is a
-                    // failure the guest can see rather than silently dropped bytes.
+                    // The host waits for writability rather than reporting a short write, so this
+                    // is a genuine failure now (the peer went away mid-body). It is still reported
+                    // rather than looped, because WASI has no partial-write answer and retrying
+                    // from here would send the same bytes twice.
                     return Ok(Err(StreamError::LastOperationFailed(
-                        self.table.push(IoError { msg: format!("socket took {n} of {} bytes", contents.len()) })?)));
+                        self.table.push(IoError { msg: format!("the connection took {n} of {} bytes", contents.len()) })?)));
                 }
             }
         }

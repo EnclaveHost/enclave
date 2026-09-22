@@ -81,7 +81,23 @@ static void *WINAPI host_callout(void *param) {
         c->ret = idx; break; }
     case EE_OP_SEND: {
         SOCKET s = c->handle < 256 ? g_socks[c->handle] : 0; if (!s) { c->ret = -9; break; }
-        size_t done = 0; while (done < c->len) { int r = send(s, (const char *)c->data + done, (int)(c->len - done), 0); if (r <= 0) { c->ret = done ? (int64_t)done : -wsa_errno(); goto out; } done += (size_t)r; }
+        size_t done = 0;
+        while (done < c->len) {
+            const int r = send(s, (const char *)c->data + done, (int)(c->len - done), 0);
+            if (r > 0) { done += (size_t)r; continue; }
+            /* A FULL SEND BUFFER IS NOT A FAILURE, and reporting it as a short write was: WASI has
+             * no partial-write answer, so the guest turned it into a failed stream and closed the
+             * connection mid-response. A 400 KB body came back a different length every time.
+             * Wait for writability here - the app's socket is non-blocking for READS, which is
+             * what a server's event loop needs; a write either completes or fails. */
+            if (WSAGetLastError() == WSAEWOULDBLOCK) {
+                fd_set wr; FD_ZERO(&wr); FD_SET(s, &wr);
+                struct timeval tv; tv.tv_sec = 30; tv.tv_usec = 0;
+                if (select(0, NULL, &wr, NULL, &tv) > 0) continue;
+            }
+            c->ret = done ? (int64_t)done : -wsa_errno();
+            goto out;
+        }
         c->ret = (int64_t)done; break; }
     case EE_OP_RECV: {
         SOCKET s = c->handle < 256 ? g_socks[c->handle] : 0; if (!s) { c->ret = -9; break; }

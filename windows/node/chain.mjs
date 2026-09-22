@@ -239,10 +239,10 @@ export function nodeFloorOf(v) {
 export function parseEnvelope(raw, gpuMilli) {
   const s = String(raw || "").trim();
   if (!s) return {};
-  if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope (catalog rev 7 large configs); this node fetches no pinned config");
+  if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network"];
+  const known = ["config", "gpu", "network", "configCid"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
@@ -270,6 +270,16 @@ export function parseEnvelope(raw, gpuMilli) {
         throw new Error('network.relay must be a relay name: lowercase letters, digits and dashes (or "" for the fleet default)');
       else opts.relay = r;
     }
+  }
+  if ("configCid" in o) {
+    // The rev-7 split: the deployment's app-config lives at a pinned CID because the envelope
+    // shares one ledger field with everything else and a big config does not fit. The node fetches
+    // it through the same CID-verified path as an artifact, so the bytes it applies are the bytes
+    // the CID names - that is what makes a config at a CID safe to honour at all.
+    const cid = o.configCid;
+    if (typeof cid !== "string" || !/^[A-Za-z0-9]{10,100}$/.test(cid))
+      throw new Error("configCid must be a bare IPFS CID naming this deployment's config");
+    opts.configCid = cid;
   }
   if ("config" in o) {
     const c = o.config;
@@ -301,9 +311,15 @@ export function parseEnvelope(raw, gpuMilli) {
  * themselves - the deploy console's target pick, which arrives here as a claim hint naming this
  * enclave (`invited`). Their own owner's deployments are always in scope, and anything created
  * while this box has been listed was deployed in sight of the row.
+ *
+ * `legacy` waives that last rule: an operator who has the standing to consent for the owners in
+ * question (on this fleet, the platform's own governance wallet and the box owner's) can say so,
+ * and then older deployments are taken like any other. It is a switch rather than a default
+ * because nobody else's box should be able to decide that for them.
  */
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
-                                 version = null, capacity = null, listedAt = 0, invited = false } = {}) {
+                                 version = null, capacity = null, listedAt = 0, invited = false,
+                                 legacy = false, fetchesConfigCid = false } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
@@ -311,7 +327,7 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (scope === "owner-only") {
     if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
     if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
-  } else if (!owners && !invited && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
+  } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
          + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
@@ -329,6 +345,8 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // ledger charges the cpu half only, because this box posts no GPU price.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  if (opts.configCid && !fetchesConfigCid)
+    return "its config rides at a CID and this box is not configured to fetch one";
   if (Number(d.gpuMilli) > 0 && !(opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config)))
     return "it bought a share of a card, and this box's card is reserved for the enclave's masked inference; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
   // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
