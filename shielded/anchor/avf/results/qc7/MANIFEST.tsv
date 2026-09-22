@@ -1,0 +1,29 @@
+# expect_rows	24
+# settings	mem=8192 maxnew=256 nocool=0
+# runners	2f1266993ec227fed3992e4c735454e7966ccde305199a4773ab34be704c55e1
+# binary	36e71ba89667cec4f1e3aafc1590eb576f47a875ff02d776d6e3517e83adf950
+# id	key	tpu	cpu	prompt	expect
+01	0277782c0fcf6be7	ok	ok	What is the capital of France? Reply with only the city name.	exact=Paris
+02	5c77565f8d992595	ok	ok	What is 17 times 23? Reply with only the number.	numeric=391
+03	b297a72779c19976	ok	ok	List the first ten prime numbers. Reply with only the numbers separated by commas.	sequence=2,3,5,7,11,13,17,19,23,29
+04	91464680141670ed	ok	ok	Name three countries in South America. Reply with only the three names separated by commas.	exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,Venezuela,Guyana,Suriname
+05	9a2d0cca868153f0	ok	ok	What is the boiling point of water at sea level in Celsius? Reply with only the number.	numeric=100
+06	82c12fbb6bad0fd2	ok	ok	Write a Python function called reverse_string that returns its argument reversed. Give only the code.	pyfunc=reverse_string|abc->cba|racecar->racecar|ab cd->dc ba|->|x->x
+07	5ae4e88e9baff3c9	ok	ok	Write a haiku about rain.	review=three lines, roughly 5-7-5, about rain
+08	d4bbd6da6e946daf	ok	ok	Explain in two sentences why the sky is blue.	review=must ASSERT Rayleigh scattering of shorter wavelengths, not merely mention it
+09	dcdaf8b6fecca76a	ok	ok	What is 144 divided by 12? Reply with only the number.	numeric=12
+10	853b2ff0a7f6eb9d	ok	ok	What is the chemical symbol for gold? Reply with only the symbol.	exact=Au
+11	4e756a3563dcb655	ok	ok	How many sides does a hexagon have? Reply with only the number.	numeric=6
+12	5cc4291d3566c1b7	ok	ok	List the first six Fibonacci numbers starting from 1. Reply with only the numbers separated by commas.	sequence=1,1,2,3,5,8
+13	a7f3873815bcc326	ok	ok	What is the capital of Japan? Reply with only the city name.	exact=Tokyo
+14	78ecbcf9fdc86de6	ok	ok	Name the four cardinal directions. Reply with only the four words separated by commas.	exactset=4:North,South,East,West
+15	a832692e36ff957e	ok	ok	What is 2 to the power of 10? Reply with only the number.	numeric=1024
+16	d0e294624231c774	ok	ok	How many days are in a leap year? Reply with only the number.	numeric=366
+17	0405cf1dcbd5f048	ok	ok	What is the largest planet in the solar system? Reply with only the planet name.	exact=Jupiter
+18	23a43df435d935f2	ok	ok	List the squares of the first five positive integers. Reply with only the numbers separated by commas.	sequence=1,4,9,16,25
+19	0ec6dc74e884d2c5	ok	ok	What is the freezing point of water in Fahrenheit? Reply with only the number.	numeric=32
+20	e5f960b8de800a10	ok	ok	What is 15 percent of 200? Reply with only the number.	numeric=30
+21	b9a8c93fba390176	ok	ok	What is the smallest prime number? Reply with only the number.	numeric=2
+22	c907f41b2fb852ff	ok	ok	Write a Python function called count_vowels that returns how many of the letters a, e, i, o, u appear in its argument. Give only the code.	pyfunc=count_vowels|hello->2|xyz->0|aeiou->5|->0
+23	5561ade554bc3393	ok	ok	Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.	pyfunc=shout|hi->HI!|abc->ABC!|->!
+24	1d8751f16347c063	ok	ok	Name the three states of matter taught in school. Reply with only the three words separated by commas.	exactset=3:Solid,Liquid,Gas

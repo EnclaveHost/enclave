@@ -1,0 +1,43 @@
+MIXED HARNESS WINDOW -- read this before quoting anything from this run.
+
+While this run was in flight I edited host/coolgate.sh, which both arm runners SOURCE at startup. The
+run's BUILD and MANIFEST record
+
+    runners sha256 2f1266993ec227fed3992e4c735454e7966ccde305199a4773ab34be704c55e1
+
+captured once, before row 01. For part of the run that digest did not describe the file being sourced.
+The live file has since been restored and the aggregate matches the recorded value again.
+
+WINDOW (file mtimes, local time)
+    11:57:39   host/coolgate.sh modified
+    12:00:02   host/coolgate.sh restored to the recorded version
+Row completion times:
+    11:54:16   01 tpu     before the window -- recorded harness
+    11:55:49   01 cpu     before the window -- recorded harness
+    11:57:37   02 tpu     before the window -- recorded harness
+    11:59:09   02 cpu     AMBIGUOUS: it started when 02 tpu ended (11:57:37), two seconds before the
+                          edit, so it sourced the file either just before or just after. Available
+                          evidence cannot decide, and the gate prints the same line either way.
+    (pending)  03 tpu     started inside the window; it almost certainly sourced the MODIFIED file.
+
+WHAT THE TWO VERSIONS DIFFER BY, in full:
+
+    -   out=$($ADB shell "$1; echo __RC__\$?" 2>/dev/null); rc=$?
+    +   out=$(_cg_adb shell "$1; echo __RC__\$?" 2>/dev/null); rc=$?
+    + if ! declare -F _cg_adb >/dev/null 2>&1; then
+    +   _cg_adb() { $ADB "$@"; }
+    + fi
+
+ASSESSMENT, offered as an assessment and not as proof: for a caller that holds ADB as a string -- which
+both arm runners do -- `_cg_adb shell ...` expands to `$ADB shell ...` with the same word splitting, so
+the two versions do the same thing and the measurements should not differ. That is a reading of the
+diff. It is not evidence about these particular rows, and no evidence about these particular rows
+exists, which is the point of this file.
+
+The recorded identity has NOT been rewritten to match either version, and no row has been deleted or
+re-run to tidy this up. A run whose harness changed underneath it is worth less than one whose did not,
+and saying so is cheaper than pretending otherwise.
+
+The general repair -- executing each benchmark from a FROZEN copy of the harness, so edits to the
+checkout cannot reach a run in progress -- is staged and will be applied after this run ends, because
+applying it now would be the same mistake a second time.

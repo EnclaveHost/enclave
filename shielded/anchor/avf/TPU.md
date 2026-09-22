@@ -2471,3 +2471,63 @@ the one with the least give in it, and the "unexplained 5x" I was pointing at ne
 
 The 162 MiB figure belongs to a different artefact in a streaming table and should not have been set
 against this at all.
+
+## The comparison, finished: parity holds, and the speed does not (2026-09-22)
+
+`results/qc7`, 24 prompts, both arms gated on a cool uncapped phone, both VMs at 8192 MiB, MAXNEW=256
+declared before the run and binding on nothing (the most any row used was 59 decode tokens), no
+drafter in either arm. Against `results/g-greedy`, Google's own NPU lane on the same prompts and the
+same contracts.
+
+### Task correctness
+
+| | score |
+|---|---|
+| masked TPU, inside the pVM | **22/24** |
+| in-VM CPU, same GGUF, same pVM | **22/24** |
+| Google NPU, outside any pVM | **21/24** |
+
+Every one of the 22 auto-scored contracts passes on all three lanes except row 17 -- "the largest
+planet in the solar system" -- which Google's lane alone gets wrong. The remaining two are the `review=`
+rows, which need a human on every lane by construction. 18 of 24 masked/CPU pairs are byte-identical.
+
+At `MAXNEW=48` this same set read 19/19/21 and the whole apparent gap was the token budget: three code
+rows spent it on a docstring and were scored truncated on the two capped lanes while Google, whose
+runner exposes no token limit, completed them. At an adequate budget that artefact is gone and the
+masked lane matches the unmasked one exactly.
+
+**So the functional claim is settled: masking the offload costs nothing measurable in task quality on
+this set.** That was the open question the whole harness campaign was in service of.
+
+### Decode rate, and it is not close
+
+| | median | range |
+|---|---|---|
+| masked TPU, inside the pVM | **0.98 tok/s** | 0.77-1.23 |
+| in-VM CPU, undrafted | **15.05 tok/s** | 11.75-15.56 |
+| Google NPU, outside any pVM | **15.21 tok/s** | 11.85-18.94 |
+
+15.1x between the two in-VM lanes, and the masked path is at **1020 ms per token against the 66.7 ms
+that 15 tok/s requires**. This is the first rate comparison from this harness that is a controlled
+measurement rather than a description of unmatched conditions, and it lands where the floor analysis
+said it would.
+
+### What the three numbers say together
+
+The goal asks for three things at once: a pVM holding every secret, the TPU doing the heavy compute,
+and 15 tok/s. Each PAIR is available and the triple is not:
+
+| | pVM root of trust | TPU does the compute | >= 15 tok/s |
+|---|---|---|---|
+| masked TPU lane | yes | yes | **no** -- 0.98 |
+| in-VM CPU lane | yes | **no** | yes -- 15.05 undrafted |
+| Google NPU lane | **no** | yes | yes -- 15.21 |
+
+The missing combination is not a tuning problem. Masked offload must enter the accelerator once per
+linear run, 140 times a token, and the floor built from Google's own dispatch fit -- 140 x 0.520 ms of
+invocation plus 1872 MB x 0.0848 ms/MB of graph streaming -- is 231.5 ms per token before any transport
+or masking exists. The graphs are the weights at about 4 % overhead, so that term has no give in it;
+int4 halves it and costs 18.1x the weight error. One invocation per token is what Google's lane does,
+and it needs the whole graph inside the trust boundary -- which needs an AVF API that does not exist on
+`android17-release` or on `main`, where `VirtualMachineConfig` writes an empty assigned-device array
+unconditionally with no setter.
