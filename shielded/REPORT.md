@@ -2883,3 +2883,50 @@ divergence has been observed since class A was removed, but that is 13 runs
 against a base rate that was ~8% when 128 nodes were involved and should be far
 lower at one -- so the absence is expected either way and is NOT evidence the
 path is now deterministic.
+
+### 18.9 Pinning to physical cores halves it, and the join is not the imbalance
+
+Two claims from the profile needed testing. The column-split `join` is a WAIT,
+it is 4.8-20.3% of spec-decode graph time across 14 runs (median 10.0), and it
+correlates with the card-to-card work imbalance |card1/card0 - 1| at r = +0.73.
+The imbalance is not a property of either card -- the ratio lands both sides of
+1.0 -- so it looked like per-run scheduling jitter. This box is 16 physical
+cores with 2 threads each, one socket, one NUMA node, and the bench runs 8
+threads plus 8 refill threads plus a split worker with an unrestricted affinity
+mask, so two halves of a split landing on SMT siblings is the right shape.
+
+CPUs 0-15 are one logical CPU per physical core. Four alternating pairs,
+`taskset -c 0-15` against unrestricted:
+
+| | unrestricted | pinned to physical cores |
+|---|---|---|
+| spec tok/s | 18.62, 19.33, 20.08, 20.36 | 10.49, 10.52, 10.59, 10.64 |
+| clean median | 19.49 (n=2) | 10.59 (n=3) |
+| graph_compute | ~1753 ms | 2285 ms |
+| split join | 10.0% median (n=14) | **33.1%** (31.5-34.5) |
+| card1/card0 | 0.90-1.32x (n=14) | **0.96x (0.95-0.96)** |
+
+Pinning costs 46% of throughput. The arms do not overlap at all -- every
+unpinned run beats every pinned run by 8 tok/s -- so although the clean
+unpinned arm is n=2 and below the threshold I hold myself to, the direction is
+not in question. SMT is paying here, not costing, even though mask, unmask and
+the Freivalds rhs are all AVX-512; halving the logical CPUs available to ~17
+threads halves the work done.
+
+The mechanism result is the interesting one, and it goes against me. Pinning
+DID collapse the card ratio, from a 0.90-1.32 spread to 0.95-0.96 across three
+runs, which confirms the spread is scheduling and not a property of a card. And
+the join got WORSE, from 10% to 33%. So the join is not primarily paying for
+card-to-card work imbalance: with the cards balanced to within 4%, it is at its
+highest share of the run.
+
+The r = +0.73 across the unpinned runs stands as an observation and my reading
+of it does not. The likelier account now is that the join waits on whichever
+half cannot get a CPU, which is a different quantity from which half was given
+more work -- starving the box inflates the wait while leaving the work balanced.
+That predicts the join should shrink with MORE parallelism, not less, and that
+is the experiment, not another pinning variant.
+
+What this retires: `taskset`, and `SHIELDED_SPLIT_WEIGHTS` with it. A static
+column rebalance was already the wrong instrument for a quantity that changes
+sign between runs; now it is aimed at a quantity that is not the cost either.
