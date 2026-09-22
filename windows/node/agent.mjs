@@ -30,6 +30,7 @@ import { appZone } from './appzone.mjs';
 import { shieldedCard, shieldedProof } from './shieldedcard.mjs';
 import { clientIp as wafClientIp } from './waf.mjs';
 import { parseAbiReply } from './appframe.mjs';
+const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -428,9 +429,16 @@ async function handle(frame) {
     const rest = p.slice(('/x/' + id).length) || '/';
     // The caller's address, as the relay forwarded it. It is what the deployment's rate and
     // concurrency limits count, so it is passed explicitly rather than guessed at the far end.
+    const ip = wafClientIp(frame.headers);
+    // WAF_TRACE=1: say which address a deployment's rate and concurrency limits are counting. It
+    // exists because "the relay forwards the caller's address" is a claim this box PUBLISHES
+    // (host.features), and a claim about whose bucket a request lands in should be checkable on
+    // the box rather than inferred from the relay's source.
+    if (WAF_TRACE) log(`[waf] ${id.slice(0, 10)} ${method} ${rest} from ${ip}`
+      + ` (x-forwarded-for: ${frame.headers?.['x-forwarded-for'] ?? 'absent'})`);
     const r = await host.proxy(id, { method, pathRest: rest + (String(frame.path || '').includes('?') ? '?' + String(frame.path).split('?')[1] : ''),
                                      headers: frame.headers, body: frame.body ? Buffer.from(frame.body, 'base64') : null,
-                                     ip: wafClientIp(frame.headers) });
+                                     ip });
     return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
   if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
