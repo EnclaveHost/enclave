@@ -34,7 +34,7 @@ import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { WebSocketServer, createWebSocketStream } from "ws";
-import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseEventLogs, encodeAbiParameters } from "viem";
+import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
@@ -1653,6 +1653,76 @@ function ledgerMoveVerdict(rec, currentAddr) {
 if (process.env.LEDGER_MOVE_SELFTEST) {
   const c = JSON.parse(process.env.LEDGER_MOVE_SELFTEST);
   console.log(JSON.stringify((c.records || []).map((r) => ({ id: r.id, verdict: ledgerMoveVerdict(r, c.current) }))));
+  process.exit(0);
+}
+
+// ---- ledger sync plan: what ONE claim tick has to read from the chain -------
+// PURE (syncLedger below does the reads). The tick used to page the WHOLE
+// ledger every 60s - ceil(count/100) getPage calls returning every deployment
+// that ever existed, strings and all. That bill is a function of the ledger's
+// LIFETIME size, not of what changed, and the ledger is append-only: nothing is
+// ever removed, so it only ever grows. Measured 2026-09-22 against the live
+// rev-13 ledger: 55 rows = 76 KB per host per tick, ~110 MB/day/host, for a
+// median of ZERO changes (a 4000-block scan - over two hours of chain - found
+// 17 logs touching 4 ids). It is also what the 2026-07-05 outage was made of:
+// the burst tripped the public RPC's per-IP cap and killed the tail of every
+// pass (the sweep) while the head (renewals) kept working.
+//
+// So: keep a MIRROR of the ledger and re-read only what moved. Every write to a
+// Deployment struct field goes through a function that emits an event carrying
+// the deployment id as its FIRST indexed topic (LEDGER_TOUCH_EVENTS audits that
+// claim against the contract), so a log scan names exactly the rows that went
+// stale. Lease EXPIRY emits nothing - and needs nothing: leaseUntil is already
+// mirrored, so the sweep sees a lapsed lease by the clock alone.
+//
+// Three things keep the fast path honest, because a delta feed that quietly
+// stopped delivering looks exactly like a quiet network:
+//   - count(), one cheap read per tick. The ledger is append-only, so its
+//     length and the mirror's size must agree EXACTLY; any drift = full pass.
+//   - a periodic full pass regardless (fullEverySec), so whatever a log scan
+//     could ever miss self-heals on a bounded clock rather than never.
+//   - syncLedger re-reads the rows THIS box serves every tick no matter what
+//     the logs said, so the audit - the path that tears down paid work - never
+//     acts on mirrored data at all.
+//
+// Returns one of:
+//   {mode:"full"}             page the ledger and reseat the mirror
+//   {mode:"delta", from, to}  scan logs in [from,to], re-read what they name
+//   {mode:"idle"}             nothing newly confirmed; serve the mirror as-is
+// `why` rides along for the log line and /availability: a fast path that has
+// silently degraded into a full pass every tick must be visible AS that, not as
+// "the loop still runs".
+function ledgerSyncPlan({ addr, mirrorAddr, mirrorSize, cursor, tip, count, nowMs,
+                          lastFullAt, fullEverySec, confirmations, maxCatchup }) {
+  const full = (why) => ({ mode: "full", why });
+  if (!addr) return { mode: "idle", why: "no deployments contract" };
+  // A book repoint swaps the ledger under us mid-flight: the mirror belongs to
+  // the OLD contract and every row in it is foreign to the new one.
+  if (mirrorAddr !== addr) return full("no mirror for this ledger");
+  if (cursor == null) return full("no log cursor");
+  if (fullEverySec > 0 && nowMs - lastFullAt >= fullEverySec * 1000) return full("periodic reconcile");
+  if (count != null && count !== mirrorSize) return full(`mirror holds ${mirrorSize} of ${count} rows`);
+  if (tip == null) return { mode: "idle", why: "block height unavailable" };
+  // Finalize only up to tip-confirmations. A load-balanced RPC answers
+  // getBlockNumber and getLogs from different nodes at different heights, and a
+  // cursor advanced past a log we were never served loses that change for good
+  // (indexer.js hazard (1)). Marking a row stale is IDEMPOTENT, so unlike the
+  // payment indexer this needs no dedup and may re-scan as widely as it likes -
+  // which is what makes the overlap a full pass leaves behind free as well.
+  const to = tip - confirmations;
+  if (to < cursor) return { mode: "idle", why: "no newly confirmed blocks" };
+  const span = to - cursor + 1;
+  if (span > maxCatchup) return full(`log gap ${span} blocks over the catch-up cap`);
+  return { mode: "delta", from: cursor, to, why: `${span} block${span === 1 ? "" : "s"}` };
+}
+
+// LEDGER_SYNC_SELFTEST='{"cases":[{addr,mirrorAddr,mirrorSize,cursor,tip,count,
+// nowMs,lastFullAt,fullEverySec,confirmations,maxCatchup},…]}' prints each
+// case's plan as one JSON line and exits - same contract as the seams above
+// (test/ledger-sync.test.mjs drives it).
+if (process.env.LEDGER_SYNC_SELFTEST) {
+  const c = JSON.parse(process.env.LEDGER_SYNC_SELFTEST);
+  console.log(JSON.stringify((c.cases || []).map((x) => ledgerSyncPlan(x))));
   process.exit(0);
 }
 
@@ -5064,7 +5134,8 @@ app.get("/availability", async (_req, res) => {
     // ...and the dead-man switch's own state, both halves: whether we are still
     // vouching (ours) and whether the manager considers the lease armed and
     // enforcing (its). A switch nobody can see is a switch nobody knows is off.
-    const sweep = { instanceSweep: instanceSweepStatus(), tenantVouch: { ..._lastVouch },
+    const sweep = { instanceSweep: instanceSweepStatus(), ledgerSync: ledgerSyncStatus(),
+                    tenantVouch: { ..._lastVouch },
                     ...(c.tenantLease ? { tenantLease: c.tenantLease } : {}) };
     // RAM-reservation ledger passthrough (vm backend with accounting on): the
     // binding constraint behind cpuShareFree when it is tighter than the share
@@ -8067,7 +8138,11 @@ async function readLedgerContract(functionName, args) {
     return read();
   }
 }
-const readOnchainDeployment = (id) => readLedgerContract("get", [id]);
+const readOnchainDeployment = async (id) => {
+  const d = await readLedgerContract("get", [id]);
+  noteLedgerRow(d);   // keeps a hinted brand-new id from reading as a count() mismatch next tick
+  return d;
+};
 
 // local rec states that no longer hold the lease — safe to re-adopt over
 // "stopping" is the pre-terminated legacy name, kept so records persisted by an
@@ -8678,11 +8753,16 @@ async function auditClaims(ledgerById) {
   }
 }
 
-// One paged read of the whole ledger per tick, shared by the audit and the
-// sweep - the per-stage reads it replaces were enough burst to trip the public
-// RPC's per-IP rate limit, which killed the tail of every pass (the sweep)
-// while the head (renewals) kept working: new deployments sat unclaimed for
-// hours with all gauntlet conditions green (observed live 2026-07-05).
+// One paged read of the whole ledger, shared by the audit and the sweep - the
+// per-stage reads it replaced were enough burst to trip the public RPC's per-IP
+// rate limit, which killed the tail of every pass (the sweep) while the head
+// (renewals) kept working: new deployments sat unclaimed for hours with all
+// gauntlet conditions green (observed live 2026-07-05).
+//
+// This is no longer the per-tick path - syncLedger below is. It is what RESEATS
+// the mirror: first pass, a ledger repoint, a log gap too wide to walk, and the
+// periodic reconcile. Those are rare, so the expensive read stays available for
+// exactly the cases where it is the cheap answer.
 async function fetchLedger() {
   const all = [];
   for (let start = 0n; ; start += BigInt(CLAIM_PAGE)) {
@@ -8691,6 +8771,257 @@ async function fetchLedger() {
     if (page.length < CLAIM_PAGE) break;
   }
   return all;
+}
+
+// ---- the ledger mirror (impure half of ledgerSyncPlan) ---------------------
+// Knobs are env-tunable so an operator on a private RPC can widen them; the
+// defaults are sized for the public pool.
+const LEDGER_FULL_SEC    = parseInt(process.env.LEDGER_FULL_SEC || "1800", 10);     // periodic full reconcile (0 = never)
+const LEDGER_CONFIRMS    = parseInt(process.env.LEDGER_CONFIRMS || "3", 10);        // finalize logs this far behind tip
+const LEDGER_MAX_CATCHUP = parseInt(process.env.LEDGER_MAX_CATCHUP || "10000", 10); // wider gap than this: one page is cheaper
+// Public RPCs cap getLogs spans, and they do NOT agree on the cap. Measured
+// 2026-09-22 against the pool, per provider: publicnode serves 4000 and refuses
+// 10000; mainnet.base.org serves 1000 and refuses 4000; drpc refuses getLogs at
+// ANY span; 1rpc was answering nothing at all that day. The fallback transport
+// hides this - it just walks to the next provider - but a chunk that only some
+// of the pool will serve buys a fail-over round trip on every scan (measured:
+// 2043ms vs ~200ms). 1000 is inside every healthy provider's limit, and the
+// steady-state span is ~30 blocks anyway (a 60s tick on a 2s chain), so the
+// chunk only ever binds on catch-up.
+const LEDGER_LOG_CHUNK   = parseInt(process.env.LEDGER_LOG_CHUNK || "1000", 10);
+// A multicall of N rows and a getPage of N rows are the SAME one request with
+// the same payload, so "too many changed rows" is not really about N - it is
+// about a burst that means something structural happened (a migration, an
+// import sweep) and the mirror is better rebuilt than patched. Hence a cap well
+// above any tenant count a single box carries: this must never fire merely
+// because a busy box re-reads its own serving rows every tick (it does, by
+// design), or the fast path silently reverts to the whole-ledger page for
+// exactly the operators it was written for.
+const LEDGER_DIRTY_MAX   = parseInt(process.env.LEDGER_DIRTY_MAX || "200", 10);
+// ...and the batch that carries them is chunked, so N large never becomes ONE
+// oversized eth_call that a provider refuses outright.
+const LEDGER_CALL_CHUNK  = parseInt(process.env.LEDGER_CALL_CHUNK || "50", 10);
+
+// Every write to a Deployment struct field goes through one of these, and each
+// carries the deployment id as its FIRST indexed topic. Audited against
+// contracts/EnclaveDeployments.sol: `ports`, `appPort` and `isPublic` have no
+// setter at all (immutable after create), and settle/creditProven/_creditRunner
+// touch only the side mappings (earned6, _earn, provenUntil), never the struct.
+// So this list names every event that can make a mirrored row stale.
+//
+// MaxRateSet is deliberately absent: maxRate6 lives in a side mapping the sweep
+// reads FRESH per candidate (capOf), so a cap change needs no row re-read.
+//
+// If a ledger of some other rev ever emitted different signatures, these topics
+// would simply never match and the delta pass would find nothing - which is why
+// the count() check, the periodic full pass and the always-re-read of our own
+// serving rows are not optional garnish. Worst case is the old cadence, never a
+// wrong answer.
+const LEDGER_TOUCH_EVENTS = parseAbi([
+  "event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate)",
+  "event AppRefSet(bytes32 indexed id, string appRef)",
+  "event SharesSet(bytes32 indexed id, uint16 gpuMilli, uint16 cpuMilli, uint256 rate)",
+  "event ConfigSet(bytes32 indexed id, string configCid)",
+  "event ActiveSet(bytes32 indexed id, bool active)",
+  "event DeploymentTransferred(bytes32 indexed id, address indexed from, address indexed to)",
+  "event Funded(bytes32 indexed id, address indexed payer, uint256 amount6)",
+  "event FundedEth(bytes32 indexed id, address indexed payer, uint256 amountWei, uint256 credited6)",
+  "event Claimed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator, uint64 leaseUntil, uint256 burned6)",
+  "event Renewed(bytes32 indexed id, bytes32 indexed enclaveId, uint64 leaseUntil, uint256 burned6)",
+  "event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6)",
+  "event Refunded(bytes32 indexed id, address indexed to, uint256 amount6)",
+]);
+const LEDGER_COUNT_ABI = [{ type: "function", name: "count", stateMutability: "view",
+                            inputs: [], outputs: [{ type: "uint256" }] }];
+
+// rows keep LEDGER ORDER (Map preserves insertion order, a re-set keeps an
+// existing key's slot, and Created logs arrive in block order) - the sweep's
+// partition and CLAIM_MAX_PER_SWEEP fairness both read in that order, and
+// test/claim-sweep.test.mjs pins it.
+const _ledgerMirror = { addr: null, rows: new Map(), cursor: null, lastFullAt: 0 };
+let _ledgerStat = { at: null, mode: null, why: null, rows: 0, dirty: 0, logs: 0, error: null };
+const ledgerSyncStatus = () => ({ ..._ledgerStat, cursor: _ledgerMirror.cursor,
+  lastFullAt: _ledgerMirror.lastFullAt || null });
+
+// A row read fresh from the chain is mirror-grade data wherever it came from.
+// Seeding from the hint path matters: a brand-new id is already inside count()
+// the moment it is created, so without this the very next tick reads as a size
+// mismatch and pages the whole ledger to learn the one row we just held.
+function noteLedgerRow(d) {
+  if (!d || _ledgerMirror.addr !== DEPLOYMENTS_ADDRESS) return;
+  const id = String(d.id || "").toLowerCase();
+  if (/^0x[0-9a-f]{64}$/.test(id) && Number(d.createdAt)) _ledgerMirror.rows.set(id, d);
+}
+
+async function readLedgerCount() {
+  try {
+    return Number(await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+      abi: LEDGER_COUNT_ABI, functionName: "count" }));
+  } catch { return null; }   // pre-count() ledger, or a throttled read: skip the check rather than force a full pass on it
+}
+
+// Batch the targeted re-reads through Multicall3 so a burst of changed rows is
+// ONE request per chunk, not one per id - without this a busy minute could cost
+// more calls than the page it replaced.
+async function readLedgerRows(ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += LEDGER_CALL_CHUNK) {
+    out.push(...await readLedgerRowChunk(ids.slice(i, i + LEDGER_CALL_CHUNK)));
+  }
+  return out;
+}
+
+async function readLedgerRowChunk(ids) {
+  if (!ids.length) return [];
+  const address = getAddress(DEPLOYMENTS_ADDRESS);
+  try {
+    const abi = (await depsAbi()).abi;
+    const res = await chainClient.multicall({ allowFailure: true,
+      contracts: ids.map((id) => ({ address, abi, functionName: "get", args: [id] })) });
+    const rows = res.map((r) => (r.status === "success" ? r.result : null));
+    // An all-failed batch reads like a wrong sniffed shape, and multicall
+    // decodes in-process so it cannot self-heal the way readLedgerContract can.
+    // Fall through to the single-read path, which re-sniffs and retries.
+    if (rows.some(Boolean)) return rows;
+  } catch (e) {
+    console.warn(`[ledger] multicall get x${ids.length} failed (${e.shortMessage || e.message}); reading one by one`);
+  }
+  const rows = [];
+  for (const id of ids) rows.push(await readLedgerContract("get", [id]).catch(() => null));
+  return rows;
+}
+
+async function scanLedgerLogs(from, to) {
+  const address = getAddress(DEPLOYMENTS_ADDRESS);
+  const ids = new Set();
+  let seen = 0;
+  for (let start = from; start <= to; start += LEDGER_LOG_CHUNK) {
+    const end = Math.min(to, start + LEDGER_LOG_CHUNK - 1);
+    const logs = await chainClient.getLogs({ address, fromBlock: BigInt(start), toBlock: BigInt(end),
+      events: LEDGER_TOUCH_EVENTS, strict: false });
+    seen += logs.length;
+    // strict:false can hand back a log it could not decode; the id is topics[1]
+    // on every event in the list, so the topic is the authority and args is the
+    // convenience.
+    for (const l of logs) {
+      const id = String((l.args && l.args.id) || (l.topics && l.topics[1]) || "").toLowerCase();
+      if (/^0x[0-9a-f]{64}$/.test(id)) ids.add(id);
+    }
+  }
+  return { ids, seen };
+}
+
+async function fullResync(tipBefore, why) {
+  const all = await fetchLedger();
+  const rows = new Map();
+  for (const d of all) rows.set(String(d.id).toLowerCase(), d);
+  _ledgerMirror.addr = DEPLOYMENTS_ADDRESS;
+  _ledgerMirror.rows = rows;
+  // Start the cursor BEHIND the height we read, not at it: the page-through was
+  // served by one node of a load-balanced pool and may reflect a height below
+  // the tip we sampled first. Re-applying a change the page already carries is
+  // a no-op, so the overlap costs nothing and closes the window.
+  _ledgerMirror.cursor = tipBefore == null ? null : Math.max(0, tipBefore - LEDGER_CONFIRMS);
+  _ledgerMirror.lastFullAt = Date.now();
+  _ledgerStat = { at: Date.now(), mode: "full", why, rows: rows.size, dirty: rows.size, logs: 0, error: null };
+  console.log(`[ledger] full pass: ${why} (${rows.size} rows, cursor ${_ledgerMirror.cursor})`);
+  return all;
+}
+
+// The claim tick's ledger read. Returns the same Deployment[] the audit and the
+// sweep have always been handed - this is a drop-in for fetchLedger, and every
+// consumer downstream is unchanged.
+async function syncLedger() {
+  const now = Date.now();
+  let tip = null;
+  try { tip = Number(await chainClient.getBlockNumber()); }
+  catch (e) { _ledgerStat = { ..._ledgerStat, error: `block height: ${e.shortMessage || e.message}` }; }
+  const seated = _ledgerMirror.addr === DEPLOYMENTS_ADDRESS && _ledgerMirror.cursor != null;
+  const count = seated ? await readLedgerCount() : null;   // only worth a call once there is a mirror to check
+  const plan = ledgerSyncPlan({
+    addr: DEPLOYMENTS_ADDRESS, mirrorAddr: _ledgerMirror.addr, mirrorSize: _ledgerMirror.rows.size,
+    cursor: _ledgerMirror.cursor, tip, count, nowMs: now, lastFullAt: _ledgerMirror.lastFullAt,
+    fullEverySec: LEDGER_FULL_SEC, confirmations: LEDGER_CONFIRMS, maxCatchup: LEDGER_MAX_CATCHUP });
+
+  if (plan.mode === "full") return fullResync(tip, plan.why);
+
+  // The rows THIS box is serving are re-read every tick whatever the logs say.
+  // They are the audit's input - the path that stops tenants, follows an owner
+  // transfer and honours a lapsed lease - so they must never be answered from a
+  // mirror. Bounded by what the box serves, and it rides the same multicall.
+  const held = [...deployments.values()]
+    .filter((r) => r._onchain && (r.status === "running" || r.status === "claimed"))
+    .map((r) => String(r.id).toLowerCase());
+
+  let dirty = new Set(held), seen = 0;
+  if (plan.mode === "delta") {
+    try {
+      const scan = await scanLedgerLogs(plan.from, plan.to);
+      seen = scan.seen;
+      for (const id of scan.ids) dirty.add(id);
+    } catch (e) {
+      // A scan we could not complete must NOT advance the cursor: the same
+      // blocks are re-walked next tick, and the periodic pass is the backstop
+      // if the failure is persistent. Serve the mirror meanwhile.
+      const why = e.shortMessage || e.message;
+      if (_ledgerStat.error !== why) console.warn(`[ledger] log scan ${plan.from}..${plan.to} failed: ${why}`);
+      _ledgerStat = { at: now, mode: "stale", why: plan.why, rows: _ledgerMirror.rows.size,
+                      dirty: 0, logs: 0, error: why };
+      return [..._ledgerMirror.rows.values()];
+    }
+  }
+
+  // A change this broad is a migration or an import sweep, not a busy minute:
+  // one page beats a few hundred targeted reads.
+  if (dirty.size > LEDGER_DIRTY_MAX) return fullResync(tip, `${dirty.size} rows changed`);
+
+  const ids = [...dirty];
+  const rows = await readLedgerRows(ids);
+  rows.forEach((row, i) => { if (row && Number(row.createdAt)) _ledgerMirror.rows.set(ids[i], row); });
+  if (plan.mode === "delta") _ledgerMirror.cursor = plan.to + 1;
+  _ledgerStat = { at: now, mode: plan.mode, why: plan.why, rows: _ledgerMirror.rows.size,
+                  dirty: ids.length, logs: seen, error: null };
+  if (seen) console.log(`[ledger] ${seen} log(s) in blocks ${plan.from}..${plan.to}; re-read ${ids.length} row(s)`);
+  return [..._ledgerMirror.rows.values()];
+}
+
+// LEDGER_SYNC_LIVE=1 (with DEPLOYMENTS_ADDRESS set, or a book to resolve it)
+// runs the REAL sync against the REAL chain twice - the seeding full pass, then
+// the delta pass that is the steady state - prints both as one JSON line and
+// exits. Deliberately NOT part of `npm test`: it needs the network, and a test
+// that silently passes when the network is down would be worse than no test.
+// It is how an operator checks on a box that the fast path is still fast (the
+// second pass must read `delta`, not `full`), and how this was verified against
+// the live rev-13 ledger on 2026-09-22. Top-level await, placed ahead of every
+// listen/boot side effect, so nothing else starts.
+if (process.env.LEDGER_SYNC_LIVE) {
+  const pass = async () => {
+    const t = Date.now();
+    const rows = await syncLedger();
+    return { ...ledgerSyncStatus(), ms: Date.now() - t, returned: rows.length };
+  };
+  // LEDGER_SYNC_LIVE_REWIND=<blocks> rewinds the cursor between the two passes
+  // so the delta pass walks a span that really does contain logs, then checks
+  // the mirror it produced against a fresh full page - field for field, in
+  // order. That is the property the whole change rests on: a delta-synced
+  // mirror and a paged ledger must be the SAME ledger.
+  const rewind = parseInt(process.env.LEDGER_SYNC_LIVE_REWIND || "0", 10);
+  const j = (rows) => JSON.stringify(rows, (k, v) => (typeof v === "bigint" ? v.toString() : v));
+  try {
+    const first = await pass();
+    // (a seeding pass that could not read the tip leaves no cursor at all - do
+    // not "rewind" that to block 0 and ask for the whole chain)
+    if (rewind > 0 && _ledgerMirror.cursor != null)
+      _ledgerMirror.cursor = Math.max(0, _ledgerMirror.cursor - rewind);
+    const second = await pass();
+    const mirror = [..._ledgerMirror.rows.values()];
+    const paged = await fetchLedger();
+    const matches = j(mirror) === j(paged);
+    console.log(JSON.stringify({ first, second, rewind, mirrorRows: mirror.length,
+                                 pagedRows: paged.length, matchesFullPage: matches }));
+    process.exit(matches ? 0 : 1);
+  }
+  catch (e) { console.error(`[ledger] live selftest failed: ${e.shortMessage || e.message}`); process.exit(1); }
 }
 
 // Sweep the ledger for claimable work this enclave can actually serve: funded,
@@ -9696,7 +10027,7 @@ function startClaimLoop() {
       await stage("reach", reachTick);       // first: renew/sweep below consult the verdict
       await stage("renew", renewLeases);
       let ledger = null;
-      try { ledger = await fetchLedger(); }
+      try { ledger = await syncLedger(); }
       catch (e) { console.warn(`[claim] ledger read failed: ${e.shortMessage || e.message}`); }
       if (ledger) {
         const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
