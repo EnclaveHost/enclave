@@ -2872,3 +2872,29 @@ sampled. The protection against an untrusted worker is the masking and the bound
 `results/qc7/PROVENANCE-NOTE-mixed-harness.txt` (row 02's CPU arm ambiguous, row 03's TPU arm started
 inside it); 24 short prompts is a narrow sample; and a quality result on this set says nothing about the
 15 tok/s requirement, which the masked lane misses by more than tenfold.
+
+### The idle-gap penalty is the HOST core, and the fix costs a core (2026-09-22)
+
+If the penalty is not the TPU's clock, it may be the dispatching CPU core idling through the same gap.
+`gwcheck` can now fill the gap by SPINNING instead of sleeping -- same wall time, core kept busy. On the
+real L20 layer, 5 interleaved passes, all 15 cells cool, every reported gap matching the one requested
+(`results/perfmode/spin-vs-sleep.tsv`; a first attempt passed a stray `--` that parsed as a 0 gap and
+made all three conditions back to back -- caught by checking the gap the tool reports, and discarded):
+
+| before the next Run | median |
+|---|---|
+| back to back | 1.934 ms |
+| 3 ms gap, sleeping | 2.075 ms |
+| 3 ms gap, spinning | **1.669 ms** |
+
+With the core kept busy the Run is 0.41 ms faster than after sleeping. So the penalty is the host core
+going idle, not the TPU: up to about 57 ms per token.
+
+The real worker already asks for everything an app can -- nice -19 and an ADPF performance-hint session
+naming its thread with the exchange deadline -- and still pays it: qc7's TPU run, 2.09 ms per exchange,
+matches the SLEEPING case here, not the spinning one. Whether the cause is frequency ramp-down or
+deep-idle exit could be settled with a uclamp floor, which counters the first and not the second; but
+`sched_setattr` with a utilisation clamp is refused to an unprivileged process for every value tried,
+0 included (EPERM). So the only fix available is to spin, which burns a whole core to recover about 6 %
+of a token -- the opposite of the goal's reason for using the TPU, and the VM-side spin in this file
+measured WORSE for exactly that reason. Closed.
