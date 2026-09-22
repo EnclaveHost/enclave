@@ -6,10 +6,10 @@ set -uo pipefail
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
 P=host.enclave.anchor.avf; VMNAME="${VMNAME:-anchorlocal}"; MODEL="${MODEL:-/data/user/0/$P/files/model.gguf}"
 ASK="${ASK:-${1:-Say hello in three languages.|Write a 250-word essay about the history of the bicycle.}}"
-if [ "${NOCOOL:-0}" != 1 ]; then
-  for _ in $(seq 1 90); do st=$($ADB shell "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'" | tr -d '\r'); mx=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq | tr -d '\r'); top=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq | tr -d '\r')
-    [ "$st" = "Thermal Status: 0" ] && [ "$mx" = "$top" ] && break; sleep 10; done; echo "cool gate: $st cap=$mx"
-fi
+# The gate is SOURCED, not copied, so the two arms cannot drift apart again. It refuses rather
+# than falling through; see coolgate.sh for what the previous one did instead.
+. "$(cd "$(dirname "$0")" && pwd)/coolgate.sh"
+cool_gate || exit 4
 $ADB logcat -c
 $ADB shell "am force-stop $P; sleep 1; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard"; sleep 2
 [ "$($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')" -ge 1 ] || { echo "PHONE NOT AWAKE: refusing to measure"; exit 1; }

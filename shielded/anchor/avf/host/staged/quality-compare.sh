@@ -77,7 +77,19 @@ while read -r d _; do valid_sha "$d" || { echo "REFUSING: bad per-graph digest '
 GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha256sum | awk '{print $1}')
 valid_sha "$GRAPHS_ID" || { echo "REFUSING: graphs identity is not usable" >&2; exit 3; }
 echo "graphs: $GN file(s) digested individually"
-{ echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"; } >> "$OUT/BUILD"
+# The RUNNERS are part of the identity of a result, and they were not. Applying the thermal/memory fix
+# into an existing OUT would otherwise have found every row "cached" and reported logs produced by the
+# UNMATCHED runners as a matched run -- the relabelling defect again, now at the level of the harness
+# rather than the row. So the runner scripts and the gate they source are digested, and the controlled
+# settings are named, and both go into every key.
+RUNNERS_ID=$( { sha256sum tpu-run.sh; sha256sum local-run.sh; sha256sum coolgate.sh; } | sort | sha256sum | awk '{print $1}')
+[ -n "$RUNNERS_ID" ] || { echo "REFUSING: could not digest the arm runners" >&2; exit 3; }
+POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0}"
+{ echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
+  echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"
+  echo "settings       $POLICY"
+  [ "${NOCOOL:-0}" = 1 ] && echo "WARNING        NOCOOL=1: the thermal gate was BYPASSED; these rates are not controlled"
+} >> "$OUT/BUILD"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # This script cd's to its own directory, so a RELATIVE prompts path given from elsewhere silently
 # resolves to nothing. mapfile then leaves PLIST empty, the loop runs zero times, and the script
@@ -95,7 +107,11 @@ EXPECT_ROWS=0
 for p in "${PLIST[@]}"; do [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac; EXPECT_ROWS=$((EXPECT_ROWS+1)); done
 [ "$EXPECT_ROWS" -gt 0 ] || { echo "REFUSING: '$PROMPTS' contains no prompts" >&2; exit 2; }
 MANIFEST="$OUT/MANIFEST.tsv"
-{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"; printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
+{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"
+  printf '# settings\t%s\n' "$POLICY"
+  printf '# runners\t%s\n' "$RUNNERS_ID"
+  printf '# binary\t%s\n' "$RUN_IDENT"
+  printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
 n=0; failed=0
 for p in "${PLIST[@]}"; do
   [ -z "$p" ] && continue
@@ -108,7 +124,9 @@ for p in "${PLIST[@]}"; do
   # changed prompt inherit the previous prompt's log: the old loop wrote NN.prompt first, then saw a
   # non-empty NN.tpu.log and reported "already have", so an answer to a different question was relabelled
   # as this one's. Same defect an audit found in google-lane-run.sh.
-  key=$(printf '%s|%s|%s|%s|%s' "$p" "$MAXNEW" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" | sha256sum | cut -c1-16)
+  # settings AND runner identity in the key: a different MEM, a different token budget, or a bypassed
+  # thermal gate is a different experiment, and must re-run rather than be served from cache.
+  key=$(printf '%s|%s|%s|%s|%s|%s' "$p" "$POLICY" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" "$RUNNERS_ID" | sha256sum | cut -c1-16)
   st_tpu=fail; st_cpu=fail
   for arm in tpu cpu; do
     f="$OUT/$id.$key.$arm.log"

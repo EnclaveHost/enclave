@@ -2309,3 +2309,39 @@ corroborated by the per-exchange counters, and no thermal effect spans 1.06 agai
 the fix is the same: gate `tpu-run.sh` exactly as `local-run.sh` gates, and pass `mem` explicitly and
 equally from `quality-compare.sh`. Held until the run in progress finishes, because changing the
 runners mid-run would mix two configurations inside one result set.
+
+### The gate I called the control was itself fail-open (2026-09-22)
+
+The fix above was staged rather than applied, and review drove BOTH staged runners against a fake
+device -- Thermal Status 3, `scaling_max_freq` 1000 against `cpuinfo_max_freq` 2000, only `sleep`
+stubbed. Each completed its 90 checks, printed `cool gate: Thermal Status: 3 cap=1000`, launched
+`am start`, produced a reading and exited 0.
+
+So `local-run.sh`'s gate -- the one this file has been treating as the reason the CPU arm's numbers
+are trustworthy -- never refused anything. It looped, and then measured whatever it had found. Nor
+were the reads checked: a failed transport, an empty string and a non-numeric frequency all compared
+unequal, looped, and fell through the same way. **A counted loop is not a validated gate**, and eleven
+string-presence checks passed it without noticing, because they asserted that the gate's text existed
+rather than that it did anything.
+
+What that costs retrospectively: the CPU arm was PROBABLY cool for the runs on record -- the gate
+prints its last reading and those lines say `Thermal Status: 0 cap=3052000` -- but "probably, because
+the log happens to say so" is a different claim from "the harness refused to proceed otherwise", and
+only the second one makes a rate a controlled measurement.
+
+Now: one `coolgate.sh`, SOURCED by both runners so they cannot drift apart, returning non-zero unless
+the phone is verifiably cool and uncapped, with the caller exiting 4. The only way past is `NOCOOL=1`,
+which prints that the run is uncontrolled, is recorded in `BUILD`, and is folded into the cache key.
+`tpu/test/coolgate-test.sh` drives the real runners against a permanently hot phone, a capped one,
+empty and non-numeric sensor reads, a failed thermal read, transient heat that clears, and an explicit
+bypass -- asserting on exit status and on whether the run was ever launched. The original gate fails 22
+of its 30 checks.
+
+**And the cache key made applying the fix unsafe.** It carried prompt, token budget, graphs, bundle and
+library -- not the memory setting, not the thermal policy, and not the runners themselves. Applying the
+repair into an existing `OUT` would have found every row present, printed `cached`, and reported logs
+produced by the UNMATCHED runners as a matched run: the relabelling defect again, now at the level of
+the experiment rather than the row. The key, `BUILD` and the manifest header now carry
+`mem/maxnew/nocool` and a digest of `tpu-run.sh`, `local-run.sh` and `coolgate.sh`.
+`tpu/test/key-binding-test.sh` checks that changing any of them re-runs instead of serving the old row;
+under the old key it fails 8 of 16, serving both arms from cache with an unchanged key.

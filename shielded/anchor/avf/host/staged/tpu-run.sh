@@ -4,13 +4,10 @@
 set -uo pipefail
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
 P=host.enclave.anchor.avf; F=/data/user/0/$P/files; ASK="${ASK:-What is the capital of France? One sentence.|Do you know who Bill Gates is? Answer in two sentences.}"
-# THERMAL GATE, identical to local-run.sh's. Without it the masked arm measured on whatever state the
-# previous row left behind while the CPU arm always waited for a cool, uncapped phone -- a systematic
-# bias in the CPU arm's favour on every rate this harness produced.
-if [ "${NOCOOL:-0}" != 1 ]; then
-  for _ in $(seq 1 90); do st=$($ADB shell "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'" | tr -d '\r'); mx=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq | tr -d '\r'); top=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq | tr -d '\r')
-    [ "$st" = "Thermal Status: 0" ] && [ "$mx" = "$top" ] && break; sleep 10; done; echo "cool gate: $st cap=$mx"
-fi
+# The gate is SOURCED, not copied, so the two arms cannot drift apart again. It refuses rather
+# than falling through; see coolgate.sh for what the previous one did instead.
+. "$(cd "$(dirname "$0")" && pwd)/coolgate.sh"
+cool_gate || exit 4
 $ADB logcat -c; $ADB shell "am force-stop $P; sleep 1; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard"; sleep 2
 [ "$($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')" -ge 1 ] || { echo "PHONE NOT AWAKE: refusing to measure"; exit 1; }
 $ADB shell "am start -n $P/.Main --es mode local --es vmname ${VMNAME:-anchorlocal} --ei mem ${MEM:-8192} --es model $F/model.gguf --es tpu_graphs $F/${GRAPHS:-tpu/g5} --es tpu_bundle $F/${BUNDLE:-tpu/lanes.etpu} --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48} ${EXTRA:-} --es ask '$ASK' >/dev/null"
