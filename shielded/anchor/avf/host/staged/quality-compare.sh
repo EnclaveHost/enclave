@@ -26,23 +26,29 @@ OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; MEM="${MEM:-8192}"; 
 # BUILD IDENTITY, recorded rather than assumed. Fault-injection experiments run the same source tree with a
 # different constant, and a filename never proved which binary answered: the digests below and the payload's
 # own "tpu: config" line (which prints repair/verify/inject as COMPILED) are what tie a result to a build.
-# A LOCK, taken before anything in $OUT is truncated. BUILD and MANIFEST are opened with > below, so
-# two producers sharing an OUT would have one erase the other's record of what it was doing, and
-# overwrite the frozen harness the other is executing from. Released on exit; a lock left by a dead pid
-# is reclaimed rather than becoming permanent.
+# AN ATOMIC LOCK, acquired before anything in $OUT is touched.
+#
+# The first version tested for the file, read a pid, checked kill -0 and THEN wrote -- check-then-act,
+# with a window between every step. An independent repro put a barrier immediately before the write and
+# both producers sailed through into the protected region: one exited 0, one exited 1, and a single
+# MANIFEST ended up with two conflicting row 01 entries, ok/ok and fail/fail.
+#
+# flock(2) on an open descriptor has no such window: the kernel grants it to exactly one holder. Three
+# details matter and each is deliberate:
+#   * the file is opened with >> so acquiring it never truncates a lock file another producer is using;
+#   * it is NEVER unlinked -- flock is held on the INODE, so removing the path while a second producer
+#     has it open would let both hold "the lock" on different inodes. A stale FILE is harmless: with no
+#     holder the next flock simply succeeds, which is also why no pid-liveness logic is needed;
+#   * release is the kernel closing fd 9 when this process dies, by any means, including SIGKILL.
 LOCK="$OUT/.producer.lock"
-if [ -e "$LOCK" ]; then
-  other=$(cat "$LOCK" 2>/dev/null)
-  case "$other" in ''|*[!0-9]*) echo "REFUSING: $LOCK is unreadable; remove it if no run is in progress" >&2; exit 3;; esac
-  if kill -0 "$other" 2>/dev/null; then
-    echo "REFUSING: pid $other is already producing into $OUT." >&2
-    echo "Two runs sharing an output directory truncate each other's BUILD and MANIFEST." >&2
-    exit 3
-  fi
-  echo "note: reclaiming a stale lock from dead pid $other"
+command -v flock >/dev/null 2>&1 || { echo "REFUSING: flock is required to serialise producers" >&2; exit 3; }
+exec 9>>"$LOCK" || { echo "REFUSING: cannot open the lock $LOCK" >&2; exit 3; }
+if ! flock -n 9; then
+  echo "REFUSING: another producer already holds $LOCK." >&2
+  echo "Nothing in $OUT has been read, written or truncated." >&2
+  exit 3
 fi
-echo $$ > "$LOCK" || { echo "REFUSING: cannot take the lock $LOCK" >&2; exit 3; }
-trap 'rm -f "$LOCK"' EXIT
+printf 'pid %s acquired %s\n' "$$" "$(date -Is)" >&9
 : > "$OUT/BUILD"
 # Binary identity is established by build-identity.sh, which pulls the installed APK to a seekable file
 # and checks every step. The inline pipeline that used to live here recorded the SHA256 of ZERO BYTES as
