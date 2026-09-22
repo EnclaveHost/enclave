@@ -265,6 +265,125 @@ export class Host {
   }
 
   /**
+   * An owner resized the deployment on-chain (setShares). Honour it, or hand the lease back.
+   *
+   * The ledger starts billing the new shares at once, so the only two honest outcomes are to serve
+   * them or to stop serving. What each axis means HERE:
+   *
+   *   cpu  an admission and billing figure. An app in this enclave is interpreted bytecode on the
+   *        enclave's own threads - there is no cgroup to widen - so a CPU resize changes what the
+   *        box has left to sell and what this tenant pays, not a slice anyone can feel. Said
+   *        plainly rather than implied by silence.
+   *   gpu  real, and it gates the model: the card share rides into VTL1 as ENCLAVE_GPU_MILLI and
+   *        the runtime refuses `generate` without it. It is read when the app is opened, so a
+   *        change means a restart in place.
+   *
+   * A resize this box cannot fit is not an error to retry: the lease goes back so a box that does
+   * fit can take it.
+   */
+  async #applyShareResize(id, d, rec) {
+    const cpu = Number(d.cpuMilli) / 1000, gpu = Number(d.gpuMilli) / 1000;
+    const wasCpu = Number(rec?.servedCpuShare), wasGpu = Number(rec?.servedGpuShare);
+    if (!Number.isFinite(wasCpu) || !Number.isFinite(wasGpu)) {
+      // First sight of this deployment under the watch: adopt what it is, without a restart.
+      this.#record(id, { servedCpuShare: cpu, servedGpuShare: gpu });
+      return;
+    }
+    if (cpu === wasCpu && gpu === wasGpu) return;
+    // Does the new size still fit BESIDE the others? Its own old share is excluded, or a tenant
+    // growing from 10% to 20% is measured against a box that still counts their first 10%.
+    const cap = this.capacity({ exclude: id });
+    if (cpu > cap.cpuShareFree + 1e-9) {
+      return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node and this box has`
+        + ` ${Math.round(cap.cpuShareFree * 100)}% left; handing the lease back so a box that fits can take it`);
+    }
+    if (gpu > 0 && gpu > (cap.gpuShareFree ?? 0) + 1e-9) {
+      return await this.#giveUp(id, `it was resized to ${Math.round(gpu * 100)}% of this box's card and`
+        + ` ${Math.round((cap.gpuShareFree ?? 0) * 100)}% of it is left; handing the lease back`);
+    }
+    this.#record(id, { servedCpuShare: cpu, servedGpuShare: gpu });
+    if (gpu !== wasGpu) {
+      this.log(`resize ${id.slice(0, 10)}: card share ${Math.round(wasGpu * 100)}% -> ${Math.round(gpu * 100)}%,`
+        + ` relaunching in place so the enclave sees it`);
+      await this.ensureApp(id, d, { force: true });
+      return;
+    }
+    this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}%`
+      + ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`);
+  }
+
+  /**
+   * Act on the verdict: stamp, swap the rules live, or relaunch on the new configuration.
+   *
+   * The restart is IN PLACE and deliberate: the lease, the slot and the certificate are all kept,
+   * so what the tenant sees is their app coming back on the configuration they just signed, not a
+   * re-placement. An envelope that does not parse leaves the running app exactly as it is.
+   */
+  async #applyEnvelopeEdit(id, d) {
+    const rec = this.records.get(id);
+    const cur = String(d?.configCid || "");
+    const verdict = this.envelopeVerdict(rec, cur);
+    if (verdict === "skip") return;
+    if (verdict === "stamp") { this.#record(id, { envelope: cur }); return; }
+    if (verdict === "error") {
+      let why = "it does not parse";
+      try { chain.parseEnvelope(cur, d.gpuMilli); } catch (e) { why = e.message; }
+      // Recorded once, not every 30 seconds: a bad edit is a standing fact about the row.
+      if (rec.reason !== `the owner's last options edit was not applied: ${why}`)
+        this.log(`config edit ${id.slice(0, 10)} NOT applied (the running app keeps its old configuration): ${why}`);
+      this.#record(id, { reason: `the owner's last options edit was not applied: ${why}` });
+      return;
+    }
+    let opts = {};
+    try { opts = chain.parseEnvelope(cur, d.gpuMilli); } catch { return; }
+    if (verdict === "waf") {
+      this.#record(id, { envelope: cur, waf: opts.waf || null });
+      waf.forget(id);                          // new rules, new counters: an old bucket is not the owner's intent
+      this.log(`config edit ${id.slice(0, 10)}: protection rules swapped live, no restart`);
+      return;
+    }
+    // "restart": the app's own configuration changed.
+    this.#record(id, { envelope: cur, waf: opts.waf || null });
+    waf.forget(id);
+    this.log(`config edit ${id.slice(0, 10)}: the app's configuration changed, relaunching it in place`);
+    await this.ensureApp(id, d, { force: true });
+  }
+
+  /**
+   * An owner edited the deployment's options envelope on-chain (setConfig). Does the SERVING app
+   * re-apply, and how?
+   *
+   * MIRRORED FROM THE PLATFORM RUNNER (supervisor.js envelopeEditVerdict) and checked against its
+   * own self-test seam. The envelope is mutable on the ledger but was only ever read when the
+   * lease was claimed; this is what makes an edit reach an app that is already running.
+   *
+   *   "skip"    nothing changed, or this is not a record we serve
+   *   "stamp"   a record from before this watch existed: adopt the current value WITHOUT a
+   *             restart, because rolling the feature out must not restart every tenant
+   *   "waf"     only the protection rules changed: swap them live, no restart
+   *   "restart" the app's configuration changed: relaunch it on the new ENCLAVE_CONFIG
+   *   "error"   the new envelope does not parse under THIS build's rules: keep the old
+   *             configuration serving and say why. The claim gate's fail-closed refusal cannot
+   *             apply to something already running - tearing a tenant down because their NEXT
+   *             edit was invalid would punish them for a typo.
+   */
+  envelopeVerdict(rec, chainCid) {
+    if (!rec || rec.status !== "running") return "skip";
+    const cur = String(chainCid || "");
+    if (rec.envelope == null) return "stamp";
+    if (rec.envelope === cur) return "skip";
+    let oldO = {}, newO;
+    try { oldO = chain.parseEnvelope(rec.envelope); } catch { /* a stale unparsable stamp reads as no options */ }
+    try { newO = chain.parseEnvelope(cur); } catch { return "error"; }
+    // "config absent" (use the version's) and "config: {}" (explicitly empty) are different owner
+    // intents, so null and "{}" stay distinct. The CID rides the same key: repointing it at a
+    // different pinned document is a config change even when the inline part is byte-identical.
+    const cfg = (o) => (o.config !== undefined || o.configCid)
+      ? JSON.stringify([o.configCid || "", o.config !== undefined ? o.config : null]) : null;
+    return cfg(newO) === cfg(oldO) ? "waf" : "restart";
+  }
+
+  /**
    * The deployment's relay-stored secrets, fetched as its lease holder and kept in memory.
    *
    * This is the one thing on this box that the app gets and the operator does not: the values go
@@ -338,7 +457,7 @@ export class Host {
     } catch {}
     // The owner's protection rules, kept beside the lease so every request can be checked against
     // them without re-parsing the envelope. claimPolicy already refused anything unreadable.
-    this.#record(id, { waf: wafRules });
+    this.#record(id, { waf: wafRules, envelope: String(d?.configCid || "") });
     gpuSoft = gpuSoft || chain.gpuOptionalOfConfig(v && v.config);
     // Bought the card, but built for a world that cannot reach it. The model in this enclave is
     // offered through the enclave:app world's `generate` and nowhere else: a wasi:http or wasi:cli
@@ -631,6 +750,14 @@ export class Host {
       }
       this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6),
                          cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000 });
+      // THE OWNER'S EDIT, reaching an app that is already running. The envelope is mutable on the
+      // ledger (setConfig) and used to be read only at claim time, so an owner who changed their
+      // app's configuration or its protection rules saw nothing happen until the lease turned over.
+      await this.#applyEnvelopeEdit(id, d).catch((e) => this.log(`config edit ${id.slice(0, 10)}: ${e.message}`));
+      // ...and the owner's RESIZE (setShares), which the ledger bills from immediately. A box that
+      // billed the new share while serving the old one would be charging for something it is not
+      // doing, which is why the fleet AND-folds this before a client will even send the tx.
+      await this.#applyShareResize(id, d, rec).catch((e) => this.log(`resize ${id.slice(0, 10)}: ${e.message}`));
       const app = this.apps.get(id);
       if (!app || app.state !== "running") await this.ensureApp(id, d);
     }
@@ -705,9 +832,11 @@ export class Host {
   // ---- the surface the relay and the console call, over the tunnel -------------------------
   deployments() { return [...this.records.values()].map((r) => ({ ...r })); }
   /** The node pool this box has left, as a fraction: what the relay's placement reads. */
-  cpuShareFree() {
+  cpuShareFree({ exclude = null } = {}) {
     if (!this.cfg.appsEnabled) return 0;
-    const used = [...this.records.values()].filter((r) => r.status === "running").reduce((a, r) => a + (r.cpuShare || 0), 0);
+    const used = [...this.records.values()].filter((r) => r.status === "running")
+      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
+      .reduce((a, r) => a + (r.cpuShare || 0), 0);
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
   }
   /**
@@ -719,11 +848,13 @@ export class Host {
    * card facts arrive from the agent (shieldedcard.mjs asks the worker), so a box whose worker is
    * down sells nothing rather than selling from memory.
    */
-  gpuShareFree() {
+  gpuShareFree({ exclude = null } = {}) {
     if (!this.cfg.appsEnabled) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
-    const sold = [...this.records.values()].filter((r) => r.status === "running").reduce((a, r) => a + (r.gpuShare || 0), 0);
+    const sold = [...this.records.values()].filter((r) => r.status === "running")
+      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
+      .reduce((a, r) => a + (r.gpuShare || 0), 0);
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
     return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0));
   }
@@ -736,8 +867,11 @@ export class Host {
   capacity({ exclude = null } = {}) {
     const slots = this.cfg.appSlots ?? 4;
     // `exclude` is how a deployment is sized against the room it would leave BESIDE the others
-    // rather than beside itself: a restart re-reads a record that already carries its own floor,
-    // and counting that twice refuses an app for asking for the memory it already had.
+    // rather than beside itself, and it applies to EVERY axis - memory, node share and card share.
+    // Two things need it: a restart re-reads a record that already carries its own floor, and a
+    // RESIZE measures a tenant growing from 10% to 20% against a box that would otherwise still be
+    // counting their first 10%. Either way, counting a deployment against itself refuses it for
+    // asking for what it already has.
     const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning")
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase());
     const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
@@ -778,14 +912,14 @@ export class Host {
       : hostMb;
     const ramMb = Math.max(0, budgetMb - committedMb);
     const card = this.card && this.card();
-    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
+    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree({ exclude }),
              ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
              // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
              // is a refusal, not a capacity.
              ramMeasured: !this.appsInTee() || measured !== null,
              cpuGflops: Number(this.cfg.gflops) || 0,
              // The card, in the same shape: what a GPU-dialled deployment is checked against.
-             gpuShareFree: this.gpuShareFree(), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
+             gpuShareFree: this.gpuShareFree({ exclude }), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
   }
   /**
    * Does an app this box hosts run INSIDE the enclave?
@@ -935,7 +1069,14 @@ export class Host {
       // false: that one is the PUBLISHER's split, a field of the catalog version record, and this
       // box's catalog reader does not read it.
       configCid: false, configCidOverride: true,
-      configEdit: false, shareResize: false,    // a live edit or resize lands on-chain and applies at re-claim, not in place
+      // An owner's setConfig reaches a LIVE deployment: the protection rules swap in place and a
+      // config change relaunches the app on the new value (envelopeVerdict, mirrored from the
+      // platform runner and checked against its own self-test seam).
+      configEdit: true,
+      // ...and setShares does too: the card half really re-slices (it gates the model in VTL1), the
+      // node half is an admission and billing figure on this box, and a resize that no longer fits
+      // hands the lease back rather than billing for a size it is not serving.
+      shareResize: true,
       customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>
       devDeploy: false,       // pending catalog versions stay refused, public or not
       // The wasm features, READ OFF THE ENCLAVE (the runtime's own ee_rt_features, carried out
