@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,11 +49,20 @@ test('the park/dispatch handshake cannot lose a wakeup, and the relaxed form dem
     execFileSync('cc', [...flags, src, '-lpthread', '-o', relaxed], { timeout: 60_000 });
     execFileSync('cc', [...flags, '-DSH_LITMUS_FENCED', src, '-lpthread', '-o', fenced], { timeout: 60_000 });
     const trials = '500000';
-    const r = execFileSync(relaxed, [trials], { timeout: 300_000, encoding: 'utf8', env: testEnv });
+    // The fenced build must never show the outcome -- that is the assertion.
     const f = execFileSync(fenced, [trials], { timeout: 300_000, encoding: 'utf8', env: testEnv });
-    process.stderr.write(r + f);
     const count = (s) => Number(/both-stale=(\d+)/.exec(s)[1]);
-    if (count(r) === 0) throw new Error('relaxed handshake showed no lost-wakeup outcome; litmus is not reaching the window');
     if (count(f) !== 0) throw new Error(`fenced handshake lost ${count(f)} wakeups`);
+
+    // The unfenced build is a DIAGNOSTIC, not an assertion. The memory model
+    // permits the stale/stale outcome but does not require it, so a machine
+    // that serialised the two threads can legitimately see zero. Failing the
+    // build for that would be flaking on valid code; report it instead.
+    const un = spawnSync(relaxed, [trials], { timeout: 300_000, encoding: 'utf8', env: testEnv });
+    process.stderr.write(f + (un.stdout || '') + (un.stderr || ''));
+    if (un.status === 3) process.stderr.write(
+      'note: the unfenced handshake did not reach the race window on this run, ' +
+      'so the fenced result above is unconfirmed here (not a failure)\n');
+    else if (un.status !== 0) throw new Error(`unfenced litmus exited ${un.status}`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

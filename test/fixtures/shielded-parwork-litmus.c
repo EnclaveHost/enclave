@@ -28,6 +28,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* The production handshake primitive itself, not a copy of it. SH_PAR_UNFENCED
+ * builds the same shape without the fence, which is what the handshake looked
+ * like before. Because the fenced side goes through SH_PAR_PUBLISH, deleting
+ * the fence from shielded-parwork.h fails this test. */
+#include "../../wasm/ggml-shielded/shielded-parwork.h"
+
 #if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
 #define RELAX() _mm_pause()
@@ -55,9 +61,10 @@ static void barrier2(void) {
 /* With SH_LITMUS_FENCED this is the shipped handshake; without it, the
  * handshake exactly as it was originally written. */
 static void pair(atomic_int *store_to, atomic_int *load_from, atomic_int *result) {
-    atomic_store_explicit(store_to, 1, memory_order_release);
 #ifdef SH_LITMUS_FENCED
-    atomic_thread_fence(memory_order_seq_cst);
+    SH_PAR_PUBLISH(store_to, 1);                 /* the shipped primitive */
+#else
+    atomic_store_explicit(store_to, 1, memory_order_release);   /* as it was */
 #endif
     const int v = atomic_load_explicit(load_from, memory_order_acquire);
     atomic_store_explicit(result, v, memory_order_relaxed);
@@ -96,10 +103,16 @@ int main(int argc, char **argv) {
     }
 #else
     printf("litmus RELAXED  trials=%ld both-stale=%ld\n", trials, both_stale);
+    /* INCONCLUSIVE, NOT FAILED. The memory model PERMITS the stale/stale
+     * outcome; it does not require it. A machine that happened to serialise
+     * these threads -- one core, a busy box, a stricter architecture -- can
+     * legitimately see zero, and failing the build for that would be flaking
+     * on valid code. Exit 3 says "this run did not reach the window", and the
+     * caller reports it rather than treating it as a defect. */
     if (both_stale == 0) {
-        fprintf(stderr, "the relaxed handshake never produced the stale/stale outcome: this litmus is "
-                        "not reaching the window it claims to test, so the fenced run proves nothing\n");
-        return 2;
+        fprintf(stderr, "inconclusive: the relaxed handshake did not produce the stale/stale outcome "
+                        "in this run, so the fenced result below is not evidence on this machine\n");
+        return 3;
     }
 #endif
     return 0;

@@ -91,20 +91,10 @@ static void *sh_par_main(void *arg) {
              * mutex each time to wake a thread that is already spinning costs
              * more than the work being handed to it. */
             pthread_mutex_lock(&w->mu);
-            atomic_store_explicit(&w->parked, 1, memory_order_release);
-            /* SEE THE MATCHING FENCE IN sh_par_for.
-             *
-             * This thread stores `parked` then reads `gen`; the dispatcher
-             * stores `gen` then reads `parked`. Release/acquire on two
-             * DIFFERENT atomics orders nothing between them, so without these
-             * fences both sides may read the stale value -- the dispatcher
-             * sees parked == 0 and does not signal, this thread sees the old
-             * gen and waits. The mutex does not close it either, because the
-             * dispatcher only takes the mutex AFTER deciding `parked` was
-             * true. Two seq_cst fences put these four operations into one
-             * total order, and at least one side must then observe the
-             * other's store. */
-            atomic_thread_fence(memory_order_seq_cst);
+            /* Store parked, then fence: see SH_PAR_PUBLISH. The mutex does
+             * not close this window, because the dispatcher only takes it
+             * AFTER it has decided parked was true. */
+            SH_PAR_PUBLISH(&w->parked, 1);
             while (!atomic_load_explicit(&w->stop, memory_order_acquire) &&
                    atomic_load_explicit(&w->gen, memory_order_acquire) == seen) {
                 /* Bounded purely as defence in depth: the fences above are
@@ -197,12 +187,9 @@ void sh_par_for(int64_t n, int64_t min_chunk, sh_par_fn fn, void *ctx) {
         sh_par_worker *w = g_pool.w[i];
         w->fn = fn; w->ctx = ctx; w->lo = lo; w->hi = hi;
         want[i] = atomic_load_explicit(&w->gen, memory_order_relaxed) + 1;
-        atomic_store_explicit(&w->gen, want[i], memory_order_release);
-        /* The other half of the handshake described in sh_par_main: without
-         * this fence the store above and the load below can both be reordered
-         * against the worker's pair, and a wakeup is lost. One mfence per
-         * helper per dispatch, against work measured in microseconds. */
-        atomic_thread_fence(memory_order_seq_cst);
+        /* The other half of the handshake: see SH_PAR_PUBLISH. One mfence
+         * per helper per dispatch, against work measured in microseconds. */
+        SH_PAR_PUBLISH(&w->gen, want[i]);
         if (atomic_load_explicit(&w->parked, memory_order_acquire)) {
             pthread_mutex_lock(&w->mu); pthread_cond_signal(&w->cv); pthread_mutex_unlock(&w->mu);
         }
