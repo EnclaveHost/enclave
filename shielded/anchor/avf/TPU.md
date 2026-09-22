@@ -1775,3 +1775,52 @@ So the comparison needs a matching pair, which is one of: the v35 runtime source
 against this tree (the ODC bucket build, which is not cheap), or a prebuilt runner of the right vintage.
 None of those is a phone measurement, and none of them changes throughput -- this is quality evidence.
 It stays outstanding, with the blocker now named precisely rather than as "no runner".
+
+## What a TPU invocation actually costs, measured again (2026-09-22)
+
+An audit pointed out that the runtime penalty I attributed to the two-FC recombination was a MODEL --
+the 1.97x compiled size is measured, the time it costs was not. So it is measured now.
+`a8w4/sweep_dispatch.py` builds eight FULLY_CONNECTEDs differing only in weight count, spanning 128x,
+and the worker benches all eight in one run. All seven graphs were AOT-compiled with the shipped
+known-good layer compiling as a control in the same session (36402704 bytes).
+
+| signature | compiled weights | min ms/Run | mean |
+|---|---|---|---|
+| L0.qkv | 0.39 MB | 0.37 | 1.04 |
+| L0.o | 0.79 | 0.73 | 1.06 |
+| L0.gu | 1.57 | 0.56 | 1.27 |
+| L0.down | 3.15 | 0.79 | 1.76 |
+| L6.qkv | 6.29 | 0.79 | 1.88 |
+| L6.o | 12.58 | 1.68 | 2.57 |
+| L6.gu | 25.17 | 3.23 | 3.62 |
+| L6.down | 50.33 | 4.51 | 5.32 |
+
+    min  : 0.520 ms fixed + 0.0848 ms/MB   (largest residual 0.58 ms)
+    mean : 1.253 ms fixed + 0.0847 ms/MB   (largest residual 0.26 ms)
+
+**The slope is the same to three digits either way**, which is the part worth trusting: a streamed
+megabyte costs 0.085 ms whatever the intercept argument is. That settles the question the script's own
+header posed -- whether bytes or invocations dominate -- in favour of BYTES at this model's size: the
+shipped lane streams about 1872 MB of compiled graphs per token, which is 159 ms, against 140 x 0.52 =
+73 ms of fixed invocation cost. Together 232 ms against the 273 ms of `tpu-run` actually measured during
+decode, so the fit accounts for 85 % of it.
+
+It also revises the earlier figure. This file has been quoting 0.637 ms + 0.0677 ms/MB; the intercept is
+lower and the slope higher than that.
+
+### And it corrects my own claim about the recombination, by a factor of seven
+
+I wrote that doubling the compiled graph "adds about 273 ms per token to `tpu-run`, to save about 65 ms
+of reply bytes. Strictly worse, by a factor of four." That assumed `tpu-run` doubles. It does not, because
+only part of a Run is bytes:
+
+| | compiled per signature | ms/exchange |
+|---|---|---|
+| shipped stacked | 9.10 MB | 1.29 |
+| two-FC combine | 17.98 MB | 2.04 |
+| **difference** | | **0.75 ms/exchange = 105 ms/token** |
+
+Against a reply saving of about 65 ms, the two-FC construction is worse by about **40 ms per token**, not
+by 273. The conclusion is unchanged -- it is still a net loss and still should not be built -- but the
+margin is small enough that it was never the rout I described, and anyone reading the old number would
+have dismissed the construction for the wrong reason. The audit was right to call it a model.
