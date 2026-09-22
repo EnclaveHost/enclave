@@ -2145,3 +2145,73 @@ it is ~3.6 ms per pass of dead time. Enabling it makes verification fail on
 the first pass ("the worker lied or the field wrapped"), with AND without the
 column split. So the ring+overlap path has never worked, the gate is what has
 been hiding it, and the comment now says so.
+
+### 16.9 A third card does not pay, and a warning about the measurements
+
+The RTX 3070 in this box runs the worker (sm_86, 2153 G-MAC/s on the masked
+path against ~2500 for a V100), so a three-card column split is buildable:
+shares proportional to bandwidth, 45/45/10, the 3070 holding ~2.2 GB of
+slices. It is CORRECT -- verification passes and the text is identical -- and
+it does not pay. Alternating with the two-card build on an idle box:
+
+| cards | plain tok/s | speculative k=1 tok/s |
+|---|---|---|
+| **2 (both V100s)** | 17.20 / 16.77 / 16.91 | **18.71 / 19.95 / 17.60** |
+| 3 (+ the desktop's 3070) | 17.88 / 16.88 | 17.36 / 18.41 |
+
+The reason is 16.8's last paragraph: about 10.6 ms of each pass is per-exchange
+launch and synchronize, and an exchange is not done until the SLOWEST card
+answers. A third card cuts the streaming term by ~2.4 ms and adds a third link
+to wait on, and on this hardware those cancel. More cards only pay while the
+streaming term still dominates the launch term, which on two V100s it no
+longer does.
+
+**A warning about every number in this section.** Partway through, two
+benchmark processes were running at once -- a queue chained off an earlier
+one that had already been restarted by hand -- and the load average sat at
+12 on a 16-core box. That stretch produced a 19.64 tok/s three-card figure and
+a 13.1 tok/s two-card figure in the same hour, neither of them real. Every
+comparison quoted here was re-taken with a single benchmark on an idle box and
+a process-tree kill (`kill-tree.sh`) that stops a queue AND its runner without
+touching another. The spread that remains is still about +-1.2 tok/s run to
+run, which is why the tables give every rep rather than a mean.
+
+### 16.10 Where it landed, and what 20 tok/s would still take
+
+Nine clean two-card reps of the shipped configuration (column split, recurrent
+state aliased and updated in place, graph cache 2048, 8 decode threads, k=1),
+one benchmark at a time on an idle box, every run output-verified:
+
+| | min | median | max |
+|---|---|---|---|
+| plain decode | 15.78 | **16.77** | 17.20 |
+| speculative k=1 | 16.33 | **17.60** | **19.95** |
+
+Against 12.85 / 14.05 at the start of the day, that is +31% plain and +25%
+speculative at the median. The best single run touches 20; the median does
+not, and the run-to-run spread is 3.6 tok/s on the speculative number, so
+**the honest figure is 17.6 tok/s with a 19.95 peak, not 20.**
+
+For context, 16.7's unmasked baseline on the same two cards is 30.36 tok/s, so
+the shielding now costs 1.72x at the median where it cost 2.16x this morning.
+
+What is left, priced from the `W + C` decomposition in 16.6 (per-pass 23.4 ms,
+per-token 35.0 ms):
+
+- **A narrower weight lane.** 15.5 priced int6 with an integer scale per
+  32-block at 0.8125 bytes/weight against the present 1.0625, for 1.6x the
+  encoding error. That is 24% off the 12.7 ms streaming term: about -3 ms,
+  or +5%. It means a new packed format in `sh_prepare_weight_rows`, the CUDA
+  kernel's weight load, the AVX-512 refill and the local fallback -- invasive
+  changes to the code that carries the confidentiality guarantee.
+- **The worker's reply copy.** Every reply is `memcpy`d from pinned staging
+  into the shm ring (`service_ring`). At ~14 MB of replies per pass that is
+  ~1.2 ms, about +2%. Registering the ring with `cudaHostRegister` and letting
+  the graph's D2H land in it directly would remove it.
+
+Together those are about +7%, which puts the MEDIAN at 20 and leaves the
+distribution straddling it. Everything cheaper has been tried and is in 16.8.
+**On this pair of V100s, 20 tok/s is the edge of what the design reaches, not
+a comfortable operating point** -- and unlike 15.6, that is now a statement
+about a measured 23.4 ms/pass GPU term and a 35 ms/token CPU term, not about
+card bandwidth.
