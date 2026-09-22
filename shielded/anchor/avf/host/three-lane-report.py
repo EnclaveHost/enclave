@@ -155,9 +155,12 @@ def main():
                 sys.exit("REFUSING: row %s of the %s run asked\n  %r\nbut row %s of %s is\n  %r\n"
                          "An answer cannot be scored against a question it was not asked."
                          % (r["id"], label, r["prompt"], r["id"], PF, q))
-            if r["expect"] and r["expect"] != contract:
-                sys.exit("REFUSING: row %s of the %s run was produced under the contract %r, but %s now "
-                         "says %r for the same question." % (r["id"], label, r["expect"], PF, contract))
+            # EXACT equality, empty included. "if r['expect'] and ..." let a real row with a BLANK recorded
+            # contract skip the check entirely, so it was then scored against whatever the prompts file
+            # says -- a row that recorded no contract cannot be shown to have been produced under this one.
+            if r["expect"] != contract:
+                sys.exit("REFUSING: row %s of the %s run was produced under the contract %r, but %s says "
+                         "%r for the same question." % (r["id"], label, r["expect"], PF, contract))
 
     for name, d in (("masked + CPU", MD), ("google NPU", GD)):
         b = read(os.path.join(d, "BUILD"))

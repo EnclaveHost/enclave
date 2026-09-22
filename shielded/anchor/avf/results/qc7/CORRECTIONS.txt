@@ -1,0 +1,19 @@
+CORRECTIONS to this directory's PROVENANCE.txt -- added 2026-09-22, AFTER the run and after
+MANIFEST.sha256 was written. This file is deliberately NOT covered by MANIFEST.sha256, and nothing
+listed in the manifest has been changed: the logs, the manifest and PROVENANCE.txt are exactly as
+produced and still match their digests.
+
+1. PROVENANCE.txt says "NOTHING hit the cap: the most any row used was 59."
+   WRONG. 59 was the maximum over the rows checked while the run was still going. From the logs here:
+     row 22 cpu 149, row 22 tpu 127, row 23 tpu 80, row 23 cpu 80, row 06 cpu 59.
+   The maximum is 149. The 256 cap still did not bind; the headroom was about 1.7x, not 4.5x.
+
+2. The "verify ... bad=" counter in the TPU logs is a numerical diagnostic, not an integrity failure.
+   7 rows show disagreements: 13 in 141,450 sampled comparisons, each at most 1 digit LSB, all on the lo
+   digit, worst effect on a decoded value 0.01 output LSB -- inside the tolerance established in
+   TPU.md, "The backend deviation, MEASURED on the deployed kernel". It samples one element per projection
+   per exchange and says nothing about unsampled products; protection against an untrusted worker rests
+   on the masking and the bounded repair, not on this counter.
+
+Unchanged: the mixed-harness caveat in PROVENANCE-NOTE-mixed-harness.txt, and that a 24-prompt quality
+result does not bear on the 15 tok/s requirement.
