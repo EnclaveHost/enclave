@@ -73,8 +73,11 @@ export class Host {
     /// change and finishes after it is discarded rather than stored: the name is not ours now.
     this.domainGen = new Map();
     this.hostCerts = new Map();      // hostname -> { cert, ctx }
-    this.certReports = new Map();    // hostname -> { ok, error?, message?, at }
-    this.domainFails = new Map();    // hostname -> retry-after epoch ms
+    // Both carry their OWNER, for the same reason hostCerts does: they are keyed by hostname
+    // across the whole box, but what they are ABOUT is a (deployment, hostname) pair. A name that
+    // moves takes neither the previous owner's backoff nor their pending report with it.
+    this.certReports = new Map();    // hostname -> { owner, ok, error?, message?, at }
+    this.domainFails = new Map();    // hostname -> { owner, until } retry-after epoch ms
     this.appCertInflight = new Set();
     // Work this box GAVE BACK, and why. It survives a restart on purpose: a claim costs gas and a
     // lease takes a deployment off the market, so a box that has already found out it cannot run
@@ -1277,18 +1280,30 @@ export class Host {
     // `forLaunch` is the cold-start call, made while the record is still "provisioning": the names
     // have to be known BEFORE the environment is built, or the guest starts without them.
     if (!rec || (!forLaunch && rec.status !== "running")) return;
+    // Lower-cased once, as #certifyHost and forgetDomains already do: the index is written through
+    // #setOwner, which normalises, so comparing a raw id against it is a bug waiting for the first
+    // mixed-case deployment id to arrive.
+    const key = String(id).toLowerCase();
     const previous = this.domains.get(id) || [];
     // What to tell the customer about names that did not get a certificate. This is the only way
     // somebody learns a CA refused their domain, so it rides on the next fetch and is cleared only
     // once the relay has taken it.
     const report = [];
-    for (const h of previous) { const r = this.certReports.get(h); if (r) report.push({ hostname: h, ...r }); }
+    for (const h of previous) {
+      const r = this.certReports.get(h);
+      // OURS only. The map is keyed by hostname, so a report found under a name this deployment
+      // now holds may still be the PREVIOUS owner's account of why their certificate was refused -
+      // and that is their CA's message about their DNS, delivered to somebody else's customer.
+      if (!r || r.owner !== key) continue;
+      const { owner, ...rest } = r;
+      report.push({ hostname: h, ...rest });
+    }
     let r;
     try {
       r = await fetchDomains({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
                                base: this.cfg.relayBase, previous, report, log: (m) => this.log(m) });
     } catch (e) { this.log(`domains ${id.slice(0, 10)}: ${e.message}`); return; }
-    for (const h of r.delivered) this.certReports.delete(h);
+    for (const h of r.delivered) if (this.certReports.get(h)?.owner === key) this.certReports.delete(h);
     if (r.source === "kept" && r.why && rec.domainWhy !== r.why) {
       this.log(`domains ${id.slice(0, 10)}: ${r.why}; keeping the ${previous.length} name(s) already known`);
       this.#record(id, { domainWhy: r.why });
@@ -1303,7 +1318,7 @@ export class Host {
     // A cache must never override newer knowledge.
     if (r.source === "relay" || r.source === "none") {
       for (const h of r.hosts) this.#setOwner(h, id);
-      for (const h of previous) if (!r.hosts.includes(h) && this.domainOwner.get(h) === id) this.#setOwner(h, null);
+      for (const h of previous) if (!r.hosts.includes(h) && this.domainOwner.get(h) === key) this.#setOwner(h, null);
     }
     if (before !== r.hosts.join(",")) {
       // A name that has gone away stops being served AND stops being certified: its key is dropped
@@ -1312,9 +1327,11 @@ export class Host {
         if (r.hosts.includes(h)) continue;
         // Same rule as forgetDomains: a detached name whose certificate now belongs to another
         // deployment is not ours to delete.
-        if (this.hostCerts.get(h)?.owner === id) this.hostCerts.delete(h);
-        if (this.domainOwner.get(h) === id) this.certReports.delete(h);
-        this.domainFails.delete(h);
+        if (this.hostCerts.get(h)?.owner === key) this.hostCerts.delete(h);
+        // Ours to drop only if it IS ours: by now the name may already have been taken by another
+        // deployment, whose first attempt must not inherit this one's silence.
+        if (this.certReports.get(h)?.owner === key) this.certReports.delete(h);
+        if (this.domainFails.get(h)?.owner === key) this.domainFails.delete(h);
       }
       this.log(`domains ${id.slice(0, 10)}: ${r.hosts.length ? r.hosts.join(", ") : "no custom domains"}`);
       this.#record(id, { domains: r.hosts, domainWhy: null });
@@ -1322,7 +1339,7 @@ export class Host {
     // Certificates only for names this box currently believes are OURS. On a kept answer that is
     // whatever the index says, which may be nothing - and asking a CA to certify a name another
     // deployment now holds is the very thing the index exists to prevent.
-    for (const h of r.hosts) if (this.domainOwner.get(h) === id) await this.#certifyHost(id, h);
+    for (const h of r.hosts) if (this.domainOwner.get(h) === key) await this.#certifyHost(id, h);
   }
 
   /**
@@ -1352,12 +1369,14 @@ export class Host {
     // and the cached entry still said A, so nobody could serve the name at all.
     if (have?.cert && have.owner === key
         && new Date(have.cert.notAfter).getTime() - Date.now() > 7 * 24 * 3600 * 1000) return;
-    if (have && have.owner !== key) {
-      this.log(`custom domain ${hostname}: moved to ${key.slice(0, 10)}; getting its own certificate`);
-      this.domainFails.delete(hostname);
-    }
+    if (have && have.owner !== key) this.log(`custom domain ${hostname}: moved to ${key.slice(0, 10)}; getting its own certificate`);
+    // A backoff belongs to the deployment that EARNED it. Reading it by hostname alone let one
+    // deployment's rate-limited order suppress another's first attempt ever - and because that
+    // attempt never ran, the previous owner's failure report stayed under the name and went out
+    // to the new owner's customer as though it were about them. Found by the test: B's domain sat
+    // uncertified for the rest of A's hour while the CA would happily have said yes.
     const fail = this.domainFails.get(hostname);
-    if (fail && Date.now() < fail) return;
+    if (fail && fail.owner === key && Date.now() < fail.until) return;
     // Captured BEFORE the await. An ACME order can take minutes and a name can move underneath it.
     const gen = this.domainGen.get(hostname) || 0;
     const stillOurs = () => this.domainGen.get(hostname) === gen && this.domainOwner.get(hostname) === key;
@@ -1381,17 +1400,17 @@ export class Host {
       }
       this.hostCerts.set(hostname, { cert, ctx: tls.createSecureContext({ key: cert.key, cert: cert.cert }),
                                      owner: key });
-      this.certReports.set(hostname, { ok: true, notAfter: cert.notAfter, at: new Date().toISOString() });
+      this.certReports.set(hostname, { owner: key, ok: true, notAfter: cert.notAfter, at: new Date().toISOString() });
       this.domainFails.delete(hostname);
       this.log(`${id.slice(0, 10)} custom domain ready: https://${hostname}/`);
     } catch (e) {
       if (!stillOurs()) return;          // a failure for a name that is no longer ours says nothing
       const wait = Math.max(60, Number(e.retryAfterSec) || 600) * 1000;
-      this.domainFails.set(hostname, Date.now() + wait);
+      this.domainFails.set(hostname, { owner: key, until: Date.now() + wait });
       // Reported to the CUSTOMER, not just logged here: a CA refusing their domain is something
       // only they can fix, and they cannot see this box's logs.
-      this.certReports.set(hostname, { ok: false, error: "issue_failed", message: String(e.message).slice(0, 200),
-                                       at: new Date().toISOString() });
+      this.certReports.set(hostname, { owner: key, ok: false, error: "issue_failed",
+                                       message: String(e.message).slice(0, 200), at: new Date().toISOString() });
       this.log(`custom domain ${hostname}: ${e.message} (retrying in ${Math.round(wait / 1000)}s)`);
     }
   }
