@@ -3265,3 +3265,49 @@ itself is worth recording as fragile: `bench-spec2` loads `libggml-cpu.so` from
 THIS session's scratchpad, whose CMake cache was copied from another session's
 and whose link rule still writes into that other tree -- so `make` in the
 obvious place silently updates the wrong artifact.
+
+### 18.17 The noise floor, and what it forbids
+
+The first concrete change chosen from the C profile was delta-net chunking.
+GATED_DELTA_NET splits nr rows into nth*4 dynamically-scheduled chunks, each
+taken with an atomic; at decode nr is about the head count, so 8 threads get
+~24 chunks of one or two rows. Handing each thread one chunk cuts that to ~8
+atomics (it does NOT remove chunk_set or the barrier inside the op, so any gain
+is only the atomics). The same rows are computed either way, so output must be
+bit-identical -- and was.
+
+Four clean matched pairs, the fifth dropped entire because one arm recorded an
+intruder. Both arms verified from their own artifacts: exit status, refusals,
+local fallback, verify_fail, obs_fail, output equality, and the same workload
+(k=1, prompt 17, 64/64 generated, 43118 offloaded).
+
+| pair | control | chunked | delta |
+|---|---|---|---|
+| 2 | 19.27 | 18.62 | -3.4% |
+| 3 | 18.84 | 19.06 | +1.2% |
+| 4 | 18.97 | 20.29 | +7.0% |
+| 5 | 20.43 | 18.57 | -9.1% |
+
+Two of four favour the change, mean -0.24 tok/s. No effect. REVERTED, with the
+result recorded at the call site so the next person does not retry it.
+
+**The spread is the more useful result.** Paired SD is 1.35 tok/s on a 19 tok/s
+baseline -- 7% -- so what this rig can resolve is:
+
+| effect | paired runs needed | bench time |
+|---|---|---|
+| 2% (0.38 tok/s) | ~50 | 3.3 h |
+| 5% (0.95) | ~8 | 0.5 h |
+| 10% (1.90) | ~2 | 0.1 h |
+
+That is a hard constraint on strategy, not a complaint about noise. The gap to
+25 is 22%. If it had to be assembled from ten 2% improvements, each would cost
+three hours to establish and none could be confirmed in isolation -- and a
+stack of individually-unmeasurable changes is not an engineering result, it is
+a hope. So the path to 25, if there is one, is ONE change worth double digits,
+or a very small number of 5% ones.
+
+Of everything measured this session, exactly one candidate is that size:
+hiding C under the exchange, at 13.25 ms of a 50.23 ms token. Every other item
+found -- the reply check at 0.3%, the join at 5.7%, thread counts, pinning,
+chunking -- is below the floor this rig can even see.
