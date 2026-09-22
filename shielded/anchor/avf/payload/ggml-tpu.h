@@ -40,6 +40,7 @@ double ggml_backend_tpu_mint_bench(int positions, int threads, int scalar); /* m
 void   ggml_backend_tpu_refill_start(int target, int threads); /* keep every bank at `target` pads from background threads */
 void   ggml_backend_tpu_refill_stop(void);
 void   ggml_backend_tpu_window_mint(int target, int chunk);
+void   ggml_backend_tpu_set_logger(void (*sink)(const char *));  /* route TPU_LOG to the relayed channel; stderr is not relayed */
 const char *ggml_backend_tpu_config(void);      /* what this binary does: repair/verify/inject switches, for self-attesting logs */
 void   ggml_backend_tpu_link_buf(uint64_t *before, uint64_t *after);  /* the vsock credit window, before and after widening */
 void   ggml_backend_tpu_ping_bench(int reps);   /* reply-size sweep through the real link, TPU excluded */  /* mint inside the link window: bank target, pads per batch (0 = off) */

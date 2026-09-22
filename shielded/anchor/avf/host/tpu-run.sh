@@ -8,4 +8,4 @@ $ADB logcat -c; $ADB shell "am force-stop $P; sleep 1; input keyevent KEYCODE_WA
 [ "$($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')" -ge 1 ] || { echo "PHONE NOT AWAKE: refusing to measure"; exit 1; }
 $ADB shell "am start -n $P/.Main --es mode local --es vmname ${VMNAME:-anchorlocal} --ei mem ${MEM:-8192} --es model $F/model.gguf --es tpu_graphs $F/${GRAPHS:-tpu/g5} --es tpu_bundle $F/${BUNDLE:-tpu/lanes.etpu} --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48} ${EXTRA:-} --es ask '$ASK' >/dev/null"
 for _ in $(seq 1 240); do sleep 5; $ADB logcat -d -s anchor-host:I | grep -q -E "LOCAL (done|failed)|HOST FAIL|CONTROL closed|VM error|VM stopped" && break; done
-$ADB logcat -d -s anchor-host:I | sed 's/.*anchor-host: //' | grep -E "HOST FAIL|VM (error|stopped)|^TPU|LOCAL (turn [0-9]+ (A:|STATS)|done|failed)|VSOCK LOCAL (tpu|refused)" | cut -c1-${WIDTH:-600}
+$ADB logcat -d -s anchor-host:I | sed 's/.*anchor-host: //' | grep -E "HOST FAIL|VM (error|stopped)|^TPU|LOCAL (turn [0-9]+ (A:|STATS)|done|failed)|VSOCK (LOCAL )?(tpu|refused)" | cut -c1-${WIDTH:-600}
