@@ -1,0 +1,685 @@
+diff --git a/cranelift/codegen/src/isa/pulley_shared/lower.isle b/cranelift/codegen/src/isa/pulley_shared/lower.isle
+index da42381..9e4e7b4 100644
+--- a/cranelift/codegen/src/isa/pulley_shared/lower.isle
++++ b/cranelift/codegen/src/isa/pulley_shared/lower.isle
+@@ -1932,3 +1932,116 @@
+ (rule (lower (sequence_point))
+       (side_effect
+        (pulley_sequence_point)))
++
++;;;; Rules for atomics (the threads proposal) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
++
++;; Pulley had no atomic instructions at all, which is why wasmtime refused the
++;; `threads` proposal for a pulley target before these existed. The opcodes are
++;; in pulley/src/lib.rs and its interpreter, and every one of them is
++;; sequentially consistent - what the wasm threads proposal specifies.
++;;
++;; The address is an `o32` amode: Pulley has no guard pages, so the wasm bounds
++;; check is already lowered separately, and the ALIGNMENT check is emitted by
++;; the wasm frontend before the access (TRAP_HEAP_MISALIGNED). What arrives here
++;; is a plain host address.
++;;
++;; `little_or_native_endian` is the same guard every other backend uses: a
++;; big-endian atomic access has no lowering anywhere, and matching it here would
++;; produce a silently byte-swapped result rather than a clear refusal. The types
++;; are matched literally rather than through riscv64's `valid_atomic_transaction`,
++;; which is that backend's own helper - the four widths ARE the valid set.
++
++(rule (lower (fence)) (side_effect (pulley_xatomic_fence)))
++
++(decl atomic_amode (Value) AddrO32)
++;; `offset32` is an extractor, not a constructor - a CLIF atomic carries no
++;; offset operand anyway, so the address is used as it is.
++(rule (atomic_amode addr) (addro32 addr (i32_to_offset32 0)))
++
++;; ---- atomic_load / atomic_store ----------------------------------------------
++
++(rule (lower (atomic_load $I8 (little_or_native_endian _flags) p))
++  (pulley_xatomic_load8_o32 (atomic_amode p)))
++(rule (lower (atomic_load $I16 (little_or_native_endian _flags) p))
++  (pulley_xatomic_load16le_o32 (atomic_amode p)))
++(rule (lower (atomic_load $I32 (little_or_native_endian _flags) p))
++  (pulley_xatomic_load32le_o32 (atomic_amode p)))
++(rule (lower (atomic_load $I64 (little_or_native_endian _flags) p))
++  (pulley_xatomic_load64le_o32 (atomic_amode p)))
++
++(rule (lower (atomic_store (little_or_native_endian _flags) src @ (value_type $I8) p))
++  (side_effect (pulley_xatomic_store8_o32 (atomic_amode p) src)))
++(rule (lower (atomic_store (little_or_native_endian _flags) src @ (value_type $I16) p))
++  (side_effect (pulley_xatomic_store16le_o32 (atomic_amode p) src)))
++(rule (lower (atomic_store (little_or_native_endian _flags) src @ (value_type $I32) p))
++  (side_effect (pulley_xatomic_store32le_o32 (atomic_amode p) src)))
++(rule (lower (atomic_store (little_or_native_endian _flags) src @ (value_type $I64) p))
++  (side_effect (pulley_xatomic_store64le_o32 (atomic_amode p) src)))
++
++;; ---- atomic_cas --------------------------------------------------------------
++;; Answers the value FOUND, which is what wasm's cmpxchg wants: the guest
++;; compares it itself rather than being told success or failure.
++
++(rule (lower (atomic_cas $I8 (little_or_native_endian _flags) p e x))
++  (pulley_xatomic_cas8_o32 (atomic_amode p) e x))
++(rule (lower (atomic_cas $I16 (little_or_native_endian _flags) p e x))
++  (pulley_xatomic_cas16le_o32 (atomic_amode p) e x))
++(rule (lower (atomic_cas $I32 (little_or_native_endian _flags) p e x))
++  (pulley_xatomic_cas32le_o32 (atomic_amode p) e x))
++(rule (lower (atomic_cas $I64 (little_or_native_endian _flags) p e x))
++  (pulley_xatomic_cas64le_o32 (atomic_amode p) e x))
++
++;; ---- atomic_rmw --------------------------------------------------------------
++;; The six operations wasm has. CLIF also defines nand/umin/umax/smin/smax,
++;; which no wasm guest can emit; they are left without a rule so a caller that
++;; somehow reaches them gets Cranelift's own "should be implemented in ISLE"
++;; rather than a wrong answer.
++
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.Add) p x))
++  (pulley_xatomic_rmw8_add_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.Sub) p x))
++  (pulley_xatomic_rmw8_sub_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.And) p x))
++  (pulley_xatomic_rmw8_and_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.Or) p x))
++  (pulley_xatomic_rmw8_or_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.Xor) p x))
++  (pulley_xatomic_rmw8_xor_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I8 (little_or_native_endian _flags) (AtomicRmwOp.Xchg) p x))
++  (pulley_xatomic_rmw8_xchg_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.Add) p x))
++  (pulley_xatomic_rmw16le_add_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.Sub) p x))
++  (pulley_xatomic_rmw16le_sub_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.And) p x))
++  (pulley_xatomic_rmw16le_and_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.Or) p x))
++  (pulley_xatomic_rmw16le_or_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.Xor) p x))
++  (pulley_xatomic_rmw16le_xor_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I16 (little_or_native_endian _flags) (AtomicRmwOp.Xchg) p x))
++  (pulley_xatomic_rmw16le_xchg_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.Add) p x))
++  (pulley_xatomic_rmw32le_add_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.Sub) p x))
++  (pulley_xatomic_rmw32le_sub_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.And) p x))
++  (pulley_xatomic_rmw32le_and_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.Or) p x))
++  (pulley_xatomic_rmw32le_or_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.Xor) p x))
++  (pulley_xatomic_rmw32le_xor_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I32 (little_or_native_endian _flags) (AtomicRmwOp.Xchg) p x))
++  (pulley_xatomic_rmw32le_xchg_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Add) p x))
++  (pulley_xatomic_rmw64le_add_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Sub) p x))
++  (pulley_xatomic_rmw64le_sub_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.And) p x))
++  (pulley_xatomic_rmw64le_and_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Or) p x))
++  (pulley_xatomic_rmw64le_or_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Xor) p x))
++  (pulley_xatomic_rmw64le_xor_o32 (atomic_amode p) x))
++(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Xchg) p x))
++  (pulley_xatomic_rmw64le_xchg_o32 (atomic_amode p) x))
+diff --git a/crates/wasmtime/src/config.rs b/crates/wasmtime/src/config.rs
+index 98090ec..19c59be 100644
+--- a/crates/wasmtime/src/config.rs
++++ b/crates/wasmtime/src/config.rs
+@@ -2420,12 +2420,25 @@ impl Config {
+         #[cfg(any(feature = "cranelift", feature = "winch"))]
+         match self.compiler_config.as_ref().and_then(|c| c.strategy) {
+             None | Some(Strategy::Cranelift) => {
+-                // Pulley at this time fundamentally doesn't support the
+-                // `threads` proposal, notably shared memory, because Rust can't
+-                // safely implement loads/stores in the face of shared memory.
+-                // Stack switching is not implemented, either.
++                // Pulley now implements the `threads` proposal: the atomic
++                // instructions are in pulley/src/lib.rs and its interpreter, and
++                // the lowerings are in isa/pulley_shared/lower.isle. They exist
++                // because an app that uses threads has to be runnable where
++                // there is nothing to JIT into - inside a VBS enclave.
++                //
++                // Upstream's reason for excluding it was that "Rust can't safely
++                // implement loads/stores in the face of shared memory". Pulley's
++                // ordinary loads and stores already go through RAW POINTERS
++                // rather than Rust slices (`AddressingMode::addr` returns
++                // `*mut T`), so the change is not structural: the atomic ops use
++                // `AtomicNN::from_ptr` on that same pointer, which is exactly
++                // the operation the wasm threads proposal describes. Non-atomic
++                // racing accesses remain as the spec allows - they may read
++                // garbage, and they go through `read_unaligned`/`write_unaligned`
++                // on a raw pointer rather than through a reference.
++                //
++                // Stack switching is still not implemented.
+                 if self.compiler_target().is_pulley() {
+-                    unsupported |= WasmFeatures::THREADS;
+                     unsupported |= WasmFeatures::STACK_SWITCHING;
+                 }
+ 
+diff --git a/pulley/src/interp.rs b/pulley/src/interp.rs
+index 5b3f794..fd44b69 100644
+--- a/pulley/src/interp.rs
++++ b/pulley/src/interp.rs
+@@ -9,6 +9,7 @@ use alloc::string::ToString;
+ use core::fmt;
+ use core::mem;
+ use core::ops::ControlFlow;
++use core::sync::atomic::{AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering};
+ use core::ops::{Index, IndexMut};
+ use core::ptr::NonNull;
+ use pulley_macros::interp_disable_if_cfg;
+@@ -2826,6 +2827,407 @@ impl OpVisitor for Interpreter<'_> {
+ }
+ 
+ impl ExtendedOpVisitor for Interpreter<'_> {
++    fn xatomic_load8_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicLoad8O32>(self)? };
++        let val = u8::from_le(unsafe { AtomicU8::from_ptr(ptr) }.load(Ordering::SeqCst));
++        self.state[dst].set_u32(val.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_load16le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicLoad16LeO32>(self)? };
++        let val = u16::from_le(unsafe { AtomicU16::from_ptr(ptr) }.load(Ordering::SeqCst));
++        self.state[dst].set_u32(val.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_load32le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicLoad32LeO32>(self)? };
++        let val = u32::from_le(unsafe { AtomicU32::from_ptr(ptr) }.load(Ordering::SeqCst));
++        self.state[dst].set_u32(val);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_load64le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicLoad64LeO32>(self)? };
++        let val = u64::from_le(unsafe { AtomicU64::from_ptr(ptr) }.load(Ordering::SeqCst));
++        self.state[dst].set_u64(val);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_store8_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicStore8O32>(self)? };
++        unsafe { AtomicU8::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_store16le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicStore16LeO32>(self)? };
++        unsafe { AtomicU16::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_store32le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicStore32LeO32>(self)? };
++        unsafe { AtomicU32::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_store64le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicStore64LeO32>(self)? };
++        unsafe { AtomicU64::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8AddO32>(self)? };
++        let a = unsafe { AtomicU8::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_add(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u8::from_le(cur).wrapping_add(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8SubO32>(self)? };
++        let a = unsafe { AtomicU8::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_sub(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u8::from_le(cur).wrapping_sub(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8AndO32>(self)? };
++        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8OrO32>(self)? };
++        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8XorO32>(self)? };
++        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw8_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u8;
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8XchgO32>(self)? };
++        let old = unsafe { AtomicU8::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = u8::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeAddO32>(self)? };
++        let a = unsafe { AtomicU16::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_add(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u16::from_le(cur).wrapping_add(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeSubO32>(self)? };
++        let a = unsafe { AtomicU16::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_sub(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u16::from_le(cur).wrapping_sub(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeAndO32>(self)? };
++        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeOrO32>(self)? };
++        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeXorO32>(self)? };
++        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw16le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32() as u16;
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeXchgO32>(self)? };
++        let old = unsafe { AtomicU16::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = u16::from_le(old);
++        self.state[dst].set_u32(old.into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeAddO32>(self)? };
++        let a = unsafe { AtomicU32::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_add(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u32::from_le(cur).wrapping_add(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeSubO32>(self)? };
++        let a = unsafe { AtomicU32::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_sub(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u32::from_le(cur).wrapping_sub(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeAndO32>(self)? };
++        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeOrO32>(self)? };
++        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeXorO32>(self)? };
++        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw32le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u32();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeXchgO32>(self)? };
++        let old = unsafe { AtomicU32::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = u32::from_le(old);
++        self.state[dst].set_u32(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeAddO32>(self)? };
++        let a = unsafe { AtomicU64::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_add(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u64::from_le(cur).wrapping_add(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeSubO32>(self)? };
++        let a = unsafe { AtomicU64::from_ptr(ptr) };
++        let old = if cfg!(target_endian = "little") {
++            a.fetch_sub(val, Ordering::SeqCst)
++        } else {
++            // Arithmetic does not commute with a byte swap: do it as a CAS loop in memory order.
++            a.fetch_update(Ordering::SeqCst, Ordering::SeqCst,
++                           |cur| Some(u64::from_le(cur).wrapping_sub(val).to_le()))
++             .unwrap_or_else(|x| x)
++        };
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeAndO32>(self)? };
++        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeOrO32>(self)? };
++        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeXorO32>(self)? };
++        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_rmw64le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
++        let val = self.state[src].get_u64();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeXchgO32>(self)? };
++        let old = unsafe { AtomicU64::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = u64::from_le(old);
++        self.state[dst].set_u64(old);
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_cas8_o32(&mut self, dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg) -> ControlFlow<Done> {
++        let want = (self.state[expected].get_u32() as u8).to_le();
++        let new = (self.state[replacement].get_u32() as u8).to_le();
++        let ptr = unsafe { addr.addr::<u8, crate::XAtomicCas8O32>(self)? };
++        // The value FOUND either way: on success that is `want`, on failure it is whatever was
++        // there. wasm's cmpxchg returns the old value and lets the guest decide.
++        let old = match unsafe { AtomicU8::from_ptr(ptr) }
++            .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
++            Ok(v) => v,
++            Err(v) => v,
++        };
++        self.state[dst].set_u32(u8::from_le(old).into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_cas16le_o32(&mut self, dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg) -> ControlFlow<Done> {
++        let want = (self.state[expected].get_u32() as u16).to_le();
++        let new = (self.state[replacement].get_u32() as u16).to_le();
++        let ptr = unsafe { addr.addr::<u16, crate::XAtomicCas16LeO32>(self)? };
++        // The value FOUND either way: on success that is `want`, on failure it is whatever was
++        // there. wasm's cmpxchg returns the old value and lets the guest decide.
++        let old = match unsafe { AtomicU16::from_ptr(ptr) }
++            .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
++            Ok(v) => v,
++            Err(v) => v,
++        };
++        self.state[dst].set_u32(u16::from_le(old).into());
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_cas32le_o32(&mut self, dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg) -> ControlFlow<Done> {
++        let want = (self.state[expected].get_u32()).to_le();
++        let new = (self.state[replacement].get_u32()).to_le();
++        let ptr = unsafe { addr.addr::<u32, crate::XAtomicCas32LeO32>(self)? };
++        // The value FOUND either way: on success that is `want`, on failure it is whatever was
++        // there. wasm's cmpxchg returns the old value and lets the guest decide.
++        let old = match unsafe { AtomicU32::from_ptr(ptr) }
++            .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
++            Ok(v) => v,
++            Err(v) => v,
++        };
++        self.state[dst].set_u32(u32::from_le(old));
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_cas64le_o32(&mut self, dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg) -> ControlFlow<Done> {
++        let want = (self.state[expected].get_u64()).to_le();
++        let new = (self.state[replacement].get_u64()).to_le();
++        let ptr = unsafe { addr.addr::<u64, crate::XAtomicCas64LeO32>(self)? };
++        // The value FOUND either way: on success that is `want`, on failure it is whatever was
++        // there. wasm's cmpxchg returns the old value and lets the guest decide.
++        let old = match unsafe { AtomicU64::from_ptr(ptr) }
++            .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
++            Ok(v) => v,
++            Err(v) => v,
++        };
++        self.state[dst].set_u64(u64::from_le(old));
++        ControlFlow::Continue(())
++    }
++
++    fn xatomic_fence(&mut self) -> ControlFlow<Done> {
++        core::sync::atomic::fence(Ordering::SeqCst);
++        ControlFlow::Continue(())
++    }
++
+     fn trap(&mut self) -> ControlFlow<Done> {
+         self.done_trap::<crate::Trap>()
+     }
+diff --git a/pulley/src/lib.rs b/pulley/src/lib.rs
+index 36a09cb..300bef3 100644
+--- a/pulley/src/lib.rs
++++ b/pulley/src/lib.rs
+@@ -1407,6 +1407,104 @@ macro_rules! for_each_extended_op {
+             vload128be_z = VLoad128BeZ { dst: VReg, addr: AddrZ };
+             /// `*(ptr + offset) = src`
+             vstore128be_z = Vstore128BeZ { addr: AddrZ, src: VReg };
++
++            // ---- ATOMICS: the threads proposal, for shared memories ---------------------
++            //
++            // Pulley had none of these, which is why wasmtime refused the `threads` proposal for
++            // a pulley target outright. They exist because an app that uses threads has to be
++            // runnable where there is NOTHING TO JIT INTO - inside a VBS enclave, which is the
++            // whole reason this interpreter is in the trusted image at all.
++            //
++            // All sequentially consistent: that is what the wasm threads proposal specifies, and
++            // a weaker ordering here would be a silent correctness change for every guest.
++            //
++            // ALIGNMENT is guaranteed by the caller, not checked here. The wasm frontend emits an
++            // explicit alignment test before every atomic access and traps with
++            // TRAP_HEAP_MISALIGNED (crates/cranelift/src/translate/code_translator.rs), so a
++            // misaligned address never reaches this point. That is the same trust these opcodes
++            // already place in the bytecode for every other memory op.
++            //
++            // The `o32` addressing mode is the one the wasm backend produces once the bounds
++            // check has been lowered separately, which is how Pulley works with no guard pages.
++            /// `low32(dst) = zext(atomic load *addr)`, sequentially consistent
++            xatomic_load8_o32 = XAtomicLoad8O32 { dst: XReg, addr: AddrO32 };
++            /// `low32(dst) = zext(atomic load *addr)`, sequentially consistent
++            xatomic_load16le_o32 = XAtomicLoad16LeO32 { dst: XReg, addr: AddrO32 };
++            /// `low32(dst) = zext(atomic load *addr)`, sequentially consistent
++            xatomic_load32le_o32 = XAtomicLoad32LeO32 { dst: XReg, addr: AddrO32 };
++            /// `dst = zext(atomic load *addr)`, sequentially consistent
++            xatomic_load64le_o32 = XAtomicLoad64LeO32 { dst: XReg, addr: AddrO32 };
++            /// `atomic *addr = low8(src)`, sequentially consistent
++            xatomic_store8_o32 = XAtomicStore8O32 { addr: AddrO32, src: XReg };
++            /// `atomic *addr = low16(src)`, sequentially consistent
++            xatomic_store16le_o32 = XAtomicStore16LeO32 { addr: AddrO32, src: XReg };
++            /// `atomic *addr = low32(src)`, sequentially consistent
++            xatomic_store32le_o32 = XAtomicStore32LeO32 { addr: AddrO32, src: XReg };
++            /// `atomic *addr = low64(src)`, sequentially consistent
++            xatomic_store64le_o32 = XAtomicStore64LeO32 { addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic add(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_add_o32 = XAtomicRmw8AddO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic sub(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_sub_o32 = XAtomicRmw8SubO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic and(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_and_o32 = XAtomicRmw8AndO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic or(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_or_o32 = XAtomicRmw8OrO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xor(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_xor_o32 = XAtomicRmw8XorO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xchg(*addr, low8(src))`, sequentially consistent
++            xatomic_rmw8_xchg_o32 = XAtomicRmw8XchgO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic add(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_add_o32 = XAtomicRmw16LeAddO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic sub(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_sub_o32 = XAtomicRmw16LeSubO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic and(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_and_o32 = XAtomicRmw16LeAndO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic or(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_or_o32 = XAtomicRmw16LeOrO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xor(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_xor_o32 = XAtomicRmw16LeXorO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xchg(*addr, low16(src))`, sequentially consistent
++            xatomic_rmw16le_xchg_o32 = XAtomicRmw16LeXchgO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic add(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_add_o32 = XAtomicRmw32LeAddO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic sub(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_sub_o32 = XAtomicRmw32LeSubO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic and(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_and_o32 = XAtomicRmw32LeAndO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic or(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_or_o32 = XAtomicRmw32LeOrO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xor(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_xor_o32 = XAtomicRmw32LeXorO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic xchg(*addr, low32(src))`, sequentially consistent
++            xatomic_rmw32le_xchg_o32 = XAtomicRmw32LeXchgO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic add(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_add_o32 = XAtomicRmw64LeAddO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic sub(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_sub_o32 = XAtomicRmw64LeSubO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic and(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_and_o32 = XAtomicRmw64LeAndO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic or(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_or_o32 = XAtomicRmw64LeOrO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic xor(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_xor_o32 = XAtomicRmw64LeXorO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `dst = atomic xchg(*addr, low64(src))`, sequentially consistent
++            xatomic_rmw64le_xchg_o32 = XAtomicRmw64LeXchgO32 { dst: XReg, addr: AddrO32, src: XReg };
++            /// `low32(dst) = atomic compare-and-swap(*addr, expected, replacement)`;
++            /// dst is the value found, so the guest compares it itself
++            xatomic_cas8_o32 = XAtomicCas8O32 { dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg };
++            /// `low32(dst) = atomic compare-and-swap(*addr, expected, replacement)`;
++            /// dst is the value found, so the guest compares it itself
++            xatomic_cas16le_o32 = XAtomicCas16LeO32 { dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg };
++            /// `low32(dst) = atomic compare-and-swap(*addr, expected, replacement)`;
++            /// dst is the value found, so the guest compares it itself
++            xatomic_cas32le_o32 = XAtomicCas32LeO32 { dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg };
++            /// `dst = atomic compare-and-swap(*addr, expected, replacement)`;
++            /// dst is the value found, so the guest compares it itself
++            xatomic_cas64le_o32 = XAtomicCas64LeO32 { dst: XReg, addr: AddrO32, expected: XReg, replacement: XReg };
++            /// A sequentially consistent fence. Orders this thread's accesses against the
++            /// other threads sharing this memory; it touches nothing itself.
++            xatomic_fence = XAtomicFence {};
+         }
+     };
+ }
