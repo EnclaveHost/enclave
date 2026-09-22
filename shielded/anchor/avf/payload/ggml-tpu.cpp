@@ -304,7 +304,21 @@ static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t,
 }
 /* The repair, behind a switch so the two arms of a before/after comparison differ in NOTHING else.
  * Off reproduces the defect exactly: the clipped reply is consumed as if correct. */
-static constexpr bool kRepairClips = false;
+static constexpr bool kRepairClips = true;
+/* Repairing a clip costs one dot product, and at the natural rate (<1 per token) that is free. But the
+ * worker is UNTRUSTED and can rail replies deliberately: at 100% it would drag the entire matmul back
+ * into the VM and silently defeat the offload. Not a confidentiality or correctness break -- the VM
+ * computes the right answer from public weights either way -- but a denial-of-service lever, and the
+ * peer tier treats an out-of-range reply as a protocol violation for exactly this reason. So bound it:
+ * repair the rare case, and if a single exchange rails more than an eighth of its outputs (three orders
+ * of magnitude above the natural rate) say so, and abort if it persists. Same precedent as mint_batch's
+ * 8-consecutive-bad-draws abort. */
+static constexpr uint32_t kClipFloodShift = 3;      /* flood = more than n_out >> 3 clips in one exchange */
+static constexpr int kClipFloodRuns = 8;            /* consecutive flooded exchanges before giving up */
+/* The sampled kernel verification recomputes elements on the CRITICAL PATH. It is a validation tool,
+ * not free: off by default, on for audits. (The rail test itself IS free -- a predicate on values the
+ * unmask has already loaded, with no second pass to fuse.) */
+static constexpr bool kVerifyKernel = false;
 static bool corr_threaded() {
     static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
     return v;
@@ -429,6 +443,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     }
     { const uint8_t hdr[4] = { (uint8_t)(s_digit_split ? 0xE8 : 0xE7), (uint8_t)g.layer, (uint8_t)g.kind, (uint8_t)rows };
       memcpy(s.frame.data(), hdr, 4); }
+    const uint64_t clips_before = s.st.sat_clipped;
     s.rxbuf.resize((size_t)wire_rows * n_out_total);
     if (!wr_all(s.link, s.frame.data(), s.frame.size())) { TPU_LOG("the worker link failed mid-exchange (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     const int64_t t_pub = now_us();
@@ -477,7 +492,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
                      * backend's requantisation and both rails with explicit tolerances; an unmasked CPU engine
                      * is a different quantisation and cannot settle it. Cost is 2 dots per projection per
                      * exchange, about 420 per token, against the 2.3 GMAC the token already costs. */
-                    if (j == (uint32_t)(s.st.exchanges % pr.n_out)) {
+                    if (kVerifyKernel && j == (uint32_t)(s.st.exchanges % pr.n_out)) {
                         const int16_t *qv = s.txbuf.data() + (size_t)r * g.n_in;
                         const int64_t va = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, true) * pr.M[j] * 102.4);
                         const int64_t vb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, false) * pr.M[j] * 102.4);
@@ -518,6 +533,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
                              * computed from public weights and the VM's own masked row, so use it. Nothing crosses the
                              * link and nothing about the lane contract changes: this is the out-of-lane correction's
                              * remedy applied to the output side instead of the input side. */
+                            s.st.sat_repaired = kRepairClips ? 1 : 0;
                             if (kRepairClips) { y[j] += s_d * (float)(256.0 * (double)ea + (double)eb) - pr.s_out * (float)P[j]; continue; }
                         }
                     }
@@ -538,6 +554,18 @@ void exchange(group &g, const float *x, uint32_t rows) {
         if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
     }
     const int64_t t3 = now_us();
+    {   /* a flooded exchange means the worker is railing deliberately or the lane recipe is wrong for
+         * this group; either way the offload is not happening and silence would hide it */
+        static int flood_runs = 0; const uint64_t clips = s.st.sat_clipped - clips_before;
+        uint32_t widest = 0; for (const proj &pp : g.projs) if (pp.n_out > widest) widest = pp.n_out;
+        if (clips > (uint64_t)(widest >> kClipFloodShift)) {
+            if (++flood_runs == 1 || flood_runs == kClipFloodRuns)
+                TPU_LOG("blk.%d kind %d railed %llu of %u outputs in ONE exchange (%d in a row): the worker is "
+                        "railing replies or the lane recipe is wrong for this group\n",
+                        g.layer, g.kind, (unsigned long long)clips, widest, flood_runs);
+            if (flood_runs >= kClipFloodRuns) { TPU_LOG("giving up: %d consecutive flooded exchanges\n", flood_runs); abort(); }
+        } else flood_runs = 0;
+    }
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
