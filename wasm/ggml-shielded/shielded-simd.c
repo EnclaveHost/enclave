@@ -904,6 +904,33 @@ void FN(unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int 
     }
 }
 
+/* The untrusted reply, checked before anything subtracts a pad from it.
+ *
+ * The int32 wire format can represent far more than a field element, so every
+ * value has to be inside (-M/2, M/2] before a kernel subtracts a pad in int32
+ * or accumulates under the |y| < 2^24 bound. The predicate is the same one
+ * shielded-tee.c carried: unsigned addition, so INT32_MIN/MAX cannot overflow,
+ * and an OR reduction rather than an early exit, so it has no data-dependent
+ * branch and the whole buffer is read at streaming speed.
+ *
+ * It lives HERE, in the table, rather than in shielded-tee.c, purely because
+ * of how this file is built: shielded-simd.c is compiled twice, once with the
+ * AVX-512 flags, while shielded-tee.c is compiled once at baseline ISA. The
+ * same source at baseline cost 3.5 ms of every 27B pass -- a second full
+ * traversal of ~8 MB -- which is ~7% of a token.
+ *
+ * NOT fused into the unmask, deliberately. The unmask is the first thing that
+ * writes the caller's output, and the contract is that an out-of-range reply
+ * leaves that output untouched; checking while unmasking would commit some of
+ * it before finding a bad value later in the buffer. This stays a separate
+ * pass that completes BEFORE any kernel runs. */
+bool FN(reply32_balanced)(const int32_t *values, size_t n) {
+    uint32_t bad = 0;
+    for (size_t i = 0; i < n; i++)
+        bad |= (uint32_t)values[i] + (uint32_t)SH_HALF_M >= (uint32_t)SH_M_MOD;
+    return bad == 0;
+}
+
 /* The outlier term: y[row][j] += x_tee[row][c] * Wc[c][j], in the TEE.
  * Blocked over j so a stretch of y stays in L1 while every channel is added
  * to it: channel-major, a site with 8 outliers read and wrote its 39 KB

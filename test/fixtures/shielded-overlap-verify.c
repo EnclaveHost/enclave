@@ -418,12 +418,18 @@ int main(void) {
         link.n_nodes = 1; sh_link_wire_timing(&link, &named); assert(!named.peak.first_node_name[0]);
         sh_link_wire_timing(&link, NULL); sh_link_wire_timing(NULL, &named); assert(!named.peak.call);
     }
+    /* The reply range check moved into the SIMD table, so exercise the table's
+     * version -- the one the online path below actually calls. Exhaustive
+     * agreement with the portable reference is its own suite
+     * (test/shielded-reply-balanced.test.mjs); this keeps the boundary
+     * assertions next to the exchange cases that depend on them. */
+    const bool (*balanced)(const int32_t *, size_t) = sh_simd_get()->reply32_balanced;
     int32_t bounds[] = { -(int32_t)SH_HALF_M, -1, 0, 1, (int32_t)SH_HALF_M };
-    assert(sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
+    assert(balanced(bounds, sizeof bounds / sizeof bounds[0]));
     const int32_t invalid[] = { INT32_MIN, -(int32_t)SH_HALF_M - 1, (int32_t)SH_HALF_M + 1, INT32_MAX };
     for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
         bounds[2] = invalid[i];
-        assert(!sh_reply32_balanced(bounds, sizeof bounds / sizeof bounds[0]));
+        assert(!balanced(bounds, sizeof bounds / sizeof bounds[0]));
     }
     for (int failure = CORRUPT; failure <= WRAP; failure++) {
       for (int width = 3; width <= 4; width++) {

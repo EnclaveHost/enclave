@@ -8,6 +8,7 @@
 #ifndef SHIELDED_SIMD_H
 #define SHIELDED_SIMD_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -33,6 +34,10 @@ typedef struct {
      * the allocation-free fallback when blocked-kernel scratch is unavailable. */
     void    (*refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_t N,
                       int32_t *u, int64_t u_stride, int32_t *acc);
+    /* Every int32 reply value inside (-M/2, M/2], checked before any kernel
+     * touches the reply. A separate pass on purpose: see the note in
+     * shielded-simd.c. Returns false if ANY value is out of range. */
+    bool    (*reply32_balanced)(const int32_t *values, size_t n);
     void    (*outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y);
     /* The same term over a slice of the columns: `n_cols` to add, channel rows
      * `stride` apart. A column-split card adds its own slice out of the
@@ -79,6 +84,7 @@ const sh_simd *sh_simd_generic(void);
     int64_t sh_simd_##sfx##_fv_dot_x(const int64_t *, const int64_t *, int, int, int64_t); \
     void    sh_simd_##sfx##_fv_prepare(const int8_t *, int64_t, int64_t, const int64_t *, int, int64_t *); \
     void    sh_simd_##sfx##_refill(const uint8_t *, int, const int8_t *, int64_t, int64_t, int32_t *, int64_t, int32_t *); \
+    bool    sh_simd_##sfx##_reply32_balanced(const int32_t *, size_t); \
     void    sh_simd_##sfx##_outlier_add(const int64_t *, const int8_t *, int, int64_t, int64_t *); \
     void    sh_simd_##sfx##_outlier_add_stride(const int64_t *, const int8_t *, int, int64_t, int64_t, int64_t *); \
     void    sh_simd_##sfx##_fv_dots(const int64_t *, const int32_t *, int, int64_t, int64_t *); \
