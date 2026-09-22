@@ -1824,3 +1824,41 @@ Against a reply saving of about 65 ms, the two-FC construction is worse by about
 by 273. The conclusion is unchanged -- it is still a net loss and still should not be built -- but the
 margin is small enough that it was never the rout I described, and anyone reading the old number would
 have dismissed the construction for the wrong reason. The audit was right to call it a model.
+
+## Attacking the last assumption: a shorter schedule is constructible, and it is WORSE (2026-09-22)
+
+The impossibility argument rests on 140 exchanges per token, which rests on 4 per block, which rests on
+the security contract. That was argued rather than measured, and it is the one input I had not attacked.
+So: it is wrong, a 3-exchange schedule does exist, and building it would make things worse.
+
+**The construction.** An RMSNorm's scale is a per-token scalar and can be deferred past a matmul, which
+this file already records as verified. Writing `x` for the block input, `g` for the norm gain and `c` for
+the deferred scale:
+
+    gu = c * [ W_gu.(x*g)  +  (W_gu . diag(g) . W_o) . attn ]
+
+The first term depends only on `x`, which is known at block start, so it rides the qkv exchange. The
+second folds `o` into `gu` as ONE precomputed matrix. That is 3 exchanges per block, not 4 -- qkv+gu_x,
+then the composed term, then down -- with no mask ever crossing a nonlinearity. Security is unchanged:
+every operand is still a masked row and every reply is still a masked product.
+
+**And it costs more than it saves**, using only numbers measured on this phone (0.0848 ms/MB, 0.520 ms
+per invocation, 0.74 ms of round-trip latency):
+
+| | params/block | MB/token | weights | invocation | latency | total |
+|---|---|---|---|---|---|---|
+| 4 exchanges (today) | 34.6M | 1210 | 103 ms | 73 | 104 | **279 ms** |
+| 3 exchanges (merged) | 56.6M | 1980 | 168 ms | 55 | 78 | **300 ms** |
+
+The composed `W_gu . diag(g) . W_o` is [12288, 2048] where `W_o` alone was [1536, 2048], so the block's
+weights go up 1.64x. Saving 35 round trips buys 18 ms of invocation and 26 ms of latency; the extra
+weights cost 65. Net 21 ms worse per token.
+
+**So fewer round trips is the wrong lever, and this is the useful part.** The binding term is weight
+streaming, at 0.085 ms per megabyte measured. Every merge that removes an exchange does it by composing
+two weight matrices into a bigger one, so every merge moves cost from the cheap term to the expensive
+one. The only thing that reduces weight streaming is fewer or smaller weights -- a smaller model -- which
+is a different product rather than a faster path to this one.
+
+That closes the last assumption in the argument. 15 tok/s is 67 ms per token; weight streaming alone is
+about 103 ms at the shipped model size, and no scheduling change reduces it.
