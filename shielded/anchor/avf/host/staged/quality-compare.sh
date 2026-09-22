@@ -26,6 +26,23 @@ OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; MEM="${MEM:-8192}"; 
 # BUILD IDENTITY, recorded rather than assumed. Fault-injection experiments run the same source tree with a
 # different constant, and a filename never proved which binary answered: the digests below and the payload's
 # own "tpu: config" line (which prints repair/verify/inject as COMPILED) are what tie a result to a build.
+# A LOCK, taken before anything in $OUT is truncated. BUILD and MANIFEST are opened with > below, so
+# two producers sharing an OUT would have one erase the other's record of what it was doing, and
+# overwrite the frozen harness the other is executing from. Released on exit; a lock left by a dead pid
+# is reclaimed rather than becoming permanent.
+LOCK="$OUT/.producer.lock"
+if [ -e "$LOCK" ]; then
+  other=$(cat "$LOCK" 2>/dev/null)
+  case "$other" in ''|*[!0-9]*) echo "REFUSING: $LOCK is unreadable; remove it if no run is in progress" >&2; exit 3;; esac
+  if kill -0 "$other" 2>/dev/null; then
+    echo "REFUSING: pid $other is already producing into $OUT." >&2
+    echo "Two runs sharing an output directory truncate each other's BUILD and MANIFEST." >&2
+    exit 3
+  fi
+  echo "note: reclaiming a stale lock from dead pid $other"
+fi
+echo $$ > "$LOCK" || { echo "REFUSING: cannot take the lock $LOCK" >&2; exit 3; }
+trap 'rm -f "$LOCK"' EXIT
 : > "$OUT/BUILD"
 # Binary identity is established by build-identity.sh, which pulls the installed APK to a seekable file
 # and checks every step. The inline pipeline that used to live here recorded the SHA256 of ZERO BYTES as
@@ -109,24 +126,44 @@ echo "graphs: $GN file(s) digested individually"
 # row. Edits to the checkout after this point cannot reach the run, and the frozen copy is kept beside
 # the results as the exact thing that produced them.
 RUNNER_FILES="tpu-run.sh local-run.sh coolgate.sh"
-FROZEN="$OUT/harness"
-rm -rf "$FROZEN"; mkdir -p "$FROZEN" || { echo "REFUSING: cannot create $FROZEN" >&2; exit 3; }
+# CONTENT-ADDRESSED FREEZE. The first version did `rm -rf $OUT/harness`, destroying the previous run's
+# record of what produced it and able to delete a harness another invocation was executing from. And it
+# froze only to NAME a directory: the TPU arm still ran ./tpu-run.sh from the live checkout, so a
+# mid-run edit still reached it. An independent repro showed exactly that -- row 01 SOURCE=ORIGINAL,
+# row 02 SOURCE=EDITED-LIVE, under one captured harness identity.
+#
+# Copy into a private staging directory, digest the copies BY BASENAME so the identity does not depend
+# on where they sit, and publish under $OUT/harness/<RUNNERS_ID>. The same harness lands in the same
+# directory and is verified and reused rather than rewritten; a different harness gets its own
+# directory and the older one keeps standing beside the rows it produced. Nothing here is deleted.
+FROZEN_ROOT="$OUT/harness"; mkdir -p "$FROZEN_ROOT" || { echo "REFUSING: cannot create $FROZEN_ROOT" >&2; exit 3; }
+STAGE=$(mktemp -d "$FROZEN_ROOT/.staging.XXXXXXXX") || { echo "REFUSING: cannot stage the harness" >&2; exit 3; }
 for rf in $RUNNER_FILES; do
-  [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable" >&2; exit 3; }
-  cp "$rf" "$FROZEN/$rf" || { echo "REFUSING: could not freeze '$rf'" >&2; exit 3; }
+  [ -r "$rf" ] || { rm -rf "$STAGE"; echo "REFUSING: runner '$rf' is missing or unreadable" >&2; exit 3; }
+  cp "$rf" "$STAGE/$rf" || { rm -rf "$STAGE"; echo "REFUSING: could not freeze '$rf'" >&2; exit 3; }
 done
-chmod +x "$FROZEN"/*.sh 2>/dev/null
+chmod +x "$STAGE"/*.sh 2>/dev/null
 RLIST=""
 for rf in $RUNNER_FILES; do
-  [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable; the harness has no identity" >&2; exit 3; }
-  rout=$(sha256sum "$FROZEN/$rf" 2>/dev/null); rrc=$?
-  [ "$rrc" -eq 0 ] || { echo "REFUSING: digesting runner '$rf' failed (rc=$rrc)" >&2; exit 3; }
+  rout=$( cd "$STAGE" && sha256sum "$rf" 2>/dev/null ); rrc=$?
+  [ "$rrc" -eq 0 ] || { rm -rf "$STAGE"; echo "REFUSING: digesting runner '$rf' failed (rc=$rrc)" >&2; exit 3; }
   rdig=$(printf '%s' "$rout" | awk 'NF{print $1; exit}')
-  valid_sha "$rdig" || { echo "REFUSING: runner '$rf' digest is not usable: '${rdig:-<empty>}'" >&2; exit 3; }
+  valid_sha "$rdig" || { rm -rf "$STAGE"; echo "REFUSING: runner '$rf' digest is not usable: '${rdig:-<empty>}'" >&2; exit 3; }
   RLIST="$RLIST$rdig  $rf
 "
 done
-RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha_of) || { echo "REFUSING: could not form the combined runner identity" >&2; exit 3; }
+RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha_of) || { rm -rf "$STAGE"; echo "REFUSING: could not form the combined runner identity" >&2; exit 3; }
+FROZEN="$FROZEN_ROOT/$RUNNERS_ID"
+if [ -d "$FROZEN" ]; then
+  for rf in $RUNNER_FILES; do
+    cmp -s "$STAGE/$rf" "$FROZEN/$rf" || { rm -rf "$STAGE"
+      echo "REFUSING: $FROZEN/$rf does not match the identity naming it; that directory is corrupt" >&2; exit 3; }
+  done
+  rm -rf "$STAGE"; echo "harness: reusing the verified frozen copy at $FROZEN"
+else
+  mv "$STAGE" "$FROZEN" || { rm -rf "$STAGE"; echo "REFUSING: could not publish the frozen harness" >&2; exit 3; }
+  echo "harness: frozen at $FROZEN"
+fi
 POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0} harness=frozen"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
   echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"
@@ -181,7 +218,7 @@ for p in "${PLIST[@]}"; do
     echo "[$id/$arm] $p"
     rc=0
     if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" \
-         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?
+         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" "$FROZEN/tpu-run.sh" > "$f.tmp" 2>&1 < /dev/null || rc=$?
     else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" "$FROZEN/local-run.sh" > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
     # BOTH must hold: the producer exited cleanly AND the run reached its completion marker
     if [ "$rc" -eq 0 ] && grep -q "LOCAL done" "$f.tmp"; then

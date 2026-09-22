@@ -42,7 +42,11 @@ cat > "$W/bin/sha256sum" <<'EOF'
 if [ "${FAKE_SHA_FAIL_AGG:-0}" = 1 ] && [ $# -eq 0 ]; then
   cat >/dev/null; echo "1111111111111111111111111111111111111111111111111111111111111111  -"; exit 42
 fi
-if [ -n "${FAKE_SHA_FAIL_FOR:-}" ] && [ "${1:-}" = "$FAKE_SHA_FAIL_FOR" ]; then
+# Match on the BASENAME, whatever path the producer passes. Matching the literal argument meant the
+# injection silently stopped working the moment the producer started digesting a frozen absolute path:
+# the suite still passed, while testing nothing.
+_b="${1##*/}"
+if [ -n "${FAKE_SHA_FAIL_FOR:-}" ] && [ "$_b" = "${FAKE_SHA_FAIL_FOR##*/}" ]; then
   echo "0000000000000000000000000000000000000000000000000000000000000000  $1"; exit 42
 fi
 exec /usr/bin/sha256sum "$@"
