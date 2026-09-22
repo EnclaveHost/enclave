@@ -1,0 +1,81 @@
+# litert_lm_main: expose the sampler, so the Google lane can be run greedily
+#
+# Apply to google-ai-edge/LiteRT-LM at 4698342e (= c7adc1bf^, the last commit at .litertlm format 1.5;
+# see TPU.md for why the runtime must be 1.5). Build:
+#
+#   ANDROID_NDK_HOME=~/Android/Sdk/ndk/27.2.12479018 bazel build --config=android_arm64 -c opt \
+#     --action_env=PATH=/usr/local/bin:/usr/bin:/bin --host_action_env=PATH=/usr/local/bin:/usr/bin:/bin \
+#     //runtime/engine:litert_lm_main
+#
+# Why: the shipped runner exposes only --backend, --model_path, --input_prompt and --input_prompt_file
+# (verified with --helpfull on the device). So Google's lane could only be run at whatever sampler the
+# .litertlm package declares, while the masked and CPU lanes decode greedily -- and a task-quality
+# difference between the lanes could then be the sampler rather than the lane. --sampler defaults to
+# 'model', which is the shipped behaviour byte for byte.
++++ b/runtime/engine/litert_lm_main.cc
++++ b/runtime/engine/litert_lm_main.cc
+@@ -41,6 +41,7 @@
+ #include "absl/time/time.h"  // from @com_google_absl
+ #include "nlohmann/json.hpp"  // from @nlohmann_json
+ #include "litert/cc/internal/scoped_file.h"  // from @litert
++#include "runtime/proto/sampler_params.pb.h"
+ #include "runtime/conversation/conversation.h"
+ #include "runtime/conversation/io_types.h"
+ #include "runtime/engine/engine.h"
+@@ -50,6 +51,18 @@
+ #include "runtime/executor/executor_settings_base.h"
+ #include "runtime/util/status_macros.h"
+ 
++// ---- added locally, for a controlled three-lane comparison -------------------------------------
++// The shipped runner exposes no sampler flag, so this lane could only be run at whatever the
++// .litertlm package declares, while the masked and CPU lanes decode greedily. That is a confound in
++// any task-quality comparison between them: a difference could be the sampler rather than the lane.
++// --sampler=model (the DEFAULT) is byte-for-byte the old behaviour; --sampler=greedy forces argmax.
++// SessionConfig::MaybeUpdateAndValidate only copies the package's sampler params when the session's
++// type is still TYPE_UNSPECIFIED, so setting it here suppresses them.
++ABSL_FLAG(std::string, sampler, "model",
++          "Sampling policy: 'model' (default, unchanged shipped behaviour: use whatever the "
++          ".litertlm package declares) or 'greedy' (force argmax, to match a greedy baseline).");
++ABSL_FLAG(float, temperature, -1.0f,
++          "Temperature to set when --sampler=greedy. Negative leaves the field untouched.");
+ ABSL_FLAG(std::string, backend, "gpu",
+           "Executor backend to use for LLM execution (cpu, gpu, etc.)");
+ ABSL_FLAG(std::string, model_path, "", "Model path to use for LLM execution.");
+@@ -133,6 +146,19 @@
+   engine_settings.GetMutableBenchmarkParams() =
+       litert::lm::proto::BenchmarkParams();
+ 
++  // What does the MODEL PACKAGE ask for? Printed because it is the setting this lane actually ran
++  // under whenever --sampler=model, and nothing else records it.
++  if (engine_settings.GetLlmMetadata().has_value() &&
++      engine_settings.GetLlmMetadata()->has_sampler_params()) {
++    const auto& msp = engine_settings.GetLlmMetadata()->sampler_params();
++    std::cout << "model_sampler: type="
++              << litert::lm::proto::SamplerParameters::Type_Name(msp.type())
++              << " k=" << msp.k() << " p=" << msp.p()
++              << " temperature=" << msp.temperature() << std::endl;
++  } else {
++    std::cout << "model_sampler: none declared by the package" << std::endl;
++  }
++
+   // Create the engine.
+   ABSL_ASSIGN_OR_RETURN(auto engine, litert::lm::EngineFactory::CreateDefault(
+                                          std::move(engine_settings)));
+@@ -140,6 +166,17 @@
+   // Create the conversation.
+   std::unique_ptr<Conversation> conversation;
+   auto session_config = litert::lm::SessionConfig::CreateDefault();
++  const std::string sampler_mode = absl::GetFlag(FLAGS_sampler);
++  if (sampler_mode == "greedy") {
++    auto& sp = session_config.GetMutableSamplerParams();
++    sp.set_type(litert::lm::proto::SamplerParameters::GREEDY);
++    const float t = absl::GetFlag(FLAGS_temperature);
++    if (t >= 0.0f) sp.set_temperature(t);
++  } else if (sampler_mode != "model") {
++    return absl::InvalidArgumentError(
++        "--sampler must be 'model' or 'greedy', got '" + sampler_mode + "'");
++  }
++  std::cout << "sampler_mode: " << sampler_mode << std::endl;
+   ABSL_ASSIGN_OR_RETURN(auto conversation_config,
+                         ConversationConfig::Builder()
+                             .SetSessionConfig(session_config)

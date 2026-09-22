@@ -72,9 +72,26 @@ FMT=$(sh_out "head -c 16 '$MODEL' | xxd -p") || die "could not read the .litertl
 FMT=$(printf '%s' "$FMT" | tr -d ' \n')
 printf '%s' "$FMT" | grep -qE '^4c49544552544c4d[0-9a-f]{16}$' \
     || die "the model does not begin with the LITERTLM magic (got '${FMT:0:32}')"
-# generation settings: this runner exposes no temperature or token-limit flag, so they are its defaults.
-# Recorded explicitly rather than assumed, and part of the cache key so a future flag invalidates it.
-SETTINGS="temp=runner-default max_new=runner-default backend=npu"
+# GENERATION SETTINGS. The runner Google ships (litert_lm_main at 4698342e) exposes only --backend,
+# --model_path, --input_prompt and --input_prompt_file: verified with --helpfull on the device, not
+# assumed. So this lane could only ever run at whatever the .litertlm package declares, while the masked
+# and CPU lanes decode greedily -- a confound in any task comparison between them, since a difference
+# could be the sampler rather than the lane.
+#
+# SAMPLER=greedy requires a runner built with the local patch (RUNNER=/data/local/tmp/lm15s), which adds
+# --sampler and --temperature and prints the package's declared sampler. Its DEFAULT is --sampler=model,
+# which is the shipped behaviour unchanged. The runner digest is already in the key, so results from the
+# patched and unpatched binaries can never be confused for each other.
+SAMPLER="${SAMPLER:-model}"
+case "$SAMPLER" in model|greedy) ;; *) die "SAMPLER must be model or greedy, got '$SAMPLER'";; esac
+SAMPLER_FLAG=""
+if [ "$SAMPLER" != model ]; then
+  "${ADB[@]}" shell "LD_LIBRARY_PATH=$LIBS $RUNNER --helpfull 2>&1" < /dev/null | grep -q -- '--sampler' \
+    || die "SAMPLER=$SAMPLER needs a runner that exposes --sampler; $RUNNER does not (use lm15s)"
+  SAMPLER_FLAG="--sampler=$SAMPLER"
+  [ -n "${TEMPERATURE:-}" ] && SAMPLER_FLAG="$SAMPLER_FLAG --temperature=$TEMPERATURE"
+fi
+SETTINGS="sampler=$SAMPLER${TEMPERATURE:+ temp=$TEMPERATURE} max_new=runner-default backend=npu"
 {
   echo "# google NPU lane, $(date -Is)"
   echo "runner        $RUNNER  sha256:$R_ID"
@@ -104,7 +121,7 @@ for line in "${PLIST[@]}"; do
   "${ADB[@]}" push -q "$OUT/$id.prompt.tmp" "$REMOTE_PROMPT" >/dev/null 2>&1 \
     || { echo "  FAILED: could not push the prompt"; failed=$((failed+1)); continue; }
   if ! "${ADB[@]}" shell "cd /data/local/tmp && LD_LIBRARY_PATH=$LIBS timeout 600 $RUNNER \
-        --backend=npu --model_path=$MODEL --input_prompt_file=$REMOTE_PROMPT; echo \"__RC__\$?\"" \
+        --backend=npu --model_path=$MODEL --input_prompt_file=$REMOTE_PROMPT $SAMPLER_FLAG; echo \"__RC__\$?\"" \
         < /dev/null | tr -d '\r' > "$base.raw.tmp"; then
     echo "  FAILED: adb shell returned non-zero"; failed=$((failed+1)); rm -f "$base.raw.tmp"; continue
   fi
