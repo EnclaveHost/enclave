@@ -1693,3 +1693,31 @@ The lesson is the one the whole evening keeps producing: a probe is a model of t
 that differs from the artifact in a detail you did not think mattered -- zero weights, a small shape --
 answers a different question convincingly. The real layer was always available to build; I built a probe
 instead, three times, before building it.
+
+### Re-verified with a control, and the lever is NOT dead -- it is blocked upstream (2026-09-22)
+
+Every operator result had been gathered while the toolchain was down, so all of it was re-run with the
+shipped known-good L0 compiling in the same session as an explicit control. The control compiles
+(36402704 bytes) and the table reproduces exactly: `QUANTIZE`, `ADD`, `MUL` and `CONCATENATION` compile
+after a FULLY_CONNECTED; `RESHAPE`, `TRANSPOSE`, `SLICE`, `SPLIT`, `STRIDED_SLICE` and `BATCH_MATMUL`
+crash with `INTERNAL`. The 4x4 minimal reproducer still crashes while its no-combine twin compiles. The
+probes now run that control themselves and refuse to report anything if it fails.
+
+**And this corrects what the 1.97x result seemed to settle.** There are TWO ways to recombine, and they
+fail for different reasons:
+
+| construction | inputs | weights | status |
+|---|---|---|---|
+| two FCs, hi and lo as separate inputs | 2 | **emitted twice: 36.4 -> 71.9 MB** | compiles, and is not worth it |
+| **one FC over stacked rows, then SLICE the output and ADD** | 1 | **once** | **crashes the compiler** |
+
+The second is the one that matters. One FULLY_CONNECTED means the weights stream once, so it would halve
+the reply -- 3432 -> 1716 KB per token, about 65 ms -- at no cost in `tpu-run`, and it needs no change to
+the app-side worker either, since the graph keeps a single input. It is blocked by nothing except the
+compiler crash, for which there is now a 4x4 reproducer.
+
+So the honest status of this lever is not "closed" but "blocked on an upstream defect we can report". It
+is worth about 65 ms per token and moves the per-row asymptote from about 3.1 to about 4.5 tok/s. It does
+not approach 15 tok/s -- TPU compute alone is 273 ms against a 67 ms budget, and the 140 round trips cost
+104 ms of pure latency before any of it -- but it is the one improvement still available, and it is one
+bug fix away rather than an architecture away.
