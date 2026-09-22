@@ -481,14 +481,20 @@ lost at one row (0.98 against 1.22) and drew at five (1.20 against 1.18).
 
 With acceptance folded in (`E = sum p^i`, p about 0.55 measured), the round is `(W + kC) / E`:
 
-| rows | drafts | predicted | measured |
-|---|---|---|---|
-| 1 | 0 | 1.22 | **1.22** |
-| 2 | 1 | 1.46 | **1.42** |
-| 5 | 4 | 1.18 | **1.18** |
+| rows | drafts | predicted | measured | link, ms |
+|---|---|---|---|---|
+| 1 | 0 | 1.22 | **1.22** | 4.60 |
+| 2 | 1 | 1.46 | **1.42** | 5.83 |
+| 3 | 2 | 1.42 | 1.05 | 9.14 |
+| 5 | 4 | 1.18 | **1.18** | 10.66 |
+
+The model is a good guide at the ends and over-predicts the middle: it has `C` linear, and the link
+says otherwise -- 1.23 ms for the second row, then 3.31 ms for the third. So two rows is the optimum by
+measurement, not by the fit, and the fit's value was in pointing at the gap between the two depths that
+had been tried rather than in its own numbers.
 
 **1.42 tok/s at two rows is the fastest masked decode measured on this phone**, 16 % over one row and
 well clear of the leaky k=8 lane's 1.20. The reason deep speculation loses is the same one REPORT 16.8
 gives for the 27B (`k=1/2/3 -> 17.67/14.83/15.41`): a drafted row costs a full `C` whether it is accepted
-or not, and accepting one saves only `W`. Here `C` is 36 % of a one-row token, so the fourth and fifth
-rows are paying 219 ms each for acceptance probabilities of 0.09 and 0.05.
+or not, and accepting one saves only `W`. Here `C` is 36 % of a one-row token, so the third row onward
+is paying a growing price for a falling acceptance probability.
