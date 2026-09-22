@@ -22,6 +22,7 @@ run() { printf '%-36s ' "$1"; if eval "$2" >/dev/null 2>&1; then echo ok; pass=$
 # headers must be self-contained and idempotent: tpu_ver_lsb_rms was added AFTER the final #endif with
 # no math.h, so a second include redefined it and sqrt was implicit.
 run "headers double-include clean"   "printf '#include \"ggml-tpu.h\"\n#include \"ggml-tpu.h\"\n#include \"bundlemagic.h\"\n#include \"bundlemagic.h\"\nint main(void){return bundle_classify(\"ETPUB002\")==1 && tpu_ver_lsb_rms(2,8.0)>1.9 ? 0 : 1;}\n' > /tmp/hdr.\$\$.c && cc -std=c11 -Wall -Werror -Ipayload /tmp/hdr.\$\$.c -lm -o /tmp/hdr.\$\$ && /tmp/hdr.\$\$"
+run "retired tool refuses"      "python3 tpu/test/retired-tool-test.py"
 run "quality checks"            "python3 host/test_quality_checks.py"
 run "bundle markers"            "python3 tpu/test/bundle-marker-test.py"
 run "verify RMS divisor"        "cc -std=c11 -O1 -Ipayload tpu/test/verify-rms-test.c -lm -o /tmp/vr.$$ && /tmp/vr.$$"
