@@ -329,13 +329,19 @@ class Interp:
                          self.expr(n.step, env) if n.step else None)
         if isinstance(n, ast.Subscript):
             return self.guard(self.expr(n.value, env)[self.expr(n.slice, env)])
-        if isinstance(n, ast.ListComp) or isinstance(n, ast.GeneratorExp):
-            # A generator expression is evaluated EAGERLY, as a list. For the pure, bounded code this
-            # interpreter accepts there is no observable difference, and the same tick() and MAX_LEN
-            # bounds apply either way. Without this, `sum(1 for c in s if ...)` -- the most natural way
-            # a model writes a counting function -- was not evaluable, so a CORRECT answer scored REVIEW
-            # and every lane's task score was understated by the same amount.
+        if isinstance(n, ast.ListComp):
             return self.guard(self.listcomp(n, env))
+        if isinstance(n, ast.GeneratorExp):
+            # Reached only when a generator is NOT being consumed on the spot -- bound to a name,
+            # returned, stored in a list. Materialising one as a list there is WRONG and was a false
+            # PASS: a generator is a one-shot lazy iterator, so
+            #     g = (1 for c in s); return sum(g) + sum(g)
+            # is 2 in Python (g is exhausted by the first sum) and was 4 here. Immediate consumption
+            # is handled in call(), where a list IS equivalent; everything else is refused, which
+            # scores REVIEW rather than inventing a verdict.
+            raise UnsupportedCode(
+                "a generator expression used other than as a direct argument to a call; it is a "
+                "one-shot iterator and this interpreter does not model exhaustion")
         if isinstance(n, ast.Call):
             return self.call(n, env)
         if isinstance(n, ast.Attribute):
@@ -360,8 +366,26 @@ class Interp:
     def call(self, n, env):
         if n.keywords:
             raise UnsupportedCode("keyword arguments")
-        args = [self.expr(a, env) for a in n.args]
+        # A generator expression passed STRAIGHT into a call that consumes it EXACTLY ONCE --
+        # sum(1 for c in s), any(...), "".join(...) -- is equivalent to the same list, and the
+        # comprehension's tick() and MAX_LEN bounds still apply. "Exactly once" is the whole condition,
+        # and it does not hold for a USER-DEFINED callee: `def g(it): return sum(it) + sum(it)` would
+        # see a reusable list and answer 4 where Python answers 2. So the materialisation is allowed
+        # only for a str/list method or an unshadowed safe builtin, and refused everywhere else.
         f = n.func
+        gok = (isinstance(f, ast.Attribute) or
+               (isinstance(f, ast.Name) and f.id not in env and f.id not in self.funcs
+                and f.id in SAFE_BUILTINS))
+        args = []
+        for a in n.args:
+            if isinstance(a, ast.GeneratorExp):
+                if not gok:
+                    raise UnsupportedCode(
+                        "a generator expression passed to something that may consume it more than "
+                        "once; this interpreter does not model exhaustion")
+                args.append(self.guard(self.listcomp(a, env)))
+            else:
+                args.append(self.expr(a, env))
         if isinstance(f, ast.Attribute):                     # a method call on a value we produced
             obj = self.expr(f.value, env)
             allowed = SAFE_STR_METHODS if isinstance(obj, str) else (

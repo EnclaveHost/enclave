@@ -1,18 +1,41 @@
-# litert_lm_main: expose the sampler, so the Google lane can be run greedily
+# litert_lm_main: expose the sampler, so Google's lane can be run greedily
 #
-# Apply to google-ai-edge/LiteRT-LM at 4698342e (= c7adc1bf^, the last commit at .litertlm format 1.5;
-# see TPU.md for why the runtime must be 1.5). Build:
+# Apply to google-ai-edge/LiteRT-LM at 4698342efab0c569b7636b27b9aa1525b35151f7 (= c7adc1bf^, the last
+# commit at .litertlm format 1.5; see TPU.md for why the runtime must be 1.5 and not 1.6).
 #
+#   git apply -p1 litert-lm-expose-sampler.patch
 #   ANDROID_NDK_HOME=~/Android/Sdk/ndk/27.2.12479018 bazel build --config=android_arm64 -c opt \
 #     --action_env=PATH=/usr/local/bin:/usr/bin:/bin --host_action_env=PATH=/usr/local/bin:/usr/bin:/bin \
 #     //runtime/engine:litert_lm_main
 #
+# Verified: applies clean to a pristine 4698342e and the result is byte-identical to the tree that
+# produced the binary below. The BUILD hunk adds //runtime/proto:sampler_params_cc_proto for the new
+# include -- it also builds without it, transitively through engine_settings, but the dependency is
+# declared rather than borrowed.
+#
 # Why: the shipped runner exposes only --backend, --model_path, --input_prompt and --input_prompt_file
-# (verified with --helpfull on the device). So Google's lane could only be run at whatever sampler the
-# .litertlm package declares, while the masked and CPU lanes decode greedily -- and a task-quality
-# difference between the lanes could then be the sampler rather than the lane. --sampler defaults to
-# 'model', which is the shipped behaviour byte for byte.
-+++ b/runtime/engine/litert_lm_main.cc
+# (checked with --helpfull on the device). So Google's lane could only be run at whatever sampler the
+# .litertlm package declares -- SessionConfig::CreateDefault leaves it TYPE_UNSPECIFIED and
+# MaybeUpdateAndValidate fills it from the package's LlmMetadata -- while the masked and CPU lanes
+# decode greedily. A task-quality difference between the lanes could then be the sampler rather than
+# the lane. --sampler defaults to 'model', which is the shipped behaviour byte for byte.
+#
+# Built binary: sha256 f592e1e4a5673cc1989a353bd432d8bbd8244d8699debb9bbd59877646fe6c90
+diff --git a/runtime/engine/BUILD b/runtime/engine/BUILD
+index ac3146a..2de727b 100644
+--- a/runtime/engine/BUILD
++++ b/runtime/engine/BUILD
+@@ -232,6 +232,7 @@ cc_binary(
+         "//runtime/conversation",
+         "//runtime/conversation:io_types",
+         "//runtime/executor:executor_settings_base",
++        "//runtime/proto:sampler_params_cc_proto",
+         "//runtime/util:litert_status_util",
+     ],
+ )
+diff --git a/runtime/engine/litert_lm_main.cc b/runtime/engine/litert_lm_main.cc
+index 49f897a..42debfb 100644
+--- a/runtime/engine/litert_lm_main.cc
 +++ b/runtime/engine/litert_lm_main.cc
 @@ -41,6 +41,7 @@
  #include "absl/time/time.h"  // from @com_google_absl
@@ -41,7 +64,7 @@
  ABSL_FLAG(std::string, backend, "gpu",
            "Executor backend to use for LLM execution (cpu, gpu, etc.)");
  ABSL_FLAG(std::string, model_path, "", "Model path to use for LLM execution.");
-@@ -133,6 +146,19 @@
+@@ -133,6 +146,19 @@ absl::Status MainHelper(int argc, char** argv) {
    engine_settings.GetMutableBenchmarkParams() =
        litert::lm::proto::BenchmarkParams();
  
@@ -61,7 +84,7 @@
    // Create the engine.
    ABSL_ASSIGN_OR_RETURN(auto engine, litert::lm::EngineFactory::CreateDefault(
                                           std::move(engine_settings)));
-@@ -140,6 +166,17 @@
+@@ -140,6 +166,17 @@ absl::Status MainHelper(int argc, char** argv) {
    // Create the conversation.
    std::unique_ptr<Conversation> conversation;
    auto session_config = litert::lm::SessionConfig::CreateDefault();
