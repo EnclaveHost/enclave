@@ -1721,3 +1721,29 @@ is worth about 65 ms per token and moves the per-row asymptote from about 3.1 to
 not approach 15 tok/s -- TPU compute alone is 273 ms against a 67 ms budget, and the 140 round trips cost
 104 ms of pure latency before any of it -- but it is the one improvement still available, and it is one
 bug fix away rather than an architecture away.
+
+### Why the probe and the artifact disagreed: per-channel scales (2026-09-22)
+
+The probe said two FCs share one copy of the weights; the real layer said they cost two. With a working
+compiler and a control in the session, the trigger is now isolated, and it is the last detail I would
+have guessed:
+
+| two FCs, one weight buffer, scales differing by 256 | compiled | against the raw weights |
+|---|---|---|
+| **constant** per-channel scale (`[0.001] * n_out`) | 9.68 MB | 1.00x |
+| **varying** per-channel scale (a real distribution) | **19.16 MB** | **2.03x** |
+
+A real model's per-channel weight scales always vary -- they come from the quantiser. With constant
+scales the compiler evidently canonicalises the two tensors to one; with varying scales it materialises
+two requantised copies. So the probe was answering a question about a model that does not exist, and the
+real layer's 1.97x is the true number. It now reproduces in a probe as 2.03x.
+
+**This confirms the original rejection completely.** Two FULLY_CONNECTEDs over separate inputs cost two
+copies of the weights for any real model, so that construction is dead. What remains is the single-input
+form -- one FC over stacked rows, then SLICE the output and ADD -- which uses ONE weight tensor and so
+has no duplication to suffer, and which crashes the compiler. That is the lever, and it is upstream.
+
+Three probes in a row on this question disagreed with the artifact, each for a different reason I had not
+thought mattered: zero weights (they deduplicate), `-128` weights (asymmetric int8 crashes the compiler
+where the real quantiser clips to +-127), and now constant per-channel scales. The artifact was buildable
+every time.
