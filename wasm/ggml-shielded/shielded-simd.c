@@ -104,23 +104,24 @@ void FN(pad_planes)(const int32_t *r, size_t n, uint8_t *p0, uint8_t *p1, uint8_
  * outside Z_M can still wrap here and fail Freivalds, but arbitrary int64
  * inputs would violate the addition/quotient bounds. r is in [0,M). */
 void FN(mask_planes)(const int64_t *x, const int32_t *r, size_t n, int8_t *p0, int8_t *p1, int8_t *p2) {
-#if !defined(SH_SIMD_NEON) || !defined(SH_SIMD_NEON_TUNED)
-    const double invM = 1.0 / (double)M_MOD;
-#endif
     for (size_t i = 0; i < n; i++) {
-#if defined(SH_SIMD_NEON) && defined(SH_SIMD_NEON_TUNED)
-        /* M is a multiple of each Q, so the intermediate reduction modulo M
-         * is redundant. The caller guarantees |x| < 2^26 and 0 <= r < M:
-         * x+r fits int32 and lies inside modq's exact |v| < 2^28 domain. */
+        /* M is a multiple of each Q, so reducing modulo M before reducing
+         * modulo Q is a no-op: ((x+r) mod M) mod Q == (x+r) mod Q, and the
+         * three planes ARE the residues mod Q. The reduction mod M was
+         * therefore pure cost -- an int64->double convert, a multiply, an
+         * int64 multiply-subtract and two corrections per element, on the
+         * largest remaining CPU kernel in the pass.
+         *
+         * Its preconditions are the ones this kernel already documents and the
+         * link already enforces: |x| < SH_FV_X_LIMIT = 2^26 (checked at the
+         * link boundary by values_within, before any pad is taken) and
+         * 0 <= r < M < 2^24. So x+r lies in (-2^26, 2^26 + 2^24), which fits
+         * int32 and sits inside modq's exact |v| < 2^28 domain, and modq
+         * returns a residue in [0,q) for negative inputs as well.
+         *
+         * This is what the tuned NEON path already did; the reasoning was
+         * never x86-specific. */
         const int32_t w = (int32_t)x[i] + r[i];
-#else
-        int64_t v = x[i] + r[i];
-        int64_t t = (int64_t)((double)v * invM);
-        v -= t * M_MOD;
-        v += (v < 0) ? M_MOD : 0;
-        v -= (v >= M_MOD) ? M_MOD : 0;
-        const int32_t w = (int32_t)v;
-#endif
         int32_t a0 = modq(w, Q0, 1.0f / Q0), a1 = modq(w, Q1, 1.0f / Q1), a2 = modq(w, Q2, 1.0f / Q2);
         a0 -= (a0 > Q0 / 2) ? Q0 : 0;
         a1 -= (a1 > Q1 / 2) ? Q1 : 0;
@@ -902,6 +903,18 @@ void FN(unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int 
             }
         }
     }
+}
+
+/* The activation's integer bound, checked at the link boundary before any pad
+ * is taken or any output written. Same shape and same reason as
+ * reply32_balanced below: unsigned range reduction so INT64_MIN/MAX cannot
+ * overflow, an OR reduction so there is no data-dependent branch, and it lives
+ * in the table so it is built with the arch flags. This limit is public and
+ * never adapted. */
+bool FN(values_within)(const int64_t *values, size_t n, uint64_t limit) {
+    uint64_t bad = 0;
+    for (size_t i = 0; i < n; i++) bad |= (uint64_t)values[i] + limit - 1 >= 2 * limit - 1;
+    return bad == 0;
 }
 
 /* The untrusted reply, checked before anything subtracts a pad from it.
