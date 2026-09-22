@@ -196,6 +196,8 @@ int  sh_pipe_ring_exchange(sh_pipe *p, const sh_frame *f, size_t want, sh_reply 
  * contract as sh_pipe_exchange_work: exactly once on a successful publish, and
  * it also runs when no reply arrives, so a caller that then resends on the
  * socket must not ask for the work twice. NULL work is the plain exchange. */
+/* Idle spin after the work callback: the overlap budget still unused. */
+void sh_pipe_idle(const sh_pipe *p, double *ms, uint64_t *n);
 int  sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
                                 sh_pipe_work_fn work, void *ctx);
 

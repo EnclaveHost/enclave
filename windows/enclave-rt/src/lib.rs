@@ -83,6 +83,15 @@ impl log::Log for EeLogger {
 
 static EE_LOGGER: EeLogger = EeLogger;
 
+/// What a shared memory may grow to, in bytes. Set from the app's `ENCLAVE_MEM_MB` when it opens;
+/// the modest default is for anything that opens without one.
+static SHARED_RESERVE: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(256 << 20);
+
+#[no_mangle]
+pub extern "C" fn wasmtime_shared_memory_reserve_bytes() -> u64 {
+    SHARED_RESERVE.load(core::sync::atomic::Ordering::Relaxed)
+}
+
 struct EnclaveHeap;
 unsafe impl GlobalAlloc for EnclaveHeap {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
@@ -287,6 +296,15 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
             .filter_map(|kv| kv.split_once('=').map(|(k, v)| (String::from(k), String::from(v))))
             .collect()
     };
+    // WHAT A SHARED MEMORY MAY GROW TO. The runtime asks for this before it allocates one,
+    // because a shared memory's base cannot move and so every byte it can ever need has to be
+    // reserved up front. The DECLARED maximum is no use as an answer: risc-box's is 128 GiB,
+    // which means "as much as you have", and this box knows what it actually promised.
+    if let Some((_, v)) = envv.iter().find(|(k, _)| k == "ENCLAVE_MEM_MB") {
+        if let Ok(mb) = v.trim().parse::<u64>() {
+            SHARED_RESERVE.store(mb.saturating_mul(1 << 20), core::sync::atomic::Ordering::Relaxed);
+        }
+    }
     let mut config = Config::new();
     // The interpreter target, and the artifact must match it: a cwasm carrying machine code for a
     // real ISA is refused here rather than mapped executable, which is the point.
