@@ -3459,3 +3459,55 @@ Freivalds passes and no deferred CPU work may consume it beforehand. And with a
 paired SD of 1.35 tok/s, a prototype worth less than ~5% could not be
 distinguished from noise without hours of pairs, so it is worth building only
 for the large version, not a single-region pilot.
+
+### 18.21 Pilot: the idle window is 86-92 us per exchange, measured
+
+Every figure for the overlap budget so far has been a projection off `wire`.
+This measures it. `sh_pipe_ring_exchange_work` calls the work callback (the
+Freivalds RHS, when SHIELDED_OVERLAP_VERIFY is on) and only then starts its
+spin, so the spin is exactly the window STILL idle after existing overlap has
+taken its share. Timing it costs one extra clock_gettime per exchange, about
+0.25 ms across a 125 s run.
+
+One run, 64 tokens, spec 19.21 tok/s, identical=True, local=0, no refusals:
+
+| | card 0 | card 1 |
+|---|---|---|
+| exchanges | 9904 | 9904 |
+| idle spin after the RHS | 850.2 ms | 912.5 ms |
+| per exchange | 85.8 us | 92.1 us |
+
+Read carefully, because the number is easy to inflate. These are PER-CARD wall
+times and the two cards wait CONCURRENTLY, so they must not be added as if they
+were sequential. Across the whole run (both phases, 128 token-generations) card
+0's idle is ~6.6 ms per generated token, with card 1's overlapping it -- so the
+wall-clock window is about 6.6 ms/token, not the ~14 ms I had been projecting
+from wire. It also includes descheduling and clock overhead, and it omits
+exchanges that timed out and fell back to the socket, which are not counted at
+all.
+
+So the honest budget for further overlap is roughly half of C (13.25 ms/token),
+before any question of whether independent work exists to put in it. That is a
+smaller window than the modelling assumed, and it is the first number here that
+was measured rather than derived.
+
+### 18.22 A silent rejection cost forty minutes, and now it names a reason
+
+Rebuilding the shielded backend produced a library that refused every worker
+pool: "invalid worker pool; all operations stay on CPU". I suspected, in order,
+my own instrumentation, an ABI mismatch between two llama.cpp trees whose
+ggml.h differ by 4 KB, uncommitted source, a missing ring file, and committed
+changes the shipped .so predated. I built a worktree from before my edits to
+bisect it. All wrong.
+
+The cause: `/dev/shm/...` ring paths are accepted only in a build carrying
+`SHIELDED_EXTRA_DEFS=-DSHIELDED_ALLOW_DEV_SHM_RINGS`. Production takes the
+root-owned `/dev/enclave-shielded-shm/` path and nothing else. That is a
+security control working exactly as designed -- the ring is world-writable
+under /dev/shm, so a bench box opts in explicitly -- and my rebuild simply
+omitted the documented bench flag.
+
+What made it expensive is that the refusal named no reason, and the reason is a
+COMPILE-TIME property invisible in the config string being rejected. The eight
+rejection sites now each say why, including that one by name with the flag to
+set. The control is unchanged; only its diagnosis is.
