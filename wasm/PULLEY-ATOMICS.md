@@ -122,6 +122,57 @@ The way to stop paying it at all is to specialise: a memory that is not `shared`
 its accesses can stay plain. The interpreter cannot tell them apart, but the COMPILER can, so this
 wants distinct opcodes for shared-memory accesses rather than a run-time test. Not done.
 
+**That cost is now larger, and the reason is in the next section.** The bulk operations took the
+specialised route already: `memory.copy`/`memory.fill` have shared variants chosen at compile time,
+so a private memory still memmoves.
+
+## The mixed-size hole, and what closes it
+
+`wasm/wasmtime-shared-memory-soundness.patch`.
+
+Width-sized relaxed atomics for aligned ordinary accesses were not enough, and this is the second
+thing this document got wrong. Rust forbids **mixed-size atomic accesses to overlapping locations**,
+and a wasm guest reaches that shape trivially: `i32.load` at an address and `i32.load8_u` at the
+same address are an `AtomicU32` and an `AtomicU8` over one byte. Nothing makes that program invalid
+in wasm, so nothing may make it undefined here.
+
+One byte is the only width at which two accesses to the same address can never disagree about their
+size. So:
+
+| | before | now |
+|---|---|---|
+| ordinary load/store | width-sized relaxed atomic when aligned, byte-wise when not | **always byte-wise relaxed** |
+| wasm atomic load/store/RMW/CAS | `AtomicUN`, lock-free | **striped lock** over byte-wise accesses |
+| `memory.copy` / `memory.fill` | `memmove` / `memset` (upstream FIXME #4203) | **byte-wise relaxed**, via compile-time-selected builtins |
+| small constant `memory.copy` | expanded inline as ordinary loads/stores | inline path **skipped** for a shared memory |
+
+The atomic instructions could not stay lock-free once ordinary accesses went byte-wise: an
+`AtomicU32` RMW beside a byte-wise store to the same word is the very mismatch being removed. So
+`Shared<T>` gives them mutual exclusion instead, striped by 8-byte block of the host address - a
+wasm atomic is aligned (the frontend traps otherwise) and at most 8 bytes, so it never spans two
+blocks, and two overlapping atomics always hash to the same stripe. It keeps `AtomicUN`'s method
+names and `Ordering` arguments, so all 36 instruction bodies are unchanged.
+
+What is deliberately NOT locked: an ordinary access racing an atomic one. That race is a race in
+the wasm memory model too, and the ordinary side may read a torn value. Locking it would be slower
+and wrong.
+
+**Growth needed no change.** A defined shared memory's base is pre-reserved and never moves, and
+its length is read through the out-of-line `VMMemoryDefinition` so concurrent growth stays visible;
+that length load is an ordinary load, so it is now byte-wise like everything else.
+
+### Still open before the refusal may move
+
+- **Host access.** Every host read or write of guest memory - WASI, the canonical ABI's lifting and
+  lowering - is a plain Rust access that may race a guest thread. `wasm/wasmtime-shared-utf8-adapters.patch`
+  does this correctly for the UTF-8 string path (snapshot, validate owned data, publish) and is the
+  shape the rest should follow; it is not applied to this tree and the rest is not done.
+- **`no_std`.** `threads = ["std"]` in wasmtime's manifest. `SharedMemory`, its `RwLock`, `Instant`
+  and the `memory.atomic.wait` parking spot all need enclave equivalents before any of this runs in
+  VTL1 at all.
+- **Tested behaviour** for wait/notify, spawn, and thread lifetime - not merely compiled.
+- **The cost**, unmeasured since the change. The numbers below are the width-sized version's.
+
 ## What the atomics themselves are, and how far they are checked
 
 The atomic ops use `AtomicNN::from_ptr` on the pointer `AddressingMode::addr` already produces,
