@@ -163,6 +163,7 @@ int ee_net_resolve(const char *name, char *out, size_t cap) {
 unsigned int ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int world,
                         const unsigned char *env, size_t env_len);
 unsigned int ee_rt_worlds(void);
+unsigned int ee_rt_features(void);   /* 1 mem64 | 2 set | 4 p3 | 8 coop threads */
 int          ee_rt_run(unsigned int id);
 int          ee_rt_stop(unsigned int id);
 void         ee_tls_release(void);       /* the app thread's wasmtime TLS row (ee-platform.c) */
@@ -295,9 +296,21 @@ __declspec(dllexport) void *WINAPI EeAppClose(void *param) {
 
 /* Does this enclave image carry an app runtime, and which ABI? The host publishes it, so a row
  * can only advertise in-enclave app hosting from an image that actually has one. */
-/* param (optional): [0] = abi, [1] = the worlds bitmask this runtime serves. */
+/* param (optional): [0] = abi, [1] = the worlds bitmask this runtime serves, [2] = the WASM
+ * FEATURES it enables (mem64 / set / p3 / cooperative threads). The node publishes its platform
+ * capability flags off [2] and nothing else, so what the box advertises is what the image does. */
 __declspec(dllexport) void *WINAPI EeAppAbi(void *param) {
-    if (param) { uint32_t *o = (uint32_t *)param; o[0] = ee_rt_abi(); o[1] = ee_rt_worlds(); }
+    if (param) {
+        uint32_t *o = (uint32_t *)param;
+        /* How many words does the CALLER own? A host that knows this handshake says so; one that
+         * predates it passed a zeroed buffer of exactly two, and gets exactly two. Writing a third
+         * word into a two-word buffer would be an out-of-bounds store into the host's stack - see
+         * EE_ABI_QUERY_MAGIC in ee-rt.h. */
+        const uint32_t cap = (o[0] == EE_ABI_QUERY_MAGIC && o[1] >= 2) ? o[1] : 2;
+        const uint32_t vals[3] = { ee_rt_abi(), ee_rt_worlds(), ee_rt_features() };
+        const uint32_t n = cap < 3 ? cap : 3;
+        for (uint32_t i = 0; i < n; i++) o[i] = vals[i];
+    }
     return (void *)(intptr_t)ee_rt_abi();
 }
 

@@ -341,10 +341,21 @@ export class EnclaveApp {
  * Cranelift runs HERE, in VTL0, and never inside the enclave: what crosses the gate is data for a
  * target that has no machine code at all, which is what makes an enclave able to run it.
  */
-export async function precompile({ wasmPath, outPath, exe, log = () => {} }) {
+/**
+ * Compile an artifact to the bytecode THIS enclave interprets.
+ *
+ * `features` is the runtime's own bitmask (ee_rt_features, read through `appabi`), passed in so
+ * the compiler builds for the interpreter that will run the result. It is not a convenience:
+ * wasmtime records a cwasm's tunables and refuses a mismatch, but NOT its wasm features - bytecode
+ * built without memory64 loads happily into a runtime that has it (measured on this box). So the
+ * engine will not catch these two binaries drifting apart, and they ARE two binaries. Handing the
+ * compiler the runtime's answer makes the runtime the single authority, and ee-precompile exits
+ * non-zero on a bit it cannot build for rather than quietly producing bytecode that is missing it.
+ */
+export async function precompile({ wasmPath, outPath, exe, features = 0, log = () => {} }) {
   if (!fs.existsSync(exe)) throw new Error(`no bytecode compiler at ${exe} (windows/enclave-rt/build-win.cmd)`);
   const t0 = Date.now();
-  const { stdout } = await execFileAsync(exe, [wasmPath, outPath], { maxBuffer: 4 << 20 });
+  const { stdout } = await execFileAsync(exe, [wasmPath, outPath, String(Number(features) || 0)], { maxBuffer: 4 << 20 });
   log(`bytecode: ${String(stdout).trim()} in ${Date.now() - t0} ms`);
   if (!fs.existsSync(outPath) || fs.statSync(outPath).size < 64) throw new Error("the compiler produced no bytecode");
   return outPath;

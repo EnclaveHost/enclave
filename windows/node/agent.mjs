@@ -116,6 +116,7 @@ const host = new Host({
   // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
   enclaveAppAbi: 0,
   enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http | 4 wasi:cli
+  enclaveAppFeatures: 0,        // and the WASM features it enables: 1 mem64 | 2 set | 4 p3 | 8 coop threads
   relayBase: process.env.RELAY_BASE || 'https://api.enclave.host',
   // The zone the platform gives an app its own hostname in: <label>.app.enclave.host.
   appZone: process.env.APP_ZONE || 'app.enclave.host',
@@ -489,10 +490,17 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
   // whether it sells app hosting at all (host.mjs appsInTee).
   try {
-    const [abiStr, worldsStr] = String(await hostCmd('appabi')).trim().split(/\s+/);
+    const [abiStr, worldsStr, featStr] = String(await hostCmd('appabi')).trim().split(/\s+/);
     const abi = Number(abiStr) || 0;
     const worlds = Number(worldsStr) || (abi >= 1 ? 1 : 0);
+    // The WASM features this image really enables (1 mem64 | 2 set | 4 p3 | 8 coop threads). An
+    // older enclave says nothing here, which reads as none - the safe direction.
     host.cfg.enclaveAppAbi = abi; host.cfg.enclaveAppWorlds = worlds;
+    // Parsed STRICTLY, because this word decides what the box sells. A negative value would set
+    // every bit through the bitwise tests downstream - including `set`, which this image cannot do
+    // - so anything that is not a plain non-negative integer reads as no features at all.
+    const feat = Number(featStr);
+    host.cfg.enclaveAppFeatures = Number.isInteger(feat) && feat >= 0 ? feat : 0;
     const names = [worlds & 1 ? 'enclave:app@0.1.0' : null, worlds & 2 ? 'wasi:http@0.2' : null,
                    worlds & 4 ? 'wasi:cli@0.2' : null].filter(Boolean);
     // WHAT THE ENGINE HOLDS OF THE ENCLAVE, measured here and only here: this is the one moment
@@ -505,7 +513,9 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
       if (privB > 0) host.cfg.engineHeldMb = Math.ceil(privB / (1024 * 1024));
     } catch (e) { log(`enclave memory unreadable: ${e.message}`); }
     log(abi >= 1
-      ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}, `
+      ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}`
+        + `${host.cfg.enclaveAppFeatures ? ', features ' + [[1,'mem64'],[2,'set'],[4,'p3'],[8,'threads']]
+              .filter(([b]) => host.cfg.enclaveAppFeatures & b).map(([, n]) => n).join(' + ') : ''}, `
         + `${host.cfg.enclaveGb} GB enclave, engine holds ${host.cfg.engineHeldMb ?? '?'} MB, `
         + `${host.capacity().ramMbFree} MB for apps`
       : 'no app runtime in this enclave image: this box sells no app hosting');
