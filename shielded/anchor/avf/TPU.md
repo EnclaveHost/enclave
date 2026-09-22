@@ -565,3 +565,46 @@ of the product, so 15 bits total needs A at 16 and B at 8) -- a real 25 % saving
 tensor carries one type, so hi and lo at different widths needs two FULLY_CONNECTEDs, and that emits
 the weights twice: 36.4 -> 71.9 MB on a real layer, which costs far more streaming than the 25 % buys.
 The stacked-row digit-split already sits at the optimum the compiler allows.
+
+## Rebuilding the worker without bazel (2026-09-21)
+
+There is no bazel on this workstation any more, which had silently blocked every worker-side change.
+It is not needed: bazel leaves its link command on disk and all 1804 inputs survive, so the one
+translation unit can be recompiled and the link replayed with the NDK clang the tree already carries.
+
+```
+E=<...>/pixel10-runtime-build-1/bazel-root/<hash>/execroot/litert_lm
+CXX=$E/external/androidndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
+cp tpu/worker/tpu_worker_jni.cc $E/tools/anchortpu/
+cd $E && $CXX --target=aarch64-linux-android31 -O2 -fPIC -std=c++17 \
+  -c tools/anchortpu/tpu_worker_jni.cc -o $S/new.o \
+  -I. -Iexternal/litert -Iexternal/com_google_absl \
+  -Ibazel-out/arm64-v8a-opt/bin -Ibazel-out/arm64-v8a-opt/bin/external/litert
+sed -e 's|^bazel-out/.*/libanchortpu.so$|'$S'/libanchortpu.so|' \
+    -e 's|^bazel-out/.*/tpu_worker_jni.o$|'$S'/new.o|' \
+    bazel-out/arm64-v8a-opt/bin/tools/anchortpu/libanchortpu.so-2.params > $S/link.params
+$CXX @$S/link.params           # then cp into ANCHOR_TPU_LIBS and rebuild the APK
+```
+
+The include roots come out of the depfile bazel left beside the object
+(`_objs/libanchortpu.so/tpu_worker_jni.d`). The bazel output tree is read-only, so point the params at
+a new object rather than overwriting the old one -- overwriting fails and the link then silently
+produces the OLD worker, which is how the first attempt here wasted a run.
+
+### Sending straight out of the tensor buffers: measured, and worse
+
+The engine's `9c7e0e7c` removes a memcpy by letting the GEMM epilogue write into the shm ring instead
+of staging and copying (`spec median 17.60 -> 17.98` on the 27B). The analogue here is to `Lock` each
+output buffer for read and `writev` the reply directly out of them, skipping the staging copy into
+`tx`. It does exactly what it says and still loses:
+
+| | output-read | send | tok/s |
+|---|---|---|---|
+| stage into `tx`, one write | 0.317 | 0.125 | **1.51** |
+| Lock + writev, no staging | **0.061** | **1.148** | 1.26 |
+
+The copy does not disappear, it MOVES -- and gets more expensive. The counters say the path was taken
+every time (`direct 4200 staged 0`), so this is its cost rather than a silent fallback. It wins on a
+server because the products are already in pinned host memory; here `Lock` returns device-coherent
+memory and the kernel's socket path then reads it uncached, which is slower than LiteRT's own `Read`
+into cached heap. Kept behind `kDirectSend`, default false.

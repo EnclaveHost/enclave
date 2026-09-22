@@ -317,8 +317,15 @@ public class Main extends Activity {
             Class<?> cBuilder = Class.forName(PKG + "VirtualMachineConfig$Builder");
             {   // what this phone's AVF can configure (network for the pVM would remove the vsock bridge from every exchange)
                 StringBuilder caps = new StringBuilder();
-                for (java.lang.reflect.Method m : cBuilder.getMethods()) { String n = m.getName(); if (n.startsWith("set") && n.matches(".*(Network|Vsock|Cpu|Vendor|Os|Console|Gpu|Balloon|Hugepages|Extra).*")) caps.append(n).append(' '); }
-                say("HOST VirtualMachineConfig.Builder: " + caps);
+                /* EVERY setter, not a pattern list: the question is whether this AVF offers any channel between the
+                 * pVM and this process faster than vsock. The masked rows are public by construction, so a shared
+                 * ring would need no confidentiality at all - only speed - and the engine's own shm ring is why the
+                 * same masking design costs 1.72x on a server and 17.7x here. */
+                for (java.lang.reflect.Method m : cBuilder.getMethods()) { String n = m.getName(); if (n.startsWith("set")) caps.append(n).append(' '); }
+                say("HOST VirtualMachineConfig.Builder ALL: " + caps);
+                try { StringBuilder vmm2 = new StringBuilder();
+                      for (java.lang.reflect.Method m : Class.forName(PKG + "VirtualMachine").getMethods()) vmm2.append(m.getName()).append(' ');
+                      say("HOST VirtualMachine ALL: " + vmm2); } catch (Throwable t) { say("HOST VirtualMachine reflect: " + t); }
                 // Does this build's virtualization service offer VM networking at all? (Only custom-image VMs
                 // can ask for it on Android 16; the Microdroid app-VM config has no setter. Hidden API: needs
                 // `settings put global hidden_api_policy 1` to be reachable from a third-party app.)
