@@ -1981,3 +1981,49 @@ reaches it at **-0.5 blocks**.
 around it is; the worker's `tpu-run` accounts for about 2 ms of that, and the rest is the mask, the
 reply, the boundary crossing and the VM's own work. Twelve times is what it costs to ask a question
 across a protected-VM boundary rather than compute the answer locally.
+
+### Correcting the previous section: the intercept is now measured, and the claims are narrowed
+
+Three things in the section above were stated more strongly than the evidence supports. All three are
+corrected here, and the first is corrected by measurement rather than by hedging.
+
+**1. The zero-offload point was extrapolated. Now it is measured.** A 16-byte bundle -- `ETPUB002`, a
+group count of zero, and padding -- loads the backend, attaches the worker and offloads nothing. The
+payload accepts it and reports `exchanges: 0`.
+
+| | tok/s | ms/token |
+|---|---|---|
+| zero offload, backend loaded, worker attached | 14.00 / 12.83 | 71.4 / 77.9 |
+| pure CPU path, same prompt | 13.82 / 13.93 | 71.8 / 72.4 |
+
+The measured zero-offload point is **74.5 ms**, against the **78.7 ms** the old fit extrapolated. And the
+"about 10 ms idle-backend tax" I claimed is **wrong**: measured it is 2.5 ms, and the two intervals
+overlap (71.4-77.9 against 71.8-72.4), so at this sample size it is not distinguishable from noise. There
+may be no idle tax at all. Refitting with the measured point: **77.4 + 23.3 ms/block, R^2 = 0.9963.**
+
+**2. The slope is a NET increment, not the TPU's cost.** It is `T - C`: what it costs to REPLACE a CPU
+block with an offloaded one. Separating `T` and `C` needs the per-token work that is neither -- the
+embeddings, the lm_head, the sampler -- and that is not measured. Writing it `F`:
+
+| assumed fixed work F | CPU block C | TPU block T | ratio |
+|---|---|---|---|
+| 0 ms (impossible) | 2.13 ms | 25.1 ms | 11.8x |
+| 10 ms | 1.84 | 24.8 | 13.4x |
+| 20 ms | 1.56 | 24.5 | 15.7x |
+| 30 ms | 1.27 | 24.2 | 19.0x |
+
+So "12x" was a point estimate resting on `F = 0`, which is false. The defensible statement is that the
+ratio is **at least 11.8x and larger the more fixed work there is**. Relatedly, `69 / 35 = 1.98 ms` is not
+the cost of a CPU block; it is the whole CPU token divided by 35, which includes all of `F`.
+
+**3. R^2 = 0.996 over six points describes THIS implementation.** It does not isolate the protected-
+boundary cost from the masking, the digit-split reply, the VM's own arithmetic or this worker's design,
+and it is not a law about masked offload in general. Nor does it show 15 tok/s is globally unreachable:
+it shows that on this phone, with this model, this masking scheme and this worker, the line reaches
+66.7 ms below zero blocks. A different scheme with a cheaper per-exchange cost would have a different
+slope, and that is the quantity worth attacking.
+
+**What the sweep does establish**, and this part stands: the relationship is linear and monotone over
+0-35 blocks, so there is no partial-offload sweet spot in this implementation; and the whole 877 ms token
+at 35 blocks is 74.5 ms of everything-else plus 802.7 ms attributable to having moved 35 blocks across
+the boundary.
