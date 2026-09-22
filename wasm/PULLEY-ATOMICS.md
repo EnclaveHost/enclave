@@ -191,6 +191,27 @@ The second is this change's whole reason, reported by a tool instead of argued f
 corrected: it used to say byte-wise atomics could not work, which was true only of byte-wise
 atomics *without* a lock for the atomic instructions.
 
+### What the thread bridge is and is not proven to do
+
+`EE_THREAD_SELFTEST` is the host misbehaving on purpose, and it scores each property separately
+because they are not equally covered:
+
+| property | mutant-proven |
+|---|---|
+| a replayed thread entry is refused, and the body runs once | **yes** — reverted: `bodyRuns` 2–3 |
+| a stale generation is refused | **yes** |
+| identity survives the host rewriting every slot header | **yes** — reverted: two threads report one name |
+| 200 sequential spawn+joins retire their identities | **yes** — reverted: 64 held, next thread fatal |
+| `LocalKey::with` nests without aliasing | **yes** — Miri, reverted: retag error |
+| the final release cannot race an entry | **no** |
+| a host lying about a spawn cannot free a live record | tested, **not discriminated** |
+| `done` is not published before the slot is returned | **no** |
+
+The last three are reasoned fixes with passing tests that also pass without them. The windows are
+microseconds wide and the suite does not hit them; a deterministic test needs a pause injected at
+the exact point, which does not exist in the fixed code. Recorded as a gap rather than counted as
+coverage.
+
 ### Still open before the refusal may move
 
 - **Host access.** Three paths fixed, one class audited, NOT a clean bill of health: what follows

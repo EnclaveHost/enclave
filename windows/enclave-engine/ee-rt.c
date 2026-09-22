@@ -260,7 +260,21 @@ pid_t getpid(void) { return 1; }
 typedef struct ee_thread { unsigned (__stdcall *fn)(void *); void *arg; volatile LONG tid; volatile LONG done; volatile LONG refs; unsigned ret; LONG id; LONG64 gen; volatile LONG entered; } ee_thread;
 static volatile LONG64 g_thr_gen = 1;
 static ee_thread *volatile g_thr[EE_MAX_THREADS]; static SRWLOCK g_thr_lock = SRWLOCK_INIT;
-static void thr_release(ee_thread *t) { if (InterlockedDecrement(&t->refs) == 0) { AcquireSRWLockExclusive(&g_thr_lock); g_thr[t->id] = NULL; ReleaseSRWLockExclusive(&g_thr_lock); free(t); } }
+/* THE DROP TO ZERO AND THE UNPUBLISH ARE ONE STEP, under the lock that lookups take.
+ *
+ * Decrementing first and locking afterwards leaves a window: the count is 0 but the record is
+ * still in g_thr, so ee_thread_entry can take the lock, find it, and raise the count from zero -
+ * and then this function frees it underneath that entrant. Doing both under the lock makes the
+ * invariant checkable: while a record is PUBLISHED its count is at least one, and it stops being
+ * published at the same instant the count reaches zero. */
+static void thr_release(ee_thread *t) {
+    AcquireSRWLockExclusive(&g_thr_lock);
+    const LONG n = InterlockedDecrement(&t->refs);
+    if (n > 0) { ReleaseSRWLockExclusive(&g_thr_lock); return; }
+    if (t->id >= 0 && t->id < EE_MAX_THREADS && g_thr[t->id] == t) g_thr[t->id] = NULL;
+    ReleaseSRWLockExclusive(&g_thr_lock);
+    free(t);
+}
 uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall *fn)(void *), void *arg, unsigned flags, unsigned *tid_out) {
     (void)sec; (void)stack; (void)flags;
     ee_thread *t = (ee_thread *)calloc(1, sizeof *t); if (!t) return 0;
@@ -274,8 +288,27 @@ uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall 
      * back, and a value it invents or replays fails the check on entry. */
     ee_callout *c = ee_slot(); c->op = EE_OP_SPAWN;
     c->arg = ((uint64_t)(uint32_t)t->gen << 32) | (uint32_t)t->id; c->len = 0;
-    if (ee_callout_call(c) != 0) { AcquireSRWLockExclusive(&g_thr_lock); g_thr[t->id] = NULL; ReleaseSRWLockExclusive(&g_thr_lock); free(t); errno = EAGAIN; return 0; }
-    while (!t->tid) { LONG z = 0; WaitOnAddress(&t->tid, &z, sizeof z, 1000); }
+    const int64_t spawned = ee_callout_call(c);
+    /* A FAILURE REPORTED BY THE HOST IS NOT PERMISSION TO FREE THE RECORD.
+     *
+     * The host can start the thread, let it enter and begin running the body, and only then
+     * return an error. Believing that would free a record - and, through the runtime's trampoline,
+     * an argument - that a live thread is using. So the decision is made HERE, atomically: claim
+     * `entered` 0 -> 2 (cancelled). Winning means no body can ever run, because entry requires
+     * 0 -> 1, and the record is ours to retire. Losing means the thread really is running, the
+     * host's answer was false, and the honest result is SUCCESS. */
+    if (spawned != 0 && InterlockedCompareExchange(&t->entered, 2, 0) == 0) {
+        thr_release(t);                    /* the body's reference: no body will run */
+        thr_release(t);                    /* the caller's */
+        errno = EAGAIN; return 0;
+    }
+    /* Bounded, and cancellable for the same reason: a host that accepts the spawn and never
+     * enters must not hang the guest forever. */
+    for (int i = 0; i < 100 && !t->tid; i++) { LONG z = 0; WaitOnAddress(&t->tid, &z, sizeof z, 100); }
+    if (!t->tid && InterlockedCompareExchange(&t->entered, 2, 0) == 0) {
+        thr_release(t); thr_release(t);
+        errno = EAGAIN; return 0;
+    }
     if (tid_out) *tid_out = (unsigned)t->tid;
     return (uintptr_t)t;
 }
@@ -301,12 +334,14 @@ void *ee_thread_entry(void *param) {
 
     InterlockedExchange(&t->tid, (LONG)GetCurrentThreadId()); WakeByAddressAll((void *)&t->tid);
     t->ret = t->fn(t->arg);
-    InterlockedExchange(&t->done, 1); WakeByAddressAll((void *)&t->done);
-    /* This thread is finished with the enclave. Destructors first - they may still call out, so
-     * they need the slot - then the slot and token go back, or the enclave leaks one identity per
-     * thread and dies at the cap. */
+    /* ORDER MATTERS, and it used to be wrong. `done` is what a joiner waits on, so publishing it
+     * before the destructors and the slot release let a joined thread's caller spawn again while
+     * this thread still held its identity - concurrent admission against a token that was about
+     * to be freed. Destructors first (they may still call out, so they need the slot), then the
+     * slot and token, and only then is this thread finished. */
     ee_keys_run_dtors();
     ee_slot_release();
+    InterlockedExchange(&t->done, 1); WakeByAddressAll((void *)&t->done);
     thr_release(t);                      /* the reference taken above */
     thr_release(t);                      /* the spawn's own reference */
     return 0;
@@ -369,6 +404,19 @@ static unsigned __stdcall tt_body(void *p) {
 /* Claims a call-out slot, which is the point: a body that does nothing never takes an identity,
  * so a test built on one would not notice slots that are never given back. */
 static unsigned __stdcall tt_noop(void *p) { (void)p; (void)ee_park_token(); return 0; }
+/* Spawns and joins in a loop, so several of these run the whole lifetime path against each other:
+ * admission, entry, release and retirement all concurrent. The sequential test says nothing about
+ * that, and the release/entry window an audit found lives exactly here. */
+static unsigned __stdcall tt_churn(void *p) {
+    ee_thr_test *t = (ee_thr_test *)p;
+    for (int k = 0; k < 40; k++) {
+        uintptr_t h = _beginthreadex(NULL, 0, tt_noop, NULL, 0, NULL);
+        if (!h) { InterlockedIncrement((volatile LONG *)&t->runs); continue; }
+        WaitForSingleObject((HANDLE)h, 30000);
+        CloseHandle((HANDLE)h);
+    }
+    return 0;
+}
 __declspec(dllexport) void *WINAPI EeThreadTest(void *param) {
     ee_thr_test *t = (ee_thr_test *)param;
     if (!t) return (void *)(intptr_t)-1;
@@ -395,6 +443,26 @@ __declspec(dllexport) void *WINAPI EeThreadTest(void *param) {
         for (int i = 0; i < 10000 && !t->gate; i++) ee_sleep_ms(1);
         t->token = ee_park_token();
         t->status = 0; return (void *)0;
+    case 6: {                                  /* the host LIES: it spawns, then reports failure */
+        g_tt = t; t->runs = 0; t->gate = 1;    /* ungated: the body runs immediately if it runs */
+        uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+        /* Either answer is correct and both must be SAFE. If the enclave won the cancellation the
+         * body never runs and the record is ours; if it lost, the thread really is running and the
+         * handle is real. What must never happen is the record being freed under a live body -
+         * which is what believing the host's answer used to do. */
+        if (h) { WaitForSingleObject((HANDLE)h, 20000); CloseHandle((HANDLE)h); }
+        else { for (int i = 0; i < 2000 && !t->runs; i++) ee_sleep_ms(1); }
+        t->token = (uint32_t)(h ? 1 : 0);      /* out: did the enclave report success */
+        t->status = 0; return (void *)0; }
+    case 7: {                                  /* CONCURRENT spawn+join from several threads */
+        g_tt = t; t->runs = 0;
+        HANDLE hs[8]; const uint32_t n = t->n > 8 ? 8 : (t->n ? t->n : 8);
+        for (uint32_t i = 0; i < n; i++) hs[i] = (HANDLE)_beginthreadex(NULL, 0, tt_churn, t, 0, NULL);
+        for (uint32_t i = 0; i < n; i++) if (hs[i]) { WaitForSingleObject(hs[i], 60000); CloseHandle(hs[i]); }
+        { uint32_t held = 0;
+          for (int i = 0; i < EE_MAX_TOK; i++) if (g_tok_used[i]) held++;
+          t->token = held; }
+        t->status = 0; return (void *)0; }
     case 4: {                                  /* sequential spawn+join, past the slot count */
         for (uint32_t i = 0; i < t->n; i++) {
             uintptr_t h = _beginthreadex(NULL, 0, tt_noop, NULL, 0, NULL);

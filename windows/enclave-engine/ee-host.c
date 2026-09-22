@@ -28,6 +28,7 @@ static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerat
 static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi, g_EeAppRun, g_EeAppStop;
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
+static volatile LONG g_spawn_lie;              /* EE_THREAD_SELFTEST: see EE_OP_SPAWN */
 /* One binary semaphore per park token (an enclave call-out slot index). Lazily created under the
  * same lock the socket table uses; EE_MAX_PARK is the ceiling on enclave threads. */
 #define EE_MAX_PARK 256
@@ -108,7 +109,12 @@ static void *WINAPI host_callout(void *param) {
         c->ret = 0; break; }
     case EE_OP_SPAWN: {
         HANDLE h = CreateThread(NULL, 4u << 20, thr_enter, (LPVOID)(uintptr_t)c->arg, 0, NULL);
-        if (!h) { c->ret = -11; break; } CloseHandle(h); c->ret = 0; break; }
+        if (!h) { c->ret = -11; break; } CloseHandle(h);
+        /* EE_THREAD_SELFTEST only: spawn the thread and then LIE about it. A hostile host can do
+         * exactly this, and the enclave used to believe the answer and free a record its own live
+         * thread was using. */
+        if (g_spawn_lie) { g_spawn_lie = 0; c->ret = -11; break; }
+        c->ret = 0; break; }
     case EE_OP_CONNECT: {
         char host[256]; size_t n = c->len < sizeof host ? (size_t)c->len : sizeof host - 1; memcpy(host, c->data, n); host[n] = 0;
         char port[16]; snprintf(port, sizeof port, "%llu", (unsigned long long)c->arg);
@@ -590,6 +596,24 @@ int main(int argc, char **argv) {
 
         /* (4) STABILITY. Sequential spawn+join well past n_slots: a slot that is never given back
          * used to make the 97th thread of the enclave's LIFE fatal. */
+        /* (5) THE HOST LIES about a spawn it really performed. */
+        int ok_lie = 0; uint32_t lie_runs = 0, lie_reported = 0;
+        { ee_thr_test l; memset(&l, 0, sizeof l); l.op = 6;
+          InterlockedExchange(&g_spawn_lie, 1);
+          call(g_EeThreadTest, &l);
+          InterlockedExchange(&g_spawn_lie, 0);
+          lie_runs = l.runs; lie_reported = l.token;
+          /* The body runs at most once, whichever way the cancellation went, and the process is
+           * still here to say so. */
+          ok_lie = l.status == 0 && l.runs <= 1; }
+
+        /* (6) CONCURRENT admission: eight threads each spawning and joining forty. */
+        int ok_churn = 0; uint32_t churn_held = 0, churn_fail = 0;
+        { ee_thr_test ch; memset(&ch, 0, sizeof ch); ch.op = 7; ch.n = 8;
+          call(g_EeThreadTest, &ch);
+          churn_held = ch.token; churn_fail = ch.runs;
+          ok_churn = ch.status == 0 && ch.token < 16; }
+
         uint32_t held_after = 0;
         { ee_thr_test m; memset(&m, 0, sizeof m); m.op = 4; m.n = 200; call(g_EeThreadTest, &m);
           many_status = m.status; held_after = m.token;
@@ -600,11 +624,17 @@ int main(int argc, char **argv) {
 
         printf("{\"duplicateEntryRefused\":%s,\"staleEntryRefused\":%s,\"bodyRuns\":%u,"
                "\"tokensSurviveHostScribble\":%s,\"sequentialSpawnJoin200\":%s,\"tokensHeldAfter200\":%u,"
+               "\"hostLiedAboutSpawn\":%s,\"lieBodyRuns\":%u,\"lieReportedSuccess\":%u,"
+               "\"concurrentSpawnJoin\":%s,\"concurrentHeld\":%u,\"concurrentFailures\":%u,"
                "\"manyStatus\":%d}\n",
                ok_replay ? "true" : "false", ok_stale ? "true" : "false", runs_after_replay,
-               ok_tokens ? "true" : "false", ok_many ? "true" : "false", held_after, many_status);
+               ok_tokens ? "true" : "false", ok_many ? "true" : "false", held_after,
+               ok_lie ? "true" : "false", lie_runs, lie_reported,
+               ok_churn ? "true" : "false", churn_held, churn_fail,
+               many_status);
         fflush(stdout);
-        return (ok_replay && ok_stale && runs_after_replay == 1 && ok_tokens && ok_many) ? 0 : 9;
+        return (ok_replay && ok_stale && runs_after_replay == 1 && ok_tokens && ok_many
+                && ok_lie && ok_churn) ? 0 : 9;
     }
     { char h1[65], h2[65]; hex(h1, g_sign_pk, 32); hex(h2, g_box_pk, 32); say("[host] enclave keys: transport %s pad %s\n", h1, h2); }
     ee_load_params *lp = (ee_load_params *)calloc(1, sizeof *lp); lp->size = sizeof *lp; lp->model = "model.gguf"; lp->n_threads = threads; lp->n_ctx = n_ctx; lp->n_batch = 512;
