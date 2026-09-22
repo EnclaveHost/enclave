@@ -3682,3 +3682,50 @@ them as unready forever. That did not cause this result -- the 192 rejections
 are the forward-scan effect -- but it is a second way the rule is conservative
 beyond its intent, and it would have to be fixed before any positive case could
 pass.
+
+### 18.26 The predicate, extracted and tested, and a correction to the correction
+
+The readiness rule now lives in `wasm/ggml-shielded/shielded-overlap.h` and is
+exercised directly by `test/shielded-overlap-ready.test.mjs`. It had to be
+extracted because the real graph never presents a positive case, so no full run
+could ever take the accept branch: every "passing" run passed without touching
+the code in question.
+
+Sixteen checks: a positive case (completed, disjoint sources beside an
+unrelated exchange), the current exchange's matmul, a grouped sibling, a
+reshape alias at one and two hops, a node not yet produced, a tensor this
+subgraph does not own, a rejected reply turning a previously-ready read
+unready, and a node appearing among its own reads.
+
+**The tests found a real defect on their first run.** A VIEW node computes
+nothing, so the main loop skips it and never marks it produced -- and the rule
+asked whether the view had run. Every read reaching a tensor through a reshape
+was therefore rejected forever, which would have made a positive case
+impossible in the real graph no matter what else was fixed. Producedness is now
+asked of the ROOT of the view chain, which is the question that was meant:
+do the bytes exist. In-flight is still asked of every link, because a reshape
+of a live tensor IS the live tensor.
+
+**And the counters were lying, which means 18.25 was wrong.** They shared one
+loop with an early break on `!produced`, and an in-flight matmul is always also
+unproduced, so in-flight could never be recorded. `in-flight=0` was an artifact
+of the test order. Computed independently on the same workload:
+
+    overlap selector: pattern=192 taken=0 rejected: in-flight=192 not-ready=192
+
+Every candidate visit depends on the live exchange AND has an unproduced read.
+So 18.24's original claim -- that a local island is by construction downstream
+of the matmul in flight -- was right, and 18.25's "it is really the forward
+scan" correction was derived from a broken instrument and is withdrawn. I
+corrected a true statement into a false one on the strength of a counter I had
+written badly, which is worse than the original error.
+
+(These are candidate VISITS, not distinct islands: a node is visited once per
+exchange scan, so 192 is a count of rejections, not of islands in the graph.)
+
+The conclusion stands where 18.24 left it: local islands cannot overlap the
+exchange that produces their input, so the class the backend may claim is the
+wrong class, and real overlap needs work the backend does not currently own.
+The pilot remains default off; with the view rule repaired it still selects
+nothing on this workload, and the accept branch remains unexercised outside
+the unit test. Runs: psel-2 spec 18.63, identical=True, local=0, verify_fail=0.

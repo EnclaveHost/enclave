@@ -9,6 +9,7 @@
 extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
+#include "shielded-overlap.h"
 #include "shielded-parwork.h"
 #include "shielded-wide.h"
 }
@@ -2178,29 +2179,35 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                      * produced by a node this split has not reached. A pointer
                      * edge says what is read; it does not say it is ready. */
                     const ggml_tensor *reads[] = { pat.first, pat.residual, pat.add, pat.norm, pat.scaled };
-                    bool ready = true, inflight = false;
-                    for (const ggml_tensor *rt : reads) {
-                        if (!rt || rt == nj) continue;
-                        /* Follow the view chain: a read can be a reshape of a
-                         * tensor still in flight, and the view has its own
-                         * node with its own state. */
-                        for (const ggml_tensor *v = rt; v; v = v->view_src) {
-                            auto f = idx_of.find(v);
-                            if (f != idx_of.end() && !produced[f->second]) { ready = false; break; }
-                            /* Belt and braces against the group in flight RIGHT
-                             * NOW, independent of any bookkeeping: never read a
-                             * member of this exchange or an alias of one. */
-                            for (size_t q = 0; q < members.size(); q++) {
-                                const ggml_tensor *mv = members[q];
-                                for (const ggml_tensor *w = mv; w; w = w->view_src)
-                                    if (w == v) { ready = false; inflight = true; break; }
-                                if (!ready) break;
-                            }
-                            if (!ready) break;
-                        }
-                        if (!ready) break;
-                    }
-                    if (!ready) { if (inflight) s.sel_inflight++; else s.sel_notready++; continue; }
+                    /* The predicate lives in shielded-overlap.h and is tested
+                     * directly (test/shielded-overlap-ready.test.mjs). The real
+                     * graph never presents a positive case, so this branch is
+                     * exercised nowhere else. */
+                    struct ready_ctx { std::unordered_map<const ggml_tensor *, int> *idx;
+                                       std::vector<char> *prod;
+                                       std::vector<ggml_tensor *> *live; } rc_ctx{ &idx_of, &produced, &members };
+                    sh_ready_ops rops;
+                    rops.ctx = &rc_ctx;
+                    rops.index_of = [](const ggml_tensor *t, void *c) -> int {
+                        auto *x = (ready_ctx *)c; auto f = x->idx->find(t);
+                        return f == x->idx->end() ? -1 : f->second; };
+                    rops.is_produced = [](int i, void *c) -> bool {
+                        auto *x = (ready_ctx *)c; return i >= 0 && (size_t)i < x->prod->size() && (*x->prod)[i]; };
+                    rops.is_in_flight = [](const ggml_tensor *t, void *c) -> bool {
+                        auto *x = (ready_ctx *)c;
+                        for (auto *mv : *x->live)
+                            for (const ggml_tensor *w = mv; w; w = w->view_src) if (w == t) return true;
+                        return false; };
+                    const sh_ready_result rr = sh_island_ready(reads, 5, nj, &rops);
+                    /* Both facts, counted independently. The previous counters
+                     * shared one loop with an early break, so an in-flight
+                     * matmul -- which is always also unproduced -- could only
+                     * ever be recorded as not-ready, and "in-flight=0" was an
+                     * artifact of the test order rather than a finding. */
+                    if (rr.depends_on_in_flight) s.sel_inflight++;
+                    if (rr.depends_on_unproduced) s.sel_notready++;
+                    const bool ready = rr.ready;
+                    if (!ready) continue;
                     /* Dependencies are not enough. ggml's allocator reuses
                      * tensor memory on the assumption that nodes run in graph
                      * order, so a node moved earlier can write into a range
