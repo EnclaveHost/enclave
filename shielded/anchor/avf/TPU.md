@@ -1513,3 +1513,41 @@ accelerator will run, so it is not a result either.
 
 The `--digit-combine` flag stays in `make_graphs.py`, with this noted, because the bug report needs a
 real-layer reproducer and that is now what it is.
+
+## The compiler is not deterministic here, and I never ran the control (2026-09-22)
+
+Both of the last two sections are unsafe, and so is the correction between them. The reason is one I
+should have established before the first compile rather than after the twentieth.
+
+**The control fails.** `graphs-h4-ds/L0.tflite` is the shipped, in-production stacked layer. It compiled
+successfully on 2026-09-19 -- the output and its log are on disk, ending `Serialized a model of size
+36402704 bytes`. Recompiling that same unmodified file today fails with the same `INTERNAL` error as
+everything else, three attempts in a row.
+
+**And it degrades within a session.** `cs_1proj.tflite`, a 0.28 MB probe, compiled successfully a few
+minutes before it began failing on four consecutive attempts with no input change. So the tool is not
+deterministic in this environment, and a single compile attempt is not evidence either way.
+
+Ruled out as causes: disk (13 GB free on /tmp, and pointing TMPDIR at a 1.2 TB filesystem changes
+nothing), `noexec` (it is not set), process limits (nproc 510691, nofile 524288), leftover processes
+(none), and memory (78 GB available, though 46 GB of swap is in use). The failing run stops before the
+`SubProcess::ForkAndExec` that the successful log shows, so it never reaches the worker that earlier
+crashes DID reach -- those produced `/tmp/compiler_worker_*` maps and build ids, and today's failures
+produce nothing.
+
+**What this costs.** Every compile result tonight is now uninterpretable in one direction or the other:
+
+* The operator table (`QUANTIZE`/`ADD`/`MUL`/`CONCATENATION` compile, `SLICE`/`SPLIT`/`RESHAPE`/
+  `TRANSPOSE`/`BATCH_MATMUL` crash) was gathered without a control. The successes are still real -- a
+  compile that produced output produced output. The CRASHES are not safe, because the control crashes too.
+* The claim that the reply can be halved is unproven.
+* **The correction that said it cannot is equally unproven**, because it rested on the real layer failing
+  to compile, and the known-good layer fails identically.
+
+So the question is OPEN, not closed in either direction, and it stays that way until the compiler is
+working and a known-good file compiles alongside whatever is being tested.
+
+**The rule that follows**, which is the useful part: compile a file that is known to work in the same
+session, immediately before drawing any conclusion from a compile that fails. `a8w4/probe_*.py` should
+carry that control rather than leaving it to whoever runs them, and until they do, treat their CRASH rows
+as unverified.
