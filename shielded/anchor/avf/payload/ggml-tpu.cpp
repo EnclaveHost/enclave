@@ -339,6 +339,24 @@ extern "C" void ggml_backend_tpu_corr_stop(void) {
     for (auto &t : g_cj.pool) t.join(); g_cj.pool.clear();
 }
 
+/* AUDIT: is a reply value sitting on the int16 rail a genuine CLIP or an exact legitimate value?
+ *
+ * The counter only ever tested `v == 32767 || v == -32768` and then used v anyway. Both causes land
+ * there: a product whose true value exceeded the rail (this chip saturates rather than wraps, so the
+ * value is CORRUPT), and a product that legitimately rounds to exactly the rail. They are only
+ * distinguishable against exact arithmetic, and the VM holds everything needed for it -- the masked row
+ * it sent, the public weights, and the requantise multiplier -- so it can recompute that one element
+ * exactly and say which happened. This is the same trusted arithmetic the reference worker uses.
+ *
+ * Cost is one dot product per rail hit, and rail hits are rare by construction (s_out budgets the
+ * signal plus `sigmas` of the pad's spread), so this runs always rather than behind a flag. */
+static int64_t dot_i8_digit(const int8_t *w, const int16_t *q, uint32_t n, bool high) {
+    int64_t a = 0;
+    for (uint32_t i = 0; i < n; i++) { const int32_t v = q[i], h = (v + 128) >> 8;
+        a += (int64_t)w[i] * (int64_t)(high ? h : (v - (h << 8))); }
+    return a;
+}
+
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
     std::vector<pad> pads; pads.reserve(rows + 3);
@@ -439,11 +457,41 @@ void exchange(group &g, const float *x, uint32_t rows) {
                 const int16_t *vh = rx, *vl = rx + (size_t)rows * pr.n_out;
                 for (uint32_t j = 0; j < pr.n_out; j++) {
                     const int16_t a = vh[j], b2 = vl[j];
-                    if (a == 32767 || a == -32768 || b2 == 32767 || b2 == -32768) s.st.saturated++;
+                    if (a == 32767 || a == -32768 || b2 == 32767 || b2 == -32768) {
+                        s.st.saturated++;
+                        const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in; const double Mp = pr.M[j] * 102.4;
+                        const int64_t ea = llround(Mp * (double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, true));
+                        const int64_t eb = llround(Mp * (double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, false));
+                        const int64_t xa = ea > 32767 ? ea - 32767 : (ea < -32768 ? -32768 - ea : 0);
+                        const int64_t xb = eb > 32767 ? eb - 32767 : (eb < -32768 ? -32768 - eb : 0);
+                        if (xa || xb) { s.st.sat_clipped++; if (xa) s.st.sat_hi++; if (xb) s.st.sat_lo++;
+                            const int64_t ex = xa > xb ? xa : xb; if ((uint64_t)ex > s.st.sat_max_excess) s.st.sat_max_excess = (uint64_t)ex;
+                            /* the error this clip WOULD have put into y, in units of the output LSB, had we used it */
+                            const double err = fabs(s_d * (double)(256 * (ea - (int64_t)a) + (eb - (int64_t)b2))) / (double)pr.s_out;
+                            if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err;
+                            /* REPAIR. The chip saturates rather than wraps, so a railed reply is a corrupted product,
+                             * not a large one -- measured, every rail hit here is a genuine clip, exceeding by up to
+                             * 39700 quanta (more than the whole int16 range) and worth up to 388 output LSBs of error.
+                             * The exact value is already in hand from the SAME arithmetic the reference worker uses,
+                             * computed from public weights and the VM's own masked row, so use it. Nothing crosses the
+                             * link and nothing about the lane contract changes: this is the out-of-lane correction's
+                             * remedy applied to the output side instead of the input side. */
+                            y[j] += s_d * (float)(256.0 * (double)ea + (double)eb) - pr.s_out * (float)P[j];
+                            continue;
+                        }
+                    }
                     y[j] += s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
                 }
             } else
-            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j]; if (v == 32767 || v == -32768 || v == -32767) s.st.saturated++; y[j] += pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
+            for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j];
+                if (v == 32767 || v == -32768) { s.st.saturated++;
+                    const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
+                    const int64_t ev = llround(pr.M[j] * (double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, qr, g.n_in));
+                    const int64_t ex = ev > 32767 ? ev - 32767 : (ev < -32768 ? -32768 - ev : 0);
+                    if (ex) { s.st.sat_clipped++; if ((uint64_t)ex > s.st.sat_max_excess) s.st.sat_max_excess = (uint64_t)ex;
+                              const double err = fabs((double)(ev - (int64_t)v)); if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err;
+                              y[j] += pr.s_out * (float)((double)ev - (double)P[j]); continue; } }   /* repair: see the digit path */
+                y[j] += pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
             rx += pr.n_out;
         }
         if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
