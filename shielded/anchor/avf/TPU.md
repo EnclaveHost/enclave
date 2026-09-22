@@ -633,3 +633,78 @@ depth on code -- 80 % at k=2, 67 % at k=5 -- but not fast enough to cancel the e
 So the shipped default should pick depth per workload rather than fix it: `--ei draft_max 1` for prose,
 `--ei draft_max 4` for code. An engine that watched its own accepted/drafted ratio could do this by
 itself; the counters it needs are already on the turn line.
+
+## Audit: the int16 rail counter, and what it was hiding (2026-09-22)
+
+`saturated` counted reply values on the rail and the reply path then USED them. This chip saturates
+rather than wraps, so a railed reply is a CORRUPTED product, not a large one -- but a value can also
+legitimately round to exactly the rail, and only exact arithmetic separates the two. Raised in review;
+the counter had been non-zero for every modular run and nobody had established which it was.
+
+**It is separable in place, and the answer is that none were legitimate.** The VM holds the masked row
+it sent, the public weights and the requantise multiplier, so on a rail hit it recomputes that element
+in int64 with `llround((double)acc * M[j] * mscale)` -- the reference worker's own expression,
+associated the same way, under the same bundle and model:
+
+| run | rail hits | genuine clips | max excess | worst error into y |
+|---|---|---|---|---|
+| audit, turn 1 | 188 | **188 (100 %)** | 38250 | 373.5 LSB |
+| audit, turn 2 | 198 | **198 (100 %)** | 39700 | 387.7 LSB |
+| repaired, turn 1 | 182 | 182 | 33726 | 329.4 |
+| repaired, turn 2 | 208 | 208 | 23274 | 227.3 |
+
+Every one exceeded the rail, by up to more than the whole int16 range, each carrying up to ~388 output
+LSBs into `y`. **The cause is systematic, not a tail event**, and the per-digit counter proves it:
+`hi 0, lo 188` -- every clip on the `lo` digit, none on `hi`, exactly as `DIGIT_OUT_DIV = 128/1.25`
+predicts (1.25x headroom for `lo`, 2.5x for `hi`). A 2.2x-rail excess would be ~11 sigma if statistical.
+
+**Fix:** use the exact value, already in hand at detection. It is the out-of-lane correction's remedy
+applied to the output side rather than the input side -- public weights and the VM's own masked row,
+nothing crosses the link, the lane contract and the modular one-time pad are untouched. One dot product
+per hit at under one hit per token; throughput unchanged.
+
+### What validates the backend, and what cannot
+
+**The kernel comparison is the one that counts, and it needs no CPU path.** One element per projection
+per exchange is recomputed with the reference's expression under the SAME bundle, weights and
+quantisation, and compared with what the backend returned:
+
+| run | compared | disagreements | worst | RMS |
+|---|---|---|---|---|
+| 1 | 59040 | 2 | **1 LSB** | 0.006 |
+| 2 | 58220 | 3 | **1 LSB** | 0.007 |
+
+So the backend's requantisation is faithful to within a single LSB on 5 elements in 117k, consistent
+with tie-breaking between its internal requantise and double-precision `llround`. Clipping was the only
+defect.
+
+**The rail convention had to be measured where every rail is seen.** A sampled histogram returned
+0/0/0, which is not evidence -- a few hundred rails in ~190M elements will never appear in a 59k
+sample. Counted at the detection site instead: **-32768 x98, -32767 x0, +32767 x90**, summing to the
+188 clips. Two consequences: the original narrow test (`== -32768`) was catching every real hardware
+rail after all, and **the reference worker was clamping one LSB short of the silicon** (`-32767`), so
+anything validated against it was off by an LSB at the negative rail. The reference is corrected.
+
+**What an unmasked CPU run can and cannot show.** It is a different quantisation path, so it can show
+substantive agreement and never bit-exactness. The first attempt was also not a controlled comparison:
+`local-run.sh` ignores `MAXNEW`, so it generated 512 tokens a turn and turn 2 began from a different
+history (ctx 538/1078 against 135/273); only turn 1 survives, and only as a PREFIX comparison, which is
+valid because greedy decoding is prefix-deterministic. Its rate is not a thermal baseline either (the
+log ends capped at 1785000). Controlled output comparisons use one turn, equal token limits, a fresh
+context, `WIDTH=4000` so nothing truncates at 260, and the repair behind `kRepairClips` so the two arms
+differ in nothing else.
+
+### Undefined behaviour in the digit split, found by the same review
+
+`q = 256*hi + lo` was written THREE times -- the send path, the minter's pad split, and the audit
+recompute -- with three different expressions, two shifting negative values. A left shift of a negative
+is undefined in C++17 (defined only from C++20) and `build.sh` compiles this file as C++17; a right
+shift of a negative is implementation-defined. `w=1, q=-256, high=false` trips "left shift of negative
+value -1" under UBSan. The three sites must agree BIT-EXACTLY or the pad the VM subtracts and the digits
+the TPU multiplies describe different numbers.
+
+One helper now, using a modular mask and an exact division, no shifts of negatives.
+`tpu/test/digit-split-test.cpp` checks it over the whole int16 range under
+`-fsanitize=undefined -fno-sanitize-recover=all`: **65536 values, 0 failures**, and it asserts agreement
+with BOTH old expressions on this compiler, so the change is behaviour-preserving where the old code was
+defined and only removes the cases where it was not.
