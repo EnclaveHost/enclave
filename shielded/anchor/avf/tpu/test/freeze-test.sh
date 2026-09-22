@@ -65,17 +65,55 @@ before=$(ls -d "$W/out"/harness/*/ | wc -l)
 rc=$(go); ck "the third run completes"       "$rc" 0
 ck "no new frozen copy was created"          "$(ls -d "$W/out"/harness/*/ | wc -l)" "$before"
 
-echo "== a concurrent producer is refused before anything is truncated =="
-OUTDIR="$W/out2"; rm -rf "$OUTDIR"; mkdir -p "$OUTDIR"
-rc=$(OUTDIR="$OUTDIR" go); ck "a first run into a fresh OUT succeeds" "$rc" 0
+echo "== the lock is ATOMIC: simultaneous producers cannot both enter =="
+# The previous scheme tested for the file, read a pid, checked kill -0, then wrote. An independent
+# repro put a barrier immediately before that write and BOTH producers passed the check and reached the
+# protected region: one exited 0, one exited 1, and one MANIFEST ended up with two conflicting row 01
+# entries. So the cases below are about acquisition, not about what a pid file contains.
+OUTDIR="$W/out2"; rm -rf "$OUTDIR"
+rc=$(OUTDIR="$OUTDIR" go); ck "startup with NO lock file present succeeds" "$rc" 0
+ck "  and the lock file is left behind, not unlinked" "$([ -e "$OUTDIR/.producer.lock" ] && echo yes)" yes
 cp "$OUTDIR/MANIFEST.tsv" "$W/manifest.before"
-sleep 30 & other=$!
-echo "$other" > "$OUTDIR/.producer.lock"
-rc=$(OUTDIR="$OUTDIR" go); ck "a second producer is refused"          "$rc" 3
+
+# a STALE file with no holder must simply be acquirable: flock is on the inode, not on the contents
+printf 'pid 999999 acquired whenever\n' > "$OUTDIR/.producer.lock"
+rc=$(OUTDIR="$OUTDIR" go); ck "a stale lock FILE with no holder is acquired" "$rc" 0
+
+# a genuinely HELD lock must refuse, with the output directory untouched
+cp "$OUTDIR/MANIFEST.tsv" "$W/manifest.before"
+( exec 9>>"$OUTDIR/.producer.lock"; flock 9; sleep 8 ) & holder=$!
+for _ in $(seq 1 50); do flock -n "$OUTDIR/.producer.lock" true 2>/dev/null || break; sleep 0.1; done
+rc=$(OUTDIR="$OUTDIR" go); ck "a HELD lock refuses the second producer"      "$rc" 3
 ck "  and the existing MANIFEST is untouched" "$(cmp -s "$OUTDIR/MANIFEST.tsv" "$W/manifest.before" && echo same)" same
 ck "  and BUILD was not truncated"            "$([ -s "$OUTDIR/BUILD" ] && echo nonempty)" nonempty
-kill "$other" 2>/dev/null; wait "$other" 2>/dev/null
-rc=$(OUTDIR="$OUTDIR" go); ck "a stale lock from a dead pid is reclaimed" "$rc" 0
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+rc=$(OUTDIR="$OUTDIR" go); ck "the lock is released when the holder dies"    "$rc" 0
+
+# and the real thing: several producers starting at once into a FRESH directory
+OUTDIR="$W/out3"; rm -rf "$OUTDIR"
+pids=""; : > "$W/rcs"
+for n in 1 2 3 4; do
+  ( r=$(OUTDIR="$OUTDIR" go); echo "$r" >> "$W/rcs" ) & pids="$pids $!"
+done
+for q in $pids; do wait "$q" 2>/dev/null; done
+won=$(grep -c '^0$' "$W/rcs"); refused=$(grep -c '^3$' "$W/rcs")
+ck "exactly ONE of four simultaneous producers wins" "$won" 1
+ck "  and the other three are refused"               "$refused" 3
+ck "  leaving one row 01 entry, not several"         "$(awk -F'\t' '$1=="01"' "$OUTDIR/MANIFEST.tsv" | wc -l)" 1
+ck "  and one row 02 entry"                          "$(awk -F'\t' '$1=="02"' "$OUTDIR/MANIFEST.tsv" | wc -l)" 1
+
+# A NOTE ON WHAT IS NOT TESTED HERE, because a test that passes against the broken code is worse than
+# no test. I tried to make the check-then-write race reproduce on demand: a DEBUG trap via BASH_ENV
+# pausing the first command that touches the lock path, then a proper rendezvous so both producers
+# resume together. Both producers demonstrably reach the rendezvous -- the barrier log shows both pids
+# -- and the racy build STILL ends with one winner and one refusal, for a reason I did not isolate: the
+# refusal is not coming from the lock comparison. So the case was removed rather than left passing
+# against the defect it was written for.
+#
+# What stands instead: the four-way simultaneous case above, the held/stale/absent-lock cases, and the
+# fact that flock(2) makes the property a kernel guarantee rather than a timing argument -- the file is
+# opened with >> so acquiring never truncates, and it is never unlinked, so the lock always refers to
+# the same inode. The racy build fails this suite on the unlink case.
 
 echo
 echo "freeze-test: $pass passed, $fail failed"
