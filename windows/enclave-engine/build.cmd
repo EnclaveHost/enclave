@@ -5,6 +5,14 @@ rem   %EE%   this directory (runtime, entry points, posix stubs, patched sources
 rem   %GG%   wasm/ggml-shielded sources          %LL%  llama.cpp at the pinned commit
 setlocal enabledelayedexpansion
 call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+rem EE_OUT: an optional suffix for every artifact this build produces. Empty in production.
+rem   set EE_OUT=-t  ->  obj-t\, ee-engine-t.dll, ee-host-t.exe
+rem It exists so a TEST or MUTANT build can be made and run while the node is serving from the
+rem production pair - the live ee-host.exe holds ee-engine.dll open, so a build that reuses those
+rem names has to stop the node, and taking the node down for a test has already cost a deployment
+rem its lease once. Objects go to their own directory too, or a mutant build would leave mutant
+rem objects for the next production link to pick up.
+if not defined EE_OUT set EE_OUT=
 set EE=C:\Users\claude\vbs\ee
 set GG=C:\Users\claude\vbs\ee\ggml-shielded
 set LL=C:\Users\claude\vbs\llama.cpp
@@ -12,7 +20,7 @@ set MSVC=C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\M
 set KITS=C:\Program Files (x86)\Windows Kits\10
 rem the in-enclave app runtime (windows/enclave-rt, built by its own build-win.cmd)
 set RT=C:\Users\claude\vbs\enclave-rt
-set OBJ=%EE%\obj
+set OBJ=%EE%\obj%EE_OUT%
 if not exist %OBJ% mkdir %OBJ%
 cd /d %EE%
 set INC=/I %EE%\posix /I %EE% /I %LL%\include /I %LL%\ggml\include /I %LL%\ggml\src /I %LL%\ggml\src\ggml-cpu /I %LL%\src /I %GG%
@@ -64,13 +72,13 @@ cl %CXXFLAGS% /Fo:%OBJ%\ee-app.obj %EE%\ee-app.cpp || set FAIL=1
 if "%FAIL%"=="1" (echo === COMPILE FAILED & exit /b 1)
 :link
 echo === link enclave
-link /NOLOGO /DLL /OUT:%EE%\ee-engine.dll %OBJ%\*.obj "%RT%\enclave_rt.lib" "%MSVC%\lib\x64\enclave\libcmt.lib" "%MSVC%\lib\x64\enclave\libvcruntime.lib" "%KITS%\Lib\10.0.26100.0\ucrt_enclave\x64\ucrt.lib" vertdll.lib bcrypt.lib /NODEFAULTLIB /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /ENCLAVE /INTEGRITYCHECK /GUARD:MIXED /OPT:REF /OPT:ICF /IGNORE:4210 || (echo === LINK FAILED & exit /b 1)
+link /NOLOGO /DLL /OUT:%EE%\ee-engine%EE_OUT%.dll %OBJ%\*.obj "%RT%\enclave_rt.lib" "%MSVC%\lib\x64\enclave\libcmt.lib" "%MSVC%\lib\x64\enclave\libvcruntime.lib" "%KITS%\Lib\10.0.26100.0\ucrt_enclave\x64\ucrt.lib" vertdll.lib bcrypt.lib /NODEFAULTLIB /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /ENCLAVE /INTEGRITYCHECK /GUARD:MIXED /OPT:REF /OPT:ICF /IGNORE:4210 || (echo === LINK FAILED & exit /b 1)
 echo === veiid
-"%KITS%\bin\10.0.26100.0\x64\veiid.exe" %EE%\ee-engine.dll || exit /b 1
+"%KITS%\bin\10.0.26100.0\x64\veiid.exe" %EE%\ee-engine%EE_OUT%.dll || exit /b 1
 echo === sign (test certificate)
-"%KITS%\bin\10.0.26100.0\x64\signtool.exe" sign /ph /fd SHA256 /sm /sha1 4ABCFA77FE9723604412D57733A62AC500DACA18 %EE%\ee-engine.dll
+"%KITS%\bin\10.0.26100.0\x64\signtool.exe" sign /ph /fd SHA256 /sm /sha1 4ABCFA77FE9723604412D57733A62AC500DACA18 %EE%\ee-engine%EE_OUT%.dll
 if errorlevel 3 exit /b 1
 :host
 echo === host
-cl /nologo /O2 /MT /W3 /D_CRT_SECURE_NO_WARNINGS /I %EE% %EE%\ee-host.c /Fo:%EE%\ee-host.obj /Fe:%EE%\ee-host.exe /link kernel32.lib onecore.lib ws2_32.lib || exit /b 1
-echo === built ee-engine.dll + ee-host.exe
+cl /nologo /O2 /MT /W3 /D_CRT_SECURE_NO_WARNINGS /I %EE% %EE%\ee-host.c /Fo:%EE%\ee-host%EE_OUT%.obj /Fe:%EE%\ee-host%EE_OUT%.exe /link kernel32.lib onecore.lib ws2_32.lib || exit /b 1
+echo === built ee-engine%EE_OUT%.dll + ee-host%EE_OUT%.exe

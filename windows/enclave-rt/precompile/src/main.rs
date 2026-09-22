@@ -50,6 +50,11 @@ fn main() -> Result<()> {
         std::process::exit(4);
     }
     config.wasm_memory64(want & FEAT_MEM64 != 0);
+    // The COMPONENT-model half of 64-bit memories, which is a separate flag from the core one.
+    // risc-box is a wasm64 app plugged under a wasm32 WASI proxy, so the component itself carries
+    // a 64-bit memory and the parser stops at "64-bit memories require the `cm64` feature" without
+    // this - after `wasm_memory64` has already been set, which reads like the flag not working.
+    config.wasm_component_model_memory64(want & FEAT_MEM64 != 0);
     // SHARED-EVERYTHING THREADS. Two flags, not one: `wasm_threads` is the classic proposal that
     // makes a `shared` memory parseable at all (without it the parser stops at the first shared
     // memory with "threads must be enabled for shared memories", which is what risc-box 0.6.54
@@ -57,6 +62,7 @@ fn main() -> Result<()> {
     // the component-model intrinsics for spawning. The second depends on the first.
     config.wasm_threads(want & FEAT_SET != 0);
     config.wasm_shared_everything_threads(want & FEAT_SET != 0);
+    config.shared_memory(want & FEAT_SET != 0);
     // 64-BIT MEMORIES, and the component-model half of the same thing. An app whose guest needs
     // more than the 4 GiB a 32-bit index can address declares `mem64` in its catalog config, and
     // this is what lets it be compiled at all. Pulley bounds-checks every access in software, so a

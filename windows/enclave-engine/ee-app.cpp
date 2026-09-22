@@ -186,7 +186,11 @@ __declspec(dllexport) void *WINAPI EeAppOpen(void *param) {
     ee_app_open_params *p = (ee_app_open_params *)param;
     if (!p) return (void *)(intptr_t)-1;
     p->id = 0;
-    if (!p->cwasm || p->cwasm_len < 64 || p->cwasm_len > (64u << 20)) {
+    /* 64 MB was enough until risc-box: a 23.7 MB wasm64 + SET component compiles to 85 MB of
+     * Pulley bytecode, because an interpreter's encoding is bigger than machine code and this
+     * artifact carries a whole RISC-V machine. The bytecode is copied INTO the enclave, so the
+     * ceiling is really about the app budget - which is 63 GB here - not about 64 MB. */
+    if (!p->cwasm || p->cwasm_len < 64 || p->cwasm_len > (512u << 20)) {
         p->status = -2; snprintf(p->error, sizeof p->error, "bytecode size"); return (void *)(intptr_t)-2;
     }
     const unsigned int world = p->world ? p->world : EE_WORLD_ENCLAVE;

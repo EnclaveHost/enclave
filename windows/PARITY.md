@@ -114,6 +114,25 @@ TLS: Node's `tls` cannot delegate a handshake signature to an external signer, s
 tenant's TLS in VTL1 means a TLS stack inside the enclave, or a terminator that is not Node. Still
 open, and larger than the session half.
 
+## TEMPORARY RELAXATIONS, 2026-09-22 (restore and audit these)
+
+Taken under an explicit instruction to get risc-box running and defer hardening. Each is listed
+with what it turns off and how to undo it.
+
+| what | where | why | undo |
+|---|---|---|---|
+| Pulley's THREADS refusal lifted | `wasmtime-set` `crates/wasmtime/src/config.rs` | risc-box cannot be COMPILED at all while it stands, so nothing downstream can be tried | restore the `unsupported \|= WasmFeatures::THREADS` line |
+| `thread.spawn` left out | `set_threads.rs` stays `all(std, threads)` | it needs `mpsc`, `io`, `process::abort`; wait/notify and shared memory do not | finish the no_std port of that module |
+| card share need not reach the model | `ENCLAVE_ALLOW_CARD_WITHOUT_MODEL=1`, `host.mjs` | risc-box bought 1% of the card but is wasi:cli, so `generate` is unreachable | have the publisher declare `gpuOptional`, then unset |
+| IPFS gateway moved off the local adapter | `node-config.cmd` | the adapter was failing S3 with `RequestTimeTooSkewed`, so every artifact fetch got `IncompleteRead(0 bytes)` | restore once the adapter's clock is fixed |
+| bytecode ceiling 64 MB -> 512 MB | `ee-app.cpp`, `ee-host.c` | risc-box is 85 MB of Pulley bytecode | keep; 64 MB was never the real constraint |
+| memory budget from the app's own config | `host.mjs` | the catalog declares 3072 MB, the config asks for a 21764 MiB guest | arguably correct behaviour; audit it |
+
+Also still open from the audits, deferred rather than closed: three thread-lifetime fixes whose
+mutants still pass (release/entry window, host-lied-about-spawn, `done` ordering), the token
+capacity and release-barrier work, and the fact that an atomic racing an ordinary access can tear
+here where hardware would not.
+
 ## A trap worth keeping: catalog declarations are wrong in both directions
 
 `s3-ipfs-adapter:1.0.10` declares `set: true` and `threads: true` and runs perfectly well without

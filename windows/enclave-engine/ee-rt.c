@@ -85,8 +85,14 @@ const ee_file_desc *ee_file_lookup(const char *name) {
 /* ---- call-outs --------------------------------------------------------------------------- */
 /* Claim this thread's identity, once, from enclave memory. Returns the token or -1 when the
  * enclave is out - which the caller reports rather than dying on. */
+/* TEST-ONLY. Zero in production, where the capacity is the slot count. The selftest lowers it so
+ * token exhaustion can be reached at all: the enclave declares NumberOfThreads 64 (ee-main.cpp)
+ * and the host gives 96 slots, so asking for "more threads than tokens" hits the THREAD limit
+ * first and proves nothing about tokens. That is what the first version of this test measured. */
+volatile LONG g_tt_tok_cap;
 static LONG ee_tok_claim(void) {
-    const LONG cap = (LONG)(g_n_slots < EE_MAX_TOK ? g_n_slots : EE_MAX_TOK);
+    LONG cap = (LONG)(g_n_slots < EE_MAX_TOK ? g_n_slots : EE_MAX_TOK);
+    if (g_tt_tok_cap > 0 && g_tt_tok_cap < cap) cap = g_tt_tok_cap;
     for (LONG i = 0; i < cap; i++) {
         if (InterlockedCompareExchange(&g_tok_used[i], 1, 0) == 0) {
             InterlockedExchange64(&g_tok_epoch[i], InterlockedIncrement64(&g_epoch_next));
@@ -102,14 +108,24 @@ static void ee_tok_free(LONG i) {
     InterlockedExchange64(&g_tok_epoch[i], InterlockedIncrement64(&g_epoch_next));
     InterlockedExchange(&g_tok_used[i], 0);
 }
-/* This thread's token, claimed on first use. `__fastfail` only when there is genuinely no way to
- * continue: a thread with no token cannot call out at all. */
+/* A token this thread has been GIVEN, set before it runs. `_beginthreadex` claims one for the
+ * thread it is about to create, so a guest that asks for more live threads than the enclave has
+ * identities gets EAGAIN at the spawn - recoverable - instead of the enclave dying on the thread
+ * that happened to call out first. */
+static void ee_tok_adopt(LONG i) { TlsSetValue(g_tls_tok, (void *)(uintptr_t)(i + 1)); }
+
+/* This thread's token, claimed on first use if it was not given one.
+ *
+ * `__fastfail` remains for the case that is genuinely unrecoverable and is NOT a guest's doing: a
+ * thread the HOST entered, for which nothing reserved an identity, when every identity is taken.
+ * Such a thread cannot call out at all, so there is nowhere to return a failure to. Guest threads
+ * never reach it, because their token is reserved before they exist. */
 static LONG ee_tok(void) {
     const uintptr_t v = (uintptr_t)TlsGetValue(g_tls_tok);
     if (v) return (LONG)(v - 1);
     const LONG i = ee_tok_claim();
     if (i < 0) { __fastfail(7); }
-    TlsSetValue(g_tls_tok, (void *)(uintptr_t)(i + 1));
+    ee_tok_adopt(i);
     return i;
 }
 ee_callout *ee_slot(void) {
@@ -244,6 +260,53 @@ pid_t getpid(void) { return 1; }
 
 /* ---- kernel32 the sources call directly (declared plain by _KERNEL32_) ------------------- */
 /* Threads: a host thread enters through EeThread (ee-main.cpp) and runs the body here. */
+/* ---- deterministic test barriers -----------------------------------------------------------
+ * Three of the thread-lifetime fixes guard windows microseconds wide. A test that merely runs the
+ * code passes with the fix REVERTED, which is what happened - so the races have to be made to
+ * happen rather than waited for.
+ *
+ * These barriers sit in the REAL transitions, not in a copy of them: the point of entry after the
+ * `entered` claim, the final release, and the stage between a body returning and `done`. Each is
+ * inert unless the selftest arms it (`g_tt_bar` is zero in production and nothing else sets it),
+ * and arming one blocks exactly one thread at exactly one line until the test lets it go.
+ *
+ * `g_tt_seen` tells the test the barrier has been REACHED, so it can start the racing thread with
+ * certainty rather than with a sleep. */
+#define TT_BAR_ENTERED   1   /* a body has been claimed but not yet run */
+#define TT_BAR_RELEASE   2   /* the final reference is going away */
+#define TT_BAR_DTOR      3   /* the body has returned; destructors and the slot are not done */
+volatile LONG g_tt_bar;          /* which barrier is armed (0 = none) */
+volatile LONG g_tt_seen;         /* which barrier has been reached */
+volatile LONG g_tt_go;           /* the test sets this to release the held thread */
+/* WHICH RECORD the barrier is for. A bare `g_tt_bar` is checked by every thr_release on the box,
+ * including the ones belonging to other threads of the same test - so a reported hit would not
+ * prove the intended release was the one held. Zero means "any", which only the entry barrier
+ * uses (there is one entering thread by construction). */
+volatile LONG64 g_tt_bar_gen;
+/* A hold that ended because it TIMED OUT is not a hold the test drove. Without this a barrier
+ * nobody released still reports as reached, twenty seconds later, and the assertion after it is
+ * measuring an interleaving that never happened. */
+volatile LONG g_tt_timeout;
+/* Invariants the barriers make observable. A count, not a crash: a use-after-free that happens to
+ * survive is still the bug, and a test that depends on a crash is a test that depends on luck. */
+static ee_thr_test *volatile g_tt;   /* the running test's struct, in host memory */
+volatile LONG g_tt_freed_live;   /* records freed while their body was still running */
+volatile LONG g_tt_resurrect;    /* entries that acquired a record whose count had reached zero */
+
+static void tt_hold_for(int which, LONG64 gen) {
+    if (g_tt_bar != which) return;
+    if (g_tt_bar_gen && gen != g_tt_bar_gen) return;    /* somebody else's release */
+    InterlockedExchange(&g_tt_seen, which);
+    /* Also published into the test's own struct, which lives in HOST memory. That is what lets
+     * the host wait for a barrier before it acts - the only way to make "the host reports failure
+     * AFTER the body has entered" a certainty rather than a hope. */
+    { ee_thr_test *t = (ee_thr_test *)g_tt; if (t) t->seen = (uint32_t)which; }
+    int i = 0;
+    for (; i < 20000 && !g_tt_go; i++) ee_sleep_ms(1);
+    if (!g_tt_go) InterlockedExchange(&g_tt_timeout, 1);
+}
+static void tt_hold(int which) { tt_hold_for(which, 0); }
+
 #define EE_MAX_THREADS 256
 /* `gen` and `entered` are the whole reason this struct is not the obvious one.
  *
@@ -257,7 +320,7 @@ pid_t getpid(void) { return 1; }
  * So: `gen` makes an id unique over time, and `entered` is claimed exactly once with an
  * interlocked compare-and-swap before `fn` is ever called. A repeat, a stale id, or a race all
  * lose the CAS and return without running anything. */
-typedef struct ee_thread { unsigned (__stdcall *fn)(void *); void *arg; volatile LONG tid; volatile LONG done; volatile LONG refs; unsigned ret; LONG id; LONG64 gen; volatile LONG entered; } ee_thread;
+typedef struct ee_thread { unsigned (__stdcall *fn)(void *); void *arg; volatile LONG tid; volatile LONG done; volatile LONG refs; unsigned ret; LONG id; LONG64 gen; volatile LONG entered; LONG tok; } ee_thread;
 static volatile LONG64 g_thr_gen = 1;
 static ee_thread *volatile g_thr[EE_MAX_THREADS]; static SRWLOCK g_thr_lock = SRWLOCK_INIT;
 /* THE DROP TO ZERO AND THE UNPUBLISH ARE ONE STEP, under the lock that lookups take.
@@ -268,10 +331,18 @@ static ee_thread *volatile g_thr[EE_MAX_THREADS]; static SRWLOCK g_thr_lock = SR
  * invariant checkable: while a record is PUBLISHED its count is at least one, and it stops being
  * published at the same instant the count reaches zero. */
 static void thr_release(ee_thread *t) {
+    /* BEFORE the lock: the window the old code left open. Held only for the record the test
+     * named, and only when this really is the final reference - `refs == 1` now means the
+     * decrement below reaches zero. Reading it unlocked is racy in general and exact here,
+     * because the test holds every other reference still. */
+    if (t->refs == 1) tt_hold_for(TT_BAR_RELEASE, t->gen);
     AcquireSRWLockExclusive(&g_thr_lock);
     const LONG n = InterlockedDecrement(&t->refs);
     if (n > 0) { ReleaseSRWLockExclusive(&g_thr_lock); return; }
     if (t->id >= 0 && t->id < EE_MAX_THREADS && g_thr[t->id] == t) g_thr[t->id] = NULL;
+    /* Freeing a record whose body is running is the use-after-free this ordering exists to stop.
+     * Counted rather than asserted, so the test sees it whether or not it crashes. */
+    if (t->entered == 1 && !t->done) InterlockedIncrement(&g_tt_freed_live);
     ReleaseSRWLockExclusive(&g_thr_lock);
     free(t);
 }
@@ -279,11 +350,16 @@ uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall 
     (void)sec; (void)stack; (void)flags;
     ee_thread *t = (ee_thread *)calloc(1, sizeof *t); if (!t) return 0;
     t->fn = fn; t->arg = arg; t->refs = 2; t->id = -1; t->entered = 0;
+    /* THE IDENTITY IS RESERVED HERE, before the thread exists. Running out is then a spawn that
+     * fails - which a guest can handle - rather than a call-out that cannot be made, which nothing
+     * can. */
+    t->tok = ee_tok_claim();
+    if (t->tok < 0) { free(t); errno = EAGAIN; return 0; }
     AcquireSRWLockExclusive(&g_thr_lock);
     for (LONG i = 0; i < EE_MAX_THREADS; i++) if (!g_thr[i]) { g_thr[i] = t; t->id = i; break; }
     if (t->id >= 0) t->gen = InterlockedIncrement64(&g_thr_gen);
     ReleaseSRWLockExclusive(&g_thr_lock);
-    if (t->id < 0) { free(t); errno = EAGAIN; return 0; }
+    if (t->id < 0) { ee_tok_free(t->tok); free(t); errno = EAGAIN; return 0; }
     /* id in the low 32 bits, generation in the high 32: the host carries it opaquely and hands it
      * back, and a value it invents or replays fails the check on entry. */
     ee_callout *c = ee_slot(); c->op = EE_OP_SPAWN;
@@ -298,6 +374,7 @@ uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall 
      * 0 -> 1, and the record is ours to retire. Losing means the thread really is running, the
      * host's answer was false, and the honest result is SUCCESS. */
     if (spawned != 0 && InterlockedCompareExchange(&t->entered, 2, 0) == 0) {
+        ee_tok_free(t->tok);               /* nothing will ever adopt it */
         thr_release(t);                    /* the body's reference: no body will run */
         thr_release(t);                    /* the caller's */
         errno = EAGAIN; return 0;
@@ -306,6 +383,7 @@ uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall 
      * enters must not hang the guest forever. */
     for (int i = 0; i < 100 && !t->tid; i++) { LONG z = 0; WaitOnAddress(&t->tid, &z, sizeof z, 100); }
     if (!t->tid && InterlockedCompareExchange(&t->entered, 2, 0) == 0) {
+        ee_tok_free(t->tok);
         thr_release(t); thr_release(t);
         errno = EAGAIN; return 0;
     }
@@ -324,21 +402,29 @@ void *ee_thread_entry(void *param) {
      * handed to a different thread since. */
     AcquireSRWLockExclusive(&g_thr_lock);
     ee_thread *t = g_thr[id];
-    if (t && (uint32_t)t->gen == gen) InterlockedIncrement(&t->refs); else t = NULL;
+    if (t && (uint32_t)t->gen == gen) {
+        /* Raising the count FROM ZERO means this record was already being retired: the releaser
+         * had dropped the last reference and had not yet unpublished it. Under the fix that
+         * cannot be observed, because the drop and the unpublish are one step under this lock. */
+        if (InterlockedIncrement(&t->refs) == 1) InterlockedIncrement(&g_tt_resurrect);
+    } else t = NULL;
     ReleaseSRWLockExclusive(&g_thr_lock);
     if (!t) return (void *)(intptr_t)-2;
 
     /* EXACTLY ONCE. A second entry - a replay, a race, a confused host - loses here and runs
      * nothing. The body may own its argument; running it twice would free that argument twice. */
     if (InterlockedCompareExchange(&t->entered, 1, 0) != 0) { thr_release(t); return (void *)(intptr_t)-3; }
+    ee_tok_adopt(t->tok);                  /* the identity reserved for this thread at spawn */
 
     InterlockedExchange(&t->tid, (LONG)GetCurrentThreadId()); WakeByAddressAll((void *)&t->tid);
+    tt_hold(TT_BAR_ENTERED);               /* inert in production; see the barrier note above */
     t->ret = t->fn(t->arg);
     /* ORDER MATTERS, and it used to be wrong. `done` is what a joiner waits on, so publishing it
      * before the destructors and the slot release let a joined thread's caller spawn again while
      * this thread still held its identity - concurrent admission against a token that was about
      * to be freed. Destructors first (they may still call out, so they need the slot), then the
      * slot and token, and only then is this thread finished. */
+    tt_hold(TT_BAR_DTOR);                  /* a joiner must NOT be able to finish from here */
     ee_keys_run_dtors();
     ee_slot_release();
     InterlockedExchange(&t->done, 1); WakeByAddressAll((void *)&t->done);
@@ -392,7 +478,6 @@ static void ee_keys_run_dtors(void) {
 /* ---- the adversarial seam ------------------------------------------------------------------
  * Driven by EE_THREAD_SELFTEST in the host. See ee_thr_test in ee-rt.h for why the test has to be
  * the host rather than something in here. */
-static ee_thr_test *volatile g_tt;
 static unsigned __stdcall tt_body(void *p) {
     ee_thr_test *t = (ee_thr_test *)p;
     /* Hold the record LIVE while the host tries to enter it a second time, so the test
@@ -403,10 +488,18 @@ static unsigned __stdcall tt_body(void *p) {
 }
 /* Claims a call-out slot, which is the point: a body that does nothing never takes an identity,
  * so a test built on one would not notice slots that are never given back. */
+static uint32_t tt_held(void) {
+    uint32_t n = 0;
+    for (int i = 0; i < EE_MAX_TOK; i++) if (g_tok_used[i]) n++;
+    return n;
+}
 static unsigned __stdcall tt_noop(void *p) { (void)p; (void)ee_park_token(); return 0; }
 /* Spawns and joins in a loop, so several of these run the whole lifetime path against each other:
  * admission, entry, release and retirement all concurrent. The sequential test says nothing about
  * that, and the release/entry window an audit found lives exactly here. */
+/* Drops a handle - the final reference - on a thread of its own, so the barrier inside the
+ * release parks THAT thread and leaves the test free to drive the other side. */
+static unsigned __stdcall tt_closer(void *p) { CloseHandle((HANDLE)p); return 0; }
 static unsigned __stdcall tt_churn(void *p) {
     ee_thr_test *t = (ee_thr_test *)p;
     for (int k = 0; k < 40; k++) {
@@ -462,6 +555,126 @@ __declspec(dllexport) void *WINAPI EeThreadTest(void *param) {
         { uint32_t held = 0;
           for (int i = 0; i < EE_MAX_TOK; i++) if (g_tok_used[i]) held++;
           t->token = held; }
+        t->status = 0; return (void *)0; }
+    /* ---- the three deterministic interleavings -------------------------------------------- */
+    case 8: {
+        /* A BODY HELD AFTER ENTRY while the host reports the spawn failed. The barrier makes the
+         * order certain: the thread has claimed `entered` and is parked before _beginthreadex
+         * even sees the host's answer. Freeing the record here is freeing it under a live body. */
+        g_tt = t; t->runs = 0; t->gate = 1;
+        InterlockedExchange(&g_tt_freed_live, 0);
+        InterlockedExchange(&g_tt_go, 0); InterlockedExchange(&g_tt_seen, 0);
+        InterlockedExchange(&g_tt_bar, TT_BAR_ENTERED);
+        uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+        t->seen = (uint32_t)g_tt_seen;     /* did the body really reach the barrier */
+        InterlockedExchange(&g_tt_go, 1);  /* let it run */
+        if (h) { WaitForSingleObject((HANDLE)h, 30000); CloseHandle((HANDLE)h); }
+        else { for (int i = 0; i < 3000 && !t->runs; i++) ee_sleep_ms(1); }
+        InterlockedExchange(&g_tt_bar, 0);
+        t->freed_live = (uint32_t)g_tt_freed_live;
+        t->token = (uint32_t)(h ? 1 : 0);
+        t->status = 0; return (void *)0; }
+    case 9: {
+        /* THE FINAL RELEASE PAUSED while an entry tries to acquire the same record. The barrier
+         * sits before the lock, which is exactly where the old code had already decremented. */
+        g_tt = t; t->runs = 0; t->gate = 1;
+        InterlockedExchange(&g_tt_resurrect, 0);
+        InterlockedExchange(&g_tt_go, 0); InterlockedExchange(&g_tt_seen, 0);
+        uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+        if (!h) { t->status = -1; return (void *)(intptr_t)-1; }
+        ee_thread *th = (ee_thread *)h;
+        const uint64_t ep = ((uint64_t)(uint32_t)th->gen << 32) | (uint32_t)th->id;
+        for (int i = 0; i < 3000 && !th->done; i++) ee_sleep_ms(1);   /* body finished */
+        /* The final release must happen on ANOTHER thread: it parks at the barrier, and a test
+         * that parked itself there could never drive the racing side. (It did, the first time.) */
+        t->entry_param = ep;
+        InterlockedExchange(&g_tt_timeout, 0);
+        InterlockedExchange64(&g_tt_bar_gen, th->gen);   /* THIS record's final release only */
+        InterlockedExchange(&g_tt_bar, TT_BAR_RELEASE);
+        uintptr_t rh = _beginthreadex(NULL, 0, tt_closer, (void *)h, 0, NULL);
+        if (!rh) { InterlockedExchange(&g_tt_bar, 0); CloseHandle((HANDLE)h); t->status = -2; return (void *)(intptr_t)-1; }
+        for (int i = 0; i < 3000 && !g_tt_seen; i++) ee_sleep_ms(1);
+        t->seen = (uint32_t)g_tt_seen;
+        /* The releaser is parked with its last reference about to go. Race an entry against it. */
+        (void)ee_thread_entry((void *)(uintptr_t)ep);
+        InterlockedExchange(&g_tt_go, 1);
+        WaitForSingleObject((HANDLE)rh, 30000); CloseHandle((HANDLE)rh);
+        InterlockedExchange(&g_tt_bar, 0);
+        InterlockedExchange64(&g_tt_bar_gen, 0);
+        t->resurrect = (uint32_t)g_tt_resurrect;
+        t->freed_live = (uint32_t)g_tt_timeout;          /* reused: did the hold time out */
+        t->status = 0; return (void *)0; }
+    case 10: {
+        /* A THREAD HELD BETWEEN ITS BODY AND ITS CLEANUP. A join must not be able to finish while
+         * the thread still holds its slot and its TLS. */
+        g_tt = t; t->runs = 0; t->gate = 1;
+        InterlockedExchange(&g_tt_go, 0); InterlockedExchange(&g_tt_seen, 0);
+        InterlockedExchange(&g_tt_bar, TT_BAR_DTOR);
+        uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+        if (!h) { InterlockedExchange(&g_tt_bar, 0); t->status = -1; return (void *)(intptr_t)-1; }
+        for (int i = 0; i < 3000 && !g_tt_seen; i++) ee_sleep_ms(1);
+        t->seen = (uint32_t)g_tt_seen;
+        /* The barrier is held. A join RIGHT NOW must time out, not succeed. */
+        t->joined = (WaitForSingleObject((HANDLE)h, 300) == WAIT_OBJECT_0) ? 1 : 0;
+        InterlockedExchange(&g_tt_go, 1);
+        WaitForSingleObject((HANDLE)h, 30000);
+        CloseHandle((HANDLE)h);
+        InterlockedExchange(&g_tt_bar, 0);
+        t->status = 0; return (void *)0; }
+    case 11: {
+        /* TOKEN EXHAUSTION, and it has to be ARRANGED rather than asked for.
+         *
+         * The obvious test - spawn more threads than there are tokens - measures the wrong limit:
+         * the enclave declares NumberOfThreads 64 and the host gives 96 slots, so the THREAD
+         * ceiling is reached first and the run says nothing about identities. (It admitted 63 and
+         * looked like a pass.) So the capacity is lowered to exactly `held + n`, which makes the
+         * expected answer exact: n admitted, the next refused.
+         *
+         * Every admitted thread PARKS on the gate, so none gives its token back while the others
+         * are being admitted - without that the pool recycles and the ceiling is never met. */
+        /* WAIT FOR THE BOX TO SETTLE FIRST. Threads from the earlier cases are still retiring,
+         * and a token claimed between measuring `held` and setting the capacity makes the
+         * expected count wrong by exactly that many - which is how this first reported 7 where 8
+         * was expected, and why "fewer than asked for" would have hidden it. */
+        uint32_t held0 = tt_held();
+        for (int i = 0; i < 100; i++) {
+            ee_sleep_ms(50);
+            const uint32_t now = tt_held();
+            if (now == held0) break;
+            held0 = now;
+        }
+        const uint32_t want = t->n ? t->n : 8;
+        InterlockedExchange(&g_tt_tok_cap, (LONG)(held0 + want));
+        g_tt = t; t->runs = 0; t->gate = 0;
+        HANDLE hs[64]; uint32_t made = 0;
+        for (uint32_t i = 0; i < want + 4 && i < 64; i++) {
+            uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+            if (!h) break;                 /* refused: EAGAIN, not a dead enclave */
+            hs[made++] = (HANDLE)h;
+        }
+        t->spawned = made;
+        t->token = held0;
+        /* THE POOL IS FULL: this is the property, and it does not depend on a baseline staying
+         * still. `tt_held` counts identities anywhere in the table while the capacity restricts
+         * allocation to a prefix of it, so "held0 + n" is not an invariant and asserting it was
+         * wrong - it read 7 where 8 was expected and the arithmetic, not the code, was at fault. */
+        t->resurrect = tt_held();
+        t->gate = 1;
+        for (uint32_t i = 0; i < made; i++) { WaitForSingleObject(hs[i], 30000); CloseHandle(hs[i]); }
+        /* A REFUSED SPAWN MUST NOT LEAK ITS RESERVATION. If the failed attempts above kept the
+         * token they claimed, the second round admits fewer than the first. */
+        for (int i = 0; i < 3000 && tt_held() > held0; i++) ee_sleep_ms(1);
+        t->gate = 0;
+        uint32_t again = 0;
+        for (uint32_t i = 0; i < want + 4 && i < 64; i++) {
+            uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+            if (!h) break;
+            hs[again++] = (HANDLE)h;
+        }
+        t->joined = again;                 /* reused as "admitted on the second round" */
+        t->gate = 1;
+        for (uint32_t i = 0; i < again; i++) { WaitForSingleObject(hs[i], 30000); CloseHandle(hs[i]); }
+        InterlockedExchange(&g_tt_tok_cap, 0);          /* production capacity restored */
         t->status = 0; return (void *)0; }
     case 4: {                                  /* sequential spawn+join, past the slot count */
         for (uint32_t i = 0; i < t->n; i++) {

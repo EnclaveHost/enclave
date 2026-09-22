@@ -13,7 +13,15 @@ description = "Compile a component to Pulley bytecode for the enclave to interpr
 # and its compiler settings, and the runtime refuses a mismatch rather than misinterpreting it,
 # which is the behaviour you want but a confusing failure if the two halves drift.
 [dependencies]
-wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley", "std", "cranelift", "threads"] }
+# The SAME tree the runtime half uses. A cwasm records the engine version and its compiler
+# settings and the runtime refuses a mismatch, so these two cannot be on different wasmtimes: the
+# moment the enclave moved to the SET tree, every artifact this produced was refused at load and
+# every app on the box failed to start. The path is relative to where this BUILDS - the box,
+# C:\Users\claude\vbs\{enclave-rt,wasmtime-set}.
+wasmtime = { path = "../../wasmtime-set/crates/wasmtime", default-features = false, features = ["runtime", "component-model", "pulley", "std", "cranelift", "threads"] }
+
+[patch.crates-io]
+wasmparser = { path = "../../wasmtime-set/vendor/wasmparser" }
 
 [workspace]
 
