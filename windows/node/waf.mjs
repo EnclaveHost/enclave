@@ -99,6 +99,32 @@ const states = new Map();          // id -> { buckets: Map(ip -> {tokens, at}), 
 export function forget(id) { states.delete(String(id || "").toLowerCase()); }
 
 /**
+ * The rate buckets are keyed by CLIENT ADDRESS, so their number is chosen by whoever is sending
+ * traffic - which is the wrong person to let choose how much memory this box uses. Two bounds,
+ * because one is not enough:
+ *
+ *   - a sweep drops buckets nobody has touched in ten minutes (the platform runner does the same,
+ *     on the same timer). That handles the ordinary case of addresses coming and going.
+ *   - a hard ceiling per deployment handles the case the sweep cannot: a burst from many
+ *     addresses at once, all of them recent. Past the ceiling the OLDEST bucket is dropped, which
+ *     costs that address its accumulated debt and nothing else - a fresh bucket starts full, so
+ *     the worst an attacker buys by cycling addresses is the burst allowance they already had by
+ *     using a new address.
+ */
+const MAX_BUCKETS = 4096;
+const IDLE_MS = 600_000;
+const SWEEP_MS = 300_000;
+setInterval(() => {
+  const cut = Date.now() - IDLE_MS;
+  for (const st of states.values()) {
+    for (const [ip, b] of st.buckets) if (b.at < cut) st.buckets.delete(ip);
+  }
+}, SWEEP_MS).unref?.();
+
+/** How many addresses this deployment is tracking. For tests and for the operator's curiosity. */
+export function bucketCount(id) { return states.get(String(id || "").toLowerCase())?.buckets.size ?? 0; }
+
+/**
  * Apply a deployment's rules to one request.
  *
  * Returns null to allow, or { status, error, message, headers } to refuse - the caller answers,
@@ -152,7 +178,13 @@ export function check(id, w, { method, url, headers = {}, ip, bodyBytes = null }
   if (w.rps) {
     const now = Date.now();
     let b = st.buckets.get(who);
-    if (!b) { b = { tokens: w.burst, at: now }; st.buckets.set(who, b); }
+    if (!b) {
+      // Map iteration is insertion-ordered, so the first key is the oldest ARRIVAL. Good enough:
+      // the sweep handles idleness, and this only has to stop the map growing without end.
+      if (st.buckets.size >= MAX_BUCKETS) st.buckets.delete(st.buckets.keys().next().value);
+      b = { tokens: w.burst, at: now };
+      st.buckets.set(who, b);
+    }
     b.tokens = Math.min(w.burst, b.tokens + ((now - b.at) / 1000) * w.rps);
     b.at = now;
     if (b.tokens < 1) {
