@@ -103,48 +103,59 @@ SETTINGS="sampler=$SAMPLER${TEMPERATURE:+ temp=$TEMPERATURE} max_new=runner-defa
 cat "$OUT/BUILD"
 KEY_BASE="$R_ID|$M_ID|$D_ID|$SETTINGS"
 
-n=0; used=0; failed=0
+[ -r "$PROMPTS" ] || die "cannot read the prompt list '$PROMPTS'"
 mapfile -t PLIST < "$PROMPTS"
+# Same contract as quality-compare.sh, and for the same reason: a reader must never have to guess which
+# artifact belongs to which row, and a run cut short must not shrink the denominator into a flattering
+# score. The expected count is fixed BEFORE any row runs.
+EXPECT_ROWS=0
+for line in "${PLIST[@]}"; do [ -z "$line" ] && continue; case "$line" in \#*) continue;; esac; EXPECT_ROWS=$((EXPECT_ROWS+1)); done
+[ "$EXPECT_ROWS" -gt 0 ] || die "'$PROMPTS' contains no prompts"
+MANIFEST="$OUT/MANIFEST.tsv"
+{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"; printf '# id\tkey\tnpu\tprompt\texpect\n'; } > "$MANIFEST"
+n=0; used=0; failed=0
 for line in "${PLIST[@]}"; do
   [ -z "$line" ] && continue
   case "$line" in \#*) continue;; esac
   p="${line%%	*}"
+  want="${line#*	}"; [ "$want" = "$line" ] && want=""
   n=$((n+1)); id=$(printf '%02d' "$n")
+  row() { printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$key" "$1" "$p" "$want" >> "$MANIFEST"; }
   key=$(printf '%s|%s' "$KEY_BASE" "$p" | sha256sum | cut -c1-16)
   base="$OUT/$id.$key"                       # the KEY is in the filename: a different prompt cannot
                                              # inherit this row's answer
   if [ -s "$base.txt" ] && [ -s "$base.rate" ]; then
-    echo "[$id] cached ($key)"; used=$((used+1)); continue
+    echo "[$id] cached ($key)"; used=$((used+1)); row ok; continue
   fi
   echo "[$id] $p"
   printf '%s' "$p" > "$OUT/$id.prompt.tmp"
   "${ADB[@]}" push -q "$OUT/$id.prompt.tmp" "$REMOTE_PROMPT" >/dev/null 2>&1 \
-    || { echo "  FAILED: could not push the prompt"; failed=$((failed+1)); continue; }
+    || { echo "  FAILED: could not push the prompt"; failed=$((failed+1)); row push-failed; continue; }
   if ! "${ADB[@]}" shell "cd /data/local/tmp && LD_LIBRARY_PATH=$LIBS timeout 600 $RUNNER \
         --backend=npu --model_path=$MODEL --input_prompt_file=$REMOTE_PROMPT $SAMPLER_FLAG; echo \"__RC__\$?\"" \
         < /dev/null | tr -d '\r' > "$base.raw.tmp"; then
-    echo "  FAILED: adb shell returned non-zero"; failed=$((failed+1)); rm -f "$base.raw.tmp"; continue
+    echo "  FAILED: adb shell returned non-zero"; failed=$((failed+1)); row transport-failed; rm -f "$base.raw.tmp"; continue
   fi
   rc=$(grep -oE '^__RC__[0-9]+$' "$base.raw.tmp" | tail -1 | sed 's/__RC__//')
   if [ "${rc:-1}" != "0" ]; then
-    echo "  FAILED: runner exited ${rc:-<no status>}"; failed=$((failed+1))
+    echo "  FAILED: runner exited ${rc:-<no status>}"; failed=$((failed+1)); row runner-failed
     mv "$base.raw.tmp" "$base.raw.failed"; continue
   fi
   # the reply sits between the echoed prompt and the benchmark block; require BOTH markers
   if ! grep -q '^BenchmarkInfo:' "$base.raw.tmp"; then
-    echo "  FAILED: no BenchmarkInfo block, so the run did not complete"; failed=$((failed+1))
+    echo "  FAILED: no BenchmarkInfo block, so the run did not complete"; failed=$((failed+1)); row incomplete
     mv "$base.raw.tmp" "$base.raw.failed"; continue
   fi
   awk -v p="input_prompt: $p" 'index($0,p){f=1; sub(/.*input_prompt: /,""); next}
        /^BenchmarkInfo:/{f=0} f' "$base.raw.tmp" | sed '1{/^$/d}' > "$base.txt.tmp"
   grep -oE "Decode Speed: [0-9.]+ tokens/sec" "$base.raw.tmp" | tail -1 > "$base.rate.tmp"
   if [ ! -s "$base.txt.tmp" ] || [ ! -s "$base.rate.tmp" ]; then
-    echo "  FAILED: empty reply or no decode rate"; failed=$((failed+1))
+    echo "  FAILED: empty reply or no decode rate"; failed=$((failed+1)); row empty-reply
     mv "$base.raw.tmp" "$base.raw.failed"; rm -f "$base.txt.tmp" "$base.rate.tmp"; continue
   fi
   mv "$base.raw.tmp" "$base.raw"; mv "$base.txt.tmp" "$base.txt"; mv "$base.rate.tmp" "$base.rate"
   mv "$OUT/$id.prompt.tmp" "$OUT/$id.prompt"
-  used=$((used+1))
+  used=$((used+1)); row ok
 done
 rm -f "$OUT"/*.tmp
 sh_ "rm -f $REMOTE_PROMPT" >/dev/null 2>&1
