@@ -16,6 +16,7 @@
 //     of the PC can read the app's memory. It is kept for the box owner's own bring-up on the
 //     loopback surface (host.mjs runUnleased) and is NEVER given to a tenant's lease: selling it
 //     would be selling app hosting the enclave does not cover.
+import http from "node:http";
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
 import net from "node:net";
@@ -209,11 +210,14 @@ export function missingHostInterfaces(file) {
  * this class does is four commands: appabi, appopen, apphandle, appclose.
  */
 export class EnclaveApp {
-  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {} }) {
+  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {}, port = 0 }) {
     this.id = id; this.cwasmPath = cwasmPath; this.hostCmd = hostCmd; this.log = log;
     this.memMb = memMb;
-    // 1 = enclave:app (written for this box), 2 = wasi:http (an ordinary platform app).
+    // 1 = enclave:app (this box's own world), 2 = wasi:http (served per request through the gate),
+    // 4 = wasi:cli (a SERVER: it binds `port` inside the enclave through the brokered sockets and
+    // runs until it is stopped, so the node proxies to that port instead of calling the gate).
     this.world = world;
+    this.port = port;
     // "K=V\0K=V\0\0", hex on the wire: this is how ENCLAVE_CONFIG reaches an ordinary app, the
     // same variables the VTL0 wasmtime path passed on its command line.
     this.env = env;
@@ -237,19 +241,58 @@ export class EnclaveApp {
     this.slot = Number(slot) || 0;
     this.loadUs = Number(us) || 0;
     if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
+    const kind = this.world === 4 ? "wasi:cli" : this.world === 2 ? "wasi:http" : "enclave:app";
+    this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms (${kind})`);
+    if (this.world === 4) {
+      // Its run() does not return: the enclave enters it on a thread of its own and the app binds
+      // its port from in there. Nothing is served until that port answers, so wait for it rather
+      // than report a lease as running on an app that never bound.
+      await this.hostCmd(`apprun ${this.slot}`);
+      const ok = await this.waitPort(START_TIMEOUT_MS);
+      if (!ok) {
+        this.state = "failed";
+        throw new Error(`the app did not bind 127.0.0.1:${this.port} inside the enclave within ${Math.round(START_TIMEOUT_MS / 1000)}s`);
+      }
+      this.#say(`serving on 127.0.0.1:${this.port}, from inside the enclave`);
+    }
     this.state = "running";
-    this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms`
-      + ` (${this.world === 2 ? "wasi:http" : "enclave:app"})`);
     return this;
   }
   async stop() {
-    if (this.slot) { try { await this.hostCmd(`appclose ${this.slot}`); } catch (e) { this.#say(`appclose: ${e.message}`); } }
+    if (this.slot) {
+      try {
+        // A running server is asked to STOP first: appstop bumps the runtime's epoch, the guest
+        // traps wherever it is and its own thread unwinds and frees. appclose alone would leave
+        // the thread running inside a store that was freed underneath it.
+        if (this.world === 4) { await this.hostCmd(`appstop ${this.slot}`); }
+        else { await this.hostCmd(`appclose ${this.slot}`); }
+      } catch (e) { this.#say(`stop: ${e.message}`); }
+    }
     this.slot = 0; this.state = "stopped";
   }
-  /** Is the enclave still carrying this app? The gate answering at all is the liveness signal. */
+  /** Wait for the app to bind its port inside the enclave. */
+  waitPort(ms) {
+    const t0 = Date.now();
+    const once = () => new Promise((res) => {
+      const s = net.connect(this.port, "127.0.0.1");
+      s.setTimeout(PROBE_MS);
+      s.on("connect", () => { s.destroy(); res(true); });
+      s.on("timeout", () => { s.destroy(); res(false); });
+      s.on("error", () => res(false));
+    });
+    return (async () => {
+      while (Date.now() - t0 < ms) {
+        if (await once()) return true;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return false;
+    })();
+  }
+  /** Is it still there? For a server, the port; for a gate-served app, the gate answering at all. */
   async alive() {
     if (!this.slot) return false;
-    try { return Number(await this.hostCmd("appabi")) >= 1; } catch { return false; }
+    if (this.world === 4) return await this.waitPort(PROBE_MS);
+    try { return Number(String(await this.hostCmd("appabi")).split(/\s+/)[0]) >= 1; } catch { return false; }
   }
   /**
    * One request, in and out through the gate. Returns the same shape the VTL0 proxy path returns,
@@ -258,12 +301,35 @@ export class EnclaveApp {
   async handle({ method = "GET", pathRest = "/", headers = {}, body = Buffer.alloc(0) } = {}) {
     if (!this.slot) return { status: 503, headers: { "content-type": "application/json" },
                              body: Buffer.from(JSON.stringify({ error: "not_loaded", id: this.id })) };
+    // A server-shaped app is spoken to over its own socket. The connection is the host's and the
+    // bytes cross the broker into the enclave, where the app reads them; nothing goes through the
+    // gate, which is why this path carries a whole HTTP request rather than a frame.
+    if (this.world === 4) return await this.#viaPort({ method, pathRest, headers, body });
     const frame = encodeRequest({ method, path: pathRest, headers, body });
     const r = await this.hostCmd(`apphandle ${this.slot} ${frame.toString("hex")}`);
     const [hex, us] = String(r).trim().split(/\s+/);
     const resp = decodeResponse(Buffer.from(hex, "hex"));
     this.lastUs = Number(us) || 0;
     return { status: resp.status, headers: resp.headers, body: resp.body, inTee: true, enclaveUs: this.lastUs };
+  }
+
+  /** A whole HTTP request, over the app's own socket, which the broker carries into the enclave. */
+  #viaPort({ method, pathRest, headers, body }) {
+    return new Promise((resolve) => {
+      const hdrs = {};
+      for (const [k, v] of Object.entries(headers || {})) if (!/^host$|^connection$|^x-metal-|^x-enclave-/i.test(k)) hdrs[k] = v;
+      const req = http.request({ host: "127.0.0.1", port: this.port, method: method || "GET",
+                                 path: pathRest || "/", headers: { ...hdrs, host: `127.0.0.1:${this.port}` } }, (r) => {
+        const chunks = [];
+        r.on("data", (c) => chunks.push(c));
+        r.on("end", () => resolve({ status: r.statusCode || 502, headers: r.headers, body: Buffer.concat(chunks), inTee: true }));
+      });
+      req.setTimeout(120_000, () => { req.destroy(new Error("the app timed out")); });
+      req.on("error", (e) => resolve({ status: 502, headers: { "content-type": "application/json" },
+                                       body: Buffer.from(JSON.stringify({ error: "app_unreachable", message: e.message })) }));
+      if (body && body.length) req.write(body);
+      req.end();
+    });
   }
 }
 

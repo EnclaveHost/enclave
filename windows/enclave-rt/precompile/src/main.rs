@@ -21,6 +21,7 @@ fn main() -> Result<()> {
     config.memory_guard_size(0);          // no guard pages; the interpreter bounds-checks instead
     config.memory_reservation_for_growth(0);
     config.signals_based_traps(false);    // no signal handlers in an enclave; traps are checks
+    config.epoch_interruption(true);      // the only way to stop a server whose run() never returns
     let engine = Engine::new(&config)?;
     let bytes = std::fs::read(&inp)?;
     // A core module is not a component and never will be: say which it is, because the node's

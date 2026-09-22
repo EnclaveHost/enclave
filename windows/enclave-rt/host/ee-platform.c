@@ -10,25 +10,48 @@
  * makes the two aliases of each other, and the first thing that happens is the activation list
  * eating itself: "assertion failed: core::ptr::eq(head, self)" on the way out of a call.
  *
- * EE_ENCLAVE_TLS: inside the enclave the slot is an ORDINARY global, because an enclave image
- * cannot rely on a TLS directory and does not need one here - the gate lets exactly one call into
- * VTL1 at a time per app, so there is one wasm thread and a global IS its thread-local. The host
- * harness (and any future multi-threaded host) gets the real thread-local instead, so the two
- * builds differ in one #ifdef rather than in behaviour that has to be reasoned about twice.
+ * EE_ENCLAVE_TLS: inside the enclave these are kept in a small table keyed by THREAD ID rather
+ * than in `__declspec(thread)` storage, because an enclave image cannot rely on a TLS directory.
+ * Per-thread is not optional any more: a wasi:cli app runs its own server thread inside the
+ * enclave (ee_rt_run) while the gate serves wasi:http apps on another, and sharing one slot
+ * between two threads running wasm corrupts wasmtime's activation list.
  */
 #include <stddef.h>
+#ifdef EE_ENCLAVE_TLS
+#include <windows.h>
+#endif
 
 #define EE_TLS_SLOTS 2
 
 #ifdef EE_ENCLAVE_TLS
-static void *g_wasmtime_tls[EE_TLS_SLOTS];
+/* One row per thread that has ever run wasm in here. Small and fixed: an enclave runs a handful of
+ * app threads, not a pool, and a fixed table needs no allocator on a path wasmtime takes on every
+ * call into the guest. A row is claimed with an interlocked compare-and-swap, so two threads
+ * racing for their first row cannot take the same one. */
+#define EE_TLS_THREADS 16
+static struct { volatile LONG tid; void *slot[EE_TLS_SLOTS]; } g_tls[EE_TLS_THREADS];
+
+static void **tls_row(void) {
+    const LONG me = (LONG)GetCurrentThreadId();
+    for (int i = 0; i < EE_TLS_THREADS; i++) if (g_tls[i].tid == me) return g_tls[i].slot;
+    for (int i = 0; i < EE_TLS_THREADS; i++)
+        if (InterlockedCompareExchange(&g_tls[i].tid, me, 0) == 0) return g_tls[i].slot;
+    return NULL;                       /* out of rows: the caller's get returns NULL, which traps */
+}
+void *wasmtime_tls_get(size_t slot) {
+    void **row = tls_row();
+    return (row && slot < EE_TLS_SLOTS) ? row[slot] : NULL;
+}
+void wasmtime_tls_set(size_t slot, void *p) {
+    void **row = tls_row();
+    if (row && slot < EE_TLS_SLOTS) row[slot] = p;
+}
 #else
 static __declspec(thread) void *g_wasmtime_tls[EE_TLS_SLOTS];
-#endif
-
 void *wasmtime_tls_get(size_t slot) {
     return slot < EE_TLS_SLOTS ? g_wasmtime_tls[slot] : NULL;
 }
 void wasmtime_tls_set(size_t slot, void *p) {
     if (slot < EE_TLS_SLOTS) g_wasmtime_tls[slot] = p;
 }
+#endif

@@ -14,6 +14,7 @@
 unsigned int  ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int world,
                          const unsigned char *env, size_t env_len);
 unsigned int  ee_rt_worlds(void);
+int           ee_rt_run(unsigned int id);
 int           ee_rt_handle(unsigned int id, const unsigned char *req, size_t req_len,
                            unsigned char *out, size_t out_cap, size_t *out_len);
 int           ee_rt_close(unsigned int id);
@@ -87,6 +88,17 @@ int main(int argc, char **argv) {
         return 1;
     }
     printf("loaded as app %u in %.1f ms\n", id, (t1.QuadPart - t0.QuadPart) * 1000.0 / freq.QuadPart);
+
+    /* --run: a wasi:cli app binds its own port and serves until it is stopped. There is no frame
+     * to send it; the test is to curl the port it bound. */
+    if (world == 4) {
+        printf("running app %u; it binds its own port through the broker. ctrl-c to stop\n", id);
+        fflush(stdout);
+        const int rc = ee_rt_run(id);
+        unsigned char err[256]; size_t e = ee_rt_last_error(err, sizeof err);
+        printf("run returned %d: %.*s\n", rc, (int)e, err);
+        return rc == 0 ? 0 : 1;
+    }
 
     unsigned char req[4096], *p = req;
     p = put_str(p, "GET");

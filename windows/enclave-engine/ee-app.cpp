@@ -27,7 +27,19 @@ extern "C" {
  * measure wall time, and inventing one would be worse than passing the host's number through and
  * saying where it came from. Per-call, so an app cannot cache a stale one. */
 static uint64_t g_now_ms;
-uint64_t ee_app_now_ms(void) { return g_now_ms; }
+/* The WALL clock an app sees. The gate sets g_now_ms per request (the host read it as it called
+ * in), but a SERVER runs between calls and still needs the date: a TLS handshake verifies a
+ * certificate's validity window, and an enclave whose clock reads zero rejects every certificate
+ * on earth as "not valid yet" - which is exactly how this was found, with rustls inside the
+ * enclave refusing R2's certificate at verification time 0.
+ *
+ * So the fallback is the enclave's own reckoning: the host's unix time AT INIT plus the monotonic
+ * time since (ee-rt.c keeps both). It cannot be steered by the host after init, and it is the same
+ * clock the engine stamps its own work with. */
+uint64_t ee_app_now_ms(void) {
+    if (g_now_ms) return g_now_ms;
+    return (uint64_t)ee_unix_time() * 1000ULL + (uint64_t)((ee_now_us() / 1000) % 1000);
+}
 /* The enclave's own monotonic microseconds (ee-rt.c, off the host clock at init plus the TSC):
  * a guest measuring an interval needs a clock that moves, and the wall clock above is only read
  * once per call. */
@@ -55,16 +67,104 @@ int ee_app_generate(const char *prompt, size_t plen, unsigned int max_tokens,
     return ee_engine_generate(prompt, plen, (int)max_tokens, out, cap, out_len);
 }
 
+/* Socket tracing for the app runtime, on when the enclave's environment says ENCLAVE_RT_TRACE=1
+ * (the host passes it at init). It exists because an app that accepts a connection and drops it
+ * silently - which is what a real one did here - is indistinguishable from a broken broker
+ * without seeing each accept, read, write and close from inside. */
+int ee_app_trace(void) {
+    static int on = -1;
+    if (on < 0) { const char *v = ee_getenv("ENCLAVE_RT_TRACE"); on = (v && (*v == '1' || *v == 't')) ? 1 : 0; }
+    return on;
+}
+
 __declspec(noreturn) void ee_app_abort(const char *msg, size_t len) {
     std::string s(msg ? msg : "", msg ? len : 0);
     ee_fatal(s.c_str());                              /* logs, then stops: no unwinding in here */
     for (;;) { }
 }
 
+/* ---- the sockets a tenant's app gets --------------------------------------------------------
+ * Thin wrappers over the enclave's call-out slot: every one of these hands the host a request and
+ * reads back what it did. The host owns the socket; this side owns the TLS session that runs over
+ * it, which is what keeps an app's traffic out of the host's reach even though the host carries
+ * every byte of it.
+ *
+ * ee_slot() is per enclave thread, so a guest server thread and the gate never share a slot. */
+int ee_net_listen(uint16_t port, uint16_t *bound) {
+    ee_callout *c = ee_slot();
+    c->op = EE_OP_LISTEN; c->handle = 0; c->len = 0; c->arg = port;
+    const int64_t r = ee_callout_call(c);
+    if (r >= 0 && bound) *bound = (uint16_t)c->arg;
+    return (int)r;
+}
+int ee_net_accept(int h) {
+    ee_callout *c = ee_slot();
+    c->op = EE_OP_ACCEPT; c->handle = (uint32_t)h; c->len = 0; c->arg = 0;
+    return (int)ee_callout_call(c);
+}
+int ee_net_connect(const char *addr, uint16_t port) {
+    ee_callout *c = ee_slot();
+    const size_t n = strlen(addr);
+    if (n + 1 > c->cap) return -22;
+    c->op = EE_OP_CONNECT; c->handle = 0; c->arg = port; c->len = n + 1;
+    memcpy(c->data, addr, n + 1);
+    return (int)ee_callout_call(c);
+}
+int64_t ee_net_send(int h, const uint8_t *p, size_t n) {
+    ee_callout *c = ee_slot();
+    size_t done = 0;
+    while (done < n) {
+        size_t k = n - done; if (k > c->cap) k = (size_t)c->cap;
+        c->op = EE_OP_SEND; c->handle = (uint32_t)h; c->len = k;
+        memcpy(c->data, p + done, k);
+        const int64_t r = ee_callout_call(c);
+        if (r < 0) return done ? (int64_t)done : r;
+        done += (size_t)r;
+        if ((size_t)r < k) break;                      /* the host took less: let the guest retry */
+    }
+    return (int64_t)done;
+}
+int64_t ee_net_recv(int h, uint8_t *p, size_t n) {
+    ee_callout *c = ee_slot();
+    size_t k = n > c->cap ? (size_t)c->cap : n;
+    c->op = EE_OP_RECV; c->handle = (uint32_t)h; c->len = k;
+    const int64_t r = ee_callout_call(c);
+    if (r > 0) memcpy(p, c->data, (size_t)r);
+    return r;
+}
+void ee_net_close(int h) {
+    ee_callout *c = ee_slot();
+    c->op = EE_OP_CLOSE; c->handle = (uint32_t)h; c->len = 0;
+    ee_callout_call(c);
+}
+int ee_net_poll(uint32_t *handles, uint32_t *events, size_t n, uint32_t timeout_ms) {
+    if (!n || n > 64) return -22;
+    ee_callout *c = ee_slot();
+    if (n * sizeof(ee_poll_item) > c->cap) return -22;
+    ee_poll_item *it = (ee_poll_item *)c->data;
+    for (size_t i = 0; i < n; i++) { it[i].handle = handles[i]; it[i].events = events[i]; }
+    c->op = EE_OP_POLL; c->handle = 0; c->len = n * sizeof(ee_poll_item); c->arg = timeout_ms;
+    const int64_t r = ee_callout_call(c);
+    for (size_t i = 0; i < n; i++) events[i] = it[i].events;       /* what is actually ready */
+    return (int)r;
+}
+int ee_net_resolve(const char *name, char *out, size_t cap) {
+    ee_callout *c = ee_slot();
+    const size_t n = strlen(name);
+    if (n + 1 > c->cap) return -22;
+    c->op = EE_OP_RESOLVE; c->handle = 0; c->len = n; c->arg = 0;
+    memcpy(c->data, name, n);
+    const int64_t r = ee_callout_call(c);
+    if (r > 0) { const size_t k = (size_t)r < cap ? (size_t)r : cap; memcpy(out, c->data, k); return (int)k; }
+    return (int)r;
+}
+
 /* ---- the runtime, from windows/enclave-rt ------------------------------------------------- */
 unsigned int ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int world,
                         const unsigned char *env, size_t env_len);
 unsigned int ee_rt_worlds(void);
+int          ee_rt_run(unsigned int id);
+int          ee_rt_stop(unsigned int id);
 int          ee_rt_handle(unsigned int id, const unsigned char *req, size_t req_len,
                           unsigned char *out, size_t out_cap, size_t *out_len);
 int          ee_rt_close(unsigned int id);
@@ -151,6 +251,32 @@ __declspec(dllexport) void *WINAPI EeAppHandle(void *param) {
     }
     if (p->out && olen <= p->out_cap) memcpy(p->out, out.data(), olen);
     p->out_len = olen; p->status = 0;
+    return (void *)1;
+}
+
+/* Run a server-shaped app, here, until it is stopped. The host enters this on its own thread (it
+ * spawns one and calls in); the call does not come back until the guest traps or returns, so this
+ * is the one enclave entry point that is expected to sit for hours. */
+__declspec(dllexport) void *WINAPI EeAppRun(void *param) {
+    ee_app_run_params *p = (ee_app_run_params *)param;
+    if (!p) return (void *)(intptr_t)-1;
+    const int64_t t0 = ee_now_us();
+    ee_log("[app] running app %u (it serves its own socket)\n", p->id);
+    const int rc = ee_rt_run(p->id);
+    p->ran_us = ee_now_us() - t0;
+    p->status = rc;
+    if (rc) app_err(p->error, "the app stopped");
+    ee_log("[app] app %u stopped after %lld us: %s\n", p->id, (long long)p->ran_us,
+           rc ? p->error : "run() returned");
+    return (void *)(intptr_t)(rc ? rc : 1);
+}
+
+/* Ask a running app to stop. Returns at once: the guest traps at its next check and its own thread
+ * does the unwinding and the freeing. */
+__declspec(dllexport) void *WINAPI EeAppStop(void *param) {
+    ee_app_close_params *p = (ee_app_close_params *)param;
+    if (!p) return (void *)(intptr_t)-1;
+    p->status = ee_rt_stop(p->id);
     return (void *)1;
 }
 

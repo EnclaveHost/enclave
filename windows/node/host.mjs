@@ -23,6 +23,7 @@ import http from "node:http";
 import * as chain from "./chain.mjs";
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
+import { fetchSecrets } from "./secrets.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -41,6 +42,9 @@ export class Host {
     this.statePath = path.join(cfg.dir, "host-state.json");
     const st = this.#loadState();
     this.tracked = new Set(st.tracked || []);
+    /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
+    /// state file, never logged, and dropped when the lease goes.
+    this.secrets = new Map();
     // Work this box GAVE BACK, and why. It survives a restart on purpose: a claim costs gas and a
     // lease takes a deployment off the market, so a box that has already found out it cannot run
     // an app must not rediscover that every 30 seconds for as long as the row is on the ledger.
@@ -142,6 +146,14 @@ export class Host {
     this.gasRenewals = Number(renews);
   }
 
+  /** The loopback port a server-shaped app binds inside the enclave. Stable per deployment id so
+   * a restart lands on the same one, and clear of the ephemeral range. */
+  #portFor(id) {
+    const base = this.cfg.portBase + 64;
+    const n = parseInt(id.slice(2, 10), 16) % 64;
+    return base + n;
+  }
+
   /** When this box's registry entry was created: the date its disclosure became visible. */
   listedAt() { return Number(this.registered?.registeredAt || 0); }
 
@@ -211,6 +223,25 @@ export class Host {
     return { accepted: true, status: this.records.get(id)?.status || "unknown" };
   }
 
+  /**
+   * The deployment's relay-stored secrets, fetched as its lease holder and kept in memory.
+   *
+   * This is the one thing on this box that the app gets and the operator does not: the values go
+   * into the enclave with the app's environment and are never written down. A refusal is recorded
+   * and NOT fatal by itself - an app whose config references a secret it did not get will say so
+   * itself, and that reason is more useful than this box guessing.
+   */
+  async loadSecrets(id) {
+    if (!this.cfg.secretsSign) return;
+    const r = await fetchSecrets({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
+                                   base: this.cfg.relayBase, log: (m) => this.log(m) });
+    if (r.count > 0) {
+      this.secrets.set(id, r.env);
+      this.#record(id, { secrets: r.count });
+      this.log(`secrets: ${r.count} for ${id.slice(0, 10)} (${Object.keys(r.env).join(", ")})`);
+    } else { this.secrets.delete(id); }
+  }
+
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil), cpuShare: Number(d.cpuMilli) / 1000 });
@@ -247,7 +278,7 @@ export class Host {
     // Which worlds this enclave image actually serves (a bitmask from the runtime itself):
     // 1 = enclave:app, 2 = wasi:http. An ordinary platform app is world 2 and runs unchanged.
     const worlds = Number(this.cfg.enclaveAppWorlds || 1);
-    const want = world === "enclave-app" ? 1 : world === "wasi-http" ? 2 : 0;
+    const want = world === "enclave-app" ? 1 : world === "wasi-http" ? 2 : world === "wasi-cli" ? 4 : 0;
     if (!want || !(worlds & want))
       return await this.#giveUp(id, `this box runs an app INSIDE its VBS enclave. It serves`
         + ` ${worlds & 1 ? "enclave:app@0.1.0" : ""}${(worlds & 3) === 3 ? " and " : ""}${worlds & 2 ? "wasi:http" : ""},`
@@ -268,10 +299,30 @@ export class Host {
         try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe, log: (m) => this.log(m) }); }
         catch (e) { return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` }); }
       }
-      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want,
-                             // The same environment the platform gives an app on a CVM: its
-                             // config (the version's, or this deployment's override) and its size.
-                             env: { ENCLAVE_CONFIG: this.appConfig(d, v), ENCLAVE_MEM_MB: String(memMb) },
+      // A server-shaped app binds a port INSIDE the enclave, so the node picks the actual port
+      // (nothing else on this machine may already hold it) and tells the app through
+      // ENCLAVE_PORTS, which is the platform's own convention: "<label>:<declared>=<actual>". An
+      // app that hardcodes a port instead of reading this is the one thing that cannot work here.
+      const port = want === 4 ? this.#portFor(id) : 0;
+      const declared = Number(d.appPort) || 8080;
+      // The secrets, fetched here rather than beside the claim: a node restart rebuilds the app
+      // from a lease it already holds and never passes through consider(), and an app that comes
+      // back WITHOUT its credentials starts unconfigured and answers 503 - which is exactly what
+      // happened to the s3-ipfs-adapter on the first restart after it was claimed.
+      if (!this.secrets.has(id)) {
+        await this.loadSecrets(id).catch((e) => this.log(`secrets ${id.slice(0, 10)}: ${e.message}`));
+      }
+      const env = {
+        // The same environment the platform gives an app on a confidential VM.
+        ENCLAVE_CONFIG: this.appConfig(d, v),
+        ENCLAVE_MEM_MB: String(memMb),
+        ...(want === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
+        // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
+        // it. They are fetched as the LEASE HOLDER (secrets.mjs) and injected into the enclave,
+        // never written to disk and never given to the VTL0 side beyond this call.
+        ...(this.secrets.get(id) || {}),
+      };
+      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
                              log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
     }
@@ -432,6 +483,7 @@ export class Host {
     return this.records.get(id);
   }
   async #stopApp(id, why) {
+    this.secrets.delete(id);                           // they belong to the lease, not to this box
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "stopped", reason: why });
@@ -534,7 +586,8 @@ export class Host {
         // frames, exactly as the platform's relay does for every other box in the fleet.
         isolation: "vbs-enclave", inTee: true, runtime: "wasmtime-pulley", abi: Number(this.cfg.enclaveAppAbi || 0),
         worlds: [...(Number(this.cfg.enclaveAppWorlds || 1) & 1 ? ["enclave:app@0.1.0"] : []),
-                 ...(Number(this.cfg.enclaveAppWorlds || 1) & 2 ? ["wasi:http@0.2"] : [])],
+                 ...(Number(this.cfg.enclaveAppWorlds || 1) & 2 ? ["wasi:http@0.2"] : []),
+                 ...(Number(this.cfg.enclaveAppWorlds || 1) & 4 ? ["wasi:cli@0.2 (its own socket, brokered)"] : [])],
         world: "enclave:app@0.1.0", traffic: "carried by the host",
         scope: this.scope(), public: true, running, capacity: cap.slots, ramMb: Number(this.cfg.enclaveAppRamMb) || 768,
         note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
@@ -577,7 +630,12 @@ export class Host {
       proofOfTime: true,      // it signs EIP-712 checkpoints from the proof key in its registry entry; /v1/attestation says where that key lives, which on this box is the Windows host
       // What it does not, each one a refusal in chain.claimPolicy rather than a silent gap.
       waf: false,             // no per-IP rate limit and no request filter: a deployment carrying {"waf":…} is refused
-      secrets: false, secretsInConfig: false,   // it fetches and injects no relay-stored secrets
+      // Relay-stored secrets, fetched as the lease holder and injected INTO the enclave with the
+      // app's environment (secrets.mjs, host.loadSecrets). `secretsInConfig` stays false: the
+      // substitution of $NAME inside a config string is the runner's job on the platform's boxes,
+      // and this box passes the environment through instead - an app that resolves its own
+      // placeholders (the s3-ipfs-adapter does) works either way, one that does not, does not.
+      secrets: !!this.cfg.secretsSign, secretsInConfig: false,
       configCid: false, configCidOverride: false,   // it fetches no pinned config, so the rev-7 split is refused
       configEdit: false, shareResize: false,    // a live edit or resize lands on-chain and applies at re-claim, not in place
       customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>

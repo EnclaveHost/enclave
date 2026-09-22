@@ -37,7 +37,16 @@ extern "C" const IMAGE_ENCLAVE_CONFIG __enclave_config = {
     { 0xEC, 0x1A, 0x5E, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }, /* ImageID: the shielded engine */
     0x00010000,               /* ImageVersion 1.0 */
     1,                        /* SecurityVersion */
-    0x80000000,               /* EnclaveSize 2 GB: the model, its KV cache and the pads (host must create with this size) */
+    /* EnclaveSize 64 GB. It holds the model, its KV cache, the pads AND a tenant's app: the wasm
+     * runtime interprets the app's linear memory out of this same range, and the platform's own
+     * apps declare floors of a gigabyte and up (the s3-ipfs-adapter's is 1024 MB, an LLM app's is
+     * 4096). This is a RESERVATION of the enclave's address space, not a commitment of the
+     * machine's memory: VTL1 pages are committed as they are touched, so an enclave serving one
+     * small app costs what that app uses, and the number here only decides the ceiling.
+     * NOTE: the measurement does not change with this number - it is sha256 over the family,
+     * image and author IDs above - so growing the enclave does not invalidate the registry row.
+     * The machine has 111.8 GiB, so this leaves Windows and the shielded worker about 48. */
+    0x1000000000ULL,
     64,                       /* NumberOfThreads: host-entered threads (refill pool + compute pool + callers) */
     IMAGE_ENCLAVE_FLAG_PRIMARY_IMAGE
 };

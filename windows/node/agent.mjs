@@ -67,7 +67,12 @@ const host = new Host({
   enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 768),
   // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
   enclaveAppAbi: 0,
-  enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http
+  enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http | 4 wasi:cli
+  relayBase: process.env.RELAY_BASE || 'https://api.enclave.host',
+  // Signing for the relay's secrets fetch: the operator key, which is what the registry entry
+  // names, so the relay can tie the request to this box's on-chain lease. Set below once the key
+  // is loaded; a box with no operator key fetches nothing and publishes secrets:false.
+  secretsSign: null,
   repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
   // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
   // registry row so the chain's view and the relay's attestation verdict can be compared
@@ -119,6 +124,9 @@ async function startHost() {
                 '--threads', THREADS, '--ctx', CTX, '--serve', String(HOST_PORT), '--quiet', '--log', path.join(DIR, 'enclave.log')];
   if (CALIB) args.push('--calib', CALIB);
   for (const [k, v] of Object.entries(process.env)) if (k.startsWith('SHIELDED_') && !['SHIELDED_HOST', 'SHIELDED_PORT', 'SHIELDED_VK_SHADERS', 'SHIELDED_CARD_TFLOPS', 'SHIELDED_VK_DEVICE'].includes(k)) args.push('--env', `${k}=${v}`);
+  // The app runtime's own socket tracing, if the operator asked for it: every accept, read, write
+  // and close from inside the enclave, in the enclave's log.
+  if (process.env.ENCLAVE_RT_TRACE) args.push('--env', `ENCLAVE_RT_TRACE=${process.env.ENCLAVE_RT_TRACE}`);
   run('host', HOST_EXE, args, {});
   await waitPort(HOST_PORT, 600_000); log(`enclave host up on ${HOST_PORT}`);
 }
@@ -375,7 +383,14 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
       ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}, ${host.cfg.enclaveAppRamMb} MB budget`
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
-  if (APPS) await host.init();
+  if (APPS) {
+    await host.init();
+    try {
+      const { loadOperator } = await import('./chain.mjs');
+      const acct = loadOperator(path.join(DIR, 'operator.key'));
+      if (acct) host.cfg.secretsSign = async (message) => acct.signMessage({ message });
+    } catch (e) { log(`secrets signer unavailable: ${e.message}`); }
+  }
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
 })().catch((e) => { console.error(e); process.exit(1); });
