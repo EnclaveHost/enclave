@@ -392,7 +392,8 @@ export function parseEnvelope(raw, gpuMilli) {
  */
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false,
-                                 legacy = false, fetchesConfigCid = false, features = null } = {}) {
+                                 legacy = false, fetchesConfigCid = false, features = null,
+                                 privateOk = false } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
@@ -406,8 +407,12 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
          + " not against whoever physically holds the machine. Pick this enclave in the deploy console,"
          + " or redeploy, and it will run here";
   }
-  if (!d.isPublic)
-    return "it is a private deployment, whose access control is a session token this node does not verify yet";
+  // A PRIVATE deployment is served to its owner alone. This box verifies the session token that
+  // proves that (windows/node/session.mjs), so it may take one - but only when it HAS a key to
+  // verify with: a box that took a private deployment and then let anybody reach it would be
+  // worse than one that refused it.
+  if (!d.isPublic && !privateOk)
+    return "it is a private deployment, and this box has no session key to verify its owner with";
   if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
       && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
@@ -448,8 +453,9 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (version) {
     if (version.yanked) return "the catalog version was yanked by its publisher";
     if (Number(version.approval) === 2) return "the catalog version was rejected by the catalog owner";
-    if (Number(version.approval) !== 1 && !owners)
-      return "the catalog version is awaiting the catalog owner's approval, and this box runs a pending version only for its own owner";
+    if (Number(version.approval) !== 1 && !owners && !(privateOk && !d.isPublic))
+      return "the catalog version is awaiting the catalog owner's approval, and this box runs a pending version only"
+           + " for its own owner or on a PRIVATE deployment (the publisher testing their own app)";
   }
   // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
   // worse than one it declines: the tenant's funding is tied up against an app that thrashes.

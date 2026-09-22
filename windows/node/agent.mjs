@@ -30,7 +30,16 @@ import { appZone } from './appzone.mjs';
 import { shieldedCard, shieldedProof } from './shieldedcard.mjs';
 import { clientIp as wafClientIp } from './waf.mjs';
 import { parseAbiReply } from './appframe.mjs';
+import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
+import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
+// SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
+// and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
+const SIWE_DOMAIN = process.env.SIWE_DOMAIN || 'enclave.host';
+const SIWE_URI = process.env.SIWE_URI || 'https://enclave.host';
+const SIWE_CHAIN_ID = Number(process.env.SIWE_CHAIN_ID || 8453);
+const SESSION_TTL = Number(process.env.SESSION_TTL || 604800);   // 7 days, the platform's
+const nonces = nonceStore();
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +68,8 @@ const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
+// This box's session-signing key, minted or reloaded at startup (session.mjs).
+let sessionKey = null;
 // The card's own numbers, refreshed from the worker. Null until the first HELLO answers.
 let card = null;
 // The verdict of the platform's own shielded probe on this card, run once at start-up. Null until
@@ -379,6 +390,29 @@ async function handle(frame) {
                         vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
                         ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
     model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
+  // ---- who is asking ---------------------------------------------------------------------
+  // The public half of this box's session key. Anyone can verify a token it minted - and confirm
+  // the operator did not mint it - holding no secret. On a confidential VM that last part is a
+  // guarantee; here the key is in VTL0 and /availability says so, which is the same bar this box
+  // already publishes for app traffic.
+  if (p === '/v1/session-jwks') return json(200, { keys: sessionKey ? [sessionKey.jwk] : [] });
+  if (p === '/v1/auth/nonce' && method === 'GET') {
+    const q = new URL('http://x' + String(frame.path || '/')).searchParams;
+    const address = String(q.get('address') || '');
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return json(422, { error: 'invalid_address', message: 'Provide a valid ?address.' });
+    return json(200, siweMessage({ address, nonce: nonces.issue(address),
+                                   domain: SIWE_DOMAIN, uri: SIWE_URI, chainId: SIWE_CHAIN_ID }));
+  }
+  if (p === '/v1/auth/login' && method === 'POST') {
+    if (!sessionKey) return json(503, { error: 'no_session_key', message: 'This box mints no sessions.' });
+    let b = {}; try { b = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch {}
+    const { verifyMessage } = await import('viem');
+    const r = await verifyLogin({ message: b.message, signature: b.signature, nonces,
+                                  domain: SIWE_DOMAIN, uri: SIWE_URI, chainId: SIWE_CHAIN_ID, verifyMessage });
+    if (r.error) return json(401, { error: r.error, message: r.message });
+    return json(200, { token: mintSession(sessionKey, { subject: r.address, ttlSec: SESSION_TTL }),
+                       address: r.address, expiresIn: SESSION_TTL, kid: sessionKey.kid });
+  }
   if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
@@ -432,6 +466,15 @@ async function handle(frame) {
     const rest = p.slice(('/x/' + id).length) || '/';
     // The caller's address, as the relay forwarded it. It is what the deployment's rate and
     // concurrency limits count, so it is passed explicitly rather than guessed at the far end.
+    // A PRIVATE deployment serves its owner and nobody else. Checked before the app is consulted
+    // and before its state is revealed: "not running" is information a stranger should not get
+    // about somebody else's private deployment.
+    const priv = host.privateOwner ? host.privateOwner(id) : null;
+    if (priv) {
+      const who = addressFor(sessionKey, frame.headers || {}, id);
+      if (!who) return json(401, { error: 'unauthorized', message: 'Missing or invalid token.' });
+      if (who !== priv) return json(403, { error: 'forbidden', message: 'Not your deployment.' });
+    }
     const ip = wafClientIp(frame.headers);
     // WAF_TRACE=1: say which address a deployment's rate and concurrency limits are counting. It
     // exists because "the relay forwards the caller's address" is a claim this box PUBLISHES
@@ -562,6 +605,13 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
   if (APPS) {
+    // The session key, before anything can be asked for one. Where it lives is published rather
+    // than implied (host.features sessionKeyIn): on a confidential VM the operator never sees the
+    // private half, and on this box they do.
+    sessionKey = initSessionKey({ dir: DIR, log: (m) => log(m) });
+    host.cfg.sessionKid = sessionKey.kid;
+    log(`session: ES256 key ${sessionKey.kid.slice(0, 12)}… (in the agent's process, not the enclave)`);
+    setInterval(() => nonces.sweep(), 60_000).unref?.();
     await host.init();
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
