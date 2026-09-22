@@ -16,6 +16,7 @@ typedef struct {
     uint64_t ver_n, ver_bad, ver_max;                /* backend-vs-reference: elements compared, disagreements, worst |diff| in LSB */
     double   ver_sq;                                 /* sum of squared differences, for an RMS */
     uint64_t rail_m32768, rail_m32767, rail_p32767;  /* which rail values the backend ACTUALLY returns */
+    uint64_t sat_repaired;                           /* 1 when the build actually substitutes the exact value (kRepairClips) */
     double   sat_max_err_lsb;                        /* the worst error a clip put into y, in output LSBs */             /* entries kept in the VM (beyond their lane) | replies on the int16 rail */
     uint64_t bank_min;                               /* pads left in the emptiest group */
     uint64_t pads_refilled;                          /* pads the background minters added */

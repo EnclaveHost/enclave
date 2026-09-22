@@ -708,3 +708,50 @@ One helper now, using a modular mask and an exact division, no shifts of negativ
 `-fsanitize=undefined -fno-sanitize-recover=all`: **65536 values, 0 failures**, and it asserts agreement
 with BOTH old expressions on this compiler, so the change is behaviour-preserving where the old code was
 defined and only removes the cases where it was not.
+
+### Acceptance: the pad-independence invariant
+
+The right test is not an external oracle -- it is an invariant of the scheme itself. **The one-time pad
+is redrawn every run and cancels exactly under correct arithmetic, so the decoded output must be
+INDEPENDENT of the pad.** That independence is what makes the exchange hiding while still producing the
+right answer, and a clamped product has lost the information needed to subtract the pad back out.
+
+Same binary, same prompt, greedy, `draft_max 1` (so depth is fixed and the adaptive schedule cannot
+vary), fresh context, `WIDTH=4000`:
+
+| | run 1 clips | run 2 clips | output |
+|---|---|---|---|
+| clips USED AS-IS (`kRepairClips=false`) | 158 | 174 | **diverged at char 246 of 458** |
+| clips REPAIRED | 158 | 166 | **byte-identical, 458/458** |
+
+The repaired runs draw different pads -- the clip counts differ -- and still produce the same bytes.
+The unrepaired runs differ from each other. So the defect made the decode a function of the secret pad,
+and the repair restores independence. The repaired hash also equals what unrepaired run 1 happened to
+produce, with unrepaired run 2 diverging from it, so the repaired output is the stable one.
+
+This supersedes the earlier before/after text comparison, which was CONFOUNDED: adaptive depth varies
+with timing, and with clipping present the corruption depends on which rows are sent, so the unrepaired
+arm was nondeterministic and the difference was not attributable to the repair. Withdrawn.
+
+Also note `saturated 175, CLIPPED 174` in one run: a rail hit whose exact value was legitimately on the
+rail, correctly detected and correctly NOT repaired. The discriminator works in both directions.
+
+### Bounding the repair against an untrusted worker
+
+Raised by the peer tier, whose field GEMM REFUSES an out-of-range reply as a protocol violation rather
+than clamping (`sh_reply32_balanced`, with the int64 accumulate wrapping in Z_M). Refusal is wrong here
+-- a clamp is EXPECTED on this path because the margin is self-inflicted -- but the framing exposed a
+hole: the worker is untrusted and can rail replies deliberately, and the repair obediently recomputes
+each one locally. At the natural rate (<1 per token) that is free; at 100 % it drags the whole matmul
+back into the VM and defeats the offload. Not a confidentiality or correctness break -- the VM computes
+the right answer from public weights either way -- but a denial-of-service lever given away for nothing.
+
+Bounded now: repair the rare case, and an exchange that rails more than an eighth of its outputs (three
+orders of magnitude above the natural rate) says so, and aborts after 8 consecutive. Same precedent as
+`mint_batch`'s 8-bad-draws abort.
+
+**And the sampled kernel verification is now OFF by default.** The same peer measured a reply-validation
+pass at 3.50 ms per pass, about 7 % of a token, on the assumption it was free. The rail test itself IS
+free here -- a predicate on values the unmask loop has already loaded, no second pass to fuse -- but the
+verification recomputes elements on the critical path and had never been timed. It is a validation tool,
+enabled for audits.
