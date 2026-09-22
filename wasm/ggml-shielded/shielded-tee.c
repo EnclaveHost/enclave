@@ -41,7 +41,8 @@ static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
  * ------------------------------------------------------------------------ */
 #define SIMD_TABLE_REFILL(sfx, nm, refill_fn) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
-    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, refill_fn, sh_simd_##sfx##_outlier_add, \
+    sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, refill_fn, \
+    sh_simd_##sfx##_reply32_balanced, sh_simd_##sfx##_outlier_add, \
     sh_simd_##sfx##_outlier_add_stride, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
     sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv, sh_simd_##sfx##_encode_checked }
@@ -2005,12 +2006,15 @@ static void sh_verify_rhs(void *ctx) {
  * under the |y| < 2^24 bound. Unsigned addition avoids overflow even for
  * INT32_MIN/MAX; the reduction permits vectorization of this extra int32-only
  * pass. Packed int24 inputs already keep subtraction/accumulation in range. */
-static bool sh_reply32_balanced(const int32_t *values, size_t n) {
-    uint32_t bad = 0;
-    for (size_t i = 0; i < n; i++)
-        bad |= (uint32_t)values[i] + (uint32_t)SH_HALF_M >= (uint32_t)SH_M_MOD;
-    return bad == 0;
-}
+/* The int32 reply range check used to live here. It is the same predicate, now
+ * in the SIMD table (shielded-simd.c): this file is compiled once at baseline
+ * ISA while that one is compiled twice with the arch flags, and at baseline the
+ * check cost 3.5 ms of every 27B pass against 0.22 ms in the table. It is still
+ * a SEPARATE pass that completes before any kernel touches the reply, because
+ * the contract is that an out-of-range reply leaves the caller's output
+ * untouched. test/fixtures/shielded-reply-balanced.c carries the portable
+ * reference and holds every table's version to it at the field edges,
+ * INT32_MIN/MAX, and a bad value in every position. */
 
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
@@ -2191,7 +2195,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
          * the timer is here to say what it costs, because it is a candidate for
          * fusing into the unmask pass that already reads the same bytes. */
         const double tc_a = now_ms();
-        const bool reply_ok = !(yw == 4) || sh_reply32_balanced((const int32_t *)rep.data, want / 4);
+        const bool reply_ok = !(yw == 4) || l->simd->reply32_balanced((const int32_t *)rep.data, want / 4);
         l->profile.check_ms += now_ms() - tc_a;
         if (!reply_ok) {
             snprintf(l->err, sizeof l->err, "worker returned an int32 value outside the balanced field range");
