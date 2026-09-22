@@ -3773,3 +3773,59 @@ and remains unattributed -- the same bucket 18.13 could not pin down. That gap,
 not the two floors, is now the only place a lever of the required size could
 still be hiding, and attributing it needs counters bound to phase and pass
 rather than another estimate.
+
+### 18.28 Phase-bound attribution, and the denominators that were wrong
+
+The per-pipe idle counters reset between phases, so they could not be divided
+by anything. They now accumulate on the LINK, folding each pipe's delta in
+after every exchange and treating a value lower than the last as a fresh pipe.
+And `SHIELDED_PHASE_TRACE=1` emits one CUMULATIVE record per graph_compute --
+card, wall clock, m, graphs, nodes, exchanges, idle, link, graph -- so any
+window is the difference of two records and no reset can corrupt it.
+
+Segmenting by wall gaps and by m gives the phases directly: m=17 is prefill,
+m=1 plain decode, m=2 a speculative verify pass (k+1 rows).
+
+**PLAIN decode, card 0, 64 tokens, one pass per token:**
+
+| | per pass = per token |
+|---|---|
+| graphs | 321.0 |
+| **exchanges** | **257.0** |
+| idle spin | 17.95 ms |
+| link (inclusive of idle) | 33.18 ms |
+| graph_compute (inclusive of link) | 37.09 ms |
+| idle per exchange | 69.8 us |
+
+**Two of my own figures were wrong and are corrected here.** 257 exchanges per
+pass, not the 180.6 I quoted -- that number multiplied a per-card split count
+by a passes-per-token ratio and belonged to neither denominator. The review's
+65 x 4 = 260 is what the measurement shows. And the "roughly 19 ms in neither
+counter" was the same kind of error: reconciled properly, on one path with one
+denominator, it is 5.61 ms.
+
+**The plain token, inclusive relations stated:**
+
+    token                            55.95 ms   (bench, 1 pass = 1 token)
+      shielded graph_compute         37.09      includes link
+        link                         33.18      includes idle
+          idle spin                  17.95      257 exchanges x 69.8 us
+      outside the shielded backend   18.86
+        CPU-backend ops (C)          13.25      measured separately, 18.16
+        neither backend               5.61      framework, scheduler, sampling
+
+5.61 ms over 642 backend invocations per pass (321 shielded + 321 CPU) is 8.7
+us per split, which is a plausible scheduler cost and not an anomaly worth
+chasing.
+
+These are CARD 0 figures. Card 1 runs concurrently and its times must not be
+added to these.
+
+**What it says about 25 tok/s.** 15.95 ms must come off a 55.95 ms token. The
+four components are 17.95 (GPU wait), 15.23 (TEE-side link CPU: mask, unmask,
+Freivalds, range check, pads), 13.25 (C) and 5.61 (framework). No single one
+covers it. The GPU wait is weight-streaming bound (18.27). C is delta-net
+bound (18.18). The framework term is too small. That leaves the TEE-side link
+CPU at 15.23 ms/token as the largest item whose internals have not been
+attacked since the SIMD work early in this campaign, and it is the next thing
+to break down per term rather than in aggregate.

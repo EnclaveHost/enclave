@@ -349,6 +349,13 @@ struct sh_link {
      * verification-before-use, because nothing here may look at the reply. */
     void     (*idle_fn)(void *);
     void      *idle_ctx;
+    /* Idle spin, accumulated on the LINK rather than read off the pipe. The
+     * pipe is recreated between phases and its counters restart, which is how
+     * an earlier per-token figure divided one pipe's lifetime by the whole
+     * run's tokens. Folding the delta in after every exchange survives that:
+     * a value lower than the last one seen means a fresh pipe, so the delta is
+     * the new value itself. */
+    uint64_t   idle_ns, idle_n, idle_last_ns, idle_last_n;
     /* Bytes per reply value: 4 (FIELD_GEMM, protocol 1.1) or 3 (FIELD_GEMM24,
      * 1.2). Decided at start from the worker's HELLO; SHIELDED_REPLY32=1
      * forces the wide form against a worker that offers both. */
@@ -453,7 +460,7 @@ void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out) {
     /* The idle spin lives on the pipe, not the link: it is measured where the
      * waiting happens. Folded in here so one snapshot answers "how much window
      * is left" without a second accessor at every call site. */
-    if (l) sh_pipe_idle(l->pipe, &out->idle_ms, &out->idle_n);
+    if (l) { out->idle_ms = (double)l->idle_ns / 1e6; out->idle_n = l->idle_n; }
 }
 void sh_link_pool_stats(const sh_link *l, uint64_t *consumed, uint64_t *missed) {
     if (!l) return;
@@ -2197,6 +2204,11 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
         if (via_ring) {
             rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep,
                                             overlap ? sh_verify_rhs : (l->idle_fn ? sh_idle_only : NULL), &work);
+            { double ms = 0; uint64_t nn = 0; sh_pipe_idle(l->pipe, &ms, &nn);
+              const uint64_t ns = (uint64_t)(ms * 1e6);
+              l->idle_ns += (ns >= l->idle_last_ns) ? ns - l->idle_last_ns : ns;
+              l->idle_n  += (nn >= l->idle_last_n)  ? nn - l->idle_last_n  : nn;
+              l->idle_last_ns = ns; l->idle_last_n = nn; }
         } else {
             rc = SH_ERR_IO;
         }
