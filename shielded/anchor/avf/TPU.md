@@ -1944,3 +1944,40 @@ for a block the worker never loaded:
 Measuring the marginal cost of an offloaded layer therefore needs bundles built with `--layers 0-(N-1)`,
 which is cheap with `--no-graphs` since the compiled graphs are reused. Worth recording because the flag
 looks like it controls the split and does not.
+
+## The offload cost per layer, measured directly (2026-09-22)
+
+Every earlier statement about why this path is slow has been an aggregate -- a 893 ms token divided into
+terms, each of which I then argued about. This measures the thing itself: hold everything constant and
+vary only HOW MANY transformer blocks are offloaded to the TPU, with a bundle built to match each split
+(`--layers 0-(N-1)`, `--no-graphs`, reusing the compiled graphs).
+
+| blocks offloaded | exchanges/token | tok/s | ms/token | fit |
+|---|---|---|---|---|
+| 1 | 4 | **9.55** | 104.7 | 101.9 |
+| 4 | 16 | **6.50** | 153.8 | 171.6 |
+| 9 | 36 | **3.54** | 282.5 | 287.8 |
+| 18 | 72 | **1.88** | 531.9 | 496.9 |
+| 35 (shipped) | 140 | **1.14** | 877.2 | 891.9 |
+
+    ms/token = 78.7 + 23.2 x blocks_offloaded          R^2 = 0.9956
+
+**A block costs 23.2 ms on the TPU and 1.98 ms on the VM's own CPU.** (The CPU path computes all 35 in
+69 ms at 14.4 tok/s.) That is a **12x tax per block**, linear, with no threshold and no sweet spot: every
+block moved to the accelerator makes the token twelve times more expensive than leaving it where it was.
+
+Three things follow, and they replace several looser arguments earlier in this file.
+
+**There is no partial split worth taking.** The curve is monotone, so the fastest configuration that uses
+the TPU at all is one block, at 9.55 tok/s -- and one block of thirty-five is not "the TPU executing the
+heavy compute".
+
+**15 tok/s is out of reach even at zero offload.** The intercept is 78.7 ms, or 12.7 tok/s, against the
+pure CPU path's 69 ms and 14.4 tok/s: merely having the TPU backend loaded and the worker attached costs
+about 10 ms per token before a single block is offloaded. Setting 66.7 ms as the target, the fitted line
+reaches it at **-0.5 blocks**.
+
+**And it is not the accelerator.** The TPU's own compute is 23.2 ms only in the sense that the round trip
+around it is; the worker's `tpu-run` accounts for about 2 ms of that, and the rest is the mask, the
+reply, the boundary crossing and the VM's own work. Twelve times is what it costs to ask a question
+across a protected-VM boundary rather than compute the answer locally.
