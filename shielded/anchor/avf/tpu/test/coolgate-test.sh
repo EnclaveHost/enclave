@@ -19,35 +19,52 @@ has() { if grep -qF "$2" <<<"$1"; then printf '  ok   %s\n' "$3"; pass=$((pass+1
 W=$(mktemp -d); [ "${KEEP:-0}" = 1 ] && echo "KEEPING $W" || trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/bin"
 printf '#!/bin/sh\nexit 0\n' > "$W/bin/sleep"; chmod +x "$W/bin/sleep"
+# The fake device EXECUTES the remote command string in a local shell, with stubs for dumpsys and for
+# the sysfs reads. That is the only way the test can model what actually bit here: a pipeline's status
+# is its LAST stage's, so `dumpsys | grep` returns grep's. A fake that simply returned the configured
+# status for "anything mentioning thermalservice" cannot tell the two designs apart, and an earlier
+# version of this file did exactly that -- it passed a mutant that put the remote pipe back.
+mkdir -p "$W/stubs"
+cat > "$W/stubs/dumpsys" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  thermalservice)
+     n=$(( $(cat "$FAKE_N" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_N"
+     if [ -n "${FAKE_HOT_FOR:-}" ] && [ "$n" -le "$FAKE_HOT_FOR" ]; then echo "Thermal Status: 3"; exit 0; fi
+     printf '%s\n' "${FAKE_THERMAL-Thermal Status: 0}"; exit "${FAKE_THERMAL_RC:-0}" ;;
+  power) echo "mWakefulness=Awake"; exit 0 ;;
+esac
+exit 0
+EOF
+cat > "$W/stubs/cat" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  *scaling_max_freq)
+     if [ -n "${FAKE_HOT_FOR:-}" ] && [ "$(/bin/cat "$FAKE_N" 2>/dev/null || echo 0)" -le "${FAKE_HOT_FOR:-0}" ]; then echo 1000; exit 0; fi
+     printf '%s\n' "${FAKE_SCALING-2000}"; exit "${FAKE_SCALING_RC:-0}" ;;
+  *cpuinfo_max_freq)
+     printf '%s\n' "${FAKE_CPUINFO-2000}"; exit "${FAKE_CPUINFO_RC:-0}" ;;
+esac
+exec /bin/cat "$@"
+EOF
 cat > "$W/bin/fakeadb" <<'EOF'
 #!/usr/bin/env bash
-# FAKE_THERMAL / FAKE_SCALING / FAKE_CPUINFO drive the readings.
-# FAKE_HOT_FOR: report hot for the first N thermal checks, then cool (transient recovery).
-# FAKE_THERMAL_RC: exit status for the thermal read (a failed transport).
 echo "$*" >> "$FAKE_LOG"
-case "$*" in
-  *thermalservice*)
-      n=$(( $(cat "$FAKE_N" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_N"
-      if [ -n "${FAKE_HOT_FOR:-}" ] && [ "$n" -le "$FAKE_HOT_FOR" ]; then echo "Thermal Status: 3"
-      else printf '%s\n' "${FAKE_THERMAL-Thermal Status: 0}"; fi
-      exit "${FAKE_THERMAL_RC:-0}" ;;
-  *scaling_max_freq*)
-      if [ -n "${FAKE_HOT_FOR:-}" ] && [ "$(cat "$FAKE_N" 2>/dev/null || echo 0)" -le "$FAKE_HOT_FOR" ]; then echo 1000
-      else printf '%s\n' "${FAKE_SCALING-2000}"; fi; exit "${FAKE_SCALING_RC:-0}" ;;
-  *cpuinfo_max_freq*) printf '%s\n' "${FAKE_CPUINFO-2000}"; exit "${FAKE_CPUINFO_RC:-0}" ;;
-  *dumpsys\ power*)   echo "mWakefulness=Awake"; exit 0 ;;
-  *logcat\ -d*)       echo "anchor-host: LOCAL turn 1 A: x"; echo "anchor-host: LOCAL done"; exit 0 ;;
-  *)                  exit 0 ;;
+case "${1:-}" in
+  logcat) case "$*" in *-d*) echo "anchor-host: LOCAL turn 1 A: x"; echo "anchor-host: LOCAL done";; esac; exit 0 ;;
+  shell)  shift; PATH="$FAKE_STUBS:$PATH" bash -c "$*"; exit $? ;;
 esac
+exit 0
 EOF
-chmod +x "$W/bin/fakeadb"
+chmod +x "$W/stubs"/* "$W/bin/fakeadb"
+
 
 run() {  # run <runner> [env...]  -> prints "rc|amstart_count"
   local r="$1"; shift
   : > "$W/adb.log"; rm -f "$W/n"
   local out rc
   out=$(env PATH="$W/bin:$PATH" ADB="$W/bin/fakeadb" FAKE_LOG="$W/adb.log" FAKE_N="$W/n" \
-        COOL_TRIES=5 COOL_SLEEP=0 "$@" bash "$D/$r" 2>&1); rc=$?
+        FAKE_STUBS="$W/stubs" COOL_TRIES=5 COOL_SLEEP=0 "$@" bash "$D/$r" 2>&1); rc=$?
   printf '%s\n---RC---%s---AM---%s\n' "$out" "$rc" "$(grep -c 'am start' "$W/adb.log")"
 }
 rc_of() { sed -n 's/.*---RC---\([0-9]*\)---AM---.*/\1/p' <<<"$1"; }
@@ -73,6 +90,12 @@ for r in tpu-run.sh local-run.sh; do
   o=$(run "$r" FAKE_THERMAL_RC=1)
   ck "$r refuses when the thermal READ FAILS"    "$(rc_of "$o")" 4
 
+  # The REMOTE command's own status, which a pipe on the device hides: `dumpsys | grep` returns grep's
+  # status, so dumpsys printing "Thermal Status: 0" and exiting 42 passed the gate.
+  o=$(run "$r" FAKE_THERMAL_RC=42)
+  ck "$r refuses when DUMPSYS fails but prints a cool status" "$(rc_of "$o")" 4
+  ck "  and never starts the run"                "$(am_of "$o")" 0
+  has "$o" "thermal read failed"                 "  and names the failing read"
   # Valid-looking output with a FAILURE status, on each frequency channel separately. The gate
   # captured rc for the thermal read only, so a `cat` that printed 2000 and exited 42 read as cool.
   o=$(run "$r" FAKE_SCALING_RC=42)

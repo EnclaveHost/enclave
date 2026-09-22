@@ -16,34 +16,46 @@
 # cache key so a bypassed run can never be served as a controlled one.
 #
 #   COOL_TRIES (default 90) and COOL_SLEEP (default 10) exist so the tests can drive it quickly.
-# One read, with its transport/remote status checked. The previous version captured `rc=$?` after the
-# THERMAL read only; the two frequency assignments' statuses were discarded entirely, so a device whose
-# `cat` printed 2000 and exited 42 produced "cool gate: OK ... cap=2000/2000" and the run proceeded.
-# Valid-looking output with a failure status is the same shape as three other defects in this tree.
+# One read, with BOTH statuses checked: adb's own, and the REMOTE command's, carried back explicitly.
+#
+# Two versions of this were wrong. The first captured rc after the thermal read only, so a `cat` that
+# printed 2000 and exited 42 read as cool. The second checked each read's status but asked the device
+# for `dumpsys thermalservice | grep -m1 'Thermal Status'` -- and a pipeline's status is its LAST
+# stage's, so grep succeeding hid dumpsys failing. A device whose dumpsys printed "Thermal Status: 0"
+# and exited 42 passed the gate.
+#
+# So nothing is piped on the device any more. The remote command is run alone, its status is carried
+# back in an explicit marker, and any filtering happens HERE where the status is already known.
 _cg_read() {
-  local out rc
-  out=$($ADB shell "$1" 2>/dev/null); rc=$?
-  [ "$rc" -eq 0 ] || return 1
-  printf '%s' "$out" | tr -d '\r'
+  local out rc rrc
+  out=$($ADB shell "$1; echo __RC__\$?" 2>/dev/null); rc=$?
+  [ "$rc" -eq 0 ] || return 1                       # the transport
+  out=$(printf '%s' "$out" | tr -d '\r')
+  rrc=$(printf '%s\n' "$out" | sed -n 's/^__RC__\([0-9][0-9]*\)$/\1/p' | tail -1)
+  [ -n "$rrc" ] || return 1                         # no marker: the shell never reached the echo
+  [ "$rrc" -eq 0 ] || return 1                      # the remote command itself
+  printf '%s\n' "$out" | sed '/^__RC__[0-9][0-9]*$/d'
 }
 # and a frequency must be a POSITIVE integer: 0 = 0 satisfied "uncapped" before this.
 _cg_pos() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ "$1" -gt 0 ]; }
 
 cool_gate() {
-  local st mx top i why
+  local st mx top i why _cg_raw
   if [ "${NOCOOL:-0}" = 1 ]; then
     echo "cool gate: BYPASSED by NOCOOL=1 -- this run is NOT thermally controlled and its rates are not comparable"
     return 0
   fi
   why="no check completed"
   for i in $(seq 1 "${COOL_TRIES:-90}"); do
-    if   ! st=$(_cg_read "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'"); then
+    if   ! _cg_raw=$(_cg_read "dumpsys thermalservice"); then
       why="the thermal read failed"
+      st=""
     elif ! mx=$(_cg_read "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq"); then
       why="the scaling_max_freq read failed"
     elif ! top=$(_cg_read "cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq"); then
       why="the cpuinfo_max_freq read failed"
-    elif [ "$st" != "Thermal Status: 0" ]; then
+    elif st=$(printf '%s\n' "$_cg_raw" | grep -m1 'Thermal Status' || true); \
+         [ "$st" != "Thermal Status: 0" ]; then
       why="throttled: '${st:-<empty>}'"
     elif ! _cg_pos "$mx"; then
       why="scaling_max_freq is not a positive integer: '${mx:-<empty>}'"

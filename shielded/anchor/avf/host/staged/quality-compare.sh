@@ -64,6 +64,20 @@ dev_run() {   # dev_run '<remote sh script>' -> stdout; nonzero if EITHER the tr
   printf '%s\n' "$out" | sed '/^__RC__[0-9][0-9]*$/d'
 }
 valid_sha() { case "$1" in *[!0-9a-f]*|"") return 1;; esac; [ ${#1} -eq 64 ] && [ "$1" != "$SHA_EMPTY" ]; }
+# Every identity here was AGGREGATED through a pipeline whose status was thrown away:
+#   X=$(printf ... | sha256sum | awk '{print $1}')
+# keeps awk's status, not sha256sum's, so a digest command that failed after printing something
+# plausible still produced an identity -- the same defect as the per-file digests, one level up. This
+# is the only way an identity gets built now: the digest's own status is read, and the result must be
+# a usable digest before it is returned.
+sha_of() {   # data on stdin -> 64 hex on stdout; nonzero if the digest failed or is unusable
+  local out rc
+  out=$(sha256sum 2>/dev/null); rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  out=${out%% *}
+  valid_sha "$out" || return 1
+  printf '%s' "$out"
+}
 BPATH="$F_DIR/${BUNDLE:-tpu/lanes-h4ds.etpu}"; GPATH="$F_DIR/${GRAPHS:-tpu/g5-h4ds}"
 raw=$(dev_run "sha256sum \"$BPATH\"") || { echo "REFUSING: could not digest the bundle on the device" >&2; exit 3; }
 BUNDLE_ID=$(printf '%s\n' "$raw" | awk 'NF{print $1; exit}')
@@ -74,8 +88,7 @@ GLIST=$(printf '%s\n' "$raw" | awk 'NF>=2 {print $1"  "$2}' | sort)
 GN=$(printf '%s\n' "$GLIST" | grep -c . || true)
 [ "${GN:-0}" -ge 1 ] || { echo "REFUSING: no readable .tflite graphs at $GPATH" >&2; exit 3; }
 while read -r d _; do valid_sha "$d" || { echo "REFUSING: bad per-graph digest '$d'" >&2; exit 3; }; done <<< "$GLIST"
-GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha256sum | awk '{print $1}')
-valid_sha "$GRAPHS_ID" || { echo "REFUSING: graphs identity is not usable" >&2; exit 3; }
+GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha_of) || { echo "REFUSING: could not form the graphs identity" >&2; exit 3; }
 echo "graphs: $GN file(s) digested individually"
 # The RUNNERS are part of the identity of a result, and they were not. Applying the thermal/memory fix
 # into an existing OUT would otherwise have found every row "cached" and reported logs produced by the
@@ -98,8 +111,7 @@ for rf in $RUNNER_FILES; do
   RLIST="$RLIST$rdig  $rf
 "
 done
-RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha256sum | awk '{print $1}')
-valid_sha "$RUNNERS_ID" || { echo "REFUSING: the combined runner identity is not usable" >&2; exit 3; }
+RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha_of) || { echo "REFUSING: could not form the combined runner identity" >&2; exit 3; }
 POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0}"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
   echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"
@@ -142,7 +154,9 @@ for p in "${PLIST[@]}"; do
   # as this one's. Same defect an audit found in google-lane-run.sh.
   # settings AND runner identity in the key: a different MEM, a different token budget, or a bypassed
   # thermal gate is a different experiment, and must re-run rather than be served from cache.
-  key=$(printf '%s|%s|%s|%s|%s|%s' "$p" "$POLICY" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" "$RUNNERS_ID" | sha256sum | cut -c1-16)
+  keyfull=$(printf '%s|%s|%s|%s|%s|%s' "$p" "$POLICY" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" "$RUNNERS_ID" | sha_of) \
+    || { echo "REFUSING: could not compute the cache key for row $id" >&2; exit 3; }
+  key=${keyfull:0:16}
   st_tpu=fail; st_cpu=fail
   for arm in tpu cpu; do
     f="$OUT/$id.$key.$arm.log"
