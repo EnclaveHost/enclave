@@ -67,14 +67,26 @@ int ee_app_generate(const char *prompt, size_t plen, unsigned int max_tokens,
     return ee_engine_generate(prompt, plen, (int)max_tokens, out, cap, out_len);
 }
 
-/* Socket tracing for the app runtime, on when the enclave's environment says ENCLAVE_RT_TRACE=1
- * (the host passes it at init). It exists because an app that accepts a connection and drops it
- * silently - which is what a real one did here - is indistinguishable from a broken broker
- * without seeing each accept, read, write and close from inside. */
+/* Socket tracing for the app runtime, from the enclave's environment ENCLAVE_RT_TRACE (the host
+ * passes it at init). It exists because an app that accepts a connection and drops it silently -
+ * which is what a real one did here - is indistinguishable from a broken broker without seeing
+ * the connection lifecycle from inside.
+ *
+ * It is a LEVEL, not a switch, because level 1 and level 2 differ by three orders of magnitude.
+ * Level 1 is per CONNECTION: accept, close, and every error. Level 2 adds a line per read and per
+ * write, which on a streaming tenant is one line per datagram - a risc-box serving a framebuffer
+ * wrote 17 MiB of "read 4 want 16406" into enclave.log in under an hour and buried its own
+ * lifecycle events. Anything you would want to leave on belongs at 1; 2 is for a bug you are
+ * chasing right now. "t"/"true" means 1 so the older on/off spelling keeps working. */
 int ee_app_trace(void) {
-    static int on = -1;
-    if (on < 0) { const char *v = ee_getenv("ENCLAVE_RT_TRACE"); on = (v && (*v == '1' || *v == 't')) ? 1 : 0; }
-    return on;
+    static int lvl = -1;
+    if (lvl < 0) {
+        const char *v = ee_getenv("ENCLAVE_RT_TRACE");
+        if (!v) lvl = 0;
+        else if (*v >= '0' && *v <= '9') lvl = *v - '0';
+        else lvl = (*v == 't' || *v == 'T') ? 1 : 0;
+    }
+    return lvl;
 }
 
 __declspec(noreturn) void ee_app_abort(const char *msg, size_t len) {

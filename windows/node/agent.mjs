@@ -236,8 +236,11 @@ async function startHost() {
                 '--threads', THREADS, '--ctx', CTX, '--serve', String(HOST_PORT), '--quiet', '--log', path.join(DIR, 'enclave.log')];
   if (CALIB) args.push('--calib', CALIB);
   for (const [k, v] of Object.entries(process.env)) if (k.startsWith('SHIELDED_') && !['SHIELDED_HOST', 'SHIELDED_PORT', 'SHIELDED_VK_SHADERS', 'SHIELDED_CARD_TFLOPS', 'SHIELDED_VK_DEVICE'].includes(k)) args.push('--env', `${k}=${v}`);
-  // The app runtime's own socket tracing, if the operator asked for it: every accept, read, write
-  // and close from inside the enclave, in the enclave's log.
+  // The app runtime's own socket tracing, if the operator asked for it. It is a LEVEL: 1 is the
+  // connection lifecycle (accept, close, errors) and is cheap enough to leave on; 2 adds a line
+  // per read and per write, which on a streaming tenant is a line per datagram - it wrote 17 MiB
+  // into enclave.log in under an hour here and buried the lifecycle events it exists to show.
+  // Turn 2 on for a bug you are chasing, not for a deployment you are running.
   if (process.env.ENCLAVE_RT_TRACE) args.push('--env', `ENCLAVE_RT_TRACE=${process.env.ENCLAVE_RT_TRACE}`);
   start.host = () => {
     // A restarted enclave is a NEW enclave: its keys are per boot and every app that was in it is

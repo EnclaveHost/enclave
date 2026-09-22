@@ -151,12 +151,21 @@ extern "C" {
     /// Socket tracing, from the enclave's environment (ENCLAVE_RT_TRACE=1).
     fn ee_app_trace() -> i32;
 }
-fn traced() -> bool { (unsafe { ee_app_trace() }) != 0 }
+fn traced() -> bool { (unsafe { ee_app_trace() }) >= 1 }
+/// Level 2: a line per read and per write. That is one line per DATAGRAM, so a tenant streaming a
+/// framebuffer buries every lifecycle event under megabytes of it - keep it out of level 1.
+fn traced_io() -> bool { (unsafe { ee_app_trace() }) >= 2 }
 fn trace(msg: &str) {
     if !traced() { return; }
     let s = format!("[rt] {msg}");
     let b = s.as_bytes();
     unsafe { ee_app_log(b.as_ptr(), b.len().min(512)) }
+}
+/// The per-datagram form. It takes a closure so that with tracing off - which is every deployment
+/// that is not being debugged - the hot socket path does not format or allocate anything at all.
+fn trace_io(msg: impl FnOnce() -> String) {
+    if !traced_io() { return; }
+    trace(&msg());
 }
 fn now_ns() -> u64 { unsafe { ee_app_now_us() }.saturating_mul(1_000) }
 /// Sleep towards a deadline, in slices. A whole sleep in one call would hold the thread past a
@@ -305,7 +314,7 @@ impl self::wasi::io::streams::HostInputStream for WasiState {
             let want = len.min(64 * 1024) as usize;
             let mut buf = vec![0u8; want.max(1)];
             let n = unsafe { ee_net_recv(h, buf.as_mut_ptr(), want) };
-            trace(&format!("read {h} want {want} -> {n}"));
+            trace_io(|| format!("read {h} want {want} -> {n}"));
             return Ok(match n {
                 0 => Err(StreamError::Closed),
                 EAGAIN => Ok(Vec::new()),
@@ -372,7 +381,7 @@ impl self::wasi::io::streams::HostOutputStream for WasiState {
             Sink::Log(err) => log_line(if err { "stderr: " } else { "stdout: " }, &contents),
             Sink::Socket(h) => {
                 let n = unsafe { ee_net_send(h, contents.as_ptr(), contents.len()) };
-                trace(&format!("write {h} of {} -> {n}", contents.len()));
+                trace_io(|| format!("write {h} of {} -> {n}", contents.len()));
                 if n < 0 {
                     return Ok(Err(StreamError::LastOperationFailed(
                         self.table.push(IoError { msg: format!("socket write failed ({n})") })?)));
