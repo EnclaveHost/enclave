@@ -1625,3 +1625,26 @@ recording:
   test can reach it, and `tpu/test/verify-rms-test.c` drives it with 2.5, 0.0 and 1.5.
 * The paired-sample count is now reported alongside the digit count, because "n=52480" and "26240
   samples" are different quantities and the line previously showed only the first.
+
+### A lead on the compiler failure, tested and refuted (2026-09-22)
+
+`LD_DEBUG=libs` on the failing run names a precondition directly, which is what a colleague predicted the
+symptom shape would produce:
+
+    libLiteRtCompilerPlugin_google_tensor.so: symbol lookup error:
+    undefined symbol: LiteRtGetCompiledResultHandle (fatal)
+
+That symbol is defined NOWHERE in the SDK except `libLiteRtCompilerPlugin_Qualcomm.so` -- a different
+vendor's plugin -- and `apply_plugin_main` exports no `LiteRt*` symbols dynamically at all. It is the same
+failure mode as the `sh_par_for` bug fixed in `build.sh` the same evening: a shared object that resolves
+fine at link time and dies when the symbol is actually needed.
+
+**It is not the cause.** `LD_PRELOAD`ing the Qualcomm plugin so the symbol resolves changes nothing: the
+compile still fails, still produces no output. The loader also reports `LiteRtRegisterGpuAccelerator` as
+an identical "(fatal)" lookup failure, and the SUCCESSFUL log from 2026-09-19 shows the GPU accelerator
+failing to register in exactly that way -- so these markers are normal noise on this stack, not the
+failure.
+
+Recorded because it was a good lead, reached by a method worth reusing, and because asserting it without
+the `LD_PRELOAD` test would have been the third wrong diagnosis of the night rather than the first
+refuted one. CWD does not matter either (five directories, all fail identically).
