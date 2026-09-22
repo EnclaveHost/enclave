@@ -749,7 +749,43 @@ export class Host {
       this.log(`config: resolved ${names.length} secret placeholder${names.length === 1 ? "" : "s"}`
         + ` for ${String(d.id).slice(0, 10)} (${names.join(", ")})`);
     }
-    return out;
+    return this.#patchConfig(d, out);
+  }
+  /**
+   * An OPERATOR-SET, per-deployment patch over a tenant's resolved app config, from
+   * ENCLAVE_APP_CONFIG_PATCH ({"<deployment id>": {"key": value}}). It is a local override: it
+   * changes nothing on chain and nothing for the same version anywhere else.
+   *
+   * It exists because a setting that is right on one box can be fatal on another. risc-box asks
+   * for `realtime: true` - the guest's clock driven by the HOST's, which anything that paces
+   * itself (a game, a video player) needs. That assumes the guest runs near real speed. In this
+   * enclave there is no JIT: the emulator is Pulley bytecode and the guest manages ~0.5 MIPS, so
+   * the 10 ms timer arrives every ~5,000 guest instructions while the kernel's timer ISR costs
+   * ~31,000 - measured 65M vs 121M instructions to reach "Linux version" under Pulley with the
+   * clock off and on. The guest never finishes one tick before the next is due, so it executes
+   * flat out and never gets past OpenSBI, which is exactly what this box showed.
+   *
+   * A patch is a WORKAROUND and should name itself as one: it is logged on every apply, and the
+   * standing list lives in windows/PARITY.md.
+   */
+  #patchConfig(d, text) {
+    const raw = process.env.ENCLAVE_APP_CONFIG_PATCH;
+    if (!raw) return text;
+    let all;
+    try { all = JSON.parse(raw); } catch (e) {
+      this.log(`config patch: ENCLAVE_APP_CONFIG_PATCH is not JSON (${e.message}); ignoring it`);
+      return text;
+    }
+    const id = String(d?.id || "").toLowerCase();
+    const patch = all[id] || all[id.replace(/^0x/, "")] || null;
+    if (!patch || typeof patch !== "object") return text;
+    let cfg;
+    try { cfg = JSON.parse(text || "{}"); } catch { return text; }
+    const changed = Object.keys(patch).filter((k) => JSON.stringify(cfg[k]) !== JSON.stringify(patch[k]));
+    if (!changed.length) return text;
+    this.log(`config patch (operator override, NOT the tenant's published config) for ${id.slice(0, 10)}: `
+      + changed.map((k) => `${k}=${JSON.stringify(patch[k])}`).join(" "));
+    return JSON.stringify({ ...cfg, ...patch });
   }
   #record(id, patch) {
     const cur = this.records.get(id) || { id, status: "unknown", reason: null };

@@ -172,6 +172,45 @@ reads the declaration; only the compiler reads the bytes. So the gate refuses ap
 and admits apps that cannot — and the second one had this box holding a lease it could never honour
 until a compile failure naming a missing feature was made permanent.
 
+## Why the guest never got past OpenSBI: a host clock and a 0.5 MIPS guest
+
+The console stopped at OpenSBI's hand-off to Linux and stayed there through 1.8G dispatched
+steps. It is not a broken image, not the snapshot, not the enclave: the same kernel and rootfs,
+with the same 21764 MiB and the same settings, boot fine natively, and the same emulator built to
+wasm boots them under Cranelift AND under Pulley.
+
+What differs is the CLOCK. risc-box's config sets `realtime: true`, which drives the guest's mtime
+from the HOST's clock - the right choice for anything that paces itself, like the DOOM this
+machine was built for, and it assumes the guest runs near real speed. In this enclave there is no
+JIT: the emulator is Pulley bytecode and the guest manages ~0.5 MIPS. The 10 ms timer then lands
+every ~5,000 guest instructions while the kernel's timer ISR costs ~31,000, so the guest can never
+finish servicing one tick before the next is due. It executes flat out, retires almost nothing,
+and never reaches the code that would print. OpenSBI is unaffected because it runs before Linux
+enables the timer - which is exactly where the console stops.
+
+Measured under Pulley, same images, only the clock changed:
+
+```
+instruction-driven   65M instructions to "Linux version"
+wall-clock          121M instructions to "Linux version"   (1.86x, at 3.6 MIPS)
+```
+
+and the gap grows as the guest slows, because the ISR cost is fixed while the instructions between
+ticks scale with MIPS. At 3.6 MIPS there are ~36,000 instructions between ticks and it merely
+costs 1.86x; at 0.5 MIPS there are ~5,000 and it does not converge.
+
+WORKAROUND IN PLACE (operator override, not the tenant's published config): host.mjs now applies
+`ENCLAVE_APP_CONFIG_PATCH`, a per-deployment patch over the resolved app config, set in
+node-config.cmd to `{"0xe64f7cba…":{"realtime":false}}`. It is logged on every apply. Note it
+changes the snapshot IDENTITY (which includes `realtime`), so the warm snapshot is refused and the
+machine cold-boots - correct, and the reason the restore looked broken too: a restored desktop
+livelocks the same way, which is why it sat at `cursor.updates=14` and ignored every `/hid` event
+while reporting `guest_idle=false`.
+
+The real fix is a JIT in VTL1, or a guest clock that is neither pure host time nor pure
+instruction count. Until then a paced workload cannot have both correct pacing and forward
+progress on this box.
+
 ## The page serves; the machine inside does not run
 
 `e64f7cba` answers on its own hostname — HTTP 200, 31046 bytes, 2.7 s, on a real ZeroSSL
