@@ -2142,3 +2142,97 @@ That reframes the target. The bar was never "the TPU is needed to reach 15 tok/s
 reaches it on this workload, at matching quality, with a STRONGER boundary (the host sees nothing at all
 rather than masked activations). What the TPU path buys is the CPU-sparing property the brief actually
 wanted -- and measured, it costs 15x MORE phone CPU per token, not less.
+
+## Where the impossibility actually binds, and where it does NOT (2026-09-22)
+
+An audit note on the previous write-up was right: the fit `ms/token = 77.4 + 23.3 x blocks` is an
+**implementation-specific** law. Its intercept is extrapolated rather than a measured zero-offload run with
+the backend attached, its slope is the NET increment from replacing CPU blocks with offloaded ones rather
+than an isolated TPU cost, and R-squared over three points says nothing about other designs. So this
+section rebuilds the argument out of terms that do not belong to our transport, and is explicit about the
+one case it does not close.
+
+### The bound that survives a perfect transport
+
+Every previous floor quoted our own vsock round trip (0.74 ms) or the guest/host wake (1.555 ms). Both are
+ours to improve, so neither settles the general question. This one is not ours:
+
+    TPU invocations per token = linear runs per block x blocks
+    cost per invocation       = 0.637 ms      <- the sweep's intercept: Google's driver dispatch, not our link
+    Gemma 4 E2B               = 4 x 35 = 140 invocations
+    140 x 0.637               = 89.2 ms per token  ->  11.2 tok/s CEILING
+
+**89.2 ms > 66.7 ms.** With a zero-latency, zero-copy transport, free masking and a TPU that computes
+instantly, the shipped model still misses 15 tok/s, because it must enter the accelerator 140 times and
+entering costs 0.637 ms. The budget allows **at most 105 invocations per token**.
+
+### What that does not close, stated plainly
+
+The same arithmetic does NOT forbid a design with two linear runs per block: 70 x 0.637 = 44.6 ms, a
+22.4 tok/s ceiling, which clears the bar. Two per block is a real architecture -- a parallel-attention
+block (`x + attn(norm x) + ffn(norm x)`, as in GPT-J/PaLM/Falcon) lets QKV and gate/up share one entry and
+O and down share the next. So the honest statement is not "no protected offload design can work". It is:
+
+* for a **serial** transformer, four linear runs per block is forced by what a modular mask survives, and
+  140 invocations exceeds the budget on invocation cost alone;
+* a **parallel-block** model at 35 blocks passes the invocation bound but fails on everything else: at the
+  measured all-in 5.855 ms per exchange, 70 exchanges is 410 ms per token, 2.4 tok/s;
+* and a parallel-block model would be a different set of weights, which is a retraining programme, not a
+  configuration change.
+
+Nothing here rests on 4-vs-2 being a law of nature. It rests on Gemma 4 E2B being a serial transformer.
+
+### The other floor: the part that never crosses at all
+
+Fitting the three-point offload sweep on what the exchange counters do NOT account for:
+
+| offloaded blocks | exchanges/token | unaccounted ms/token |
+|---|---|---|
+| 1 | 4 | 76.4 |
+| 9 | 36 | 90.5 |
+| 35 | 140 | 123.7 |
+
+    fit: 76.4 ms/token + 0.341 ms/exchange
+
+The per-exchange term settles an open question: the residual GROWS with exchange count, so the ~110 ms
+once filed as unexplained VM slowness is **uncounted per-exchange overhead**, about 0.34 ms of it, not the
+VM being mysteriously slow. The 76.4 ms/token intercept is NOT explained and I am not going to pretend it
+is: the CPU-only lane runs the entire model, LM head and sampling included, in 65 ms/token, so 76 ms of
+irreducible non-block work is inconsistent with the same VM's own measurement. It is more likely
+offload-path bookkeeping or idle-clock behaviour. Flagged as a lead, not a result.
+
+### The platform gate is a missing API, not a missing kernel -- checked in AOSP today
+
+This is a correction to how the gate has been recorded. It has been written down as a kernel/hardware
+limit ("6.6 pKVM can't assign; QPR2 = 6.12 + VFIO"), which implies an OTA would open it. That is wrong.
+
+Checked on this device (mustang, Pixel 10 Pro XL, CP2A.260805.005, kernel 6.6.118-android15) today:
+
+    /vendor/etc/avf/                      does not exist -- the platform declares nothing assignable
+    CONFIG_VFIO                           is not set
+    /dev/edgetpu-soc, /dev/edgetpu-limited  present, both u:object_r:edgetpu_device:s0
+
+Checked in AOSP source today, on `android17-release` AND on `main`:
+
+    libs/framework-virtualization/.../VirtualMachineConfig.java
+      config.devices       = AssignedDevices.devices(EMPTY_STRING_ARRAY);
+      customConfig.devices = EMPTY_STRING_ARRAY;
+
+Unconditional, on both branches, with **no setter anywhere in the class**. An app-launched pVM cannot
+request a device through the AVF framework API at any Android version currently in the tree, whatever the
+kernel underneath does. The only route is a direct AIDL client to virtualizationservice holding
+`USE_CUSTOM_VIRTUAL_MACHINE`, which is `signature|development` -- grantable by adb on a developer's phone,
+never on a stranger's stock one, which is the stated target. AVF's docs agree: "We don't support client
+API yet in Android V", and assignability is declared by the vendor in `/vendor/etc/avf/assignable_devices.xml`.
+
+Android 17 QPR2 Beta does ship kernel **6.12.81** for this exact device (CP41.260814.003.B1), so the kernel
+gate is moving. The framework gate is not, and it is the binding one. That reorders the work: no amount of
+waiting for an OTA helps a third-party app, and the open question on google-ai-edge/LiteRT#10081 (filed
+2026-09-19, assigned, still unanswered) is the critical path rather than a side enquiry.
+
+### So, the search
+
+One TPU invocation per token is what Google's own NPU lane does, and it gets 15.7 tok/s on the same phone
+with the same prompt set. Masked offload cannot get there because it must enter the accelerator once per
+linear run, and the only way to enter once per token is to put the whole graph inside the trust boundary.
+That is not a performance problem any longer. It is one missing platform API.
