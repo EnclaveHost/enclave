@@ -336,7 +336,10 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
         // port, because a rule about methods, paths or rates cannot be applied to an opaque byte
         // stream. It costs an HTTP parse and a re-issue on the way to the same socket - the price
         // of the owner having asked for the rules at all.
-        if (target.gate || target.waf) {
+        // A PRIVATE deployment is parsed here too, never spliced: an opaque byte stream carries no
+        // Authorization header and no cookie, so a raw pipe to the app's port would hand a private
+        // app to anyone who completed a handshake. That was reachable through this branch.
+        if (target.gate || target.waf || target.private) {
           // A gate-served app has no socket. Parse the request off this connection and carry it
           // through the gate as a frame, which is the same path /x/ takes - the difference is only
           // that the TLS ended here instead of at the relay.
@@ -347,8 +350,17 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
           tlsSock.__enclaveId = id;
           httpd.emit("connection", tlsSock);
           log(`app-zone ${id.slice(0, 10)}: ${tlsSock.servername || target.cert.name} handshake done, `
-            + `${target.gate ? "carried through the gate" : "parsed here so its protection rules apply"}`);
+            + `${target.gate ? "carried through the gate"
+                : target.private ? "parsed here so its owner can be checked"
+                : "parsed here so its protection rules apply"}`);
           return;
+        }
+        // Belt and braces. Nothing should reach here for a private deployment - the branch above
+        // takes it - but a raw pipe is exactly the path that cannot check anything, so it refuses
+        // rather than trusting that the branch above was right.
+        if (target.private) {
+          log(`app-zone ${id.slice(0, 10)}: refusing to splice a PRIVATE deployment to its port`);
+          return abort("a private deployment is never spliced");
         }
         app = net.connect(target.port, "127.0.0.1");
         app.on("error", (e) => abort(`app ${e.message}`));

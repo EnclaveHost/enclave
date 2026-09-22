@@ -69,6 +69,9 @@ export class Host {
     /// owner keep serving it - with the NEW owner's certificate - for as long as a captured array
     /// survived. The window is small and the consequence is another tenant's identity.
     this.domainOwner = new Map();
+    /// hostname -> a counter bumped on every ownership change. An issuance that started before a
+    /// change and finishes after it is discarded rather than stored: the name is not ours now.
+    this.domainGen = new Map();
     this.hostCerts = new Map();      // hostname -> { cert, ctx }
     this.certReports = new Map();    // hostname -> { ok, error?, message?, at }
     this.domainFails = new Map();    // hostname -> retry-after epoch ms
@@ -1292,12 +1295,16 @@ export class Host {
     }
     const before = previous.join(",");
     this.domains.set(id, r.hosts);
-    // The global index, updated BEFORE anything else acts on the new list: a name this deployment
-    // now owns must resolve to it immediately, and one it has lost must stop resolving here. A
-    // name that has been REASSIGNED to another deployment is left alone - it is not ours to take
-    // out of the index any more.
-    for (const h of r.hosts) this.domainOwner.set(h, id);
-    for (const h of previous) if (!r.hosts.includes(h) && this.domainOwner.get(h) === id) this.domainOwner.delete(h);
+    // ONLY AN AUTHORITATIVE ANSWER MAY MOVE OWNERSHIP. `source: "kept"` is this box's own stale
+    // cache, returned because the relay could not be reached - it keeps the app answering, which
+    // is the point, but it is not NEWS. Writing it into the index let a deployment RECLAIM a name
+    // that had already moved to another one: A loses the name, B takes it, A's next fetch fails,
+    // and A's stale list put A back in the index and started re-issuing a certificate for it.
+    // A cache must never override newer knowledge.
+    if (r.source === "relay" || r.source === "none") {
+      for (const h of r.hosts) this.#setOwner(h, id);
+      for (const h of previous) if (!r.hosts.includes(h) && this.domainOwner.get(h) === id) this.#setOwner(h, null);
+    }
     if (before !== r.hosts.join(",")) {
       // A name that has gone away stops being served AND stops being certified: its key is dropped
       // here rather than left on disk answering for a domain this deployment no longer owns.
@@ -1312,7 +1319,26 @@ export class Host {
       this.log(`domains ${id.slice(0, 10)}: ${r.hosts.length ? r.hosts.join(", ") : "no custom domains"}`);
       this.#record(id, { domains: r.hosts, domainWhy: null });
     }
-    for (const h of r.hosts) await this.#certifyHost(id, h);
+    // Certificates only for names this box currently believes are OURS. On a kept answer that is
+    // whatever the index says, which may be nothing - and asking a CA to certify a name another
+    // deployment now holds is the very thing the index exists to prevent.
+    for (const h of r.hosts) if (this.domainOwner.get(h) === id) await this.#certifyHost(id, h);
+  }
+
+  /**
+   * Record who owns a hostname, and bump its GENERATION.
+   *
+   * The generation is what makes a late answer safe to discard. Certificate issuance is an await
+   * of unbounded length - an ACME order can take minutes - and a name can move underneath it. A
+   * result that lands after the move must not be stored, however correct it was when it was asked
+   * for.
+   */
+  #setOwner(hostname, id) {
+    const cur = this.domainOwner.get(hostname) || null;
+    const next = id ? String(id).toLowerCase() : null;
+    if (cur === next) return;
+    this.domainGen.set(hostname, (this.domainGen.get(hostname) || 0) + 1);
+    if (next) this.domainOwner.set(hostname, next); else this.domainOwner.delete(hostname);
   }
 
   /** One custom hostname's certificate, with its own backoff and its own report to the customer. */
@@ -1332,6 +1358,9 @@ export class Host {
     }
     const fail = this.domainFails.get(hostname);
     if (fail && Date.now() < fail) return;
+    // Captured BEFORE the await. An ACME order can take minutes and a name can move underneath it.
+    const gen = this.domainGen.get(hostname) || 0;
+    const stillOurs = () => this.domainGen.get(hostname) === gen && this.domainOwner.get(hostname) === key;
     try {
       // `issueCert` is injectable so a test can drive the REAL bookkeeping below - the ownership
       // stamp, the index, the teardown - with the certificate authority stubbed out. A test that
@@ -1344,12 +1373,19 @@ export class Host {
       // context found under a name is not by itself evidence that this deployment may present it:
       // belt and braces with the live index below, because between them is another tenant's
       // identity.
+      if (!stillOurs()) {
+        // The name moved while we were asking. Storing this would put a certificate obtained on
+        // our behalf under a name somebody else now owns - and would set `owner` back to us.
+        this.log(`custom domain ${hostname}: it moved while its certificate was being issued; discarding the result`);
+        return;
+      }
       this.hostCerts.set(hostname, { cert, ctx: tls.createSecureContext({ key: cert.key, cert: cert.cert }),
-                                     owner: String(id).toLowerCase() });
+                                     owner: key });
       this.certReports.set(hostname, { ok: true, notAfter: cert.notAfter, at: new Date().toISOString() });
       this.domainFails.delete(hostname);
       this.log(`${id.slice(0, 10)} custom domain ready: https://${hostname}/`);
     } catch (e) {
+      if (!stillOurs()) return;          // a failure for a name that is no longer ours says nothing
       const wait = Math.max(60, Number(e.retryAfterSec) || 600) * 1000;
       this.domainFails.set(hostname, Date.now() + wait);
       // Reported to the CUSTOMER, not just logged here: a CA refusing their domain is something
@@ -1428,6 +1464,10 @@ export class Host {
     // which gives the browser a name mismatch it can explain rather than a reset.
     return {
       waf: w, bodyLimit: waf.bodyLimit(w),
+      // A private deployment must be PARSED rather than spliced to its port: an opaque byte stream
+      // carries no Authorization header and no cookie, so there is nothing to check. The app zone
+      // reads this and takes the parsed path, which ends in `proxy` above.
+      private: !!this.privateOwner(key),
       contextFor: (name) => {
         const h = String(name || "").toLowerCase().replace(/\.+$/, "");
         // Asked of the LIVE index at handshake time, not of a list captured when this object was
@@ -1504,6 +1544,31 @@ export class Host {
     // THE DEPLOYMENT'S OWN PROTECTION RULES, before the app is consulted. Both of this box's doors
     // funnel through here - the relay's /x/<id> path and the app's own hostname - so the rules
     // hold on either, which is the property the envelope promises.
+    // A PRIVATE DEPLOYMENT IS CHECKED HERE, in the one place every HTTP serving path funnels
+    // through: the relay's /x/<id> and the app zone's own hostname both end up in this function.
+    // The check used to live in the agent's /x/ handler alone, which left a private app reachable
+    // anonymously on its own hostname - the hole this moved to close.
+    //
+    // AFTER the protection rules and before anything else, mirroring the platform runner: a flood
+    // on a private deployment must not be able to grind token verification either.
+    const priv = this.privateOwner(key);
+    const denyPrivate = () => {
+      if (!this.cfg.sessionVerify) {
+        // FAIL CLOSED. A box that cannot prove who is asking must not serve a deployment whose
+        // whole contract is that only one wallet may reach it. This should be unreachable - the
+        // claim gate refuses private deployments without a verifier - but "should be" is not a
+        // reason to serve one.
+        return { status: 503, headers: { "content-type": "application/json" },
+                 body: JSON.stringify({ error: "no_session_key",
+                                        message: "This box cannot verify who is asking, so it will not serve a private deployment." }) };
+      }
+      const who = this.cfg.sessionVerify(headers || {}, key);
+      if (!who) return { status: 401, headers: { "content-type": "application/json" },
+                         body: JSON.stringify({ error: "unauthorized", message: "Missing or invalid token." }) };
+      if (who !== priv) return { status: 403, headers: { "content-type": "application/json" },
+                                 body: JSON.stringify({ error: "forbidden", message: "Not your deployment." }) };
+      return null;
+    };
     const w = this.records.get(key)?.waf;
     if (w) {
       // The ACTUAL body length, not the declared one. By the time a request reaches here the body
@@ -1517,9 +1582,12 @@ export class Host {
       }
       // An allowed request holds a concurrency slot until it is answered. try/finally rather than
       // a callback: every return below this point has to give the slot back, including the throws.
-      try { return await this.#proxyApp(key, { method, pathRest, headers, body }); }
-      finally { v.release(); }
+      try {
+        if (priv) { const no = denyPrivate(); if (no) return no; }
+        return await this.#proxyApp(key, { method, pathRest, headers, body });
+      } finally { v.release(); }
     }
+    if (priv) { const no = denyPrivate(); if (no) return no; }
     return await this.#proxyApp(key, { method, pathRest, headers, body });
   }
 

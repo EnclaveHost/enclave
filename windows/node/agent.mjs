@@ -102,6 +102,9 @@ const host = new Host({
   // advertises, the price it posts and every card-dialled claim it accepts all hang off whether a
   // worker is answering right now. `card` is null while it is not.
   card: () => card,
+  // How the box proves who is asking, handed to the Host so the check can live at the funnel while
+  // the key stays here. Null until the key is minted, and host.proxy fails CLOSED on null.
+  sessionVerify: (headers, id) => addressFor(sessionKey, headers, id),
   claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
   // CLAIM_LEGACY=1: take deployments created BEFORE this box was listed, which otherwise wait for
   // their owner to pick this enclave. Only an operator with the standing to consent for those
@@ -400,8 +403,12 @@ async function handle(frame) {
     const q = new URL('http://x' + String(frame.path || '/')).searchParams;
     const address = String(q.get('address') || '');
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return json(422, { error: 'invalid_address', message: 'Provide a valid ?address.' });
-    return json(200, siweMessage({ address, nonce: nonces.issue(address),
-                                   domain: SIWE_DOMAIN, uri: SIWE_URI, chainId: SIWE_CHAIN_ID }));
+    // The nonce is issued WITH the challenge it belongs to, and login requires that exact message
+    // back: every field in it is then required and exactly ours, without parsing any of them.
+    const nonce = nonces.issue(address);
+    const m = siweMessage({ address, nonce, domain: SIWE_DOMAIN, uri: SIWE_URI, chainId: SIWE_CHAIN_ID });
+    nonces.bind(nonce, m.message);
+    return json(200, m);
   }
   if (p === '/v1/auth/login' && method === 'POST') {
     if (!sessionKey) return json(503, { error: 'no_session_key', message: 'This box mints no sessions.' });
@@ -466,15 +473,9 @@ async function handle(frame) {
     const rest = p.slice(('/x/' + id).length) || '/';
     // The caller's address, as the relay forwarded it. It is what the deployment's rate and
     // concurrency limits count, so it is passed explicitly rather than guessed at the far end.
-    // A PRIVATE deployment serves its owner and nobody else. Checked before the app is consulted
-    // and before its state is revealed: "not running" is information a stranger should not get
-    // about somebody else's private deployment.
-    const priv = host.privateOwner ? host.privateOwner(id) : null;
-    if (priv) {
-      const who = addressFor(sessionKey, frame.headers || {}, id);
-      if (!who) return json(401, { error: 'unauthorized', message: 'Missing or invalid token.' });
-      if (who !== priv) return json(403, { error: 'forbidden', message: 'Not your deployment.' });
-    }
+    // The private-deployment check is NOT here. It lives in host.proxy, which is the one place
+    // every HTTP serving path funnels through - this one and the app zone's own hostname. It was
+    // here, and only here, which left a private app reachable anonymously on its own hostname.
     const ip = wafClientIp(frame.headers);
     // WAF_TRACE=1: say which address a deployment's rate and concurrency limits are counting. It
     // exists because "the relay forwards the caller's address" is a claim this box PUBLISHES
