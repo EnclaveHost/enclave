@@ -2027,3 +2027,38 @@ slope, and that is the quantity worth attacking.
 0-35 blocks, so there is no partial-offload sweet spot in this implementation; and the whole 877 ms token
 at 35 blocks is 74.5 ms of everything-else plus 802.7 ms attributable to having moved 35 blocks across
 the boundary.
+
+### The Google baseline: the skew is a `.litertlm` FORMAT version, and it is now pinned
+
+The runner built from the local tree fails on every package with `Invalid begin and size` at a SLICE node,
+or `DELEGATE failed to prepare`. The cause is now exact rather than "a version skew".
+
+`.litertlm` carries its format version in the first 16 bytes: the magic `LITERTLM`, then two little-endian
+u32s. Reading them off the device:
+
+| package | version |
+|---|---|
+| `gemma-tiny`, `gemma-x`, `gemma-l0`, `enclave-tensor-npu-1/model` | **1.5** |
+| upstream `gemma-4-E2B-it_Google_Tensor_G5.litertlm` (3.11 GB, read by HTTP range request, not downloaded) | **1.5** |
+| what the local tree BUILDS | **1.6** |
+
+So every published package is 1.5 and the runtime here is 1.6, which is why downloading another package
+would not have helped -- a thing worth checking before spending 3 GB of bandwidth on it.
+
+Ruled out on the way: the dispatch library version. `enclave-tensor-npu-1/` carries `v2.1.5.so`,
+`v2.1.6.so` and `v2.2.0.so`, all of them `libLiteRtDispatch_GoogleTensor.so`; all three fail identically.
+
+**The fix is a 1.5-era runtime, and upstream history pins it exactly.** The local tree is a shallow
+single-commit checkout, but `google-ai-edge/LiteRT-LM` has 2485 commits, and tracing the constant:
+
+    86413518  LITERTLM_MINOR_VERSION 4 -> 5
+    c7adc1bf  (2026-07-15)            5 -> 6      <- the boundary
+    b801c479  (2026-09-18)            6 -> 7
+
+`c7adc1bf^` is 4698342e, the last commit at 1.5, and a blobless clone checks it out in seconds. Building
+`//runtime/engine:litert_lm_main` from there gives a runner that matches every package on the device and
+the one Google publishes for this exact SoC.
+
+Two notes for whoever picks this up. `ANDROID_NDK_HOME` must be set or bazel fails with "Unable to find a
+CC toolchain", which is the whole job of the tree's `android_ndk_env.bzl`. And the runner needs
+`libGemmaModelConstraintProvider.so` from `prebuilt/android_arm64` beside it.
