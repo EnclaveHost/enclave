@@ -1,0 +1,24 @@
+qc7 -- the 24-prompt masked-TPU vs in-VM-CPU comparison at an adequate budget, 2026-09-22.
+
+PRESERVED AS PRODUCED. MANIFEST.sha256 digests every file. MANIFEST.tsv carries the declared row
+count, the settings and the runner and binary digests in force. PRODUCER.log is the console output.
+
+WHAT IS DIFFERENT FROM qc6, AND WHY IT MATTERS
+  * BOTH arms gated. All 48 logs carry a "cool gate: OK" line -- previously only the CPU arm gated,
+    and the TPU arm ran on whatever state the previous row left. Every rate here is a controlled
+    measurement; qc6's were descriptive of unmatched conditions.
+  * Both VMs at 8192 MiB. qc6's CPU arm silently took mode local's 7168 default.
+  * MAXNEW=256, declared before the run against a longest-observed complete answer of 57 tokens.
+    NOTHING hit the cap: the most any row used was 59. qc6's four budget-capped rows were an artefact
+    and are gone.
+  * No drafter in either arm, by design, so speculative batch shapes cannot enter the comparison.
+    The CPU figure here is therefore the UNDRAFTED rate, not that path's best.
+
+READ PROVENANCE-NOTE-mixed-harness.txt BEFORE QUOTING ANY ROW. I edited the shared thermal gate while
+this run was in flight; the window, the affected rows and the exact diff are recorded there. Rows 01
+tpu/cpu and 02 tpu predate it; 02 cpu is ambiguous; 03 tpu started inside it. Nothing was re-run or
+relabelled to tidy that up.
+
+STILL NOT ESTABLISHED HERE
+  Nothing about other prompts, longer generations, or other models. 24 short prompts with strict
+  contracts, 22 of them auto-scored.
