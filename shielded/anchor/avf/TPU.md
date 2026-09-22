@@ -2062,3 +2062,44 @@ the one Google publishes for this exact SoC.
 Two notes for whoever picks this up. `ANDROID_NDK_HOME` must be set or bazel fails with "Unable to find a
 CC toolchain", which is the whole job of the tree's `android_ndk_env.bzl`. And the runner needs
 `libGemmaModelConstraintProvider.so` from `prebuilt/android_arm64` beside it.
+
+## The Google NPU baseline RUNS (2026-09-22)
+
+It took three independent version matches, none of which the error messages point at.
+
+**1. The runtime.** Every published `.litertlm` is format **1.5**; the local tree builds **1.6**. A 1.6
+runtime loads a 1.5 package and then fails inside the decoder with `Invalid begin and size` at a SLICE
+node -- which reads like a graph bug and is a format skew. Upstream history pins it: `c7adc1bf` took the
+constant 5 -> 6, so `c7adc1bf^` = **4698342e** is the last 1.5 runtime.
+
+**2. The build.** `ANDROID_NDK_HOME` or bazel cannot resolve a CC toolchain. The `prebuilt/android_arm64`
+`.so` files are git-lfs pointers -- 133 bytes each, which the linker reports as `unknown directive:
+version` -- and there is no `git-lfs` binary here, so they come from the LFS batch API directly. And
+`rules_rust` builds a tool whose linker fails with `collect2: cannot find 'ld'` unless the action gets a
+sane PATH via `--action_env`.
+
+**3. The dispatch library.** It is loaded from the MODEL's directory, not `LD_LIBRARY_PATH`. Three
+versions ship beside the package and only one works with the 1.5 runtime:
+
+| dispatch | result |
+|---|---|
+| v2.1.5 | aborts |
+| **v2.1.6** | **runs** |
+| v2.2.0 | `Unsupported dispatch runtime version` |
+
+With all three matched it generates. On "Write a Python function called reverse_string...":
+
+```python
+def reverse_string(s):
+  """
+  Reverses the input string.
+  ...
+  """
+  return s[::-1]
+```
+
+which is, to the docstring, what the masked TPU path produced for the same prompt. Prefill measured at
+166 tokens/sec.
+
+`host/google-lane-run.sh` runs the same task-scored prompt file through it and captures each reply and
+decode rate, so the comparison uses one prompt set and one set of contracts across all three lanes.
