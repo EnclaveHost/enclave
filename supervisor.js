@@ -6002,6 +6002,11 @@ async function fetchDepSecrets(id) {
 const DOMAINS_API = (process.env.DOMAINS_API ?? SECRETS_API).trim().replace(/\/+$/, "");
 const _depDomains  = new Map();      // dep id -> string[] hostnames we may serve
 const _domainOwner = new Map();      // hostname -> dep id (reverse index: ACME + SNI + the Host check)
+// hostname -> a counter bumped every time the owner CHANGES. Issuance is an await of unbounded
+// length - an ACME order takes tens of seconds - and a name can be detached and re-attached
+// underneath it. Comparing the owner alone would miss A -> B -> A: the late result looks current
+// and is not. The Windows node carries the same counter for the same reason.
+const _domainGen = new Map();
 // Until the first refresh has answered, "no deployment claims this custom
 // name" is not yet a fact - it is a gap in local state. A RESTORED custom
 // cert (ACME_STORE_DIR) is present at the very first reconcile, before the
@@ -6028,8 +6033,14 @@ const pendingReports = (idL, names) => {
 };
 
 function reindexDomains() {
+  const before = new Map(_domainOwner);
   _domainOwner.clear();
   for (const [id, hosts] of _depDomains) for (const h of hosts) _domainOwner.set(h, id);
+  // Bump only on a REAL change: an ordinary refresh re-states the same owner every tick, and a
+  // counter that moved then would discard every order slower than the tick.
+  for (const h of new Set([...before.keys(), ..._domainOwner.keys()]))
+    if ((before.get(h) || null) !== (_domainOwner.get(h) || null))
+      _domainGen.set(h, (_domainGen.get(h) || 0) + 1);
 }
 // Is this a customer hostname we manage certificates for? (sniDecide's third
 // case, and the Host check on the HTTPS bridge.)
@@ -7261,6 +7272,10 @@ const _platformPending = new Map();        // name -> { csrPem, keyPem, at }: th
 // by a day of restarts (eyesoff.ai, 2026-09-01). The in-enclave CAs stay as
 // the fallback for both kinds of name.
 const acmeSlotsFor = (name) => [...(ACME_PLATFORM && (platformCertName(name) || customDomainOwner(name)) ? [ACME_PLATFORM] : []), ...ACME_CAS];
+// Injected ONLY by the DOMAIN_CARRYOVER_SELFTEST=pump seam. The pump's ownership bookkeeping can
+// only be tested across a reassignment that happens DURING the order, which means controlling when
+// the order resolves. Null in every other run, so production always calls acmeIssue below.
+let _acmeIssueForTest = null;
 async function acmeIssue(name) {
   return acmeWalkSlots(name, {
     slots: acmeSlotsFor(name), cooldownMs: ACME_CA_COOLDOWN_MS,
@@ -7377,29 +7392,48 @@ async function acmePump() {
     while (acmeQueue.length) {
       const name = acmeQueue.shift();
       if (acmeCerts.get(name)?.renewAt > Date.now()) continue;  // became fresh while queued (double-enqueue race)
+      // WHOSE ORDER THIS IS, captured BEFORE the await. Everything below that names an owner -
+      // the report the customer reads, the backoff that penalises them - must be attributed to the
+      // deployment that ASKED, and dropped entirely if the name moved while the CA was working.
+      // Scoping the reads was not enough: customDomainOwner(name) read after the await returns the
+      // NEW owner, so a late failure of A's order was filed as B's, which is the same cross-tenant
+      // leak by a later route. Found by the audit's replay of this exact body.
+      const owner0 = customDomainOwner(name), gen0 = _domainGen.get(name) || 0;
+      const stillOurs = () => customDomainOwner(name) === owner0 && (_domainGen.get(name) || 0) === gen0;
       try {
-        const issued = await acmeIssue(name);
+        const issued = await (_acmeIssueForTest || acmeIssue)(name);
         acmeCerts.set(name, issued);
         acmeRetry.delete(name);
         acmeStore()?.putCert(name, issued);                   // replaces the previous record for the name
         // A customer's domain: tell the relay, which is the only path by which
         // the person who owns that name learns their certificate exists.
-        if (customDomainOwner(name)) _certReports.set(name, { owner: customDomainOwner(name), ok: true, ca: issued.issuer });
+        // The certificate itself is kept whatever happened to the ownership: dns-01 proves control
+        // of the NAME, so it is valid for whoever holds the name now and saves them an order. Only
+        // the REPORT is owner-scoped.
+        if (owner0 && stillOurs()) _certReports.set(name, { owner: owner0, ok: true, ca: issued.issuer });
+        else if (owner0) console.log(`[acme] ${name} moved while it was being issued; the certificate is kept, the report is not filed`);
         console.log(`[acme] issued ${name} via ${issued.issuer}${issued.cached ? " [cached]" : ""} (expires ${new Date(issued.expiresAt).toISOString()})`);
       } catch (e) {
         // Three kinds of failure, three kinds of wait (acmeRetryPlan says
         // which and why): a platform deferral retries when the service said
         // and counts no failure; a cooling slot retries the moment it is back;
         // name-level rejection everywhere gets the doubling backoff.
+        // A FAILURE FOR A NAME THAT IS NO LONGER OURS SAYS NOTHING. Neither the backoff nor the
+        // report may be filed against whoever holds the name now: they never asked for this order,
+        // and the CA's message is about the previous owner's DNS.
+        if (!stillOurs()) {
+          console.error(`[acme] failed ${name}: ${e.message} - but the name moved while it was being issued, so neither the backoff nor the report is filed`);
+          await sleepMs(2000); continue;
+        }
         const prev = acmeFailures(name);
         const { failures, nextAt, why } = acmeRetryPlan(e, prev, acmeSlotsFor(name).map((ca) => ca.downUntil));
-        acmeRetry.set(name, { failures, nextAt, owner: customDomainOwner(name) });
+        acmeRetry.set(name, { failures, nextAt, owner: owner0 });
         acmeReconcileAt(nextAt);
         const inSec = Math.round((nextAt - Date.now()) / 1000);
         if (why === "deferred") { console.log(`[acme] deferred ${name}: ${e.message} (asking again in ${inSec}s)`); await sleepMs(2000); continue; }
         // …and the same on failure. "Your domain has no certificate and here is
         // the CA's reason" is the single most useful thing this feature can say.
-        if (customDomainOwner(name)) _certReports.set(name, { owner: customDomainOwner(name), ok: false, error: `${e.message} (attempt ${failures})` });
+        if (owner0) _certReports.set(name, { owner: owner0, ok: false, error: `${e.message} (attempt ${failures})` });
         console.error(`[acme] failed ${name}: ${e.message} (retry #${failures} in ${inSec}s${why === "cooling" ? ", when a cooling slot is back" : ""})`);
       }
       await sleepMs(2000);
@@ -7488,6 +7522,45 @@ const internalAppServer = http.createServer((req, res) => {
 // the production helpers (pendingReports, acmeBackoffUntil, acmeFailures) and the production
 // index (reindexDomains), because a seam that reimplemented the ownership check would go green
 // whatever this file did - which is exactly how the Windows node's own copy of this bug survived.
+if (process.env.DOMAIN_CARRYOVER_SELFTEST === "pump") {
+  // THE PUMP ITSELF, across a reassignment that happens while the CA is working. Scoping the reads
+  // was not enough: the writes resolved the owner AFTER the await, so a late result of A's order
+  // was filed against whoever held the name by then. Only acmeIssue is stood in for - the queue,
+  // the pump body, the index and the retry plan are all production.
+  const NAME = "shop.example.com", A = "0x" + "aa".repeat(32), B = "0x" + "bb".repeat(32);
+  const own = (id) => { _depDomains.clear(); if (id) _depDomains.set(id, [NAME]); reindexDomains(); };
+  const run = async (during, outcome) => {
+    _certReports.clear(); acmeRetry.clear(); acmeCerts.clear(); acmeQueue.length = 0;
+    own(A);
+    _acmeIssueForTest = async () => {
+      during();                                  // the name moves WHILE the order is in flight
+      if (outcome === "fail") throw new Error("dns-01 lookup failed for a zone A controls");
+      return { issuer: "test-ca", expiresAt: Date.now() + 80 * 864e5, renewAt: Date.now() + 60 * 864e5 };
+    };
+    acmeQueue.push(NAME);
+    await acmePump();
+    const rep = _certReports.get(NAME), rt = acmeRetry.get(NAME);
+    return { owner: customDomainOwner(NAME),
+             report: rep ? { owner: rep.owner, ok: rep.ok, error: rep.error || null } : null,
+             retry: rt ? { owner: rt.owner, failures: rt.failures } : null,
+             certKept: acmeCerts.has(NAME) };
+  };
+  // The pump paces itself with sleepMs, whose timer is UNREF'd - in production something else
+  // always holds the loop open. Here nothing does, so the seam holds it itself.
+  const alive = setInterval(() => {}, 250);
+  const out = {
+    lateFailureAfterMove:  await run(() => own(B), "fail"),
+    lateSuccessAfterMove:  await run(() => own(B), "ok"),
+    lateFailureAfterABA:   await run(() => { own(B); own(A); }, "fail"),
+    lateFailureAfterDetach: await run(() => own(null), "fail"),
+    // The control: nothing moves, so the owner gets their report and their backoff as before.
+    lateFailureNoMove:     await run(() => {}, "fail"),
+    lateSuccessNoMove:     await run(() => {}, "ok"),
+  };
+  clearInterval(alive);
+  console.log(JSON.stringify(out));
+  process.exit(0);
+}
 if (process.env.DOMAIN_CARRYOVER_SELFTEST) {
   const NAME = "shop.example.com", A = "0x" + "aa".repeat(32), B = "0x" + "bb".repeat(32);
   const look = (id) => ({ blocked: acmeBackoffUntil(NAME) > Date.now(),
