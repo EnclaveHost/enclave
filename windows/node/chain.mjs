@@ -183,14 +183,40 @@ export const claimableBy = (id, enclaveId) => publicClient().readContract({ addr
 // One transaction at a time from this key: public RPCs cap an account at one in flight, and the
 // supervisor serializes for the same reason (sendOperatorTx).
 let chainTx = Promise.resolve();
+// THE NEXT NONCE, as this process knows it. The transport is a fallback over three public RPCs, and
+// they do not agree on an account's pending count moment to moment: a read that lands on one a
+// block behind hands back the nonce the PREVIOUS transaction already used, and the send fails with
+// "Nonce provided for the transaction is lower than the current nonce". On nucbox-k11 that took out
+// checkpoints and renewals in turn, and a renewal that fails once is a lease that lapses - which
+// for risc-box means a cold boot from scratch. So: never go below the last nonce WE sent.
+let nextNonce = null;
+async function nonceFor() {
+  const seen = await publicClient().getTransactionCount({ address: acct.address, blockTag: "pending" });
+  if (nextNonce === null || seen > nextNonce) nextNonce = seen;
+  return nextNonce;
+}
+// Answers a public RPC gives for reasons of its own rather than the transaction's. Worth one retry
+// with a fresh nonce read; a real revert comes back from simulateContract and is never retried.
+const TRANSIENT = /nonce.*(lower|too low)|replacement transaction underpriced|already known|missing or invalid parameters/i;
 async function send(address, abi, functionName, args) {
   const job = async () => {
     if (!wal) throw new Error("no operator key on this box");
-    await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
-    const hash = await wal.writeContract({ address, abi, functionName, args });
-    const rcpt = await publicClient().waitForTransactionReceipt({ hash });
-    if (rcpt.status !== "success") throw new Error(`${functionName} reverted (${hash})`);
-    return hash;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
+        const nonce = await nonceFor();
+        const hash = await wal.writeContract({ address, abi, functionName, args, nonce });
+        nextNonce = nonce + 1;                         // sent: that nonce is spent whatever the receipt says
+        const rcpt = await publicClient().waitForTransactionReceipt({ hash });
+        if (rcpt.status !== "success") throw new Error(`${functionName} reverted (${hash})`);
+        return hash;
+      } catch (e) {
+        const msg = e.shortMessage || e.message || "";
+        if (attempt >= 1 || !TRANSIENT.test(msg)) throw e;
+        nextNonce = null;                              // re-read rather than trust what we had
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
   };
   return (chainTx = chainTx.then(job, job));
 }

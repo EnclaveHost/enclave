@@ -32,7 +32,11 @@ import * as waf from "./waf.mjs";
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
 const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the platform proves every 5
-const RENEW_LEAD_MS = 5 * 60_000;    // renew this long before the lease ends
+// Renew this long before the lease ends. It was 5 minutes, which with a 5-minute tick left exactly
+// ONE attempt: a single transaction lost to a flaky RPC and the lease lapsed, after which `renew`
+// reverts "lease expired" and the app is stopped - for risc-box, a cold boot of the whole machine.
+// 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
+const RENEW_LEAD_MS = 15 * 60_000;
 
 export class Host {
   constructor(cfg) {
