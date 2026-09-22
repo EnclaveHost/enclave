@@ -2593,21 +2593,46 @@ itself support for the rounding mechanism, arrived at by mis-specifying a test.
 At 16.0 GB (cap 14.40 GB, 2 x 16.0 = 32.0 <= 32.21) the prediction lands
 exactly:
 
-| reservation | collisions/run | locally-computed nodes | plain | spec | diverged |
-|---|---|---|---|---|---|
-| 20 GB (this harness all session) | 1 | 124-131, VARIES | 18.07 | 20.76 | 0/5 |
-| 16 GB | 0 | **0-1** | 18.66 | 20.64 | 0/6 |
+There are TWO refusal classes, and only the first is the two-context collision:
 
-Corrected from a first reading of n=1 that said the fallback "disappears": over
-six runs it is 0 or 1, so the collision accounts for ~127 of the ~128 nodes and
-a residual remains. Divergence therefore becomes far rarer, not impossible, and
-six runs against a ~8% base rate is not on its own evidence that it is gone.
+  A. budget collision   "reservation 20000000000 exceeds the budget:
+                         20000000000 reserved of 32212254720"
+  B. free-memory refusal "cannot reserve 16000000000: the card has 17666080768
+                         free (the pool holds 31977373696 against 16000000000
+                         reserved)"
 
-Performance is unaffected either way -- both differences sit inside the
-run-to-run spread -- so this is a free correctness improvement and should be
-the harness default. All twelve runs across BOTH configurations produced the
-same text, which is also why the divergence rate was ~8% rather than constant:
-the fp32 path usually agrees, and only occasionally flips a near-tie.
+B is a physical/accounting refusal while a previous run's allocation is still
+being released. It is NOT what the 16 GB change addresses, and it still occurs.
+
+| reservation | A per run | B per run | local nodes | diverged |
+|---|---|---|---|---|
+| 20 GB (this harness all session) | 1 | 0 | 124-131, VARIES | 0/5 |
+| 16 GB | 0 | 1 in 6 runs | 0 in five runs, 1 in one | 0/6 |
+
+The residual ties to evidence rather than being left unexplained: rw-fit-3 is
+the ONLY run with a class-B refusal and the ONLY run with local=1. The other
+five have neither. So class A accounts for ~128 fallback nodes and class B for
+the remaining one.
+
+PERFORMANCE MEDIANS ARE n=5, NOT n=6. summarize.py excludes rw-fit-5, whose
+run recorded an intruder. The n=6 figure above is the correctness observation
+(0 of 6 diverged); the medians below rest on five samples each:
+
+| reservation | plain (n=5) | spec (n=5) |
+|---|---|---|
+| 20 GB | 18.07 | 20.76 |
+| 16 GB | 18.66 | 20.64 |
+
+Both differences sit inside the run-to-run spread, so the smaller reservation
+is a free correctness improvement and should be the harness default.
+
+What 0 of 6 does NOT establish: that the divergence is gone, or that the run is
+deterministic. Against a ~8% base rate six runs is weak, class B still fires,
+and a residual fp32 node remains available to flip a near-tie. All twelve runs
+across both configurations produced the same text, which is consistent with the
+fp32 path usually agreeing and only occasionally differing -- the same fact
+that made the original rate ~8% rather than constant. Determinism would need a
+much larger sample with class B eliminated as well.
 
 That is the cause: two contexts,
 each asking for 20 GB of a 32 GB budget, colliding on every single run, with
