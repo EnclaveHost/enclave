@@ -1,0 +1,1 @@
+What is the capital of Japan? Reply with only the city name.

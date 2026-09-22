@@ -2345,3 +2345,55 @@ the experiment rather than the row. The key, `BUILD` and the manifest header now
 `mem/maxnew/nocool` and a digest of `tpu-run.sh`, `local-run.sh` and `coolgate.sh`.
 `tpu/test/key-binding-test.sh` checks that changing any of them re-runs instead of serving the old row;
 under the old key it fails 8 of 16, serving both arms from cache with an unchanged key.
+
+## The Google lane's sampler was never a confound, and the cap was (2026-09-22)
+
+Two things were blocking a usable three-way comparison. One is now settled by experiment and the
+other is now measured rather than argued.
+
+### The sampler: settled, and it was nothing
+
+`litert_lm_main` as Google ships it exposes only `--backend`, `--model_path`, `--input_prompt` and
+`--input_prompt_file` -- checked with `--helpfull` on the device. So this lane ran at whatever sampler
+was in force while the masked and CPU lanes decoded greedily, and a task difference between them could
+have been the sampler rather than the lane. `host/patches/litert-lm-expose-sampler.patch` adds
+`--sampler` and `--temperature` at 4698342e and prints what the package asks for.
+
+The first thing it printed corrects something I wrote: **the package declares no sampler at all.**
+
+    model_sampler: none declared by the package
+
+So "the shipped setting" was never "what the model asks for" -- `SessionConfig::CreateDefault` leaves
+the type UNSPECIFIED, the package fills in nothing, and whatever happens is the executor's own
+fallback. That made the question worth answering rather than assuming, so both arms were run with the
+SAME binary (`lm15s`, sha256 f592e1e4...) differing only in the flag:
+
+| Google NPU lane, one binary, one flag | task-correct |
+|---|---|
+| `--sampler=model` (shipped behaviour) | 21/24 |
+| `--sampler=greedy` (forced argmax) | 21/24 |
+
+**Replies byte-identical on 24 of 24 rows.** The lane was already deterministic in effect, so the
+sampler was never a confound. A negative result, and worth the runner patch to have it as a
+measurement rather than a caveat.
+
+### The cap: the artefact is real and it is worth 3 rows
+
+The three-lane table at `MAXNEW=48` (results/qc6 against results/g-model):
+
+    masked TPU 19/24    in-VM CPU 19/24    Google NPU 21/24
+
+and the whole gap is the token budget. Rows 06, 22 and 23 are the three code tasks; all three are
+`status=budget` on the masked and CPU arms -- the model spends the budget on a docstring -- and all
+three PASS on Google's lane, whose runner exposes no token-limit flag and therefore cannot be capped
+at all. Row 17 is a genuine Google miss, the only one.
+
+So the honest reading of 19/19/21 is not "Google is two better". It is: the two capped lanes agree
+with each other exactly, and the comparison against the uncapped lane is not decidable at this budget.
+
+A fresh full-set run is underway at a budget DECLARED before it started: `MAXNEW=256`, against a
+longest-ever-observed complete answer of 57 decode tokens on this prompt set -- 4.5x, so a row that
+stops at the cap there is a model that would not stop, not an artefact. It is the first run with the
+matched harness: both arms gated by the same fail-closed `coolgate.sh`, both VMs at 8192 MiB, and the
+settings and runner digest bound into every key. `results/qc6` is kept exactly as produced; it is
+superseded for rates, not deleted.
