@@ -2593,12 +2593,23 @@ itself support for the rounding mechanism, arrived at by mis-specifying a test.
 At 16.0 GB (cap 14.40 GB, 2 x 16.0 = 32.0 <= 32.21) the prediction lands
 exactly:
 
-| reservation | collisions per run | locally-computed nodes |
-|---|---|---|
-| 20 GB (this harness all session) | 1 | 124-131, VARIES |
-| 16 GB | 0 | **0, constant** |
+| reservation | collisions/run | locally-computed nodes | plain | spec | diverged |
+|---|---|---|---|---|---|
+| 20 GB (this harness all session) | 1 | 124-131, VARIES | 18.07 | 20.76 | 0/5 |
+| 16 GB | 0 | **0-1** | 18.66 | 20.64 | 0/6 |
 
-The fallback does not shrink, it disappears. That is the cause: two contexts,
+Corrected from a first reading of n=1 that said the fallback "disappears": over
+six runs it is 0 or 1, so the collision accounts for ~127 of the ~128 nodes and
+a residual remains. Divergence therefore becomes far rarer, not impossible, and
+six runs against a ~8% base rate is not on its own evidence that it is gone.
+
+Performance is unaffected either way -- both differences sit inside the
+run-to-run spread -- so this is a free correctness improvement and should be
+the harness default. All twelve runs across BOTH configurations produced the
+same text, which is also why the divergence rate was ~8% rather than constant:
+the fp32 path usually agrees, and only occasionally flips a near-tie.
+
+That is the cause: two contexts,
 each asking for 20 GB of a 32 GB budget, colliding on every single run, with
 the groups computed during the retry window taking a path that rounds in fp32
 where the offloaded path is exact in the field.
