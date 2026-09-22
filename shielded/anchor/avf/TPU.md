@@ -1147,7 +1147,9 @@ deserved an answer rather than a silence, and the answer is that int4 weights co
 They would buy something real. The compiled probes at the same shape are `probe_a8w4_g5.tflite` 8.6 MB
 against `probe_a8w8_g5.tflite` 17.0 MB -- exactly 2:1 -- and the phone's own dispatch fit is
 0.637 ms + 0.0677 ms/MB, so halving the streamed weights is about 0.57 ms per exchange, **80 ms per
-token**. It would also halve the 1757 MB lane bundle, which matters twice over: that bundle is evictable
+token**. (That fit was later superseded by 0.520 ms + 0.0848 ms/MB. The conclusion is unchanged: on the
+corrected slope, halving 1872 MB saves 0.568 ms per exchange, 79.5 ms per token -- the same number by a
+different route, because the larger slope offsets the smaller per-exchange byte count.) It would also halve the 1757 MB lane bundle, which matters twice over: that bundle is evictable
 page cache in a VM with about 1900 MiB available, and the BANK=256 experiment failed precisely because
 enlarging the pad bank evicted it.
 
@@ -2154,33 +2156,51 @@ one case it does not close.
 
 ### The bound that survives a perfect transport
 
-Every previous floor quoted our own vsock round trip (0.74 ms) or the guest/host wake (1.555 ms). Both are
-ours to improve, so neither settles the general question. This one is not ours:
+**Corrected within the hour: this section first used 0.637 ms + 0.0677 ms/MB, which this file had already
+superseded.** The current dispatch fit, measured with the shipped layer compiling as a control in the same
+session, is **0.520 ms fixed + 0.0848 ms/MB**, and on that fit BYTES dominate, not invocations -- so the
+"invocation-count bound" I reached for was both wrong in its constant and pointed at the smaller term.
+Rebuilt on the right ones:
 
-    TPU invocations per token = linear runs per block x blocks
-    cost per invocation       = 0.637 ms      <- the sweep's intercept: Google's driver dispatch, not our link
-    Gemma 4 E2B               = 4 x 35 = 140 invocations
-    140 x 0.637               = 89.2 ms per token  ->  11.2 tok/s CEILING
+| term | per token | where it comes from |
+|---|---|---|
+| invocation fixed | 140 x 0.520 = **72.8 ms** | the dispatch sweep's intercept, min fit (the most favourable reading) |
+| compiled graph bytes | 1872 MB x 0.0848 = **158.7 ms** | the lane streams its whole bundle once per token |
+| | **231.5 ms/token = 4.32 tok/s** | with a zero-latency transport and free masking |
 
-**89.2 ms > 66.7 ms.** With a zero-latency, zero-copy transport, free masking and a TPU that computes
-instantly, the shipped model still misses 15 tok/s, because it must enter the accelerator 140 times and
-entering costs 0.637 ms. The budget allows **at most 105 invocations per token**.
+Neither term is ours. The intercept and the slope are Google's driver on Google's silicon, and the 1872 MB
+is what the shipped graphs compile to. Set our entire transport and our entire masking scheme to zero and
+the lane is still 4.32 tok/s.
 
-### What that does not close, stated plainly
+### What a redesigned schedule can still do to that floor, and how far it gets
 
-The same arithmetic does NOT forbid a design with two linear runs per block: 70 x 0.637 = 44.6 ms, a
-22.4 tok/s ceiling, which clears the bar. Two per block is a real architecture -- a parallel-attention
-block (`x + attn(norm x) + ffn(norm x)`, as in GPT-J/PaLM/Falcon) lets QKV and gate/up share one entry and
-O and down share the next. So the honest statement is not "no protected offload design can work". It is:
+A schedule cannot make a graph stream faster, but it can change two things, and both are worth stating
+because neither is closed by the numbers above.
 
-* for a **serial** transformer, four linear runs per block is forced by what a modular mask survives, and
-  140 invocations exceeds the budget on invocation cost alone;
-* a **parallel-block** model at 35 blocks passes the invocation bound but fails on everything else: at the
-  measured all-in 5.855 ms per exchange, 70 exchanges is 410 ms per token, 2.4 tok/s;
-* and a parallel-block model would be a different set of weights, which is a retraining programme, not a
-  configuration change.
+**Fewer entries per block.** Two linear runs per block instead of four halves only the smaller term:
+195.1 ms/token, 5.12 tok/s. Not enough to matter, and it needs a parallel-attention model.
 
-Nothing here rests on 4-vs-2 being a law of nature. It rests on Gemma 4 E2B being a serial transformer.
+**More committed tokens per pass.** This is the real one. The whole 231.5 ms buys one pass, so speculation
+amortises ALL of it over however many tokens a pass commits:
+
+| accepted tokens/step | floor | |
+|---|---|---|
+| 1.00 | 231.5 ms | 4.32 tok/s |
+| 1.55 | 149.4 ms | 6.69 tok/s | measured on this lane |
+| 3.20 | 72.4 ms | 13.82 tok/s | best acceptance ever measured here |
+| **3.47** | **66.7 ms** | **15.0 tok/s** | what the bar would require |
+
+So the honest statement is not that every redesigned schedule is impossible. It is this: **a schedule
+would have to commit 3.47 tokens per pass, beating the best acceptance this lane has ever reached, AND be
+given a free transport AND free masking, merely to touch 15 tok/s.** The measured transport is 706 ms per
+token and the measured masking 113 ms; the 3.20-token configuration was measured SLOWER end to end (1.37
+-> 0.93 tok/s) because enlarging the pad bank evicted the bundle from a VM with 1900 MiB. Three
+independent things each have to go to a value never observed, simultaneously.
+
+That is a bound, not a proof of impossibility, and it is the strongest honest form of one I can give.
+What would break it is not a cleverer schedule; it is halving the 1872 MB, which is the dominant term. The
+one lever that does that -- int4 weights -- is rejected above on accuracy (18.1x the int8 weight error,
+because quantised FULLY_CONNECTED carries per-output-channel scales and nothing per input group).
 
 ### The other floor: the part that never crosses at all
 
