@@ -2527,13 +2527,24 @@ runs by locally-computed node count:
     local=126: 5 runs, 1 text                     local=131: 1 run, 1 text  <- diverged
     OVERALL: 2 distinct texts across 39 runs, with FRESH PADS every run.
 
-Every group is internally consistent, so the output is pad-independent and the
-ring arithmetic cancels exactly. The only nondeterminism is WHICH nodes fall
-back, and ggml-shielded.cpp says why that matters: the fallback "rounds like
-the CPU backend (fp32 accumulate) rather than like the field". Both diverged
-runs produced the SAME divergent text despite different pads, different builds
-and different counts -- one near-tied token at position 1 flipping, with greedy
-decoding deterministic after it.
+Every group is internally consistent. That is CORRELATION, and the causal
+reading has to be scoped accordingly. What it supports: across these 39 runs,
+with fresh pads each time, output never varied within a fallback count, and
+both diverged runs produced the SAME divergent text despite different pads,
+different builds and different counts -- consistent with one near-tied token at
+position 1 flipping and greedy decoding being deterministic after it. What it
+does NOT establish: that fallback placement is the ONLY source of
+nondeterminism, or that arbitrary pads cancel in general. 39 runs over eight
+distinct counts is a small sample against either claim, and the two diverged
+runs are a sample of two.
+
+ggml-shielded.cpp gives a MECHANISM that would produce this pattern -- the
+fallback "rounds like the CPU backend (fp32 accumulate) rather than like the
+field" -- but a mechanism that fits is not a mechanism that is demonstrated.
+Settling it needs a controlled intervention: hold decode until every card is
+live (or make the exact fallback correct under a split), then show divergence
+is gone across repeated runs with fresh workers on the same workload. Until
+that runs, treat this as the leading hypothesis, not the cause.
 
 Root cause is a startup race. Line 2005 sends a group to the fp32 CPU path when
 `!live`, and the link is not live until the ~13.9 s weight upload finishes, so
@@ -2556,16 +2567,25 @@ why: "this card's own nodes are only a SLICE of each weight". Fixing the
 divergence means making that fallback produce field values under a split, or
 not decoding until every card is live.
 
-### 18.6 25 tok/s is not reachable on this hardware, and here is the arithmetic
+### 18.6 What 25 tok/s would take from here
 
     round = W + 2C + draft, 1.83 tokens/round
     now:  W 20.7  C 31.5  draft 5.7  -> 19.7 tok/s
     25 tok/s needs a 73.2 ms round -> C = 23.4, i.e. -8.1 ms
 
-Every identified lever, spent perfectly: the conv state (-2.37) and the
+Every lever IDENTIFIED SO FAR, spent perfectly: the conv state (-2.37) and the
 delta-net kernel (bf16 state, maybe -2, and a quality risk) come to ~4.4 ms,
-landing near 22.7. There is no remaining single item of the required size. W is
-GPU streaming that more cards do not help (16.6) and a narrower lane cannot
-buy (15.5). What would change the picture is a different shape of work --
-batching across requests, which is per-PASS and untouched -- or different
-hardware.
+landing near 22.7. No single remaining item on the measured list is of the
+required size, and W is GPU streaming that more cards do not help (16.6) and a
+narrower lane cannot buy (15.5).
+
+That is a statement about the levers this campaign has found, NOT a proof that
+none of the required size exists. The cost model is now complete in the sense
+that every millisecond is attributed, but attribution is not a bound: 12.45 ms
+of CPU graph and ~19 ms of exchange path are each made of parts that have not
+all been examined for structural change, and the same was true of C itself
+until this session. Two examples of shape rather than tuning: x_field is int64
+across the whole link API though its contract is |x| < 2^26, which is what
+makes mask_planes permute-bound; and the conv state fix is the same shape as
+16.3, which was worth 6.4 ms when it was found. Batching across requests is
+per-PASS and untouched, but it changes the workload rather than this metric.
