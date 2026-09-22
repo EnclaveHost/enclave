@@ -755,3 +755,24 @@ pass at 3.50 ms per pass, about 7 % of a token, on the assumption it was free. T
 free here -- a predicate on values the unmask loop has already loaded, no second pass to fuse -- but the
 verification recomputes elements on the critical path and had never been timed. It is a validation tool,
 enabled for audits.
+
+### Re-baselined on the repaired path (2026-09-22)
+
+Shipping configuration -- repair on, sampled verification OFF, flood bound in, adaptive depth, window
+minting, H=4 digit-split:
+
+| turn | workload | ctx | tok/s | clips |
+|---|---|---|---|---|
+| 1 | code | 135 | **1.74** | 181, all repaired |
+| 2 | prose | 204 | 0.80 | 103, all repaired |
+
+**1.74 tok/s is the first valid quality-bearing number on this path.** It equals the pre-audit figure,
+which is the useful part: the repair costs nothing, so correctness was restored for free and everything
+earlier was simply wrong rather than a speed/accuracy trade. The withdrawn 1.70-2.07 figures stay
+withdrawn on principle -- they were produced while accepted products were corrupted and the decode
+depended on the secret pad -- but the path is worth the same when it is correct.
+
+What the audit does NOT change: the architectural ceiling. The link is 0.74 ms of latency plus 22 MB/s,
+four exchanges per block are forced by what a mask survives, and `blocks x 4 x 2.538 ms` still puts 15
+tok/s at about 8 blocks and 25M parameters. Clipping was a correctness defect, not the reason this path
+is far from the bar.
