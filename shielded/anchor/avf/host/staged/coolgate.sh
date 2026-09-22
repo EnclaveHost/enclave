@@ -26,9 +26,18 @@
 #
 # So nothing is piped on the device any more. The remote command is run alone, its status is carried
 # back in an explicit marker, and any filtering happens HERE where the status is already known.
+# HOW adb is invoked is the caller's business. tpu-run.sh and local-run.sh hold it as a STRING that
+# must word-split (so "adb -s SERIAL" works); google-lane-run.sh holds it as an argv ARRAY, and the
+# adapter it needs is different. Collapsing one into the other is not a conversion: "${ADB[*]}" then
+# ADB=("${ADB_SAVE}") turns `adb -s x` into a single executable name containing a space, which then
+# fails on the NEXT command rather than here. So the caller may define _cg_adb; if it does not, the
+# string form is assumed, which is what the two in-VM runners want.
+if ! declare -F _cg_adb >/dev/null 2>&1; then
+  _cg_adb() { $ADB "$@"; }
+fi
 _cg_read() {
   local out rc rrc
-  out=$($ADB shell "$1; echo __RC__\$?" 2>/dev/null); rc=$?
+  out=$(_cg_adb shell "$1; echo __RC__\$?" 2>/dev/null); rc=$?
   [ "$rc" -eq 0 ] || return 1                       # the transport
   out=$(printf '%s' "$out" | tr -d '\r')
   rrc=$(printf '%s\n' "$out" | sed -n 's/^__RC__\([0-9][0-9]*\)$/\1/p' | tail -1)
