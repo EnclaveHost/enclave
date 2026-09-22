@@ -776,3 +776,39 @@ What the audit does NOT change: the architectural ceiling. The link is 0.74 ms o
 four exchanges per block are forced by what a mask survives, and `blocks x 4 x 2.538 ms` still puts 15
 tok/s at about 8 blocks and 25M parameters. Clipping was a correctness defect, not the reason this path
 is far from the bar.
+
+### Pad dependence is INHERENT, so the criterion is a bound and not equality (2026-09-22)
+
+The audit asked whether the output is pad-independent. It is not, and cannot be. Measured with
+`a8w4/pad_dependence.py`: one fixed activation, real weights from the shipped bundle, two independently
+drawn pads, and **zero clips** in either run --
+
+| group | out-of-lane A/B | clips | max \|yA - yB\| | rms |
+|---|---|---|---|---|
+| blk.00 qkv | 57/52 | 0/0 | 3.106 | **1.097** |
+| blk.00 | 60/70 | 0/0 | 3.063 | **1.077** |
+| blk.00 | 55/67 | 0/0 | 2.577 | **1.016** |
+
+About **one output LSB RMS**, with no clipping involved. The reason is structural: the backend returns
+a QUANTISED product of the MASKED row, `v = round(M * W.q)` with `q = (x + r) mod m`. The pad cancels
+in the real arithmetic -- `M*W.q - P` is exactly `M*W.x` -- but the ROUNDING in `v` was committed
+against a value that depended on `r`, and subtracting an exact `P` cannot undo it. Digit-split
+amplifies it, because the `hi` digit's rounding is multiplied by 256 on recombination.
+
+**So "two runs must produce identical bytes" was the wrong criterion.** It is unachievable in
+principle, and two runs that did match were luck at a near-tie. The right criterion is a BOUND:
+
+| source | magnitude | verdict |
+|---|---|---|
+| inherent quantisation of the masked product | **~1 LSB rms, ~3 LSB max** | the floor; irreducible |
+| float cancellation in the digit reconstruction | 0.0011 LSB max over 60M elements | negligible; fixed anyway, it was free |
+| float accumulation of the out-of-lane correction | four runs still differed after int64 | not the cause |
+| **clipping, before the repair** | **up to 388 LSB** | ~370x the floor: a real defect |
+
+That is what the repair is worth, stated properly: it does not make the path reproducible, it returns
+the error from 370x the quantisation floor to the floor. Token flips at near-ties remain possible and
+are a property of masked quantised offload, not a bug.
+
+Two hypotheses were eliminated by measurement before this one was confirmed, and both had looked
+plausible. Neither "the outputs look similar" nor "two runs matched" identified a cause; only measuring
+the magnitude of each candidate did.
