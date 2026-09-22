@@ -25,6 +25,7 @@ run "headers double-include clean"   "printf '#include \"ggml-tpu.h\"\n#include 
 run "retired tool refuses"      "python3 tpu/test/retired-tool-test.py"
 run "harness fails when device does" "bash tpu/test/harness-evidence-test.sh"
 run "quality checks"            "python3 host/test_quality_checks.py"
+run "report binds to manifest"  "bash tpu/test/report-binding-test.sh"
 run "bundle markers"            "python3 tpu/test/bundle-marker-test.py"
 run "verify RMS divisor"        "cc -std=c11 -O1 -Ipayload tpu/test/verify-rms-test.c -lm -o /tmp/vr.$$ && /tmp/vr.$$"
 run "linkbench failure modes"   "cc -std=c11 -O1 -pthread tpu/test/linkbench-test.c -o /tmp/lb.$$ && timeout 300 /tmp/lb.$$"

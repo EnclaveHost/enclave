@@ -19,7 +19,6 @@ EVERY prompt stays in the denominator. A run that crashed, produced no answer, o
 a failure with its reason printed; it is never skipped into a smaller and flattering total.
 """
 
-import glob
 import os
 import re
 import sys
@@ -40,13 +39,27 @@ if len(sys.argv) > 2:
         SPECS[pr.strip()] = sp.strip()
 
 
-def arm_log(d, i, arm):
-    """The log for one arm. Newer runs key the filename by prompt+settings+binary digest, so a changed
-    prompt cannot inherit an earlier row's log; older runs used the bare ordinal."""
-    keyed = sorted(glob.glob(os.path.join(d, f"{i}.*.{arm}.log")))
-    if keyed:
-        return keyed[-1]
-    return os.path.join(d, f"{i}.{arm}.log")
+def load_manifest(d):
+    """The ONLY source of which artifact belongs to which row.
+
+    An earlier version globbed `NN.*.arm.log` and took the lexicographically last hash. That put the
+    relabelling defect back, one layer further out: with a current key holding a wrong answer and an old
+    key holding the right one for a DIFFERENT prompt, the sort picked the old file and reported PASS.
+    Sort order is not evidence of anything. The producer now writes a manifest binding each row's id and
+    key to its prompt, its settings and the binary digest, with a per-arm status, and this reads only
+    that. A directory without one is refused rather than guessed at."""
+    mf = os.path.join(d, "MANIFEST.tsv")
+    if not os.path.exists(mf):
+        return None
+    rows = []
+    for line in open(mf, errors="replace"):
+        if line.startswith("#") or not line.strip():
+            continue
+        f = line.rstrip("\n").split("\t")
+        if len(f) < 6:
+            continue
+        rows.append(dict(id=f[0], key=f[1], tpu=f[2], cpu=f[3], prompt=f[4], expect=f[5]))
+    return rows
 
 
 def read(path):
@@ -70,9 +83,15 @@ def answer(path):
 
 
 def main():
-    ids = sorted({os.path.basename(p).split(".")[0] for p in glob.glob(os.path.join(D, "*.prompt"))})
-    if not ids:
-        print(f"no runs in {D}")
+    rows_mf = load_manifest(D)
+    if rows_mf is None:
+        print(f"REFUSING: no MANIFEST.tsv in {D}.\n"
+              f"Which log belongs to which prompt is not inferable from filenames, and guessing it by\n"
+              f"sort order produced a false PASS once already. Re-run host/quality-compare.sh, which\n"
+              f"writes the manifest.")
+        return 2
+    if not rows_mf:
+        print(f"no rows in {D}/MANIFEST.tsv")
         return 1
     build = read(os.path.join(D, "BUILD"))
     if build:
@@ -82,11 +101,15 @@ def main():
         print()
 
     rows = []
-    for i in ids:
-        prompt = read(os.path.join(D, f"{i}.prompt")).strip()
-        spec = SPECS.get(prompt, (read(os.path.join(D, f"{i}.expect")) or "").strip())
-        a, sa, ea = answer(arm_log(D, i, "tpu"))
-        b, sb, eb = answer(arm_log(D, i, "cpu"))
+    for r in rows_mf:
+        i, prompt = r["id"], r["prompt"]
+        spec = SPECS.get(prompt, r["expect"])
+        def arm(which):
+            if r[which] != "ok":                       # the producer recorded this arm as failed
+                return None, "failed", f"the producer recorded this arm as {r[which]}"
+            return answer(os.path.join(D, f"{i}.{r['key']}.{which}.log"))
+        a, sa, ea = arm("tpu")
+        b, sb, eb = arm("cpu")
         rows.append((i, prompt, spec, a, sa, ea, b, sb, eb))
 
     def verdict(reply, stop, err, spec):

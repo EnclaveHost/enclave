@@ -40,6 +40,9 @@ case "$verb" in
     case "$cmd" in
       *sha256sum*)
         [ "$mode" = identfail ] && { echo "DIGESTDIGESTDIGEST"; echo "__RC__42"; exit 0; }
+        # a VALID digest and a clean remote status, but the TRANSPORT itself fails: only a check of
+        # adb's own exit code can catch this
+        [ "$mode" = transportfail ] && { echo "$FAKE_DIGEST  /some/file"; echo "__RC__0"; exit 42; }
         echo "$FAKE_DIGEST  /some/file"; echo "__RC__0"; exit 0 ;;
       *xxd*) echo "4c49544552544c4d0100000005000000"; echo "__RC__0"; exit 0 ;;
       *"[ -f "*) echo "__RC__0"; exit 0 ;;
@@ -104,6 +107,7 @@ ANSWER=391
 
 # --- STAGE-SPECIFIC FAILURES, each after a GOOD preflight --------------------------------------------
 for spec in "identfail:an identity call that exits 42 despite printing a digest" \
+            "transportfail:adb itself exiting 42 while printing a valid digest and __RC__0" \
             "pushfail:a prompt push that fails" \
             "runnerfail:a runner that exits 42" \
             "runnerfail_complete:a runner that exits 42 with COMPLETE output" \
