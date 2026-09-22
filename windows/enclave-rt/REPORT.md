@@ -73,9 +73,10 @@ no guard pages and no signal handler, which is what lets it live in an enclave a
 
 `wit/app.wit`, `enclave:app@0.1.0`: `handle(request) -> response`, plus four imports (`now-ms`,
 `random`, `log`, `generate`). It is a function call, not a server, because VTL1 has no sockets.
-`../enclave-app-hello` is the reference app; `worldOf()` in `../node/appframe.mjs` reads the world
-out of the artifact's own bytes, and a `wasi:http` artifact is refused BY NAME with its lease
-handed back rather than run outside the enclave.
+`../enclave-app-hello` is the reference app. `worldOf()` in `../node/appframe.mjs` reads the world
+out of the artifact's own bytes and answers one of three things: `enclave-app`, `wasi-http` (served
+by src/wasihost.rs, unchanged from the catalog) or `wasi-cli` (a socket server, refused by name
+with its lease handed back). Nothing is run outside the enclave for a tenant.
 
 ## Building it
 
@@ -115,8 +116,12 @@ Cross-building the library from Linux also works and is what the repo was develo
 
 - **The traffic leg**, above: seal request and response frames to the enclave's attested key so
   the agent carries ciphertext it cannot read.
-- **Publishing**, which currently needs a stand-in: `ipfs.enclave.host` serves an S3 bucket from an
-  enclave and its upload tenant lives on metal0, which is off, so `add-wasm` 502s. The artifact for
+- **Publishing**, which currently needs a stand-in. `ipfs.enclave.host` serves an S3 bucket from an
+  enclave, and that adapter is a fleet TENANT: `POST /add-wasm` 502s because no host in the fleet is
+  running it, not because of any one machine. Caddy on nan falls back to its local kubo for
+  `/ipfs/*` reads, which is why reads still work and writes do not. The fix is a host that can run
+  the adapter, and the adapter is a wasi:cli socket server (see above), so it is the brokered-socket
+  build that unblocks publishing. The artifact for
   this proof was pinned locally, the CID computed to kubo's convention, and fetched into the node
   through the node's own CID verifier over ZeroTier. Nothing about the record is fictional: the
   catalog holds the true CID of the bytes. It is simply not fetchable from the public gateway until
