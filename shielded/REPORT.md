@@ -2713,3 +2713,51 @@ So section 16's entry stands, for a reason it did not give, and the ~4.2 ms of
 join is not recoverable by making the decode threads sleep. Recovering it would
 mean giving the split worker its own core rather than taking one away from the
 graph -- placement, not spin policy -- which is a code change and untested.
+
+### 18.8 The second refusal class cannot be sized away
+
+18.5a fixed class A (two contexts colliding on a 32.21 GB budget) by dropping
+the reservation from 20 GB. Class B -- "cannot reserve N: the card has M free
+(the pool holds P against N reserved)" -- survived, and I spent four attempts
+predicting a reservation that would eliminate it. All four were wrong, for the
+same reason each time: I read P once and treated it as a fixed card resource to
+compute under. It is not.
+
+| reservation R | pool P | P / 2R |
+|---|---|---|
+| 16.0 GB | 31.977 GB | 0.9993 |
+| 15.9 GB | 31.776 GB | 0.9993 |
+| 15.5 GB | 30.971 GB | 0.9991 |
+| 15.0 GB | 29.998 GB | 0.9999 |
+
+P tracks the SUM OF GRANTED RESERVATIONS, not the card. So "the pool holds
+31.977 against 16.0 reserved" means two links already hold 16 GB each, and the
+refusal is a THIRD request arriving while a previous run's reservations are
+still in the pool: 31.977 + 15.5 > 34.36 GB of card. The message reads as a
+contradiction -- it reports 18.1 GB free while refusing 15.5 -- until you see
+that the binding constraint is the pool total, not free memory.
+
+That makes it unfixable by sizing, and the arithmetic is short:
+
+    three simultaneous reservations must fit the card, 3R <= 34.36 GB -> R <= 11.45
+    the weight cap must hold the weights, 0.95R >= 13.89 GB          -> R >= 14.62
+
+No R satisfies both. Class B is a RELEASE RACE against a persistent worker: it
+fires when the previous run's reservations have not been returned before the
+next run's first request, which is why a longer settle reduces it (45 s -> 90 s
+helped) without removing it. Restarting the workers between runs would remove
+it and costs ~14 s of weight upload per run.
+
+Observed rate with the settle at 90 s: 2 of 13 runs across the 15.9 and 15.5
+configurations. Every one of those carried local=1; every run without it
+carried local=0. The correspondence refusalB=1 <=> local=1 has now held seven
+times across four reservation sizes, so the MECHANISM is not in doubt -- a
+single matmul computed in fp32 instead of the field, which rounds differently
+and can flip a near-tied token.
+
+What this means for the divergence: class A was the bulk of it (124-131 nodes
+per run, every run) and is gone. Class B leaves exactly one node, rarely. No
+divergence has been observed since class A was removed, but that is 13 runs
+against a base rate that was ~8% when 128 nodes were involved and should be far
+lower at one -- so the absence is expected either way and is NOT evidence the
+path is now deterministic.
