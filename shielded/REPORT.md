@@ -2930,3 +2930,66 @@ is the experiment, not another pinning variant.
 What this retires: `taskset`, and `SHIELDED_SPLIT_WEIGHTS` with it. A static
 column rebalance was already the wrong instrument for a quantity that changes
 sign between runs; now it is aimed at a quantity that is not the cost either.
+
+### 18.10 Two of five assertions were not assertions
+
+enclave-6e built a deliberately-broken version of their own adversarial thread
+test and found two of five assertions still passing on it. An inert assertion
+reads exactly like a live one -- the reason it is inert is invisible from its
+own text -- so only a mutant distinguishes them. Five against the parwork
+regression, in an isolated copy rather than the shared checkout:
+
+| mutant | result |
+|---|---|
+| the parked flag is never published | caught (abort, width 2, spins 0) |
+| helpers are never joined at teardown | caught |
+| a parked helper is never signalled | caught |
+| the seq_cst fence removed from SH_PAR_PUBLISH | caught, by the LITMUS |
+| `sh_par_width()` returns 1 unconditionally | **passed -- inert** |
+
+The width was printed and never checked. Every other check in that fixture is
+width-agnostic by construction, so a pool that ignored SHIELDED_FIELD_THREADS
+entirely passed the whole file at all six settings it sweeps. The pthread_once
+initialization the audit asked for had no test behind it. It is asserted now,
+against the same clamp `sh_par_width_init` applies, plus a second call that
+must agree with the first, since "once" is the property; the mutant is caught
+at the first width that differs.
+
+Two corrections inside this exercise, both mine:
+
+The FIRST mutant harness had the defect it was built to find. Its runner
+returned 99 on a build failure and the caller's `if/else` routed that to the
+success branch, so the control printed "passed (as it must)" for six builds
+that never compiled. The rewrite distinguishes caught, inert and build-failed,
+and requires the control to PRODUCE its output line rather than merely exit
+zero.
+
+And I first recorded the fence mutant as inert. I had built the litmus without
+`-DSH_LITMUS_FENCED`, which is the arm that carries the assertion. Built
+correctly, the clean tree gives both-stale=0 of 500000 and the fence-removed
+tree gives 68978. The fence is covered; my invocation was not.
+
+What this still does not establish: that the handshake is correct. The litmus
+can demonstrate a race and cannot prove its absence, and miri -- which would --
+does not take C. The fix rests on the fence argument, 2M clean trials, and now
+live assertions. That is three things, and none of them is a proof.
+
+### 18.11 A fourth build location, and a pre-existing failure in a path I use
+
+`shielded-tee.c` calls `sh_par_for` unconditionally, so every unit that
+compiles it must also compile `shielded-parwork.c`. I put it in the Makefile;
+the audit caught `metal/build-image.mjs`; enclave-6e caught
+`windows/enclave-engine/build.cmd`. Rather than assume three was the count I
+looked for a fourth and found it: `shielded/anchor/avf/build.sh` compiles
+tee.o at three sites and links it into `shielded-probe`, `simd-check` and
+`libggml-shielded.so` with no parwork object. That build will fail to link.
+Reported to the session working in that file with the exact sites rather than
+edited underneath them.
+
+Separately, `test/shielded-refill-priority.test.mjs` fails -- a `choose`
+assertion, not a link error. It reproduces identically at 09379a88, which
+predates every change in this session, so it is pre-existing and not mine. It
+is in a path these measurements use (`refill_priority=deficit` appears in every
+profile line), so it is recorded rather than chased; the runs show
+`pads missed=0 waited=0`, so refill kept up regardless and the throughput
+figures do not depend on the chooser being right.
