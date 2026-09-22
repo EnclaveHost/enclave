@@ -22,6 +22,7 @@
 // proxied to the app's loopback port, which is the same brokered socket the /x/ path already uses.
 import { Duplex } from "node:stream";
 import net from "node:net";
+import http from "node:http";
 import tls from "node:tls";
 import { WebSocketServer, createWebSocketStream } from "ws";
 
@@ -83,9 +84,28 @@ class StreamSocket extends Duplex {
  * null. It is a callback rather than a lookup in here because the node owns both facts and this
  * file should not know how it stores them.
  */
-export function appZone({ send, resolve, pressure, log = () => {} }) {
+export function appZone({ send, resolve, pressure, serveHttp, log = () => {} }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
+  // listens on anything - a TLS socket is handed to it with emit("connection"), which is the
+  // supported way to put an http.Server on top of a stream you already have.
+  const httpd = http.createServer(async (req, res) => {
+    const id = req.socket.__enclaveId;
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    try {
+      const r = await serveHttp(id, { method: req.method, pathRest: req.url,
+                                      headers: req.headers, body: Buffer.concat(chunks) });
+      res.writeHead(r.status || 502, r.headers || {});
+      res.end(r.body || Buffer.alloc(0));
+    } catch (e) {
+      log(`app-zone ${String(id).slice(0, 10)}: ${e.message}`);
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "enclave_error", message: e.message }));
+    }
+  });
+  httpd.on("clientError", (e, sock) => { try { sock.destroy(); } catch {} });
 
   /** A tunnel stream that is not (yet) a WebSocket: collect the upgrade request, then decide. */
   function begin(sid) {
@@ -141,10 +161,10 @@ export function appZone({ send, resolve, pressure, log = () => {} }) {
     let target = null;
     try { target = await resolve(ref); } catch (e) { log(`app-zone ${ref}: ${e.message}`); }
     const id = target?.id || ref;
-    if (!target || !target.port || !target.cert) {
+    if (!target || !target.cert || (!target.port && !target.gate)) {
       // 503 rather than a silent close: the relay logs the status and the operator can see which
       // half is missing (no app, or no certificate yet).
-      log(`app-zone ${id.slice(0, 10)}: ${!target ? "not served here" : !target.port ? "no app port" : "no certificate yet"}`);
+      log(`app-zone ${id.slice(0, 10)}: ${!target ? "not served here" : !target.cert ? "no certificate yet" : "no way to reach the app"}`);
       st.sock.write(`HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n`);
       return drop(st.sid);
     }
@@ -182,7 +202,16 @@ export function appZone({ send, resolve, pressure, log = () => {} }) {
       tlsSock.on("close", finish);
       tlsSock.on("secure", () => {
         // Only once the handshake is done is there anything to forward, and only then is it worth
-        // opening the app's socket: a scanner that never completes one costs the app nothing.
+        // reaching the app: a scanner that never completes a handshake costs the app nothing.
+        if (target.gate) {
+          // A gate-served app has no socket. Parse the request off this connection and carry it
+          // through the gate as a frame, which is the same path /x/ takes - the difference is only
+          // that the TLS ended here instead of at the relay.
+          httpd.emit("connection", tlsSock);
+          tlsSock.__enclaveId = id;
+          log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, carried through the gate`);
+          return;
+        }
         app = net.connect(target.port, "127.0.0.1");
         app.on("error", (e) => abort(`app ${e.message}`));
         tlsSock.pipe(app);                     // the client's request, into the app

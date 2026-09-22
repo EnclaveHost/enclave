@@ -194,7 +194,8 @@ export class Host {
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
                                           version: v, capacity: this.capacity(),
                                           listedAt: this.listedAt(), invited: invited || force,
-                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true });
+                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
+                                          features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
@@ -439,7 +440,8 @@ export class Host {
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
       const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
-                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true });
+                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
+                                          features: this.features() });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
         // the console reads it off /v1/deployments. Only a CHANGE is worth a line.
@@ -758,13 +760,14 @@ export class Host {
     const rec = this.records.get(id);
     const app = this.apps.get(id);
     if (!rec || rec.status !== "running" || !app) return null;
-    // Only a server-shaped app has a port of its own. A gate-served app (wasi:http, enclave:app)
-    // has no socket for a TLS session to be proxied into, and pretending otherwise would answer
-    // the handshake and then hang. Its origin stays the platform's /x/ path until the TLS
-    // terminator moves inside the enclave, where the gate can carry a stream.
-    if (!app.port) return null;
+    // A server-shaped app has a port to proxy into. A GATE-SERVED app (wasi:http, enclave:app)
+    // does not, so its origin is served the other way: the TLS session is terminated here, the
+    // request is parsed out of it and carried through the gate as a frame, exactly as the /x/
+    // path does. Either way the app's own hostname works, which is what a browser needs before
+    // it will show a closed padlock.
+    const gate = !app.port;
     const have = this.appCerts.get(id);
-    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, cert: have.cert };
+    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, gate, cert: have.cert };
     // The FALLBACK pair, while the real certificate is being issued. Without it the connection
     // dies at the first byte and the failure reads as a broken box rather than a certificate that
     // has not arrived; with it the path is provable (a client told to skip verification gets the
@@ -777,7 +780,7 @@ export class Host {
         this.appCerts.set(id, f);
         this.log(`${id.slice(0, 10)} app-zone: serving a self-signed pair for ${f.cert.name} until the real one is issued`);
       }
-      return { id, port: app.port, cert: f.cert };
+      return { id, port: app.port, gate, cert: f.cert };
     };
     const fail = this.appCertFails.get(id);
     if (fail && Date.now() < fail) return fallback();
@@ -789,7 +792,7 @@ export class Host {
                                       zone: this.cfg.appZone, log: (m) => this.log(m) });
       this.appCerts.set(id, { cert });
       this.#record(id, { appHost: cert.name, certNotAfter: cert.notAfter });
-      return { id, port: app.port, cert };
+      return { id, port: app.port, gate, cert };
     } catch (e) {
       const wait = Math.max(30, Number(e.retryAfterSec) || 300) * 1000;
       this.appCertFails.set(id, Date.now() + wait);

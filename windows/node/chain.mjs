@@ -197,6 +197,26 @@ export async function resolveAppRef(appRef) {
 // there with nothing having said no.
 const CATALOG_MAX_MB = 1048576;          // 1 TB, EnclaveAppCatalog's own MAX_MB
 const CATALOG_MAX_GFLOPS = 10000000;     // 10,000 TFLOPS, its MAX_GFLOPS
+/**
+ * The ROUTING keys a version declares (site/js/core/chain.js ROUTING_KEYS): what a runner must be
+ * able to do before it claims. They are the platform's own words for it, and reading them here is
+ * what turns "claimed, then failed to compile" into "not taken, because this box has no X".
+ *
+ * Returns the list of things this version needs that `features` does not offer.
+ */
+export function unmetNeeds(version, features = {}) {
+  let cfg = {};
+  try { cfg = JSON.parse(String((version && version.config) || "{}") || "{}"); } catch { return []; }
+  const want = [];
+  if (cfg.set === true && features.set !== true) want.push("shared-everything threads (the version declares set:true)");
+  if (cfg.threads === true && features.coopThreads !== true) want.push("cooperative threads (threads:true)");
+  if (cfg.mem64 === true && features.mem64 !== true) want.push("a 64-bit memory (mem64:true)");
+  if (String(cfg.wasi || "0.2") === "0.3" && features.p3 !== true) want.push("wasi 0.3 (wasi:\"0.3\")");
+  if (Array.isArray(cfg.volumes) && cfg.volumes.length && !(Array.isArray(features.volumes) && cfg.volumes.every((n) => features.volumes.includes(n))))
+    want.push(`the attested model volume${cfg.volumes.length > 1 ? "s" : ""} ${cfg.volumes.join(", ")}`);
+  return want;
+}
+
 /** The publisher saying this version's card specs are what it WOULD use, not what it needs. */
 export function gpuOptionalOfConfig(cfg) {
   try { return JSON.parse(String(cfg || "{}") || "{}").gpuOptional === true; } catch { return false; }
@@ -319,7 +339,7 @@ export function parseEnvelope(raw, gpuMilli) {
  */
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false,
-                                 legacy = false, fetchesConfigCid = false } = {}) {
+                                 legacy = false, fetchesConfigCid = false, features = null } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
@@ -347,6 +367,13 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
   if (opts.configCid && !fetchesConfigCid)
     return "its config rides at a CID and this box is not configured to fetch one";
+  // What the VERSION says it needs, checked before the gas rather than after the compile. Without
+  // this the box claims a lease, fetches three megabytes, and discovers at the compiler that the
+  // app wants shared memories - which is a worse answer to give a tenant than "not here".
+  if (version && features) {
+    const unmet = unmetNeeds(version, features);
+    if (unmet.length) return `it needs ${unmet.join(" and ")}, which this box does not offer`;
+  }
   if (Number(d.gpuMilli) > 0 && !(opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config)))
     return "it bought a share of a card, and this box's card is reserved for the enclave's masked inference; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
   // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
