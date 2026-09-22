@@ -3128,19 +3128,40 @@ correctness one. (th08-2's PLAIN pass was transiently slowed to 185 ms/token
 while its spec pass was normal at 19.47; the plain median for that arm is
 therefore not usable, the spec comparison is three clean matched pairs.)
 
-So C is memory-bound, and 8 threads is at or past the knee -- consistent with
-16 decode threads oversubscribing 16 physical cores against the 8-thread refill
-pool and the split workers. What this retires is larger than what it found:
-any per-op kernel idea that makes arithmetic cheaper without moving fewer bytes
-cannot pay, and that covers most of what "optimise GATED_DELTA_NET" would
-mean.
+So 8 threads is at or past the knee. I first wrote this up as "C is
+memory-bound", on the dichotomy in the prediction -- scales means compute,
+flat-or-worse means memory. That dichotomy was too coarse and the conclusion
+was wrong, and the same op profiles distinguish the cases:
 
-Where the bytes are, from the same profile: the delta-net recurrent state is
+| | 8 threads | 16 threads |
+|---|---|---|
+| graphs / nodes | 34530 / 152070 | identical |
+| shielded backend | ~67400 ms | ~69400 ms |
+| **op_total (C)** | **1748 ms** | **2935 ms** |
+| per node | 11.5 us | 19.3 us |
+
+Memory-bandwidth saturation gives FLAT time as threads rise: the same bytes
+move, just from more cores. C nearly DOUBLED, on an identical graph, while the
+shielded side did not move. A cost that scales with thread count is
+synchronisation, not bandwidth -- ggml parallelises within each op and barriers
+at its end, and there are 152070 nodes per run to barrier across.
+
+And the ops are tiny. The delta-net tensors are [128,48,2] -- 48 KB -- so
+splitting one across 16 threads is barrier with no work underneath it. The
+extra 7.8 us per node at 16 threads is the right order for a 16-way barrier on
+this box.
+
+That changes what is retired and what is opened. Kernel arithmetic was never
+the thing; but neither is bytes moved, necessarily. The lever shape is FEWER
+OPS or fewer barriers per op, and the curve peaks at or below 8 with nobody
+having looked to the left of it.
+
+For scale, the biggest tensors in that graph: the delta-net recurrent state is
 786432 floats -- 3 MB per layer -- and the worst CPY observed is a 6 MB
 `cache_s_l61 (view) (copy of (view))`. CPY at 1.312 ms/token and CONCAT at
-1.186 are 20% of C in pure movement, against 48 delta-net layers of state.
-That is the only part of C with a lever shape left, and it is worth at most
-2.5 ms of the 13.6 needed.
+1.186 are 20% of C in pure movement. But those are a handful of large ops among
+152070 nodes, and the thread result says the many small ones are where the
+synchronisation goes.
 
 ### 18.15 Both halves are now measured, and neither can pay
 
