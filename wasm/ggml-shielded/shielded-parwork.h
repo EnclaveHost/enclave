@@ -21,7 +21,28 @@
  * free here -- the decode threadpool and the pad refill threads want them too
  * -- so this is a knob to measure, not a default to assume.
  */
+#include <stdatomic.h>
 #include <stdint.h>
+
+/* THE PARK/DISPATCH HANDSHAKE PRIMITIVE.
+ *
+ * The dispatcher stores `gen` then loads `parked`; the parking worker stores
+ * `parked` then loads `gen`. If both loads may return the value from before
+ * the other's store, the dispatcher decides the worker is awake and does not
+ * signal while the worker decides there is no work and sleeps -- a lost
+ * wakeup. Release/acquire on two DIFFERENT atomics does not forbid that: it
+ * orders each store against loads of the SAME atomic and says nothing about
+ * the other. The seq_cst fence puts the four operations in one total order, so
+ * at least one side must see the other's store.
+ *
+ * BOTH halves of the handshake go through this macro, and so does the litmus
+ * in test/fixtures/shielded-parwork-litmus.c -- which is the only way that
+ * test regresses this code rather than a copy of it. Delete the fence here and
+ * the litmus fails. */
+#define SH_PAR_PUBLISH(flag, value) do { \
+    atomic_store_explicit((flag), (value), memory_order_release); \
+    atomic_thread_fence(memory_order_seq_cst); \
+} while (0)
 
 typedef void (*sh_par_fn)(void *ctx, int64_t lo, int64_t hi);
 
