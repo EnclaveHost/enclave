@@ -100,13 +100,18 @@ def main():
     if len(sys.argv) < 4:
         sys.exit(__doc__)
     MD, GD, PF = sys.argv[1], sys.argv[2], sys.argv[3]
-    specs = {}
+    # The prompts FILE is the authority on what row N asked and how it is scored. Taking the prompt
+    # from a manifest instead meant that when one producer's run was short, its placeholder row text
+    # matched no spec, and the OTHER lane's perfectly good answer was scored against an empty
+    # contract and came back REVIEW -- a missing row on one lane silently degraded the others.
+    specs, ordered = {}, []
     for line in open(PF, errors="replace"):
         line = line.rstrip("\n")
         if not line.strip() or line.lstrip().startswith("#") or "\t" not in line:
             continue
         pr, _, sp = line.partition("\t")
         specs[pr.strip()] = sp.strip()
+        ordered.append(pr.strip())
 
     mrows, mexp = load(MD, 6, ["tpu", "cpu"])
     grows, gexp = load(GD, 5, ["npu"])
@@ -141,7 +146,11 @@ def main():
     print("%-3s %-7s %-7s %-7s  %s" % ("#", "masked", "cpu", "npu", "prompt"))
     for r in mrows:
         g = gby.get(r["id"], dict(id=r["id"], key="", npu="missing", prompt=r["prompt"], expect=""))
-        spec = specs.get(r["prompt"], r["expect"])
+        try:
+            canonical = ordered[int(r["id"]) - 1]
+        except (ValueError, IndexError):
+            canonical = r["prompt"]
+        spec = specs.get(canonical, specs.get(r["prompt"], r["expect"]))
         a, sa, ea = vm_answer(MD, r, "tpu")
         b, sb, eb = vm_answer(MD, r, "cpu")
         c, sc, ec = npu_answer(GD, g)
@@ -153,6 +162,8 @@ def main():
             other[k] += v in (SMOKE, REVIEW)
         if "budget" in (sa, sb):
             capped += 1
+        # the row's OWN text is shown, placeholder and all: a missing or malformed row has to stay
+        # visible as such. Only the SPEC comes from the canonical prompt.
         print("%-3s %-7s %-7s %-7s  %s" % (r["id"], va, vb, vc, r["prompt"][:46]))
 
     n = mexp
