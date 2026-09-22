@@ -25,6 +25,14 @@ COUNTRY_SET = ("exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,
 
 # (name, spec, reply, verdict that must NOT come back, verdicts that are acceptable)
 FALSE_POSITIVES = [
+    # A generator is a ONE-SHOT lazy iterator. Materialising one as a list makes it reusable, and that
+    # was a reproducible false PASS: real Python exhausts g in the first sum, so this returns 2, but
+    # the interpreter returned 4 and the spec "aa->4" was scored correct. Immediate consumption is
+    # still evaluated (see the true positives); anything that could consume twice is REVIEW.
+    ("a reused generator, which Python exhausts", "pyfunc=f|aa->4",
+     "def f(s):\n    g = (1 for c in s)\n    return sum(g) + sum(g)", PASS, {REVIEW, FAIL}),
+    ("a generator handed to a function that consumes it twice", "pyfunc=f|aa->4",
+     "def g(it):\n    return sum(it) + sum(it)\ndef f(s):\n    return g(1 for c in s)", PASS, {REVIEW, FAIL}),
     ("a genexp counter that counts the WRONG thing", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
      "def count_vowels(s):\n    return sum(1 for c in s)", PASS, {FAIL}),
     ("a genexp counter that always returns zero", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
@@ -124,6 +132,10 @@ TRUE_POSITIVES = [
      "def count_vowels(s):\n    return len([c for c in s if c in 'aeiou'])", PASS),
     ("a counter written with an explicit loop", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
      "def count_vowels(s):\n    n = 0\n    for c in s:\n        if c in 'aeiou':\n            n = n + 1\n    return n", PASS),
+    # The conservative half of the same repair: with the CORRECT contract (Python gives 2), the
+    # interpreter still declines rather than guessing. Understating is allowed; inventing is not.
+    ("a reused generator under its correct contract", "pyfunc=f|aa->2",
+     "def f(s):\n    g = (1 for c in s)\n    return sum(g) + sum(g)", REVIEW),
     ("three real countries", COUNTRY_SET, "Brazil, Argentina and Peru", PASS),
     ("ten primes in order", PRIMES, "2, 3, 5, 7, 11, 13, 17, 19, 23, 29", PASS),
     # An import that is never USED is never evaluated either -- module-level statements are not run at
