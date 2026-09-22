@@ -1073,3 +1073,68 @@ bank evicts the bundle it is there to serve.
 
 So the shipping configuration stays BANK=64 with no refill threads, and "acceptance went up" is again not
 the same as "it got faster".
+
+## Task-level quality: 7 of 8, the same as the unmasked baseline (2026-09-22)
+
+The 48-token table earlier in this file compares TRUNCATED replies and is decode agreement, not task
+completion. This is the task-scored version: eight prompts, one run each, `max_new = 256` passed to both
+arms, greedy, no drafter, full outputs, and **every reply stopped on its own rather than at the cap**, so
+these are finished answers. Scoring is `host/quality_checks.py`, which never counts a regex match as
+correctness.
+
+| # | task | check | tpu | cpu | decode agreement |
+|---|---|---|---|---|---|
+| 01 | capital of France | names Paris | PASS | PASS | identical |
+| 02 | 17 x 23 | the number 391 | PASS | PASS | identical |
+| 03 | first ten primes | all ten, in order | PASS | PASS | char 32 |
+| 04 | three South American countries | 3 DISTINCT valid countries | PASS | PASS | identical |
+| 05 | `reverse_string` | **the function is interpreted and run against 5 cases** | PASS | PASS | char 46 |
+| 06 | a haiku about rain | open-ended | REVIEW | REVIEW | char 62 |
+| 07 | why the sky is blue | names Rayleigh | PASS | PASS | char 79 |
+| 08 | boiling point of water | the number 100 | PASS | PASS | identical |
+
+**tpu 7/8, cpu 7/8, with the eighth REVIEW on both arms.** Prompt 05 is the sharp one: both arms wrote
+`return s[::-1]` inside a docstringed function and differed only in the docstring's wording ("Reverses the
+given string" against "Returns the reverse of the input string"), and the restricted interpreter confirmed
+the masked path's function actually reverses `abc`, `racecar`, `ab cd`, `x` and the empty string. That is
+a task the masked path completed correctly, checked rather than pattern-matched.
+
+The haiku is REVIEW because no automatic check can score a poem, and REVIEW is deliberately not a pass.
+For the record, reading them: both are three lines about rain, agreeing for two of them and parting on the
+last ("Earth drinks cool, fresh tears" against "Nature breathes anew"). That is a human reading, which is
+exactly what REVIEW asks for, and it is not a score.
+
+**Scope, again, because it keeps mattering.** The CPU arm is a different quantisation of the same GGUF,
+not a bit-exact oracle. Eight prompts is representative, not exhaustive. And this is still not Google's
+NPU lane: token-level comparison with it is impossible because the tokenizers differ, but a TASK-level
+comparison on exactly these prompts and checks is possible and is not yet done.
+
+The honest summary is that at the task level the masked path is indistinguishable from the unmasked CPU
+decode on this set, while running at 1.09-1.15 tok/s against its 13.40-15.48.
+
+## The evaluator that produced the first version of that table was wrong twice (2026-09-22)
+
+Worth recording because both failures were the same shape as the build-staleness one -- a check with no
+way to fail -- and both were found by audit, not by me.
+
+**Regex presence was reported as task correctness.** Driven with synthetic answers, the first evaluator
+passed `def reverse_string(s): return s` (which returns the string UNREVERSED), `Brazil` for "name three
+countries", and `banana` for a haiku: 3/3 PASS. Scoring now has four verdicts that never collapse into
+each other -- SMOKE (a shape is present, never correctness), PASS (a semantic check ran and was
+satisfied), REVIEW (open-ended, needs a human), FAIL -- and every prompt stays in the denominator, so a
+crashed or capped run is a failure with a reason rather than a row that quietly shrinks the total.
+
+**Then the fix for that was itself unsafe.** Checking code by RUNNING it, in a child with RLIMITs and a
+scratch cwd, is not isolation: an audit candidate wrote a sentinel OUTSIDE the scratch directory and still
+passed. Worse, the verdict was parsed from the child's stdout while the candidate's code ran BEFORE the
+driver printed, so `print('{"ok": true}'); raise SystemExit(0)` passed without ever defining the function
+-- `SystemExit` is not an `Exception`, so the guard did not catch it.
+
+That path is closed. `host/safe_py.py` PARSES the candidate and interprets a restricted subset itself: no
+`exec`, `eval`, `compile` or `import`, and only the named function and module-level `def`s it calls are
+ever evaluated, so code sitting beside a function cannot act at all. The escape has no name to call
+because `open` is not in the environment the interpreter provides; the verdict cannot be forged because it
+is the value the interpreter computed rather than anything the candidate emitted; and steps, value sizes,
+call depth and exponents are bounded, so a `while True` or a `'a' * 10**9` terminates as REVIEW.
+`host/test_quality_checks.py` pins 18 known false positives against 7 true positives AND asserts the
+sentinel path was never created, so the suite fails if the checker ever executes anything again.
