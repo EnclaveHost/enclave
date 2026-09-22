@@ -2993,3 +2993,41 @@ is in a path these measurements use (`refill_priority=deficit` appears in every
 profile line), so it is recorded rather than chased; the runs show
 `pads missed=0 waited=0`, so refill kept up regardless and the throughput
 figures do not depend on the chooser being right.
+
+### 18.12 Correction: those percentages are of the shielded backend, not the token
+
+Every share in 18.8 through 18.11 is divided by `graph_compute`, and I wrote
+them up as "share of spec-decode graph time", which reads as the whole model
+graph. It is not. `s.t_graph` is accumulated from `tg0` at the top of the
+SHIELDED backend's `graph_compute` callback (ggml-shielded.cpp:1820 to 2255),
+and the scheduler hands each backend only its own subgraph. GATED_DELTA_NET,
+FLASH_ATTN_EXT, the norms, CPY and CONCAT all run in the CPU backend's
+callback, which this counter never sees.
+
+So "link is 93% of graph_compute" says only that when the shielded backend
+runs, it is almost entirely the link. It says nothing about C, and it does not
+contradict C being the wall -- the two numbers are about different halves and I
+briefly read them as if they were about the same one.
+
+Converting to the token, at 1753 ms of shielded-backend time over 64 spec
+tokens (27.4 ms/token) against 48.14 ms/token measured end to end:
+
+| | of shielded backend | of the token |
+|---|---|---|
+| split join | 10.0% median | 5.7% |
+| rhs | 7.2% | 4.1% |
+| mask | 6.4% | 3.6% |
+| unmask+lhs | 5.3% | 3.0% |
+| reply range check | 0.5% | **0.3%** |
+
+The conclusions do not change and one of them gets stronger. The check fusion
+was already dead at 0.5%; at 0.3% of a token it is not worth the ordering
+argument it would need. Pinning was measured end to end in tok/s and is
+unaffected. The join is still the largest addressable shielded-side item after
+wire and gemm, but it is 2.7 ms of a 48 ms token, not a fifth of it -- and
+since 25 tok/s needs 8.1 ms out of that token, the join cannot get there even
+if it went to zero.
+
+The habit that produced this: I quoted a percentage without naming its
+denominator, then reasoned about the percentage. Shares need their denominator
+attached every time they are written down, not just where they are computed.
