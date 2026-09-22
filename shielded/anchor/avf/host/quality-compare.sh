@@ -36,6 +36,9 @@ if ! "$HERE/build-identity.sh" "$OUT/BUILD"; then
   exit 3
 fi
 cat "$OUT/BUILD"
+# the binary that will produce these rows, folded into every cache key
+RUN_IDENT=$(grep -oE '^[a-z-]+\.so sha256  [0-9a-f]+' "$OUT/BUILD" | head -1 | awk '{print $3}')
+[ -n "$RUN_IDENT" ] || RUN_IDENT="unknown-binary"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # The prompt list is read into an ARRAY first. Reading it with `while read < file` and running adb inside the
 # loop silently ran ONE prompt and stopped: adb consumes stdin, so it ate the rest of the file.
@@ -48,16 +51,30 @@ for p in "${PLIST[@]}"; do
   want="${p#*	}"; [ "$want" = "$p" ] && want=""
   p="${p%%	*}"
   n=$((n+1)); id=$(printf '%02d' "$n")
-  printf '%s\n' "$p" > "$OUT/$id.prompt"
-  printf '%s\n' "$want" > "$OUT/$id.expect"
+  # The cache key binds the prompt to the SETTINGS and the BINARY, because keying by ordinal alone let a
+  # changed prompt inherit the previous prompt's log: the old loop wrote NN.prompt first, then saw a
+  # non-empty NN.tpu.log and reported "already have", so an answer to a different question was relabelled
+  # as this one's. Same defect an audit found in google-lane-run.sh.
+  key=$(printf '%s|%s|%s|%s|%s' "$p" "$MAXNEW" "${GRAPHS:-tpu/g5-h4ds}" "${BUNDLE:-tpu/lanes-h4ds.etpu}" \
+        "$RUN_IDENT" | sha256sum | cut -c1-16)
   for arm in tpu cpu; do
-    f="$OUT/$id.$arm.log"
-    [ -s "$f" ] && { echo "[$id/$arm] already have $f"; continue; }
+    f="$OUT/$id.$key.$arm.log"
+    if [ -s "$f" ] && grep -q "LOCAL done" "$f"; then
+      echo "[$id/$arm] cached ($key)"; continue        # only a COMPLETE run is a cache hit
+    fi
     echo "[$id/$arm] $p"
     if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 \
-         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f" 2>&1 < /dev/null
-    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f" 2>&1 < /dev/null; fi
-    grep -c "LOCAL done" "$f" >/dev/null || echo "   (no LOCAL done -- see $f)"
+         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null
+    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null; fi
+    if grep -q "LOCAL done" "$f.tmp"; then
+      mv "$f.tmp" "$f"                                  # renamed only when the run completed
+    else
+      mv "$f.tmp" "$f.failed"
+      echo "   FAILED (no LOCAL done): kept as $(basename "$f").failed"
+    fi
   done
+  # written only AFTER the arms, so a half-finished row cannot leave a prompt label with no result
+  printf '%s\n' "$p" > "$OUT/$id.prompt"
+  printf '%s\n' "$want" > "$OUT/$id.expect"
 done
 echo; echo "runs in $OUT; compare with: python3 $(pwd)/quality-report.py $OUT"

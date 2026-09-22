@@ -40,6 +40,15 @@ if len(sys.argv) > 2:
         SPECS[pr.strip()] = sp.strip()
 
 
+def arm_log(d, i, arm):
+    """The log for one arm. Newer runs key the filename by prompt+settings+binary digest, so a changed
+    prompt cannot inherit an earlier row's log; older runs used the bare ordinal."""
+    keyed = sorted(glob.glob(os.path.join(d, f"{i}.*.{arm}.log")))
+    if keyed:
+        return keyed[-1]
+    return os.path.join(d, f"{i}.{arm}.log")
+
+
 def read(path):
     return open(path, errors="replace").read() if os.path.exists(path) else None
 
@@ -76,8 +85,8 @@ def main():
     for i in ids:
         prompt = read(os.path.join(D, f"{i}.prompt")).strip()
         spec = SPECS.get(prompt, (read(os.path.join(D, f"{i}.expect")) or "").strip())
-        a, sa, ea = answer(os.path.join(D, f"{i}.tpu.log"))
-        b, sb, eb = answer(os.path.join(D, f"{i}.cpu.log"))
+        a, sa, ea = answer(arm_log(D, i, "tpu"))
+        b, sb, eb = answer(arm_log(D, i, "cpu"))
         rows.append((i, prompt, spec, a, sa, ea, b, sb, eb))
 
     def verdict(reply, stop, err, spec):
