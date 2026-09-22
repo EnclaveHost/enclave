@@ -2215,3 +2215,54 @@ distribution straddling it. Everything cheaper has been tried and is in 16.8.
 a comfortable operating point** -- and unlike 15.6, that is now a statement
 about a measured 23.4 ms/pass GPU term and a 35 ms/token CPU term, not about
 card bandwidth.
+
+### 16.11 The narrow lane is dead on this card, and 15.5 asked the wrong half
+
+16.10 named an int6 weight lane as the last lever worth more than a few
+percent, on 15.5's pricing. Building it turned up two things, and the second
+one closes the question.
+
+**First: the 2.07-2.33% figure in 15.5's table is not implementable in this
+field.** That row is "int6 with an INTEGER scale per 32-block", and its
+multiplier is a 16-bit integer, so the reconstructed weight can be ~550x the
+int8 lane's. `SH_WEIGHT_BYTE_LIMIT` is 119 because that is *exactly*
+min(prime)/2: at or below it a weight IS its own balanced residue in all three
+RNS lanes and needs no decomposition on either side, which shielded-field.h
+records as "the single largest reason the fused kernel is fast". Raising the
+weight magnitude has to be paid for in the ACTIVATION's calibrated exponent,
+because the field only recovers `|W.x| < M/2` with M ~ 2^23.8. 15.5 measured
+the weight error of a scheme whose activation cost it did not price. The
+field-compatible form -- the one whose reconstruction stays inside +-119 --
+measures **2.87-3.08%** on real 27B tensors against 1.32-1.41% for int8
+(`shielded/lane/lane_error.py`, rows "int6 DIRECT" and "int6 REQUANT"; the
+latter, re-quantising the BYTES rather than the floats, double-rounds to
+3.4-3.7% and is the wrong way to do it).
+
+**Second, and decisive: the card cannot collect the bytes.** 15.5 priced the
+lane by encoding error alone. `shielded/lane/i6_kernel_bench.cu` measures what
+the kernel pays to read it -- same shapes, same three planes, same
+accumulation, m=1:
+
+| shape | K | N | int8 | int6 | int8 GB/s | int6 GB/s |
+|---|---|---|---|---|---|---|
+| 27B gate|up | 5120 | 17408 | 163.2 us | 529.2 us | 546 | 137 |
+| 27B down | 17408 | 5120 | 124.3 us | 474.1 us | 717 | 153 |
+| 27B qkv | 5120 | 10240 | 100.7 us | 315.0 us | 521 | 135 |
+| 27B lm_head | 5120 | 248320 | 2143.8 us | 6737.6 us | 593 | 153 |
+
+**3.2x slower**, and that is the OPTIMISED unpack: the +32 bias folded into one
+per-block correction so no value is sign-adjusted individually, and each group
+of four values extracted from a single 24-bit window in the shape the compiler
+folds into LOP3. The naive form managed 83-94 GB/s. One byte per weight is
+what dp4a wants; 32 weights in 24 bytes has to be taken apart first, and on
+sm_70 that turns a comfortably memory-bound kernel into an ALU-bound one --
+the same failure shielded-field.h records for the v1 fused kernel, where
+"keeping the modulos made v1 ALU-bound and WORSE than not fusing at all".
+
+So the 19% of bytes the lane saves cannot be collected here at ANY encoding
+quality, and the error question never arises. **This is a property of sm_70's
+ratio of integer throughput to bandwidth, not of the scheme** -- re-run the
+benchmark before assuming it holds on a card where bandwidth is the harder
+constraint. With it, the software levers for this model on this hardware are
+finished: 17.98 tok/s median with the ring write, 19.95 peak, against an
+unmasked 30.36.
