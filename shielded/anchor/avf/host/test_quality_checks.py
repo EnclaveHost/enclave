@@ -25,6 +25,10 @@ COUNTRY_SET = ("exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,
 
 # (name, spec, reply, verdict that must NOT come back, verdicts that are acceptable)
 FALSE_POSITIVES = [
+    ("a genexp counter that counts the WRONG thing", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
+     "def count_vowels(s):\n    return sum(1 for c in s)", PASS, {FAIL}),
+    ("a genexp counter that always returns zero", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
+     "def count_vowels(s):\n    return sum(0 for c in s)", PASS, {FAIL}),
     ("identity function passed as a reverser", "pyfunc=" + REV,
      "def reverse_string(s): return s", PASS, {FAIL}),
     ("one country offered as three", COUNTRY_SET, "Brazil", PASS, {FAIL}),
@@ -111,6 +115,15 @@ TRUE_POSITIVES = [
      "Here you go:\\n```python\\ndef reverse_string(s):\\n    return s[::-1]\\n```\\nThat slices it.", PASS),
     ("a loop-based reverser", "pyfunc=" + REV,
      "def reverse_string(s):\\n    out = ''\\n    for c in s:\\n        out = c + out\\n    return out", PASS),
+    # A generator expression is how a model most naturally writes a counting function. Before it was
+    # supported, a CORRECT answer came back REVIEW, which is not correctness -- so every lane's task
+    # score was understated by the same amount and a real difference could hide inside it.
+    ("a counter written with sum(genexp)", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
+     "def count_vowels(s):\n    return sum(1 for c in s if c in 'aeiou')", PASS),
+    ("a counter written with a list comprehension", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
+     "def count_vowels(s):\n    return len([c for c in s if c in 'aeiou'])", PASS),
+    ("a counter written with an explicit loop", "pyfunc=count_vowels|hello->2|xyz->0|aeiou->5",
+     "def count_vowels(s):\n    n = 0\n    for c in s:\n        if c in 'aeiou':\n            n = n + 1\n    return n", PASS),
     ("three real countries", COUNTRY_SET, "Brazil, Argentina and Peru", PASS),
     ("ten primes in order", PRIMES, "2, 3, 5, 7, 11, 13, 17, 19, 23, 29", PASS),
     # An import that is never USED is never evaluated either -- module-level statements are not run at

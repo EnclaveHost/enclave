@@ -192,7 +192,13 @@ def check(spec, text):
             bad = []
             for arg, want in cases:
                 got = call_function(extract_code(text), name, [arg])
-                if got != want:
+                # The spec's expected value is always a STRING (it came out of a text file), while the
+                # candidate returns whatever Python value it computes. Comparing them directly marked a
+                # CORRECT counter wrong -- `2 != "2"` -- so every int-returning task would have been
+                # scored FAIL on all lanes equally, which is invisible in a comparison and still wrong.
+                # A non-string result is compared by its str(); that cannot rescue a wrong answer,
+                # because str(5) is still not "2".
+                if got != want and str(got) != want:
                     bad.append("%r gave %r, wanted %r" % (arg, got, want))
             return (PASS, "all %d cases" % len(cases)) if not bad else (FAIL, "; ".join(bad[:4]))
         except UnsupportedCode as e:

@@ -329,7 +329,12 @@ class Interp:
                          self.expr(n.step, env) if n.step else None)
         if isinstance(n, ast.Subscript):
             return self.guard(self.expr(n.value, env)[self.expr(n.slice, env)])
-        if isinstance(n, ast.ListComp):
+        if isinstance(n, ast.ListComp) or isinstance(n, ast.GeneratorExp):
+            # A generator expression is evaluated EAGERLY, as a list. For the pure, bounded code this
+            # interpreter accepts there is no observable difference, and the same tick() and MAX_LEN
+            # bounds apply either way. Without this, `sum(1 for c in s if ...)` -- the most natural way
+            # a model writes a counting function -- was not evaluable, so a CORRECT answer scored REVIEW
+            # and every lane's task score was understated by the same amount.
             return self.guard(self.listcomp(n, env))
         if isinstance(n, ast.Call):
             return self.call(n, env)
