@@ -60,6 +60,27 @@ static void *silent_peer(void *arg) {
     struct timespec ts = { 40, 0 }; nanosleep(&ts, NULL); (void)fd; return NULL;
 }
 
+/* A peer that answers the first announcements honestly, then sends only PART of a later one and stalls.
+ * This is the case the repeated driver has to abandon: the announced bytes were never consumed, so the
+ * stream cannot be reused, and a later sample would otherwise count this phase's leftovers. */
+static int partial_after = 3;
+static void *partial_peer(void *arg) {
+    int fd = *(int *)arg; unsigned char hdr[4]; static unsigned char buf[65536]; int seen = 0;
+    for (;;) {
+        size_t o = 0;
+        while (o < 4) { ssize_t r = read(fd, hdr + o, 4 - o); if (r <= 0) return NULL; o += (size_t)r; }
+        size_t n = (size_t)hdr[0] | ((size_t)hdr[1] << 8) | ((size_t)hdr[2] << 16) | ((size_t)hdr[3] << 24);
+        if (n == 0) continue;
+        if (++seen > partial_after) {               /* send a little, then stop and hold the socket open */
+            size_t part = n / 4; if (part > sizeof buf) part = sizeof buf;
+            ssize_t w = write(fd, buf, part); (void)w;
+            struct timespec ts = { 60, 0 }; nanosleep(&ts, NULL);
+            return NULL;
+        }
+        while (n) { size_t w = n > sizeof buf ? sizeof buf : n; ssize_t r = write(fd, buf, w); if (r <= 0) return NULL; n -= (size_t)r; }
+    }
+}
+
 int main(void) {
     signal(SIGPIPE, SIG_IGN);   /* the hostile peers close mid-write on purpose */
     const size_t SMALL = 1u << 20;
@@ -105,6 +126,29 @@ int main(void) {
         double r = bench_ms(fd, 2, 2, SMALL);
         ck("a dead descriptor fails", r < 0, NULL);
         close(a[0]); pthread_join(ta, NULL); close(a[1]);
+    }
+    {   /* the repeated driver: a partial response then a stall must ABANDON, not drop the sample and reuse */
+        int a[2], b[2]; socketpair(AF_UNIX, SOCK_STREAM, 0, a); socketpair(AF_UNIX, SOCK_STREAM, 0, b);
+        pthread_t ta, tb; pthread_create(&ta, NULL, good_peer, &a[1]); pthread_create(&tb, NULL, partial_peer, &b[1]);
+        int fd[2] = { a[0], b[0] };
+        bench_compare_result res;
+        const int rc = bench_compare(fd, 2, SMALL, 7, &res);
+        char d[128]; snprintf(d, sizeof d, "rc=%d, %d complete pairs, failed phase %d at rep %d",
+                              rc, res.n, res.failed_phase, res.failed_rep);
+        ck("a partial response then a stall abandons the run", rc != 0 && res.n < 7, d);
+        /* and every retained sample must be a matched PAIR, never a one-sided survivor */
+        ck("retained samples are matched pairs", res.n >= 0 && res.failed_rep >= res.n, NULL);
+        close(a[0]); close(b[0]); pthread_join(ta, NULL); pthread_join(tb, NULL); close(a[1]);
+    }
+    {   /* the honest repeated case still produces its pairs */
+        int a[2], b[2]; socketpair(AF_UNIX, SOCK_STREAM, 0, a); socketpair(AF_UNIX, SOCK_STREAM, 0, b);
+        pthread_t ta, tb; pthread_create(&ta, NULL, good_peer, &a[1]); pthread_create(&tb, NULL, good_peer, &b[1]);
+        int fd[2] = { a[0], b[0] };
+        bench_compare_result res;
+        const int rc = bench_compare(fd, 2, SMALL, 5, &res);
+        char d[80]; snprintf(d, sizeof d, "rc=%d, %d pairs", rc, res.n);
+        ck("honest peers give 5 complete pairs", rc == 0 && res.n == 5, d);
+        close(a[0]); close(b[0]); pthread_join(ta, NULL); pthread_join(tb, NULL); close(a[1]); close(b[1]);
     }
     printf("\n%d failure(s)\n", fails);
     return fails ? 1 : 0;
