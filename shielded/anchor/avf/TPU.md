@@ -960,9 +960,24 @@ library inside the APK the device actually had installed, with `repair=1 verify=
 
 (An earlier draft of this paragraph quoted `5bc42588`. That was the staged library BEFORE the rebuild --
 the fault-injection build -- read out of `out/` rather than out of the installed artifact, which is the
-same class of mistake the build-staleness section above is about. `quality-compare.sh` now pulls the APK
-path from the device's package manager and digests the library inside it, so the recorded identity is the
-one that ran.)
+same class of mistake the build-staleness section above is about.)
+
+**What the identity evidence actually supports, and what it does not.** A pull taken later establishes
+what is installed NOW: `host/build-identity.sh` retrieved the APK
+(`6abb8b0b9976...a8d`, 24299027 bytes) and extracted `libggml-tpu.so` at its full length,
+`ba47bd16cfdfe122741ced6cdec0f5bc5311d7cde4645733fc7c801f2a194984`. It does NOT retroactively establish
+what ran during a comparison hours earlier, because nothing in that pull rules out an install in between.
+The per-run evidence is separate and is what carries the weight: every run's log contains the payload's
+own `build config repair=1 verify=0 inject=0 ... (built Sep 22 2026 02:21:17)` line, emitted by the
+binary that answered that run. Those two together are consistent with one binary throughout, and a
+deployment-continuity record -- an install log, or the digest captured at run time rather than after --
+is what would close the gap. That is now what `build-identity.sh` is for, run per comparison.
+
+An earlier version of this check recorded `e3b0c44298fc1c149afbf4c8996fb924` as the installed digest.
+That is the SHA256 of ZERO BYTES: `unzip` cannot extract a member from a non-seekable stream, its error
+was discarded, no exit status was checked, and `sha256sum` hashed the empty result. A manifest that
+reports a digest for nothing is worse than one that reports nothing, and the failed manifest is preserved
+beside its replacement rather than overwritten.
 
 | # | prompt | result |
 |---|---|---|

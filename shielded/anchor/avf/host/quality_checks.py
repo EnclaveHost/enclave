@@ -34,40 +34,12 @@ for hostile code.
 """
 
 import ast
-import json
 import os
 import re
-import subprocess
 import sys
-import tempfile
 
 SMOKE, PASS, FAIL, REVIEW = "SMOKE", "PASS", "FAIL", "REVIEW"
 
-# The driver that runs inside the bounded child. It defines the candidate code, then calls the function.
-_DRIVER = r'''
-import json, resource, sys
-resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
-resource.setrlimit(resource.RLIMIT_AS, (512 << 20, 512 << 20))
-resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
-src, name, cases = json.load(open(sys.argv[1]))
-ns = {}
-try:
-    exec(compile(src, "<candidate>", "exec"), ns)
-except Exception as e:
-    print(json.dumps({"ok": False, "why": "the code did not run: %s: %s" % (type(e).__name__, e)})); sys.exit(0)
-fn = ns.get(name)
-if not callable(fn):
-    print(json.dumps({"ok": False, "why": "no callable named %r was defined" % name})); sys.exit(0)
-bad = []
-for arg, want in cases:
-    try:
-        got = fn(arg)
-    except Exception as e:
-        bad.append("%r raised %s: %s" % (arg, type(e).__name__, e)); continue
-    if got != want:
-        bad.append("%r gave %r, wanted %r" % (arg, got, want))
-print(json.dumps({"ok": not bad, "why": "; ".join(bad[:4])}))
-'''
 
 
 def unescape(s):
@@ -172,7 +144,19 @@ def check(spec, text):
             cases.append([a, b])
         if not cases:
             return FAIL, "no test cases in the spec"
-        return run_pyfunc(extract_code(text), name, cases)
+        try:
+            from safe_py import UnsupportedCode, call_function
+        except ImportError:
+            return run_pyfunc(extract_code(text), name, cases)
+        try:
+            bad = []
+            for arg, want in cases:
+                got = call_function(extract_code(text), name, [arg])
+                if got != want:
+                    bad.append("%r gave %r, wanted %r" % (arg, got, want))
+            return (PASS, "all %d cases" % len(cases)) if not bad else (FAIL, "; ".join(bad[:4]))
+        except UnsupportedCode as e:
+            return REVIEW, "not evaluable by the restricted interpreter (%s); read it instead" % e
 
     if kind == "review":
         return REVIEW, payload.strip() or "open-ended: needs a human"
@@ -181,26 +165,23 @@ def check(spec, text):
 
 
 def run_pyfunc(src, name, cases):
-    with tempfile.TemporaryDirectory() as d:
-        try:
-            ast.parse(src)
-        except SyntaxError as e:
-            return FAIL, "the reply is not valid Python: %s" % e
-        argf = os.path.join(d, "a.json")
-        with open(argf, "w") as f:
-            json.dump([src, name, cases], f)
-        drv = os.path.join(d, "drv.py")
-        with open(drv, "w") as f:
-            f.write(_DRIVER)
-        try:
-            r = subprocess.run([sys.executable, drv, argf], capture_output=True, text=True,
-                               timeout=20, cwd=d, stdin=subprocess.DEVNULL)
-        except subprocess.TimeoutExpired:
-            return FAIL, "the code did not finish within 20 s"
-        if r.returncode != 0:
-            return FAIL, "the checker exited %d: %s" % (r.returncode, (r.stderr or "").strip()[:120])
-        try:
-            out = json.loads(r.stdout.strip().splitlines()[-1])
-        except (ValueError, IndexError):
-            return FAIL, "the checker produced no verdict: %s" % (r.stdout or r.stderr)[:120]
-        return (PASS, "all %d cases" % len(cases)) if out["ok"] else (FAIL, out["why"])
+    """DISABLED. Executing model-written code was not isolated, and the verdict was forgeable.
+
+    Two defects, both reproduced against a byte-identical copy of this file:
+
+      1. RLIMIT_CPU/RLIMIT_AS/RLIMIT_NPROC and a scratch cwd are NOT filesystem, network or credential
+         isolation. A candidate wrote a sentinel OUTSIDE the child's scratch directory and still passed.
+         The limits bound how much a candidate can consume; they bound nothing about what it can reach.
+      2. The verdict was parsed from the child's stdout, and the candidate's code ran BEFORE the driver
+         printed. `print(\'{"ok": true}\'); raise SystemExit(0)` therefore passed without ever defining
+         the required function -- SystemExit derives from BaseException, so `except Exception` did not
+         catch it, the child exited 0, and the forged line was the last line on stdout.
+
+    Both are now covered by test_quality_checks.py. This path stays closed until there is real isolation
+    (a separate uid in a mount and network namespace, read-only filesystem, no credentials, bounded
+    output, and the whole process GROUP killed on timeout) together with a verdict channel the candidate
+    does not control. safe_py.py is the other way out, and is what `pyfunc` uses now: it interprets a
+    restricted subset rather than executing anything.
+    """
+    return REVIEW, ("executable checking is disabled: it was neither isolated nor forgery-resistant "
+                    "(see run_pyfunc). Use the restricted interpreter or read the answer.")
