@@ -246,3 +246,23 @@ Two things this closes out. `/exec` cannot be the probe here — it caps its pro
 MIPS — and this snapshot (`risc-perf-agent/warm960-palette.snap`) has no getty on ttyS0 at all.
 And the restore is not cheap: 663 s, during which the app answers no HTTP, so "restoring" and
 "wedged" look identical from outside.
+
+## Two traps that cost hours, and the wall we are on now
+
+`GET /status` CAN KILL THE TENANT. `status_json` does `&self.machines[mi]`, which panics when the
+machine list is momentarily empty during a (re)start; polling it through a boot trapped the wasm
+and stopped the app (`app 3 stopped ... wasm backtrace: risc_box::App::status_json`). Poll `/ping`
+while a machine is coming up.
+
+`/status`'s `instret` IS NOT INSTRUCTIONS RETIRED. It is the dispatched step budget - every turn
+adds its whole batch, and `cpu::run` consumes a burst in WFI without executing - so a parked guest
+reports 0.95G and 0.6 MIPS while getting nowhere. Fixed upstream (enclave-apps 56e8f61): a real
+retired counter, `guestIdle` beside it, the budget kept as `steps`. Not deployed here; that needs
+an owner publish.
+
+BLOCKED, and not on anything technical: **the box's operator wallet is out of Base ETH**
+(`0x389C3f030a209D04D026228D2D053fEB75DbadcA`, measured 2.4e-7 ETH). Every lease renewal and
+re-claim is a transaction, so `e64f7cba`, `a77d0c57`, `a69dcbba` and `7ae476a3` all expired at
+once - `renew` reverts "lease expired", the node cannot pay to re-claim, and it loops
+`taking` -> `stopped`. Only `d9798e4c` still holds a lease. Nothing further can be verified on the
+guest until that wallet is funded.
