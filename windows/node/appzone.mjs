@@ -1,0 +1,193 @@
+// windows/node/appzone.mjs -- answering the app's OWN origin, https://<label>.app.enclave.host.
+//
+// THE PATH, end to end, because every hop matters and only one of them is ours:
+//
+//   browser ──TLS──> relay/relay.js:443        reads the SNI, terminates NOTHING
+//           ──wss──> api.enclave.host/t/<box>/x/<id>/https
+//           ──s+/sd/sx frames over the fleet tunnel──> this file
+//           ── WebSocket unwrap ──> raw TLS bytes ──> terminate here ──> the app's own port
+//
+// The relay is a splice: it reads the ClientHello to know which box to hand the connection to and
+// then copies bytes. So the handshake must be answered by whoever holds the lease, with a
+// certificate for that name (apptls.mjs gets one), or a browser lands on a warning. That warning
+// is what the console's amber padlock means: it only closes when a probe from the browser itself
+// completes a real handshake.
+//
+// Over the tunnel the WebSocket arrives as a RAW BYTE STREAM with the upgrade request replayed
+// into it (relay/tunnel.js spliceUpgrade), so this side has to be the WebSocket server as well:
+// parse the request, answer 101, unwrap the frames, and only then is there TLS to terminate.
+//
+// WHERE TLS TERMINATES: in this process, in VTL0. See apptls.mjs's header for what that costs and
+// why it is published rather than implied (`appTls.keyIn` in /availability). The plaintext is then
+// proxied to the app's loopback port, which is the same brokered socket the /x/ path already uses.
+import { Duplex } from "node:stream";
+import net from "node:net";
+import tls from "node:tls";
+import { WebSocketServer, createWebSocketStream } from "ws";
+
+const MAX_STREAMS = 32;
+const HEAD_LIMIT = 16 * 1024;          // an upgrade request that never ends is not one
+const OPEN_MS = 15_000;
+
+/**
+ * One tunnel stream as a Duplex, so the WebSocket server can treat it as a socket.
+ *
+ * `ws` wants a few socket methods that mean nothing here (Nagle, keep-alive, timeouts): they are
+ * no-ops rather than missing, because `ws` calls them unconditionally and a missing method is a
+ * crash in the middle of a handshake.
+ */
+class StreamSocket extends Duplex {
+  constructor(sendFrame, sid) {
+    super();
+    this.sid = sid;
+    this._send = sendFrame;
+    this._closed = false;
+  }
+  _read() {}
+  _write(chunk, _enc, cb) {
+    if (!this._closed) this._send({ t: "sd", sid: this.sid, d: Buffer.from(chunk).toString("base64") });
+    cb();
+  }
+  _final(cb) { this.closeRemote(); cb(); }
+  _destroy(err, cb) { this.closeRemote(); cb(err); }
+  closeRemote() {
+    if (this._closed) return;
+    this._closed = true;
+    this._send({ t: "sx", sid: this.sid });
+  }
+  feed(buf) { this.push(buf); }
+  remoteEnded() { this._closed = true; this.push(null); }
+  // the socket surface `ws` reaches for
+  setNoDelay() { return this; }
+  setKeepAlive() { return this; }
+  setTimeout() { return this; }
+  get remoteAddress() { return "127.0.0.1"; }
+  get remotePort() { return 0; }
+}
+
+/**
+ * The app-zone half of the agent.
+ *
+ * `resolve(id)` answers { port, cert: { key, cert, name } } for a deployment this box serves, or
+ * null. It is a callback rather than a lookup in here because the node owns both facts and this
+ * file should not know how it stores them.
+ */
+export function appZone({ send, resolve, log = () => {} }) {
+  const streams = new Map();
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+
+  /** A tunnel stream that is not (yet) a WebSocket: collect the upgrade request, then decide. */
+  function begin(sid) {
+    if (streams.size >= MAX_STREAMS) {
+      send({ t: "s=", sid, ok: false, err: "too many app-zone streams on this box" });
+      return null;
+    }
+    const sock = new StreamSocket(send, sid);
+    const st = { sid, sock, head: Buffer.alloc(0), upgraded: false,
+                 timer: setTimeout(() => { log(`app-zone stream ${sid}: no upgrade request in ${OPEN_MS / 1000}s`); drop(sid); }, OPEN_MS) };
+    streams.set(sid, st);
+    send({ t: "s=", sid, ok: true });
+    return st;
+  }
+
+  function drop(sid) {
+    const st = streams.get(sid);
+    if (!st) return;
+    streams.delete(sid);
+    clearTimeout(st.timer);
+    try { st.sock.destroy(); } catch {}
+  }
+
+  /** The request line and headers, once they are all here. */
+  function parseHead(buf) {
+    const end = buf.indexOf("\r\n\r\n");
+    if (end < 0) return null;
+    const lines = buf.subarray(0, end).toString("latin1").split("\r\n");
+    const [method, url] = lines[0].split(" ");
+    const headers = {};
+    for (const line of lines.slice(1)) {
+      const i = line.indexOf(":");
+      if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+    }
+    return { method, url, headers, rest: buf.subarray(end + 4) };
+  }
+
+  async function onHead(st, head) {
+    clearTimeout(st.timer);
+    // /x/<id>/https is the browser bridge: an app-zone TLS connection for that deployment. The
+    // /tls/<port> form is the declared-TCP-port path, which this box does not sell, so it is
+    // refused by name rather than answered with something that is not TLS.
+    // The relay addresses a deployment by its LABEL here (the first 8 hex of the id, which is
+    // what the hostname carries), not by the full id: /x/0x7ae476a3/https. Both forms are
+    // accepted, and the label is resolved against the leases this box actually holds.
+    const m = /^\/x\/(0x[0-9a-fA-F]{8,64})\/(https|tls\/\d+)$/.exec(String(head.url || ""));
+    if (!m || m[2] !== "https") {
+      log(`app-zone stream ${st.sid}: refusing ${head.url}`);
+      st.sock.write(`HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n`);
+      return drop(st.sid);
+    }
+    const ref = m[1].toLowerCase();
+    let target = null;
+    try { target = await resolve(ref); } catch (e) { log(`app-zone ${ref}: ${e.message}`); }
+    const id = target?.id || ref;
+    if (!target || !target.port || !target.cert) {
+      // 503 rather than a silent close: the relay logs the status and the operator can see which
+      // half is missing (no app, or no certificate yet).
+      log(`app-zone ${id.slice(0, 10)}: ${!target ? "not served here" : !target.port ? "no app port" : "no certificate yet"}`);
+      st.sock.write(`HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n`);
+      return drop(st.sid);
+    }
+    // Hand the stream to the WebSocket server, which answers 101 on it.
+    const req = { method: head.method || "GET", url: head.url, headers: head.headers, httpVersion: "1.1",
+                  httpVersionMajor: 1, httpVersionMinor: 1, socket: st.sock, connection: st.sock };
+    st.upgraded = true;
+    wss.handleUpgrade(req, st.sock, head.rest, (ws) => {
+      const wsStream = createWebSocketStream(ws, { decodeStrings: false });
+      // Now it is just bytes: the client's TLS session, which terminates here.
+      const tlsSock = new tls.TLSSocket(wsStream, {
+        isServer: true, key: target.cert.key, cert: target.cert.cert,
+        // No client certificates, and nothing else on this socket: it is one browser's session.
+        requestCert: false, rejectUnauthorized: false,
+      });
+      let app = null;
+      const bye = () => {
+        try { tlsSock.destroy(); } catch {}
+        try { if (app) app.destroy(); } catch {}
+        try { ws.close(); } catch {}
+        drop(st.sid);
+      };
+      tlsSock.on("error", (e) => { log(`app-zone ${id.slice(0, 10)}: tls ${e.message}`); bye(); });
+      tlsSock.on("close", bye);
+      tlsSock.on("secure", () => {
+        // Only once the handshake is done is there anything to forward, and only then is it worth
+        // opening the app's socket: a scanner that never completes one costs the app nothing.
+        app = net.connect(target.port, "127.0.0.1");
+        app.on("error", (e) => { log(`app-zone ${id.slice(0, 10)}: app ${e.message}`); bye(); });
+        app.on("close", bye);
+        tlsSock.pipe(app);
+        app.pipe(tlsSock);
+        log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, serving from 127.0.0.1:${target.port}`);
+      });
+      wsStream.on("error", bye);
+      wsStream.on("close", bye);
+    });
+  }
+
+  /** The tunnel frames this module owns: s+ (open), sd (data), sx (close). */
+  function onFrame(f) {
+    if (f.t === "s+") { begin(f.sid); return true; }
+    const st = streams.get(f.sid);
+    if (!st) return f.t === "sd" || f.t === "sx";
+    if (f.t === "sx") { st.sock.remoteEnded(); drop(f.sid); return true; }
+    if (f.t !== "sd") return false;
+    const buf = Buffer.from(f.d || "", "base64");
+    if (st.upgraded) { st.sock.feed(buf); return true; }
+    st.head = Buffer.concat([st.head, buf]);
+    if (st.head.length > HEAD_LIMIT) { log(`app-zone stream ${f.sid}: oversized upgrade request`); drop(f.sid); return true; }
+    const head = parseHead(st.head);
+    if (head) onHead(st, head).catch((e) => { log(`app-zone stream ${f.sid}: ${e.message}`); drop(f.sid); });
+    return true;
+  }
+
+  return { onFrame, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); } };
+}
