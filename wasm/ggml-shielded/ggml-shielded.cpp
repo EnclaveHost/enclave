@@ -635,13 +635,17 @@ static void sh_pool_init(sh_pool &p) {
     p.cards.push_back(&sh_get());
     const char *env = getenv("SHIELDED_WORKERS");
     if (!env) return;
-    auto reject = [&]() {
+    /* Say WHY. A bare "invalid worker pool" sends the reader looking at their
+     * config, the parser, the library build and the environment in turn; the
+     * ring-path rule in particular rejects a perfectly well-formed line for a
+     * reason that is a COMPILE-TIME decision and invisible from the string. */
+    auto reject = [&](const char *why) {
         p.invalid = true;
         p.cards.resize(1);
         p.extra.clear();
-        fprintf(stderr, "[shielded] invalid worker pool; all operations stay on CPU\n");
+        fprintf(stderr, "[shielded] invalid worker pool (%s); all operations stay on CPU\n", why);
     };
-    if (!*env || strlen(env) > 8192) { reject(); return; }
+    if (!*env || strlen(env) > 8192) { reject("empty or over 8192 bytes"); return; }
     std::istringstream lines(env);
     std::string line;
     std::set<std::string> endpoints;
@@ -653,14 +657,14 @@ static void sh_pool_init(sh_pool &p) {
         std::string part;
         while (std::getline(fields, part, '|')) parts.push_back(part);
         if ((parts.size() != 4 && parts.size() != 6) || parts[0].empty() || parts[0].size() > 127 || parsed.size() >= 16 ||
-            parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) { reject(); return; }
+            parts[0].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-") != std::string::npos) { reject("line needs 4 or 6 fields with a valid host"); return; }
         uint64_t nums[3];
         for (int i = 0; i < 3; i++) {
-            if (parts[i+1].empty() || parts[i+1].find_first_not_of("0123456789") != std::string::npos || parts[i+1].size() > 15) { reject(); return; }
+            if (parts[i+1].empty() || parts[i+1].find_first_not_of("0123456789") != std::string::npos || parts[i+1].size() > 15) { reject("port/vsock/reservation must be plain decimal"); return; }
             nums[i] = strtoull(parts[i+1].c_str(), nullptr, 10);
         }
         if (nums[0] < 1 || nums[0] > 65535 || nums[1] > (1U << 30) || nums[2] < 1 || nums[2] > (1ULL << 50) ||
-            !endpoints.insert(parts[0] + ":" + std::to_string(nums[0])).second) { reject(); return; }
+            !endpoints.insert(parts[0] + ":" + std::to_string(nums[0])).second) { reject("port out of range, reservation out of range, or duplicate endpoint"); return; }
         auto s = std::make_unique<sh_state>();
         sh_env_defaults(*s);
         if (parts.size() == 6) {
@@ -674,14 +678,14 @@ static void sh_pool_init(sh_pool &p) {
 #ifdef SHIELDED_ALLOW_DEV_SHM_RINGS
             if (parts[4].compare(0, prefix.size(), prefix) != 0) prefix = "/dev/shm/enclave-shielded-shm/card-";
 #endif
-            if (parts[4].compare(0, prefix.size(), prefix) != 0) { reject(); return; }
+            if (parts[4].compare(0, prefix.size(), prefix) != 0) { reject("ring path outside the permitted directory -- a /dev/shm ring needs a build with SHIELDED_EXTRA_DEFS=-DSHIELDED_ALLOW_DEV_SHM_RINGS"); return; }
             const std::string id = parts[4].substr(prefix.size());
             if (id.empty() || id.size() > 2 || id.find_first_not_of("0123456789") != std::string::npos ||
                 (id.size() > 1 && id[0] == '0') || atoi(id.c_str()) >= 16 ||
                 !shm_paths.insert(parts[4]).second || parts[5].empty() || parts[5].size() > 8 ||
-                parts[5].find_first_not_of("0123456789") != std::string::npos) { reject(); return; }
+                parts[5].find_first_not_of("0123456789") != std::string::npos) { reject("ring card id or size field malformed"); return; }
             const uint64_t bytes = strtoull(parts[5].c_str(), nullptr, 10);
-            if (bytes < 8 * 1048576ULL || bytes > 64 * 1048576ULL || (bytes & (bytes - 1))) { reject(); return; }
+            if (bytes < 8 * 1048576ULL || bytes > 64 * 1048576ULL || (bytes & (bytes - 1))) { reject("ring size must be a power of two from 8 to 64 MiB"); return; }
             s->shm_path = parts[4]; s->shm_bytes = bytes;
         }
         s->host = parts[0]; s->port = (int)nums[0]; s->vsock_port = (int)nums[1];
@@ -691,7 +695,7 @@ static void sh_pool_init(sh_pool &p) {
         s->reserve_cap = std::max<int64_t>(1, (int64_t)(nums[2] * frac));
         parsed.push_back(std::move(s));
     }
-    if (parsed.empty()) { reject(); return; }
+    if (parsed.empty()) { reject("no usable worker lines"); return; }
     // A single process-wide refill budget, divided over links. More cards must
     // not create N copies of the old ncores/2 thread pool.
     int threads = sh_env_int("SHIELDED_REFILL_THREADS", (int)std::max(1U, std::thread::hardware_concurrency()/2));
