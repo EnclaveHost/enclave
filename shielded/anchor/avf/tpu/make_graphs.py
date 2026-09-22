@@ -31,6 +31,12 @@ ap.add_argument('--no-graphs', action='store_true', help='write only the lane bu
 ap.add_argument('--mod-headroom', type=float, default=1.0, help='modular: modulus = next power of two above headroom*(2*sig_q+1). '
                 'Security is IDENTICAL for every value (the pad is uniform on the modulus either way); this only trades '
                 'resolution against the VM-side wrap correction, whose density falls as 1/headroom.')
+ap.add_argument('--digit-combine', action='store_true', help='RECOMBINE the digits on the TPU: hi and lo go in as '
+                'two int8 tensors, two FULLY_CONNECTEDs share ONE weight buffer at scales differing by 256, and an '
+                'elementwise ADD returns 256*hi + lo as ONE int16 row per logical row. Halves the reply (3432 -> 1716 '
+                'KB/token) and is more accurate, because the hi rounding is no longer multiplied by 256 on the way '
+                'out (simulated 1.000/0.409 max/rms output LSB against the stacked design 1.254/0.722). Implies '
+                '--digit-split. Needs a worker that binds TWO inputs, and the bundle magic becomes ETPUB003.')
 ap.add_argument('--digit-split', action='store_true', help='send each masked row as TWO int8 digits, q = 256*hi + lo, instead of one '
                 'int16 row, stacked as rows: hi in [0, rows), lo in [rows, 2*rows). Same bytes OUT and the same weights, but the '
                 'compiler no longer stores every weight at two bytes to feed an int16 activation: measured on a real layer, '
@@ -38,7 +44,10 @@ ap.add_argument('--digit-split', action='store_true', help='send each masked row
                 'Rows are free on this TPU, so one FULLY_CONNECTED still does it. The VM recombines 256*hi + lo, which doubles the '
                 'reply; recombining on the TPU instead needs two FCs and MEASURED 71.9 MB - the second FC emits the weights again and '
                 'cancels the saving. Bundle magic becomes ETPUB002 so a payload that does not digit-split refuses it loudly.')
-A = ap.parse_args(); os.makedirs(A.outdir, exist_ok=True)
+A = ap.parse_args()
+if A.digit_combine:
+    A.digit_split = True          # combining is a variant of digit-split, not an alternative to it
+os.makedirs(A.outdir, exist_ok=True)
 # The digit reply carries both halves at ONE scale, sized for the larger of the two: lo spans +-128 against the
 # masked value's +-16384, so its product reaches about 1/128 of a full-range output (hi reaches 1/256). The extra
 # 1.25 is headroom against the pad's statistical spread. payload/ggml-tpu.cpp MUST use the same number - it is
@@ -92,6 +101,15 @@ class Builder:
         self.m = S.ModelT(); self.m.version = 3; self.m.description = b'enclave shielded int16 lanes'; self.m.operatorCodes = []; self.m.subgraphs = []
         self.m.buffers = [S.BufferT()]; self.m.signatureDefs = []; self.m.metadata = []
         oc = S.OperatorCodeT(); oc.builtinCode = S.BuiltinOperator.FULLY_CONNECTED; oc.deprecatedBuiltinCode = S.BuiltinOperator.FULLY_CONNECTED; oc.version = 5; self.m.operatorCodes.append(oc)
+
+    def _add_op(self, builtin):
+        """Register an operator code once and return its index (FULLY_CONNECTED is always index 0)."""
+        for i, oc in enumerate(self.m.operatorCodes):
+            if oc.builtinCode == builtin:
+                return i
+        oc = S.OperatorCodeT(); oc.builtinCode = builtin; oc.deprecatedBuiltinCode = builtin; oc.version = 5
+        self.m.operatorCodes.append(oc)
+        return len(self.m.operatorCodes) - 1
     def _tensor(self, name, ttype, shape, scale, buf=0):
         t = S.TensorT(); t.name = name.encode(); t.type = ttype; t.shape = np.array(shape, np.int32); t.buffer = buf
         q = S.QuantizationParametersT(); q.scale = np.atleast_1d(np.asarray(scale, np.float32)); q.zeroPoint = np.zeros(len(q.scale), np.int64); q.quantizedDimension = 0; t.quantization = q
@@ -102,21 +120,46 @@ class Builder:
             # q = 256*hi + lo, both digits int8, stacked as ROWS of ONE tensor: hi in rows [0, rows), lo in
             # [rows, 2*rows). One FULLY_CONNECTED per projection, exactly as today - which is the whole point.
             #
-            # Two separate FCs against a shared weight tensor would be tidier (the TPU could do the 256*hi + lo
-            # itself with an ADD, keeping the reply one row) but MEASURED: that emits the weights TWICE for a real
-            # layer, 35.6 MB authored -> 71.9 MB compiled, cancelling exactly the saving we came for. One FC over
-            # stacked rows compiles at 1.02x instead, because rows are free on this TPU. The recombination moves to
-            # the VM, which costs double on the reply and is still far the better trade.
+            # CORRECTION (2026-09-22): this comment used to say that two FCs against a shared weight tensor
+            # emit the weights TWICE (35.6 -> 71.9 MB on a real layer), and that is why the recombination was
+            # left to the VM. Re-measured, they emit them ONCE: at 1536x6144 one FC compiles to 9.67 MB and
+            # two FCs sharing a weight buffer to 9.68 MB, 1.00x. See --digit-combine below, and
+            # a8w4/probe_shared_weight.py.
             #
             # Both digit halves share one input scale, so the VM applies the 256 when it recombines.
-            sg.tensors = [self._tensor(key + '_x', S.TensorType.INT8, [2 * rows, g['n_in']], g['s_in'])]
-            sg.inputs = np.array([0], np.int32)
+            if A.digit_combine:
+                # hi and lo as SEPARATE inputs. They cannot be one tensor sliced in the graph: SLICE, SPLIT,
+                # STRIDED_SLICE, RESHAPE, TRANSPOSE and BATCH_MATMUL all crash the G5 compiler with INTERNAL,
+                # whether applied to the FC's output or to its input (a8w4/COMPILER-BUG-slice-after-fc.md).
+                sg.tensors = [self._tensor(key + '_xhi', S.TensorType.INT8, [rows, g['n_in']], g['s_in']),
+                              self._tensor(key + '_xlo', S.TensorType.INT8, [rows, g['n_in']], g['s_in'])]
+                sg.inputs = np.array([0, 1], np.int32)
+            else:
+                sg.tensors = [self._tensor(key + '_x', S.TensorType.INT8, [2 * rows, g['n_in']], g['s_in'])]
+                sg.inputs = np.array([0], np.int32)
         else:
             sg.tensors = [self._tensor(key + '_x', S.TensorType.INT16, [rows, g['n_in']], g['s_in'])]
             sg.inputs = np.array([0], np.int32)
         for p in g['projs']:
             b = S.BufferT(); b.data = np.frombuffer(p['Wq'].tobytes(), np.uint8); self.m.buffers.append(b)
-            wi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_w' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, p['sw'], len(self.m.buffers) - 1))
+            buf = len(self.m.buffers) - 1
+            if A.digit_combine:
+                # TWO weight tensors, ONE buffer, scales differing by 256. The 256 has to live in the weights:
+                # quantisation scales divide out of the ADD, so two FCs sharing one weight TENSOR would compute
+                # W.(hi + lo) rather than W.(256.hi + lo). Both name the same buffer, so the weights stream once.
+                whi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_whi' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, np.asarray(p['sw'], np.float32) * np.float32(256.0), buf))
+                wlo = len(sg.tensors); sg.tensors.append(self._tensor(key + '_wlo' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, p['sw'], buf))
+                yhi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_yhi' + str(len(outs)), S.TensorType.INT16, [rows, p['Wq'].shape[0]], p['s_out']))
+                ylo = len(sg.tensors); sg.tensors.append(self._tensor(key + '_ylo' + str(len(outs)), S.TensorType.INT16, [rows, p['Wq'].shape[0]], p['s_out']))
+                oi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_y' + str(len(outs)), S.TensorType.INT16, [rows, p['Wq'].shape[0]], p['s_out'])); outs.append(oi)
+                for xi, wt, yt in ((0, whi, yhi), (1, wlo, ylo)):
+                    op = S.OperatorT(); op.opcodeIndex = 0; op.inputs = np.array([xi, wt, -1], np.int32); op.outputs = np.array([yt], np.int32)
+                    op.builtinOptionsType = S.BuiltinOptions.FullyConnectedOptions
+                    o = S.FullyConnectedOptionsT(); o.keepNumDims = True; op.builtinOptions = o; sg.operators.append(op)
+                op = S.OperatorT(); op.opcodeIndex = self._add_op(S.BuiltinOperator.ADD); op.inputs = np.array([yhi, ylo], np.int32); op.outputs = np.array([oi], np.int32)
+                op.builtinOptionsType = S.BuiltinOptions.AddOptions; op.builtinOptions = S.AddOptionsT(); sg.operators.append(op)
+                continue
+            wi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_w' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, p['sw'], buf))
             # Digit-split doubles the rows, and the reply carries both halves at ONE scale. The bigger of the two
             # is the lo product: lo spans +-128 against the masked value's +-16384, so it reaches about 1/128 of a
             # full-range output, while the hi product reaches 1/256. Scaling the reply for the larger keeps both
@@ -129,7 +172,14 @@ class Builder:
             op.builtinOptionsType = S.BuiltinOptions.FullyConnectedOptions; o = S.FullyConnectedOptionsT(); o.keepNumDims = True; op.builtinOptions = o; sg.operators.append(op)
         sg.outputs = np.array(outs, np.int32); self.m.subgraphs.append(sg)
         sd = S.SignatureDefT(); sd.signatureKey = key.encode(); sd.subgraphIndex = len(self.m.subgraphs) - 1
-        tm = S.TensorMapT(); tm.name = b'x'; tm.tensorIndex = 0; sd.inputs = [tm]
+        if A.digit_combine:
+            # ORDER matters: the worker writes the first half of the wire into input 0 and the second into 1,
+            # and the wire carries hi then lo.
+            t0 = S.TensorMapT(); t0.name = b'x'; t0.tensorIndex = 0
+            t1 = S.TensorMapT(); t1.name = b'x1'; t1.tensorIndex = 1
+            sd.inputs = [t0, t1]
+        else:
+            tm = S.TensorMapT(); tm.name = b'x'; tm.tensorIndex = 0; sd.inputs = [tm]
         sd.outputs = []
         for n, i in enumerate(outs): tm = S.TensorMapT(); tm.name = f'y{n}'.encode(); tm.tensorIndex = i; sd.outputs.append(tm)
         self.m.signatureDefs.append(sd)

@@ -1481,3 +1481,35 @@ So the answer to "is there a viable option" is: not through a masked worker outs
 model size worth serving. The accelerator has to be INSIDE the pVM, which is a platform gate --
 `Assignable devices: []`, `VFIO-platform is not supported`, kernel 6.6.118 — and re-checked on the device
 today rather than recalled.
+
+## Correction: the reply is NOT demonstrably halvable, and my probe was not representative (2026-09-22)
+
+The section above claims "the reply CAN be halved on the TPU" on the strength of a probe. Building the
+construction into a REAL layer refutes it, and the error in the probe is worth recording because it is
+the same shape as the others found tonight.
+
+**What happened.** `tpu/make_graphs.py --digit-combine` now emits the construction: hi and lo as two int8
+inputs, two FULLY_CONNECTEDs whose weight tensors share one buffer at scales differing by 256, and an
+elementwise ADD. Generated for block 0 of the shipped model it authors at 35.8 MB and then **fails to
+compile**, with the same `INTERNAL` error as everything else.
+
+**Why the probe said otherwise.** `probe_shared_weight.py` filled its weights with ZEROS. Identical
+zero-filled buffers deduplicate trivially, so "the compiler shares the constant" was partly a statement
+about the test data. Re-run with random weights, a structural probe that mirrors the real graph
+(`probe_combine_structure.py`) crashes at EVERY size tried, including one projection at 512x512, with or
+without signature definitions -- while `probe_shared_weight.py` at the same size still compiles. Two of
+my own probes now disagree about the same construction, which means at least one is not representative of
+the real graph, and the real graph is the one that matters.
+
+**What survives.** The original reason for rejecting the recombination -- "two FCs emit the weights twice,
+35.6 -> 71.9 MB" -- is still wrong. With RANDOM weights at 512x512, a graph with two SEPARATE weight
+buffers holding the same data authors at 0.54 MB and compiles to 0.50 MB, the same as the single FC: the
+compiler deduplicates by CONTENT. So weight duplication is not what blocks this.
+
+**What does not survive.** That the reply can be halved. It cannot, today, because the construction does
+not compile at real scale, and the reason is not yet identified. The simulated accuracy gain (1.000/0.409
+max/rms output LSB against 1.254/0.722 for the shipped design) is a property of arithmetic that no
+accelerator will run, so it is not a result either.
+
+The `--digit-combine` flag stays in `make_graphs.py`, with this noted, because the bug report needs a
+real-layer reproducer and that is now what it is.
