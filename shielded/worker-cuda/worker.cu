@@ -1405,6 +1405,14 @@ static long long pool_reserved_now() {
     cudaMemPoolGetAttribute(default_pool(), cudaMemPoolAttrReservedMemCurrent, &r);
     return (long long)r;
 }
+/* What the pool holds but has not handed out. Not spare: it is mostly an
+ * earlier tenant's reserved-but-unallocated room. Called under g_gpu. */
+static long long pool_free_now() {
+    cuuint64_t r = 0, u = 0;
+    cudaMemPoolGetAttribute(default_pool(), cudaMemPoolAttrReservedMemCurrent, &r);
+    cudaMemPoolGetAttribute(default_pool(), cudaMemPoolAttrUsedMemCurrent, &u);
+    return (long long)r - (long long)u;
+}
 /* What the pool keeps for us: everything, while anything is reserved or an
  * unreserved link holds device memory; nothing when idle. The pool releases
  * in whole chunks (32 MiB on this driver) and a threshold below the chunk
@@ -1424,28 +1432,93 @@ static void pool_trim() {
     pool_retune();
     cudaMemPoolTrimTo(default_pool(), (size_t)(g_reserved + g_floating));
 }
+/* SHIELDED_CLAIM_TRACE=1 also reports the reservation LIFECYCLE: which link
+ * asked, what the ledger held when it asked, how many links hold a
+ * reservation at that moment, and what each release gave back. A refusal that
+ * says "the pool holds P against R reserved" prints R after the rollback, so
+ * a failed SECOND claim reads like a third one; the count below says which it
+ * was without inference. */
+static bool claim_trace() {
+    static const bool on = [] { const char *e = getenv("SHIELDED_CLAIM_TRACE"); return e && *e == '1'; }();
+    return on;
+}
+static int g_reservers = 0;              /* links holding a reservation right now; under g_gpu */
+
 /* Take R more bytes from the driver for the pool, or leave the pool as it
- * was. The pool serves a new allocation from its cache first, so one malloc
- * of R need not grow it: hold what is handed out until the pool's reserved
- * figure reaches the new threshold, then free the holds -- the threshold now
- * keeps them. Called under g_gpu; on failure *freeb is the driver's figure. */
+ * was. The pool serves a new allocation from its free space first, so one
+ * malloc of R need not grow it: hold what is handed out until the pool's
+ * reserved figure reaches the new threshold, then free the holds -- the
+ * threshold now keeps them. Called under g_gpu; on failure *freeb is the
+ * driver's figure.
+ *
+ * SHIELDED_CLAIM_TRACE=1 reports what the loop did: per iteration the gap, the
+ * size actually asked for, the pool's free figure, whether the pool grew and
+ * the CUDA status; at the end the ledger either side, the target, the
+ * shortfall, the pool's Used and Reserved, and the driver's free. It is how
+ * the refusal below was diagnosed and it is the way to diagnose the next one,
+ * because a claim that fails with gigabytes free on the card says nothing
+ * useful from outside. */
 static bool claim_reservation(long long R, size_t *freeb, long long *held) {
+    const bool trace = claim_trace();
+    const long long reserved_before = g_reserved;
     const long long target = g_reserved + R + g_floating;
     g_reserved += R;
     pool_retune();
     std::vector<void *> holds;
     bool ok = true;
+    int iters = 0;
+    cudaError_t last = cudaSuccess;
     for (int i = 0; i < 16 && ok; i++) {
         const long long have = pool_reserved_now();
         if (have >= target) break;
+        iters++;
         void *p = nullptr;
-        if (cudaMallocAsync(&p, (size_t)(target - have), 0) != cudaSuccess) { cudaGetLastError(); ok = false; break; }
+        /* Ask for the gap PLUS everything the pool is holding free, because a
+         * request for the gap alone can be answered entirely out of that free
+         * space and leave ReservedMemCurrent exactly where it was. Then `have`
+         * does not move, the next iteration computes the same gap, and the
+         * claim is refused with the card far from full. Measured 2026-09-22 on
+         * a V100, two 15.5 GB tenants: the gap converged to 29259264 and
+         * twelve identical requests each returned cudaSuccess with grew=0,
+         * while the driver still had 2.67 GB free.
+         *
+         * Adding the free figure makes the request larger than the pool can
+         * cover from what it has, so it takes the difference from the driver.
+         * The difference is the gap, not the whole request: one allocation
+         * draws on the pool's free space and on new chunks at once (same
+         * trace: a 15.50 GB request grew the pool by 12.72 GB, reusing the
+         * 2.78 GB that was free). If that larger request is refused anyway,
+         * fall back to the bare gap, which is what this asked for before. */
+        const long long gap = target - have;
+        const long long freein = pool_free_now();
+        long long want_now = gap + (freein > 0 ? freein : 0);
+        last = cudaMallocAsync(&p, (size_t)want_now, 0);
+        if (last != cudaSuccess && want_now != gap) {
+            cudaGetLastError();
+            want_now = gap;
+            last = cudaMallocAsync(&p, (size_t)want_now, 0);
+        }
+        if (last != cudaSuccess) { cudaGetLastError(); ok = false; break; }
         holds.push_back(p);
+        if (trace) {
+            const long long after = pool_reserved_now();
+            fprintf(stderr, "[claim] iter=%d gap=%lld asked=%lld free=%lld have=%lld -> %lld grew=%lld status=%s\n",
+                    i, gap, want_now, freein, have, after, after - have, cudaGetErrorName(last));
+        }
     }
     for (void *p : holds) cudaFreeAsync(p, 0);
     if (cudaStreamSynchronize(0) != cudaSuccess) ok = false;
     *held = pool_reserved_now();
     if (ok && *held < target) ok = false;          /* the pool let the holds go: not a reservation */
+    if (trace) {
+        cuuint64_t used = 0;
+        cudaMemPoolGetAttribute(default_pool(), cudaMemPoolAttrUsedMemCurrent, &used);
+        size_t fb = 0, tb = 0; cudaMemGetInfo(&fb, &tb);
+        fprintf(stderr, "[claim] %s R=%lld reserved_before=%lld target=%lld held=%lld short=%lld "
+                        "iters=%d holds=%zu pool_used=%llu driver_free=%zu floating=%lld\n",
+                ok ? "OK" : "FAIL", R, reserved_before, target, *held, target - *held,
+                iters, holds.size(), (unsigned long long)used, fb, g_floating);
+    }
     if (!ok) {
         g_reserved -= R;
         pool_trim();
@@ -1554,7 +1627,11 @@ struct Conn {
         {
             std::lock_guard<std::mutex> lk(g_gpu);
             if (!reserve) g_floating -= allocated;
+            if (reserve) g_reservers--;
             release_reservation(reserve);            /* also trims what an unreserved link freed */
+            if (claim_trace())
+                fprintf(stderr, "[claim] close peer=%s reserve=%lld allocated=%lld reserved=%lld floating=%lld reservers=%d\n",
+                        peer.c_str(), reserve, allocated, g_reserved, g_floating, g_reservers);
         }
     }
 
@@ -1635,10 +1712,17 @@ struct Conn {
                     VIOLATE("reservation %llu exceeds the budget: %lld reserved of %lld",
                             (unsigned long long)want, g_reserved, g_vram_budget);
                 long long held = 0;
+                if (claim_trace())
+                    fprintf(stderr, "[claim] hello peer=%s want=%llu reserved=%lld floating=%lld reservers=%d\n",
+                            peer.c_str(), (unsigned long long)want, g_reserved, g_floating, g_reservers);
                 if (!claim_reservation((long long)want, &freeb, &held))
                     VIOLATE("cannot reserve %llu: the card has %zu free (the pool holds %lld against %lld reserved)",
                             (unsigned long long)want, freeb, held, g_reserved);
                 reserve = (long long)want;
+                g_reservers++;
+                if (claim_trace())
+                    fprintf(stderr, "[claim] held peer=%s reserve=%lld reserved=%lld reservers=%d\n",
+                            peer.c_str(), reserve, g_reserved, g_reservers);
             }
             cudaMemGetInfo(&freeb, &totalb);
             /* Re-measured on HELLO when the last figure is older than 20 s: the
