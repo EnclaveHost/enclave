@@ -17,7 +17,7 @@ test("pad windows never rewind on reconnect, wrap their counter, or overlap conc
     execFileSync("cc",[...flags,...(process.arch==="arm64"?["-march=armv8.2-a+dotprod","-DSH_SIMD_NEON"]:
       ["-mavx512f","-mavx512bw","-mavx512dq","-mavx512vl","-mavx512vnni","-DSH_SIMD_AVX512"]),
       "-c",source("shielded-simd.c"),"-o",fast],{timeout:30000,stdio:"pipe"});
-    const core=["shielded-field.c","shielded-pads.c","shielded-bank.c","shielded-http.c","tweetnacl.c","poly1305-donna.c"];
+    const core=["shielded-field.c","shielded-parwork.c","shielded-pads.c","shielded-bank.c","shielded-http.c","tweetnacl.c","poly1305-donna.c"];
     execFileSync("cc",[...flags,fileURLToPath(new URL("./fixtures/shielded-pad-replay.c",import.meta.url)),
       ...core.map(source),simd,fast,"-Wl,--gc-sections","-lpthread","-lm","-o",bin],{timeout:60000,stdio:"pipe"});
     const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith("SHIELDED_")));

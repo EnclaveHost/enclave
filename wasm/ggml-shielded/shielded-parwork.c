@@ -1,7 +1,14 @@
 /* See shielded-parwork.h. Spin-then-park helpers, thread-local per caller. */
+/* clock_gettime, CLOCK_MONOTONIC and pthread_condattr_setclock are POSIX, and
+ * a strict -std=c11 build (the test fixtures use one) hides them without this.
+ * shielded-tee.c does the same, for the same reason. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "shielded-parwork.h"
 
 #include <pthread.h>
+#include <time.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,16 +49,28 @@ typedef struct {
 
 static _Thread_local sh_par_pool g_pool;
 
+/* Read once per process. The column split calls this from BOTH card threads,
+ * so the lazy initialisation has to be a real one-time init rather than a
+ * plain `static int w = -1` tested and assigned without synchronisation --
+ * that is a data race even though every racing writer stores the same value. */
+static pthread_once_t g_width_once = PTHREAD_ONCE_INIT;
+static int g_width = 1;
+static unsigned long g_spins = SH_PAR_SPINS;
+static void sh_par_width_init(void) {
+    const char *e = getenv("SHIELDED_FIELD_THREADS");
+    int v = (e && *e) ? atoi(e) : 1;
+    if (v < 1) v = 1;
+    if (v > SH_PAR_MAX) v = SH_PAR_MAX;
+    g_width = v;
+    /* Only the park/dispatch regression sets this. 0 parks on the first miss,
+     * which is what makes that boundary reachable on purpose instead of once
+     * in a billion dispatches. */
+    const char *sp = getenv("SHIELDED_FIELD_SPINS");
+    if (sp && *sp) { const long n = atol(sp); if (n >= 0) g_spins = (unsigned long)n; }
+}
 int sh_par_width(void) {
-    static int w = -1;
-    if (w < 0) {
-        const char *e = getenv("SHIELDED_FIELD_THREADS");
-        int v = (e && *e) ? atoi(e) : 1;
-        if (v < 1) v = 1;
-        if (v > SH_PAR_MAX) v = SH_PAR_MAX;
-        w = v;
-    }
-    return w;
+    pthread_once(&g_width_once, sh_par_width_init);
+    return g_width;
 }
 
 static void *sh_par_main(void *arg) {
@@ -63,7 +82,7 @@ static void *sh_par_main(void *arg) {
             if (atomic_load_explicit(&w->stop, memory_order_acquire)) return NULL;
             const uint64_t g = atomic_load_explicit(&w->gen, memory_order_acquire);
             if (g != seen) { seen = g; break; }
-            if (++spins < SH_PAR_SPINS) { SH_PAR_RELAX(); continue; }
+            if (++spins < g_spins) { SH_PAR_RELAX(); continue; }
             /* Park. The publisher takes the same mutex before it signals, so a
              * generation cannot be missed between the test and the wait. The
              * parked flag is published UNDER the mutex so a dispatch either
@@ -73,9 +92,31 @@ static void *sh_par_main(void *arg) {
              * more than the work being handed to it. */
             pthread_mutex_lock(&w->mu);
             atomic_store_explicit(&w->parked, 1, memory_order_release);
+            /* SEE THE MATCHING FENCE IN sh_par_for.
+             *
+             * This thread stores `parked` then reads `gen`; the dispatcher
+             * stores `gen` then reads `parked`. Release/acquire on two
+             * DIFFERENT atomics orders nothing between them, so without these
+             * fences both sides may read the stale value -- the dispatcher
+             * sees parked == 0 and does not signal, this thread sees the old
+             * gen and waits. The mutex does not close it either, because the
+             * dispatcher only takes the mutex AFTER deciding `parked` was
+             * true. Two seq_cst fences put these four operations into one
+             * total order, and at least one side must then observe the
+             * other's store. */
+            atomic_thread_fence(memory_order_seq_cst);
             while (!atomic_load_explicit(&w->stop, memory_order_acquire) &&
-                   atomic_load_explicit(&w->gen, memory_order_acquire) == seen)
-                pthread_cond_wait(&w->cv, &w->mu);
+                   atomic_load_explicit(&w->gen, memory_order_acquire) == seen) {
+                /* Bounded purely as defence in depth: the fences above are
+                 * what make this correct. Should a wakeup ever be lost anyway,
+                 * this makes it a stall the regression can measure rather than
+                 * a hang that takes the whole decode with it. */
+                struct timespec dl;
+                clock_gettime(CLOCK_MONOTONIC, &dl);
+                dl.tv_nsec += 20 * 1000 * 1000L;
+                if (dl.tv_nsec >= 1000000000L) { dl.tv_sec++; dl.tv_nsec -= 1000000000L; }
+                pthread_cond_timedwait(&w->cv, &w->mu, &dl);
+            }
             atomic_store_explicit(&w->parked, 0, memory_order_release);
             pthread_mutex_unlock(&w->mu);
             spins = 0;
@@ -112,7 +153,11 @@ static int sh_par_ensure(int helpers) {
         sh_par_worker *w = (sh_par_worker *)calloc(1, sizeof *w);
         if (!w) break;
         pthread_mutex_init(&w->mu, NULL);
-        pthread_cond_init(&w->cv, NULL);
+        pthread_condattr_t ca;
+        pthread_condattr_init(&ca);
+        pthread_condattr_setclock(&ca, CLOCK_MONOTONIC);
+        pthread_cond_init(&w->cv, &ca);
+        pthread_condattr_destroy(&ca);
         atomic_store(&w->gen, 0); atomic_store(&w->done, 0); atomic_store(&w->stop, 0);
         atomic_store(&w->parked, 0);
         if (pthread_create(&w->th, NULL, sh_par_main, w) != 0) {
@@ -153,6 +198,11 @@ void sh_par_for(int64_t n, int64_t min_chunk, sh_par_fn fn, void *ctx) {
         w->fn = fn; w->ctx = ctx; w->lo = lo; w->hi = hi;
         want[i] = atomic_load_explicit(&w->gen, memory_order_relaxed) + 1;
         atomic_store_explicit(&w->gen, want[i], memory_order_release);
+        /* The other half of the handshake described in sh_par_main: without
+         * this fence the store above and the load below can both be reordered
+         * against the worker's pair, and a wakeup is lost. One mfence per
+         * helper per dispatch, against work measured in microseconds. */
+        atomic_thread_fence(memory_order_seq_cst);
         if (atomic_load_explicit(&w->parked, memory_order_acquire)) {
             pthread_mutex_lock(&w->mu); pthread_cond_signal(&w->cv); pthread_mutex_unlock(&w->mu);
         }

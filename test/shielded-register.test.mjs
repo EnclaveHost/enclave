@@ -16,7 +16,7 @@ test('weight registration fails closed on allocation/entropy errors and joins no
       const cc=spawnSync('cc',['-O1','-g','-fsanitize=address,undefined',...extra,'-c',join(root,'wasm/ggml-shielded/shielded-simd.c'),'-o',out],{encoding:'utf8',timeout:30_000});
       assert.equal(cc.status,0,cc.stdout+cc.stderr);
     }
-    const core=['shielded-field.c','shielded-pads.c','shielded-bank.c','shielded-http.c','tweetnacl.c','poly1305-donna.c'];
+    const core=['shielded-field.c','shielded-parwork.c','shielded-pads.c','shielded-bank.c','shielded-http.c','tweetnacl.c','poly1305-donna.c'];
     const cc=spawnSync('cc',['-std=c11','-O1','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer',
       '-ffunction-sections','-fdata-sections','-ffp-contract=off',join(root,'test/fixtures/shielded-register.c'),
       ...core.map(x=>join(root,'wasm/ggml-shielded',x)),simd,fast,'-Wl,--gc-sections','-lpthread','-lm','-o',bin],{encoding:'utf8',timeout:60_000});

@@ -42,6 +42,7 @@ static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
 #define SIMD_TABLE_REFILL(sfx, nm, refill_fn) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
     sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, refill_fn, sh_simd_##sfx##_outlier_add, \
+    sh_simd_##sfx##_outlier_add_stride, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
     sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv, sh_simd_##sfx##_encode_checked }
 #define SIMD_TABLE(sfx, nm) SIMD_TABLE_REFILL(sfx, nm, sh_simd_##sfx##_refill)

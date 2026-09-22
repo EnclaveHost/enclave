@@ -123,7 +123,7 @@ test("pad-budget coverage is an interval union that refuses rather than over-cla
 // the counter-exclusion flag, and both BUSY shapes.
 test("pad-budget link snapshot reports only what it observed", () => {
   build_and_run("shielded-pad-budget-link", {
-    core: ["shielded-field.c", "shielded-wire.c", "shielded-bank.c", "shielded-http.c",
+    core: ["shielded-field.c", "shielded-wire.c", "shielded-parwork.c", "shielded-bank.c", "shielded-http.c",
            "prefix-kv.c", "tweetnacl.c", "poly1305-donna.c"],
     simd: true,
   });

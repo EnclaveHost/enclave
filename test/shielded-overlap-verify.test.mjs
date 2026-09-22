@@ -30,7 +30,9 @@ test('overlapped verification preserves exact grouped products and rejects corru
     execFileSync('cc', [...flags, ...(arm ? ['-march=armv8.2-a+dotprod', '-DSH_SIMD_NEON'] :
       ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mavx512vnni', '-DSH_SIMD_AVX512']),
       '-c', source('shielded-simd.c'), '-o', fast], { timeout: 30_000 });
-    const core = ['shielded-field.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c', 'tweetnacl.c', 'poly1305-donna.c'];
+    // shielded-tee.c (included by the fixture) dispatches its elementwise field
+    // passes through sh_par_for, so the helper pool is part of this link.
+    const core = ['shielded-field.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c', 'shielded-parwork.c', 'tweetnacl.c', 'poly1305-donna.c'];
     const bin = join(dir, 'verify');
     execFileSync('cc', [...flags, '-ffp-contract=off', fixture('shielded-overlap-verify.c'), ...core.map(source), simd, fast,
       '-Wl,--gc-sections', '-lpthread', '-lm', '-o', bin], { timeout: 60_000 });
