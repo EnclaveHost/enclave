@@ -16,29 +16,48 @@
 # cache key so a bypassed run can never be served as a controlled one.
 #
 #   COOL_TRIES (default 90) and COOL_SLEEP (default 10) exist so the tests can drive it quickly.
+# One read, with its transport/remote status checked. The previous version captured `rc=$?` after the
+# THERMAL read only; the two frequency assignments' statuses were discarded entirely, so a device whose
+# `cat` printed 2000 and exited 42 produced "cool gate: OK ... cap=2000/2000" and the run proceeded.
+# Valid-looking output with a failure status is the same shape as three other defects in this tree.
+_cg_read() {
+  local out rc
+  out=$($ADB shell "$1" 2>/dev/null); rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  printf '%s' "$out" | tr -d '\r'
+}
+# and a frequency must be a POSITIVE integer: 0 = 0 satisfied "uncapped" before this.
+_cg_pos() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ "$1" -gt 0 ]; }
+
 cool_gate() {
-  local st mx top i rc
+  local st mx top i why
   if [ "${NOCOOL:-0}" = 1 ]; then
     echo "cool gate: BYPASSED by NOCOOL=1 -- this run is NOT thermally controlled and its rates are not comparable"
     return 0
   fi
+  why="no check completed"
   for i in $(seq 1 "${COOL_TRIES:-90}"); do
-    st=$($ADB shell "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'" 2>/dev/null); rc=$?
-    st=$(printf '%s' "$st" | tr -d '\r')
-    mx=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq 2>/dev/null | tr -d '\r')
-    top=$($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq 2>/dev/null | tr -d '\r')
-    # every one of these is a way the old gate silently continued: a failed transport, an empty read,
-    # a non-numeric read, a throttled status, or a capped clock
-    if [ "$rc" -eq 0 ] && [ "$st" = "Thermal Status: 0" ] \
-       && [ -n "$mx" ] && [ -n "$top" ] \
-       && [ -z "${mx//[0-9]/}" ] && [ -z "${top//[0-9]/}" ] \
-       && [ "$mx" = "$top" ]; then
+    if   ! st=$(_cg_read "dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status'"); then
+      why="the thermal read failed"
+    elif ! mx=$(_cg_read "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq"); then
+      why="the scaling_max_freq read failed"
+    elif ! top=$(_cg_read "cat /sys/devices/system/cpu/cpu2/cpufreq/cpuinfo_max_freq"); then
+      why="the cpuinfo_max_freq read failed"
+    elif [ "$st" != "Thermal Status: 0" ]; then
+      why="throttled: '${st:-<empty>}'"
+    elif ! _cg_pos "$mx"; then
+      why="scaling_max_freq is not a positive integer: '${mx:-<empty>}'"
+    elif ! _cg_pos "$top"; then
+      why="cpuinfo_max_freq is not a positive integer: '${top:-<empty>}'"
+    elif [ "$mx" != "$top" ]; then
+      why="clocks capped: $mx of $top"
+    else
       echo "cool gate: OK Thermal Status: 0 cap=$mx/$top after $i check(s)"
       return 0
     fi
     sleep "${COOL_SLEEP:-10}"
   done
-  echo "cool gate: FAILED after ${COOL_TRIES:-90} checks -- status='${st:-<empty>}' scaling_max='${mx:-<empty>}' cpuinfo_max='${top:-<empty>}'" >&2
+  echo "cool gate: FAILED after ${COOL_TRIES:-90} checks -- $why" >&2
   echo "REFUSING to measure: a rate from a hot or capped phone is not a comparable measurement." >&2
   echo "Set NOCOOL=1 to measure anyway; it will be recorded as uncontrolled and keyed separately." >&2
   return 1

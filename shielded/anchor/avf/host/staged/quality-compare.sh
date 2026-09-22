@@ -82,8 +82,24 @@ echo "graphs: $GN file(s) digested individually"
 # UNMATCHED runners as a matched run -- the relabelling defect again, now at the level of the harness
 # rather than the row. So the runner scripts and the gate they source are digested, and the controlled
 # settings are named, and both go into every key.
-RUNNERS_ID=$( { sha256sum tpu-run.sh; sha256sum local-run.sh; sha256sum coolgate.sh; } | sort | sha256sum | awk '{print $1}')
-[ -n "$RUNNERS_ID" ] || { echo "REFUSING: could not digest the arm runners" >&2; exit 3; }
+# Each runner is digested SEPARATELY with its own status checked. Hashing a command group
+# ({ sha256sum a; sha256sum b; } | sha256sum) discards every individual status: a missing file, an
+# unreadable one, or a sha256sum that printed a plausible digest and exited nonzero all still produced
+# a non-empty final hash, which was then accepted as the identity of the harness. Same shape as the
+# bundle/graph digest defect, and the empty-input hash before that.
+RUNNER_FILES="tpu-run.sh local-run.sh coolgate.sh"
+RLIST=""
+for rf in $RUNNER_FILES; do
+  [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable; the harness has no identity" >&2; exit 3; }
+  rout=$(sha256sum "$rf" 2>/dev/null); rrc=$?
+  [ "$rrc" -eq 0 ] || { echo "REFUSING: digesting runner '$rf' failed (rc=$rrc)" >&2; exit 3; }
+  rdig=$(printf '%s' "$rout" | awk 'NF{print $1; exit}')
+  valid_sha "$rdig" || { echo "REFUSING: runner '$rf' digest is not usable: '${rdig:-<empty>}'" >&2; exit 3; }
+  RLIST="$RLIST$rdig  $rf
+"
+done
+RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha256sum | awk '{print $1}')
+valid_sha "$RUNNERS_ID" || { echo "REFUSING: the combined runner identity is not usable" >&2; exit 3; }
 POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0}"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
   echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"

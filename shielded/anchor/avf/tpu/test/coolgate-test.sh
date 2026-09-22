@@ -33,8 +33,8 @@ case "$*" in
       exit "${FAKE_THERMAL_RC:-0}" ;;
   *scaling_max_freq*)
       if [ -n "${FAKE_HOT_FOR:-}" ] && [ "$(cat "$FAKE_N" 2>/dev/null || echo 0)" -le "$FAKE_HOT_FOR" ]; then echo 1000
-      else printf '%s\n' "${FAKE_SCALING-2000}"; fi; exit 0 ;;
-  *cpuinfo_max_freq*) printf '%s\n' "${FAKE_CPUINFO-2000}"; exit 0 ;;
+      else printf '%s\n' "${FAKE_SCALING-2000}"; fi; exit "${FAKE_SCALING_RC:-0}" ;;
+  *cpuinfo_max_freq*) printf '%s\n' "${FAKE_CPUINFO-2000}"; exit "${FAKE_CPUINFO_RC:-0}" ;;
   *dumpsys\ power*)   echo "mWakefulness=Awake"; exit 0 ;;
   *logcat\ -d*)       echo "anchor-host: LOCAL turn 1 A: x"; echo "anchor-host: LOCAL done"; exit 0 ;;
   *)                  exit 0 ;;
@@ -72,6 +72,20 @@ for r in tpu-run.sh local-run.sh; do
   ck "$r refuses an EMPTY thermal read"          "$(rc_of "$o")" 4
   o=$(run "$r" FAKE_THERMAL_RC=1)
   ck "$r refuses when the thermal READ FAILS"    "$(rc_of "$o")" 4
+
+  # Valid-looking output with a FAILURE status, on each frequency channel separately. The gate
+  # captured rc for the thermal read only, so a `cat` that printed 2000 and exited 42 read as cool.
+  o=$(run "$r" FAKE_SCALING_RC=42)
+  ck "$r refuses when the SCALING read fails despite output" "$(rc_of "$o")" 4
+  ck "  and never starts the run"                "$(am_of "$o")" 0
+  o=$(run "$r" FAKE_CPUINFO_RC=42)
+  ck "$r refuses when the CPUINFO read fails despite output" "$(rc_of "$o")" 4
+  ck "  and never starts the run"                "$(am_of "$o")" 0
+  # 0 = 0 is "uncapped" to a naive equality test, and is not a running phone
+  o=$(run "$r" FAKE_SCALING=0 FAKE_CPUINFO=0)
+  ck "$r refuses ZERO frequencies (0 equals 0)"  "$(rc_of "$o")" 4
+  o=$(run "$r" FAKE_SCALING=0 FAKE_CPUINFO=2000)
+  ck "$r refuses a zero scaling_max"             "$(rc_of "$o")" 4
 
   o=$(run "$r" FAKE_HOT_FOR=2)
   ck "$r proceeds after TRANSIENT heat clears"   "$(rc_of "$o")" 0
