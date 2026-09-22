@@ -1363,3 +1363,61 @@ real ones, and every one of these was caught by reading the code:
 a dead descriptor, and one that answers partially then stalls. Eight cases, all holding; the hangup case
 returns in 0 ms where it used to spin, and the partial-response case abandons at repetition 3 with 3
 complete pairs.
+
+## The reply CAN be halved on the TPU: the rejection rested on a wrong measurement (2026-09-22)
+
+Two sections above record on-TPU digit recombination as closed, for two reasons. The first was that every
+way of separating the stacked halves crashes the compiler. The second was that the alternative -- two
+FULLY_CONNECTEDs against one weight tensor -- "emits the weights twice (35.6 -> 71.9 MB on a real
+layer)", which would cost far more weight streaming than the reply saves. **The second reason is wrong,
+and with it the conclusion.**
+
+First, the crash is narrower than recorded. Probing one operator at a time after a quantised FC:
+
+| second operator | result |
+|---|---|
+| none | compiles |
+| QUANTIZE (elementwise) | compiles |
+| ADD with a constant (elementwise) | compiles |
+| MUL by a constant (elementwise) | compiles |
+| CONCATENATION (appends, changes shape) | **compiles** |
+| RESHAPE | INTERNAL crash |
+| TRANSPOSE | INTERNAL crash |
+| SLICE / SPLIT / STRIDED_SLICE | INTERNAL crash |
+| BATCH_MATMUL | INTERNAL crash |
+
+So the plugin sequences operators perfectly well, and it is not shape changes either -- CONCATENATION
+changes shape and compiles. What crashes is selecting, permuting, reducing or contracting. The minimal
+reproducer is tiny: a 4x4 int8 weight, one row, FC then two SLICEs and an ADD
+(`a8w4/minrepro_slice_add.py`).
+
+Second, and decisively: **two FCs do NOT emit the weights twice.**
+
+| graph (1536x6144 int8 weights, 9.51 MB authored) | compiled |
+|---|---|
+| one FC, stacked rows (ships today) | 9.67 MB |
+| two FCs naming the SAME weight tensor | 9.68 MB |
+| **two FCs, two weight TENSORS on one BUFFER, scales differing by 256** | **9.68 MB** |
+
+1.00x. The compiler shares the constant. Confirmed at 1024x1024, 1536x6144 and 6144x1536.
+
+The middle row is a trap worth naming, because it is the obvious construction and it is WRONG: two FCs
+sharing one weight tensor compute `W.(hi + lo)`, not `W.(256.hi + lo)`. Quantisation scales divide out of
+the ADD -- a tensor's represented value is `int * scale`, so making the scale larger makes the integer
+correspondingly smaller and the product is unchanged. The factor of 256 cannot come from scales. It has
+to live in the weights, which is why the third row uses two weight TENSORS, holding the same int8 data at
+scales differing by 256, pointing at one buffer. That is the construction that both expresses the
+arithmetic and costs one copy of the weights.
+
+**What it buys.** The reply carries one int16 row per logical row instead of two: 3432 -> 1716 KB per
+token, and total exchange bytes 4471 -> 2755 (-38 %). At the exchange's measured 26.5 MB/s marginal rate
+that is about 65 ms per token. It should also be slightly more accurate, because the recombination
+happens before quantisation rather than after: the `hi` digit's rounding is no longer multiplied by 256
+on the way out, which is the term that dominates the current 1.755 LSB bound.
+
+**What is NOT yet established.** That it computes the right numbers on the silicon. A compiled size is
+not a result: these graphs have been built and compiled, never dispatched. The clipping behaviour also
+changes and needs checking -- `hi` is now quantised against the full output scale rather than with the
+current 102.4 headroom, so it should reach the rail more readily, and the existing repair path has to be
+shown to cover it. Until a graph runs on the device and its output is compared against the reference,
+this is a compiler result and nothing more.
