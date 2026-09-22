@@ -31,17 +31,41 @@ PROMPTS="${1:?usage: $0 prompts.txt}"
 mkdir -p "$OUT"
 
 die() { echo "REFUSING: $*" >&2; exit 2; }
-sh_() { "${ADB[@]}" shell "$@" < /dev/null; }              # status propagates; stdin never eaten
+
+# Run a remote command and propagate its REAL status. `adb shell` has historically returned 0 whatever
+# the remote command did, and a remote pipeline like `sha256sum x | cut -c1-32` returns the status of
+# `cut`, which succeeds on empty input -- so an audit produced a device that printed a valid-looking
+# digest and exited 42 while this harness reported a usable row. The status comes back explicitly.
+sh_out() {
+    local raw rc
+    raw=$("${ADB[@]}" shell "$* ; echo __RC__\$?" < /dev/null 2>/dev/null | tr -d '\r')
+    rc=$(printf '%s\n' "$raw" | sed -n 's/^__RC__\([0-9][0-9]*\)$/\1/p' | tail -1)
+    printf '%s\n' "$raw" | sed '/^__RC__[0-9][0-9]*$/d'
+    [ -n "$rc" ] || return 125          # no status marker at all: the shell itself failed
+    return "$rc"
+}
+sh_() { sh_out "$@" >/dev/null; }
 
 # ---- preflight: identity of everything that can change an answer -------------------------------------
 command -v sha256sum >/dev/null || die "no sha256sum"
 for f in "$RUNNER" "$MODEL" "$DISPATCH"; do
   sh_ "[ -f '$f' ]" || die "missing on device: $f"
 done
-ident() { sh_ "sha256sum '$1' 2>/dev/null | cut -c1-32" | tr -d '\r'; }
-R_ID=$(ident "$RUNNER"); M_ID=$(ident "$MODEL"); D_ID=$(ident "$DISPATCH")
-[ -n "$R_ID" ] && [ -n "$M_ID" ] && [ -n "$D_ID" ] || die "could not digest runner/model/dispatch"
-FMT=$(sh_ "head -c 16 '$MODEL' | xxd -p" | tr -d '\r')
+# no remote pipeline: sha256sum alone, its status checked, and the DIGEST FORMAT validated locally
+ident() {
+    local out d
+    out=$(sh_out "sha256sum '$1'") || return 1
+    d=$(printf '%s\n' "$out" | head -1 | awk '{print $1}')
+    printf '%s' "$d" | grep -qE '^[0-9a-f]{64}$' || return 1
+    printf '%s' "${d:0:32}"
+}
+R_ID=$(ident "$RUNNER")   || die "could not digest the runner ($RUNNER)"
+M_ID=$(ident "$MODEL")    || die "could not digest the model ($MODEL)"
+D_ID=$(ident "$DISPATCH") || die "could not digest the dispatch library ($DISPATCH)"
+FMT=$(sh_out "head -c 16 '$MODEL' | xxd -p") || die "could not read the .litertlm header"
+FMT=$(printf '%s' "$FMT" | tr -d ' \n')
+printf '%s' "$FMT" | grep -qE '^4c49544552544c4d[0-9a-f]{16}$' \
+    || die "the model does not begin with the LITERTLM magic (got '${FMT:0:32}')"
 # generation settings: this runner exposes no temperature or token-limit flag, so they are its defaults.
 # Recorded explicitly rather than assumed, and part of the cache key so a future flag invalidates it.
 SETTINGS="temp=runner-default max_new=runner-default backend=npu"

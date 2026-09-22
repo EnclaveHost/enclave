@@ -1,55 +1,120 @@
 #!/usr/bin/env bash
-# harness-evidence-test.sh -- the measurement harnesses must FAIL when the device does.
+# harness-evidence-test.sh -- google-lane-run.sh must fail when the device does, and succeed when it does not.
 #
-# Each case below is a defect an audit found in google-lane-run.sh by driving it with a fake adb:
-#   * a device that always fails left the harness exiting 0 with empty reply and rate files
-#   * a stale NN.raw/NN.txt/NN.rate from an OLD prompt was reported as "cached" for a NEW prompt, after
-#     NN.prompt had been overwritten -- an old answer and an old tok/s relabelled as a fresh result
-#   * partial output became a cache entry
+# The FIRST version of this file proved nothing. Its `cd "$(dirname "$0")/.."` landed in avf/tpu, so
+# HARNESS pointed at avf/tpu/host/google-lane-run.sh, which does not exist; bash exited 127 and every
+# "the harness failed as expected" assertion passed on a file that was never run. A test whose negative
+# cases pass because the target is missing is the same defect it was written to catch, so this version
+# asserts the target exists and carries a POSITIVE control: a fake device on which everything works,
+# which must produce a real answer. Without that, the failure cases mean nothing.
 #
-# No device is touched: everything runs against a fake adb on PATH.
+# The fake adb is scripted by FAKE_MODE so each stage can fail INDEPENDENTLY after a good preflight.
+# No real device is touched.
 set -uo pipefail
-cd "$(dirname "$0")/.."
-HARNESS="$PWD/host/google-lane-run.sh"
-pass=0; fail=0
-ck() { printf '%-52s ' "$1"; if [ "$2" = ok ]; then echo ok; pass=$((pass+1)); else echo "FAIL  $3"; fail=$((fail+1)); fi; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+HARNESS="$ROOT/host/google-lane-run.sh"
+[ -f "$HARNESS" ] || { echo "FAIL: harness not found at $HARNESS (this test would otherwise pass vacuously)"; exit 1; }
 
-mk_adb() {   # $1 = dir, $2 = exit code for every invocation
-  mkdir -p "$1"
-  cat > "$1/adb" <<EOF
-#!/bin/sh
-exit $2
-EOF
-  chmod 755 "$1/adb"
+pass=0; fail=0
+ck() { printf '%-56s ' "$1"; if [ "$2" = ok ]; then echo ok; pass=$((pass+1)); else echo "FAIL  ${3:-}"; fail=$((fail+1)); fi; }
+
+WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
+DIG=$(printf 'x' | sha256sum | awk '{print $1}')
+
+cat > "$WORK/adb" <<'FAKE'
+#!/usr/bin/env bash
+# a scriptable adb. FAKE_MODE selects which stage misbehaves; everything else succeeds.
+mode="${FAKE_MODE:-ok}"
+args=("$@"); i=0
+[ "${args[0]:-}" = "-s" ] && i=2                      # skip -s SERIAL, proving the argv array works
+verb="${args[$i]:-}"
+case "$verb" in
+  push)
+    [ "$mode" = pushfail ] && exit 9
+    # actually transport it, so the fake can echo back the prompt the harness really sent
+    for a in "${args[@]}"; do [ -f "$a" ] && cp "$a" "$FAKE_PROMPT" && break; done
+    exit 0 ;;
+  shell)
+    cmd="${args[$((i+1))]:-}"
+    case "$cmd" in
+      *sha256sum*)
+        [ "$mode" = identfail ] && { echo "DIGESTDIGESTDIGEST"; echo "__RC__42"; exit 0; }
+        echo "$FAKE_DIGEST  /some/file"; echo "__RC__0"; exit 0 ;;
+      *xxd*) echo "4c49544552544c4d0100000005000000"; echo "__RC__0"; exit 0 ;;
+      *"[ -f "*) echo "__RC__0"; exit 0 ;;
+      *rm\ -f*) echo "__RC__0"; exit 0 ;;
+      *lm15*|*litert_lm*)
+        touch "$FAKE_TRIPWIRE"
+        [ "$mode" = runnerfail ] && { echo "boom"; echo "__RC__42"; exit 0; }
+        if [ "$mode" = runnerfail_complete ]; then
+          # a COMPLETE-looking run that nevertheless failed: only the exit-status check can catch this,
+          # so it is what gives that check independent coverage
+          echo "input_prompt: $(cat "$FAKE_PROMPT")"; echo "$FAKE_ANSWER"
+          echo "BenchmarkInfo:"; echo "  Decode Speed: 16.20 tokens/sec"; echo "__RC__42"; exit 0
+        fi
+        [ "$mode" = nobench ] && { echo "input_prompt: $(cat "$FAKE_PROMPT")"; echo "391"; echo "__RC__0"; exit 0; }
+        echo "input_prompt: $(cat "$FAKE_PROMPT")"
+        echo "$FAKE_ANSWER"
+        echo "BenchmarkInfo:"
+        echo "  Decode Speed: 16.20 tokens/sec"
+        echo "__RC__0"; exit 0 ;;
+      *) echo "__RC__0"; exit 0 ;;
+    esac ;;
+  *) exit 0 ;;
+esac
+FAKE
+chmod 755 "$WORK/adb"
+
+PROMPTS="$WORK/p.txt"
+printf 'What is 17 times 23? Reply with only the number.\tnumeric=391\n' > "$PROMPTS"
+PROMPTS_B="$WORK/pb.txt"
+printf 'What is the capital of France? Reply with only the city name.\texact=Paris\n' > "$PROMPTS_B"
+
+run() {  # $1 mode, $2 outdir, $3 prompts -> sets RC
+  FAKE_MODE="$1" FAKE_DIGEST="$DIG" FAKE_ANSWER="${ANSWER:-391}" \
+  FAKE_PROMPT="$WORK/remote_prompt" FAKE_TRIPWIRE="$WORK/ran" \
+  ADB="$WORK/adb" SERIAL=FAKESERIAL OUT="$2" bash "$HARNESS" "$3" >"$2.log" 2>&1
+  RC=$?
 }
 
-prompts=$(mktemp); printf 'What is 17 times 23? Reply with only the number.\tnumeric=391\n' > "$prompts"
+# --- POSITIVE CONTROL: without this, every negative below is meaningless -------------------------------
+O="$WORK/o_ok"; rm -f "$WORK/ran"
+run ok "$O" "$PROMPTS"
+ck "POSITIVE CONTROL: a working device yields a result" "$([ $RC -eq 0 ] && echo ok)" "rc=$RC"
+got=$(cat "$O"/01.*.txt 2>/dev/null | tr -d '\n ')
+ck "  the answer is captured" "$([ "$got" = "391" ] && echo ok)" "got '$got'"
+rate=$(cat "$O"/01.*.rate 2>/dev/null)
+ck "  the decode rate is captured" "$(echo "$rate" | grep -q '16.20' && echo ok)" "got '$rate'"
+ck "  the runner was actually invoked" "$([ -f "$WORK/ran" ] && echo ok)" "tripwire never fired"
 
-# 1. a device that always fails
-d=$(mktemp -d); mk_adb "$d/bin" 42
-out=$(mktemp -d)
-PATH="$d/bin:$PATH" ADB="$d/bin/adb" OUT="$out" bash "$HARNESS" "$prompts" >/dev/null 2>&1
-rc=$?
-ck "a failing device makes the harness exit non-zero" "$([ $rc -ne 0 ] && echo ok)" "rc=$rc"
-empties=$(find "$out" -name "*.txt" -o -name "*.rate" 2>/dev/null | wc -l)
-ck "  and leaves no reply/rate files behind" "$([ "$empties" -eq 0 ] && echo ok)" "$empties left"
+# --- CACHE HIT: a second identical run must reuse, and must NOT re-invoke the runner ------------------
+rm -f "$WORK/ran"
+run ok "$O" "$PROMPTS"
+ck "an identical rerun is served from cache" "$([ $RC -eq 0 ] && ! [ -f "$WORK/ran" ] && echo ok)" \
+   "rc=$RC ran=$([ -f "$WORK/ran" ] && echo yes || echo no)"
 
-# 2. a stale result from a DIFFERENT prompt must not be reused
-out2=$(mktemp -d)
-printf 'Paris\n'                        > "$out2/01.deadbeefdeadbeef.txt"
-printf 'Decode Speed: 999 tokens/sec\n' > "$out2/01.deadbeefdeadbeef.rate"
-printf 'old raw\n'                      > "$out2/01.deadbeefdeadbeef.raw"
-printf 'What is the capital of France?\n' > "$out2/01.prompt"
-PATH="$d/bin:$PATH" ADB="$d/bin/adb" OUT="$out2" bash "$HARNESS" "$prompts" >/dev/null 2>&1
-stale=$(grep -rl "999 tokens/sec" "$out2" 2>/dev/null | wc -l)
-reused=$(grep -c "Paris" "$out2"/01.*.txt 2>/dev/null | paste -sd+ | bc 2>/dev/null || echo 0)
-# the sentinel files may still exist under THEIR key, but must not be presented as this prompt's result:
-# the new prompt hashes to a different key, so no file named with the new key may contain them
-newkeyfiles=$(find "$out2" -name "01.*.txt" ! -name "01.deadbeefdeadbeef.txt" 2>/dev/null | wc -l)
-ck "a stale answer is not adopted for a different prompt" "$([ "$newkeyfiles" -eq 0 ] && echo ok)" \
-   "$newkeyfiles file(s) created under a new key from a failing device"
-ck "  the sentinel rate is never reported as this run's" "$([ "$stale" -le 3 ] && echo ok)" "$stale"
+# --- CHANGED PROMPT: must NOT inherit the cached answer ----------------------------------------------
+rm -f "$WORK/ran"; ANSWER=Paris
+run ok "$O" "$PROMPTS_B"
+newtxt=$(grep -rl "Paris" "$O" 2>/dev/null | grep -c '\.txt$')
+ck "a changed prompt gets a FRESH keyed answer" "$([ $RC -eq 0 ] && [ -f "$WORK/ran" ] && [ "$newtxt" -ge 1 ] && echo ok)" \
+   "rc=$RC ran=$([ -f "$WORK/ran" ] && echo yes || echo no) fresh=$newtxt"
+ANSWER=391
 
-rm -rf "$d" "$out" "$out2" "$prompts"
+# --- STAGE-SPECIFIC FAILURES, each after a GOOD preflight --------------------------------------------
+for spec in "identfail:an identity call that exits 42 despite printing a digest" \
+            "pushfail:a prompt push that fails" \
+            "runnerfail:a runner that exits 42" \
+            "runnerfail_complete:a runner that exits 42 with COMPLETE output" \
+            "nobench:a run with no BenchmarkInfo block"; do
+  m="${spec%%:*}"; desc="${spec#*:}"
+  O2="$WORK/o_$m"
+  run "$m" "$O2" "$PROMPTS"
+  leftover=$(find "$O2" \( -name '*.txt' -o -name '*.rate' \) 2>/dev/null | wc -l)
+  ck "$desc is rejected" "$([ $RC -ne 0 ] && echo ok)" "rc=$RC"
+  ck "  and leaves no usable row" "$([ "$leftover" -eq 0 ] && echo ok)" "$leftover file(s)"
+done
+
 echo; echo "$pass passed, $fail failed"
 exit $((fail ? 1 : 0))
