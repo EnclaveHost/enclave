@@ -1,0 +1,15 @@
+1	0	TIME n=200 perf=-1 gap_us=0 min=0.660 median=1.934 ms	Thermal Status: 0|3052000
+1	3000	TIME n=200 perf=-1 gap_us=3000 min=1.497 median=2.173 ms	Thermal Status: 0|3052000
+1	-3000	TIME n=200 perf=-1 gap_us=-3000 min=1.217 median=1.674 ms	Thermal Status: 0|3052000
+2	0	TIME n=200 perf=-1 gap_us=0 min=1.309 median=1.941 ms	Thermal Status: 0|3052000
+2	3000	TIME n=200 perf=-1 gap_us=3000 min=1.480 median=2.174 ms	Thermal Status: 0|3052000
+2	-3000	TIME n=200 perf=-1 gap_us=-3000 min=1.107 median=1.669 ms	Thermal Status: 0|3052000
+3	0	TIME n=200 perf=-1 gap_us=0 min=0.596 median=1.585 ms	Thermal Status: 0|3052000
+3	3000	TIME n=200 perf=-1 gap_us=3000 min=1.433 median=2.075 ms	Thermal Status: 0|3052000
+3	-3000	TIME n=200 perf=-1 gap_us=-3000 min=1.148 median=1.716 ms	Thermal Status: 0|3052000
+4	0	TIME n=200 perf=-1 gap_us=0 min=0.573 median=1.350 ms	Thermal Status: 0|3052000
+4	3000	TIME n=200 perf=-1 gap_us=3000 min=1.437 median=2.031 ms	Thermal Status: 0|3052000
+4	-3000	TIME n=200 perf=-1 gap_us=-3000 min=1.408 median=1.659 ms	Thermal Status: 0|3052000
+5	0	TIME n=200 perf=-1 gap_us=0 min=0.715 median=1.948 ms	Thermal Status: 0|3052000
+5	3000	TIME n=200 perf=-1 gap_us=3000 min=1.197 median=2.044 ms	Thermal Status: 0|3052000
+5	-3000	TIME n=200 perf=-1 gap_us=-3000 min=1.213 median=1.585 ms	Thermal Status: 0|3052000
