@@ -183,7 +183,27 @@ static void park_boundary(void) {
 
 int main(void) {
     const char *w = getenv("SHIELDED_FIELD_THREADS");
-    fprintf(stderr, "parwork width=%d (SHIELDED_FIELD_THREADS=%s)\n", sh_par_width(), w ? w : "unset");
+    /* The width is ASSERTED, not merely printed. It was printed only, and a
+     * mutant that made sh_par_width() return 1 unconditionally passed this
+     * whole file -- every other check is width-agnostic by construction, so
+     * nothing downstream noticed. Printing a value is not testing it.
+     *
+     * Same clamp as sh_par_width_init: absent or unparseable is 1, below 1 is
+     * 1, above SH_PAR_MAX is SH_PAR_MAX. */
+    const int want = !(w && *w) ? 1
+                   : atoi(w) < 1 ? 1
+                   : atoi(w) > SH_PAR_MAX ? SH_PAR_MAX
+                   : atoi(w);
+    const int got = sh_par_width();
+    fprintf(stderr, "parwork width=%d (SHIELDED_FIELD_THREADS=%s, expected %d)\n",
+            got, w ? w : "unset", want);
+    if (got != want) {
+        fprintf(stderr, "parwork: width is %d but SHIELDED_FIELD_THREADS=%s asks for %d\n",
+                got, w ? w : "unset", want);
+        assert(!"sh_par_width did not honour SHIELDED_FIELD_THREADS");
+    }
+    /* Once means once: a second call must agree with the first. */
+    if (sh_par_width() != got) assert(!"sh_par_width is not stable across calls");
     coverage();
     park_boundary();
     concurrent_owners(2);
