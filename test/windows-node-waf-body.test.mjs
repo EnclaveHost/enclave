@@ -126,6 +126,35 @@ test("a client that aborts mid-body leaves nothing behind", async () => {
     "an abort propagates rather than becoming a short body the app cannot tell apart");
 });
 
+test("an app that answers without end is cut off, not buffered", async () => {
+  // The same hole in the other direction: the app's RESPONSE is buffered whole by the proxy, so a
+  // tenant whose app streams forever would exhaust the agent and take every OTHER tenant on the
+  // box down with it. Its own memory is the enclave's problem; the agent's is this.
+  let sent = 0, stopped = false;
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/octet-stream" });
+    const pump = () => {
+      if (stopped || res.destroyed || res.writableEnded) return;
+      sent += 65536;
+      if (sent > 64 * 1048576 * 4) { stopped = true; try { res.destroy(); } catch {} ; return; }  // test safety net
+      if (res.write(Buffer.alloc(65536, 0x67))) setImmediate(pump); else res.once("drain", pump);
+    };
+    pump();
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const h = new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
+                         cpuPricePerSec6: 12, log: () => {}, maxBodyMb: 1 });
+    h.records.set("0xbb", { id: "0xbb", status: "running" });
+    h.apps.set("0xbb", { state: "running", port: server.address().port });
+    const r = await h.proxy("0xbb", { method: "GET", pathRest: "/", headers: {}, ip: "1.1.1.1" });
+    assert.equal(r.status, 502);
+    assert.match(String(r.body), /app_response_too_large/);
+    // It stopped near the cap rather than running to the safety net.
+    assert.ok(sent < 16 * 1048576, `the proxy pulled ${sent} bytes before cutting off`);
+  } finally { stopped = true; await new Promise((r) => server.close(r)); }
+});
+
 test("the limit handed to the app zone is the deployment's own, when it set one", () => {
   assert.equal(bodyLimit(parseWaf({ maxBodyMb: 2 })), 2 * 1048576);
   assert.equal(bodyLimit(parseWaf({ maxBodyMb: 0.001 })), 1049);
