@@ -907,8 +907,15 @@ void FN(unmask24_fv)(const uint8_t *ym, const int32_t *u, const int32_t *s, int 
 /* The outlier term: y[row][j] += x_tee[row][c] * Wc[c][j], in the TEE.
  * Blocked over j so a stretch of y stays in L1 while every channel is added
  * to it: channel-major, a site with 8 outliers read and wrote its 39 KB
- * int64 y eight times per exchange. */
-void FN(outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y) {
+ * int64 y eight times per exchange.
+ *
+ * `n_cols` is how many columns to add; `stride` is how far apart the channel
+ * rows of `wc` are. They differ only for a column-split card, which adds its
+ * own slice out of the full-width table the primary card holds. outlier_add
+ * below is this with stride == n_cols, so there is ONE implementation and the
+ * split path cannot drift from the whole-tensor path. */
+void FN(outlier_add_stride)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t n_cols, int64_t stride, int64_t *y) {
+    const int64_t N = n_cols;
     /* Accumulated in DOUBLE, which is exact here and vectorises where the int64
      * multiply does not: every product |x_tee * w| is an integer below 2^47
      * (|x| < 2^40 checked below, |w| <= 119) and at most 64 of them are
@@ -923,7 +930,7 @@ void FN(outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N
         for (int c = 0; c < nout; c++) {
             const int64_t xv = x_tee[c];
             if (!xv) continue;
-            const int8_t *w = wc + (size_t)c * N;
+            const int8_t *w = wc + (size_t)c * stride;
             for (int64_t j = 0; j < N; j++) y[j] += xv * w[j];
         }
         return;
@@ -935,10 +942,14 @@ void FN(outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N
         for (int c = 0; c < nout; c++) {
             const double xv = (double)x_tee[c];
             if (xv == 0.0) continue;
-            const int8_t *w = wc + (size_t)c * N + j0;
+            const int8_t *w = wc + (size_t)c * stride + j0;
             for (int64_t i = 0; i < n; i++) acc[i] += xv * (double)w[i];
         }
         int64_t *o = y + j0;
         for (int64_t i = 0; i < n; i++) o[i] += (int64_t)acc[i];
     }
+}
+
+void FN(outlier_add)(const int64_t *x_tee, const int8_t *wc, int nout, int64_t N, int64_t *y) {
+    FN(outlier_add_stride)(x_tee, wc, nout, N, N, y);
 }

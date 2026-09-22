@@ -1377,12 +1377,15 @@ static void sh_split_post_slice(const sh_split_post &p, const int64_t *col0, con
         if (nc <= 0 || c0 < 0 || c0 + nc > N) continue;
         for (int32_t r = 0; r < p.m; r++) {
             int64_t *yr = p.y[t] + (size_t)r * N;
-            for (size_t c = 0; c < p.nout; c++) {
-                const int64_t xv = p.x_tee[(size_t)r * p.nout + c];
-                const int8_t *wc = p.out_cols[t] + (size_t)c * N + c0;
-                int64_t *yy = yr + c0;
-                for (int64_t j = 0; j < nc; j++) yy[j] += xv * wc[j];
-            }
+            /* The TEE-side outlier term, over THIS card's columns. The channel
+             * rows of the full-width table are still N apart, which is the
+             * only thing that differs from the whole-tensor call -- so use the
+             * same blocked, double-accumulating kernel rather than a scalar
+             * int64 loop. The scalar form is exactly what that kernel's own
+             * comment measured as ~4x more expensive, and at 2.1 M columns per
+             * card per pass it was costing whole milliseconds a token. */
+            if (p.nout) p.simd->outlier_add_stride(p.x_tee + (size_t)r * p.nout,
+                                                   p.out_cols[t] + c0, (int)p.nout, nc, N, yr + c0);
             p.simd->descale(yr + c0, p.inv[t] + c0, (size_t)nc, p.dst[t] + (size_t)r * N + c0);
         }
     }
@@ -2044,7 +2047,12 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                 const sh_state::entry &e = *ents[t];
                 size_t xi = 0;
                 while (xi < xents.size() && xents[xi] != ents[t]) xi++;
-                if (xi >= xents.size() || e.inv.size() != (size_t)e.N) { post.y.clear(); break; }
+                /* The slice post reads the FULL-WIDTH descale and outlier
+                 * tables, which only the card owning column 0 keeps. If either
+                 * is not full width, fall back to the ordinary post loop
+                 * rather than index a short table. */
+                if (xi >= xents.size() || e.inv.size() != (size_t)e.N ||
+                    e.out_cols.size() != nout * (size_t)e.N) { post.y.clear(); break; }
                 post.y.push_back(yp[xi]);
                 post.xi.push_back(xi);
                 post.dst.push_back((float *)members[t]->data);

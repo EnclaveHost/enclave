@@ -18,7 +18,7 @@ test('dealt masks use the authenticated shipment ordinal after name-based reorde
     run('cc', [...flags, ...(process.arch === 'arm64' ? ['-march=armv8.2-a+dotprod', '-DSH_SIMD_NEON'] :
       ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mavx512vnni', '-DSH_SIMD_AVX512']),
       '-c', join(gg, 'shielded-simd.c'), '-o', fast]);
-    const sources = ['shielded-field.c', 'shielded-wire.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c', 'tweetnacl.c', 'poly1305-donna.c'];
+    const sources = ['shielded-field.c', 'shielded-wire.c', 'shielded-parwork.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c', 'tweetnacl.c', 'poly1305-donna.c'];
     run('cc', [...flags, '-std=c11', join(root, 'test/fixtures/shielded-pad-ordinal.c'),
       ...sources.map(s => join(gg, s)), simd, fast, '-Wl,--gc-sections', '-pthread', '-lm', '-o', bin]);
     assert.match(run(bin, [dir]), /pad-ordinal: reordered\/subset\/shared groups/);

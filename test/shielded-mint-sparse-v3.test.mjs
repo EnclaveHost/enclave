@@ -22,7 +22,7 @@ test('CPU sparse mint preserves canonical pad domains through reordered registra
       ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mavx512vnni', '-DSH_SIMD_AVX512']),
       '-c', join(gg, 'shielded-simd.c'), '-o', fast]);
     run('cc', [...flags, join(repo, 'test/fixtures/shielded-mint-sparse-v3.c'),
-      ...['shielded-field.c', 'shielded-wire.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c',
+      ...['shielded-field.c', 'shielded-wire.c', 'shielded-parwork.c', 'shielded-pads.c', 'shielded-bank.c', 'shielded-http.c',
         'tweetnacl.c', 'poly1305-donna.c'].map(f => join(gg, f)), simd, fast,
       '-Wl,--wrap=pthread_create', '-Wl,--wrap=malloc', '-Wl,--wrap=calloc', '-Wl,--wrap=pwrite',
       '-Wl,--gc-sections', '-pthread', '-lm', '-o', binary]);

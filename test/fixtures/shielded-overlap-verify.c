@@ -252,7 +252,11 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
     if (verify) exchange(l, w0, w1, width, 3, final_failure, 2, false, ring_mode);
     assert(l->pads_missed == 0);
-    assert((l->fv_rhs != NULL) == (enabled > 0 && verify && !ring_mode));
+    /* The overlap buffer is allocated whenever the overlap is ON and this link
+     * verifies. It used to be gated off whenever a ring was attached, which
+     * looked like a transport detail but was hiding the rhs_done defect that
+     * ring_refusal_case() below now covers. */
+    assert((l->fv_rhs != NULL) == (enabled > 0 && verify));
     assert(l->verify_fail == (verify ? 1 : 0));
     sh_link_profile_snapshot(other, &snapshot);
     assert_empty_profile(&snapshot);
@@ -260,6 +264,139 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
     sh_link_profile_snapshot(other, &snapshot);
     assert_empty_profile(&snapshot);
     sh_link_close(other);
+}
+
+/* THE DEFECT THIS SUITE DID NOT COVER.
+ *
+ * The ring refuses a frame BEFORE it publishes when the frame will not fit
+ * its slots -- here the REQUEST, three masked byte planes of 3*m*K, against
+ * SH_RING_REQ_CAP -- and the work callback then never runs. The caller used
+ * to set rhs_done from `overlap` alone, so the socket fallback was told the
+ * Freivalds RHS had already been computed when it had not, and the unmask
+ * compared its LHS against an uninitialised fv_rhs. That is a verification
+ * FAILURE on a perfectly honest peer, and it is why the whole overlap was
+ * gated off behind !sh_pipe_ring_live().
+ *
+ * The existing ring cases cannot reach it: ring_mode 1 answers on the ring and
+ * ring_mode 2 publishes and then times out, so in both the callback DID run.
+ * This case makes the ring refuse before publishing, with an honest peer on
+ * the socket, and asserts the product is exact and the RHS ran exactly once.
+ * A ring is attached but never served, exactly as ring_mode 2 does. */
+/* An honest peer for ring_refusal_case: ONE node, one row, 4-byte reply, all
+ * buffers on the heap. Deliberately NOT serve() above -- that one is sized
+ * from the fixture's K/N0/N1 and carries a dozen failure modes, and this case
+ * needs a K large enough to overflow the ring's request slot. */
+typedef struct { int fd; int64_t K, N; const int8_t *w; int rows, count; } big_peer;
+static void *serve_big(void *arg) {
+    big_peer *b = arg;
+    uint8_t h[9];
+    assert(read_all(b->fd, h, sizeof h, NULL) == SH_OK);
+    assert(h[0] == SH_CMD_FIELD_GEMM);
+    const size_t size = get_u64(h + 1), hn = 8 + 4 * (size_t)b->count;
+    assert(size == hn + 3 * (size_t)b->rows * (size_t)b->K);
+    uint8_t *req = malloc(size); assert(req);
+    assert(read_all(b->fd, req, size, NULL) == SH_OK);
+    assert(read_u32(req) == (uint32_t)b->count && read_u32(req + 4) == (uint32_t)b->rows);
+    const int8_t *planes = (const int8_t *)req + hn;
+    uint8_t *reply = malloc((size_t)4 * b->rows * b->N); assert(reply);
+    size_t used = 0;
+    for (int row = 0; row < b->rows; row++) for (int64_t j = 0; j < b->N; j++) {
+        int32_t residues[3] = {0};
+        for (int q = 0; q < 3; q++) for (int64_t k = 0; k < b->K; k++)
+            residues[q] += planes[((size_t)(q * b->rows + row)) * b->K + k] * b->w[(size_t)j * b->K + k];
+        const int64_t value = sh_crt(residues[0], residues[1], residues[2]);
+        const uint32_t bits = (uint32_t)(int32_t)value;
+        for (int bt = 0; bt < 4; bt++) reply[used++] = (uint8_t)(bits >> (8 * bt));
+    }
+    memset(h, 0, sizeof h);
+    put_u64(h + 1, used);
+    send_bytes(b->fd, h, sizeof h);
+    send_bytes(b->fd, reply, used);
+    close(b->fd);
+    free(req); free(reply);
+    return NULL;
+}
+
+/* THE DEFECT THIS SUITE DID NOT COVER.
+ *
+ * The ring refuses a frame BEFORE it publishes when the frame will not fit its
+ * slots -- here the REQUEST, three masked byte planes of 3*m*K, against
+ * SH_RING_REQ_CAP -- and the work callback then never runs. The caller used to
+ * set rhs_done from `overlap` alone, so the socket fallback was told the
+ * Freivalds RHS had already been computed when it had not, and the unmask
+ * compared its LHS against an uninitialised fv_rhs. That is a verification
+ * FAILURE against a perfectly honest peer, and it is why the whole overlap sat
+ * gated off behind !sh_pipe_ring_live().
+ *
+ * The existing ring cases cannot reach it: ring_mode 1 answers on the ring and
+ * ring_mode 2 publishes and then times out, so in both the callback DID run.
+ * Here the ring is live but refuses before publishing, an honest peer answers
+ * on the socket, and the product must be exact with the RHS run exactly once. */
+static void ring_refusal_case(void) {
+    enum { BIG_N = 3 };
+    const int64_t BIG_K = 700000;                 /* 3*1*BIG_K > SH_RING_REQ_CAP */
+    assert((size_t)(3 * BIG_K) > SH_RING_REQ_CAP);
+    setenv("SHIELDED_OVERLAP_VERIFY", "1", 1);
+    int err = 0;
+    sh_link *l = sh_link_open("unused", 1, true, &err); assert(l && err == SH_OK);
+    assert(l->overlap_verify);
+    base_simd = l->simd;
+    sh_simd monitored = *base_simd; monitored.fv_dots_x = checked_rhs; l->simd = &monitored;
+
+    int8_t *w = malloc((size_t)BIG_N * BIG_K); assert(w);
+    for (size_t i = 0; i < (size_t)BIG_N * BIG_K; i++) w[i] = (int8_t)(i % 7 - 3);
+    assert(sh_link_add_weight(l, "big", w, BIG_K, BIG_N, 1, -1) == 0);
+
+    sh_group *g = &l->groups[0];
+    g->depth = 2; g->head = 0; g->count = 2;
+    g->r_store = malloc((size_t)g->depth * BIG_K * sizeof(int32_t));
+    g->u_store = malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
+    assert(g->r_store && g->u_store);
+    gen_scratch scratch; assert(gen_scratch_init(l, &scratch, g->depth) == SH_OK);
+    assert(generate(l, g, g->depth, g->r_store, g->u_store, &scratch) == SH_OK);
+    free(scratch.planes); free(scratch.acc);
+    l->dealt = true; l->threads_running = true;
+
+    /* overlap=false: the RHS runs at the REFUSED ring publish, before a byte
+     * reaches the socket, so the peer cannot be what releases it. calls is
+     * still counted, and one call is the whole point. */
+    peer counter = { .mode = HONEST, .rows = 1, .count = 1, .expected = 1, .overlap = false };
+    pthread_mutex_init(&counter.mu, NULL); pthread_cond_init(&counter.cv, NULL);
+    active = &counter;
+
+    int sockets[2]; assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    sh_pipe_close(l->pipe);
+    l->pipe = calloc(1, sizeof *l->pipe); assert(l->pipe); l->pipe->fd = sockets[0];
+    l->pipe->map = mmap(NULL, SH_RING_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    assert(l->pipe->map != MAP_FAILED);
+    l->pipe->map_len = SH_RING_BYTES; l->pipe->ring = l->pipe->map;   /* live, and never served */
+    assert(sh_pipe_ring_live(l->pipe));
+    l->ywidth = 4;
+
+    big_peer bp = { .fd = sockets[1], .K = BIG_K, .N = BIG_N, .w = w, .rows = 1, .count = 1 };
+    pthread_t thread; assert(pthread_create(&thread, NULL, serve_big, &bp) == 0);
+
+    int64_t *x = malloc((size_t)BIG_K * sizeof *x); assert(x);
+    for (int64_t i = 0; i < BIG_K; i++) x[i] = (i * 13) % 101 - 50;
+    int64_t y[BIG_N];
+    for (int j = 0; j < BIG_N; j++) y[j] = INT64_C(0x123456789abcdef);
+    const int node = 0; int64_t *out[1] = { y };
+    const int rc = sh_link_gemm(l, &node, 1, x, 1, out);
+    pthread_join(thread, NULL);
+
+    assert(rc == SH_OK);                 /* SH_ERR_VERIFY before the fix */
+    assert(l->verify_fail == 0);
+    assert(counter.calls == 1);          /* the RHS ran, and ran exactly once */
+    assert(l->fv_rhs != NULL);
+    for (int j = 0; j < BIG_N; j++) {
+        int64_t want = 0;
+        for (int64_t k = 0; k < BIG_K; k++) want += x[k] * w[(size_t)j * BIG_K + k];
+        assert(y[j] == want);
+    }
+    assert(l->pads_missed == 0 && l->pads_used == 1);
+    pthread_mutex_destroy(&counter.mu); pthread_cond_destroy(&counter.cv); active = NULL;
+    sh_link_close(l);
+    free(w); free(x);
 }
 
 int main(void) {
@@ -296,4 +433,5 @@ int main(void) {
       run_case(1, true, 3, 1, failure);
       run_case(1, true, 3, 2, failure);
     }
+    ring_refusal_case();
 }

@@ -608,3 +608,28 @@ every time (`direct 4200 staged 0`), so this is its cost rather than a silent fa
 server because the products are already in pinned host memory; here `Lock` returns device-coherent
 memory and the kernel's socket path then reads it uncached, which is slower than LiteRT's own `Read`
 into cached heap. Kept behind `kDirectSend`, default false.
+
+## The right speculation depth depends on the WORKLOAD (2026-09-21)
+
+The two-row optimum above was measured on prose. Running the same sweep on code prompts says the
+optimum is not a constant: draft acceptance is, and the depth follows it.
+
+| workload | acceptance at k=2 | k=2 | k=5 | best |
+|---|---|---|---|---|
+| prose ("who is Bill Gates", ctx 91) | 55 % | **1.47** (1.55 tok/step) | 1.18 (2.00) | k=2 |
+| code (merge two sorted lists, ctx 135) | 80 % | 1.41 (1.80) | **1.70** (3.55) | k=5, +21 % |
+| code (a stack class, ctx 273) | 83 % | 1.15 (1.83) | **1.37** (3.06) | k=5, +19 % |
+
+Same prompts, same turn positions, so the comparison is not confounded by context length -- which
+matters here, because context costs a lot: the SAME prompt at the same depth falls 1.70 -> 1.37 (k=5)
+and 1.41 -> 1.15 (k=2) going from ctx 135 to 273, as the VM's own attention grows with it.
+
+**1.70 tok/s on code is the fastest masked decode measured on this phone.** The mechanism is the one
+REPORT 16.8 gives for the 27B: a drafted row costs a full `C` whether accepted or not and accepting
+saves only `W`, so the depth that pays scales with how often a draft lands. Code is more predictable
+than prose (80-83 % against 55 %), which buys three more rows. Per-draft acceptance still falls with
+depth on code -- 80 % at k=2, 67 % at k=5 -- but not fast enough to cancel the extra rows.
+
+So the shipped default should pick depth per workload rather than fix it: `--ei draft_max 1` for prose,
+`--ei draft_max 4` for code. An engine that watched its own accepted/drafted ratio could do this by
+itself; the counters it needs are already on the turn line.
