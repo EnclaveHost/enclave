@@ -24,6 +24,25 @@ making a dead path look maintained. If the dispatch-harness route is ever wanted
 signature/output selector first, and the tests should be written then.
 """
 
+import sys as _sys
+
+# RETIRED. This refuses unconditionally, before any import, device call or file is touched.
+#
+# A docstring saying "superseded" is not a refusal: an audit pointed out that __main__ still called
+# main(), the runner invocation still ended in a shell `tail` that hid its exit status, and the
+# cleanup I added "before the run" was actually placed AFTER it -- deleting a good result while an
+# unchecked cleanup failure could leave a stale one. Claiming the stale-output gap was closed while
+# that path stayed reachable was wrong.
+#
+# Nothing below this line executes. It is kept so the attempt and its defects stay on the record;
+# tpu/test/retired-tool-test.py proves no adb call can occur.
+print("deployed-kernel-error.py is RETIRED and does nothing. It never produced a measurement: the "
+      "on-device dispatch harness accepts one model output and real lane signatures have up to three. "
+      "kVerifyKernel in payload/ggml-tpu.cpp measures the same quantity in situ on real activations; "
+      "see TPU.md.", file=_sys.stderr)
+_sys.exit(2)
+
+
 
 import os
 import struct

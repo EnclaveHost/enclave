@@ -1904,3 +1904,29 @@ whole token in 67 ms, which at 4 ms per exchange allows about 16 exchanges -- fo
 That is the honest shape of the answer. It is not "the accelerator is too slow" and it is not "the model
 is too big": it is that each masked exchange costs about 4 ms of VM work and boundary crossing before the
 TPU does anything, and a useful model needs more than sixteen of them.
+
+## The worker's priority is right, and the VM's slowness is not contention with it (2026-09-22)
+
+The 558 ms "everything else" contains about 90-117 ms per token of VM work OUTSIDE the exchanges, which
+is more than the CPU-only path spends computing the WHOLE model (69 ms/token) -- and the TPU path's
+share is a strict subset of that work, since the projections have left. Something was taking three to
+five times longer than it should, and the obvious suspect was the worker holding `nice -19` against the
+VM's boosted vCPUs on six big cores with no spare one.
+
+Measured, by making the worker's priority a flag:
+
+| `--ei tpu_prio` | worker thread priority | decode | link |
+|---|---|---|---|
+| 99 (default) | -19 | **1.21 tok/s** | 4.402 ms |
+| 0 | 0 | 1.09 | 4.947 |
+| 10 | 10 | 1.03 | 5.256 |
+
+**The opposite of the hypothesis.** Lowering the worker's priority makes everything worse, monotonically,
+and `link` grows with it -- the worker needs the boost it has, and giving the VM's vCPUs a larger share
+of the cores does not speed the VM's own work enough to pay for the slower exchanges. So the default is
+right, and whatever inflates the VM's non-exchange work is not the worker's scheduling priority.
+
+That leaves the inflation unexplained rather than explained, which is the honest state. Candidates not
+yet separated: the guest's own scheduling under a protected VM, page-cache pressure from a 1757 MB
+evictable bundle, or the non-offloaded ops genuinely costing more in the VM than the same ops cost inside
+a plain CPU decode.

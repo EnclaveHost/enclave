@@ -109,6 +109,7 @@ public class Main extends Activity {
         String tpuBundle = "";               // --es tpu_bundle <file>: the public lane bundle streamed into the VM (tpu/make_graphs.py)
         int tpuBank = 64;                    // --ei tpu_bank: pad positions minted in the VM before READY (0 = mint inside decode steps, which the stats then show)
         int tpuRefill = 0;                   // --ei tpu_refill 0..8: background minter threads in the VM during decode (0 = only the bank minted before READY)
+        int tpuPrio = 99;                    // --ei tpu_prio: worker thread priority (99 = URGENT_AUDIO, the default; 0 = normal; 10 = background)
         int tpuLinks = 0;                    // --ei tpu_links 2..4: extra worker connections for the link-scaling benchmark ONLY (mode local)
         int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal)
@@ -192,6 +193,7 @@ public class Main extends Activity {
             if (i.getStringExtra("draft") != null) p.draft = i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
             p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
+            p.tpuPrio = i.getIntExtra("tpu_prio", p.tpuPrio);
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
             p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuRefill = i.getIntExtra("tpu_refill", p.tpuRefill); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
@@ -635,7 +637,13 @@ public class Main extends Activity {
          * hand-offs -- and a worker that loses the scheduling contest to a boosted vCPU pays for it twice. Ask for
          * the same treatment: nice -19, and an ADPF session naming this tid with the exchange's own deadline so the
          * governor keeps a big core available for it. Both are best-effort and neither is required to be granted. */
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+        /* MEASURING (--ei tpu_prio): the worker and the VM's vCPUs share six big cores with no spare one,
+         * and the VM's own non-exchange work measures 90-117 ms per token while the CPU-only path computes
+         * the WHOLE model in 69 ms. The VM's share here is a strict subset of that, so something is taking
+         * three to five times longer than it should, and a worker holding nice -19 against boosted vCPUs is
+         * the obvious suspect. Lowering it trades TPU dispatch latency for VM throughput; which way that
+         * trade goes is a measurement, not a guess. */
+        android.os.Process.setThreadPriority(plan.tpuPrio == 99 ? android.os.Process.THREAD_PRIORITY_URGENT_AUDIO : plan.tpuPrio);
         Object hint = null;
         try {
             Object phm = appCtx == null ? null : appCtx.getSystemService("performance_hint");
