@@ -3587,3 +3587,51 @@ candidate and every tensor it reads: O(n^2) per exchange, tens of billions of
 comparisons over a 3799-node graph and 321 exchanges, killing the run before a
 single island was scheduled. An eligibility test that costs more than the work
 it schedules is not an optimisation.
+
+### 18.24 The pilot's failure was mine, not the allocator's
+
+18.23 named ggml's allocator as the candidate cause and treated the mode-2
+bisect as narrowing to it. Both were wrong, and an independent review found the
+actual defect.
+
+**`done` means SCHEDULED, not produced.** The gathering loop marks the whole
+activation group done before the exchange is issued -- `done[j] = 1` while
+collecting siblings, `done[i] = 1` immediately after, both well before
+`sh_split_exchange`. My selector read `done` as "produced and verified". So it
+offered the hook work that reads a product still on the wire. The pilot's own
+log said so and I did not read it that way: `batch=1 at node 0 m=17` is an
+island selected against the matmul in flight beside it.
+
+That invalidates the safety claim in 18.23 as stated. The selection did not
+establish what I said it established.
+
+**Repaired:** a separate `produced` map, set only after an output exists -- for
+the offloaded path only after the exchange returned SH_OK and the post step
+reconstructed the result. Reads follow the `view_src` chain, so a reshape of an
+in-flight tensor is caught, and there is an independent guard that refuses any
+read aliasing a member of the group in flight regardless of bookkeeping.
+
+**With the repair, the run passes**: rc=0, spec 19.57, identical=True,
+obs_fail=0, local=0, verify_fail=0. So the mode-1 failure was the readiness
+defect, not the allocator. The allocator hypothesis is withdrawn; it was never
+tested, and the one guard I did add against it (refusing overlap with this
+exchange's outputs) changed nothing because it was aimed at the wrong thing.
+
+**And the repair costs the pilot its work.** Zero islands are now eligible, and
+that is structural rather than a tuning threshold: a local island matches
+`add(matmul_result, residual) -> rmsnorm -> gamma`, so it is BY CONSTRUCTION
+immediately downstream of a matmul. The only exchange it could overlap is the
+one producing its own input. The claimable class is exactly the wrong class for
+overlap, and no amount of care in the selector changes that.
+
+So the pilot stands as: mechanism built and proven to fire, readiness rule now
+correct, default off, and yielding nothing -- because the work the backend is
+allowed to claim can never be independent of the exchange in flight. Real
+overlap needs a class the shielded backend does not currently own, which is the
+CPU-backend nodes the earlier graph analysis counted.
+
+Two corrections to how 18.23 reported itself. The mode-2 bisect established
+that executing early triggers the failure; it did not establish the allocator
+as the cause, and I wrote it as though it had narrowed further than it did. And
+"3 windows fired" was a log capped at three prints, not a callback total --
+a count of how often I had allowed myself to be told, quoted as a measurement.

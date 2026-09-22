@@ -1945,6 +1945,25 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         if (widest > 0) s.graph_w[widest <= 1 ? 0 : widest <= 4 ? 1 : widest <= 8 ? 2 : 3]++;
     }
     std::unordered_map<const ggml_tensor *, int> idx_of;   /* built lazily; only the overlap pilot uses it */
+    /* `done` means SCHEDULED, not produced: the gathering loop marks the whole
+     * activation group done BEFORE the exchange is issued, so a node marked
+     * done may still be in flight. The overlap pilot's first version read
+     * `done` as "produced and verified" and therefore selected work that reads
+     * a product still on the wire -- which is what its batch at node 0 of warm
+     * prefill actually was. `produced` is set only after an output has been
+     * written and, for offloaded nodes, only after the exchange returned
+     * SH_OK and the post step reconstructed the result. */
+    std::vector<char> produced(n, 0);
+    if (sh_overlap_cpu_enabled()) {          /* eagerly: a lazily built map would
+                                              * miss everything produced before the
+                                              * first eligible exchange */
+        idx_of.reserve((size_t)n * 2);
+        for (int q = 0; q < n; q++) idx_of[ggml_graph_node(cgraph, q)] = q;
+    }
+    auto mark_produced = [&](const ggml_tensor *t) {
+        auto f = idx_of.find(t);
+        if (f != idx_of.end()) produced[f->second] = 1;
+    };
     for (int i = 0; i < n; i++) {
         if (done[i]) continue;
         ggml_tensor *node = ggml_graph_node(cgraph, i);
@@ -1954,6 +1973,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             if (sh_local_island_pattern(node, pattern)) {
                 if (!sh_compute_local_island(s, node, pattern)) return GGML_STATUS_FAILED;
                 done[i] = 1;
+                if (!idx_of.empty()) produced[i] = 1;
                 continue;
             }
             fprintf(stderr, "[shielded] refusing an op we never claimed (%s); failing the graph\n", ggml_op_name(node->op));
@@ -1974,7 +1994,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                 fprintf(stderr, "[shielded] %s: claimed but not registered; computing it "
                                 "in the enclave (nothing offloaded for this site)\n", nm.c_str());
             sh_plain_mul_mat(node->src[0], a, node);
-            s.local_nodes++; done[i] = 1;
+            s.local_nodes++; done[i] = 1; if (!idx_of.empty()) produced[i] = 1;
             continue;
         }
 
@@ -2135,10 +2155,6 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                  * killed the run before a single island was scheduled. An
                  * eligibility test that costs more than the work it schedules
                  * is not an optimisation. */
-                if (idx_of.empty()) {
-                    idx_of.reserve((size_t)n * 2);
-                    for (int q = 0; q < n; q++) idx_of[ggml_graph_node(cgraph, q)] = q;
-                }
                 for (int j = i + 1; j < n; j++) {
                     if (done[j]) continue;
                     ggml_tensor *nj = ggml_graph_node(cgraph, j);
@@ -2155,8 +2171,24 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                     bool ready = true;
                     for (const ggml_tensor *rt : reads) {
                         if (!rt || rt == nj) continue;
-                        auto f = idx_of.find(rt);
-                        if (f != idx_of.end() && !done[f->second]) { ready = false; break; }
+                        /* Follow the view chain: a read can be a reshape of a
+                         * tensor still in flight, and the view has its own
+                         * node with its own state. */
+                        for (const ggml_tensor *v = rt; v; v = v->view_src) {
+                            auto f = idx_of.find(v);
+                            if (f != idx_of.end() && !produced[f->second]) { ready = false; break; }
+                            /* Belt and braces against the group in flight RIGHT
+                             * NOW, independent of any bookkeeping: never read a
+                             * member of this exchange or an alias of one. */
+                            for (size_t q = 0; q < members.size(); q++) {
+                                const ggml_tensor *mv = members[q];
+                                for (const ggml_tensor *w = mv; w; w = w->view_src)
+                                    if (w == v) { ready = false; break; }
+                                if (!ready) break;
+                            }
+                            if (!ready) break;
+                        }
+                        if (!ready) break;
                     }
                     if (!ready) continue;
                     /* Dependencies are not enough. ggml's allocator reuses
@@ -2194,7 +2226,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                  * behaviour with the pilot switched off. */
                 for (size_t k = 0; k < idle.done_n; k++) {
                     auto f = idx_of.find(idle.items[k].first);
-                    if (f != idx_of.end()) done[f->second] = 1;
+                    if (f != idx_of.end()) { done[f->second] = 1; produced[f->second] = 1; }
                 }
             }
             split_post_done = post_ok && rc == SH_OK;
@@ -2371,6 +2403,11 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             s.macs += (uint64_t)m * (uint64_t)K * (uint64_t)N;
         }
         s.t_post += sh_now_ms() - tp0;
+        /* Outputs now exist and, for the offloaded path, have passed Freivalds
+         * and been reconstructed. Only here does a member become readable by
+         * anything the pilot may schedule. */
+        if (!idx_of.empty())
+            for (size_t t = 0; t < members.size(); t++) mark_produced(members[t]);
     }
     s.t_graph += sh_now_ms() - tg0;
     /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
