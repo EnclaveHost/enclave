@@ -1,0 +1,66 @@
+// gwcheck -- run ONE compiled graph on the NPU with deterministic int8 inputs and dump the int16 output,
+// so a host reference can say whether the compiled graph computes what it was built to compute.
+// Compiling is not correctness: this exists because "the compiler accepted it" has been wrong here before.
+//   gwcheck <dispatch_dir> <model.tflite> <out_prefix> <seed>
+// writes <out_prefix>.in<k> (int8, one per input, in signature order) and <out_prefix>.out (int16).
+#include <chrono>
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include "litert/cc/litert_compiled_model.h"
+#include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_environment_options.h"
+#include "litert/cc/litert_model.h"
+#include "litert/cc/litert_tensor_buffer.h"
+
+static uint32_t lcg(uint32_t& s) { s = s * 1664525u + 1013904223u; return s; }
+static bool dump(const std::string& p, const void* d, size_t n) {
+  FILE* f = fopen(p.c_str(), "wb"); if (!f) return false;
+  bool ok = fwrite(d, 1, n, f) == n; return fclose(f) == 0 && ok;
+}
+
+int main(int argc, char** argv) {
+  if (argc < 5) { fprintf(stderr, "usage: gwcheck <dispatch_dir> <model.tflite> <out_prefix> <seed>\n"); return 2; }
+  const std::string dispatch = argv[1], path = argv[2], pre = argv[3];
+  uint32_t seed = (uint32_t)strtoul(argv[4], nullptr, 10);
+  std::vector<litert::EnvironmentOptions::Option> opts;
+  opts.push_back({litert::EnvironmentOptions::Tag::kDispatchLibraryDir, dispatch.c_str()});
+  auto env = litert::Environment::Create(litert::EnvironmentOptions(opts));
+  if (!env) { fprintf(stderr, "FAIL environment: %s\n", env.Error().Message().c_str()); return 3; }
+  auto cm = litert::CompiledModel::Create(*env, path, litert::HwAccelerators::kNpu);
+  if (!cm) { fprintf(stderr, "FAIL compile/load: %s\n", cm.Error().Message().c_str()); return 4; }
+  auto in = cm->CreateInputBuffers(size_t(0)); auto out = cm->CreateOutputBuffers(size_t(0));
+  if (!in || !out || out->size() != 1) { fprintf(stderr, "FAIL buffers\n"); return 5; }
+  for (size_t i = 0; i < in->size(); i++) {
+    auto z = (*in)[i].PackedSize(); if (!z) { fprintf(stderr, "FAIL input size\n"); return 6; }
+    std::vector<int8_t> v(*z);
+    for (auto& x : v) x = (int8_t)((int)(lcg(seed) >> 25) - 64);       // uniform in [-64, 63]
+    if (auto r = (*in)[i].Write<int8_t>(litert::Span<const int8_t>(v.data(), v.size())); !r) {
+      fprintf(stderr, "FAIL input write\n"); return 7; }
+    if (!dump(pre + ".in" + std::to_string(i), v.data(), v.size())) { fprintf(stderr, "FAIL dump in\n"); return 8; }
+  }
+  if (auto r = cm->Run(size_t(0), *in, *out); !r) { fprintf(stderr, "FAIL run: %s\n", r.Error().Message().c_str()); return 9; }
+  auto oz = (*out)[0].PackedSize(); if (!oz) { fprintf(stderr, "FAIL output size\n"); return 10; }
+  std::vector<int16_t> y(*oz / 2);
+  if (auto r = (*out)[0].Read<int16_t>(litert::Span<int16_t>(y.data(), y.size())); !r) {
+    fprintf(stderr, "FAIL output read\n"); return 11; }
+  if (!dump(pre + ".out", y.data(), y.size() * 2)) { fprintf(stderr, "FAIL dump out\n"); return 12; }
+  long nz = 0; for (auto v : y) nz += v != 0;
+  printf("\nOK inputs=%zu out_elems=%zu nonzero=%ld\n", in->size(), y.size(), nz);
+  // optional 5th arg: time N back-to-back Runs on the same resident model (min and median, ms)
+  if (argc > 5) {
+    const int N = atoi(argv[5]); std::vector<double> t;
+    for (int i = -5; i < N; i++) {
+      auto a = std::chrono::steady_clock::now();
+      if (auto r = cm->Run(size_t(0), *in, *out); !r) { fprintf(stderr, "FAIL timed run\n"); return 13; }
+      double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count();
+      if (i >= 0) t.push_back(ms);
+    }
+    std::sort(t.begin(), t.end());
+    printf("TIME n=%d min=%.3f median=%.3f ms\n", N, t.front(), t[t.size() / 2]);
+  }
+  return 0;
+}
