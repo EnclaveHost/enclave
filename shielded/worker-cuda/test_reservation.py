@@ -123,7 +123,12 @@ def main():
     print("1. a 4-byte HELLO reserves nothing")
     l0 = Link(a.port)
     st, h = l0.hello()
-    check("old_hello_ok", st == STATUS_OK and h["version"][:2] == [1, 3], f"version {h.get('version') if st == 0 else h}")
+    # Reservations are the 1.3 feature this file tests, so the floor is 1.3 --
+    # pinning the exact pair failed the whole file the moment the worker moved
+    # to 1.4, for a reason that had nothing to do with reservations.
+    ver = h["version"][:2] if st == STATUS_OK else None
+    check("old_hello_ok", ver is not None and ver[0] == 1 and ver[1] >= 3,
+          f"version {h.get('version') if st == STATUS_OK else h}")
     budget = h["vram_budget"]
     seen["budget"] = budget
     check("old_hello_reserves_nothing", h["vram_reserved"] == 0 and h["vram_reserve"] == 0,
