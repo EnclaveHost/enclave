@@ -459,3 +459,36 @@ and the cost is not a syscall storm.
 free, and send the smallest payload an int16 single row can be (~16 KB): 0.74 + 0.72 = 1.46 ms per
 exchange, 205 ms per token, **4.9 tok/s.** That is the ceiling for masked decode on a 35-block model
 over this link, and it is 3.3x short of the bar before anything actually computes anything.
+
+## Speculation depth, found by REPORT 16.6's decomposition (2026-09-21)
+
+The engine's 27B work split a token into a per-PASS cost `W` (the weight stream and the exchange
+launches, paid once however many rows are in flight) and a per-TOKEN cost `C`, and used it to show why
+speculation had stopped paying there. The same split applies here, and it found a configuration that had
+never been tried: **every measurement so far was at one row or five, and the optimum is at two.**
+
+Fitting the phone's own numbers (1 row 1.22 tok/s; 5 rows 1.18 at 2.00 tokens/step):
+
+| | W, per pass | C, per row |
+|---|---|---|
+| digit-split | 601 ms | 219 ms |
+| int16 | 859 ms | 162 ms |
+
+`C` here is the link's byte term, not CPU as on the 27B: an extra row costs an extra masked row out and
+an extra reply back, at the 22 MB/s the bounce path runs at. That is also exactly why int16 trades the
+way it does -- lower `C`, much higher `W` -- and the crossover is at **4.5 rows**, which is why int16
+lost at one row (0.98 against 1.22) and drew at five (1.20 against 1.18).
+
+With acceptance folded in (`E = sum p^i`, p about 0.55 measured), the round is `(W + kC) / E`:
+
+| rows | drafts | predicted | measured |
+|---|---|---|---|
+| 1 | 0 | 1.22 | **1.22** |
+| 2 | 1 | 1.46 | **1.42** |
+| 5 | 4 | 1.18 | **1.18** |
+
+**1.42 tok/s at two rows is the fastest masked decode measured on this phone**, 16 % over one row and
+well clear of the leaky k=8 lane's 1.20. The reason deep speculation loses is the same one REPORT 16.8
+gives for the 27B (`k=1/2/3 -> 17.67/14.83/15.41`): a drafted row costs a full `C` whether it is accepted
+or not, and accepting one saves only `W`. Here `C` is 36 % of a one-row token, so the fourth and fifth
+rows are paying 219 ms each for acceptance probabilities of 0.09 and 0.05.
