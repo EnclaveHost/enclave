@@ -537,3 +537,31 @@ not rescue it either. Every row is then accepted, so `k` tokens cost `W + kC`, w
 `1/C` = 4.6 tok/s aggregate however many users, and `C` grows superlinearly in practice (link 4.60 /
 5.83 / 9.14 / 10.66 ms at 1 / 2 / 3 / 5 rows). That lands on the same 4.9 tok/s the link floor gave
 independently, and each user would be getting 0.6 tok/s at five rows.
+
+### What model shape WOULD clear 15 tok/s here
+
+Calibrated against the measured k=2 exchange rather than assumed: 2.28 ms fixed (invocation 0.637 +
+link latency 0.74 + worker copies + mask/unmask), the exchange path's own 14.4 MB/s (the bundle
+stream's 38 MB/s is one long sequential transfer, not this), 0.060 ms per streamed MB, 1.55 tokens per
+step at two rows. The fit gives E2B 1.76 against 1.47 measured, so it is ~20 % optimistic:
+
+| model | int8 MB | ms/token | tok/s |
+|---|---|---|---|
+| Gemma 4 E2B (today) | 2349 | 568 | **1.76** (1.47 measured) |
+| Gemma-3-1B class, 26 blocks | 759 | 329 | 3.04 |
+| Gemma-3-270M class, 18 blocks | 100 | 148 | 6.75 |
+| 12 blocks, d=640 | 67 | 99 | 10.12 |
+| 10 blocks, d=576 | 40 | 78 | 12.84 |
+| **8 blocks, d=512** | **26** | **61** | **16.48** |
+
+So the bar is cleared at about **8 blocks and 25M parameters**, and an optimistic fit at that. A
+270M-class model -- already small enough that quality is the binding question rather than speed --
+reaches 6.75. **There is no model worth running that reaches 15 tok/s through a masked link on this
+phone**, and that conclusion is now three independent measurements deep: the per-exchange floor, the
+link's latency/bandwidth split, and this shape sweep.
+
+The reply cannot be shrunk to change it either. The `lo` digit only needs 8 bits (it contributes 1/256
+of the product, so 15 bits total needs A at 16 and B at 8) -- a real 25 % saving on the reply. But a
+tensor carries one type, so hi and lo at different widths needs two FULLY_CONNECTEDs, and that emits
+the weights twice: 36.4 -> 71.9 MB on a real layer, which costs far more streaming than the 25 % buys.
+The stacked-row digit-split already sits at the optimum the compiler allows.
