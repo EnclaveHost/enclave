@@ -161,6 +161,26 @@ and wrong.
 its length is read through the out-of-line `VMMemoryDefinition` so concurrent growth stays visible;
 that length load is an ordinary load, so it is now byte-wise like everything else.
 
+### Evidence
+
+Six tests in `pulley/src/interp.rs` exercise the mechanism directly rather than through bytecode:
+the property is a memory-model property and the discriminating input is a racing thread.
+
+    cargo test  -p pulley-interpreter --features std,interp --lib shared_memory     6/6 pass
+    cargo miri test  (same filter)                                                  6/6 pass, nothing reported
+
+Neither result means anything without the pair that fails:
+
+| mutation | result |
+|---|---|
+| the guard removed from `Shared::rmw` | the contention test returns **39201 of 160000** |
+| the width-sized fast path restored for aligned 4-byte accesses | Miri: **"Undefined Behavior: Race condition detected between (1) 4-byte atomic load on thread `unnamed-21` and (2) 1-byte atomic store on thread `unnamed-22`"** |
+
+The second is this change's whole reason, reported by a tool instead of argued for in a comment.
+`tools/parallelism-probe/mixed-width` is the standalone reproducer for the same shape and has been
+corrected: it used to say byte-wise atomics could not work, which was true only of byte-wise
+atomics *without* a lock for the atomic instructions.
+
 ### Still open before the refusal may move
 
 - **Host access.** Every host read or write of guest memory - WASI, the canonical ABI's lifting and

@@ -23,22 +23,42 @@
 //
 // WHY THE OBVIOUS FIXES DO NOT WORK.
 //
-//   Byte-wise atomics everywhere. Solves the overlap - every access is then AtomicU8 - but a wasm
-//   ATOMIC op must be INDIVISIBLE, and a four-byte access built from four one-byte accesses is
-//   not. That trades a host-model violation for a guest-semantics violation, which is worse: the
-//   guest can observe it.
+//   Byte-wise atomics everywhere, on their own. Solves the overlap - every access is then
+//   AtomicU8 - but a wasm ATOMIC op must be INDIVISIBLE, and a four-byte access built from four
+//   unsynchronised one-byte accesses is not. That trades a host-model violation for a
+//   guest-semantics violation, which is worse: the guest can observe it.
+//
+//   Byte-wise atomics everywhere, PLUS a lock for the atomic instructions. This is what
+//   wasm/wasmtime-shared-memory-soundness.patch now does, and it is the reason this file is no
+//   longer the last word. Every ordinary access is AtomicU8, so no two accesses to one address
+//   ever differ in size; the wasm atomic instructions take a striped lock (by 8-byte block of the
+//   host address) and move their bytes under it, so they are indivisible with respect to each
+//   other after all. The objection above applied to byte-wise atomics WITHOUT the lock.
+//
+//   What that still does not reproduce is hardware's behaviour when an atomic races an ORDINARY
+//   access, which the lock does not cover: a guest thread doing a plain 4-byte store while another
+//   does an atomic load can, here, have some of its bytes seen and not others, where an aligned
+//   machine access would be all-or-nothing. That pair is a DATA RACE in wasm's own memory model,
+//   which is why it is defensible - wasm resolves a race with an unspecified value rather than
+//   undefined behaviour, and an unspecified value is what this produces. It is still a real
+//   weakening against hardware, it is the one remaining semantic gap in this approach, and it
+//   should be confirmed against the spec text rather than against this comment before the gate
+//   moves.
 //
 //   Alignment. Irrelevant. Both accesses above are perfectly aligned for their own width.
 //
 //   Widening the narrow access to the wide one. A read-modify-write of the containing word is not
 //   equivalent: it writes bytes the guest did not write, which a racing reader can observe.
 //
-// WHAT WOULD WORK is stepping outside Rust's typed atomics for guest memory entirely - inline
-// assembly with the right constraints, where the compiler treats the access as an opaque memory
-// operation and the hardware guarantee (an aligned mov IS atomic on x86-64 and aarch64) is the one
-// being relied on. That is target-specific, which cuts against the whole point of a portable
-// interpreter, and it is a larger change than anything here. Until it exists, or until Rust's
-// model grows a way to say this, the gate stays on.
+// THE OTHER THING THAT WOULD WORK is stepping outside Rust's typed atomics for guest memory
+// entirely - inline assembly with the right constraints, where the compiler treats the access as
+// an opaque memory operation and the hardware guarantee (an aligned mov IS atomic on x86-64 and
+// aarch64) is the one being relied on. It is the only approach that also reproduces hardware for
+// the atomic-versus-ordinary race above. It is target-specific, which cuts against the whole point
+// of a portable interpreter, and it is a larger change than anything here.
+//
+// The gate stays on either way, and no longer for this reason: what holds it now is host access to
+// guest memory and the `no_std` port, both listed in wasm/PULLEY-ATOMICS.md.
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering::Relaxed};
 use std::thread;
 
