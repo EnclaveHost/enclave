@@ -26,8 +26,23 @@
 #     memory keeps memmove and pays nothing. The small-constant inline expansion is also skipped
 #     for a shared memory, since it expands to ordinary loads and stores.
 #
-# Verified: cargo check of pulley-interpreter (--all-features), wasmtime-internal-cranelift, and
-# wasmtime with runtime,component-model,pulley,std,cranelift,threads - all clean, on the box.
+#   pulley/src/interp.rs (tests)
+#     Six tests for the mechanism itself rather than for bytecode, because the property is a MEMORY
+#     MODEL property and the discriminating input is a racing thread.
+#
+# EVIDENCE, all on the box (NucBox_k11):
+#
+#   cargo check          pulley-interpreter --all-features, wasmtime-internal-cranelift, and
+#                        wasmtime with threads: clean, no warnings in the files touched.
+#   cargo test           6/6 pass natively.
+#   MUTANT (no lock)     removing the guard from `Shared::rmw` makes the contention test fail
+#                        39201 of 160000 - the lock is what the test depends on.
+#   MIRI                 6/6 pass, no data race and no mixed-size access reported.
+#   MIRI (old design)    restoring the width-sized fast path for aligned 4-byte accesses gives
+#                        "Undefined Behavior: Race condition detected between (1) 4-byte atomic
+#                        load on thread `unnamed-21` and (2) 1-byte atomic store on thread
+#                        `unnamed-22`" - which is the whole reason for this change, reported by a
+#                        tool rather than argued for in a comment.
 --- a/pulley/src/interp.rs
 +++ b/pulley/src/interp.rs
 @@ -9,7 +9,10 @@
@@ -170,15 +185,15 @@
 +        if n == 8 {
 +            let v = core::mem::transmute_copy::<T, u64>(&val).to_ne_bytes();
 +            let mut k = 0; while k < 8 { p(k, v[k]); k += 1; }
-+            return;
-+        }
+             return;
+         }
+-        race_write_unaligned(d, val, n)
 +        if n == 16 {
 +            let w = core::mem::transmute_copy::<T, [u64; 2]>(&val);
 +            let lo = w[0].to_ne_bytes(); let hi = w[1].to_ne_bytes();
 +            let mut k = 0; while k < 8 { p(k, lo[k]); p(k + 8, hi[k]); k += 1; }
-             return;
-         }
--        race_write_unaligned(d, val, n)
++            return;
++        }
 +        race_write_other(d, val, n)
      }
  }
@@ -657,6 +672,188 @@
              .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
              Ok(v) => v,
              Err(v) => v,
+@@ -6229,3 +6403,181 @@
+         ControlFlow::Continue(())
+     }
+ }
++
++/// Tests for the shared-memory access mechanism: byte-wise ordinary accesses and the striped
++/// locks that give the wasm atomic instructions their atomicity.
++///
++/// These exercise `race_read`/`race_write`/`Shared<T>` directly rather than through bytecode. That
++/// is deliberate: the property under test is a MEMORY MODEL property, and the discriminating input
++/// is a racing thread, which is far easier to arrange here than through a guest. Running this
++/// module under Miri is the point - it is what detects a mixed-size atomic access or a data race,
++/// and it is the check the old width-sized implementation fails.
++///
++///     cargo +nightly miri test -p pulley-interpreter shared_memory
++#[cfg(all(test, feature = "std"))]
++mod shared_memory_tests {
++    use super::{Shared, race_read, race_write};
++    use core::sync::atomic::Ordering::SeqCst;
++
++    /// Miri interprets; it is thousands of times slower than the machine and it is the whole
++    /// reason these tests exist, so the loops shrink rather than the tests being skipped. The
++    /// property under test is a memory-model property: one interleaving is enough for Miri to
++    /// report it, where the native run wants many to make a lost update likely.
++    const SCALE: u32 = if cfg!(miri) { 50 } else { 20_000 };
++
++    /// A guest memory a test can hand to several threads. Raw pointers are not `Send` and the
++    /// whole point is that these accesses are sound when raced, so this carries the pointer and
++    /// asserts `Send` - it does NOT carry a `usize`. Under Miri that distinction matters: an
++    /// integer-to-pointer cast makes provenance permissive and quietly weakens exactly the
++    /// analysis these tests are here for.
++    #[derive(Clone, Copy)]
++    struct Mem(*mut u8);
++    unsafe impl Send for Mem {}
++    impl Mem {
++        fn at<T>(self, off: usize) -> *mut T {
++            unsafe { self.0.add(off).cast::<T>() }
++        }
++    }
++
++    fn with_mem(f: impl FnOnce(Mem)) {
++        let mut buf = vec![0u8; 256];
++        f(Mem(buf.as_mut_ptr()));
++        drop(buf);
++    }
++
++    #[test]
++    fn ordinary_accesses_round_trip_at_every_width_and_alignment() {
++        with_mem(|m| unsafe {
++            for off in 0..8 {
++                race_write(m.at::<u8>(off), 0xA5u8);
++                assert_eq!(race_read(m.at::<u8>(off)), 0xA5u8);
++                race_write(m.at::<u16>(off), 0x1234u16);
++                assert_eq!(race_read(m.at::<u16>(off)), 0x1234u16);
++                race_write(m.at::<u32>(off), 0xDEADBEEFu32);
++                assert_eq!(race_read(m.at::<u32>(off)), 0xDEADBEEFu32);
++                race_write(m.at::<u64>(off), 0x0123_4567_89AB_CDEFu64);
++                assert_eq!(race_read(m.at::<u64>(off)), 0x0123_4567_89AB_CDEFu64);
++                race_write(m.at::<u128>(off), u128::MAX / 3);
++                assert_eq!(race_read::<u128>(m.at::<u128>(off)), u128::MAX / 3);
++            }
++        });
++    }
++
++    /// THE ONE THAT MATTERS. Every worker adds 1 to the SAME address `iters` times through the
++    /// atomic RMW path, and the sum IS the result: a single lost update shows up. The old
++    /// implementation used a lock-free `AtomicU32` here, which was correct in isolation and
++    /// mixed-size UB beside the byte-wise ordinary accesses; this checks that replacing it with a
++    /// lock did not cost the indivisibility it was there for.
++    #[test]
++    fn atomic_rmw_loses_no_update_under_contention() {
++        const THREADS: u32 = 8;
++        let iters = SCALE;
++        with_mem(|m| {
++            unsafe { race_write(m.at::<u32>(16), 0u32) };
++            std::thread::scope(|s| {
++                for _ in 0..THREADS {
++                    s.spawn(move || {
++                        let a = unsafe { Shared::<u32>::from_ptr(m.at::<u32>(16)) };
++                        for _ in 0..iters {
++                            a.fetch_add(1, SeqCst);
++                        }
++                    });
++                }
++            });
++            assert_eq!(unsafe { race_read::<u32>(m.at::<u32>(16)) }, THREADS * iters);
++        });
++    }
++
++    /// The shape the `mixed-width` reproducer in tools/parallelism-probe was written to show:
++    /// overlapping accesses of DIFFERENT wasm widths, concurrently. Under the old implementation
++    /// these were an `AtomicU32` and an `AtomicU8` over the same byte, which Rust's model does not
++    /// define; under this one both are sequences of `AtomicU8`, so there is no size to disagree
++    /// about. The assertion is only that every observed word is made of bytes that were really
++    /// written - the point is that Miri finds nothing, not that the value is predictable.
++    #[test]
++    fn overlapping_mixed_width_accesses_are_defined() {
++        with_mem(|m| {
++            unsafe { race_write(m.at::<u32>(32), 0u32) };
++            std::thread::scope(|s| {
++                s.spawn(move || {
++                    for _ in 0..SCALE / 4 {
++                        let v: u32 = unsafe { race_read(m.at::<u32>(32)) };
++                        for b in v.to_ne_bytes() {
++                            assert!(b == 0 || b == 0xCD, "a byte nobody wrote: {b:#x}");
++                        }
++                    }
++                });
++                s.spawn(move || {
++                    for _ in 0..SCALE / 4 {
++                        unsafe { race_write(m.at::<u8>(33), 0xCDu8) };
++                        unsafe { race_write(m.at::<u8>(33), 0u8) };
++                    }
++                });
++            });
++        });
++    }
++
++    /// An atomic RMW racing ORDINARY accesses to the same word. This is a data race in wasm's own
++    /// model, so no particular value is required - what is required is that it is not UB, and that
++    /// the atomic side still counts every one of its own updates.
++    #[test]
++    fn atomic_beside_ordinary_accesses_is_defined() {
++        let iters = SCALE / 2;
++        with_mem(|m| {
++            unsafe { race_write(m.at::<u64>(64), 0u64) };
++            std::thread::scope(|s| {
++                s.spawn(move || {
++                    let a = unsafe { Shared::<u64>::from_ptr(m.at::<u64>(64)) };
++                    for _ in 0..iters {
++                        a.fetch_add(1u64 << 32, SeqCst);
++                    }
++                });
++                s.spawn(move || {
++                    for _ in 0..iters {
++                        // the low half only: the atomic above owns the high half
++                        unsafe { race_write(m.at::<u8>(64), 0x11u8) };
++                        let _: u16 = unsafe { race_read(m.at::<u16>(64)) };
++                    }
++                });
++            });
++            let v: u64 = unsafe { race_read(m.at::<u64>(64)) };
++            assert_eq!(v >> 32, u64::from(iters), "the atomic side lost an update");
++        });
++    }
++
++    /// Compare-exchange must publish only on a match, and report what it found either way.
++    #[test]
++    fn compare_exchange_reports_what_it_found() {
++        with_mem(|m| unsafe {
++            let p = m.at::<u32>(96);
++            race_write(p, 7u32);
++            let a = Shared::<u32>::from_ptr(p);
++            assert_eq!(a.compare_exchange(7, 9, SeqCst, SeqCst), Ok(7));
++            assert_eq!(race_read::<u32>(p), 9);
++            assert_eq!(a.compare_exchange(7, 11, SeqCst, SeqCst), Err(9));
++            assert_eq!(race_read::<u32>(p), 9, "a failed exchange must not publish");
++        });
++    }
++
++    /// Distinct addresses must not serialise incorrectly or, worse, deadlock: two stripes taken by
++    /// two threads in opposite orders would. Each atomic here takes exactly one stripe, which is
++    /// what makes that impossible rather than merely unlikely.
++    #[test]
++    fn independent_addresses_make_progress() {
++        with_mem(|m| {
++            std::thread::scope(|s| {
++                for k in 0..4usize {
++                    s.spawn(move || {
++                        let a = unsafe { Shared::<u32>::from_ptr(m.at::<u32>(128 + k * 8)) };
++                        for _ in 0..SCALE / 4 {
++                            a.fetch_add(1, SeqCst);
++                        }
++                    });
++                }
++            });
++            for k in 0..4usize {
++                assert_eq!(unsafe { race_read::<u32>(m.at::<u32>(128 + k * 8)) }, SCALE / 4);
++            }
++        });
++    }
++}
 --- a/crates/environ/src/builtin.rs
 +++ b/crates/environ/src/builtin.rs
 @@ -9,6 +9,17 @@
