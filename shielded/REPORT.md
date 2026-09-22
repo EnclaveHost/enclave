@@ -2832,6 +2832,37 @@ It reaches 30,970,740,736 -- the exact figure that was the dead end -- and
 clears it on the next iteration instead of spinning twelve times. The 71 MB of
 overshoot is returned by pool_trim when the link closes.
 
+Ten runs on that configuration, against the ten that produced the failure:
+
+| | before (du-*) | after (cf-*) |
+|---|---|---|
+| runs with a class-B refusal | 2 of 10 | **0 of 10** |
+| claims | -- | 40, all OK |
+| iterations per claim | up to 16, then refused | 38 at one, 2 at two |
+| iterations that failed to grow the pool | 12 in the traced failure | **0** |
+| locally-computed nodes | 0, 1 or 3 -- VARIES | **0 -- constant** |
+| output identical to the unshielded reference | 10 of 10 | 10 of 10 |
+| reservers held at close | -- | 20 at one, 20 at zero: no leak |
+
+The fallback count going CONSTANT is the part worth noticing. Across 17 earlier
+runs a class-B refusal always left one to three matmuls computed in fp32 and
+its absence left none; with the refusal gone, ten consecutive runs computed
+nothing locally. That removes the last known source of run-to-run nondeterminism
+on this path. It does not prove the path is deterministic -- ten runs against a
+base rate that was ~8% when 128 nodes were involved would show nothing either
+way at zero nodes -- but the mechanism that produced the variation is closed.
+
+What these ten runs do NOT establish is that the fix is performance-neutral.
+The spec median is 19.12 tok/s (n=9) against 20.16 for the ten before it, and
+that comparison is worthless: mean foreign load was 1.11 during the new set
+against 0.36 during the old, and across all 17 clean runs foreign load and
+throughput correlate at r = -0.36 (median 19.47 under 1.0, 18.98 at or above).
+The contention was mine -- I ran profile differencing and thread sampling on
+the box during my own measurement window, which is the third time this session
+that my own work has contaminated a run. The claim happens once per link at
+HELLO, outside the decode loop, so a steady-state regression is implausible;
+implausible is not measured, and this set does not measure it.
+
 Across 17 runs at 16.0, 15.9 and 15.5 GB the correspondence is exact in
 DIRECTION, though not in count -- an earlier draft of this section said
 local=1 and that was too precise:
