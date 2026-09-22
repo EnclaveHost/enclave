@@ -58,6 +58,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ggml-tpu.h"
+#include "bundlemagic.h"
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
@@ -358,7 +359,7 @@ static inline bool rail_budget_take(ggml_backend_tpu_stats_t &st, group &g) {
 /* The sampled kernel verification recomputes elements on the CRITICAL PATH. It is a validation tool,
  * not free: off by default, on for audits. (The rail test itself IS free -- a predicate on values the
  * unmask has already loaded, with no second pass to fuse.) */
-static constexpr bool kVerifyKernel = false;
+static constexpr bool kVerifyKernel = true;   /* MEASURING: the deployed backend deviation, not a simulated one */
 /* FAULT INJECTION on the real backend path: rewrite the reply the worker sent, before the unmask sees
  * it, exactly as a malicious or broken worker could. This is how the integrity claims are tested rather
  * than argued -- a bound that is never driven is a bound nobody has checked.
@@ -574,6 +575,16 @@ void exchange(group &g, const float *x, uint32_t rows) {
                         if (da > s.st.ver_max) s.st.ver_max = da;
                         if (db > s.st.ver_max) s.st.ver_max = db;
                         if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
+                        /* The same disagreement expressed in OUTPUT LSBs, which is the unit the error bound is
+                         * written in. tpu/test/error_bound.py has to ASSUME this term is zero (an ideal
+                         * rounder) and separately quotes a conditional figure for |delta| <= 1; this measures
+                         * it on the deployed kernel instead. The 256 is digit-split's amplification of the hi
+                         * half, so a one-LSB disagreement there is worth 2.5 output LSBs and one in lo is
+                         * worth a hundredth of that. */
+                        { const double e = fabs((double)s_d * (256.0 * (double)((int64_t)a - ca)
+                                                               + (double)((int64_t)b2 - cb))) / (double)pr.s_out;
+                          if (e > s.st.ver_lsb_max) s.st.ver_lsb_max = e;
+                          s.st.ver_lsb_sq += e * e; s.st.ver_lsb_n++; }   /* ONE combined sample, not two */
                     }
                     if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {
                         /* A RETURNED RAIL IS NOT EVIDENCE OF ANYTHING. The worker is untrusted, so the rail is
@@ -718,8 +729,9 @@ extern "C" int ggml_backend_tpu_open_bundle(const char *path) {
     const uint8_t *b = (const uint8_t *)m, *e = b + sb.st_size;
     /* ETPUB002 is a digit-split bundle: its graphs take 2*rows int8 digit rows instead of rows of int16, so a payload
      * that sent int16 would be feeding the TPU nonsense that still decodes to plausible text. Refuse loudly. */
-    const bool bundle_ds = !memcmp(b, "ETPUB002", 8);
-    if (!bundle_ds && memcmp(b, "ETPUB001", 8)) { TPU_LOG("bundle magic\n"); munmap(m, (size_t)sb.st_size); return -1; }
+    const bundle_kind bk = bundle_classify(b);
+    if (bk == BUNDLE_REJECT) { TPU_LOG("bundle magic %.8s: this payload implements ETPUB001 and ETPUB002 only\n", (const char *)b); munmap(m, (size_t)sb.st_size); return -1; }
+    const bool bundle_ds = (bk == BUNDLE_DIGIT_SPLIT);
     s_digit_split = bundle_ds;
     uint32_t n; memcpy(&n, b + 8, 4); size_t off = 16;
     auto al8 = [](size_t o) { return (o + 7) & ~(size_t)7; };

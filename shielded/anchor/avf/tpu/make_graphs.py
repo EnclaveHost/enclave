@@ -19,6 +19,9 @@ Bundle (little endian): "ETPUB001", u32 groups, then per group
   per projection: char name[64], u32 n_out, f32 s_out, i32 pad_budget_q, f32 sw[n_out], i8 Wq[n_out * n_in] (row major), pad to 8."""
 import argparse, os, struct, sys
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle_magic import bundle_magic   # the marker decision, shared with tpu/test/bundle-marker-test.py
 from gguf import GGUFReader
 from ai_edge_litert.tools import flatbuffer_utils as fu
 from ai_edge_litert import schema_py_generated as S
@@ -205,8 +208,7 @@ with open(f'{A.outdir}/lanes.etpu', 'wb') as f:
     #   ETPUB003  two int8 digit rows as TWO graph inputs, the accelerator recombines, reply is one row
     # A combine bundle previously wrote ETPUB002, which an ETPUB002 payload ACCEPTS while its graphs take
     # a different number of inputs entirely. That is exactly the silent mismatch this field exists to stop.
-    magic = b'ETPUB003' if A.digit_combine else (b'ETPUB002' if A.digit_split else b'ETPUB001')
-    f.write(magic + struct.pack('<I', len(groups))); pad8(f)
+    f.write(bundle_magic(A.digit_split, A.digit_combine) + struct.pack('<I', len(groups))); pad8(f)
     for g in groups:
         f.write(struct.pack('<HBBIff', g['layer'], g['kind'], len(g['projs']), g['n_in'], float(g['s_in']), -1.0 if A.modular else A.k))
         f.write(g['s'].tobytes()); f.write(g['sig_q'].tobytes()); f.write(g['r_amp'].tobytes()); pad8(f)
