@@ -131,6 +131,17 @@ bool rd_all_spin(int fd, void *p, size_t n, uint64_t *spun_us) {
 inline int64_t dot_i8_i8(const int8_t *w, const int8_t *v, uint32_t n) {
     int64_t a = 0; for (uint32_t i = 0; i < n; i++) a += (int32_t)w[i] * (int32_t)v[i]; return a;
 }
+/* q = 256*hi + lo, both digits in [-128, 127]: the decomposition the digit-split wire uses.
+ * Written WITHOUT shifts of negative values. A left shift of a negative is undefined in C++17 (it only
+ * became defined in C++20) and build.sh compiles this as C++17; a right shift of a negative is
+ * implementation-defined. Three places have to agree BIT-EXACTLY or the pad and the wire diverge -- the
+ * send path, the minter's pad split, and the audit's exact recompute -- and they were three different
+ * expressions, two of them shifting negatives. `(uint32_t)v & 0xFF` is modular and defined for negative
+ * v; `v - lo` is an exact multiple of 256 so the division neither rounds nor depends on sign rules.
+ * tpu/test/digit-split-test.cpp checks both digits over the whole int16 range under UBSan. */
+static inline int32_t digit_lo(int32_t v) { const int32_t m = (int32_t)((uint32_t)v & 0xFFu); return m >= 128 ? m - 256 : m; }
+static inline int32_t digit_hi(int32_t v) { return (v - digit_lo(v)) / 256; }
+
 inline int64_t dot_i8_i16(const int8_t *w, const int16_t *v, uint32_t n) {
     int64_t acc = 0; uint32_t i = 0;
     while (i < n) { const uint32_t e = i + 256 < n ? i + 256 : n; int32_t a = 0; for (; i < e; i++) a += (int32_t)w[i] * (int32_t)v[i]; acc += a; }
@@ -190,7 +201,7 @@ void mint_batch(group &g, size_t want, std::vector<pad> &out, bool scalar = fals
         } else {
             hl.resize((size_t)2 * B * n);                                   /* [b] hi rows, then [B + b] lo rows */
             for (uint32_t b = 0; b < B; b++) { const int16_t *r = pads[b].r.data(); int8_t *hi = hl.data() + (size_t)b * n, *lo = hl.data() + (size_t)(B + b) * n;
-                for (uint32_t i = 0; i < n; i++) { const int8_t l = (int8_t)(uint8_t)(r[i] & 0xFF); lo[i] = l; hi[i] = (int8_t)(((int32_t)r[i] - l) >> 8); } }
+                for (uint32_t i = 0; i < n; i++) { const int32_t v = r[i]; lo[i] = (int8_t)digit_lo(v); hi[i] = (int8_t)digit_hi(v); } }
             /* Tiled like a GEMM, because the dot is faster than the caches behind it: a tile of weight rows (TJ x TC bytes) stays
              * in L2 while four pads' hi and lo chunks (8 x TC bytes) stay in L1; partial sums wait in acc[row][pad][hi|lo]. */
             const uint32_t TC = n < 1536 ? n : 1536, TJ = (262144u / TC) < 1 ? 1 : 262144u / TC; acc.resize((size_t)TJ * B * 2);
@@ -352,8 +363,8 @@ extern "C" void ggml_backend_tpu_corr_stop(void) {
  * signal plus `sigmas` of the pad's spread), so this runs always rather than behind a flag. */
 static int64_t dot_i8_digit(const int8_t *w, const int16_t *q, uint32_t n, bool high) {
     int64_t a = 0;
-    for (uint32_t i = 0; i < n; i++) { const int32_t v = q[i], h = (v + 128) >> 8;
-        a += (int64_t)w[i] * (int64_t)(high ? h : (v - (h << 8))); }
+    for (uint32_t i = 0; i < n; i++) { const int32_t v = q[i];
+        a += (int64_t)w[i] * (int64_t)(high ? digit_hi(v) : digit_lo(v)); }
     return a;
 }
 
@@ -406,8 +417,8 @@ void exchange(group &g, const float *x, uint32_t rows) {
             const int16_t *q = s.txbuf.data() + (size_t)r * g.n_in;
             int8_t *hi = d + (size_t)r * g.n_in, *lo = d + (size_t)(rows + r) * g.n_in;
             for (uint32_t i = 0; i < g.n_in; i++) {
-                const int32_t v = q[i], h = (v + 128) >> 8;                /* arithmetic shift: floor for negatives too */
-                hi[i] = (int8_t)h; lo[i] = (int8_t)(v - (h << 8));
+                const int32_t v = q[i];
+                hi[i] = (int8_t)digit_hi(v); lo[i] = (int8_t)digit_lo(v);
             }
         }
     } else {
@@ -457,11 +468,35 @@ void exchange(group &g, const float *x, uint32_t rows) {
                 const int16_t *vh = rx, *vl = rx + (size_t)rows * pr.n_out;
                 for (uint32_t j = 0; j < pr.n_out; j++) {
                     const int16_t a = vh[j], b2 = vl[j];
-                    if (a == 32767 || a == -32768 || b2 == 32767 || b2 == -32768) {
+                    /* KERNEL VERIFICATION, independent of any CPU/GGUF path. One element per projection per
+                     * exchange is recomputed with the reference's own expression under the SAME bundle, weights
+                     * and quantisation, and compared to what the TPU returned. This is what validates the
+                     * backend's requantisation and both rails with explicit tolerances; an unmasked CPU engine
+                     * is a different quantisation and cannot settle it. Cost is 2 dots per projection per
+                     * exchange, about 420 per token, against the 2.3 GMAC the token already costs. */
+                    if (j == (uint32_t)(s.st.exchanges % pr.n_out)) {
+                        const int16_t *qv = s.txbuf.data() + (size_t)r * g.n_in;
+                        const int64_t va = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, true) * pr.M[j] * 102.4);
+                        const int64_t vb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, false) * pr.M[j] * 102.4);
+                        const int64_t ca = va > 32767 ? 32767 : (va < -32768 ? -32768 : va);   /* what a clamping backend should return */
+                        const int64_t cb = vb > 32767 ? 32767 : (vb < -32768 ? -32768 : vb);
+                        const uint64_t da = (uint64_t)llabs((int64_t)a - ca), db = (uint64_t)llabs((int64_t)b2 - cb);
+                        s.st.ver_n += 2; s.st.ver_sq += (double)(da * da) + (double)(db * db);
+                        if (da > s.st.ver_max) s.st.ver_max = da;
+                        if (db > s.st.ver_max) s.st.ver_max = db;
+                        if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
+                        if (a == -32768 || b2 == -32768) s.st.rail_m32768++;
+                        if (a == -32767 || b2 == -32767) s.st.rail_m32767++;
+                        if (a == 32767 || b2 == 32767) s.st.rail_p32767++;
+                    }
+                    if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {   /* both rails, both clamp conventions */
                         s.st.saturated++;
-                        const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in; const double Mp = pr.M[j] * 102.4;
-                        const int64_t ea = llround(Mp * (double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, true));
-                        const int64_t eb = llround(Mp * (double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, false));
+                        /* Associate EXACTLY as ggml_backend_tpu_reference_worker does -- (acc * M) * mscale, not
+                         * acc * (M * mscale). Floating multiply is not associative, so the two can differ by an ulp
+                         * and this is meant to be the same expression, not merely the same value. */
+                        const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
+                        const int64_t ea = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, true) * pr.M[j] * 102.4);
+                        const int64_t eb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, false) * pr.M[j] * 102.4);
                         const int64_t xa = ea > 32767 ? ea - 32767 : (ea < -32768 ? -32768 - ea : 0);
                         const int64_t xb = eb > 32767 ? eb - 32767 : (eb < -32768 ? -32768 - eb : 0);
                         if (xa || xb) { s.st.sat_clipped++; if (xa) s.st.sat_hi++; if (xb) s.st.sat_lo++;
@@ -484,7 +519,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
                 }
             } else
             for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j];
-                if (v == 32767 || v == -32768) { s.st.saturated++;
+                if (v >= 32767 || v <= -32767) { s.st.saturated++;
                     const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
                     const int64_t ev = llround(pr.M[j] * (double)dot_i8_i16(pr.Wq + (size_t)j * g.n_in, qr, g.n_in));
                     const int64_t ex = ev > 32767 ? ev - 32767 : (ev < -32768 ? -32768 - ev : 0);
