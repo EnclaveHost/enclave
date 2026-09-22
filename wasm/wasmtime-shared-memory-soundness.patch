@@ -1,0 +1,849 @@
+# Shared memories without undefined behaviour: the soundness half of SET on Pulley
+#
+# Applies on top of wasm/wasmtime-set-threads.patch and wasm/pulley-atomics.patch, against the
+# wasmtime-set tree. It does NOT lift the THREADS refusal - see wasm/PULLEY-ATOMICS.md for what is
+# still outstanding before that may move.
+#
+# What it changes, and why each one is a soundness fix rather than a tidy-up:
+#
+#   pulley/src/interp.rs
+#     Ordinary loads and stores were width-sized relaxed atomics when the address was aligned and
+#     byte-wise only when it was not. That is still UB by a second route: Rust forbids MIXED-SIZE
+#     atomic accesses to overlapping locations, and `i32.load` beside `i32.load8_u` at the same
+#     address is exactly that. Now every ordinary access is byte-wise, which is the only width at
+#     which two accesses to one address can never disagree about their size.
+#
+#     The same rule then disqualifies `AtomicU32` & co. for the wasm ATOMIC instructions, so their
+#     atomicity comes from STRIPED LOCKS over those same byte-wise accesses instead. `Shared<T>`
+#     keeps the method names and `Ordering` arguments `AtomicUN` had, so all 36 instruction bodies
+#     and their endianness reasoning are unchanged.
+#
+#   memory.copy / memory.fill (builtin.rs, libcalls.rs, func_environ.rs)
+#     Upstream carries FIXME(#4203) - "known to not be sound in the presence of shared memories" -
+#     on both. They memmove/memset over memory another thread may be touching. Two new builtins do
+#     the same work through byte-wise relaxed atomics, and the COMPILER chooses between them,
+#     because only it knows whether the memory is shared: the libcall sees raw pointers. A private
+#     memory keeps memmove and pays nothing. The small-constant inline expansion is also skipped
+#     for a shared memory, since it expands to ordinary loads and stores.
+#
+# Verified: cargo check of pulley-interpreter (--all-features), wasmtime-internal-cranelift, and
+# wasmtime with runtime,component-model,pulley,std,cranelift,threads - all clean, on the box.
+--- a/pulley/src/interp.rs
++++ b/pulley/src/interp.rs
+@@ -9,7 +9,10 @@
+ use core::fmt;
+ use core::mem;
+ use core::ops::ControlFlow;
+-use core::sync::atomic::{AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering};
++// AtomicU16/32/64 are deliberately NOT imported: every wide atomic access to guest memory now
++// goes through `Shared<T>` and its striped lock, because a wide atomic beside the byte-wise
++// ordinary accesses in `race_read` is the mixed-size overlap Rust's model forbids.
++use core::sync::atomic::Ordering;
+ use core::ops::{Index, IndexMut};
+ use core::ptr::NonNull;
+ use pulley_macros::interp_disable_if_cfg;
+@@ -1194,48 +1197,66 @@
+ /// access promises no ordering, so none is imposed, and tearing stays permitted exactly as the
+ /// spec allows. What changes is only that the access is no longer a data race.
+ ///
+-/// The aligned widths are a single instruction on every target that matters. An unaligned access
+-/// falls back to per-byte, where alignment is trivially satisfied - rare in practice, because
+-/// every wasm producer aligns what it can.
++/// # Why every access is BYTE-WISE, including the aligned ones
++///
++/// An earlier version of this took the obvious fast path: a width-sized relaxed atomic when the
++/// address was aligned, per-byte only when it was not. That is still a data race away from UB, by
++/// a second route. Rust's model forbids MIXED-SIZE atomic accesses to overlapping locations, and a
++/// wasm guest reaches that shape trivially - `i32.load` at some address and `i32.load8_u` at the
++/// same address are an `AtomicU32` and an `AtomicU8` over the same byte. Nothing in wasm makes
++/// that program invalid, so nothing may make it undefined here.
++///
++/// One byte is the only width at which two accesses to the same location can never disagree about
++/// their size. So every ordinary access is a sequence of `AtomicU8`, and - this is the other half
++/// of the same rule - the wasm ATOMIC instructions cannot use `AtomicU32` and friends either, or
++/// they would be the wide half of the same mismatch. They take a lock and move bytes through these
++/// very functions instead; see `shared_lock` for what pays for their atomicity.
++///
++/// The cost is real and is the price of a sound memory model in safe Rust. It buys the thing the
++/// width-sized version did not have: there is no program, however adversarial, that makes this
++/// interpreter undefined.
++///
++/// The bytes are assembled in REGISTERS rather than through a `MaybeUninit` slot. Measured on the
++/// width-sized version: 50M load+store pairs took 736 ms when the result went through an uninit
++/// slot and 491 ms returning it directly, against 521 ms for the `read_unaligned` this replaces.
++/// The atomic access itself was free; what cost 41% was making the compiler keep the value in
++/// memory across a branch. `n` is a constant at every call site, so exactly one arm survives.
+ #[inline(always)]
+ unsafe fn race_read<T>(src: *const T) -> T {
+-    use core::sync::atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicU8, Ordering::Relaxed};
++    use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
+     let n = core::mem::size_of::<T>();          // a constant: the arms below fold away
+     let s = src.cast::<u8>();
+-    let a = s as usize;
+     unsafe {
+-        // EARLY RETURNS, not a value written into a `MaybeUninit` slot. Measured: 50M
+-        // load+store pairs took 736 ms when the aligned result went through an uninit
+-        // slot and 491 ms returning it directly, against 521 ms for the plain
+-        // `read_unaligned` this replaces. The atomic access itself is free; what cost 41%
+-        // was making the compiler keep the value in memory across the branch.
+-        if n == 1 { return core::mem::transmute_copy(&(*s.cast::<AtomicU8>()).load(Relaxed)); }
+-        if n == 2 && a % 2 == 0 { return core::mem::transmute_copy(&(*s.cast::<AtomicU16>()).load(Relaxed)); }
+-        if n == 4 && a % 4 == 0 { return core::mem::transmute_copy(&(*s.cast::<AtomicU32>()).load(Relaxed)); }
+-        if n == 8 && a % 8 == 0 { return core::mem::transmute_copy(&(*s.cast::<AtomicU64>()).load(Relaxed)); }
+-        if n == 16 && a % 8 == 0 {
+-            // v128: two relaxed 64-bit reads rather than one indivisible 16-byte read. This is an
+-            // ORDINARY access, so it need not be indivisible - only free of UB.
+-            let v = [(*s.cast::<AtomicU64>()).load(Relaxed), (*s.add(8).cast::<AtomicU64>()).load(Relaxed)];
++        let b = |k: usize| (*s.add(k).cast::<AtomicU8>()).load(Relaxed);
++        if n == 1 { return core::mem::transmute_copy(&b(0)); }
++        if n == 2 { return core::mem::transmute_copy(&u16::from_ne_bytes([b(0), b(1)])); }
++        if n == 4 { return core::mem::transmute_copy(&u32::from_ne_bytes([b(0), b(1), b(2), b(3)])); }
++        if n == 8 {
++            return core::mem::transmute_copy(&u64::from_ne_bytes(
++                [b(0), b(1), b(2), b(3), b(4), b(5), b(6), b(7)]));
++        }
++        if n == 16 {
++            let v = [u64::from_ne_bytes([b(0), b(1), b(2), b(3), b(4), b(5), b(6), b(7)]),
++                     u64::from_ne_bytes([b(8), b(9), b(10), b(11), b(12), b(13), b(14), b(15)])];
+             return core::mem::transmute_copy(&v);
+         }
+-        race_read_unaligned(s, n)
++        race_read_other(s, n)
+     }
+ }
+ 
+-/// The unaligned tail, out of line and cold: every wasm producer aligns what it can, so this is
+-/// the rare shape and keeping it out of the hot path is worth more than making it fast.
++/// Any width the arms above do not name. Out of line and cold: Pulley's loads are 1, 2, 4, 8 or 16
++/// bytes, so reaching this is a new opcode rather than a rare address.
+ #[cold]
+ #[inline(never)]
+-unsafe fn race_read_unaligned<T>(s: *const u8, n: usize) -> T {
++unsafe fn race_read_other<T>(s: *const u8, n: usize) -> T {
+     use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
+     let mut out = core::mem::MaybeUninit::<T>::uninit();
+     let d = out.as_mut_ptr().cast::<u8>();
+     unsafe {
+         let mut k = 0;
+         while k < n {
+-            // Per byte, where alignment is trivially satisfied. `d` is this function's own stack
+-            // slot, which nothing else can reach, so filling it needs no atomics.
++            // `d` is this function's own stack slot, which nothing else can reach, so filling it
++            // needs no atomics - only the READ from guest memory does.
+             d.add(k).write((*s.add(k).cast::<AtomicU8>()).load(Relaxed));
+             k += 1;
+         }
+@@ -1243,32 +1264,44 @@
+     }
+ }
+ 
+-/// The store half of [`race_read`]; same reasoning, same shape.
++/// The store half of [`race_read`]; same reasoning, same shape, same byte-wise rule.
+ #[inline(always)]
+ unsafe fn race_write<T>(dst: *mut T, val: T) {
+-    use core::sync::atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicU8, Ordering::Relaxed};
++    use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
+     let n = core::mem::size_of::<T>();
+     let d = dst.cast::<u8>();
+-    let a = d as usize;
+     unsafe {
+-        if n == 1 { return (*d.cast::<AtomicU8>()).store(core::mem::transmute_copy(&val), Relaxed); }
+-        if n == 2 && a % 2 == 0 { return (*d.cast::<AtomicU16>()).store(core::mem::transmute_copy(&val), Relaxed); }
+-        if n == 4 && a % 4 == 0 { return (*d.cast::<AtomicU32>()).store(core::mem::transmute_copy(&val), Relaxed); }
+-        if n == 8 && a % 8 == 0 { return (*d.cast::<AtomicU64>()).store(core::mem::transmute_copy(&val), Relaxed); }
+-        if n == 16 && a % 8 == 0 {
+-            let v: [u64; 2] = core::mem::transmute_copy(&val);
+-            (*d.cast::<AtomicU64>()).store(v[0], Relaxed);
+-            (*d.add(8).cast::<AtomicU64>()).store(v[1], Relaxed);
++        let p = |k: usize, v: u8| (*d.add(k).cast::<AtomicU8>()).store(v, Relaxed);
++        if n == 1 { return p(0, core::mem::transmute_copy(&val)); }
++        if n == 2 {
++            let v = core::mem::transmute_copy::<T, u16>(&val).to_ne_bytes();
++            p(0, v[0]); p(1, v[1]);
++            return;
++        }
++        if n == 4 {
++            let v = core::mem::transmute_copy::<T, u32>(&val).to_ne_bytes();
++            let mut k = 0; while k < 4 { p(k, v[k]); k += 1; }
++            return;
++        }
++        if n == 8 {
++            let v = core::mem::transmute_copy::<T, u64>(&val).to_ne_bytes();
++            let mut k = 0; while k < 8 { p(k, v[k]); k += 1; }
++            return;
++        }
++        if n == 16 {
++            let w = core::mem::transmute_copy::<T, [u64; 2]>(&val);
++            let lo = w[0].to_ne_bytes(); let hi = w[1].to_ne_bytes();
++            let mut k = 0; while k < 8 { p(k, lo[k]); p(k + 8, hi[k]); k += 1; }
+             return;
+         }
+-        race_write_unaligned(d, val, n)
++        race_write_other(d, val, n)
+     }
+ }
+ 
+-/// The unaligned tail of [`race_write`].
++/// The store half of [`race_read_other`].
+ #[cold]
+ #[inline(never)]
+-unsafe fn race_write_unaligned<T>(d: *mut u8, val: T, n: usize) {
++unsafe fn race_write_other<T>(d: *mut u8, val: T, n: usize) {
+     use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
+     let v = core::mem::MaybeUninit::new(val);
+     let s = v.as_ptr().cast::<u8>();
+@@ -1281,6 +1314,147 @@
+     }
+ }
+ 
++/// STRIPED LOCKS: what gives the wasm atomic instructions their atomicity now that every ordinary
++/// access is byte-wise.
++///
++/// [`race_read`] explains why one byte is the only width at which two accesses to the same address
++/// can never disagree about their size. That rule applies to the atomic instructions too: an
++/// `AtomicU32` RMW beside a byte-wise ordinary store to the same word is exactly the mixed-size
++/// overlap Rust's model forbids, so the hardware's lock-free RMW is not available here.
++///
++/// So atomicity comes from mutual exclusion instead. An atomic instruction takes a lock, moves its
++/// bytes through the same byte-wise relaxed accesses everything else uses, and releases it. The
++/// locks are STRIPED by 8-byte block of the HOST address: a wasm atomic is aligned (the frontend
++/// emits an explicit alignment check and traps before reaching here) and at most 8 bytes wide, so
++/// it lies inside one block and one stripe suffices. Two overlapping atomics always hash to the
++/// same stripe, which is the property that matters; two disjoint ones sometimes do, which only
++/// costs contention.
++///
++/// What this does NOT lock against is an ordinary access racing an atomic one. That is deliberate
++/// and is what the wasm memory model asks for: such a race is a race, and the ordinary side may
++/// read a torn value. Making ordinary accesses take the lock would be both far slower and wrong.
++///
++/// Ordering: the guard is Acquire/Release, and a SeqCst fence at each end lifts the critical
++/// section to the sequential consistency the wasm atomics specify.
++const SHARED_STRIPES: usize = 1024;
++static SHARED_LOCKS: [core::sync::atomic::AtomicBool; SHARED_STRIPES] =
++    [const { core::sync::atomic::AtomicBool::new(false) }; SHARED_STRIPES];
++
++struct SharedGuard(usize);
++
++impl Drop for SharedGuard {
++    fn drop(&mut self) {
++        core::sync::atomic::fence(Ordering::SeqCst);
++        SHARED_LOCKS[self.0].store(false, Ordering::Release);
++    }
++}
++
++/// Take the stripe covering `addr`. `addr` is a host address, so unrelated memories cannot collide
++/// by having the same guest offset.
++#[inline]
++fn shared_lock(addr: usize) -> SharedGuard {
++    // Mix the block index: guest allocations are page-aligned and access patterns are strided, so
++    // the low bits alone would pile every hot address onto a handful of stripes.
++    let block = (addr >> 3) as u64;
++    let i = (block.wrapping_mul(0x9E3779B97F4A7C15) >> 32) as usize % SHARED_STRIPES;
++    while SHARED_LOCKS[i]
++        .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
++        .is_err()
++    {
++        core::hint::spin_loop();
++    }
++    core::sync::atomic::fence(Ordering::SeqCst);
++    SharedGuard(i)
++}
++
++/// A drop-in for `AtomicUN::from_ptr` over guest memory, with the same method names and the same
++/// `Ordering` arguments, so the instruction bodies below keep saying what they mean. The orderings
++/// are accepted and ignored: the guard already provides SeqCst, and no wasm atomic asks for less.
++struct Shared<T> {
++    ptr: *mut T,
++}
++
++macro_rules! shared_int {
++    ($($t:ty),*) => {$(
++        impl Shared<$t> {
++            /// # Safety
++            ///
++            /// `ptr` must be a valid, aligned pointer into guest memory that stays valid for as
++            /// long as this value is used - the same contract `AtomicUN::from_ptr` has, and the
++            /// reason the instruction bodies keep their `unsafe` block.
++            #[inline]
++            unsafe fn from_ptr(ptr: *mut $t) -> Self { Self { ptr } }
++
++            #[inline]
++            fn load(&self, _: Ordering) -> $t {
++                let _g = shared_lock(self.ptr as usize);
++                unsafe { race_read(self.ptr) }
++            }
++
++            #[inline]
++            fn store(&self, val: $t, _: Ordering) {
++                let _g = shared_lock(self.ptr as usize);
++                unsafe { race_write(self.ptr, val) }
++            }
++
++            /// Read-modify-write under one guard. Every operation below is this with a different
++            /// `f`, which is the whole reason a lock can stand in for the hardware primitive.
++            #[inline]
++            fn rmw(&self, f: impl FnOnce($t) -> $t) -> $t {
++                let _g = shared_lock(self.ptr as usize);
++                let old = unsafe { race_read(self.ptr) };
++                unsafe { race_write(self.ptr, f(old)) };
++                old
++            }
++
++            #[inline] fn swap(&self, val: $t, _: Ordering) -> $t { self.rmw(|_| val) }
++            #[inline] fn fetch_add(&self, val: $t, _: Ordering) -> $t { self.rmw(|x| x.wrapping_add(val)) }
++            #[inline] fn fetch_sub(&self, val: $t, _: Ordering) -> $t { self.rmw(|x| x.wrapping_sub(val)) }
++            #[inline] fn fetch_and(&self, val: $t, _: Ordering) -> $t { self.rmw(|x| x & val) }
++            #[inline] fn fetch_or(&self, val: $t, _: Ordering) -> $t { self.rmw(|x| x | val) }
++            #[inline] fn fetch_xor(&self, val: $t, _: Ordering) -> $t { self.rmw(|x| x ^ val) }
++
++            /// The signature `AtomicUN::fetch_update` has. The closure cannot decline here - the
++            /// callers below always return `Some` - but the shape is kept so their code is
++            /// unchanged and so a future caller that does decline still behaves.
++            #[inline]
++            fn fetch_update(
++                &self,
++                _: Ordering,
++                _: Ordering,
++                mut f: impl FnMut($t) -> Option<$t>,
++            ) -> Result<$t, $t> {
++                let _g = shared_lock(self.ptr as usize);
++                let old = unsafe { race_read(self.ptr) };
++                match f(old) {
++                    Some(new) => { unsafe { race_write(self.ptr, new) }; Ok(old) }
++                    None => Err(old),
++                }
++            }
++
++            #[inline]
++            fn compare_exchange(
++                &self,
++                want: $t,
++                new: $t,
++                _: Ordering,
++                _: Ordering,
++            ) -> Result<$t, $t> {
++                let _g = shared_lock(self.ptr as usize);
++                let old = unsafe { race_read(self.ptr) };
++                if old == want {
++                    unsafe { race_write(self.ptr, new) };
++                    Ok(old)
++                } else {
++                    Err(old)
++                }
++            }
++        }
++    )*};
++}
++
++shared_int!(u8, u16, u32, u64);
++
+ /// Helper trait to encompass the various addressing modes of Pulley.
+ trait AddressingMode: Sized {
+     /// Calculates the native host address `*mut T` corresponding to this
+@@ -2933,28 +3107,28 @@
+ impl ExtendedOpVisitor for Interpreter<'_> {
+     fn xatomic_load8_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicLoad8O32>(self)? };
+-        let val = u8::from_le(unsafe { AtomicU8::from_ptr(ptr) }.load(Ordering::SeqCst));
++        let val = u8::from_le(unsafe { Shared::<u8>::from_ptr(ptr) }.load(Ordering::SeqCst));
+         self.state[dst].set_u32(val.into());
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_load16le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicLoad16LeO32>(self)? };
+-        let val = u16::from_le(unsafe { AtomicU16::from_ptr(ptr) }.load(Ordering::SeqCst));
++        let val = u16::from_le(unsafe { Shared::<u16>::from_ptr(ptr) }.load(Ordering::SeqCst));
+         self.state[dst].set_u32(val.into());
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_load32le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicLoad32LeO32>(self)? };
+-        let val = u32::from_le(unsafe { AtomicU32::from_ptr(ptr) }.load(Ordering::SeqCst));
++        let val = u32::from_le(unsafe { Shared::<u32>::from_ptr(ptr) }.load(Ordering::SeqCst));
+         self.state[dst].set_u32(val);
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_load64le_o32(&mut self, dst: XReg, addr: AddrO32) -> ControlFlow<Done> {
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicLoad64LeO32>(self)? };
+-        let val = u64::from_le(unsafe { AtomicU64::from_ptr(ptr) }.load(Ordering::SeqCst));
++        let val = u64::from_le(unsafe { Shared::<u64>::from_ptr(ptr) }.load(Ordering::SeqCst));
+         self.state[dst].set_u64(val);
+         ControlFlow::Continue(())
+     }
+@@ -2962,35 +3136,35 @@
+     fn xatomic_store8_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicStore8O32>(self)? };
+-        unsafe { AtomicU8::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        unsafe { Shared::<u8>::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_store16le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicStore16LeO32>(self)? };
+-        unsafe { AtomicU16::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        unsafe { Shared::<u16>::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_store32le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicStore32LeO32>(self)? };
+-        unsafe { AtomicU32::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        unsafe { Shared::<u32>::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_store64le_o32(&mut self, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicStore64LeO32>(self)? };
+-        unsafe { AtomicU64::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
++        unsafe { Shared::<u64>::from_ptr(ptr) }.store(val.to_le(), Ordering::SeqCst);
+         ControlFlow::Continue(())
+     }
+ 
+     fn xatomic_rmw8_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8AddO32>(self)? };
+-        let a = unsafe { AtomicU8::from_ptr(ptr) };
++        let a = unsafe { Shared::<u8>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_add(val, Ordering::SeqCst)
+         } else {
+@@ -3007,7 +3181,7 @@
+     fn xatomic_rmw8_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8SubO32>(self)? };
+-        let a = unsafe { AtomicU8::from_ptr(ptr) };
++        let a = unsafe { Shared::<u8>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_sub(val, Ordering::SeqCst)
+         } else {
+@@ -3024,7 +3198,7 @@
+     fn xatomic_rmw8_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8AndO32>(self)? };
+-        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u8>::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
+         let old = u8::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3033,7 +3207,7 @@
+     fn xatomic_rmw8_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8OrO32>(self)? };
+-        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u8>::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
+         let old = u8::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3042,7 +3216,7 @@
+     fn xatomic_rmw8_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8XorO32>(self)? };
+-        let old = unsafe { AtomicU8::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u8>::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
+         let old = u8::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3051,7 +3225,7 @@
+     fn xatomic_rmw8_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u8;
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicRmw8XchgO32>(self)? };
+-        let old = unsafe { AtomicU8::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u8>::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
+         let old = u8::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3060,7 +3234,7 @@
+     fn xatomic_rmw16le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeAddO32>(self)? };
+-        let a = unsafe { AtomicU16::from_ptr(ptr) };
++        let a = unsafe { Shared::<u16>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_add(val, Ordering::SeqCst)
+         } else {
+@@ -3077,7 +3251,7 @@
+     fn xatomic_rmw16le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeSubO32>(self)? };
+-        let a = unsafe { AtomicU16::from_ptr(ptr) };
++        let a = unsafe { Shared::<u16>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_sub(val, Ordering::SeqCst)
+         } else {
+@@ -3094,7 +3268,7 @@
+     fn xatomic_rmw16le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeAndO32>(self)? };
+-        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u16>::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
+         let old = u16::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3103,7 +3277,7 @@
+     fn xatomic_rmw16le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeOrO32>(self)? };
+-        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u16>::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
+         let old = u16::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3112,7 +3286,7 @@
+     fn xatomic_rmw16le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeXorO32>(self)? };
+-        let old = unsafe { AtomicU16::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u16>::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
+         let old = u16::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3121,7 +3295,7 @@
+     fn xatomic_rmw16le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32() as u16;
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicRmw16LeXchgO32>(self)? };
+-        let old = unsafe { AtomicU16::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u16>::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
+         let old = u16::from_le(old);
+         self.state[dst].set_u32(old.into());
+         ControlFlow::Continue(())
+@@ -3130,7 +3304,7 @@
+     fn xatomic_rmw32le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeAddO32>(self)? };
+-        let a = unsafe { AtomicU32::from_ptr(ptr) };
++        let a = unsafe { Shared::<u32>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_add(val, Ordering::SeqCst)
+         } else {
+@@ -3147,7 +3321,7 @@
+     fn xatomic_rmw32le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeSubO32>(self)? };
+-        let a = unsafe { AtomicU32::from_ptr(ptr) };
++        let a = unsafe { Shared::<u32>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_sub(val, Ordering::SeqCst)
+         } else {
+@@ -3164,7 +3338,7 @@
+     fn xatomic_rmw32le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeAndO32>(self)? };
+-        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u32>::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
+         let old = u32::from_le(old);
+         self.state[dst].set_u32(old);
+         ControlFlow::Continue(())
+@@ -3173,7 +3347,7 @@
+     fn xatomic_rmw32le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeOrO32>(self)? };
+-        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u32>::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
+         let old = u32::from_le(old);
+         self.state[dst].set_u32(old);
+         ControlFlow::Continue(())
+@@ -3182,7 +3356,7 @@
+     fn xatomic_rmw32le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeXorO32>(self)? };
+-        let old = unsafe { AtomicU32::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u32>::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
+         let old = u32::from_le(old);
+         self.state[dst].set_u32(old);
+         ControlFlow::Continue(())
+@@ -3191,7 +3365,7 @@
+     fn xatomic_rmw32le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u32();
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicRmw32LeXchgO32>(self)? };
+-        let old = unsafe { AtomicU32::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u32>::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
+         let old = u32::from_le(old);
+         self.state[dst].set_u32(old);
+         ControlFlow::Continue(())
+@@ -3200,7 +3374,7 @@
+     fn xatomic_rmw64le_add_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeAddO32>(self)? };
+-        let a = unsafe { AtomicU64::from_ptr(ptr) };
++        let a = unsafe { Shared::<u64>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_add(val, Ordering::SeqCst)
+         } else {
+@@ -3217,7 +3391,7 @@
+     fn xatomic_rmw64le_sub_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeSubO32>(self)? };
+-        let a = unsafe { AtomicU64::from_ptr(ptr) };
++        let a = unsafe { Shared::<u64>::from_ptr(ptr) };
+         let old = if cfg!(target_endian = "little") {
+             a.fetch_sub(val, Ordering::SeqCst)
+         } else {
+@@ -3234,7 +3408,7 @@
+     fn xatomic_rmw64le_and_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeAndO32>(self)? };
+-        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u64>::from_ptr(ptr) }.fetch_and(val.to_le(), Ordering::SeqCst);
+         let old = u64::from_le(old);
+         self.state[dst].set_u64(old);
+         ControlFlow::Continue(())
+@@ -3243,7 +3417,7 @@
+     fn xatomic_rmw64le_or_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeOrO32>(self)? };
+-        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u64>::from_ptr(ptr) }.fetch_or(val.to_le(), Ordering::SeqCst);
+         let old = u64::from_le(old);
+         self.state[dst].set_u64(old);
+         ControlFlow::Continue(())
+@@ -3252,7 +3426,7 @@
+     fn xatomic_rmw64le_xor_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeXorO32>(self)? };
+-        let old = unsafe { AtomicU64::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u64>::from_ptr(ptr) }.fetch_xor(val.to_le(), Ordering::SeqCst);
+         let old = u64::from_le(old);
+         self.state[dst].set_u64(old);
+         ControlFlow::Continue(())
+@@ -3261,7 +3435,7 @@
+     fn xatomic_rmw64le_xchg_o32(&mut self, dst: XReg, addr: AddrO32, src: XReg) -> ControlFlow<Done> {
+         let val = self.state[src].get_u64();
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicRmw64LeXchgO32>(self)? };
+-        let old = unsafe { AtomicU64::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
++        let old = unsafe { Shared::<u64>::from_ptr(ptr) }.swap(val.to_le(), Ordering::SeqCst);
+         let old = u64::from_le(old);
+         self.state[dst].set_u64(old);
+         ControlFlow::Continue(())
+@@ -3273,7 +3447,7 @@
+         let ptr = unsafe { addr.addr::<u8, crate::XAtomicCas8O32>(self)? };
+         // The value FOUND either way: on success that is `want`, on failure it is whatever was
+         // there. wasm's cmpxchg returns the old value and lets the guest decide.
+-        let old = match unsafe { AtomicU8::from_ptr(ptr) }
++        let old = match unsafe { Shared::<u8>::from_ptr(ptr) }
+             .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
+             Ok(v) => v,
+             Err(v) => v,
+@@ -3288,7 +3462,7 @@
+         let ptr = unsafe { addr.addr::<u16, crate::XAtomicCas16LeO32>(self)? };
+         // The value FOUND either way: on success that is `want`, on failure it is whatever was
+         // there. wasm's cmpxchg returns the old value and lets the guest decide.
+-        let old = match unsafe { AtomicU16::from_ptr(ptr) }
++        let old = match unsafe { Shared::<u16>::from_ptr(ptr) }
+             .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
+             Ok(v) => v,
+             Err(v) => v,
+@@ -3303,7 +3477,7 @@
+         let ptr = unsafe { addr.addr::<u32, crate::XAtomicCas32LeO32>(self)? };
+         // The value FOUND either way: on success that is `want`, on failure it is whatever was
+         // there. wasm's cmpxchg returns the old value and lets the guest decide.
+-        let old = match unsafe { AtomicU32::from_ptr(ptr) }
++        let old = match unsafe { Shared::<u32>::from_ptr(ptr) }
+             .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
+             Ok(v) => v,
+             Err(v) => v,
+@@ -3318,7 +3492,7 @@
+         let ptr = unsafe { addr.addr::<u64, crate::XAtomicCas64LeO32>(self)? };
+         // The value FOUND either way: on success that is `want`, on failure it is whatever was
+         // there. wasm's cmpxchg returns the old value and lets the guest decide.
+-        let old = match unsafe { AtomicU64::from_ptr(ptr) }
++        let old = match unsafe { Shared::<u64>::from_ptr(ptr) }
+             .compare_exchange(want, new, Ordering::SeqCst, Ordering::SeqCst) {
+             Ok(v) => v,
+             Err(v) => v,
+--- a/crates/environ/src/builtin.rs
++++ b/crates/environ/src/builtin.rs
+@@ -9,6 +9,17 @@
+             memory_copy(vmctx: vmctx, dst: pointer, src: pointer, len: size);
+             // Returns an index for wasm's `memory.fill` instruction.
+             memory_fill(vmctx: vmctx, dst: pointer, val: u32, len: size);
++            // `memory.copy` and `memory.fill` where either side is a SHARED memory.
++            //
++            // Same operation, byte-wise relaxed atomics instead of memmove/memset. A plain
++            // `copy_to`/`write_bytes` on a memory another thread may be touching is a data race,
++            // which is undefined in Rust however defined it is in wasm (upstream's FIXME #4203 on
++            // the non-shared versions says the same thing). The COMPILER picks between them,
++            // because only it knows whether the memory is shared - the libcall sees raw pointers -
++            // so a private memory keeps memmove and pays nothing for this.
++            shared_memory_copy(vmctx: vmctx, dst: pointer, src: pointer, len: size);
++            // Returns an index for `memory.fill` on a shared memory; see `shared_memory_copy`.
++            shared_memory_fill(vmctx: vmctx, dst: pointer, val: u32, len: size);
+             // Returns the current size of the passive `elem` segment.
+             passive_elem_segment_len(vmctx: vmctx, elem: u32) -> size;
+             // Returns the base address of the passive `elem` segment.
+--- a/crates/wasmtime/src/runtime/vm/libcalls.rs
++++ b/crates/wasmtime/src/runtime/vm/libcalls.rs
+@@ -390,6 +390,64 @@
+     }
+ }
+ 
++// Implementation of `memory.copy` where either side may be a SHARED memory.
++//
++// Byte-wise RELAXED atomic accesses, for the reason `race_read` in the Pulley interpreter spells
++// out at length: a guest may legally race an ordinary access against another thread's atomic one,
++// the wasm memory model says the result is some value, and Rust's model says a non-atomic race is
++// UNDEFINED. One byte is also the only width at which two accesses to the same address can never
++// disagree about their size, which is why this cannot be "wider chunks when aligned".
++//
++// It is NOT atomic as a whole, and must not be: `memory.copy` on a shared memory is a sequence of
++// ordinary byte accesses in the spec too, and a guest that needs more uses the atomic
++// instructions. All this removes is the undefined behaviour.
++unsafe fn shared_memory_copy(
++    _store: &mut dyn VMStore,
++    _instance: InstanceId,
++    dst: *mut u8,
++    src: *mut u8,
++    len: usize,
++) {
++    use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
++    unsafe {
++        let get = |k: usize| (*src.add(k).cast::<AtomicU8>()).load(Relaxed);
++        let put = |k: usize, v: u8| (*dst.add(k).cast::<AtomicU8>()).store(v, Relaxed);
++        // memmove, not memcpy: the ranges may overlap, and the direction is what preserves the
++        // "as if the source were read first" result for a single thread.
++        if (dst as usize) <= (src as usize) {
++            let mut k = 0;
++            while k < len { put(k, get(k)); k += 1; }
++        } else {
++            let mut k = len;
++            while k > 0 { k -= 1; put(k, get(k)); }
++        }
++    }
++}
++
++// Implementation of `memory.fill` on a SHARED memory; see `shared_memory_copy`.
++unsafe fn shared_memory_fill(
++    _store: &mut dyn VMStore,
++    _instance: InstanceId,
++    dst: *mut u8,
++    val: u32,
++    len: usize,
++) {
++    use core::sync::atomic::{AtomicU8, Ordering::Relaxed};
++    #[expect(
++        clippy::cast_possible_truncation,
++        reason = "the libcall intentionally takes the raw 32-bit value, \
++                  and semantically that's intentionally truncated"
++    )]
++    let byte = val as u8;
++    unsafe {
++        let mut k = 0;
++        while k < len {
++            (*dst.add(k).cast::<AtomicU8>()).store(byte, Relaxed);
++            k += 1;
++        }
++    }
++}
++
+ // Implementation of `ref.func`.
+ fn ref_func(store: &mut dyn VMStore, instance: InstanceId, func_index: u32) -> NonNull<u8> {
+     let (instance, registry) = store.instance_and_module_registry_mut(instance);
+--- a/crates/cranelift/src/func_environ.rs
++++ b/crates/cranelift/src/func_environ.rs
+@@ -3743,6 +3743,28 @@
+         self.translate_entity_copy(builder, dst_index, src_index, dst, src, len, cost)
+     }
+ 
++    /// Is this entity a memory another thread may be touching?
++    ///
++    /// Only the compiler can answer this: the bulk-memory libcalls receive raw pointers and have
++    /// no way to tell a shared memory from a private one. A data segment is immutable and a table
++    /// is not linear memory, so neither can be shared in the sense that matters here.
++    fn entity_is_shared_memory(&self, entity: CheckedEntity) -> bool {
++        match entity {
++            CheckedEntity::Memory(index) => self.module.memories[index].shared,
++            // None of these is a wasm linear memory, so none carries the `shared` flag that makes
++            // an ordinary access racy. Data and element segments are immutable; a table is not
++            // bytes. `Array` is a GC object: if a SHARED GC heap is ever enabled here, its copies
++            // need this same treatment and this arm is where that decision belongs - it is listed
++            // rather than folded into a wildcard so a new variant fails to compile instead of
++            // quietly taking the fast path.
++            CheckedEntity::Table { .. }
++            | CheckedEntity::Data { .. }
++            | CheckedEntity::RuntimeData(_)
++            | CheckedEntity::Elem(_)
++            | CheckedEntity::Array { .. } => false,
++        }
++    }
++
+     /// Perform a raw bulk-memory-like libcall.
+     ///
+     /// The main purpose of this helper is to handle situations when fuel and
+@@ -3769,7 +3791,13 @@
+             ..
+         } = op
+         {
+-            if bytes <= INLINE_COPY_MAX_BYTES {
++            // ...but NOT over a shared memory: the inline expansion is ordinary loads and
++            // stores, which is the data race this whole path exists to avoid. A shared memory
++            // takes the libcall, which moves bytes through relaxed atomics.
++            if bytes <= INLINE_COPY_MAX_BYTES
++                && !self.entity_is_shared_memory(src_entity)
++                && !self.entity_is_shared_memory(dst_entity)
++            {
+                 if self.tunables.consume_fuel {
+                     let units = bytes / u64::from(fuel.bytes_per_unit);
+                     self.fuel_consumed +=
+@@ -3817,13 +3845,23 @@
+                     env.consume_bounded_variable_fuel(builder, units, fuel.cost_per_unit);
+                 }
+                 match *op {
+-                    BulkOp::MemoryCopy { dst, src, len, .. } => {
+-                        let memory_copy = env.builtin_functions.memory_copy(&mut builder.func);
+-                        builder.ins().call(memory_copy, &[vmctx, dst, src, len]);
++                    BulkOp::MemoryCopy { dst, src, len, src_entity, dst_entity, .. } => {
++                        let shared = env.entity_is_shared_memory(src_entity)
++                            || env.entity_is_shared_memory(dst_entity);
++                        let f = if shared {
++                            env.builtin_functions.shared_memory_copy(&mut builder.func)
++                        } else {
++                            env.builtin_functions.memory_copy(&mut builder.func)
++                        };
++                        builder.ins().call(f, &[vmctx, dst, src, len]);
+                     }
+-                    BulkOp::MemoryFill { dst, val, len, .. } => {
+-                        let memory_fill = env.builtin_functions.memory_fill(&mut builder.func);
+-                        builder.ins().call(memory_fill, &[vmctx, dst, val, len]);
++                    BulkOp::MemoryFill { dst, val, len, dst_entity, .. } => {
++                        let f = if env.entity_is_shared_memory(dst_entity) {
++                            env.builtin_functions.shared_memory_fill(&mut builder.func)
++                        } else {
++                            env.builtin_functions.memory_fill(&mut builder.func)
++                        };
++                        builder.ins().call(f, &[vmctx, dst, val, len]);
+                     }
+                 }
+             };
+@@ -4056,6 +4094,7 @@
+                         dst: raw_dst_addr,
+                         val,
+                         len: len_ptr,
++                        dst_entity: entity,
+                         fuel: BulkFuel {
+                             cost_per_unit,
+                             bytes_per_unit: 1,
+@@ -4129,6 +4168,7 @@
+                     dst: dst_elem_addr,
+                     val: value,
+                     len: copy_byte_len,
++                    dst_entity: entity,
+                     fuel: BulkFuel {
+                         cost_per_unit: cost_per_element,
+                         bytes_per_unit: u8::try_from(elem_size).unwrap(),
+@@ -6541,6 +6581,10 @@
+         dst: ir::Value,
+         val: ir::Value,
+         len: ir::Value,
++        /// The entity being filled, carried for the same reason `MemoryCopy` carries its two: the
++        /// libcall sees only a raw pointer, so the choice between `memory_fill` and the byte-wise
++        /// `shared_memory_fill` has to be made here, where the memory's `shared` flag is known.
++        dst_entity: CheckedEntity,
+         fuel: BulkFuel,
+     },
+ }

@@ -13,7 +13,7 @@ description = "Compile a component to Pulley bytecode for the enclave to interpr
 # and its compiler settings, and the runtime refuses a mismatch rather than misinterpreting it,
 # which is the behaviour you want but a confusing failure if the two halves drift.
 [dependencies]
-wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley", "std", "cranelift"] }
+wasmtime = { version = "47", default-features = false, features = ["runtime", "component-model", "pulley", "std", "cranelift", "threads"] }
 
 [workspace]
 

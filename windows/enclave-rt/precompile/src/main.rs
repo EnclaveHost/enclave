@@ -7,13 +7,13 @@ use wasmtime::{Config, Engine, Result};
 /// The feature bits, mirrored from windows/enclave-rt/src/lib.rs. The RUNTIME owns these values;
 /// this binary only has to agree about what each bit means.
 const FEAT_MEM64: u32 = 1;
-#[allow(dead_code)] const FEAT_SET: u32 = 2;            // needs atomics in Pulley; not built here yet
+const FEAT_SET: u32 = 2;                                // shared memories, atomics, thread.spawn
 #[allow(dead_code)] const FEAT_P3: u32 = 4;
 #[allow(dead_code)] const FEAT_COOP_THREADS: u32 = 8;
 /// What THIS compiler can actually build for. Everything else is refused by name rather than
 /// silently dropped: a cwasm missing a feature its runtime expects is the failure mode that has no
 /// symptom until an app uses it.
-const KNOWN: u32 = FEAT_MEM64;
+const KNOWN: u32 = FEAT_MEM64 | FEAT_SET;
 
 fn main() -> Result<()> {
     let mut a = std::env::args().skip(1);
@@ -50,6 +50,13 @@ fn main() -> Result<()> {
         std::process::exit(4);
     }
     config.wasm_memory64(want & FEAT_MEM64 != 0);
+    // SHARED-EVERYTHING THREADS. Two flags, not one: `wasm_threads` is the classic proposal that
+    // makes a `shared` memory parseable at all (without it the parser stops at the first shared
+    // memory with "threads must be enabled for shared memories", which is what risc-box 0.6.54
+    // hit), and `wasm_shared_everything_threads` is what allows `shared` on anything else plus
+    // the component-model intrinsics for spawning. The second depends on the first.
+    config.wasm_threads(want & FEAT_SET != 0);
+    config.wasm_shared_everything_threads(want & FEAT_SET != 0);
     // 64-BIT MEMORIES, and the component-model half of the same thing. An app whose guest needs
     // more than the 4 GiB a 32-bit index can address declares `mem64` in its catalog config, and
     // this is what lets it be compiled at all. Pulley bounds-checks every access in software, so a
