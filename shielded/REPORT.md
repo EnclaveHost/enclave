@@ -3324,3 +3324,48 @@ that may have no exchange in flight beside it, and any realised saving has to
 be measured, not subtracted. The other items found -- the reply check at 0.3%,
 the join at 5.7%, thread counts, pinning, chunking -- are individually small
 enough that they are better evaluated combined than one at a time.
+
+### 18.18 Only a quarter of C has an exchange to hide under
+
+Hiding C was the last candidate of the right size, and 13.25 ms/token was
+always an upper bound: it assumes every CPU op has an exchange in flight beside
+it. That is now measured against the real dependency graph instead of assumed.
+
+`GGML_SCHED_DEBUG=2` dumps the scheduler's splits and every node's sources. A
+decode forward pass is 2005 nodes in 642 splits -- 321 shielded, 321 CPU,
+strictly alternating -- with 1604 nodes on the CPU. Parsing that gives the DAG,
+and a greedy simulation walks it in split order: at each exchange, fill the
+window with CPU nodes whose sources are already computed and which have not
+been run yet. Nodes are CONSUMED, which the naive per-exchange independence
+count misses -- a node hidden under exchange 3 is not available again for 4.
+
+Cost model covers 1604 of 1604 CPU nodes and totals 12.90 ms/token against the
+measured 13.25, a 97% agreement that is the check on the whole exercise.
+
+| wire per token | window per exchange | cost hidden | nodes | realised |
+|---|---|---|---|---|
+| 10 ms | 55 us | 27% | 635/1604 | 3.63 ms |
+| 14 ms | 78 us | 28% | 640/1604 | 3.65 ms |
+| 18 ms | 100 us | 28% | 640/1604 | 3.65 ms |
+
+**It saturates.** Widening the window from 10 to 18 ms per token moves five more
+nodes. The binding constraint is the dependency chain, not the size of the
+window -- there simply is not more independent CPU work in a transformer decode
+step, because each sub-block consumes the previous one's output.
+
+So overlap is worth **3.65 ms/token, not 13.25**: 50.23 -> 46.58 ms, about
+**21.5 tok/s**. And that is optimistic, because the simulation lets a node move
+anywhere earlier with no buffer-reuse constraint and charges nothing for the
+synchronisation that real overlap would need. The true figure is below it.
+
+Three caveats, since this is the argument that closes the largest candidate.
+Per-node costs are op averages rather than per-node truth. The graph is one
+decode pass, and the draft pass (37 nodes) is not modelled. And the parse had
+two defects I had to find first: source names carry annotations like
+`(reshaped)`, and a naive "token before the size" grabbed the annotation and
+silently dropped 22.8% of the dependency edges, which inflated independence;
+and the dump pads op names to a fixed width, so `GATED_DELTA_NET` arrives as
+`GATED_DELT` and the single largest op was excluded from the cost model until
+the alias was added. Both were caught by the modelled total disagreeing with
+the measured one -- which is the only reason that cross-check was worth
+computing.
