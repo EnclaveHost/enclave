@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { Host } from './host.mjs';
 import { appZone } from './appzone.mjs';
+import { shieldedCard, shieldedProof } from './shieldedcard.mjs';
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,20 @@ const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
+// The card's own numbers, refreshed from the worker. Null until the first HELLO answers.
+let card = null;
+// The verdict of the platform's own shielded probe on this card, run once at start-up. Null until
+// it has actually passed: a row must not say "shielded" on the strength of a config file.
+let cardProof = null;
+const PROBE = process.env.SHIELDED_PROBE || path.join(DIR, '..', 'probe', 'shielded-probe.mjs');
+const readCard = async () => {
+  try {
+    card = await shieldedCard({ port: WORKER_PORT, budgetGb: Number(WORKER_VRAM_GB) });
+  } catch (e) {
+    if (card) log(`shielded card: the worker stopped answering (${e.message}); the row drops it`);
+    card = null;
+  }
+};
 // The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
 // closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
 // what the relay's own open timeout already handles.
@@ -64,6 +79,15 @@ const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
+  // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
+  // inside the enclave, whose linear algebra runs on this card by masked offload. The default is
+  // $0.10 an hour for an iGPU that sustains ~175 G-MAC/s masked; the owner changes it from the
+  // fleet row and the registry entry, not this file, is what the ledger charges.
+  gpuPricePerSec6: Number(process.env.GPU_PRICE_PER_SEC6 || 28),
+  // THE CARD ITSELF, asked of the worker rather than read from a config: the pool this box
+  // advertises, the price it posts and every card-dialled claim it accepts all hang off whether a
+  // worker is answering right now. `card` is null while it is not.
+  card: () => card,
   claimScope: (process.env.CLAIM_SCOPE || 'owner-only').toLowerCase(),
   // CLAIM_LEGACY=1: take deployments created BEFORE this box was listed, which otherwise wait for
   // their owner to pick this enclave. Only an operator with the standing to consent for those
@@ -78,7 +102,17 @@ const host = new Host({
   precompileExe: process.env.EE_PRECOMPILE || 'C:\\Users\\claude\\vbs\\enclave-rt\\ee-precompile.exe',
   // What an app may have of the enclave's own memory. The enclave is a fixed 2 GB (ee-main.cpp
   // EnclaveSize) and the model, its KV cache and the pads are in there first.
-  enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 768),
+  // THE ENCLAVE'S OWN SIZE, dedicated to it at creation (ee-main.cpp EnclaveSize). This is the
+  // RAM pool an app on this box is placed in and the number the fleet row shows; it must match the
+  // signed image, which is why it is stated rather than derived.
+  enclaveGb: Number(process.env.ENCLAVE_GB || 64),
+  // An OPTIONAL ceiling on a single app, below the enclave's own size. Zero means no extra cap:
+  // the budget is the enclave less what the engine holds.
+  enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 0),
+  // Measured at startup from the enclave itself (the host protocol's `mem`), before any app is
+  // claimed: the model, its KV cache and the pads. Never configured - a guess here either oversells
+  // the enclave or hides most of it.
+  engineHeldMb: 0,
   // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
   enclaveAppAbi: 0,
   enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http | 4 wasi:cli
@@ -154,6 +188,18 @@ async function startWorker() {
       { SHIELDED_VK_SHADERS: process.env.SHIELDED_VK_SHADERS || path.join(path.dirname(WORKER_EXE), 'shaders'), SHIELDED_CARD_TFLOPS: process.env.SHIELDED_CARD_TFLOPS || '8' });
   start.worker();
   await waitPort(WORKER_PORT); log(`worker up on ${WORKER_PORT}`);
+  // Ask the card what it is, then keep asking: the free figure moves as links reserve and release,
+  // and on a desktop it also moves when the owner starts something of their own.
+  await readCard();
+  if (card) log(`shielded card: ${card.device}, ${card.vramFreeGb}/${card.vramBudgetGb} GB free, ${card.gmacPerSec || '?'} G-MAC/s, protocol ${card.protocol}`);
+  setInterval(() => { readCard().catch(() => {}); }, 30_000);
+  // The proof, once, in the background: it runs a real masked GEMM on the card and must not hold
+  // up the box coming online. A failure leaves the verdict absent, which is the honest state.
+  shieldedProof({ probe: PROBE, port: WORKER_PORT }).then((p) => {
+    cardProof = p;
+    log(`shielded proof: ${p.ok ? 'PASSED' : 'FAILED'} (exact ${p.exact}, verified ${p.verified}, lie rejected ${p.lieRejected},`
+      + ` no plaintext ${p.noPlaintext}, denylist refused ${p.denylistRefused}, ${p.roundTripMs} ms round trip)`);
+  }).catch((e) => log(`shielded proof did not run: ${e.message.slice(0, 120)}`));
 }
 async function startHost() {
   const args = ['--enclave', ENCLAVE_DLL, '--model', MODEL, '--env', 'SHIELDED_HOST=127.0.0.1', '--env', `SHIELDED_PORT=${WORKER_PORT}`,
@@ -264,24 +310,38 @@ async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
   if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME,
-    // gpu:false is the honest answer to the question the relay is asking: does this box SELL a
-    // share of a card. It does not. Its card serves the enclave's masked inference for the model
-    // it hosts, and the card's facts ride in `shielded` below, where the fleet row reads them.
-    // Saying true also made this box the relay's sticky pick for /v1/auth and /v1/pricing, which
-    // it does not serve (relay/api-relay.js sticky(), now scoped to serving boxes).
-    gpu: false, maxShare: host.cpuShareFree(), gpuShareFree: 0, cpuShareFree: host.cpuShareFree(),
+    // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
+    // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
+    // on the untrusted Windows host and the enclave uses it by masked offload. The card's facts,
+    // including the share that is free, ride in `shielded` and `gpuShareFree` below, which is
+    // where the fleet row reads a shielded box. Saying true would also make this box the relay's
+    // sticky pick for /v1/auth and /v1/pricing, which it does not serve.
+    //
+    // gpuShareFree IS now real: this box sells shares of its card (what one buys is the model in
+    // the enclave, reached from an app through the enclave:app world's generate), and the figure
+    // is the smaller of what it has left to sell and what the worker says is free on the silicon.
+    gpu: false, maxShare: host.cpuShareFree(),
+    gpuShareFree: APPS ? host.gpuShareFree() : 0, cpuShareFree: host.cpuShareFree(),
     nodeVcpus: Number(process.env.NODE_VCPUS || os.cpus().length),
     // RAM, and the honest number here is NOT the machine's. An app on this box runs inside the
-    // enclave, so what a deployment can actually have is the enclave's app budget - the machine
-    // has 112 GB and none of it is purchasable for an app. The row and the console size a
-    // deployment off this field, so it has to be the ceiling that really applies; the machine's
-    // own figure rides beside it as machineRamGb for anyone who wants to see the box.
+    // enclave, so the pool is the ENCLAVE - a fixed, dedicated allocation made when it was created
+    // (ee-main.cpp EnclaveSize), not a slice of the machine's 112 GB and not a fraction of the
+    // share ledger. What is left of it rides beside this as ramGbFree, measured: the enclave's own
+    // size less what the engine holds (asked of the enclave before any app was claimed) and less
+    // what each running app was promised. The machine's own figure is machineRamGb.
     nodeRamGb: host.appsInTee()
-      ? Math.round((Number(host.cfg.enclaveAppRamMb) || 768) / 1024 * 100) / 100
+      ? Number(host.cfg.enclaveGb) || 0
       : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
-    teeCpu: 'windows-vbs-enclave', tier: tier || null, shielded: { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), ...(gpuName ? { device: gpuName } : {}) }, model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
+    teeCpu: 'windows-vbs-enclave', tier: tier || null,
+    // THE CARD, as the worker itself reports it (shieldedcard.mjs), refreshed on a timer. The
+    // fallback is what this box knows without asking - a worker that is down must not leave the
+    // row advertising a card nobody can use.
+    shielded: (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
+                        vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
+                        ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
+    model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
   if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
@@ -433,9 +493,21 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
     const abi = Number(abiStr) || 0;
     const worlds = Number(worldsStr) || (abi >= 1 ? 1 : 0);
     host.cfg.enclaveAppAbi = abi; host.cfg.enclaveAppWorlds = worlds;
-    const names = [worlds & 1 ? 'enclave:app@0.1.0' : null, worlds & 2 ? 'wasi:http@0.2' : null].filter(Boolean);
+    const names = [worlds & 1 ? 'enclave:app@0.1.0' : null, worlds & 2 ? 'wasi:http@0.2' : null,
+                   worlds & 4 ? 'wasi:cli@0.2' : null].filter(Boolean);
+    // WHAT THE ENGINE HOLDS OF THE ENCLAVE, measured here and only here: this is the one moment
+    // the enclave contains the model, its KV cache and the pads and NOTHING ELSE, because no app
+    // has been claimed yet. Everything left of the enclave's fixed size is what the box may
+    // promise a tenant, so this reading is what makes the RAM pool a real figure instead of a
+    // fraction of the share ledger.
+    try {
+      const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
+      if (privB > 0) host.cfg.engineHeldMb = Math.ceil(privB / (1024 * 1024));
+    } catch (e) { log(`enclave memory unreadable: ${e.message}`); }
     log(abi >= 1
-      ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}, ${host.cfg.enclaveAppRamMb} MB budget`
+      ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}, `
+        + `${host.cfg.enclaveGb} GB enclave, engine holds ${host.cfg.engineHeldMb ?? '?'} MB, `
+        + `${host.capacity().ramMbFree} MB for apps`
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
   if (APPS) {

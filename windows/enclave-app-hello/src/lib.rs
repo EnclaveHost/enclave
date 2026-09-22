@@ -11,8 +11,13 @@ impl Guest for App {
         host::log(&format!("{} {}", req.method, req.path));
         let name = req.path.split("name=").nth(1).unwrap_or("world").to_string();
         let body: Vec<u8> = match req.path.split('?').next().unwrap_or("/") {
-            // proves the app can reach the model WITHOUT leaving the enclave
-            "/ask" => host::generate(&name, 16).into_bytes(),
+            // Proves the app can reach the model WITHOUT leaving the enclave - and, since the
+            // model's work is done on the box's card by masked offload, that this deployment
+            // bought a share of that card. A deployment with none is told so by name.
+            "/ask" => match host::generate(&name, 16) {
+                Ok(text) => text.into_bytes(),
+                Err(why) => format!("no completion: {}", why).into_bytes(),
+            },
             "/rand" => {
                 let r = host::random(8);
                 format!("{:?} at {}", r, host::now_ms()).into_bytes()

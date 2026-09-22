@@ -31,8 +31,13 @@ interface host {
   random: func(len: u32) -> list<u8>;
   // a line for the deployment log the operator and the tenant can both read
   log: func(line: string);
-  // the model in this enclave, sealed inside it: prompt in, completion out
-  generate: func(prompt: string, max-tokens: u32) -> string;
+  // The model in this enclave, sealed inside it: prompt in, completion out. Its work is done on
+  // the box's card by MASKED OFFLOAD - the card sees public weights and one-time-padded
+  // activations and never the prompt - so this call is what a share of that card buys here, and a
+  // deployment that bought none is told so rather than quietly given the model. Hence the result:
+  // "no completion" and "you may not ask" are different answers and an app has to be able to tell
+  // them apart.
+  generate: func(prompt: string, max-tokens: u32) -> result<string, string>;
 }
 
 world app {

@@ -35,6 +35,10 @@ export class Host {
   constructor(cfg) {
     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
     this.log = cfg.log || (() => {});
+    /// The card, as the worker last described it, asked of the agent rather than remembered here:
+    /// the pool this box sells is only as real as the worker that answers for it. Null when this
+    /// box has no card or its worker is down, which sells nothing.
+    this.card = cfg.card || (() => null);
     this.apps = new Map();                           // id -> App
     this.records = new Map();                        // id -> { id, status, reason, appRef, cid, version, leaseUntil, claimedAt, provenAt }
     this.enclaveId = chain.enclaveIdOf(cfg.endpoint);
@@ -93,7 +97,8 @@ export class Host {
     try {
       const e = await chain.readEnclave(this.enclaveId);
       this.registered = e && e.endpoint ? e : null;
-      if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec, payout ${e.payoutWallet}`);
+      if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
+        + `${Number(e.gpuPricePerSec6) > 0 ? ` + ${e.gpuPricePerSec6}/sec card` : ""}, payout ${e.payoutWallet}`);
     } catch (e) { this.lastError = e.message; }
   }
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
@@ -126,10 +131,36 @@ export class Host {
     try {
       const { id, hash } = await chain.registerBox({ endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
         measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
-        cpuPricePerSec6: this.cfg.cpuPricePerSec6, proofKey });
+        cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey });
       this.log(`registry: registered ${this.cfg.endpoint} id=${id} price=${this.cfg.cpuPricePerSec6}/sec proofKey=${proofKey} tx=${hash}`);
       await this.refreshRegistration();
     } catch (e) { this.log(`registry: register failed: ${e.shortMessage || e.message}`); }
+  }
+  /**
+   * What this box asks for its whole card, per second, in USDC 6dp - and zero unless there IS a
+   * card answering right now. A price posted for silicon whose worker is down would have the
+   * ledger sell a share this box cannot deliver.
+   */
+  cardPrice() {
+    const card = this.card();
+    return card && Number(card.vramBudgetGb) > 0 ? Number(this.cfg.gpuPricePerSec6) || 0 : 0;
+  }
+  /**
+   * Keep the REGISTRY's asks in step with what this box actually offers. The entry is what the
+   * ledger charges, so the card became sellable here only when this transaction landed: publishing
+   * a pool in /availability while the registry says the card costs nothing would have the platform
+   * hand it out for free.
+   */
+  async ensurePriced() {
+    if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
+    const want = this.cardPrice();
+    if (Number(this.registered.gpuPricePerSec6 || 0) === want) return;
+    if ((this.gasRenewals ?? 1) <= 0) return;
+    try {
+      const hash = await chain.setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
+      this.log(`registry: card price now ${want}/sec (was ${this.registered.gpuPricePerSec6 || 0}) tx=${hash}`);
+      await this.refreshRegistration();
+    } catch (e) { this.log(`registry: setPrices failed: ${e.shortMessage || e.message}`); }
   }
   async heartbeat() {
     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
@@ -253,7 +284,8 @@ export class Host {
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
-    const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil), cpuShare: Number(d.cpuMilli) / 1000 });
+    const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
+                                   cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000 });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
     if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
@@ -294,12 +326,31 @@ export class Host {
         + ` and this artifact is built for ${world === "wasi-cli" ? "wasi:cli with wasi:sockets, a server that binds its own"
             + " port: an enclave has no socket to bind and no reactor to poll, so that shape needs the brokered sockets"
             + " that are not built yet" : world}`);
+    // Did anybody with the standing to say so declare the card optional? The same two voices
+    // claimPolicy listens to: the owner's envelope and the publisher's version config. When they
+    // did, a card-dialled deployment runs here on cores and nothing below applies.
+    let gpuSoft = false;
+    try { gpuSoft = chain.parseEnvelope(d.configCid, d.gpuMilli).gpuOptional === true; } catch {}
+    gpuSoft = gpuSoft || chain.gpuOptionalOfConfig(v && v.config);
+    // Bought the card, but built for a world that cannot reach it. The model in this enclave is
+    // offered through the enclave:app world's `generate` and nowhere else: a wasi:http or wasi:cli
+    // artifact has no import that reaches it, so its card share would buy it nothing. Say so and
+    // hand the lease back rather than take money for silicon the app cannot address.
+    if (Number(d.gpuMilli) > 0 && want !== 1 && !gpuSoft)
+      return await this.#giveUp(id, `it bought ${Math.round(Number(d.gpuMilli) / 10)}% of this box's card, and`
+        + ` what a share buys here is the model inside the enclave, reached through the enclave:app@0.1.0`
+        + ` world's generate. This artifact is built for ${world}, which has no import that reaches it`);
     let app = this.apps.get(id);
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
     if (!app) {
       const memMb = floor.memMb;
-      if (memMb > (this.cfg.enclaveAppRamMb || 768))
-        return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave's app budget is ${this.cfg.enclaveAppRamMb || 768} MB`);
+      // Against the budget capacity() computed, not a config number: the enclave is a fixed size
+      // and what is left of it is the enclave's size less what the engine holds less what the
+      // other apps were promised. A version bigger than that cannot fit however the file is set.
+      const budgetMb = this.capacity({ exclude: id }).ramMbFree;
+      if (memMb > budgetMb)
+        return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave has ${budgetMb} MB left`
+          + ` of its ${Math.round((Number(this.cfg.enclaveGb) || 0) * 1024)} MB`);
       // Compile once per CID AND per runtime ABI, then keep it. The bytecode is a pure function
       // of the artifact and the compiler's tunables, and the runtime refuses bytecode built with
       // different ones ("compiled without epoch interruption but it is enabled for the host"), so
@@ -329,6 +380,12 @@ export class Host {
         // The same environment the platform gives an app on a confidential VM.
         ENCLAVE_CONFIG: await this.appConfig(d, v),
         ENCLAVE_MEM_MB: String(memMb),
+        // THE CARD SHARE THIS DEPLOYMENT BOUGHT, read off the ledger record and carried into VTL1,
+        // where the runtime gates the model on it: `generate` answers a deployment that bought a
+        // share of this box's card and refuses one that did not (windows/enclave-rt HostState).
+        // The tenant never supplies this value; the only lie available to this side is giving its
+        // own card away.
+        ENCLAVE_GPU_MILLI: String(Number(d.gpuMilli) || 0),
         ...(want === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
         // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
         // it. They are fetched as the LEASE HOLDER (secrets.mjs) and injected into the enclave,
@@ -457,6 +514,10 @@ export class Host {
     if (!this.chainReady) return;
     if (!this.registered) await this.refreshRegistration();
     await this.ensureRegistered().catch((e) => this.log(`register: ${e.message}`));
+    // The asks, every tick rather than once at start-up: the card price is a function of whether
+    // a worker is answering, and a worker that dies mid-shift must take the card's price off the
+    // registry with it.
+    await this.ensurePriced().catch((e) => this.log(`prices: ${e.message}`));
     await this.scanLedger().catch(() => {});
     for (const id of [...this.tracked]) {
       let d; try { d = await chain.readDeployment(id); } catch { continue; }
@@ -492,7 +553,8 @@ export class Host {
           if (untilMs < Date.now()) { await this.#stopApp(id, `the lease expired and renew failed: ${msg}`); continue; }
         }
       }
-      this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6), cpuShare: Number(d.cpuMilli) / 1000 });
+      this.#record(id, { leaseUntil: Number(d.leaseUntil), rate6: String(d.rate), balance6: String(d.balance6),
+                         cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000 });
       const app = this.apps.get(id);
       if (!app || app.state !== "running") await this.ensureApp(id, d);
     }
@@ -572,23 +634,65 @@ export class Host {
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
   }
   /**
+   * The CARD pool this box has left, as a fraction of the worker's budget.
+   *
+   * Two limits, and the smaller wins. What this box has SOLD is its own ledger: the card shares of
+   * the leases it is running. What is actually FREE on the silicon is the worker's business, and
+   * on a desktop it is not the same number - the owner of the PC may be playing a game on it. The
+   * card facts arrive from the agent (shieldedcard.mjs asks the worker), so a box whose worker is
+   * down sells nothing rather than selling from memory.
+   */
+  gpuShareFree() {
+    if (!this.cfg.appsEnabled) return 0;
+    const card = this.card && this.card();
+    if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
+    const sold = [...this.records.values()].filter((r) => r.status === "running").reduce((a, r) => a + (r.gpuShare || 0), 0);
+    const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0));
+  }
+
+  /**
    * What this box has left to sell, in the numbers a refusal can be checked against. The reserve
    * is not slack: the enclave holds the model and its pads in VTL1, the shielded worker feeds the
    * card, and the owner of the PC is entitled to their own machine.
    */
-  capacity() {
+  capacity({ exclude = null } = {}) {
     const slots = this.cfg.appSlots ?? 4;
-    const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning");
+    // `exclude` is how a deployment is sized against the room it would leave BESIDE the others
+    // rather than beside itself: a restart re-reads a record that already carries its own floor,
+    // and counting that twice refuses an app for asking for the memory it already had.
+    const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning")
+      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase());
     const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
-    // An app inside the enclave lives in ENCLAVE memory, and the enclave is a fixed size chosen at
-    // creation (ee-main.cpp EnclaveSize, 2 GB) that already holds the model, its KV cache and the
-    // pads. So the ceiling on app memory here is the enclave's budget, not the machine's 112 GB:
-    // quoting the machine would take a lease this box then cannot fit and thrash in VTL1.
+    // AN APP INSIDE THE ENCLAVE LIVES IN ENCLAVE MEMORY, and the enclave is a FIXED, DEDICATED
+    // size chosen at creation (ee-main.cpp EnclaveSize). So the pool is that size, and what is
+    // taken out of it is two measured things and nothing else:
+    //
+    //   - what the ENGINE holds: the model, its KV cache and the pads, read from the enclave
+    //     itself before any app was claimed (the host protocol's `mem`).
+    //   - what each running app was PROMISED: its declared floor, because the box has to keep
+    //     that promise whether or not the app has touched the pages yet.
+    //
+    // What it is NOT is a fraction of the share ledger. The RAM cell used to be cpuShareFree x the
+    // node's RAM, so a box that had sold 5% of its cores and reserved a quarter for its owner
+    // reported 14 GB of its enclave "used" while four apps between them held half a gigabyte.
+    // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
+    const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
     const hostMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25)));
-    const budgetMb = this.appsInTee() ? Math.min(hostMb, Number(this.cfg.enclaveAppRamMb) || 768) : hostMb;
+    const engineMb = Number(this.cfg.engineHeldMb) || 0;
+    // The optional cap: an owner may keep an app ceiling below the enclave's own size. Absent, the
+    // whole enclave less what the engine holds is the budget.
+    const capMb = Number(this.cfg.enclaveAppRamMb) || 0;
+    const budgetMb = this.appsInTee()
+      ? Math.min(Math.max(0, enclaveMb - engineMb), capMb > 0 ? capMb : Infinity)
+      : hostMb;
     const ramMb = Math.max(0, budgetMb - committedMb);
+    const card = this.card && this.card();
     return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
-             ramMbFree: ramMb, cpuGflops: Number(this.cfg.gflops) || 0 };
+             ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
+             cpuGflops: Number(this.cfg.gflops) || 0,
+             // The card, in the same shape: what a GPU-dialled deployment is checked against.
+             gpuShareFree: this.gpuShareFree(), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
   }
   /**
    * Does an app this box hosts run INSIDE the enclave?
@@ -620,10 +724,13 @@ export class Host {
     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
                      && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
     return {
-      // Selling app hosting requires the app to run in the enclave (appsInTee, false today). The
-      // rest of `ready` is the ordinary can-it-actually-claim check: apps enabled, an operator key
-      // with gas, a priced registry entry, and somewhere to put the work.
-      claimEnabled: this.appsInTee() && ready && cap.slotsFree > 0 && cap.cpuShareFree > 0,
+      // Does this box take work from the market at all? That is a question about CAPABILITY, not
+      // about whether it is busy: an app runtime in the enclave, apps enabled, an operator key
+      // with gas and a priced registry entry. How much room is left is `cpuShareFree` and
+      // `nodeSlotsFree` beside it. Folding "full" into this made the box drop out of the serving
+      // set the moment its fourth app started, which took its capacity, its price and its card off
+      // the fleet's books - the opposite of what a full box should report.
+      claimEnabled: this.appsInTee() && ready,
       // The honest word for what this box is: a seller of SOME of the platform's features. The
       // relay reads it and keeps this box out of the fleet-wide capability ANDs, the sizing floors
       // and the default price, so the flags below can be the plain truth about this box instead of
@@ -641,7 +748,10 @@ export class Host {
                  ...(Number(this.cfg.enclaveAppWorlds || 1) & 2 ? ["wasi:http@0.2"] : []),
                  ...(Number(this.cfg.enclaveAppWorlds || 1) & 4 ? ["wasi:cli@0.2 (its own socket, brokered)"] : [])],
         world: "enclave:app@0.1.0", traffic: "carried by the host",
-        scope: this.scope(), public: true, running, capacity: cap.slots, ramMb: Number(this.cfg.enclaveAppRamMb) || 768,
+        scope: this.scope(), public: true, running, capacity: cap.slots,
+        // The enclave's dedicated size, what the engine holds of it, and what is free - the three
+        // numbers that make the pool checkable rather than asserted.
+        ramMb: cap.ramMbPool, engineMb: cap.ramMbEngine, ramMbFree: cap.ramMbFree,
         note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
@@ -665,8 +775,24 @@ export class Host {
       // ledger charges a lease and therefore what a buyer would actually pay. The config value is
       // only what a fresh box would register itself at.
       askCpuPricePerSec6: Number(this.registered?.cpuPricePerSec6) || this.cfg.cpuPricePerSec6,
-      askGpuPricePerSec6: 0,                    // no card for sale: this box's GPU serves the enclave's masked inference
+      // The CARD's price, on the same rule: the registry entry when this box is listed, because
+      // that is what the ledger would charge. Zero means this box sells no card share - either it
+      // has none, or it has not registered a price for the one it has.
+      askGpuPricePerSec6: Number(this.registered?.gpuPricePerSec6) || 0,
+      // ...and the same number under the name a SHIELDED pool's price is read by. The platform's
+      // own boxes publish both from one on-chain figure (supervisor.js: askShieldedPricePerSec6 =
+      // SELL_GPU_PRICE6), because the card is charged as the card whichever side of the enclave it
+      // sits on; what differs is only which pool the fleet row draws it under. A box that posted
+      // only askGpu rendered a shielded pool with no rate at all, which reads as "free".
+      ...(Number(this.registered?.gpuPricePerSec6) > 0 && this.card()
+            ? { askShieldedPricePerSec6: Number(this.registered.gpuPricePerSec6) } : {}),
       nodeSlotsFree: cap.slotsFree, ramMbFree: cap.ramMbFree,
+      // The enclave's memory as the fleet row reads it: a FIXED pool and what is really left of
+      // it. ramGbFree is the field the row prefers over the share-derived figure, and publishing
+      // it is what stops a box that sold 5% of its cores from reporting 14 GB of its enclave
+      // "used" while its apps hold half a gigabyte between them.
+      ramGbFree: Math.round((cap.ramMbFree / 1024) * 10) / 10,
+      ramGbEngine: Math.round((cap.ramMbEngine / 1024) * 10) / 10,
       enclaveId: this.enclaveId,
       registered: !!this.registered,
       operator: chain.operatorAddress() || null,

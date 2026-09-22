@@ -169,13 +169,17 @@ export async function estimate(address, abi, functionName, args) {
   return { gas, wei, eth: formatEther(wei) };
 }
 
-export async function registerBox({ endpoint, repo, measurement, cpuPricePerSec6, proofKey = "0x0000000000000000000000000000000000000000", dryRun = false }) {
-  const args = [endpoint, repo, measurement, BigInt(cpuPricePerSec6), 0n, proofKey];
+export async function registerBox({ endpoint, repo, measurement, cpuPricePerSec6, gpuPricePerSec6 = 0, proofKey = "0x0000000000000000000000000000000000000000", dryRun = false }) {
+  const args = [endpoint, repo, measurement, BigInt(cpuPricePerSec6), BigInt(gpuPricePerSec6), proofKey];
   if (dryRun) return { id: enclaveIdOf(endpoint), ...(await estimate(addresses.registry, REGISTRY_ABI, "register", args)) };
   const hash = await send(addresses.registry, REGISTRY_ABI, "register", args);
   return { id: enclaveIdOf(endpoint), hash };
 }
 export const heartbeatBox = (id) => send(addresses.registry, REGISTRY_ABI, "heartbeat", [id]);
+/** Re-post this box's asks. The registry entry is what the ledger CHARGES, so a price that only
+ *  lives in a config file is not a price: it is a hope. */
+export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
+  send(addresses.registry, REGISTRY_ABI, "setPrices", [id, BigInt(cpuPricePerSec6), BigInt(gpuPricePerSec6)]);
 export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
 export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
@@ -358,11 +362,14 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
       && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
-  // The card. This box's GPU is the enclave's: it serves masked inference for the model in VTL1
-  // and sells no share of itself. A GPU-dialled deployment may still land here, but only when
-  // somebody with the standing to say so has said the card is soft - the OWNER through the
-  // envelope's {"gpu":{"optional":true}}, or the PUBLISHER through the version's gpuOptional. The
-  // ledger charges the cpu half only, because this box posts no GPU price.
+  // The card. This box HAS one and now sells shares of it, and what a share buys is stated
+  // exactly: the model inside the enclave, whose linear algebra is done on the card by masked
+  // offload. So a GPU-dialled deployment is welcome here - if the box has the share free and the
+  // app is built for the world that can actually reach the model (checked at load, where the
+  // artifact's own bytes say which world it is). A box with NO card left, or none at all, still
+  // takes such a deployment when somebody with the standing to say so has said the card is soft:
+  // the OWNER through the envelope's {"gpu":{"optional":true}}, or the PUBLISHER through the
+  // version's gpuOptional.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
   if (opts.configCid && !fetchesConfigCid)
@@ -374,8 +381,15 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     const unmet = unmetNeeds(version, features);
     if (unmet.length) return `it needs ${unmet.join(" and ")}, which this box does not offer`;
   }
-  if (Number(d.gpuMilli) > 0 && !(opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config)))
-    return "it bought a share of a card, and this box's card is reserved for the enclave's masked inference; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
+  const wantsCard = Number(d.gpuMilli) > 0;
+  const cardSoft = opts.gpuOptional === true || gpuOptionalOfConfig(version && version.config);
+  if (wantsCard && !cardSoft) {
+    if (!capacity || !(capacity.cardGb > 0))
+      return "it bought a share of a card and this box has none to sell; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
+    const wantCard = Number(d.gpuMilli) / 1000;
+    if (wantCard > (capacity.gpuShareFree ?? 0) + 1e-9)
+      return `it asks for ${Math.round(wantCard * 100)}% of this box's card and ${Math.round((capacity.gpuShareFree ?? 0) * 100)}% of it is left to sell`;
+  }
   // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
   // yanked are refused always, and a version still awaiting the catalog owner's approval is
   // refused on a PUBLIC deployment. The fleet's relaxation for this case is dev mode on a private
