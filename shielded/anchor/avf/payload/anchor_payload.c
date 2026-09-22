@@ -36,6 +36,7 @@
 #include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
 #include "anchor_names.h"
 #include "anchor_gguf.h"
+#include "linkbench.h"   /* bench_ms: pure, and tested against hostile peers in tpu/test/linkbench-test.c */
 #include "../host/anchor-frame-loop.h"
 #include "anchor_copy.h"
 #include <fcntl.h>
@@ -95,6 +96,12 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define ECHO_PORT   7780
 #define BUNDLE_PORT 7782     /* owner -> guest: the PUBLIC Shielded-TPU lane bundle (u64 size; 'K' = already stored at that size, 'S' = send) */
 #define DRAFT_PORT  7783     /* owner -> guest: an optional drafter GGUF for speculative rows (same framing as the bundle port) */
+#define BENCH_PORT  7784     /* owner -> guest: link-scaling benchmark connections ONLY (tpu_link_bench). A SEPARATE
+                              * port on purpose: the benchmark links were first opened on WORKER_PORT alongside the
+                              * real worker, and since the app starts both sets of threads at once while the real
+                              * worker loads 35 graphs before it dials, accept ORDER could not tell them apart -- a
+                              * benchmark link could have been handed to the lane as the worker. Role is now decided
+                              * by port, which cannot race. */
 #define LOCAL_PORT  7781     /* owner -> guest: the local engine's conversation (engine_local.cpp: GEN/RESET/BYE in, TXT/STATS/ERR out) */
 #define MAX_SHAPES  16
 
@@ -1017,6 +1024,43 @@ static int receive_public_file(int ls, uint64_t bytes, const char *name, char *p
     close(fd); if (rename(tmp, path) != 0) { OUT("LOCAL %s: rename: %s", name, strerror(errno)); return -1; }
     OUT("LOCAL %s: %" PRIu64 " MiB received in %.1f s", name, bytes >> 20, (now_us() - t0) / 1e6); return 0;
 }
+/* Link-scaling benchmark: does the protected-VM boundary serialise, or does it scale per connection?
+ *
+ * The question matters because the exchange path moves 4471 KB per token at 22 MB/s while a plain
+ * one-directional stream over the SAME boundary reaches 34-42 MB/s, and because an earlier attempt to
+ * answer it by adding two averages taken over different windows proved nothing at all. So this is the
+ * control that does settle it: the SAME total bytes, once over one link and once split evenly over N,
+ * compared by MAKESPAN.
+ *
+ * These links carry benchmark bytes only. They never see a masked row, no pad is drawn for them, and they
+ * are closed before the engine is loaded, so the lane's masking, verification, ordering and lifetimes are
+ * untouched. The VM announces a byte count per link and the owner's side sends exactly that many.
+ */
+static void tpu_link_bench(int want) {
+    int ls = vs_bind(BENCH_PORT);
+    if (ls < 0) { OUT("LOCAL linkbench: cannot listen on the bench port; skipping"); return; }
+    int fd[4], have = 0;
+    for (int i = 0; i < want && i < 4; i++) { int f = vs_accept(ls, 20000); if (f < 0) break; fd[have++] = f; }
+    if (have < 2) {
+        OUT("LOCAL linkbench: %d bench link(s) connected, at least 2 are needed; skipping", have);
+        for (int i = 0; i < have; i++) close(fd[i]);
+        close(ls);
+        return;
+    }
+    const size_t TOTAL = 8u << 20;
+    const double a = bench_ms(fd, have, 1, TOTAL);
+    const double b = bench_ms(fd, have, have, TOTAL);
+    if (a > 0 && b > 0)
+        OUT("LOCAL linkbench: %u MiB over ONE link %.0f ms (%.1f MB/s); the SAME %u MiB split over %d links "
+            "%.0f ms (%.1f MB/s); scaling %.2fx (1.00 means the boundary serialises, %.2f means it is fully "
+            "per-connection)", (unsigned)(TOTAL >> 20), a, (double)TOTAL / 1e6 / (a / 1000.0),
+            (unsigned)(TOTAL >> 20), have, b, (double)TOTAL / 1e6 / (b / 1000.0), a / b, (double)have);
+    else
+        OUT("LOCAL linkbench: the transfer failed (one link %.0f ms, %d links %.0f ms)", a, have, b);
+    for (int i = 0; i < have; i++) close(fd[i]);
+    close(ls);
+}
+
 static void run_local(const anchor_local_plan *plan, int ls_wk) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
@@ -1033,6 +1077,7 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
         worker_fd = vs_accept(ls_wk, 300000);      /* the worker loads 35 compiled graphs before it dials */
         if (worker_fd < 0) { OUT("LOCAL tpu: no worker connection from the owner within 300 s"); close(ls_chat); return; }
         OUT("LOCAL tpu: worker connected; masked rows only cross this link");
+        if (plan->links >= 2) tpu_link_bench(plan->links);   /* its OWN port; closed before the engine loads */
     }
     char draft[600] = "";
     if (plan->draft_bytes) {   /* speculative rows: a drafter model, public and unauthenticated on purpose (the target verifies every proposal) */

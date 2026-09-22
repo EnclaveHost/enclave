@@ -109,6 +109,7 @@ public class Main extends Activity {
         String tpuBundle = "";               // --es tpu_bundle <file>: the public lane bundle streamed into the VM (tpu/make_graphs.py)
         int tpuBank = 64;                    // --ei tpu_bank: pad positions minted in the VM before READY (0 = mint inside decode steps, which the stats then show)
         int tpuRefill = 0;                   // --ei tpu_refill 0..8: background minter threads in the VM during decode (0 = only the bank minted before READY)
+        int tpuLinks = 0;                    // --ei tpu_links 2..4: extra worker connections for the link-scaling benchmark ONLY (mode local)
         int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal)
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
@@ -190,6 +191,7 @@ public class Main extends Activity {
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
             if (i.getStringExtra("draft") != null) p.draft = i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
+            p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
             p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuRefill = i.getIntExtra("tpu_refill", p.tpuRefill); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
@@ -205,6 +207,8 @@ public class Main extends Activity {
                     else if (p.tpuBank < 0 || p.tpuBank > 4096 || p.tpuLayers < 1 || p.tpuLayers > 128) p.configError = "tpu_bank must be 0..4096 and tpu_layers 1..128";
                     else if (!p.draft.isEmpty() && !new java.io.File(p.draft).isFile()) p.configError = "draft " + p.draft + " is not a file";
                     else if (p.draftMax < 1 || p.draftMax > 4) p.configError = "draft_max must be 1..4";
+                    else if (p.tpuLinks != 0 && (p.tpuLinks < 2 || p.tpuLinks > 4)) p.configError = "tpu_links must be 0 (off) or 2..4";
+                    else if (p.tpuLinks != 0 && p.tpuGraphs.isEmpty()) p.configError = "tpu_links needs the Shielded-TPU path (tpu_graphs/tpu_bundle)";
                     else if (p.ctx < 512 || p.ctx > 32768) p.configError = "ctx must be 512..32768";
                     else if (p.threads < 1 || p.threads > 16) p.configError = "threads must be 1..16";
                     else if (p.maxNew < 1 || p.maxNew > 8192) p.configError = "max_new must be 1..8192";
@@ -548,9 +552,11 @@ public class Main extends Activity {
                 String localLine = tpu ? LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx, new java.io.File(plan.tpuBundle).length(), plan.tpuBank, plan.tpuRefill)
                                        : LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx);
                 if (!plan.draft.isEmpty()) localLine = LocalChat.withDraft(localLine, new java.io.File(plan.draft).length(), plan.draftMax);
+                if (plan.tpuLinks >= 2) localLine = LocalChat.withLinks(localLine, plan.tpuLinks);
                 cmd.append(localLine).append('\n');
                 if (!plan.draft.isEmpty() && modelOk) new Thread(() -> streamPublicFile(vm, DRAFT_PORT, plan.draft, "drafter"), "vsock-draft").start();
                 if (tpu && modelOk) { new Thread(() -> streamPublicFile(vm, BUNDLE_PORT, plan.tpuBundle, "TPU bundle"), "vsock-bundle").start(); new Thread(() -> tpuWorker(vm, plan), "tpu-worker").start(); }
+                if (tpu && modelOk && plan.tpuLinks >= 2) for (int li = 0; li < plan.tpuLinks; li++) { final int w = li; new Thread(() -> benchLink(vm, w), "linkbench-" + li).start(); }
                 say("LOCAL plan: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + (plan.ask.isEmpty() ? ", no turns scripted (--es ask)" : ", scripted turns"));
                 if (modelOk) new Thread(() -> localSession(vm, plan), "vsock-local").start(); else say("LOCAL not started: the model stage did not pass");
             }
@@ -598,6 +604,10 @@ public class Main extends Activity {
 
     /* ---- Shielded-TPU decode (TPU.md): the public lane bundle into the VM, and the app-side worker on the VM's worker port ---- */
     static final int BUNDLE_PORT = 7782;
+    // The benchmark links have their OWN port. They first shared WORKER_PORT with the real worker, and
+    // because both sets of threads start at once while the real worker loads its graphs before dialling,
+    // accept order could not tell the roles apart -- a benchmark link could have been handed to the lane.
+    static final int BENCH_PORT = 7784;
     static final int DRAFT_PORT = 7783;
     /** A PUBLIC file into the VM's encrypted store (the lane bundle, a drafter): u64 size, then 'K' (already there at that size) or 'S' + the bytes. */
     static void streamPublicFile(Object vm, int port, String path, String what) {
@@ -962,6 +972,34 @@ public class Main extends Activity {
             out.flush();
             say("MODEL streamed " + (sent >> 20) + " MiB in " + ((System.nanoTime() - t0) / 1_000_000) + " ms");
         } catch (Exception e) { say("MODEL stream error " + e); }
+        finally { try { pfd.close(); } catch (Exception ignored) { } }
+    }
+
+    /** A benchmark link for the guest's link-scaling control (run_local's tpu_link_bench).
+     *
+     *  The guest announces a byte count as four little-endian bytes and this sends exactly that many, then
+     *  waits for the next announcement. It carries benchmark bytes only: no masked row, no pad and no lane
+     *  state ever crosses it, and the guest closes it before the engine is loaded.
+     *
+     *  It exists because the exchange path moves bytes at 22 MB/s while a plain stream over the same
+     *  boundary reaches 34-42 MB/s, and the question of whether that boundary scales per connection could
+     *  not be answered by comparing two averages taken over different windows. */
+    static void benchLink(Object vm, int which) {
+        ParcelFileDescriptor pfd = connect(vm, BENCH_PORT, 200);
+        if (pfd == null) { say("LINKBENCH " + which + ": could not connect"); return; }
+        try {
+            InputStream in = new FileInputStream(pfd.getFileDescriptor());
+            OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
+            byte[] hdr = new byte[4], buf = new byte[262144];
+            long total = 0;
+            for (;;) {
+                int n = 0;
+                while (n < 4) { int r = in.read(hdr, n, 4 - n); if (r <= 0) { say("LINKBENCH " + which + ": closed after " + total + " bytes"); return; } n += r; }
+                long count = (hdr[0] & 255L) | ((hdr[1] & 255L) << 8) | ((hdr[2] & 255L) << 16) | ((hdr[3] & 255L) << 24);
+                while (count > 0) { int w = (int) Math.min(count, buf.length); out.write(buf, 0, w); count -= w; total += w; }
+                out.flush();
+            }
+        } catch (Exception e) { say("LINKBENCH " + which + ": " + e); }
         finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 

@@ -38,6 +38,10 @@ public final class LocalChat {
     }
     /** Appends the drafter tail to either plan line: the drafter's size and how many tokens it proposes per step (1..4). */
     public static String withDraft(String plan, long draftBytes, int draftMax) { return plan + " draft_bytes=" + draftBytes + " draft_max=" + Math.max(1, Math.min(4, draftMax)); }
+
+    /** Extra worker connections for the link-scaling benchmark only: they carry benchmark bytes, never
+     *  masked rows, and the VM closes them before decode begins. */
+    public static String withLinks(String plan, int links) { return plan + " links=" + Math.max(2, Math.min(4, links)); }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;
