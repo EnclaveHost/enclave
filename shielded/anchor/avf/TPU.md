@@ -2531,3 +2531,60 @@ int4 halves it and costs 18.1x the weight error. One invocation per token is wha
 and it needs the whole graph inside the trust boundary -- which needs an AVF API that does not exist on
 `android17-release` or on `main`, where `VirtualMachineConfig` writes an empty assigned-device array
 unconditionally with no setter.
+
+## What actually binds first: NPU weight bandwidth, not masking (2026-09-22)
+
+The stop condition is not met and this is the most useful thing I have found about why. It reframes the
+gap, and it does it from a bench that has been running inside every measured row all along.
+
+`nativeBench` fires on every worker open, so each `*.tpu.log` in `results/qc7` carries min and mean ms
+per Run for both signatures of two layers. Against the known compiled sizes:
+
+| | compiled | min ms (4 signatures) | achieved |
+|---|---|---|---|
+| L0 | 35.61 MB | 5.54 | 6.43 GB/s |
+| L20 | 63.27 MB | 6.69 | 9.46 GB/s |
+| L0 (2nd row) | 35.61 MB | 5.74 | 6.20 GB/s |
+| L20 (2nd row) | 63.27 MB | 7.99 | 7.92 GB/s |
+
+Best observed **9.5 GB/s**, against the **11.8 GB/s** marginal slope the 128x dispatch sweep measured.
+Those agree: the sweep's slope is the marginal cost per megabyte, the bench includes the fixed cost.
+
+**So the NPU streams weights at roughly 6-12 GB/s, and our lane must move 1.84 GB of int8 weights per
+token. That is 156-195 ms, a 5.1-6.4 tok/s ceiling, UNMASKED, before a single byte crosses the pVM
+boundary and before any pad is drawn.** Masking is not what puts this lane below 15 tok/s. The size of
+the active weight set does, and masking is then charged on top.
+
+### The same arithmetic explains Google's lane exactly
+
+Google measured 65.8 ms per token on this phone today. At 11.8 GB/s that is at most 0.78 GB of weight
+traffic, and attention, the norms, sampling and the LM head have to happen inside it too -- so their
+active set is well under 0.78 GB, under 42 % of ours. And 65.8 ms is almost exactly **one invocation
+plus streaming about 0.7 GB**: 0.5 + 59 = 60 ms. Their package is 3.11 GB, so they activate roughly a
+fifth of it per token, which is what int4 plus MatFormer plus per-layer embeddings buys.
+
+Per token, against Google:
+
+| | ours | theirs |
+|---|---|---|
+| weight bytes | 156 ms | ~59 ms |
+| invocations | 73 ms (140 entries) | 0.5 ms (one) |
+| everything else | ~791 ms | ~0 |
+
+### What this changes about what to attack
+
+The order was wrong. Transport and masking are still the largest single term at ~791 ms, but the two
+underneath them are not small, and one of them is a hard floor nothing in this design can reach past:
+**even with a free transport, free masking and one entry per block, 1.84 GB of int8 weights cannot be
+read in less than 156 ms.** Any plan that ends at 15 tok/s has to cut the active bytes FIRST, to
+something near 0.7 GB, and only then do the other two terms matter.
+
+That makes int4 the gate rather than a nice-to-have, and it sharpens what the earlier rejection
+actually said. `a8w4` was rejected because int4 with ONE SCALE PER ROW is 18.1x the int8 weight error.
+Group-wise int4 is 10x at group 32 and is what production 4-bit models use -- and Google ships a 4-bit
+package that scores 21/24 on these same contracts, so group-wise int4 plainly works on this silicon.
+What blocks it here is expressibility, not accuracy: quantised FULLY_CONNECTED carries per-output-channel
+scales and nothing per group of input columns, and the construction that works around it -- split the
+input, sum partial products -- is the one the G5 compiler crashes on. That crash is now the single
+highest-value blocked item in this campaign, and it is worth saying plainly that it is a toolchain
+limit rather than a property of the accelerator.
