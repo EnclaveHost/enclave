@@ -2050,3 +2050,35 @@ per token against plain's 58.4 -- a 13% gain, and measured 17.67 against 17.11.
 k=2 makes it worse, exactly as that arithmetic predicts (2.29 tokens per round
 but a 148 ms round: **14.83 tok/s**). Speculation on this engine is capped by
 `C`, not by the draft head's accuracy.
+
+### 16.7 The unmasked baseline: what the shielding costs
+
+Asked for, and the right control. Same model file, same box, same prompt,
+stock llama.cpp built for sm_70 (`~/gvs5h`, commit eafe15a), `llama-bench
+-n 64`:
+
+| configuration | tok/s |
+|---|---|
+| stock llama.cpp, one V100, all layers on the card, **no masking** | **30.36** |
+| stock llama.cpp, both V100s, no masking (llama.cpp's layer split) | 30.20 |
+| shielded: masked, Freivalds-verified, both V100s, column split | **17.67** |
+| no card at all, 8 CPU threads | 3.83 |
+
+**Shielding costs 1.72x** against the same hardware running the same weights
+in the clear, and it buys weight and activation confidentiality against the
+host plus integrity of every product. 20 tok/s is 66% of the unmasked number.
+
+Two things in that table are worth keeping. The second row is the same finding
+as 16.1 arriving from the other direction: llama.cpp's own two-GPU placement
+splits by LAYER, layers are sequential, so the second card is idle half the
+time and buys nothing (30.20 against 30.36 -- a rounding error, and if
+anything slightly worse). That is exactly the idleness the column split
+removes, and it is why the shielded engine gets a real gain from a second card
+where stock llama.cpp gets none.
+
+The other is that the comparison is not like-for-like on bytes: the plain
+model is q4_K at 16.34 GiB, while the shielded lane stores int8 and streams
+about 21.6 GB. A third of the streaming term is the wider lane, before a
+single masking operation is counted -- which is what 15.5 priced and rejected
+at 4 bits, and what an int6 lane with an integer block scale would partly
+recover.
