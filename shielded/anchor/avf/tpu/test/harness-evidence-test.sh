@@ -13,13 +13,17 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-HARNESS="$ROOT/host/google-lane-run.sh"
+# Check the STAGED copy while repairs are pending, as the other suites do. Otherwise this exercises a
+# script whose known defects are already fixed and merely waiting for a device run to end -- and its
+# failures then say nothing about the code that will actually ship.
+_H=host; [ -f "$(cd "$(dirname "$0")/../.." && pwd)/host/staged/APPLY-PENDING" ] && _H=host/staged
+HARNESS="$(cd "$(dirname "$0")/../.." && pwd)/$_H/google-lane-run.sh"
 [ -f "$HARNESS" ] || { echo "FAIL: harness not found at $HARNESS (this test would otherwise pass vacuously)"; exit 1; }
 
 pass=0; fail=0
 ck() { printf '%-56s ' "$1"; if [ "$2" = ok ]; then echo ok; pass=$((pass+1)); else echo "FAIL  ${3:-}"; fail=$((fail+1)); fi; }
 
-WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
+WORK=$(mktemp -d); [ "${KEEPW:-0}" = 1 ] && echo "WORKDIR=$WORK"; [ "${KEEPW:-0}" = 1 ] || trap 'rm -rf "$WORK"' EXIT
 DIG=$(printf 'x' | sha256sum | awk '{print $1}')
 
 cat > "$WORK/adb" <<'FAKE'
@@ -38,6 +42,13 @@ case "$verb" in
   shell)
     cmd="${args[$((i+1))]:-}"
     case "$cmd" in
+      # The lane gained a per-row thermal gate. A fake that does not answer these made cool_gate spin
+      # its full 90 tries at 10s each -- 15 minutes PER ROW -- and two runs of this suite sat wedged
+      # for over an hour looking like a hang in the test rather than a stall in the gate. Answering
+      # them cool keeps the gate exercised as a positive control instead of bypassing it.
+      *thermalservice*)     echo "Thermal Status: 0"; case "$cmd" in *__RC__*) echo "__RC__0";; esac; exit 0 ;;
+      *scaling_max_freq*|*cpuinfo_max_freq*)
+                            echo 3052000;      case "$cmd" in *__RC__*) echo "__RC__0";; esac; exit 0 ;;
       *sha256sum*)
         [ "$mode" = identfail ] && { echo "DIGESTDIGESTDIGEST"; echo "__RC__42"; exit 0; }
         # a VALID digest and a clean remote status, but the TRANSPORT itself fails: only a check of
@@ -77,7 +88,8 @@ printf 'What is the capital of France? Reply with only the city name.\texact=Par
 run() {  # $1 mode, $2 outdir, $3 prompts -> sets RC
   FAKE_MODE="$1" FAKE_DIGEST="$DIG" FAKE_ANSWER="${ANSWER:-391}" \
   FAKE_PROMPT="$WORK/remote_prompt" FAKE_TRIPWIRE="$WORK/ran" \
-  ADB="$WORK/adb" SERIAL=FAKESERIAL OUT="$2" bash "$HARNESS" "$3" >"$2.log" 2>&1
+  ADB="$WORK/adb" SERIAL=FAKESERIAL OUT="$2" COOL_TRIES=3 COOL_SLEEP=0 \
+    bash "$HARNESS" "$3" >"$2.log" 2>&1
   RC=$?
 }
 
