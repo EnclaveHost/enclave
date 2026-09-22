@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
-"""Measure the error of the DEPLOYED kernel, by dispatching a shipped compiled graph on the phone.
+"""SUPERSEDED AND NON-FUNCTIONAL. Kept only so the attempt is on the record; do not trust its output.
 
-Every error figure for this lane so far has been a NumPy simulation with an ideal-rounding backend
-(tpu/test/error_bound.py says so in its own header). An audit correctly refused to treat that as a
-measurement of what the silicon does. This is the measurement: feed known int8 digit rows to a graph that
-is ALREADY COMPILED and in production, read back the int16 products, and compare against the exact
-integer reference computed from the same weights in the bundle.
+STATUS. This never produced a measurement. It drives the on-device dispatch harness
+(`enclave-runtime-weight/public_compiled_runner`), which accepts exactly one model output, while every
+signature in a real lane graph has one to three. The harness correctly refuses the mismatch, and the
+compiled artifact cannot be re-serialised to extract a single-output subgraph because its NPU bytecode
+lives appended outside the flatbuffer.
 
-It needs no AOT compiler, which matters because the compiler is currently down: `g5/L0.tflite` was
-compiled on 2026-09-19 and is used by the shipped lane.
+WHAT REPLACED IT. `kVerifyKernel` in payload/ggml-tpu.cpp, which measures the same quantity better: it
+recomputes one element per projection per exchange with the reference expression, under the same bundle,
+weights and quantisation, on REAL activations during REAL decode, inside the VM. Roughly 129k digit
+comparisons are recorded in TPU.md.
 
-    python3 tpu/test/deployed-kernel-error.py [bundle] [compiled-graph] [signature-index]
+WHY THIS FILE IS FAIL-CLOSED RATHER THAN DELETED. An audit found it could report a STALE result as a
+fresh measurement: it ignored every adb return code, reused a remote model.tflite merely because the path
+existed, never removed an earlier got.bin, and compared `min(got.size, ref.size)` so a partial or
+leftover output passed. It also accepted an ETPUB003 bundle while building one-input stacked-digit data,
+and divided a max digit delta by 102.4 while calling it an output LSB, which omits the 256x amplification
+a `hi` disagreement carries. Those are now refusals rather than defaults, so if anyone runs it they get
+nothing instead of a plausible number. The elaborate mocked-command regressions the audit asked for are
+NOT here: writing a test suite for a tool that cannot execute its central step would be effort spent
+making a dead path look maintained. If the dispatch-harness route is ever wanted, the harness needs a
+signature/output selector first, and the tests should be written then.
 """
+
 
 import os
 import struct
@@ -32,8 +44,10 @@ D = 102.4
 def read_group(path, want_layer, want_kind):
     f = open(path, "rb")
     magic = f.read(8)
-    if magic not in (b"ETPUB002", b"ETPUB003"):
-        raise SystemExit(f"bundle magic {magic!r} is not digit-split")
+    # ETPUB003 is the TWO-INPUT contract; this builds ONE-input stacked-digit data, so accepting it
+    # would compare against a reference for a graph shape that was never sent.
+    if magic != b"ETPUB002":
+        raise SystemExit(f"REFUSING: bundle magic {magic!r}; this tool only builds ETPUB002 stacked-digit data")
     (ngroups,) = struct.unpack("<I", f.read(4)); f.read(4)
     al8 = lambda o: (o + 7) & ~7  # noqa: E731
     off = 16
@@ -62,7 +76,11 @@ def read_group(path, want_layer, want_kind):
 
 
 def sh(*a):
-    return subprocess.run([ADB] + list(a), capture_output=True, text=True, timeout=600)
+    """Every adb call is checked. The previous version ignored return codes entirely."""
+    r = subprocess.run([ADB] + list(a), capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise SystemExit(f"REFUSING: adb {' '.join(a)[:60]} failed rc={r.returncode}: {r.stderr.strip()[:200]}")
+    return r
 
 
 def main():
@@ -87,25 +105,40 @@ def main():
     np.concatenate([r.reshape(-1) for r in refs]).tofile(f"{loc}/ref.bin")
     for f in ("in.bin", "ref.bin"):
         sh("push", "-q", f"{loc}/{f}", f"{DEV}/{f}")
-    if sh("shell", f"[ -f {DEV}/model.tflite ] && echo yes").stdout.strip() != "yes":
-        print("pushing the compiled graph (36 MB, once)...")
+    # identity, not mere existence: a stale remote model of the same name is exactly how a previous
+    # graph's output gets reported as this one's
+    import hashlib
+    want = hashlib.sha256(open(GRAPH, "rb").read()).hexdigest()
+    got = sh("shell", f"sha256sum {DEV}/model.tflite 2>/dev/null | cut -d' ' -f1").stdout.strip()
+    if got != want:
+        print(f"pushing the compiled graph ({os.path.getsize(GRAPH)/1e6:.0f} MB)...")
         sh("push", GRAPH, f"{DEV}/model.tflite")
+        if sh("shell", f"sha256sum {DEV}/model.tflite | cut -d' ' -f1").stdout.strip() != want:
+            raise SystemExit("REFUSING: the pushed graph does not match its local digest")
 
     r = sh("shell", f"cd {DEV} && ./public_compiled_runner --model=model.tflite --input=in.bin "
                     f"--reference=ref.bin --output=got.bin --backend=npu 2>&1 | tail -20")
     print(r.stdout.strip()[:1500])
 
+    # remove BOTH copies before the run, so a leftover cannot be read back as this run's result
+    subprocess.run([ADB, "shell", f"rm -f {DEV}/got.bin"], capture_output=True, timeout=120)
+    if os.path.exists(f"{loc}/got.bin"):
+        os.unlink(f"{loc}/got.bin")
     sh("pull", "-q", f"{DEV}/got.bin", f"{loc}/got.bin")
-    if not os.path.exists(f"{loc}/got.bin") or os.path.getsize(f"{loc}/got.bin") == 0:
-        print("\nno output came back: the runner did not produce got.bin, so nothing is measured here.")
-        return 1
-    got = np.fromfile(f"{loc}/got.bin", np.int16)
     ref = np.concatenate([r.reshape(-1) for r in refs])
-    n = min(got.size, ref.size)
+    if not os.path.exists(f"{loc}/got.bin"):
+        raise SystemExit("REFUSING: no output came back")
+    got = np.fromfile(f"{loc}/got.bin", np.int16)
+    if got.size != ref.size:                       # exact length, not min()
+        raise SystemExit(f"REFUSING: got {got.size} values, expected exactly {ref.size}")
+    n = ref.size
     d = np.abs(got[:n].astype(np.int64) - ref[:n].astype(np.int64))
     print(f"\ncompared {n} of {ref.size} int16 products")
     print(f"  exact matches : {int((d == 0).sum())} ({100.0 * (d == 0).mean():.2f} %)")
-    print(f"  max |delta|   : {int(d.max())} digit-scale LSB  (={d.max() / D:.4f} output LSB)")
+    # a hi-digit disagreement is amplified by 256 on recombination and a lo one is not, so a single
+    # "/ D" figure is wrong for the hi half by that factor
+    print(f"  max |delta|   : {int(d.max())} digit-scale LSB "
+          f"(={d.max() * 256.0 / D:.4f} output LSB if on hi, {d.max() / D:.4f} if on lo)")
     print(f"  rms |delta|   : {np.sqrt((d.astype(float) ** 2).mean()):.4f}")
     print("\nThis is the deployed kernel, not a simulation: the graph was compiled 2026-09-19 and is the")
     print("one the lane runs. It bounds the backend deviation that error_bound.py could only assume.")

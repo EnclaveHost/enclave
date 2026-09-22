@@ -2,6 +2,7 @@
 #ifndef GGML_TPU_H
 #define GGML_TPU_H
 #include <stddef.h>
+#include <math.h>
 #include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
@@ -46,11 +47,6 @@ void   ggml_backend_tpu_link_buf(uint64_t *before, uint64_t *after);  /* the vso
 void   ggml_backend_tpu_ping_bench(int reps);   /* reply-size sweep through the real link, TPU excluded */  /* mint inside the link window: bank target, pads per batch (0 = off) */
 void   ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset);
 int    ggml_backend_tpu_reference_worker(int fd);              /* the exact integer worker, for host tests: what the TPU is required to compute */
-#ifdef __cplusplus
-}
-#endif
-#endif
-
 /* The RMS of the backend's deviation in OUTPUT LSBs.
  *
  * This is a function rather than an expression in a printf because it had a bug that no test could
@@ -60,3 +56,8 @@ int    ggml_backend_tpu_reference_worker(int fd);              /* the exact inte
 static inline double tpu_ver_lsb_rms(uint64_t ver_lsb_n, double ver_lsb_sq) {
     return ver_lsb_n ? sqrt(ver_lsb_sq / (double)ver_lsb_n) : 0.0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#endif
