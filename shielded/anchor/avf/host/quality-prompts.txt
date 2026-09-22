@@ -1,8 +1,12 @@
-# One prompt per line, one RUN each, so neither arm ever conditions on a history the other did not have.
-# No apostrophes and no pipes: the turn list is pipe-separated and the prompt crosses a shell single-quote.
-What is the capital of France? Answer in one sentence.
-List the first ten prime numbers.
-Write a Python function that reverses a string.
-Say hello in three languages.
-Explain in two sentences why the sky is blue.
-Name three countries in South America.
+# prompt <TAB> python regex the reply must match to count as CORRECT (optional; searched case-insensitively)
+# One prompt per line, one RUN each. No apostrophes and no pipes: the turn list is pipe-separated and the
+# prompt crosses a shell single-quote. Prompts are chosen to TERMINATE on their own, so a run that ends at
+# the token cap is reported as truncated rather than quietly scored as a completed answer.
+What is the capital of France? Answer in one sentence.	\bParis\b
+What is 17 times 23? Answer with just the number.	\b391\b
+List the first ten prime numbers.	2\D+3\D+5\D+7\D+11\D+13\D+17\D+19\D+23\D+29\b
+Name three countries in South America.	(Brazil|Argentina|Peru|Chile|Colombia|Bolivia|Ecuador|Uruguay|Paraguay|Venezuela)
+Write a Python function called reverse_string that returns its argument reversed. Give only the code.	def\s+reverse_string\s*\(
+Write a haiku about rain.	\w+
+Explain in two sentences why the sky is blue.	(Rayleigh|scatter)
+In one sentence, what is the boiling point of water at sea level in Celsius?	\b100\b
