@@ -1163,6 +1163,16 @@ export class Host {
    * does not hammer the relay's issuer with it. A pending issuance answers null, which the caller
    * turns into a 503 rather than a broken handshake.
    */
+  /**
+   * What the app zone needs to apply this deployment's rules: the rules themselves (so a request
+   * is parsed rather than spliced) and the body ceiling (so the READ stops at the limit instead of
+   * buffering past it and refusing afterwards).
+   */
+  #zoneRules(id) {
+    const w = this.records.get(String(id).toLowerCase())?.waf || null;
+    return { waf: w, bodyLimit: waf.bodyLimit(w) };
+  }
+
   async appZoneTarget(ref) {
     // A label (the first 8 hex, which is what the hostname carries) or a full id: resolved against
     // the leases this box holds, so a prefix that matches nothing here is simply not ours.
@@ -1183,7 +1193,7 @@ export class Host {
     // it will show a closed padlock.
     const gate = !app.port;
     const have = this.appCerts.get(id);
-    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, gate, cert: have.cert };
+    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, gate, cert: have.cert, ...this.#zoneRules(id) };
     // The FALLBACK pair, while the real certificate is being issued. Without it the connection
     // dies at the first byte and the failure reads as a broken box rather than a certificate that
     // has not arrived; with it the path is provable (a client told to skip verification gets the
@@ -1196,7 +1206,7 @@ export class Host {
         this.appCerts.set(id, f);
         this.log(`${id.slice(0, 10)} app-zone: serving a self-signed pair for ${f.cert.name} until the real one is issued`);
       }
-      return { id, port: app.port, gate, cert: f.cert };
+      return { id, port: app.port, gate, cert: f.cert, ...this.#zoneRules(id) };
     };
     const fail = this.appCertFails.get(id);
     if (fail && Date.now() < fail) return fallback();
@@ -1208,7 +1218,7 @@ export class Host {
                                       zone: this.cfg.appZone, log: (m) => this.log(m) });
       this.appCerts.set(id, { cert });
       this.#record(id, { appHost: cert.name, certNotAfter: cert.notAfter });
-      return { id, port: app.port, gate, cert };
+      return { id, port: app.port, gate, cert, ...this.#zoneRules(id) };
     } catch (e) {
       const wait = Math.max(30, Number(e.retryAfterSec) || 300) * 1000;
       this.appCertFails.set(id, Date.now() + wait);
@@ -1225,7 +1235,11 @@ export class Host {
     // hold on either, which is the property the envelope promises.
     const w = this.records.get(key)?.waf;
     if (w) {
-      const v = waf.check(key, w, { method, url: pathRest, headers: headers || {}, ip });
+      // The ACTUAL body length, not the declared one. By the time a request reaches here the body
+      // is whole (the relay hands /x/ a complete frame; the app zone counts as it reads), so this
+      // is the guard that holds when content-length is absent or lying.
+      const bodyBytes = body == null ? 0 : (Buffer.isBuffer(body) ? body.length : Buffer.byteLength(body));
+      const v = waf.check(key, w, { method, url: pathRest, headers: headers || {}, ip, bodyBytes });
       if (v && !v.allow) {
         return { status: v.status, headers: { "content-type": "application/json", ...(v.headers || {}) },
                  body: JSON.stringify({ error: v.error, message: v.message }) };

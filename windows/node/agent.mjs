@@ -559,6 +559,10 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
       // terminating TLS here and carrying the request through the gate, the same frame the /x/
       // path uses.
       serveHttp: (id, req) => host.proxy(id, req),
+      // The operator's ceiling on a single request body held in the agent's memory for an app
+      // served on its own port. A gate-served app has a tighter one that the enclave itself
+      // imposes (its request staging buffer), and a deployment's own maxBodyMb narrows either.
+      maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
       log: (m) => log(`[app-zone] ${m}`),
     });
     try {
