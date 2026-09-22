@@ -120,10 +120,10 @@ index da42381..9e4e7b4 100644
 +(rule (lower (atomic_rmw $I64 (little_or_native_endian _flags) (AtomicRmwOp.Xchg) p x))
 +  (pulley_xatomic_rmw64le_xchg_o32 (atomic_amode p) x))
 diff --git a/crates/wasmtime/src/config.rs b/crates/wasmtime/src/config.rs
-index 98090ec..19c59be 100644
+index 98090ec..1a1074e 100644
 --- a/crates/wasmtime/src/config.rs
 +++ b/crates/wasmtime/src/config.rs
-@@ -2420,12 +2420,25 @@ impl Config {
+@@ -2420,10 +2420,31 @@ impl Config {
          #[cfg(any(feature = "cranelift", feature = "winch"))]
          match self.compiler_config.as_ref().and_then(|c| c.strategy) {
              None | Some(Strategy::Cranelift) => {
@@ -131,29 +131,34 @@ index 98090ec..19c59be 100644
 -                // `threads` proposal, notably shared memory, because Rust can't
 -                // safely implement loads/stores in the face of shared memory.
 -                // Stack switching is not implemented, either.
-+                // Pulley now implements the `threads` proposal: the atomic
-+                // instructions are in pulley/src/lib.rs and its interpreter, and
-+                // the lowerings are in isa/pulley_shared/lower.isle. They exist
-+                // because an app that uses threads has to be runnable where
-+                // there is nothing to JIT into - inside a VBS enclave.
++                // PULLEY AND THE `threads` PROPOSAL: the atomic instructions now exist
++                // (pulley/src/lib.rs, its interpreter, and isa/pulley_shared/lower.isle), and they
++                // are correct - a barrier-released litmus of 8 threads x 50000 contended adds on
++                // one address returns exactly 400000, and returns ~112000 when the RMW is replaced
++                // by a load-modify-store.
 +                //
-+                // Upstream's reason for excluding it was that "Rust can't safely
-+                // implement loads/stores in the face of shared memory". Pulley's
-+                // ordinary loads and stores already go through RAW POINTERS
-+                // rather than Rust slices (`AddressingMode::addr` returns
-+                // `*mut T`), so the change is not structural: the atomic ops use
-+                // `AtomicNN::from_ptr` on that same pointer, which is exactly
-+                // the operation the wasm threads proposal describes. Non-atomic
-+                // racing accesses remain as the spec allows - they may read
-+                // garbage, and they go through `read_unaligned`/`write_unaligned`
-+                // on a raw pointer rather than through a reference.
++                // THE PROPOSAL IS STILL REFUSED HERE, and the atomics are not the reason.
 +                //
-+                // Stack switching is still not implemented.
++                // Upstream's comment said "Rust can't safely implement loads/stores in the face of
++                // shared memory". I read that as being about references and argued that Pulley's
++                // raw pointers made it moot. That was WRONG, and the correction matters: Rust's
++                // data-race rules apply to raw pointers too. `read_unaligned`/`write_unaligned` on
++                // a shared memory are ordinary non-atomic accesses, and a wasm guest is ALLOWED to
++                // race a non-atomic store against an atomic load - permitted by the wasm memory
++                // model, undefined behaviour under Rust's. See
++                // https://doc.rust-lang.org/core/sync/atomic/#memory-model-for-atomic-accesses.
++                //
++                // So making atomics atomic was necessary and is not sufficient. Every ORDINARY
++                // access to a shared memory has to stop being a plain read or write as well -
++                // relaxed atomics where the address is aligned, byte-wise relaxed atomics where it
++                // is not - along with the bulk operations (memory.copy/fill/init) and growth. Until
++                // that lands, a guest can reach UB inside the trusted image, which is the one thing
++                // an enclave runtime may not allow.
++                //
++                // Stack switching is not implemented either.
                  if self.compiler_target().is_pulley() {
--                    unsupported |= WasmFeatures::THREADS;
+                     unsupported |= WasmFeatures::THREADS;
                      unsupported |= WasmFeatures::STACK_SWITCHING;
-                 }
- 
 diff --git a/pulley/src/interp.rs b/pulley/src/interp.rs
 index 5b3f794..fd44b69 100644
 --- a/pulley/src/interp.rs

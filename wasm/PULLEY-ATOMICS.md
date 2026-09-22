@@ -1,8 +1,10 @@
 # Atomics in Pulley: shared-everything threads where there is nothing to JIT into
 
 `wasm/pulley-atomics.patch` adds the WebAssembly threads proposal's atomic instructions to
-wasmtime's **Pulley** interpreter and to Cranelift's Pulley backend, and lifts the config gate that
-refused the proposal for that target.
+wasmtime's **Pulley** interpreter and to Cranelift's Pulley backend.
+
+**The proposal is still REFUSED for a Pulley target, deliberately, and the atomics are not the
+reason.** See "The soundness correction" below before enabling anything.
 
 ## Why
 
@@ -34,14 +36,37 @@ CLIF also defines `nand`/`umin`/`umax`/`smin`/`smax` for `atomic_rmw`. No wasm g
 so they are deliberately left without a rule: a caller that somehow reaches one gets Cranelift's own
 "should be implemented in ISLE" rather than a wrong answer.
 
-## Why it is sound, and where the trust sits
+## The soundness correction
 
-Upstream excluded threads on Pulley saying "Rust can't safely implement loads/stores in the face of
-shared memory". That is about formal UB, not structure: **Pulley already addresses guest memory
-through raw pointers** (`AddressingMode::addr` returns `*mut T`; loads and stores go through
-`read_unaligned`/`write_unaligned`), never through a Rust slice or reference. The atomic ops use
-`AtomicNN::from_ptr` on that same pointer, which is exactly what the proposal describes. Non-atomic
-racing accesses stay as the spec allows — they may read garbage, and they never form a reference.
+**An earlier version of this document, and of the commit that introduced it, claimed that Pulley's
+use of raw pointers made racing non-atomic accesses safe. That was wrong.**
+
+Rust's data-race rules apply to raw pointers exactly as they do to references.
+`read_unaligned`/`write_unaligned` on a shared memory are ordinary non-atomic accesses, and a wasm
+guest is *allowed* to race a non-atomic store against an atomic load — permitted by the wasm memory
+model, undefined behaviour under Rust's. Mixed-width overlapping atomics are a second case in the
+same family. The authority is
+[the atomic memory model](https://doc.rust-lang.org/core/sync/atomic/#memory-model-for-atomic-accesses).
+
+Upstream's one-line comment was therefore correct as written, and arguing past it on the strength of
+`*mut T` was reading it too narrowly.
+
+So: making the atomics atomic was **necessary and not sufficient**. What remains before the gate can
+honestly come off is that every ORDINARY access to a shared memory must stop being a plain read or
+write too:
+
+  - aligned ordinary loads/stores → relaxed atomics;
+  - unaligned ones → byte-wise relaxed atomics (each byte is aligned), branching at run time;
+  - the bulk operations (`memory.copy`, `memory.fill`, `memory.init`) over a shared memory;
+  - growth and lifetime — `SharedMemory` must not move a base another thread holds.
+
+Until all of that is covered, a guest can reach UB inside the trusted image, which is the one thing
+an enclave runtime may not allow. The gate stays on and the VBS box keeps advertising `set: false`.
+
+## What the atomics themselves are, and how far they are checked
+
+The atomic ops use `AtomicNN::from_ptr` on the pointer `AddressingMode::addr` already produces,
+which is what the proposal describes for the atomic accesses themselves.
 
 **Alignment is the caller's guarantee, not checked here.** The wasm frontend emits an explicit
 alignment test before every atomic access and traps with `TRAP_HEAP_MISALIGNED`
@@ -62,10 +87,29 @@ Against `tools/parallelism-probe`, pulley64 vs native x86_64 with the same engin
     set-spawn-stress     run(20,8,5000)=160  pulley 14.8 ms  native 10.4 ms
 
 The first proves a worker really ran on another thread and its `i32.atomic.rmw.add` was observed
-here through `i32.atomic.load`, with `memory.atomic.wait32`/`notify` handing off between them. The
-second is the one that would catch a broken implementation: 20 rounds x 8 threads x 5000 **contended**
-atomic adds, plus a cross-thread `memory.grow`, and the completion counter comes back **exactly**
-160. A lost update or a torn read would show up as less.
+here through `i32.atomic.load`, with `memory.atomic.wait32`/`notify` handing off between them.
+
+**The second proves less than it looks like it does**, and this is worth stating because I claimed
+otherwise: `set-spawn-stress` returns the COMPLETION counter — 160 atomic adds, one per worker per
+round — not the 5000 contended adds each worker performs. Those are never checked. A peer session
+made the general form of this point the same evening, about a lost-wakeup race their own 3000-trial
+stress regression passed cleanly: a contended stress probe samples whatever thread alignments the
+scheduler happens to produce, and those are not the adversarial ones.
+
+So the discriminating test is `tools/parallelism-probe/atomic-litmus.wat`: N workers, released
+together by a barrier, each adding 1 to ONE address `iters` times, returning the final value. Every
+single add is checked, because the sum IS the result.
+
+    atomic-litmus  run(8,50000)  =  400000 of 400000   (exact, three runs)
+
+and with the 32-bit atomic add deliberately replaced by a load-modify-store, rebuilt and re-run:
+
+    atomic-litmus  run(8,50000)  =  110618 / 113368 / 112699
+
+It fails on the defect and passes on the fix, which is the only thing that makes a green run mean
+anything. Note what this does NOT establish: it exercises the common alignments, not adversarial
+interleavings, and it says nothing about ordinary non-atomic accesses racing atomic ones — which is
+the soundness gap above.
 
 ## Applying it
 
