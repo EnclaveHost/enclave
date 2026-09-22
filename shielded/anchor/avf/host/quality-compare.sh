@@ -79,6 +79,11 @@ valid_sha "$GRAPHS_ID" || { echo "REFUSING: graphs identity is not usable" >&2; 
 echo "graphs: $GN file(s) digested individually"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"; } >> "$OUT/BUILD"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
+# This script cd's to its own directory, so a RELATIVE prompts path given from elsewhere silently
+# resolves to nothing. mapfile then leaves PLIST empty, the loop runs zero times, and the script
+# reports "0 failed arm(s)" and exits 0 -- a confident empty success, the same shape as every other
+# unchecked-input defect in this tree. An unreadable prompt list is a refusal.
+[ -r "$PROMPTS" ] || { echo "REFUSING: cannot read the prompt list '$PROMPTS' (this script runs from $HERE, so give an absolute path)" >&2; exit 2; }
 # The prompt list is read into an ARRAY first. Reading it with `while read < file` and running adb inside the
 # loop silently ran ONE prompt and stopped: adb consumes stdin, so it ate the rest of the file.
 mapfile -t PLIST < "$PROMPTS"
@@ -88,6 +93,7 @@ mapfile -t PLIST < "$PROMPTS"
 # the report scores against it, counting anything missing as a failure.
 EXPECT_ROWS=0
 for p in "${PLIST[@]}"; do [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac; EXPECT_ROWS=$((EXPECT_ROWS+1)); done
+[ "$EXPECT_ROWS" -gt 0 ] || { echo "REFUSING: '$PROMPTS' contains no prompts" >&2; exit 2; }
 MANIFEST="$OUT/MANIFEST.tsv"
 { printf '# expect_rows\t%s\n' "$EXPECT_ROWS"; printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
 n=0; failed=0

@@ -183,6 +183,17 @@ rm -rf "$W/out"; run_producer "$OLD_C" 391 >/dev/null
 grep -v '^# expect_rows' "$W/out/MANIFEST.tsv" > "$W/m.tmp" && mv "$W/m.tmp" "$W/out/MANIFEST.tsv"
 report >/dev/null 2>&1; ck "report refuses a manifest with no expect_rows (exit 2)" "$?" 2
 
+echo "== an unreadable or empty prompt list is refused, not scored as zero failures =="
+rm -rf "$W/out"
+rc=$(FAKE_CONTENT="$OLD_C" FAKE_ANSWER=391 ADB="$W/bin/adb" OUT="$W/out" MAXNEW=48 \
+     bash "$W/host/quality-compare.sh" "$W/does-not-exist.txt" >"$W/prod.log" 2>&1; echo $?)
+ck "producer refuses a prompt list it cannot read" "$rc" 2
+ck "and writes no manifest" "$(ls "$W/out/MANIFEST.tsv" 2>/dev/null | wc -l)" 0
+rm -rf "$W/out"; printf '# only comments here\n\n' > "$W/empty-prompts.txt"
+rc=$(FAKE_CONTENT="$OLD_C" FAKE_ANSWER=391 ADB="$W/bin/adb" OUT="$W/out" MAXNEW=48 \
+     bash "$W/host/quality-compare.sh" "$W/empty-prompts.txt" >"$W/prod.log" 2>&1; echo $?)
+ck "producer refuses a prompt list with no prompts" "$rc" 2
+
 echo "== a directory with no manifest is refused, not guessed at =="
 rm -rf "$W/out2"; mkdir -p "$W/out2"
 printf 'status=eos\nLOCAL turn 1 A: 391\nLOCAL done\n' > "$W/out2/01.deadbeef.tpu.log"
