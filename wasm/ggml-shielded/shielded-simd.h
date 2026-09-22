@@ -34,6 +34,9 @@ typedef struct {
      * the allocation-free fallback when blocked-kernel scratch is unavailable. */
     void    (*refill)(const uint8_t *planes, int b, const int8_t *W, int64_t K, int64_t N,
                       int32_t *u, int64_t u_stride, int32_t *acc);
+    /* |value| < limit over an int64 range, for the activation bound checked at
+     * the link boundary. Returns false if ANY value is out of range. */
+    bool    (*values_within)(const int64_t *values, size_t n, uint64_t limit);
     /* Every int32 reply value inside (-M/2, M/2], checked before any kernel
      * touches the reply. A separate pass on purpose: see the note in
      * shielded-simd.c. Returns false if ANY value is out of range. */
@@ -84,6 +87,7 @@ const sh_simd *sh_simd_generic(void);
     int64_t sh_simd_##sfx##_fv_dot_x(const int64_t *, const int64_t *, int, int, int64_t); \
     void    sh_simd_##sfx##_fv_prepare(const int8_t *, int64_t, int64_t, const int64_t *, int, int64_t *); \
     void    sh_simd_##sfx##_refill(const uint8_t *, int, const int8_t *, int64_t, int64_t, int32_t *, int64_t, int32_t *); \
+    bool    sh_simd_##sfx##_values_within(const int64_t *, size_t, uint64_t); \
     bool    sh_simd_##sfx##_reply32_balanced(const int32_t *, size_t); \
     void    sh_simd_##sfx##_outlier_add(const int64_t *, const int8_t *, int, int64_t, int64_t *); \
     void    sh_simd_##sfx##_outlier_add_stride(const int64_t *, const int8_t *, int, int64_t, int64_t, int64_t *); \

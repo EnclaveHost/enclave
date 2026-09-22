@@ -42,7 +42,7 @@ static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
 #define SIMD_TABLE_REFILL(sfx, nm, refill_fn) { nm, sh_simd_##sfx##_pad_planes, sh_simd_##sfx##_mask_planes, \
     sh_simd_##sfx##_unmask, sh_simd_##sfx##_encode, sh_simd_##sfx##_descale, sh_simd_##sfx##_fv_dot, \
     sh_simd_##sfx##_fv_dot_x, sh_simd_##sfx##_fv_prepare, refill_fn, \
-    sh_simd_##sfx##_reply32_balanced, sh_simd_##sfx##_outlier_add, \
+    sh_simd_##sfx##_values_within, sh_simd_##sfx##_reply32_balanced, sh_simd_##sfx##_outlier_add, \
     sh_simd_##sfx##_outlier_add_stride, \
     sh_simd_##sfx##_fv_dots, sh_simd_##sfx##_fv_dots_x, sh_simd_##sfx##_unmask_fv, \
     sh_simd_##sfx##_unmask24, sh_simd_##sfx##_unmask24_fv, sh_simd_##sfx##_encode_checked }
@@ -1865,21 +1865,19 @@ int sh_link_start(sh_link *l) {
     return start_pools(l);
 }
 
-/* The SIMD mask and Freivalds kernels have finite integer bounds. Check once
- * at the link boundary, before taking any pad or touching output. Unsigned
- * range reduction handles INT64_MIN/MAX without signed overflow and permits
- * vectorization on the normal path. This limit is public and never adapted. */
-static bool sh_values_within(const int64_t *values, size_t n, uint64_t limit) {
-    uint64_t bad = 0;
-    for (size_t i = 0; i < n; i++) bad |= (uint64_t)values[i] + limit - 1 >= 2 * limit - 1;
-    return bad == 0;
-}
+/* The SIMD mask and Freivalds kernels have finite integer bounds, so the
+ * activation is checked at the link boundary before any pad is taken or any
+ * output written. The predicate lives in the SIMD table (shielded-simd.c),
+ * which is compiled with the arch flags this file is not: the identical source
+ * here scanned ~9.9 MB a pass at baseline ISA. This limit is public and never
+ * adapted, and the check keeps its place in the order -- before pads, before
+ * output. */
 
 /* --- Freivalds over an unrelated prime ------------------------------------ */
 static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, const int64_t *y, int32_t m) {
     if (m < 0 || m > nd->max_m || !x || !y ||
-        !sh_values_within(x, (size_t)m * nd->K, SH_FV_X_LIMIT) ||
-        !sh_values_within(y, (size_t)m * nd->N, (uint64_t)SH_HALF_M + 1)) return false;
+        !l->simd->values_within(x, (size_t)m * nd->K, SH_FV_X_LIMIT) ||
+        !l->simd->values_within(y, (size_t)m * nd->N, (uint64_t)SH_HALF_M + 1)) return false;
     for (int32_t row = 0; row < m; row++) {
         int64_t lhs[SH_FV_REPS], rhs[SH_FV_REPS];
         l->simd->fv_dots(y + (int64_t)row * nd->N, nd->s32, SH_FV_REPS, nd->N, lhs);
@@ -1901,13 +1899,23 @@ int sh_link_gemm_local_stride(sh_link *l, const int *nodes, size_t n_nodes,
     if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     if (!n_nodes || !m) return SH_OK;
     if (!l || !nodes || !x_field || !y_out || m < 0 || n_nodes > SH_GROUP_MAX) return SH_ERR_PROTO;
+    /* Every node in a group reads the SAME activation, so this used to rescan
+     * the same prefix once per node. `checked` advances instead, so each
+     * element is examined exactly once while the order in which PROTO and
+     * VERIFY are reported stays what it was -- a node's own validity is still
+     * decided before the range its K implies is looked at. */
+    size_t checked = 0;
     for (size_t i = 0; i < n_nodes; i++) {
         if (nodes[i] < 0 || (size_t)nodes[i] >= l->n_nodes || !y_out[i]) return SH_ERR_PROTO;
         const sh_node *nd = &l->nodes[nodes[i]];
         if (m > nd->max_m) return SH_ERR_PROTO;
-        if (!sh_values_within(x_field, (size_t)m * nd->K, SH_FV_X_LIMIT)) {
-            snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
-            return SH_ERR_VERIFY;
+        const size_t need = (size_t)m * (size_t)nd->K;
+        if (need > checked) {
+            if (!l->simd->values_within(x_field + checked, need - checked, SH_FV_X_LIMIT)) {
+                snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
+                return SH_ERR_VERIFY;
+            }
+            checked = need;
         }
     }
     for (size_t i = 0; i < n_nodes; i++) {
@@ -2042,7 +2050,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
         snprintf(l->err, sizeof l->err, "m=%d outside this group's [1,%d]", m, g->max_m); return SH_ERR_PROTO;
     }
     const int64_t K = g->K;
-    if (!sh_values_within(x_field, (size_t)m * K, SH_FV_X_LIMIT)) {
+    if (!l->simd->values_within(x_field, (size_t)m * K, SH_FV_X_LIMIT)) {
         snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
         return SH_ERR_VERIFY;
     }
