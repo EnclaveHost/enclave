@@ -2766,3 +2766,41 @@ about 860.
 That same 57-token generation runs at **1.20 tok/s**. The qc7 median of 0.98 is pulled down by rows
 that answer in one to five tokens, where per-turn fixed costs dominate the per-token rate. Both are
 measured; the second is the one that describes sustained generation.
+
+## On-TPU digit recombination: expressible now, and it does not pay (2026-09-22)
+
+This file called TPU-side recombination "the only lever found so far that moves the CEILING" (reply
+halves, per-row cost halves, ceiling 4.7 -> 9.4 tok/s) and recorded it as blocked by the G5 compiler's
+SLICE crash. The same route that unblocked group-wise int4 unblocks it -- hi and lo as separate graph
+inputs, no slicing -- and it is now measured. Probe: `tpu/gwcheck/probe_digitcombine.py`, at the real
+shape `[5, 2048] -> [5, 8192]` with the shipped int8 weights.
+
+**Where the 256 lives decides whether the weights are duplicated.** It has to be a real factor, so it
+has to sit somewhere, and the G5 compiler emits a separate weight copy per FULLY_CONNECTED whenever the
+two FCs differ in ANY quantisation parameter:
+
+| construction | where the 256 goes | compiled |
+|---|---|---|
+| split (shipped) | -- (VM recombines) | 17.04 MB |
+| combine | hi weight scale, two tensors | 33.86 MB |
+| combine_in | hi INPUT scale, one weight tensor | 33.86 MB |
+| combine_buf | hi weight scale, one shared buffer | 33.86 MB |
+| **combine_mul** | a MUL by 256 AFTER two identical FCs | **17.05 MB** |
+
+So the earlier note that "the compiler deduplicates by content" holds only when the FCs are identical;
+`combine_mul` gets one stored copy by making them so.
+
+**But one stored copy is not one read.** Timed interleaved, 6 passes x 300 Runs, all 18 cool and
+uncapped: split median 3.45 ms, `combine_mul` 4.02 ms -- **16 % slower per Run**, with a far worse best
+case (3.32 against 1.56 ms). Executing two FCs costs nearly what a second copy would. Per exchange that
+gives back about 0.57 ms against roughly 0.56 ms of reply saved plus a little VM recombination: a net of
+perhaps 3 % of the token, inside the noise of these measurements. The 4.7 -> 9.4 projection assumed the
+recombination was free on the TPU. It is not.
+
+**What the correctness check did and did not establish.** On the TPU, `combine_mul` matches its own host
+reference EXACTLY (0 LSB), and the 256 is honoured: had the MUL been ignored the error would be 27 LSB.
+But at the output scale this probe used -- chosen to keep 256*hi inside int16 -- outputs averaged 5 LSB
+and the lo digit's contribution rounds to **0 LSB**, so the check cannot tell whether the lo branch runs
+at all. That is a scale I chose badly, not a property of the construction: in a properly scaled lane lo
+carries up to about 256 LSB. Lo-branch correctness, and the precision cost of recombining into one int16
+at full range, are UNVERIFIED -- and since the lever roughly breaks even on speed, not pursued.
