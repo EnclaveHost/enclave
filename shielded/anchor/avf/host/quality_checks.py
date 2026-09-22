@@ -20,12 +20,23 @@ other:
 
 Spec syntax, one per prompt, after a tab in the prompt file:
 
+    exact=<value>                           the WHOLE reply, normalised, must equal this
+    exactset=<n>:<a,b,c,...>                the whole reply must be exactly n distinct members of the list
     contains=<regex>                        SMOKE only
+    distinct=<n>:<...>                      SMOKE only -- presence, which a negation defeats
     numeric=<value>                         the reply must contain exactly this number as a standalone token
     distinct=<n>:<a,b,c,...>                at least n DISTINCT members of the list
     sequence=<a,b,c,...>                    these values, in this order, each as a standalone number
     pyfunc=<name>|<in>-><out>|<in>-><out>   extract Python, define <name>, run the cases, all must match
     review=<what a human should check>      REVIEW
+
+**Presence is not correctness.** An audit showed `distinct=1:Rayleigh` passing "Rayleigh invented blue
+paint", `distinct=1:Paris` passing "Paris is not the capital of France; London is", and `numeric=391`
+passing "391 is wrong; the answer is 400". A keyword appearing in a sentence says nothing about what the
+sentence asserts, and no amount of regex fixes that. So `distinct` and `contains` are SMOKE and can never
+be correctness; `numeric` now requires the reply to contain that number and NO OTHER; and tasks that can
+be answered in a bare form use `exact`/`exactset`, which compare the whole normalised reply. A task that
+cannot be pinned to a bare answer -- an explanation, a poem -- is `review`, for a human.
 
 `pyfunc` executes text the model wrote, so it runs in a separate interpreter with CPU and address-space
 limits and a wall-clock timeout, in a scratch directory, with no arguments and no stdin. That is
@@ -76,6 +87,13 @@ def extract_code(text):
     return t
 
 
+def _normalise(s):
+    """Lower-case, strip markdown emphasis, surrounding quotes and trailing punctuation."""
+    s = s.strip().strip("*_`\"'")
+    s = re.sub(r"[.!?,;:]+$", "", s.strip())
+    return " ".join(s.lower().split())
+
+
 def _numbers(text):
     return re.findall(r"-?\d+(?:\.\d+)?", text)
 
@@ -105,7 +123,14 @@ def check(spec, text):
 
     if kind == "numeric":
         want = payload.strip()
-        return (PASS, "found %s" % want) if want in _numbers(t) else (FAIL, "%s not present" % want)
+        got = _numbers(t)
+        uniq = sorted(set(got))
+        if want not in uniq:
+            return FAIL, "%s not present (found %s)" % (want, ", ".join(uniq) or "no number")
+        if len(uniq) > 1:
+            # "391 is wrong; the answer is 400" contains 391 and still asserts something else
+            return FAIL, "the reply contains other numbers too (%s), so its claim is ambiguous" % ", ".join(uniq)
+        return PASS, "the only number in the reply is %s" % want
 
     if kind == "distinct":
         n, _, items = payload.partition(":")
@@ -117,21 +142,18 @@ def check(spec, text):
         for it in [x.strip() for x in items.split(",") if x.strip()]:
             if re.search(r"\b%s\b" % re.escape(it), t, re.I) and it.lower() not in [f.lower() for f in found]:
                 found.append(it)
-        return ((PASS, "%d distinct: %s" % (len(found), ", ".join(found))) if len(found) >= n
-                else (FAIL, "wanted %d distinct, found %d%s" % (n, len(found),
-                                                                (": " + ", ".join(found)) if found else "")))
+        if len(found) < n:
+            return FAIL, "wanted %d distinct, found %d%s" % (n, len(found),
+                                                             (": " + ", ".join(found)) if found else "")
+        return SMOKE, ("%d present (%s) -- PRESENCE ONLY, not correctness: a negation defeats it"
+                       % (len(found), ", ".join(found)))
 
     if kind == "sequence":
         want = [x.strip() for x in payload.split(",") if x.strip()]
         got = _numbers(t)
-        i, missing = 0, []
-        for w in want:
-            try:
-                i = got.index(w, i) + 1
-            except ValueError:
-                missing.append(w)
-        return ((PASS, "all %d in order" % len(want)) if not missing
-                else (FAIL, "out of order or missing: %s" % ", ".join(missing[:6])))
+        if got == want:
+            return PASS, "exactly the %d expected numbers, in order" % len(want)
+        return FAIL, "expected exactly %s, got %s" % (", ".join(want), ", ".join(got) or "no number")
 
     if kind == "pyfunc":
         parts = payload.split("|")
@@ -157,6 +179,28 @@ def check(spec, text):
             return (PASS, "all %d cases" % len(cases)) if not bad else (FAIL, "; ".join(bad[:4]))
         except UnsupportedCode as e:
             return REVIEW, "not evaluable by the restricted interpreter (%s); read it instead" % e
+
+    if kind == "exact":
+        want = payload.strip()
+        got = _normalise(t)
+        return ((PASS, "the reply is exactly %r" % want) if got == _normalise(want)
+                else (FAIL, "the whole reply had to be %r; it was %r" % (want, t.strip()[:80])))
+
+    if kind == "exactset":
+        n, _, items = payload.partition(":")
+        try:
+            n = int(n)
+        except ValueError:
+            return FAIL, "bad exactset spec"
+        allowed = {_normalise(x) for x in items.split(",") if x.strip()}
+        parts = [_normalise(x) for x in re.split(r"[,\n;]| and ", t) if _normalise(x)]
+        if len(parts) != n:
+            return FAIL, "expected exactly %d items, the reply had %d (%s)" % (n, len(parts),
+                                                                               ", ".join(parts[:6]))
+        if len(set(parts)) != n:
+            return FAIL, "the %d items are not distinct: %s" % (n, ", ".join(parts))
+        bad = [x for x in parts if x not in allowed]
+        return (PASS, "%d distinct and all valid" % n) if not bad else (FAIL, "not valid: %s" % ", ".join(bad))
 
     if kind == "review":
         return REVIEW, payload.strip() or "open-ended: needs a human"

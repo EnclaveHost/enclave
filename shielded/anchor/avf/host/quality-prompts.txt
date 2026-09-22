@@ -1,11 +1,12 @@
-# prompt <TAB> check spec (quality_checks.py). SMOKE and REVIEW are NOT counted as task correctness.
-# One prompt per line, one RUN each. No apostrophes and no pipes in the PROMPT: the turn list is
-# pipe-separated and the prompt crosses a shell single-quote. The spec may contain pipes.
-What is the capital of France? Answer in one sentence.	distinct=1:Paris
-What is 17 times 23? Answer with just the number.	numeric=391
-List the first ten prime numbers.	sequence=2,3,5,7,11,13,17,19,23,29
-Name three countries in South America.	distinct=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,Venezuela,Guyana,Suriname
+# prompt <TAB> check spec (quality_checks.py). SMOKE and REVIEW are NOT task correctness.
+# Prompts demand a BARE answer so a strict contract can compare the whole reply. Presence checks are
+# defeated by negation ("Paris is not the capital of France; London is"), so they are SMOKE only and a
+# task that cannot be pinned to a bare answer is review=, for a human.
+What is the capital of France? Reply with only the city name.	exact=Paris
+What is 17 times 23? Reply with only the number.	numeric=391
+List the first ten prime numbers. Reply with only the numbers separated by commas.	sequence=2,3,5,7,11,13,17,19,23,29
+Name three countries in South America. Reply with only the three names separated by commas.	exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,Venezuela,Guyana,Suriname
+What is the boiling point of water at sea level in Celsius? Reply with only the number.	numeric=100
 Write a Python function called reverse_string that returns its argument reversed. Give only the code.	pyfunc=reverse_string|abc->cba|racecar->racecar|ab cd->dc ba|->|x->x
 Write a haiku about rain.	review=three lines, roughly 5-7-5, about rain
-Explain in two sentences why the sky is blue.	distinct=1:Rayleigh
-In one sentence, what is the boiling point of water at sea level in Celsius?	numeric=100
+Explain in two sentences why the sky is blue.	review=must ASSERT Rayleigh scattering of shorter wavelengths, not merely mention it

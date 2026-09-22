@@ -20,21 +20,27 @@ SENTINEL = "/tmp/quality-checker-escape-sentinel"
 COUNTRIES = ("distinct=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,"
              "Venezuela,Guyana,Suriname")
 PRIMES = "sequence=2,3,5,7,11,13,17,19,23,29"
+COUNTRY_SET = ("exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,"
+               "Venezuela,Guyana,Suriname")
 
 # (name, spec, reply, verdict that must NOT come back, verdicts that are acceptable)
 FALSE_POSITIVES = [
     ("identity function passed as a reverser", "pyfunc=" + REV,
      "def reverse_string(s): return s", PASS, {FAIL}),
-    ("one country offered as three", COUNTRIES, "Brazil", PASS, {FAIL}),
+    ("one country offered as three", COUNTRY_SET, "Brazil", PASS, {FAIL}),
     ("a fruit offered as a haiku", "review=three lines, 5-7-5, about rain", "banana", PASS, {REVIEW}),
     ("regex shape with no semantics", r"contains=def\s+reverse_string\s*\(",
      "def reverse_string(s): return s", PASS, {SMOKE}),
     ("primes listed out of order", PRIMES, "3, 2, 5, 7, 11, 13, 17, 19, 23, 29", PASS, {FAIL}),
     ("primes truncated", PRIMES, "2, 3, 5, 7, 11", PASS, {FAIL}),
-    ("the same country three times", COUNTRIES, "Brazil, Brazil and Brazil", PASS, {FAIL}),
+    ("the same country three times", COUNTRY_SET, "Brazil, Brazil and Brazil", PASS, {FAIL}),
     ("code that does not parse", "pyfunc=" + REV, "def reverse_string(s) return s[::-1", PASS,
      {FAIL, REVIEW}),
     ("the right answer to a different question", "numeric=391", "17 times 23 is hard to say", PASS, {FAIL}),
+    # A CORRECT prose answer also fails a strict numeric contract ("17 times 23 is 391" carries 17 and 23
+    # as well). That is the deliberate price of killing the negation defeat, and it is why the prompts now
+    # say "Reply with only the number" and why a task that cannot demand a bare answer is review=.
+    ("correct prose under a strict numeric contract", "numeric=391", "17 times 23 is 391.", PASS, {FAIL}),
     ("a function under the wrong name", "pyfunc=" + REV,
      "def rev(s): return s[::-1]", PASS, {FAIL, REVIEW}),
     ("an infinite loop", "pyfunc=" + REV,
@@ -56,6 +62,36 @@ FALSE_POSITIVES = [
      "def reverse_string(s):\n    return open('/etc/passwd').read()", PASS, {REVIEW, FAIL}),
     ("allocating without bound", "pyfunc=" + REV,
      "def reverse_string(s):\n    return 'a' * (10 ** 9)", PASS, {REVIEW, FAIL}),
+    # --- second audit round: the interpreter ---------------------------------------------------------
+    # A rebound local must SHADOW the module-level def. Real Python raises TypeError here; the
+    # interpreter called the nested def anyway because dispatch consulted the function table first.
+    ("a local rebound over a nested def", "pyfunc=" + REV,
+     "def reverse_string(s):\n    def rev(x): return x[::-1]\n    rev = 0\n    return rev(s)\n",
+     PASS, {REVIEW, FAIL}),
+    # The limit was checked on the return value of a MUTATING method, which is None, so the list grew
+    # to 120000 past a 100000 bound. Every resource check now runs BEFORE the work.
+    ("a list grown past the bound by extend", "pyfunc=f|x->y",
+     "def f(s):\n    a = [0] * 60000\n    a.extend(a)\n    return len(a)\n", PASS, {REVIEW, FAIL}),
+    ("repetition with the operands reversed", "pyfunc=f|x->y",
+     "def f(s):\n    return 60000 * [0, 1]\n", PASS, {REVIEW, FAIL}),
+    ("growth through join", "pyfunc=f|x->y",
+     "def f(s):\n    return ('x' * 1000).join(['y' * 1000] * 200)\n", PASS, {REVIEW, FAIL}),
+    ("growth through replace", "pyfunc=f|x->y",
+     "def f(s):\n    return ('a' * 50000).replace('a', 'bbbb')\n", PASS, {REVIEW, FAIL}),
+    ("integer growth", "pyfunc=f|x->y",
+     "def f(s):\n    x = 10 ** 60\n    for i in range(40):\n        x = x * x\n    return x\n",
+     PASS, {REVIEW, FAIL}),
+    # --- second audit round: presence masquerading as correctness ------------------------------------
+    ("a keyword in a sentence that asserts something else", "distinct=1:Rayleigh",
+     "Rayleigh invented blue paint.", PASS, {SMOKE}),
+    ("the right word inside a denial", "exact=Paris",
+     "Paris is not the capital of France; London is.", PASS, {FAIL}),
+    ("the right number inside a denial", "numeric=391",
+     "391 is wrong; the answer is 400.", PASS, {FAIL}),
+    ("a list that denies its own members", "exactset=3:Brazil,Argentina,Peru,Chile",
+     "Brazil is not in South America; Peru and Chile are.", PASS, {FAIL}),
+    ("a sequence with extra numbers after it", "sequence=2,3,5",
+     "2, 3, 5 are wrong, try 7", PASS, {FAIL}),
 ]
 
 TRUE_POSITIVES = [
@@ -64,14 +100,20 @@ TRUE_POSITIVES = [
      "Here you go:\\n```python\\ndef reverse_string(s):\\n    return s[::-1]\\n```\\nThat slices it.", PASS),
     ("a loop-based reverser", "pyfunc=" + REV,
      "def reverse_string(s):\\n    out = ''\\n    for c in s:\\n        out = c + out\\n    return out", PASS),
-    ("three real countries", COUNTRIES, "Brazil, Argentina and Peru", PASS),
+    ("three real countries", COUNTRY_SET, "Brazil, Argentina and Peru", PASS),
     ("ten primes in order", PRIMES, "2, 3, 5, 7, 11, 13, 17, 19, 23, 29", PASS),
-    ("the right number", "numeric=391", "17 times 23 is 391.", PASS),
     # An import that is never USED is never evaluated either -- module-level statements are not run at
     # all -- so the function is genuinely correct and PASS is the honest verdict. A function that USES
     # the import is above, in the cases that must not pass.
     ("an unused import beside a correct function", "pyfunc=" + REV,
      "import os\ndef reverse_string(s):\n    return s[::-1]", PASS),
+    ("a nested helper that is actually called", "pyfunc=" + REV,
+     "def reverse_string(s):\n    def rev(x):\n        return x[::-1]\n    return rev(s)\n", PASS),
+    ("a bare exact answer", "exact=Paris", "Paris.", PASS),
+    ("a bare exact answer in bold", "exact=Paris", "**Paris**", PASS),
+    ("a bare number", "numeric=391", "391", PASS),
+    ("three bare countries", "exactset=3:Brazil,Argentina,Peru,Chile", "Brazil, Argentina, Peru", PASS),
+    ("a bare sequence", "sequence=2,3,5", "2, 3, 5", PASS),
 ]
 
 
