@@ -12,14 +12,27 @@ wasi:random - inside the enclave, so such an app runs UNCHANGED. Proven with the
 `hello-world:1.0.4`: its approved artifact, its existing deployment, its existing URL, now served
 from inside a VBS enclave.
 
-**What still cannot run here, exactly.** Most of this catalog is not wasi:http at all: dead-drop,
-ballot, pixelboard, hookbin, handoff, tipline and the s3-ipfs-adapter are `wasi:cli/run` commands
-that bind their own TCP port through `wasi:sockets`. An enclave has no socket to bind and no
-reactor to poll, so that shape needs three things that are not built: brokered sockets (the host
-carrying opaque bytes, with the guest's own TLS inside the enclave), a guest thread for a run loop
-that never returns, and secrets delivered into VTL1. Until then those deployments are refused by
-name. That is why publishing is still down: `ipfs.enclave.host` is served by the s3-ipfs-adapter,
-which is exactly that shape, and the fleet has no confidential VM online to run it.
+**Three worlds now, and the third one is most of the catalog.** dead-drop, ballot, pixelboard,
+hookbin, handoff, tipline and the **s3-ipfs-adapter** are `wasi:cli/run` commands that bind their
+own TCP port through `wasi:sockets`. They run here too, over BROKERED sockets: the host owns every
+socket and the enclave asks it to act, so the guest terminates its own TLS inside VTL1 and what
+crosses the call-out for an S3 leg is ciphertext.
+
+**The s3-ipfs-adapter, the platform's own IPFS gateway, runs inside this enclave.** Claimed as an
+ordinary deployment (0x7ae476a3), it resolved its five relay-stored secrets, signed its S3
+requests, indexed the bucket from in there (1198 files, 4.5 GB, 354 dag nodes) and answers a
+wallet-signed `POST /add-wasm` by writing the artifact to R2 and returning the same CID kubo mints.
+**Publishing works again**, through `https://api.enclave.host/x/0x7ae476a3…/add-wasm`.
+
+**What it still does not have is its own hostname.** `7ae476a3.app.enclave.host` has no
+certificate and fails the TLS handshake, which is the orange padlock in the console. The app zone
+reaches a box as an SNI passthrough over raw tunnel stream frames (relay/tunnel.js `s=`/`sd`/`sx`),
+and this node implements neither those frames nor a TLS server, so nothing terminates the
+handshake. The certificate itself is not the obstacle: relay/certs.js issues for the platform's
+zones to whichever box holds the lease, on an operator signature, with no CVM requirement. Three
+pieces are needed and one of them is a real design decision: the raw stream frames, a key and CSR
+minted INSIDE the enclave, and a TLS server - which belongs in VTL1, because terminating it in the
+agent would hand the host the app traffic that all of this exists to keep from it.
 
 ## The problem this solves
 
@@ -54,6 +67,8 @@ no guard pages and no signal handler, which is what lets it live in an enclave a
 | load into the enclave | 16-21 ms |
 | request handled in VTL1 | **0.28-0.32 ms** (first call 21 ms: the staging buffer grows once) |
 | the platform's hello-world (wasi:http) in VTL1 | **0.069 ms** a request, 0.8 ms to load |
+| the s3-ipfs-adapter (wasi:cli, 1.4 MB) | 1.6 s to compile, 125 ms to load, serves its UI in 0.03 s |
+| a 47 KB wallet-signed upload through it | 8.4 s end to end, R2 write included |
 | the same app in VTL0 | 0.22 ms, so the enclave costs ~30% on this path |
 | through the relay and the tunnel | 0.7-0.9 s round trip, which is the network, not the enclave |
 | an app calling the model in VTL1 | 10.6 s for 16 tokens of qwen2.5-0.5b through the shielded path |
