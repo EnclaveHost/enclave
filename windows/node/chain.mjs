@@ -85,7 +85,39 @@ const CATALOG_ABI = [
       { name: "cid", type: "string" }, { name: "version", type: "string" }, { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
       { name: "memMb", type: "uint32" }, { name: "cpuGflops", type: "uint32" }, { name: "createdAt", type: "uint64" }, { name: "verified", type: "bool" },
       { name: "yanked", type: "bool" }, { name: "ports", type: "string" }, { name: "approval", type: "uint8" }, { name: "config", type: "string" }] }] },
+  // The rev-7 surface, a SIDE mapping so the tuple above still decodes on every earlier rev. An
+  // app config larger than the version record can hold lives at a CID: the inline `config` is then
+  // only the routing manifest (volumes, mem64, set...) and the FETCHED bytes are what the guest
+  // gets. Only CALLED when the catalog says it speaks rev 7 or later.
+  { type: "function", name: "versionConfigCid", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
+    outputs: [{ type: "string" }] },
+  { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ];
+
+/**
+ * Which feature surface the catalog speaks.
+ *
+ * Cached per address, and a transient RPC failure must never cache an OLD rev - only a definitive
+ * revert proves a contract that predates `catalogSchema`. `null` means "unknown this round", and
+ * the caller fails closed and retries, because guessing low here would hand a guest the routing
+ * manifest as its configuration.
+ */
+let _catRev = { addr: null, rev: null };
+export async function catalogSchemaRev() {
+  if (!addresses.appCatalog) return null;
+  if (_catRev.addr === addresses.appCatalog && _catRev.rev != null) return _catRev.rev;
+  try {
+    const rev = Number(await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI, functionName: "catalogSchema" }));
+    _catRev = { addr: addresses.appCatalog, rev };
+    return rev;
+  } catch (e) {
+    // A contract without the function reverts; anything else is the network having a bad moment.
+    const definitive = /revert|not a function|returned no data|execution reverted/i.test(e.shortMessage || e.message || "");
+    if (definitive) { _catRev = { addr: addresses.appCatalog, rev: 0 }; return 0; }
+    return null;
+  }
+}
 
 export const addresses = { registry: "", deployments: "", appCatalog: "", proofOfTime: "" };
 let pub = null, acct = null, wal = null;
@@ -192,7 +224,17 @@ export async function resolveAppRef(appRef) {
   if (!m) throw new Error(`appRef is not catalog://<appId>/<versionIndex>: ${appRef}`);
   if (!addresses.appCatalog) throw new Error("the address book publishes no appCatalog");
   const v = await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI, functionName: "getVersion", args: [m[1], BigInt(m[2])] });
-  return { appId: m[1], index: Number(m[2]), ...v };
+  // ...and, on a rev-7 catalog, where the real config lives. Absent or empty means the inline
+  // field IS the config, exactly as on every earlier rev.
+  let configCid = "";
+  const rev = await catalogSchemaRev();
+  if (rev != null && rev >= 7) {
+    try {
+      configCid = String(await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI,
+        functionName: "versionConfigCid", args: [m[1], BigInt(m[2])] }) || "");
+    } catch { configCid = ""; }
+  }
+  return { appId: m[1], index: Number(m[2]), ...v, configCid };
 }
 
 // ---- what a version's config declares -------------------------------------------------------

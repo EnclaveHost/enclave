@@ -629,6 +629,22 @@ export class Host {
         return text;
       }
     } catch (e) { this.log(`config: ${e.message}; the version's own config stands`); }
+    // THE PUBLISHER's split (catalog rev 7): when the version names a config CID, the inline field
+    // is only the routing manifest (volumes, mem64, set...) and the fetched bytes are what the
+    // guest gets. Handing it the manifest instead would look like a working app with a nonsense
+    // configuration, so a fetch that FAILS refuses rather than falling back to the inline field.
+    if (v?.configCid) {
+      const file = path.join(this.cfg.dir, "apps", `cfg-${v.configCid}.json`);
+      if (!fs.existsSync(file)) {
+        await fetchArtifact({ cid: v.configCid, dir: path.join(this.cfg.dir, "apps"),
+                              python: this.cfg.python, gateway: this.cfg.gateway,
+                              maxBytes: 1 << 20, out: file, log: (m) => this.log(m) });
+      }
+      const text = fs.readFileSync(file, "utf8");
+      JSON.parse(text);                                // it must BE JSON before an app sees it
+      this.log(`config: the version's own ${v.configCid} applied (${text.length} bytes, CID-verified)`);
+      return text;
+    }
     return String(v?.config || "");
   }
 
@@ -687,6 +703,15 @@ export class Host {
       if (rec && ["running", "provisioning", "claiming"].includes(rec.status)) continue;
       const ours = String(d.runner || "").toLowerCase() === ourId;
       const live = Number(d.leaseUntil) * 1000 > Date.now();
+      // A LEASE THIS BOX ALREADY HOLDS is work in progress, not a candidate. The tick's own loop
+      // resumes it; asking the claim gate about it here can only produce a wrong answer, because
+      // the gate decides whether to TAKE work and this work is already taken.
+      //
+      // It showed up as a restart window: on a fresh boot the records have no status yet, so the
+      // scan ran before the resume and stamped "refused" on an app that was seconds from serving -
+      // visible to the tenant and to the console, and a lie either way. Caught by curling the app
+      // during a restart and finding it marked refused while the lease was live.
+      if (ours && live) continue;
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && claimed >= 1) continue;
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
@@ -1063,12 +1088,15 @@ export class Host {
       // s3-ipfs-adapter does) worked either way; one that expects the runner to do it (risc-box's
       // config is "$S3_ENDPOINT" and four more) did not, and simply started unconfigured.
       secrets: !!this.cfg.secretsSign, secretsInConfig: !!this.cfg.secretsSign,
-      // The envelope's `configCid` namespace: this box fetches the pinned bytes and RE-HASHES them
-      // against the CID the ledger names before they become an app's configuration (appConfig
-      // above), so the rev-7 split is honoured rather than refused. The bare `configCid` stays
-      // false: that one is the PUBLISHER's split, a field of the catalog version record, and this
-      // box's catalog reader does not read it.
-      configCid: false, configCidOverride: true,
+      // BOTH halves of the rev-7 split, because the envelope shares one ledger field with
+      // everything else and an app config bigger than that has nowhere else to live.
+      //   configCidOverride  the OWNER's: the envelope's `configCid` namespace.
+      //   configCid          the PUBLISHER's: the catalog version's own configCid, read through
+      //                      versionConfigCid when the catalog says it speaks rev 7.
+      // Either way the bytes are fetched and RE-HASHED against the CID the chain names before they
+      // become an app's configuration. A box that knew only the inline field would hand such an
+      // app its ROUTING MANIFEST and call it configured.
+      configCid: true, configCidOverride: true,
       // An owner's setConfig reaches a LIVE deployment: the protection rules swap in place and a
       // config change relaunches the app on the new value (envelopeVerdict, mirrored from the
       // platform runner and checked against its own self-test seam).
