@@ -1,45 +1,63 @@
 #!/usr/bin/env python3
-"""Read a quality-compare.sh output directory and say how far the masked path drifted from the unmasked one.
+"""Read a quality-compare.sh output directory and report two SEPARATE things about the masked path.
 
-Greedy decoding compounds a single flipped argmax into every token after it, so the honest statistic is WHERE the
-two arms first part, not what fraction of characters coincide: a pair that agrees for 40 characters and then writes
-two different but equally correct sentences is a much better result than the character rate would suggest, and a
-pair that agrees for 3 characters is a much worse one. Both texts are printed in full so the reader can judge the
-tail rather than trust a number about it.
+**Decode agreement** -- does the masked path produce the same tokens as the unmasked CPU decode of the same
+GGUF? Greedy decoding compounds, so one flipped argmax changes everything after it, and the honest
+statistic is WHERE the two arms first part rather than a per-character rate. The CPU arm is a different
+quantisation, not a bit-exact oracle: agreement is strong evidence the lane arithmetic is faithful,
+disagreement is not by itself proof that it is wrong.
 
-The comparison is against the same GGUF decoded on the CPU, which is a different quantisation, not an oracle:
-agreement is evidence the lane arithmetic is faithful, disagreement is not by itself evidence that it is wrong.
+**Task correctness** -- is the answer actually right? This is scored by quality_checks.py, which runs
+semantic checks (executing extracted code against cases, requiring N distinct items, exact numbers in
+order) and reports SMOKE for a regex shape and REVIEW for an open-ended task. It never calls either of
+those correctness. An earlier version of this file scored a regex match as correctness and passed
+"def reverse_string(s): return s", "Brazil" for three countries, and "banana" for a haiku.
+
+A reply that stopped at the token cap is TRUNCATED and cannot be a completed task, however well it agrees.
+
+EVERY prompt stays in the denominator. A run that crashed, produced no answer, or has no log is counted as
+a failure with its reason printed; it is never skipped into a smaller and flattering total.
 """
-import glob, os, re, sys
+
+import glob
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from quality_checks import FAIL, PASS, REVIEW, SMOKE, check  # noqa: E402
 
 D = sys.argv[1] if len(sys.argv) > 1 else "/tmp/quality-compare"
+# Optional: the canonical prompts file. Scoring specs are then taken from it, matched by prompt text,
+# rather than from the per-run .expect copies -- so a results directory is never rewritten to re-score it.
+SPECS = {}
+if len(sys.argv) > 2:
+    for line in open(sys.argv[2], errors="replace"):
+        line = line.rstrip("\n")
+        if not line.strip() or line.lstrip().startswith("#") or "\t" not in line:
+            continue
+        pr, _, sp = line.partition("\t")
+        SPECS[pr.strip()] = sp.strip()
+
+
+def read(path):
+    return open(path, errors="replace").read() if os.path.exists(path) else None
 
 
 def answer(path):
-    """The turn's reply, untruncated, or None with the reason the run produced no comparable text."""
-    if not os.path.exists(path):
-        return None, "missing"
-    txt = open(path, errors="replace").read()
+    """(reply, stop_reason, error). stop_reason: eos | budget | unknown; error explains a missing reply."""
+    txt = read(path)
+    if txt is None:
+        return None, "missing", "no log file"
+    st = re.findall(r"status=(\w+)", txt)
+    stop = st[0] if st else "unknown"
     m = re.findall(r"LOCAL turn \d+ A: (.*)", txt)
     if not m:
-        for bad in ("HOST FAIL", "VM error", "LOCAL failed", "PHONE NOT AWAKE"):
+        for bad in ("HOST FAIL", "VM error", "LOCAL failed", "PHONE NOT AWAKE", "SIGABRT", "refused"):
             if bad in txt:
-                return None, bad
-        return None, "no A: line"
-    return m[0].rstrip(), None
-
-
-def status(path):
-    """eos = the model stopped on its own; budget = it hit the token cap and the answer is TRUNCATED."""
-    if not os.path.exists(path):
-        return "?"
-    m = re.findall(r"status=(\w+)", open(path, errors="replace").read())
-    return m[0] if m else "?"
-
-
-def rate(path):
-    m = re.findall(r"([\d.]+) tok/s", open(path, errors="replace").read()) if os.path.exists(path) else []
-    return m[-1] if m else "?"
+                return None, stop, bad
+        return None, stop, "no A: line"
+    return m[0].rstrip(), stop, None
 
 
 def main():
@@ -47,48 +65,76 @@ def main():
     if not ids:
         print(f"no runs in {D}")
         return 1
+    build = read(os.path.join(D, "BUILD"))
+    if build:
+        print("binary identity recorded with these results:")
+        for line in build.strip().splitlines():
+            print("  " + line)
+        print()
+
     rows = []
     for i in ids:
-        prompt = open(os.path.join(D, f"{i}.prompt"), errors="replace").read().strip()
-        a, ea = answer(os.path.join(D, f"{i}.tpu.log"))
-        b, eb = answer(os.path.join(D, f"{i}.cpu.log"))
+        prompt = read(os.path.join(D, f"{i}.prompt")).strip()
+        spec = SPECS.get(prompt, (read(os.path.join(D, f"{i}.expect")) or "").strip())
+        a, sa, ea = answer(os.path.join(D, f"{i}.tpu.log"))
+        b, sb, eb = answer(os.path.join(D, f"{i}.cpu.log"))
+        rows.append((i, prompt, spec, a, sa, ea, b, sb, eb))
+
+    def verdict(reply, stop, err, spec):
+        if reply is None:
+            return FAIL, f"no reply ({err})"
+        if stop != "eos":
+            return FAIL, f"stopped at the token cap ({stop}): truncated, not a completed task"
+        return check(spec, reply)
+
+    print(f"{'#':3} {'tpu':>7} {'cpu':>7} {'agreement':>14}  prompt")
+    n = len(rows)
+    tp = cp = 0
+    smoke = rev = trunc = broken = 0
+    agree_ident = 0
+    agree_den = 0
+    details = []
+    for i, prompt, spec, a, sa, ea, b, sb, eb in rows:
+        va, da = verdict(a, sa, ea, spec)
+        vb, db = verdict(b, sb, eb, spec)
+        tp += va == PASS
+        cp += vb == PASS
+        smoke += va == SMOKE
+        rev += va == REVIEW
         if a is None or b is None:
-            print(f"--- {i} SKIPPED: tpu={ea or 'ok'} cpu={eb or 'ok'}\n    {prompt}")
-            continue
-        k = 0
-        while k < min(len(a), len(b)) and a[k] == b[k]:
-            k += 1
-        rows.append((i, prompt, a, b, k))
-    if not rows:
-        print("nothing comparable")
-        return 1
-    print(f"{'#':3} {'tpu':>9} {'cpu':>9} {'agreement':>16}  prompt")
-    tok, cok, trunc = 0, 0, 0
-    for i, prompt, a, b, k in rows:
-        mark = "identical" if k == len(a) == len(b) else f"char {k}"
-        want = ""
-        wp = os.path.join(D, f"{i}.expect")
-        if os.path.exists(wp):
-            want = open(wp, errors="replace").read().strip()
-        # A reply that stopped at the token cap is TRUNCATED: scoring it as a completed task would count a
-        # cut-off answer as a success, which is exactly what the 48-token version of this table did.
-        sa, sb = status(os.path.join(D, f"{i}.tpu.log")), status(os.path.join(D, f"{i}.cpu.log"))
-        ta = (bool(re.search(want, a, re.I)) and sa == "eos") if want else None
-        tb = (bool(re.search(want, b, re.I)) and sb == "eos") if want else None
-        tok += 1 if ta else 0
-        cok += 1 if tb else 0
-        trunc += 1 if (sa != "eos" or sb != "eos") else 0
-        fa = ("PASS" if ta else "fail") + ("" if sa == "eos" else "/cut")
-        fb = ("PASS" if tb else "fail") + ("" if sb == "eos" else "/cut")
-        print(f"{i:3} {fa:>9} {fb:>9} {mark:>16}  {prompt[:52]}")
-    ident = sum(1 for r in rows if r[4] == len(r[2]) == len(r[3]))
-    pref = sum(r[4] for r in rows) / sum(min(len(r[2]), len(r[3])) for r in rows)
-    print(f"\nTASK CORRECTNESS (completed AND matching its expectation): tpu {tok}/{len(rows)}, cpu {cok}/{len(rows)}")
-    print(f"{trunc} of {len(rows)} prompts had an arm stop at the token cap rather than on its own")
-    print(f"DECODE AGREEMENT: {ident}/{len(rows)} replies identical; common prefix = {pref*100:.0f}% of the shorter")
-    print("The two measures are separate on purpose: agreement says the arithmetic tracks the baseline,")
-    print("correctness says the answer is actually usable. A truncated reply can agree perfectly and do neither.")
-    for i, prompt, a, b, k in rows:
+            broken += 1
+            mark = "no comparison"
+        else:
+            if sa != "eos" or sb != "eos":
+                trunc += 1
+            k = 0
+            while k < min(len(a), len(b)) and a[k] == b[k]:
+                k += 1
+            agree_den += 1
+            if k == len(a) == len(b):
+                agree_ident += 1
+                mark = "identical"
+            else:
+                mark = f"char {k}"
+            details.append((i, prompt, a, b, k))
+        print(f"{i:3} {va:>7} {vb:>7} {mark:>14}  {prompt[:50]}")
+        if va != PASS:
+            print(f"{'':3} {'':7} {'':7} {'':14}    tpu: {da}")
+        if vb != PASS and vb != va:
+            print(f"{'':3} {'':7} {'':7} {'':14}    cpu: {db}")
+
+    print(f"\nTASK CORRECTNESS, out of {n} prompts (a semantic check ran and the answer satisfied it):")
+    print(f"  tpu {tp}/{n}    cpu {cp}/{n}")
+    if smoke or rev:
+        print(f"  not counted as correctness: {smoke} SMOKE (regex shape only), {rev} REVIEW (needs a human)")
+    print(f"  {broken} prompt(s) produced no comparable answer on at least one arm; "
+          f"{trunc} hit the token cap")
+    if agree_den:
+        print(f"DECODE AGREEMENT, out of {agree_den} comparable pairs: {agree_ident} identical")
+    print("\nSMOKE and REVIEW are NOT correctness. A truncated or missing reply is a failure, not an "
+          "excluded row.")
+
+    for i, prompt, a, b, k in details:
         print(f"\n--- {i}  {prompt}")
         print(f"    agree: {a[:k]!r}")
         print(f"    TPU  : {a[k:]!r}")
