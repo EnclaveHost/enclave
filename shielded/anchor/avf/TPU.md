@@ -1138,3 +1138,79 @@ is the value the interpreter computed rather than anything the candidate emitted
 call depth and exponents are bounded, so a `while True` or a `'a' * 10**9` terminates as REVIEW.
 `host/test_quality_checks.py` pins 18 known false positives against 7 true positives AND asserts the
 sentinel path was never created, so the suite fails if the checker ever executes anything again.
+
+## a8w4: measured, and rejected on the weights (2026-09-22)
+
+The original direction for this work was "a8w4 digit-split", and the shipped path is a8w**8**. That gap
+deserved an answer rather than a silence, and the answer is that int4 weights cost far more than they buy.
+
+They would buy something real. The compiled probes at the same shape are `probe_a8w4_g5.tflite` 8.6 MB
+against `probe_a8w8_g5.tflite` 17.0 MB -- exactly 2:1 -- and the phone's own dispatch fit is
+0.637 ms + 0.0677 ms/MB, so halving the streamed weights is about 0.57 ms per exchange, **80 ms per
+token**. It would also halve the 1757 MB lane bundle, which matters twice over: that bundle is evictable
+page cache in a VM with about 1900 MiB available, and the BANK=256 experiment failed precisely because
+enlarging the pad bank evicted it.
+
+The weights are the problem. `a8w4/sim_w4_quality.py` on the real tensors:
+
+| weights | mean relative RMS error | against int8 |
+|---|---|---|
+| int8, one scale per row (shipped) | 1.012e-02 | -- |
+| int4, one scale per row | 1.833e-01 | **18.1x** |
+| int4, groups of 128 | 1.218e-01 | 12.0x |
+| int4, groups of 32 | 1.014e-01 | 10.0x |
+
+**Only the 18.1x row is expressible.** Quantised FULLY_CONNECTED carries per-OUTPUT-channel weight scales
+and nothing per group of input columns, so group-wise int4 would have to be built by splitting the input
+and summing partial products -- the same construction whose slice/add the G5 compiler crashes on. And even
+if it compiled, group-32 is still 10x the int8 error.
+
+Against an output error currently bounded at 1.755 LSB and measured at 0.78 rms, and a task score that
+matches the unmasked baseline 7/8, an 18x weight error to gain 10 % of throughput is not a trade worth
+making. This also retires a loose end in the earlier record: TPU.md line 176 noted the original a8w4
+attempt measured KL 0.080 and blamed int8 ACTIVATIONS. On this evidence the weights are the likelier
+culprit, and digit-split removed the activation objection anyway -- it sends int8 rows, which is the case
+the compiler accepts int4 weights for.
+
+## Why 15 tok/s is not reachable here, in three independent floors (2026-09-22)
+
+15 tok/s is 67 ms per token. The measured per-token budget at one row is 893 ms, and it decomposes into
+terms of which **three each exceed the whole budget on their own**:
+
+| term | ms/token | vs the 67 ms budget |
+|---|---|---|
+| TPU compute (`tpu-run` x 140) | 273 | **4.1x over** |
+| reply bytes across the pVM boundary | 203 | **3.0x over** |
+| round-trip latency (0.74 ms x 140) | 104 | **1.6x over** |
+| VM ops not offloaded | 139 | 2.1x over |
+| VM mask / unmask / correction | 104 | 1.6x over |
+| worker I/O | 65 | -- |
+
+No single fix can work, because removing any one term entirely still leaves two others over budget. And
+the levers are now measured rather than speculative:
+
+| lever | measured effect | status |
+|---|---|---|
+| int4 weights (a8w4) | -80 ms | rejected: 18.1x the weight error |
+| on-TPU digit recombination | about -100 ms | closed: G5 compiler INTERNAL crash, three constructions |
+| deeper pad bank | acceptance 2.53 -> 3.20 tokens/step, throughput 1.37 -> 0.93 | rejected: evicts the bundle |
+| background refill threads | link 9.98 -> 17.75 ms | rejected: no spare core |
+| more rows (speculation) | TPU cost +13 % for 3.9x rows | already shipped; bytes-bound |
+| int16 activations | reply halves, weights double | measured worse (0.98 against 1.22 tok/s) |
+
+Even granting every lever that is not already refuted -- recombination working, and the byte term going to
+zero -- the token lands near 500 ms, which is 2.0 tok/s.
+
+**What model shape would clear it.** Fitting the measured terms by block: about 24.2 ms per transformer
+block (TPU compute, both crossing terms, worker I/O, and the VM's per-block work) plus about 39 ms that
+does not scale with depth (embeddings, the 166810-row lm_head, sampling). Setting that to 67 ms gives
+
+    67 = 24.2 B + 39   ->   B = 1.2 blocks
+
+**One transformer block.** Not a small model: not a model. For comparison the same arithmetic puts the
+shipped 35-block E2B at 886 ms, which is the 893 measured.
+
+So the masked TPU path cannot meet the bar at any useful model size, and the reason is not the
+accelerator. The two architectures that DO meet it are unchanged: the in-VM CPU decode, measured at
+**13.40-15.48 tok/s on this phone today** in the very same runs (the baseline arm of the quality
+comparison), and TPU assignment into the pVM, which is a Google platform gate and not a silicon one.
