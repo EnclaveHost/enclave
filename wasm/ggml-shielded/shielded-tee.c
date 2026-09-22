@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "shielded-tee.h"
+#include "shielded-parwork.h"
 #include "shielded-source-profile.h"
 #include "shielded-pads.h"
 #include "shielded-bank.h"
@@ -1493,6 +1494,21 @@ static void dealt_wait(sh_link *l, sh_group *g, int m) {
 
 /* Take up to m ready pads from the front of group g's ring, by slot index.
  * They are consumed here and held until release_pads. */
+/* One contiguous piece of a row's mask. Every pointer moves by the same
+ * offset, which is what makes the range split legal here. */
+#define SH_PAR_MIN_MASK 1024
+typedef struct {
+    const sh_simd *simd;
+    const int64_t *x;
+    const int32_t *r;
+    int8_t *p0, *p1, *p2;
+} sh_mask_range;
+static void sh_mask_range_fn(void *ctx, int64_t lo, int64_t hi) {
+    const sh_mask_range *mr = (const sh_mask_range *)ctx;
+    mr->simd->mask_planes(mr->x + lo, mr->r + lo, (size_t)(hi - lo),
+                          mr->p0 + lo, mr->p1 + lo, mr->p2 + lo);
+}
+
 static int take_pads(sh_link *l, sh_group *g, int m, int *slots) {
     pthread_mutex_lock(&l->pool_mu);
     const int before = g->count < m ? g->count : m;
@@ -1874,6 +1890,12 @@ static bool fv_check(const sh_link *l, const sh_node *nd, const int64_t *x, cons
 
 int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                        const int64_t *x_field, int32_t m, int64_t **y_out) {
+    return sh_link_gemm_local_stride(l, nodes, n_nodes, x_field, m, y_out, NULL);
+}
+
+int sh_link_gemm_local_stride(sh_link *l, const int *nodes, size_t n_nodes,
+                       const int64_t *x_field, int32_t m, int64_t **y_out,
+                       const int64_t *y_stride) {
     if (sh_integrity_failed(l)) return SH_ERR_VERIFY;
     if (!n_nodes || !m) return SH_OK;
     if (!l || !nodes || !x_field || !y_out || m < 0 || n_nodes > SH_GROUP_MAX) return SH_ERR_PROTO;
@@ -1890,6 +1912,7 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
         const sh_node *nd = &l->nodes[nodes[i]];
         const int64_t K = nd->K, N = nd->N;
         int64_t *y = y_out[i];
+        const int64_t ystr = y_stride ? y_stride[i] : N;
         if (nd->w_read) {
             // One bounded block of whole weight rows, reused across all inputs.
             const int64_t rows = K < (1 << 20) ? (1 << 20) / K : 1;
@@ -1904,7 +1927,7 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                 for (int32_t row = 0; row < m; row++) for (int64_t j = 0; j < nr; j++) {
                     int64_t acc = 0;
                     for (int64_t k = 0; k < K; k++) acc += x_field[(int64_t)row * K + k] * block[j * K + k];
-                    y[(int64_t)row * N + j0 + j] = sh_balanced(acc);
+                    y[(int64_t)row * ystr + j0 + j] = sh_balanced(acc);
                 }
             }
             free(block);
@@ -1913,7 +1936,7 @@ int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
         }
         for (int32_t row = 0; row < m; row++) {
             const int64_t *xr = x_field + (int64_t)row * K;
-            int64_t *yr = y + (int64_t)row * N;
+            int64_t *yr = y + (int64_t)row * ystr;
             for (int64_t j = 0; j < N; j++) {
                 const int8_t *w = nd->w + j * K;
                 int64_t acc = 0;
@@ -1954,6 +1977,7 @@ typedef struct {
     const int64_t *x;
     int32_t m;
     double elapsed_ms;
+    int ran;            /* the transport ran it; see the rhs_done note below */
 } sh_verify_work;
 
 /* The RHS depends only on the trusted input and secret check vectors, so it
@@ -1971,6 +1995,7 @@ static void sh_verify_rhs(void *ctx) {
                                l->fv_rhs + (i * (size_t)w->m + row) * SH_FV_REPS);
     }
     w->elapsed_ms = now_ms() - t0;
+    w->ran = 1;
     l->profile.rhs_ms += w->elapsed_ms;
 }
 
@@ -1988,6 +2013,12 @@ static bool sh_reply32_balanced(const int32_t *values, size_t n) {
 
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out) {
+    return sh_link_gemm_stride(l, nodes, n_nodes, x_field, m, y_out, NULL);
+}
+
+int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
+                 const int64_t *x_field, int32_t m, int64_t **y_out,
+                 const int64_t *y_stride) {
     if (sh_integrity_failed(l)) {
         snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
         return SH_ERR_VERIFY;
@@ -2010,7 +2041,13 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         snprintf(l->err, sizeof l->err, "activation outside the supported integer range; abort the request");
         return SH_ERR_VERIFY;
     }
-    const bool overlap = l->verify && l->overlap_verify && !sh_pipe_ring_live(l->pipe);
+    /* The RHS depends only on the trusted input and the secret check vectors,
+     * so it is dead time on the one thread a decode round is serialized on --
+     * ~3.6 ms per pass on the 27B. The ring publishes before it spins and
+     * takes a work callback for exactly this. It used to be excluded whenever
+     * a ring was attached, which looked like a leftover but was hiding the
+     * rhs_done bug fixed below; with that fixed the exclusion is gone. */
+    const bool overlap = l->verify && l->overlap_verify;
     int rc;
     /* Steady state allocates nothing: every buffer here has grown to its
      * largest use by the second token. */
@@ -2073,9 +2110,16 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     l->pads_used += (uint64_t)m; l->profile.used_pads += (uint64_t)m;
     g->pads_used += (uint64_t)m;
 
-    for (int32_t row = 0; row < m; row++)
-        l->simd->mask_planes(x_field + (size_t)row * K, l->rp[row], (size_t)K,
-                             l->planes + (size_t)row * K, l->planes + ((size_t)m + row) * K, l->planes + ((size_t)2 * m + row) * K);
+    /* Splitting the activation into its three byte planes is a pure map over
+     * K with no reduction, and it sits on the one thread a decode round is
+     * serialized on. SHIELDED_FIELD_THREADS spreads it; width 1 is this loop. */
+    for (int32_t row = 0; row < m; row++) {
+        sh_mask_range mr = { l->simd, x_field + (size_t)row * K, l->rp[row],
+                             l->planes + (size_t)row * K,
+                             l->planes + ((size_t)m + row) * K,
+                             l->planes + ((size_t)2 * m + row) * K };
+        sh_par_for(K, SH_PAR_MIN_MASK, sh_mask_range_fn, &mr);
+    }
     const size_t hn = sh_pack_field_gemm(l->hdr, (uint32_t)n_nodes, (uint32_t)m, nodes);
     double t1 = now_ms(); l->profile.mask_ms += t1 - t0;
 
@@ -2093,20 +2137,29 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
         f.cmd = yw == 3 ? SH_CMD_FIELD_GEMM24 : SH_CMD_FIELD_GEMM;
         size_t want = 0;
         for (size_t i = 0; i < n_nodes; i++) want += (size_t)m * l->nodes[nodes[i]].N * yw;
-        sh_verify_work work = { l, nodes, n_nodes, x_field, m, 0 };
+        sh_verify_work work = { l, nodes, n_nodes, x_field, m, 0, 0 };
         /* The RHS runs in whichever path published the request first, and
          * EXACTLY once: the ring runs it inside its spin window (it publishes
          * before spinning, so the work happens even when no reply arrives),
          * and a fallback to the socket must then not ask for it again. */
-        bool rhs_done = false;
+        /* THE RHS RUNS EXACTLY ONCE, AND "ONCE" MUST MEAN OBSERVED.
+         *
+         * The ring refuses a frame BEFORE it publishes when the reply will not
+         * fit its 6 MiB slot -- the 27B's prefill lm_head is 17 x 248320 x 4 =
+         * 16.9 MB -- and then the work callback never runs. This used to set
+         * rhs_done from `overlap` alone, so the socket fallback was told the
+         * RHS had already been computed when it had not, and the unmask below
+         * compared its LHS against an uninitialised fv_rhs. That is a
+         * verification FAILURE on the first pass, i.e. the exact symptom that
+         * had this whole overlap gated off behind !sh_pipe_ring_live(). Ask
+         * the work item whether it ran. */
         if (via_ring) {
             rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep, overlap ? sh_verify_rhs : NULL, &work);
-            rhs_done = overlap;
         } else {
             rc = SH_ERR_IO;
         }
         if (rc == SH_ERR_IO)
-            rc = sh_pipe_exchange_work(l->pipe, &f, 1, &rep, (overlap && !rhs_done) ? sh_verify_rhs : NULL, &work);
+            rc = sh_pipe_exchange_work(l->pipe, &f, 1, &rep, (overlap && !work.ran) ? sh_verify_rhs : NULL, &work);
         /* Do not double-count RHS work in the phase totals. The contention
          * detector still sees the full send-to-receive wall time. */
         double t2 = now_ms(); l->profile.wire_ms += t2 - t1 - work.elapsed_ms; l->last_wire_us = (t2 - t1) * 1000.0;
@@ -2142,6 +2195,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
             const uint8_t *ym = rep.data + off;         /* int32 or packed int24 rows, yw bytes each */
             off += (size_t)m * nd->N * yw;
             int64_t *y = y_out[i];
+            const int64_t ystr = y_stride ? y_stride[i] : nd->N;   /* wider row: a column-split slice */
             bool ok = true;
             if (l->verify) {
                 /* Profile split: [3] is the fused unmask + lhs pass over y,
@@ -2152,10 +2206,10 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                     double t3 = now_ms();
                     if (yw == 3)
                         l->simd->unmask24_fv(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
-                                             y + (size_t)row * nd->N, lhs);
+                                             y + (size_t)row * ystr, lhs);
                     else
                         l->simd->unmask_fv((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, nd->s32, SH_FV_REPS, nd->N,
-                                           y + (size_t)row * nd->N, lhs);
+                                           y + (size_t)row * ystr, lhs);
                     double t4 = now_ms(); l->profile.unmask_lhs_ms += t4 - t3;
                     if (!overlap) {
                         l->simd->fv_dots_x(x_field + (size_t)row * K, nd->st32, SH_FV_REPS, K, rhs_local);
@@ -2167,9 +2221,9 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                 double t3 = now_ms();
                 for (int32_t row = 0; row < m; row++) {
                     if (yw == 3)
-                        l->simd->unmask24(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                        l->simd->unmask24(ym + (size_t)row * nd->N * 3, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * ystr);
                     else
-                        l->simd->unmask((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * nd->N);
+                        l->simd->unmask((const int32_t *)ym + (size_t)row * nd->N, l->up[row] + nd->u_off, (size_t)nd->N, y + (size_t)row * ystr);
                 }
                 l->profile.unmask_lhs_ms += now_ms() - t3;
             }

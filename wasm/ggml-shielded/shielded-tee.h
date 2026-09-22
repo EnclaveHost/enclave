@@ -167,6 +167,15 @@ int sh_link_start(sh_link *l);
 int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out);
 
+/* The same exchange, writing into a WIDER output row. y_out[i] points at the
+ * first element of this link's column slice and y_stride[i] is the full row
+ * length; NULL means the node's own N (the ordinary layout). This is what a
+ * column-split placement needs: several links each own a contiguous slice of
+ * the same weight's output columns and write straight into one row. */
+int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
+                        const int64_t *x_field, int32_t m, int64_t **y_out,
+                        const int64_t *y_stride);
+
 /* Both GEMM entry points reject |x_field| >= SH_FV_X_LIMIT (2^26) with
  * SH_ERR_VERIFY before using pads or writing output. This public arithmetic
  * bound protects masking, verification and the exact local accumulator; it
@@ -178,6 +187,9 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
  * exact -- which is what makes it a fallback rather than a degraded mode. */
 int sh_link_gemm_local(sh_link *l, const int *nodes, size_t n_nodes,
                        const int64_t *x_field, int32_t m, int64_t **y_out);
+int sh_link_gemm_local_stride(sh_link *l, const int *nodes, size_t n_nodes,
+                              const int64_t *x_field, int32_t m, int64_t **y_out,
+                              const int64_t *y_stride);
 
 /* True once the worker is connected and the graph installed. */
 bool sh_link_is_live(const sh_link *l);

@@ -15,7 +15,7 @@ CC      ?= cc
 CFLAGS  ?= -O2 -Wall -Wextra -fPIC -fno-math-errno
 LDLIBS  += -lm
 
-CORE_SRC := shielded-field.c shielded-wire.c shielded-tee.c shielded-pads.c shielded-bank.c shielded-http.c prefix-kv.c tweetnacl.c poly1305-donna.c
+CORE_SRC := shielded-field.c shielded-wire.c shielded-tee.c shielded-parwork.c shielded-pads.c shielded-bank.c shielded-http.c prefix-kv.c tweetnacl.c poly1305-donna.c
 CORE_OBJ := $(CORE_SRC:.c=.o) shielded-simd-avx512.o shielded-simd-generic.o
 # The dealer's build of the trusted half is the ONLY one carrying the zero-pad
 # mint path (SHIELDED_DEALER_MODE: r goes to the dealer's own worker in the
@@ -45,6 +45,8 @@ all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftes
 
 shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
 shielded-tee.o shielded-tee.dealer.o: shielded-pad-mint-v3.h shielded-pad-mint-v3.inc shielded-pads-v3.h shielded-pad-manifest.h shielded-pad-layout.h
+shielded-tee.o shielded-tee.dealer.o: shielded-parwork.h
+shielded-parwork.o: shielded-parwork.h
 shielded-pads.o shielded-pads.dealer.o: shielded-pads-v3.inc shielded-pads-v3.h shielded-pad-sparse-table.h shielded-pad-manifest.h shielded-pad-layout.h
 
 # Built only where an engine checkout exists; `make ggml` opts in.
@@ -113,8 +115,13 @@ ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) $(GGML_INC) -o $@ $^ \
 	  -L$(GGML_LIB) -lggml -lggml-base -lggml-cpu $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
+# SHIELDED_EXTRA_DEFS is for a BENCH build and nothing else. The only define
+# it is meant to carry is -DSHIELDED_ALLOW_DEV_SHM_RINGS, which lets the ring
+# live under /dev/shm on a box that has no CVM ring directory. Production
+# builds pass nothing here and keep the single root-owned ring path.
+SHIELDED_EXTRA_DEFS ?=
 ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h
-	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(GGML_INC) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(SHIELDED_EXTRA_DEFS) $(GGML_INC) -c $< -o $@
 
 libggml-shielded.so: ggml-shielded-dl.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
