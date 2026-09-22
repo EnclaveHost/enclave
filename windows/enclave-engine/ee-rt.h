@@ -10,7 +10,21 @@
 extern "C" {
 #endif
 #define EE_ABI_VERSION 1
-enum { EE_OP_LOG = 1, EE_OP_SPAWN = 2, EE_OP_CONNECT = 3, EE_OP_SEND = 4, EE_OP_RECV = 5, EE_OP_CLOSE = 6 };
+/* The enclave's only way out. 1-6 are the engine's (the log, its threadpool, the socket to the
+ * shielded GPU worker); 7-10 exist for a tenant's app inside the enclave, which is a SERVER: it
+ * binds a port, accepts connections and waits for readiness, and none of that can happen in VTL1.
+ * The host owns every real socket and carries bytes it cannot read into a TLS session the guest
+ * terminates inside the enclave. */
+enum { EE_OP_LOG = 1, EE_OP_SPAWN = 2, EE_OP_CONNECT = 3, EE_OP_SEND = 4, EE_OP_RECV = 5, EE_OP_CLOSE = 6,
+       EE_OP_LISTEN = 7,     /* arg = port (0 = any), loopback only; ret = handle, arg = bound port */
+       EE_OP_ACCEPT = 8,     /* handle = listener; ret = handle, or -EAGAIN when none is pending */
+       EE_OP_POLL = 9,       /* data = ee_poll_item[]; arg = timeout ms; ret = how many are ready */
+       EE_OP_RESOLVE = 10 }; /* data = hostname; ret = bytes of "addr\n" text written back */
+/* One entry of an EE_OP_POLL set. The host overwrites `events` with what is actually ready, which
+ * is how a guest thread blocks on a socket without spinning the enclave's CPU. */
+typedef struct ee_poll_item { uint32_t handle, events; } ee_poll_item;
+#define EE_POLL_READ  1u
+#define EE_POLL_WRITE 2u
 /* One per enclave thread, in host memory: the header, then `cap` bytes of data. The enclave
  * fills op/handle/len/arg (+data), calls out, reads ret (+data). */
 typedef struct ee_callout {
@@ -91,6 +105,24 @@ typedef struct ee_app_params {
     int32_t status; char error[256]; int64_t handle_us;
 } ee_app_params;
 typedef struct ee_app_close_params { uint32_t size, id; int32_t status; } ee_app_close_params;
+/* A wasi:cli app: it binds its own port through the brokered sockets and its run() does not
+ * return, so the HOST enters EeAppRun on a thread of its own and the call sits in VTL1 for the
+ * life of the app. EeAppStop bumps the runtime's epoch, which traps the guest wherever it is. */
+typedef struct ee_app_run_params {
+    uint32_t size, id; int32_t status; char error[256]; int64_t ran_us;
+} ee_app_run_params;
+
+/* The sockets a tenant's app gets: the host's, brokered. Handles are small integers in the host's
+ * table, never pointers, and every call goes through the enclave's own call-out slot for the
+ * calling thread (ee_slot), so a guest server thread and the gate never share one. */
+int      ee_net_listen(uint16_t port, uint16_t *bound);
+int      ee_net_accept(int h);
+int      ee_net_connect(const char *addr, uint16_t port);
+int64_t  ee_net_send(int h, const uint8_t *p, size_t n);
+int64_t  ee_net_recv(int h, uint8_t *p, size_t n);
+void     ee_net_close(int h);
+int      ee_net_poll(uint32_t *handles, uint32_t *events, size_t n, uint32_t timeout_ms);
+int      ee_net_resolve(const char *name, char *out, size_t cap);
 
 /* The engine's own completion path, for the app's `generate` import: the one host function that is
  * a product rather than plumbing. Inside VTL1 from end to end. */

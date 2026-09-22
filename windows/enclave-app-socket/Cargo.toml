@@ -1,0 +1,12 @@
+[package]
+name = "enclave-app-socket"
+version = "0.1.0"
+edition = "2021"
+publish = false
+# The smallest possible app of the shape MOST of the platform's catalog is: a wasi:cli command that
+# binds its own TCP port and serves HTTP on it. It exists to prove the enclave's brokered sockets
+# (listen, accept, read, write, poll) without a 1.4 MB app's TLS and S3 on top.
+[dependencies]
+[workspace]
+[profile.release]
+opt-level = "s"

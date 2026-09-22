@@ -142,7 +142,9 @@ impl enclave::app::host::Host for HostState {
 ///    about the artifact changes; what changes is where it runs.
 enum Loaded {
     Enclave { store: Store<HostState>, instance: App },
-    Http { store: Store<wasihost::WasiState>, instance: wasihost::AppHttp },
+    /// An ordinary platform app: a wasi:http component (served per request) or a wasi:cli command
+    /// that binds its own port through the brokered sockets and runs until it is interrupted.
+    Wasi { store: Store<wasihost::WasiState>, shape: wasihost::Shape, running: bool },
 }
 
 // ---- the wire between VTL0 and the app -------------------------------------------------------
@@ -207,9 +209,15 @@ fn encode_response(resp: &enclave::app::types::Response) -> Vec<u8> {
 /// refuses, rather than guessing from a failed instantiation.
 pub const WORLD_ENCLAVE: u32 = 1;
 pub const WORLD_HTTP: u32 = 2;
+/// A `wasmtime run` command that binds its own TCP port through the brokered sockets: the shape
+/// most of the platform's catalog actually is (the s3-ipfs-adapter among them).
+pub const WORLD_CLI: u32 = 4;
 
 const MAX_APPS: usize = 8;
 static mut APPS: [Option<Loaded>; MAX_APPS] = [None, None, None, None, None, None, None, None];
+/// A clone of each app's engine, kept OUTSIDE the slot so a stop can reach a running app without
+/// touching the store its own thread is using. An Engine is a handle, not the app.
+static mut RUN_ENGINES: [Option<wasmtime::Engine>; MAX_APPS] = [None, None, None, None, None, None, None, None];
 static mut LAST_ERROR: Option<String> = None;
 
 fn set_err(s: &str) { unsafe { LAST_ERROR = Some(String::from(s)) } }
@@ -253,6 +261,10 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
     config.memory_guard_size(0);
     config.memory_reservation_for_growth(0);
     config.signals_based_traps(false);
+    // A wasi:cli server's run() never returns on its own. Epoch interruption is the only way to
+    // get it back: another thread bumps the engine's epoch, the guest traps at its next check and
+    // run() unwinds. It changes code generation, so ee-precompile sets it too.
+    config.epoch_interruption(true);
     let engine = match Engine::new(&config) { Ok(e) => e, Err(_) => { set_err("engine"); return 0; } };
     // SAFETY: deserialize trusts its input the way a loader trusts an image. The bytes came from
     // this box's own host half, through the enclave gate, and the enclave's threat model does not
@@ -268,19 +280,35 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
             return 0;
         }
     };
-    let loaded = if world == WORLD_HTTP {
-        // An ordinary platform app. The WASI host it sees is wasihost.rs: buffered, single-request,
-        // no egress, and everything else the interfaces promise.
-        let mut linker: Linker<wasihost::WasiState> = Linker::new(&engine);
-        if let Err(e) = wasihost::AppHttp::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, &wasihost::LinkOptions::default(), |s| s) {
-            set_err_owned(format!("linker: {e}")); return 0;
-        }
+    let loaded = if world == WORLD_HTTP || world == WORLD_CLI {
+        // An ordinary platform app. The WASI host it sees is wasihost.rs.
+        let linker = match wasihost::link(&engine) {
+            Ok(l) => l, Err(e) => { set_err_owned(format!("linker: {e}")); return 0; }
+        };
         let mut store = Store::new(&engine, wasihost::WasiState::new(envv));
-        match wasihost::AppHttp::instantiate(&mut store, &component, &linker) {
-            Ok(instance) => Loaded::Http { store, instance },
+        // BEFORE instantiate, not after: with epoch interruption on, a store's deadline starts
+        // already expired and the guest traps on its first instruction ("wasm trap: interrupt")
+        // inside the component's own initialiser. One tick is the deadline and ee_rt_stop bumps
+        // the engine past it, which is the only way to get a server's run() back.
+        store.set_epoch_deadline(1);
+        match wasihost::instantiate(&mut store, &component, &linker) {
+            Ok((_instance, shape)) => {
+                // The artifact's own export decides the shape; the world the HOST asked for only
+                // has to agree with it, because the host is the half that read the bytes.
+                let is_cli = matches!(shape, wasihost::Shape::Cli(_));
+                if is_cli && world != WORLD_CLI {
+                    set_err("this artifact is a wasi:cli command that binds its own port, not a served wasi:http app");
+                    return 0;
+                }
+                if !is_cli && world != WORLD_HTTP {
+                    set_err("this artifact is a served wasi:http app, not a wasi:cli command");
+                    return 0;
+                }
+                Loaded::Wasi { store, shape, running: false }
+            }
             Err(e) => {
-                // The usual cause is an import this enclave does not provide - wasi:sockets, or
-                // wasi:filesystem. Carry wasmtime's own words out: they name the interface.
+                // The usual cause is an import this enclave does not provide - wasi:filesystem,
+                // or wasi:http on a build without it. Carry wasmtime's own words out.
                 set_err_owned(format!("instantiate: {e:?}"));
                 return 0;
             }
@@ -298,8 +326,13 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
     };
     unsafe {
         let apps = &mut *core::ptr::addr_of_mut!(APPS);
+        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
         for (i, slot) in apps.iter_mut().enumerate() {
-            if slot.is_none() { *slot = Some(loaded); return (i + 1) as u32; }
+            if slot.is_none() {
+                *slot = Some(loaded);
+                engines[i] = Some(engine.clone());     // for ee_rt_stop, see RUN_ENGINES
+                return (i + 1) as u32;
+            }
         }
     }
     set_err("no free app slot in this enclave");
@@ -327,13 +360,18 @@ pub extern "C" fn ee_rt_handle(id: u32, req: *const u8, req_len: usize,
             };
             encode_response(&resp)
         }
-        Loaded::Http { store, instance } => {
-            store.data_mut().now_ms = unsafe { ee_app_now_ms() };
-            match wasihost::serve(store, instance, &request) {
-                Ok(v) => v,
-                Err(msg) => { set_err_owned(msg); return -4 }
+        Loaded::Wasi { store, shape, .. } => match shape {
+            wasihost::Shape::Http(func) => {
+                store.data_mut().now_ms = unsafe { ee_app_now_ms() };
+                match wasihost::serve(store, func, &request) {
+                    Ok(v) => v,
+                    Err(msg) => { set_err_owned(msg); return -4 }
+                }
             }
-        }
+            // A wasi:cli app is not called per request: it holds its own socket and the host
+            // carries connections to it. Nothing should be sending frames here.
+            wasihost::Shape::Cli(_) => { set_err("this app serves its own socket; requests go to its port, not through the gate"); return -6 }
+        },
     };
     if enc.len() > out_cap {
         // Say how much was needed rather than truncating a tenant's response into something that
@@ -348,13 +386,66 @@ pub extern "C" fn ee_rt_handle(id: u32, req: *const u8, req_len: usize,
     0
 }
 
+/// Run a wasi:cli app's `run()`, here, on this thread, until it returns or is interrupted.
+///
+/// The host calls this on a thread of its own (ee-host.c spawns it and enters EeAppRun), because a
+/// server's run() does not return: it binds its port through the brokered sockets and accepts
+/// until the lease ends. The app's slot is TAKEN for the duration, so nothing on the gate thread
+/// can touch a store that is being run on this one - there is no lock here, only ownership.
+#[no_mangle]
+pub extern "C" fn ee_rt_run(id: u32) -> i32 {
+    if id == 0 || id as usize > MAX_APPS { return -1; }
+    let mut taken = unsafe {
+        let apps = &mut *core::ptr::addr_of_mut!(APPS);
+        match apps[id as usize - 1].take() { Some(a) => a, None => return -2 }
+    };
+    let rc = match &mut taken {
+        Loaded::Wasi { store, shape, running } => match shape {
+            wasihost::Shape::Cli(func) => {
+                *running = true;
+                let f = func.clone();
+                match f.call(&mut *store, ()) {
+                    Ok((Ok(()),)) => 0,
+                    Ok((Err(()),)) => { set_err("the app's run() returned an error"); -3 }
+                    Err(e) => { set_err_owned(format!("the app stopped: {e:?}")); -4 }
+                }
+            }
+            wasihost::Shape::Http(_) => { set_err("this app is served per request, not run"); -5 }
+        },
+        Loaded::Enclave { .. } => { set_err("an enclave:app app is served per request, not run"); -5 }
+    };
+    // Whatever happened, the slot goes back to empty: the app is gone and its memory with it.
+    unsafe {
+        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
+        engines[id as usize - 1] = None;
+    }
+    drop(taken);
+    rc
+}
+
+/// Ask a running wasi:cli app to stop. Safe to call from any thread: it only bumps the engine's
+/// epoch, which makes the guest trap wherever it is, and its own thread does the freeing.
+#[no_mangle]
+pub extern "C" fn ee_rt_stop(id: u32) -> i32 {
+    if id == 0 || id as usize > MAX_APPS { return -1; }
+    let e = unsafe {
+        let engines = &*core::ptr::addr_of!(RUN_ENGINES);
+        match engines[id as usize - 1].as_ref() { Some(e) => e.clone(), None => return -2 }
+    };
+    e.increment_epoch();
+    e.increment_epoch();
+    0
+}
+
 /// Unload an app and free its memory inside the enclave.
 #[no_mangle]
 pub extern "C" fn ee_rt_close(id: u32) -> i32 {
     if id == 0 || id as usize > MAX_APPS { return -1; }
     unsafe {
         let apps = &mut *core::ptr::addr_of_mut!(APPS);
+        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
         apps[id as usize - 1] = None;
+        engines[id as usize - 1] = None;
     }
     0
 }
@@ -378,4 +469,4 @@ pub extern "C" fn ee_rt_abi() -> u32 { 2 }
 /// publishes it, so a row cannot claim to host ordinary platform apps from an image whose runtime
 /// only knows the enclave world.
 #[no_mangle]
-pub extern "C" fn ee_rt_worlds() -> u32 { WORLD_ENCLAVE | WORLD_HTTP }
+pub extern "C" fn ee_rt_worlds() -> u32 { WORLD_ENCLAVE | WORLD_HTTP | WORLD_CLI }

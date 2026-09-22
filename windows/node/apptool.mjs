@@ -2,6 +2,7 @@
 // loopback protocol. The bring-up and proof tool for the in-enclave path.
 //
 //   node apptool.mjs abi
+//   node apptool.mjs run  <world> <cwasm> [K=V ...]   (world 4 = a server on its own socket)
 //   node apptool.mjs open C:\path\hello.cwasm
 //   node apptool.mjs get  <id> /hello?name=enclave
 //   node apptool.mjs close <id>
@@ -31,6 +32,14 @@ function cmd(line) {
 const [verb, a, b] = process.argv.slice(2);
 try {
   if (verb === "abi") console.log(`app runtime abi ${await cmd("appabi")}`);
+  else if (verb === "run") {
+    const world = Number(a), file = b;
+    const envBlob = process.argv.slice(5).map((kv) => `${kv}\0`).join("");
+    const hex = envBlob ? Buffer.from(envBlob + "\0", "utf8").toString("hex") : "";
+    const [slot, us] = (await cmd(`appopen ${world} ${file}${hex ? " " + hex : ""}`)).split(" ");
+    console.log(`loaded as app ${slot} in ${(Number(us) / 1000).toFixed(1)} ms`);
+    if (world === 4) { await cmd(`apprun ${slot}`); console.log(`running: it binds its own port inside the enclave`); }
+  }
   else if (verb === "open") {
     const [id, us] = (await cmd(`appopen ${a}`)).split(" ");
     console.log(`loaded as app ${id} in ${(Number(us) / 1000).toFixed(1)} ms, inside the enclave`);

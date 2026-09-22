@@ -24,7 +24,7 @@
 static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession;
 /* the app runtime's entry points. Optional on purpose: an older enclave image has no app runtime,
  * and the host says so rather than failing to start. */
-static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi;
+static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi, g_EeAppRun, g_EeAppStop;
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
 static int g_quiet;
@@ -34,7 +34,27 @@ static int64_t now_us(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.Qu
 
 /* ---- the call-out: the enclave's only way out ------------------------------------------ */
 static DWORD WINAPI thr_enter(LPVOID p) { LPVOID r = NULL; if (!CallEnclave((LPENCLAVE_ROUTINE)g_EeThread, p, TRUE, &r)) say("[host] EeThread entry failed: %lu\n", GetLastError()); return 0; }
-static int wsa_errno(void) { switch (WSAGetLastError()) { case WSAECONNREFUSED: return 111; case WSAETIMEDOUT: return 110; case WSAECONNRESET: return 104; case WSAEHOSTUNREACH: return 113; default: return 5; } }
+/* Winsock errors as the errno numbers the enclave side expects. WSAEWOULDBLOCK -> EAGAIN is
+ * load-bearing now that a tenant's app uses NON-BLOCKING sockets: without it "no data yet" arrives
+ * in the guest as a hard I/O error, and an app that treats that as a dead peer drops the
+ * connection it was about to answer. The engine's own socket never hit this because it is
+ * blocking. */
+static int wsa_errno(void) {
+    switch (WSAGetLastError()) {
+    case WSAEWOULDBLOCK: return 11;      /* EAGAIN: ask again, nothing is wrong */
+    case WSAEINPROGRESS: return 115;     /* EINPROGRESS: a connect still going */
+    case WSAECONNREFUSED: return 111;
+    case WSAETIMEDOUT: return 110;
+    case WSAECONNRESET: return 104;
+    case WSAECONNABORTED: return 103;
+    case WSAENOTCONN: return 107;
+    case WSAEHOSTUNREACH: return 113;
+    case WSAENETUNREACH: return 101;
+    case WSAEADDRINUSE: return 98;
+    case WSAEMFILE: return 24;
+    default: return 5;
+    }
+}
 static void *WINAPI host_callout(void *param) {
     ee_callout *c = (ee_callout *)param;
     switch (c->op) {
@@ -69,6 +89,78 @@ static void *WINAPI host_callout(void *param) {
         c->ret = r < 0 ? -wsa_errno() : r; break; }
     case EE_OP_CLOSE: {
         SOCKET s = c->handle < 256 ? g_socks[c->handle] : 0; if (s) { closesocket(s); g_socks[c->handle] = 0; } c->ret = 0; break; }
+    /* ---- the tenant app's sockets. The host owns them; the guest never sees one ----------- */
+    case EE_OP_LISTEN: {
+        /* LOOPBACK ONLY, deliberately: an app inside the enclave is reached through this node's
+         * own proxy (the relay's /x/<id> path), never from the network directly, so there is no
+         * reason to expose a port on the machine and every reason not to. */
+        SOCKET ls = socket(AF_INET, SOCK_STREAM, 0);
+        if (ls == INVALID_SOCKET) { c->ret = -wsa_errno(); break; }
+        struct sockaddr_in a; memset(&a, 0, sizeof a);
+        a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)c->arg);
+        BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
+        if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 64)) { int e = wsa_errno(); closesocket(ls); c->ret = -e; break; }
+        int alen = sizeof a;
+        if (getsockname(ls, (struct sockaddr *)&a, &alen) == 0) c->arg = ntohs(a.sin_port);   /* the port it actually got */
+        u_long nb = 1; ioctlsocket(ls, FIONBIO, &nb);              /* accept must not block the enclave's thread */
+        EnterCriticalSection(&g_sock_cs); int li = -1; for (int i = 1; i < 256; i++) if (g_socks[i] == 0) { g_socks[i] = ls; li = i; break; } LeaveCriticalSection(&g_sock_cs);
+        if (li < 0) { closesocket(ls); c->ret = -24; break; }
+        say("[host] app listening on 127.0.0.1:%llu (handle %d)\n", (unsigned long long)c->arg, li);
+        c->ret = li; break; }
+    case EE_OP_ACCEPT: {
+        SOCKET ls = c->handle < 256 ? g_socks[c->handle] : 0; if (!ls) { c->ret = -9; break; }
+        SOCKET cs = accept(ls, NULL, NULL);
+        if (cs == INVALID_SOCKET) { c->ret = WSAGetLastError() == WSAEWOULDBLOCK ? -11 : -wsa_errno(); break; }
+        BOOL one = TRUE; setsockopt(cs, IPPROTO_TCP, TCP_NODELAY, (const char *)&one, sizeof one);
+        u_long nb = 1; ioctlsocket(cs, FIONBIO, &nb);              /* the guest polls; it never blocks in here */
+        EnterCriticalSection(&g_sock_cs); int ci = -1; for (int i = 1; i < 256; i++) if (g_socks[i] == 0) { g_socks[i] = cs; ci = i; break; } LeaveCriticalSection(&g_sock_cs);
+        if (ci < 0) { closesocket(cs); c->ret = -24; break; }
+        c->ret = ci; break; }
+    case EE_OP_POLL: {
+        /* This is how a guest thread WAITS. Without it the guest spins on would-block and burns
+         * an enclave thread at 100% while it serves nothing. */
+        ee_poll_item *it = (ee_poll_item *)c->data;
+        const size_t n = (size_t)(c->len / sizeof *it);
+        if (!n || n > 64) { c->ret = -22; break; }
+        fd_set rd, wr; FD_ZERO(&rd); FD_ZERO(&wr);
+        for (size_t i = 0; i < n; i++) {
+            SOCKET s = it[i].handle < 256 ? g_socks[it[i].handle] : 0;
+            if (!s) continue;
+            if (it[i].events & EE_POLL_READ) FD_SET(s, &rd);
+            if (it[i].events & EE_POLL_WRITE) FD_SET(s, &wr);
+        }
+        struct timeval tv; tv.tv_sec = (long)(c->arg / 1000); tv.tv_usec = (long)((c->arg % 1000) * 1000);
+        const int r = select(0, &rd, &wr, NULL, c->arg == 0xFFFFFFFFu ? NULL : &tv);
+        if (r < 0) { c->ret = -wsa_errno(); break; }
+        int ready = 0;
+        for (size_t i = 0; i < n; i++) {
+            SOCKET s = it[i].handle < 256 ? g_socks[it[i].handle] : 0;
+            uint32_t got = 0;
+            if (s) { if (FD_ISSET(s, &rd)) got |= EE_POLL_READ; if (FD_ISSET(s, &wr)) got |= EE_POLL_WRITE; }
+            it[i].events = got;                                    /* written back for the guest */
+            if (got) ready++;
+        }
+        c->ret = ready; break; }
+    case EE_OP_RESOLVE: {
+        /* DNS is the host's: it has the resolver and the network. What it learns is the NAME the
+         * app is looking up, which is metadata the host can see anyway from the connection it
+         * carries; what it does not get is the session, which the guest terminates itself. */
+        char host[256]; size_t n = c->len < sizeof host ? (size_t)c->len : sizeof host - 1;
+        memcpy(host, c->data, n); host[n] = 0;
+        struct addrinfo hints, *res = NULL; memset(&hints, 0, sizeof hints);
+        hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
+        if (getaddrinfo(host, NULL, &hints, &res)) { c->ret = -113; break; }
+        size_t off = 0;
+        for (struct addrinfo *a = res; a && off + 64 < c->cap; a = a->ai_next) {
+            char txt[64] = { 0 };
+            if (a->ai_family == AF_INET) InetNtopA(AF_INET, &((struct sockaddr_in *)a->ai_addr)->sin_addr, txt, sizeof txt);
+            else if (a->ai_family == AF_INET6) InetNtopA(AF_INET6, &((struct sockaddr_in6 *)a->ai_addr)->sin6_addr, txt, sizeof txt);
+            else continue;
+            const size_t k = strlen(txt);
+            memcpy((char *)c->data + off, txt, k); off += k; ((char *)c->data)[off++] = '\n';
+        }
+        freeaddrinfo(res);
+        c->ret = (int64_t)off; break; }
     default: c->ret = -22;
     }
 out:
@@ -102,6 +194,7 @@ static int start_enclave(const wchar_t *dll, SIZE_T size, DWORD threads) {
     g_EeLoad = GetProcAddress((HMODULE)g_base, "EeLoad"); g_EeGenerate = GetProcAddress((HMODULE)g_base, "EeGenerate"); g_EeAttest = GetProcAddress((HMODULE)g_base, "EeAttest"); g_EeSession = GetProcAddress((HMODULE)g_base, "EeSession");
     g_EeAppOpen = GetProcAddress((HMODULE)g_base, "EeAppOpen"); g_EeAppHandle = GetProcAddress((HMODULE)g_base, "EeAppHandle");
     g_EeAppClose = GetProcAddress((HMODULE)g_base, "EeAppClose"); g_EeAppAbi = GetProcAddress((HMODULE)g_base, "EeAppAbi");
+    g_EeAppRun = GetProcAddress((HMODULE)g_base, "EeAppRun"); g_EeAppStop = GetProcAddress((HMODULE)g_base, "EeAppStop");
     if (!g_EeInit || !g_EeThread || !g_EeLoad || !g_EeGenerate || !g_EeAttest) { say("[host] exports missing\n"); return -5; }
     return 0;
 }
@@ -163,6 +256,34 @@ static int do_app_close(uint32_t id, char *err) {
     int st = p->status; free(p); return st;
 }
 /* out[0] = abi, out[1] = the worlds bitmask (1 enclave:app | 2 wasi:http). */
+/* The thread a server-shaped app lives on. It enters the enclave and stays there; the params block
+ * is host memory the enclave writes its outcome into, and this thread owns it. */
+static DWORD WINAPI app_run_thread(LPVOID param) {
+    ee_app_run_params *p = (ee_app_run_params *)param;
+    LPVOID r = NULL;
+    if (!CallEnclave((LPENCLAVE_ROUTINE)g_EeAppRun, p, TRUE, &r))
+        say("[host] EeAppRun failed to enter: %lu\n", GetLastError());
+    say("[host] app %u finished (status %d) %s\n", p->id, p->status, p->status ? p->error : "");
+    free(p);
+    return 0;
+}
+static int do_app_run(uint32_t id, char *err) {
+    if (!g_EeAppRun) { strcpy(err, "this enclave image has no app runtime"); return -1; }
+    ee_app_run_params *p = (ee_app_run_params *)calloc(1, sizeof *p);
+    p->size = sizeof *p; p->id = id;
+    HANDLE h = CreateThread(NULL, 8u << 20, app_run_thread, p, 0, NULL);
+    if (!h) { free(p); strcpy(err, "could not start a thread for the app"); return -1; }
+    CloseHandle(h);
+    return 0;
+}
+static int do_app_stop(uint32_t id, char *err) {
+    if (!g_EeAppStop) { strcpy(err, "this enclave image has no app runtime"); return -1; }
+    ee_app_close_params *p = (ee_app_close_params *)calloc(1, sizeof *p);
+    p->size = sizeof *p; p->id = id;
+    if (call(g_EeAppStop, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
+    const int st = p->status; free(p);
+    return st;
+}
 static uint32_t app_abi(uint32_t *worlds) {
     if (worlds) *worlds = 0;
     if (!g_EeAppAbi) return 0;
@@ -258,6 +379,18 @@ static void serve(int port) {
                         else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, aout, ol); k += 2 * ol;
                                snprintf(reply + k, sizeof reply - k, " %lld\n", us); }
                     }
+                } else if (!strncmp(line, "apprun ", 7)) {
+                    /* Returns as soon as the thread is started: the app itself runs for as long as
+                     * it holds its lease, and its port is the one it binds through the broker. */
+                    unsigned int id = 0;
+                    if (sscanf(line + 7, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    else if (do_app_run(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
+                    else strcpy(reply, "ok\n");
+                } else if (!strncmp(line, "appstop ", 8)) {
+                    unsigned int id = 0;
+                    if (sscanf(line + 8, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    else if (do_app_stop(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
+                    else strcpy(reply, "ok\n");
                 } else if (!strncmp(line, "appclose ", 9)) {
                     unsigned int id = 0;
                     if (sscanf(line + 9, "%u", &id) != 1) strcpy(reply, "err bad id\n");
@@ -276,7 +409,7 @@ static void serve(int port) {
 
 int main(int argc, char **argv) {
     const char *dll = "ee-engine.dll", *model = NULL, *calib = NULL, *prompt = "The capital of France is", *logpath = NULL;
-    int n_predict = 8, threads = 8, n_ctx = 1024, serve_port = 0; SIZE_T size = (SIZE_T)0x80000000; DWORD nthreads = 64;
+    int n_predict = 8, threads = 8, n_ctx = 1024, serve_port = 0; SIZE_T size = (SIZE_T)0x1000000000ULL;  /* 64 GB, must match the image's EnclaveSize (ee-main.cpp) */ DWORD nthreads = 64;
     char env[16384]; size_t envlen = 0;
     #define ENV(kv) do { size_t l = strlen(kv); if (envlen + l + 2 < sizeof env) { memcpy(env + envlen, kv, l + 1); envlen += l + 1; } } while (0)
     for (int i = 1; i < argc; i++) {
