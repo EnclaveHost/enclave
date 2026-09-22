@@ -498,3 +498,42 @@ well clear of the leaky k=8 lane's 1.20. The reason deep speculation loses is th
 gives for the 27B (`k=1/2/3 -> 17.67/14.83/15.41`): a drafted row costs a full `C` whether it is accepted
 or not, and accepting one saves only `W`. Here `C` is 36 % of a one-row token, so the third row onward
 is paying a growing price for a falling acceptance probability.
+
+### The configuration that stands (2026-09-21)
+
+```
+GRAPHS=tpu/g5-h4ds BUNDLE=tpu/lanes-h4ds.etpu BANK=64 \
+EXTRA="--es draft $F/draft.gguf --ei draft_max 1 --ei tpu_refill 9"
+```
+
+modular lanes at `--mod-headroom 4`, a8w8 digit-split, the out-of-lane correction on ONE helper vCPU,
+two rows (one draft), and pads minted inside the link window so the bank holds without a thread.
+
+| | tok/s |
+|---|---|
+| 2026-09-19, best secure | 0.93 |
+| + correction into the window, on a helper vCPU | 1.22 |
+| + two rows instead of one or five | 1.42 |
+| + pads in the window (bank holds at 64, zero inline) | **1.47-1.50** |
+
+**+58 % in two sessions, and 1.47 is the fastest masked decode measured on this phone by any recipe** --
+the statistical k=8 lane that leaked 95 % of tokens from one exchange managed 1.20. Text identical to
+the unmasked baseline throughout.
+
+Window minting turns out to HELP at two rows rather than cost 10 % as it did at one: two rows eat two
+positions a step, so without it the bank drains and `mask` climbs from 0.221 to 0.419 ms on inline
+mints. With it, `bank_min` sits at 64 with zero inline mints across a 96-token turn.
+
+### What the 27B's numbers say about where this sits
+
+REPORT 16.7 prices the same masking design on a server: **1.72x** against the same hardware running the
+same weights in the clear (17.67 against 30.36 tok/s). Here it is **17.7x** (1.47 against the unmasked
+NPU lane's 25.2 on this exact model and phone). The design is not ten times worse on a phone; the
+DIFFERENCE is that the server's worker shares memory with the enclave through an shm ring, and every
+exchange here crosses a protected-VM boundary at 0.74 ms + 22 MB/s. That one boundary is the whole gap.
+
+The handoff's fourth lever -- batch rows across USERS rather than drafts, since `W` is per-pass -- does
+not rescue it either. Every row is then accepted, so `k` tokens cost `W + kC`, which saturates at
+`1/C` = 4.6 tok/s aggregate however many users, and `C` grows superlinearly in practice (link 4.60 /
+5.83 / 9.14 / 10.66 ms at 1 / 2 / 3 / 5 rows). That lands on the same 4.9 tok/s the link floor gave
+independently, and each user would be getting 0.6 tok/s at five rows.
