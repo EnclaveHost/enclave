@@ -13,7 +13,7 @@ typedef struct {
     uint64_t mint_bank_us, pads_redrawn;
     uint64_t outlier_entries, saturated;
     uint64_t sat_clipped, sat_max_excess, sat_hi, sat_lo;   /* which digit railed: lo has only 1.25x headroom by DIGIT_OUT_DIV, hi has 2.5x */            /* of `saturated`: how many were GENUINE clips (exact value past the rail), and by how much */
-    uint64_t ver_n, ver_bad, ver_max;                /* backend-vs-reference: elements compared, disagreements, worst |diff| in LSB */
+    uint64_t ver_n, ver_bad, ver_max; uint64_t ver_lsb_n; double ver_lsb_max, ver_lsb_sq;                /* backend-vs-reference: elements compared, disagreements, worst |diff| in LSB */
     double   ver_sq;                                 /* sum of squared differences, for an RMS */
     uint64_t rail_m32768, rail_m32767, rail_p32767;  /* which rail values the backend ACTUALLY returns */
     uint64_t cancel_n;                               /* elements where float-vs-double cancellation was compared */
@@ -50,3 +50,13 @@ int    ggml_backend_tpu_reference_worker(int fd);              /* the exact inte
 }
 #endif
 #endif
+
+/* The RMS of the backend's deviation in OUTPUT LSBs.
+ *
+ * This is a function rather than an expression in a printf because it had a bug that no test could
+ * reach: ver_n counts TWO digit comparisons per sampled output (it is incremented by 2), while
+ * ver_lsb_sq accumulates ONE combined-output error per sample. Dividing the second by the first
+ * understated the RMS by sqrt(2). The combined-output samples now carry their own count. */
+static inline double tpu_ver_lsb_rms(uint64_t ver_lsb_n, double ver_lsb_sq) {
+    return ver_lsb_n ? sqrt(ver_lsb_sq / (double)ver_lsb_n) : 0.0;
+}

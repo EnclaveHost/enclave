@@ -74,14 +74,15 @@ case "$NAME" in
          "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$OUT/simd-generic.o"
          "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$OUT/field.o"
          "$CLANG" "${PF[@]}" -c "$GG/shielded-wire.c" -o "$OUT/wire.o"
+         "$CLANG" "${PF[@]}" -c "$GG/shielded-parwork.c" -o "$OUT/parwork.o"   # shielded-tee.c calls sh_par_for unconditionally
          "$CLANG" "${PF[@]}" -c "$GG/shielded-tee.c" -o "$OUT/tee.o"
          "$CLANG" "${PF[@]}" -c "$GG/shielded-pads.c" -o "$OUT/pads.o"      # dealt pads (shielded/dealer/PLAN.md)
          "$CLANG" "${PF[@]}" -c "$GG/shielded-bank.c" -o "$OUT/bank.o"; "$CLANG" "${PF[@]}" -c "$GG/shielded-http.c" -o "$OUT/http.o"; "$CLANG" "${PF[@]}" -c "$GG/prefix-kv.c" -o "$OUT/prefixkv.o"
          "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$OUT/nacl.o"
          "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$OUT/poly.o"
-         "$CLANG" "${PF[@]}" -static -o "$OUT/shielded-probe" "$GG/shielded-probe.c" "$OUT/tee.o" "$OUT/pads.o" "$OUT/bank.o" "$OUT/http.o" "$OUT/prefixkv.o" "$OUT/nacl.o" "$OUT/poly.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
+         "$CLANG" "${PF[@]}" -static -o "$OUT/shielded-probe" "$GG/shielded-probe.c" "$OUT/tee.o" "$OUT/parwork.o" "$OUT/pads.o" "$OUT/bank.o" "$OUT/http.o" "$OUT/prefixkv.o" "$OUT/nacl.o" "$OUT/poly.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
          printf '#include "shielded-simd.h"\n#include <stdio.h>\nint main(void){printf("simd=%%s\\n", sh_simd_get()->name);return 0;}\n' > "$OUT/simd-check.c"
-         "$CLANG" "${PF[@]}" -static -o "$OUT/simd-check" "$OUT/simd-check.c" "$OUT/tee.o" "$OUT/pads.o" "$OUT/bank.o" "$OUT/http.o" "$OUT/prefixkv.o" "$OUT/nacl.o" "$OUT/poly.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
+         "$CLANG" "${PF[@]}" -static -o "$OUT/simd-check" "$OUT/simd-check.c" "$OUT/tee.o" "$OUT/parwork.o" "$OUT/pads.o" "$OUT/bank.o" "$OUT/http.o" "$OUT/prefixkv.o" "$OUT/nacl.o" "$OUT/poly.o" "$OUT/field.o" "$OUT/wire.o" "$OUT/simd-neon.o" "$OUT/simd-generic.o" -lm
          echo "probe: $OUT/shielded-probe ($(stat -c %s "$OUT/shielded-probe") bytes), simd-check"; exit 0 ;;
   engine)  # the COMPLETE engine for the phone, normal world: libggml-shielded.so (the backend module),
            # ggml-test and shielded-run, against the arm64 llama.cpp from build-ggml-arm64.sh.
@@ -96,12 +97,13 @@ case "$NAME" in
            "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
            "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
            "$CLANG" "${PF[@]}" -c "$GG/shielded-wire.c" -o "$E/wire.o"
+           "$CLANG" "${PF[@]}" -c "$GG/shielded-parwork.c" -o "$E/parwork.o"   # shielded-tee.c calls sh_par_for unconditionally
            "$CLANG" "${PF[@]}" -c "$GG/shielded-tee.c" -o "$E/tee.o"
            "$CLANG" "${PF[@]}" -c "$GG/shielded-pads.c" -o "$E/pads.o"      # dealt pads (shielded/dealer/PLAN.md)
            "$CLANG" "${PF[@]}" -c "$GG/shielded-bank.c" -o "$E/bank.o"; "$CLANG" "${PF[@]}" -c "$GG/shielded-http.c" -o "$E/http.o"; "$CLANG" "${PF[@]}" -c "$GG/prefix-kv.c" -o "$E/prefixkv.o"
            "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$E/nacl.o"
            "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$E/poly.o"
-           CORE=("$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire.o" "$E/simd-neon.o" "$E/simd-generic.o")
+           CORE=("$E/tee.o" "$E/parwork.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire.o" "$E/simd-neon.o" "$E/simd-generic.o")
            "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
            # bionic does not resolve a dlopened module's symbols against the executable's other libraries: link libggml too
            "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "${CORE[@]}" -L"$GA/lib" -lggml -lggml-base -lm
@@ -122,13 +124,14 @@ case "$NAME" in
            "$CLANG" "${PF[@]}" -O3 -c "$GG/shielded-simd.c" -o "$E/simd-generic.o"
            "$CLANG" "${PF[@]}" -ffp-contract=off -c "$GG/shielded-field.c" -o "$E/field.o"
            "$CLANG" "${PF[@]}" -c "$HERE/../harness/wire-fd.c" -o "$E/wire-fd.o"                       # shielded-wire.c + sh_pipe_open_fd + the hook
+           "$CLANG" "${PF[@]}" -DSH_HAVE_NEON_TUNED -c "$GG/shielded-parwork.c" -o "$E/parwork.o"   # shielded-tee.c calls sh_par_for unconditionally
            "$CLANG" "${PF[@]}" -DSH_HAVE_NEON_TUNED -Dsh_pipe_open=sh_pipe_open_hook -c "$GG/shielded-tee.c" -o "$E/tee.o"    # the trusted half dials through the hook
            "$CLANG" "${PF[@]}" -c "$GG/shielded-pads.c" -o "$E/pads.o"      # dealt pads (shielded/dealer/PLAN.md)
            "$CLANG" "${PF[@]}" -c "$GG/shielded-bank.c" -o "$E/bank.o"; "$CLANG" "${PF[@]}" -c "$GG/shielded-http.c" -o "$E/http.o"; "$CLANG" "${PF[@]}" -c "$GG/prefix-kv.c" -o "$E/prefixkv.o"
            "$CLANG" "${PF[@]}" -w -c "$GG/tweetnacl.c" -o "$E/nacl.o"
            "$CLANG" "${PF[@]}" -O3 -w -c "$GG/poly1305-donna.c" -o "$E/poly.o"
            "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED "${INC[@]}" -I"$GG" -c "$GG/ggml-shielded.cpp" -o "$E/ggml-shielded-dl.o"
-           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-neon-tuned.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
+           "$CXX" -shared -o "$E/libggml-shielded.so" "$E/ggml-shielded-dl.o" "$E/tee.o" "$E/parwork.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" "$E/field.o" "$E/wire-fd.o" "$E/simd-neon.o" "$E/simd-neon-tuned.o" "$E/simd-generic.o" -L"$GA/lib" -lggml -lggml-base -lm -Wl,-soname,libggml-shielded.so
            "$CLANG" "${PF[@]}" -D_GNU_SOURCE "${INC[@]}" -c "$HERE/payload/anchor_mtp.c" -o "$E/mtp.o"   # the MTP head as the draft model
            "$CXX" -O2 -g -std=c++17 -fPIC -march=armv8.2-a+dotprod -DGGML_MAX_NAME=128 "${INC[@]}" -I"$GG" -I"$HERE/payload" -I"$LSRC/src" -shared -o "$E/libengine.so" "$HERE/payload/engine.cpp" "$E/mtp.o" "$E/pads.o" "$E/bank.o" "$E/http.o" "$E/prefixkv.o" "$E/nacl.o" "$E/poly.o" -L"$GA/lib" -lllama -lggml -lggml-base -llog -ldl -Wl,-soname,libengine.so
            # the LOCAL engine (payload/engine_local.cpp, LOCAL.md): the whole model in the VM, CPU only. Same llama/ggml as above;

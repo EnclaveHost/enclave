@@ -1,50 +1,59 @@
 #!/usr/bin/env python3
-"""The bundle marker is the only thing stopping a payload decoding a bundle it cannot decode.
+"""Markers, checked by RUNNING both sides -- the writer's decision and the payload's rejection.
 
-Three wire contracts exist and they are NOT interchangeable:
+Three wire contracts exist and they are not interchangeable:
 
     ETPUB001  one int16 row per logical row, ONE graph input
     ETPUB002  two int8 digit rows stacked, ONE graph input, the VM recombines (ships today)
     ETPUB003  two int8 digit rows as TWO graph inputs, the accelerator recombines
 
 A payload handed the wrong one does not fail: it feeds the accelerator a differently-shaped operand and
-decodes plausible text from the answer, which is the modular-lane lesson and the reason this field is
-checked at all. `--digit-combine` emitted **ETPUB002** -- a marker that the current payload ACCEPTS while
-its graphs take a different number of inputs entirely. That is the exact mismatch the field exists to
-stop, and it was caught by review, not by a test, so here is the test.
+decodes plausible text from the answer. `--digit-combine` emitted ETPUB002 -- a marker the current
+payload ACCEPTS -- which is exactly that mismatch.
 
-It drives the PRODUCTION writer in make_graphs.py rather than a copy, with a tiny synthetic model so it
-needs no GGUF, no calibration and no compiler.
+**The previous version of this file was not a test.** It regex-scanned the writer and the reader for
+string literals. An audit disabled the payload's rejection with `if (false && !bundle_ds && ...)`, which
+removes the protection entirely, and every assertion here still passed. So it now:
+
+  * calls the production writer's `bundle_magic()` for all four flag combinations, and
+  * compiles and calls the payload's own `bundle_classify()` from payload/bundlemagic.h on the bytes the
+    writer produced.
+
+Inverting or removing either decision makes this fail. It needs no GGUF, no calibration, no compiler and
+no device.
 
     python3 tpu/test/bundle-marker-test.py
 """
 
+import ctypes
 import os
-import re
 import subprocess
 import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WRITER = os.path.join(HERE, "..", "make_graphs.py")
+sys.path.insert(0, os.path.join(HERE, ".."))
 
-# The payload's accepted markers, read from the source that does the accepting, so this test tracks it.
-READER = os.path.join(HERE, "..", "..", "payload", "ggml-tpu.cpp")
+PLAIN, DIGIT_SPLIT, REJECT = 0, 1, 2
+NAMES = {PLAIN: "PLAIN", DIGIT_SPLIT: "DIGIT_SPLIT", REJECT: "REJECT"}
 
 
-def writer_markers():
-    """The exact bytes the production writer can emit, read out of its own source."""
-    src = open(WRITER, errors="replace").read()
-    m = re.search(r"magic = (b'ETPUB\d+')[^\n]*?(b'ETPUB\d+')[^\n]*?(b'ETPUB\d+')", src)
-    if not m:
+def load_classifier():
+    """Compile payload/bundlemagic.h into a shared object and return its bundle_classify."""
+    src = os.path.join(tempfile.mkdtemp(), "shim.c")
+    with open(src, "w") as f:
+        f.write('#include "bundlemagic.h"\n'
+                'int classify(const void *p) { return (int)bundle_classify(p); }\n')
+    so = src.replace(".c", ".so")
+    r = subprocess.run(["cc", "-shared", "-fPIC", "-O1", f"-I{os.path.join(HERE, '..', '..', 'payload')}",
+                        src, "-o", so], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("could not build the classifier shim:\n" + r.stderr[:400])
         return None
-    return {"combine": m.group(1), "split": m.group(2), "plain": m.group(3)}
-
-
-def reader_markers():
-    """The markers the VM-side payload accepts, read out of ggml-tpu.cpp."""
-    src = open(READER, errors="replace").read()
-    return set(re.findall(r'memcmp\(b, "(ETPUB\d+)", 8\)', src))
+    lib = ctypes.CDLL(so)
+    lib.classify.argtypes = [ctypes.c_char_p]
+    lib.classify.restype = ctypes.c_int
+    return lib.classify
 
 
 def main():
@@ -56,28 +65,41 @@ def main():
         if not ok:
             bad += 1
 
-    w = writer_markers()
-    ck("the writer picks a marker per contract", w is not None,
-       "" if w else "could not find the magic selection in make_graphs.py")
-    if w:
-        ck("plain is ETPUB001", w["plain"] == "b'ETPUB001'", w["plain"])
-        ck("digit-split is ETPUB002", w["split"] == "b'ETPUB002'", w["split"])
-        ck("digit-combine is ETPUB003, NOT 002", w["combine"] == "b'ETPUB003'", w["combine"])
+    try:
+        from bundle_magic import bundle_magic         # noqa: E402  the PRODUCTION decision
+    except Exception as e:  # noqa: BLE001
+        print(f"could not import the writer: {e}")
+        return 1
+    # and make_graphs must actually USE it, or this tests a function nothing calls
+    mg = open(os.path.join(HERE, "..", "make_graphs.py"), errors="replace").read()
+    ck("make_graphs.py writes the bundle using bundle_magic()",
+       "bundle_magic(A.digit_split, A.digit_combine)" in mg,
+       "structural, and the only part of this test that is not executed")
 
-    r = reader_markers()
-    ck("the payload accepts ETPUB001", "ETPUB001" in r)
-    ck("the payload accepts ETPUB002", "ETPUB002" in r)
-    # The point of the whole exercise: nothing today implements the two-input contract, so the payload
-    # must REFUSE ETPUB003 rather than treat it as the stacked format it is not.
-    ck("the payload REFUSES ETPUB003", "ETPUB003" not in r,
-       "a payload that accepts it would feed the TPU a differently-shaped operand and decode nonsense")
+    classify = load_classifier()
+    if classify is None:
+        return 1
 
-    # and the help must not promise a marker the writer does not emit
-    src = open(WRITER, errors="replace").read()
-    promised = set(re.findall(r"magic(?:\s+becomes)?\s+(ETPUB\d+)", src))
-    for p in promised:
-        ck(f"help mentions {p} and the writer can emit it",
-           w is not None and f"b'{p}'" in w.values())
+    # (digit_split, digit_combine) -> the marker the writer must emit, and how the payload must treat it
+    cases = [
+        ((False, False), b"ETPUB001", PLAIN),
+        ((True, False), b"ETPUB002", DIGIT_SPLIT),
+        ((True, True), b"ETPUB003", REJECT),
+        ((False, True), b"ETPUB003", REJECT),   # combine implies split; the marker must not fall back to 002
+    ]
+    for (split, combine), want_magic, want_kind in cases:
+        got = bundle_magic(split, combine)
+        ck(f"writer(split={split!s:5} combine={combine!s:5}) emits {want_magic.decode()}",
+           got == want_magic, got.decode())
+        kind = classify(got)
+        ck(f"  payload classifies {got.decode()} as {NAMES[want_kind]}",
+           kind == want_kind, NAMES.get(kind, kind))
+
+    # the whole point: a bundle the payload cannot decode must be REFUSED, not silently accepted
+    ck("ETPUB003 is REFUSED by the payload", classify(b"ETPUB003") == REJECT,
+       "accepting it would feed the accelerator a differently-shaped operand")
+    for junk in (b"ETPUB000", b"ETPUB004", b"\0" * 8, b"ETPUB00", b"XXXXXXXX"):
+        ck(f"  unknown marker {junk[:8]!r} is REFUSED", classify(junk.ljust(8, b"\0")) == REJECT)
 
     print(f"\n{bad} failure(s)")
     return 1 if bad else 0
