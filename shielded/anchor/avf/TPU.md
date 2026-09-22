@@ -948,3 +948,48 @@ The alternatives do not rescue it either, and both fail for the same structural 
 
 So the reply stays doubled, `C` stays at about 1.515 ms per row per exchange, and the ceiling stays where
 the row sweep put it.
+
+## End-to-end quality against a baseline, under matched controls (2026-09-22)
+
+The audit's standing requirement was representative end-to-end quality against a baseline before calling
+the residual error acceptable. This is that comparison. Six prompts, one run each so neither arm ever
+conditions on a history the other did not have, `max_new = 48` passed to BOTH arms, greedy, full
+untruncated replies, no drafter in either arm, and both on the same binary whose identity is recorded
+beside the results (`libggml-tpu.so` 5bc42588..., `repair=1 verify=0 inject=0`, built 02:21:17).
+
+| # | prompt | result |
+|---|---|---|
+| 01 | capital of France | **identical** |
+| 02 | first ten primes | **identical** |
+| 03 | reverse a string in Python | diverges at char 9 |
+| 04 | hello in three languages | **identical** |
+| 05 | why the sky is blue | diverges at char 79 |
+| 06 | three countries in South America | **identical** |
+
+**Four of six replies are byte-identical to the unmasked CPU decode of the same GGUF.** The two that
+differ do so at a single early token and then compound, which is what greedy decoding does: 03 splits on
+"Here are `several` ways" against "Here are `a few` ways" and 05 on a rephrasing of the same Rayleigh
+explanation. Both continuations are coherent, both keep the same structure, and neither is wrong. That is
+the behaviour the 0.78 LSB rms error predicts -- a near-tie in the argmax flips, everything downstream
+follows -- and it is the first evidence that the flips are near-ties rather than damage.
+
+**What this does and does not establish.** The CPU arm decodes the same GGUF but dequantises to f32: it
+is a DIFFERENT quantisation, not a bit-exact oracle. That asymmetry cuts in a useful direction here --
+agreement across two different arithmetics is stronger evidence than agreement between two runs of one,
+and byte-identical output on 4 of 6 is a much better result than the per-element bound alone would
+suggest. It does not cut the other way: a divergence is not by itself evidence that the masked path is
+the wrong one. This is also NOT a comparison against Google's NPU lane, which is a different model
+package (LiteRT-LM, its own quantisation and tokenizer) that no token-level comparison from here can
+reach. And six prompts at 48 tokens is a small sample; it is representative, not exhaustive.
+
+**The rates in the same table are the uncomfortable part.** The TPU arm ran 1.09-1.15 tok/s across all
+six. The CPU arm, same phone, same model, same VM, ran **13.40-15.48 tok/s** -- which is to say the
+in-VM CPU path already meets the 15 tok/s bar on some prompts while the masked TPU path is 13x slower
+than it. The masked path's cost is not the TPU's capability; it is the 140 protected-VM round trips the
+security contract forces per token.
+
+Three controls in this comparison had to be repaired before it meant anything, and all three had been
+silently wrong: `local-run.sh` never passed `max_new` (so the CPU arm ran 512 tokens against the TPU
+arm's 48), `quality-compare.sh` lost its prompt list to `adb` reading stdin (so only the first prompt
+ran), and the installed binary was a fault-injection build. An earlier version of this comparison would
+have produced a table that looked exactly as convincing and meant nothing.
