@@ -1522,12 +1522,27 @@ struct Conn {
     int64_t kmax = 0;                        /* widest K installed: bounds a FIELD_GEMM frame */
     /* The ring this connection owns after SHM_ATTACH, or none. */
     uint8_t *ring = nullptr; int ring_index = -1; uint64_t ring_seen = 0;
+    /* The GEMM epilogue already writes its products straight into MAPPED host
+     * memory, so when the ring is serving this exchange it can write into the
+     * ring's reply payload itself and the copy out of staging disappears. On
+     * the 27B that copy is ~14 MB a pass, about 1.2 ms. Registered once at
+     * attach; null means the registration failed and staging is used as before.
+     * The REQUEST is still snapshotted out of the ring before it is parsed --
+     * that copy is a defence against the peer editing bytes after validation,
+     * not an artefact. */
+    uint8_t *ring_out_h = nullptr, *ring_out_d = nullptr;
+    bool     ring_serving = false;      /* set only while service_ring runs */
+    bool     out_in_ring  = false;      /* the reply this exchange produced is already there */
+    uint8_t *resp_host    = nullptr;    /* where the epilogue actually wrote */
     uint64_t ring_exchanges = 0;
 
     Conn(int f, std::string p) : fd(f), peer(std::move(p)) {}
     ~Conn() {
         if (ring_index >= 0) g_ring_owner[ring_index].store(0);
         if (stream) cudaStreamSynchronize(stream);          /* nothing in flight before the pool takes the memory back */
+        /* After the sync: the mapped reply must not be unregistered while a
+         * capture or launch could still be writing into it. */
+        if (ring_out_h) { cudaHostUnregister(ring_out_h); cudaGetLastError(); ring_out_h = ring_out_d = nullptr; }
         for (auto &kv : buffers) if (kv.second.dev) dfree(kv.second.dev);
         for (auto &n : nodes) if (n.w) dfree(n.w);
         if (d_x) dfree(d_x);
@@ -1913,7 +1928,7 @@ struct Conn {
      * ends the capture before the violation propagates, so the stream is left
      * usable for the reply. */
     cudaGraphExec_t capture_exchange(const uint8_t *planes, size_t xbytes, Node *const *nds, uint32_t nn,
-                                     uint32_t m, int K, bool packed, PackMode pm) {
+                                     uint32_t m, int K, bool packed, PackMode pm, uint8_t *out_d) {
         ck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal), "capture");
         cudaGraph_t g = nullptr;
         try {
@@ -1929,7 +1944,7 @@ struct Conn {
              * mapped reply; PACK_KERNEL has it write int32 to device memory
              * and appends the pack; PACK_CPU is the FIELD_GEMM capture. */
             const bool epi = packed && pm == PACK_EPILOGUE;
-            uint8_t *ybase = (packed && pm == PACK_KERNEL) ? (uint8_t *)d_y32 : (uint8_t *)d_out;
+            uint8_t *ybase = (packed && pm == PACK_KERNEL) ? (uint8_t *)d_y32 : out_d;
             const size_t yw = epi ? 3 : 4;
             const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
             size_t E = 0;
@@ -1949,7 +1964,7 @@ struct Conn {
                 }
                 E = yoff / yw;
             }
-            if (packed && pm == PACK_KERNEL) pack24_launch(d_y32, (uint8_t *)d_out, (long long)E, stream);
+            if (packed && pm == PACK_KERNEL) pack24_launch(d_y32, out_d, (long long)E, stream);
 #ifdef SH_XPROF
             ck(cudaEventRecordWithFlags(profile_end,stream,cudaEventRecordExternal),"profile end");
 #endif
@@ -2015,20 +2030,32 @@ struct Conn {
             GpuTurn turn(sched, reserve, g_vram_budget);
             XP_MARK(LOCK_WAIT);
             ensure_dx(xbytes);
-            /* The reply staging is rounded up to a word so pack24_kernel's
-             * last word fits, and holds the int32 form for the CPU pack. */
-            ensure_host_out(packed ? std::max((ybytes + 3) & ~(size_t)3, E * 4) : ybytes);
+            /* Write the products where they are going. The ring's reply payload
+             * is mapped for the device, so a ring-served exchange whose reply
+             * fits can have the epilogue land in it and skip the copy out of
+             * staging. PACK_CPU still needs a host pass, so it keeps staging.
+             * The destination is BAKED INTO THE CAPTURED GRAPH, so it is part
+             * of the cache key -- a socket-served exchange must not replay a
+             * graph that writes into the ring. */
+            const size_t want_out = packed ? std::max((ybytes + 3) & ~(size_t)3, E * 4) : ybytes;
+            const bool to_ring = ring_serving && ring_out_d && want_out <= RING_REP_CAP &&
+                                 !(packed && pm == PACK_CPU);
+            if (!to_ring) ensure_host_out(want_out);
+            uint8_t *out_h = to_ring ? ring_out_h : h_out;
+            uint8_t *out_d = to_ring ? ring_out_d : (uint8_t *)d_out;
+            out_in_ring = to_ring;
             if (packed && pm == PACK_KERNEL) ensure_dy32(E * 4);
             XP_MARK(STAGING);
-            std::vector<uint32_t> key(nn + 2); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
-            for (uint32_t i = 0; i < nn; i++) key[i + 2] = rd_u32(p + 8 + 4 * i);
+            std::vector<uint32_t> key(nn + 3); key[0] = packed ? (uint32_t)pm + 1 : 0; key[1] = m;
+            key[2] = to_ring ? 1u : 0u;
+            for (uint32_t i = 0; i < nn; i++) key[i + 3] = rd_u32(p + 8 + 4 * i);
             {   /* background mode judges this turn against the graph's own solo floor */
                 const uint32_t shape[3] = { (uint32_t)K, (uint32_t)(ybytes & 0xffffffffu), (uint32_t)(ybytes >> 32) };
                 turn.cls = yield_class(shape, 3, yield_class(key.data(), key.size()));
             }
             cudaGraphExec_t graph = graphs.get(key, [&]() {
                 const auto started = std::chrono::steady_clock::now();
-                cudaGraphExec_t captured = capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm);
+                cudaGraphExec_t captured = capture_exchange(planes, xbytes, nds, nn, m, (int)K, packed, pm, out_d);
                 graph_capture_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
                 return captured;
             });
@@ -2047,11 +2074,12 @@ struct Conn {
                 if (h_pack.size() < ybytes) h_pack.resize(ybytes);
                 pack24_host((const int32_t *)h_out, h_pack.data(), (long long)E);
             }
+            resp_host = out_h;
             XP_MARK(HOST_PACK);
         }
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         exchanges++;
-        resp_ptr = (packed && pm == PACK_CPU) ? (const void *)h_pack.data() : (const void *)h_out;
+        resp_ptr = (packed && pm == PACK_CPU) ? (const void *)h_pack.data() : (const void *)resp_host;
         resp_len = ybytes;
     }
 
@@ -2072,7 +2100,19 @@ struct Conn {
         if (granted) {
             ring = g_shm + (size_t)index * RING_BYTES; ring_index = (int)index;
             ring_seen = ring_ld(ring + RING_OFF_REQ);      /* whatever is there is stale */
-            logf("%s attached shm ring %u", peer.c_str(), index);
+            /* Map the reply payload for the device. Best effort: a failure
+             * here costs the copy, never correctness. */
+            if (cudaHostRegister(ring + RING_OFF_RPP, RING_REP_CAP, cudaHostRegisterMapped) == cudaSuccess) {
+                void *dp = nullptr;
+                if (cudaHostGetDevicePointer(&dp, ring + RING_OFF_RPP, 0) == cudaSuccess && dp) {
+                    ring_out_h = ring + RING_OFF_RPP; ring_out_d = (uint8_t *)dp;
+                } else {
+                    cudaHostUnregister(ring + RING_OFF_RPP);
+                }
+            }
+            cudaGetLastError();                            /* a failed probe is not an error */
+            logf("%s attached shm ring %u%s", peer.c_str(), index,
+                 ring_out_d ? " (reply mapped for the device)" : "");
         }
         std::string r(25, '\0');
         r[0] = granted ? 1 : 0;
@@ -2089,7 +2129,9 @@ struct Conn {
         const uint8_t cmd = r[RING_OFF_RQH];
         const uint64_t size = rd_u64(r + RING_OFF_RQH + 1);
         std::string resp; bool violation = false;
-        resp_ptr = nullptr; resp_len = 0;
+        resp_ptr = nullptr; resp_len = 0; out_in_ring = false;
+        ring_serving = true;
+        struct ClearServing { bool *f; ~ClearServing() { *f = false; } } clear_serving{ &ring_serving };
         try {
             if (cmd != CMD_FIELD_GEMM) VIOLATE("ring carries command %u; only FIELD_GEMM rides the ring", cmd);
             const uint64_t cap = 8 + 4 * 64 + (uint64_t)3 * 4096 * (uint64_t)kmax;
@@ -2109,7 +2151,8 @@ struct Conn {
         const void *rp = resp_ptr ? resp_ptr : resp.data();
         size_t rl = resp_ptr ? resp_len : resp.size();
         if (rl > RING_REP_CAP) rl = RING_REP_CAP;
-        if (rl) memcpy(r + RING_OFF_RPP, rp, rl);
+        /* Already there when the epilogue wrote into the mapped reply. */
+        if (rl && !(out_in_ring && rp == (const void *)ring_out_h)) memcpy(r + RING_OFF_RPP, rp, rl);
         r[RING_OFF_RPH] = violation ? STATUS_VIOLATION : STATUS_OK;
         wr_u64(r + RING_OFF_RPH + 1, rl);
         ring_st(r + RING_OFF_REP, seq);
