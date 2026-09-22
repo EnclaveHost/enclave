@@ -24,6 +24,7 @@ import * as chain from "./chain.mjs";
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets } from "./secrets.mjs";
+import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -45,6 +46,12 @@ export class Host {
     /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
     /// state file, never logged, and dropped when the lease goes.
     this.secrets = new Map();
+    /// The app-zone certificate per deployment, its backoff after a refusal, and the one request
+    /// in flight: a browser retrying a name this box cannot certify must not turn into a retry
+    /// storm at the relay's issuer.
+    this.appCerts = new Map();
+    this.appCertFails = new Map();
+    this.appCertInflight = new Set();
     // Work this box GAVE BACK, and why. It survives a restart on purpose: a claim costs gas and a
     // lease takes a deployment off the market, so a box that has already found out it cannot run
     // an app must not rediscover that every 30 seconds for as long as the row is on the ledger.
@@ -339,7 +346,17 @@ export class Host {
         return this.records.get(id);
       }
     }
-    return this.#record(id, { status: "running", reason: null, port: app.port, startTries: 0 });
+    const rec2 = this.#record(id, { status: "running", reason: null, port: app.port, startTries: 0 });
+    // Ask for the app's certificate NOW rather than when the first visitor arrives: issuance goes
+    // through ACME and takes a moment, and the console's padlock stays amber (and a browser lands
+    // on a warning) until a handshake actually succeeds. Fire and forget - appZoneTarget holds its
+    // own backoff, and nothing about the app depends on the outcome.
+    if (app.port) {
+      this.appZoneTarget(id).then((t) => {
+        if (t) this.log(`${id.slice(0, 10)} app-zone ready at https://${t.cert.name}/`);
+      }).catch(() => {});
+    }
+    return rec2;
   }
 
   /**
@@ -457,6 +474,18 @@ export class Host {
       const app = this.apps.get(id);
       if (!app || app.state !== "running") await this.ensureApp(id, d);
     }
+    // The app's own origin: a certificate order at the relay answers 202 while ACME runs, so keep
+    // asking on the tick rather than only when a visitor arrives. Until it is issued the console's
+    // padlock stays amber and a browser gets a handshake failure, so nobody should have to trigger
+    // this by hand. appZoneTarget holds the backoff; this only re-enters it.
+    for (const [id, app] of this.apps) {
+      const cur = this.appCerts.get(id);
+      if (app.state === "running" && app.port && (!cur || !cur.cert || cur.cert.selfSigned)) {
+        this.appZoneTarget(id).then((t) => {
+          if (t) this.log(`${id.slice(0, 10)} app-zone ready at https://${t.cert.name}/`);
+        }).catch(() => {});
+      }
+    }
   }
   /**
    * Give the lease back. The ledger's release() is what puts the deployment in front of the rest
@@ -484,6 +513,7 @@ export class Host {
   }
   async #stopApp(id, why) {
     this.secrets.delete(id);                           // they belong to the lease, not to this box
+    this.appCerts.delete(id); this.appCertFails.delete(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "stopped", reason: why });
@@ -597,6 +627,17 @@ export class Host {
         isolation: "none", inTee: false, running, capacity: 0,
         note: "this enclave image carries no app runtime, so this box sells no app hosting",
       },
+      // The app's own origin: whether this box can answer a TLS handshake for it, and WHERE the
+      // key lives. On a confidential VM the key is minted inside the measured guest; here it is in
+      // the agent's process in VTL0, which is the same place the /x/ path's plaintext already
+      // passes through. Published rather than implied.
+      appTls: {
+        served: this.appsInTee() && Number(this.cfg.enclaveAppWorlds || 0) & 4 ? true : false,
+        zone: this.cfg.appZone, keyIn: "host-process", terminatesIn: "host-process",
+        issued: [...this.appCerts.values()].filter((c) => c.cert && !c.cert.selfSigned).length,
+        selfSigned: [...this.appCerts.values()].filter((c) => c.cert && c.cert.selfSigned).length,
+        note: "the app's own hostname is answered by this box; its TLS key is in the agent's process, not inside the enclave",
+      },
       claimScope: this.scope(),
       // The REGISTRY's price, not the config's, when this box is listed: that entry is what the
       // ledger charges a lease and therefore what a buyer would actually pay. The config value is
@@ -673,6 +714,68 @@ export class Host {
     this.#record(key, { status: "provisioning", leased: false, appRef: appRef || null, cid, version: v?.version || null, memMb });
     await app.start();
     return this.#record(key, { status: "running", reason: null, port: app.port, leased: false });
+  }
+
+  /**
+   * What the app-zone half needs to answer a TLS handshake for this deployment: the app's own
+   * loopback port and a certificate for its hostname. Null when this box does not serve it.
+   *
+   * The certificate is fetched ONCE and kept (apptls.mjs writes it beside the agent), and a
+   * failure is remembered with its backoff so a browser hammering a name this box cannot certify
+   * does not hammer the relay's issuer with it. A pending issuance answers null, which the caller
+   * turns into a 503 rather than a broken handshake.
+   */
+  async appZoneTarget(ref) {
+    // A label (the first 8 hex, which is what the hostname carries) or a full id: resolved against
+    // the leases this box holds, so a prefix that matches nothing here is simply not ours.
+    let id = String(ref).toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id)) {
+      const pre = id.startsWith("0x") ? id : "0x" + id;
+      const hit = [...this.records.keys()].filter((k) => k.startsWith(pre));
+      if (hit.length !== 1) return null;
+      id = hit[0];
+    }
+    const rec = this.records.get(id);
+    const app = this.apps.get(id);
+    if (!rec || rec.status !== "running" || !app) return null;
+    // Only a server-shaped app has a port of its own. A gate-served app (wasi:http, enclave:app)
+    // has no socket for a TLS session to be proxied into, and pretending otherwise would answer
+    // the handshake and then hang. Its origin stays the platform's /x/ path until the TLS
+    // terminator moves inside the enclave, where the gate can carry a stream.
+    if (!app.port) return null;
+    const have = this.appCerts.get(id);
+    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, cert: have.cert };
+    // The FALLBACK pair, while the real certificate is being issued. Without it the connection
+    // dies at the first byte and the failure reads as a broken box rather than a certificate that
+    // has not arrived; with it the path is provable (a client told to skip verification gets the
+    // app) and a browser sees exactly what the console's amber padlock is warning about. The
+    // platform's own boxes do the same thing.
+    const fallback = () => {
+      let f = this.appCerts.get(id);
+      if (!f || !f.cert) {
+        f = { cert: selfSigned(appHostFor(id, this.cfg.appZone)) };
+        this.appCerts.set(id, f);
+        this.log(`${id.slice(0, 10)} app-zone: serving a self-signed pair for ${f.cert.name} until the real one is issued`);
+      }
+      return { id, port: app.port, cert: f.cert };
+    };
+    const fail = this.appCertFails.get(id);
+    if (fail && Date.now() < fail) return fallback();
+    if (this.appCertInflight.has(id)) return fallback();
+    this.appCertInflight.add(id);
+    try {
+      const cert = await ensureCert({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
+                                      base: this.cfg.relayBase, dir: this.cfg.dir,
+                                      zone: this.cfg.appZone, log: (m) => this.log(m) });
+      this.appCerts.set(id, { cert });
+      this.#record(id, { appHost: cert.name, certNotAfter: cert.notAfter });
+      return { id, port: app.port, cert };
+    } catch (e) {
+      const wait = Math.max(30, Number(e.retryAfterSec) || 300) * 1000;
+      this.appCertFails.set(id, Date.now() + wait);
+      this.log(`certificate for ${appHostFor(id, this.cfg.appZone)} not ready: ${e.message} (retrying in ${Math.round(wait / 1000)}s)`);
+      return fallback();
+    } finally { this.appCertInflight.delete(id); }
   }
 
   /** Carry an /x/:id/... request to that deployment's app: into the enclave, or to a local port. */

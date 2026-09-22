@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { Host } from './host.mjs';
+import { appZone } from './appzone.mjs';
 const WebSocket = createRequire(import.meta.url)('ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,13 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node
 // CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
 // CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
+// The app-zone half: built once APPS is on, because it needs the host to know which deployment
+// runs where and which certificate belongs to it.
+let zone = null;
+// The live tunnel's sender, so the app-zone half can answer stream frames from outside connect()'s
+// closure. Replaced on every redial; a frame sent while the tunnel is down is dropped, which is
+// what the relay's own open timeout already handles.
+let tunnelSend = () => {};
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
@@ -69,6 +77,8 @@ const host = new Host({
   enclaveAppAbi: 0,
   enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http | 4 wasi:cli
   relayBase: process.env.RELAY_BASE || 'https://api.enclave.host',
+  // The zone the platform gives an app its own hostname in: <label>.app.enclave.host.
+  appZone: process.env.APP_ZONE || 'app.enclave.host',
   // Signing for the relay's secrets fetch: the operator key, which is what the registry entry
   // names, so the relay can tie the request to this box's on-chain lease. Set below once the key
   // is loaded; a box with no operator key fetches nothing and publishes secrets:false.
@@ -308,6 +318,7 @@ function connect() {
     log(`dialing ${RELAY_URL} as ${NAME}`);
     ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4 });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
+    tunnelSend = send;
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
@@ -326,11 +337,18 @@ function connect() {
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
-        else if (f.t === 's+') send({ t: 's=', sid: f.sid, ok: false, err: 'windows node carries no streams' });
+        // The app's OWN origin arrives as a raw stream with the WebSocket upgrade replayed into
+        // it (relay/tunnel.js spliceUpgrade -> relay/relay.js splice). appzone.mjs answers the
+        // handshake with this deployment's certificate and proxies the plaintext to its port.
+        else if (f.t === 's+' || f.t === 'sd' || f.t === 'sx') {
+          if (!zone) send({ t: 's=', sid: f.sid, ok: false, err: 'this node is not hosting apps (APPS=1)' });
+          else zone.onFrame(f);
+        }
       } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: 'windows-vbs-enclave/v1', body: '' } }); }
     });
     ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
-    ws.on('close', () => { clearInterval(live); attachedAt = 0; log('tunnel closed'); setTimeout(dial, 5000); });
+    ws.on('close', () => {
+      if (zone) zone.closeAll(); clearInterval(live); attachedAt = 0; log('tunnel closed'); setTimeout(dial, 5000); });
     ws.on('error', (e) => { log(`tunnel error: ${e.message}`); try { ws.terminate(); } catch {} });
   };
   dial();
@@ -385,6 +403,14 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
   if (APPS) {
     await host.init();
+    // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
+    // which is the half that holds leases; a deployment this box does not serve resolves to null
+    // and the stream is refused with a status rather than a silent close.
+    zone = appZone({
+      send: (o) => tunnelSend(o),
+      resolve: (id) => host.appZoneTarget(id),
+      log: (m) => log(`[app-zone] ${m}`),
+    });
     try {
       const { loadOperator } = await import('./chain.mjs');
       const acct = loadOperator(path.join(DIR, 'operator.key'));
