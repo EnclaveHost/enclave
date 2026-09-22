@@ -29,6 +29,21 @@ import { WebSocketServer, createWebSocketStream } from "ws";
 const MAX_STREAMS = 32;
 const HEAD_LIMIT = 16 * 1024;          // an upgrade request that never ends is not one
 const OPEN_MS = 15_000;
+/**
+ * The most request body this box will hold in memory for one app-zone request, when nothing
+ * narrower applies.
+ *
+ * There has to be A number here. The handler below used to read a request with
+ * `for await (const c of req) chunks.push(c)` and no bound at all, so a single client sending an
+ * endless chunked body could exhaust the agent's memory before any rule was consulted - and a
+ * deployment's own `maxBodyMb` could not help, because it was checked after the reading was done.
+ *
+ * 2 MiB is not arbitrary: the enclave gate carries a request as hex through ee-host.c's 4 MiB line
+ * buffer into a 2 MiB binary staging buffer, so a gate-served app CANNOT be given more than this
+ * however much is read. For an app served on its own port the bytes are only passing through, so
+ * the ceiling is the operator's (ENCLAVE_APP_MAX_BODY_MB) and this is its default.
+ */
+const GATE_BODY_LIMIT = 2 * 1024 * 1024;
 
 /**
  * One tunnel stream as a Duplex, so the WebSocket server can treat it as a socket.
@@ -84,7 +99,43 @@ class StreamSocket extends Duplex {
  * null. It is a callback rather than a lookup in here because the node owns both facts and this
  * file should not know how it stores them.
  */
-export function appZone({ send, resolve, pressure, serveHttp, log = () => {} }) {
+/**
+ * The caller's address as this box can know it.
+ *
+ * On the app's own hostname the relay splices TLS bytes without terminating them, so there is no
+ * forwarded header and no real peer address to read: every caller shares one bucket here. That is
+ * a real difference from the /x/ path and it is published rather than implied (host.features).
+ */
+/**
+ * Read a request body, stopping the moment it passes `limit`.
+ *
+ * Exported because this is the part that has to be TRUE rather than plausible: the handler used to
+ * read with `for await (...) chunks.push(c)` and no bound, so a client sending an endless chunked
+ * body could exhaust the agent's memory before any rule was consulted - and checking a declared
+ * content-length afterwards caught nothing, because a chunked request declares no length.
+ *
+ * Returns `{ body, over }`. When `over`, nothing beyond the limit was ever retained: the loop
+ * stops at the first chunk that crosses it, so the peak is one chunk over the cap, not the whole
+ * body. The caller answers 413 and destroys the connection - without that the client keeps
+ * streaming into a socket nobody is draining.
+ */
+export async function readBounded(req, limit) {
+  const chunks = [];
+  let seen = 0;
+  for await (const c of req) {
+    seen += c.length;
+    if (seen > limit) return { body: Buffer.alloc(0), over: true, seen };
+    chunks.push(c);
+  }
+  return { body: Buffer.concat(chunks), over: false, seen };
+}
+
+const clientIpOf = (req) => {
+  const xs = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return xs[xs.length - 1] || "app-zone";
+};
+
+export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, log = () => {} }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
@@ -92,11 +143,26 @@ export function appZone({ send, resolve, pressure, serveHttp, log = () => {} }) 
   // supported way to put an http.Server on top of a stream you already have.
   const httpd = http.createServer(async (req, res) => {
     const id = req.socket.__enclaveId;
-    const chunks = [];
-    for await (const c of req) chunks.push(c);
+    // COUNTED, and stopped at the limit rather than after it. The limit is the narrowest of: this
+    // deployment's own maxBodyMb, the operator's ceiling, and - for a gate-served app - what the
+    // enclave's request buffer can carry at all. Reading past it would spend exactly the memory
+    // the rule exists to protect, and a refusal afterwards would arrive too late to matter.
+    const limit = req.socket.__enclaveBodyLimit || GATE_BODY_LIMIT;
+    const { body, over } = await readBounded(req, limit);
+    if (over) {
+      // Stop reading AND stop the peer sending: without destroying the socket the client keeps
+      // streaming into a connection nobody is draining.
+      res.writeHead(413, { "content-type": "application/json", "connection": "close" });
+      res.end(JSON.stringify({ error: "waf_body",
+        message: `Request body exceeds the ${(limit / 1048576).toFixed(3)} MB limit for this deployment.` }));
+      log(`app-zone ${String(id).slice(0, 10)}: request body over ${limit} bytes, refused and closed`);
+      try { req.destroy(); } catch {}
+      return;
+    }
     try {
       const r = await serveHttp(id, { method: req.method, pathRest: req.url,
-                                      headers: req.headers, body: Buffer.concat(chunks) });
+                                      headers: req.headers, body,
+                                      ip: clientIpOf(req) });
       res.writeHead(r.status || 502, r.headers || {});
       res.end(r.body || Buffer.alloc(0));
     } catch (e) {
@@ -212,8 +278,12 @@ export function appZone({ send, resolve, pressure, serveHttp, log = () => {} }) 
           // A gate-served app has no socket. Parse the request off this connection and carry it
           // through the gate as a frame, which is the same path /x/ takes - the difference is only
           // that the TLS ended here instead of at the relay.
-          httpd.emit("connection", tlsSock);
+          // The body ceiling for THIS deployment, set before the parser sees a byte.
+          tlsSock.__enclaveBodyLimit = Math.min(
+            target.bodyLimit || Number.MAX_SAFE_INTEGER,
+            target.gate ? GATE_BODY_LIMIT : (maxBodyBytes || GATE_BODY_LIMIT));
           tlsSock.__enclaveId = id;
+          httpd.emit("connection", tlsSock);
           log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, `
             + `${target.gate ? "carried through the gate" : "parsed here so its protection rules apply"}`);
           return;

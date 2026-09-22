@@ -106,7 +106,7 @@ export function forget(id) { states.delete(String(id || "").toLowerCase()); }
  * returns a frame). `release()` on an allowed request is what frees a concurrency slot; a caller
  * that forgets it would leak the slot, so it is returned rather than left implicit.
  */
-export function check(id, w, { method, url, headers = {}, ip }) {
+export function check(id, w, { method, url, headers = {}, ip, bodyBytes = null }) {
   if (!w) return null;
   const deny = (status, error, message, headers) => ({ status, error, message, headers });
   if (w.methods && !w.methods.includes(String(method || "GET").toUpperCase()))
@@ -118,9 +118,16 @@ export function check(id, w, { method, url, headers = {}, ip }) {
     if (w.uaBlock.some((s) => ua.includes(s)))
       return deny(403, "waf_agent", "Blocked by this deployment's protection rules.");
   }
-  // Content-Length fast reject. A chunked or lying body is the caller's to cap as it reads.
+  // Content-Length is only a CLAIM, so this is the fast reject and not the limit. A request that
+  // sends no length, or lies about it, is caught by `bodyLimit` below - which the ingress paths
+  // count against as they read, and which `check` is given as `bodyBytes` once the body is whole.
+  // Trusting the declared length was a real hole: a chunked 2 KB body under a 1 KB limit reached
+  // the app in full and returned 200, while the same body WITH a content-length was refused.
   const cl = Number(headers["content-length"]);
   if (w.maxBodyMb && Number.isFinite(cl) && cl > w.maxBodyMb * 1048576)
+    return deny(413, "waf_body", `Request body exceeds this deployment's ${w.maxBodyMb} MB limit.`);
+  // ...and the ACTUAL size, when the caller has it. This is the one that holds.
+  if (w.maxBodyMb && Number.isFinite(Number(bodyBytes)) && Number(bodyBytes) > w.maxBodyMb * 1048576)
     return deny(413, "waf_body", `Request body exceeds this deployment's ${w.maxBodyMb} MB limit.`);
 
   const key = String(id || "").toLowerCase();
@@ -156,6 +163,18 @@ export function check(id, w, { method, url, headers = {}, ip }) {
     b.tokens -= 1;
   }
   return { allow: true, release };
+}
+
+/**
+ * How many bytes of request body this deployment may be sent, and therefore how many are worth
+ * READING. `null` means no rule of its own, and the caller's own ceiling applies.
+ *
+ * The point of returning it is that an ingress path must stop reading at the limit rather than
+ * buffer a whole oversized body and refuse it afterwards - otherwise the refusal costs exactly
+ * what it was meant to prevent.
+ */
+export function bodyLimit(w) {
+  return w && w.maxBodyMb ? Math.ceil(w.maxBodyMb * 1048576) : null;
 }
 
 /** The client's address, from the relay's forwarding header or the socket. */
