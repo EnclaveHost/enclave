@@ -279,17 +279,38 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
             common_sampler_ptr smpl(common_sampler_init(model, sps));
             common_speculative_begin(spec, 0, hist);
             llama_token id_last = toks[n - 1]; llama_tokens draft; int drafted = 0, accepted = 0, steps = 0; bool peer_gone = false, done = false; const int64_t t1s = ggml_time_us();
+            /* ADAPTIVE DEPTH. The depth that pays is set by how often a draft lands, and that is a property of the
+             * WORKLOAD, not a constant: measured on this phone, prose accepts 55 % and wants 2 rows (1.47 tok/s
+             * against 1.18 at 5), code accepts 80-83 % and wants 5 (1.70 against 1.41). It also drifts inside one
+             * turn, because every extra row costs a full C on a link whose price grows with context -- the same
+             * prompt at the same depth falls 1.70 -> 1.37 tok/s from ctx 135 to 273.
+             * So do not fix it: score each depth by the tokens per millisecond it actually delivers, take the best,
+             * and spend one step in eight re-testing the least-tried depth so a shifting optimum is noticed. */
+            double dep_rate[8] = {0}; int dep_tries[8] = {0}; int dep_used[8] = {0};
+            auto pick_depth = [&](int cap) {
+                if (cap < 1) return 0;
+                int lo = 1, hi = cap < g_draft_max ? cap : g_draft_max; if (hi < lo) return lo;
+                if (steps % 8 == 7) { int least = lo; for (int d = lo; d <= hi; d++) if (dep_tries[d] < dep_tries[least]) least = d; return least; }
+                int best = lo; for (int d = lo; d <= hi; d++) { if (dep_tries[d] == 0) return d; if (dep_rate[d] > dep_rate[best]) best = d; }
+                return best;
+            };
             while (!done) {
                 int room = n_ctx - n_past - 2; if (room < 1) { st.status = "ctx_full"; break; }
+                const int depth = pick_depth(room - 1); const int64_t t_step = ggml_time_us();
                 draft.clear(); auto &dp = common_speculative_get_draft_params(spec, 0);
-                dp.drafting = true; dp.n_max = room - 1 < g_draft_max ? (room - 1 < 0 ? 0 : room - 1) : g_draft_max; dp.n_past = n_past; dp.id_last = id_last; dp.prompt = &hist; dp.result = &draft;
+                dp.drafting = true; dp.n_max = depth; dp.n_past = n_past; dp.id_last = id_last; dp.prompt = &hist; dp.result = &draft;
                 common_speculative_draft(spec);
-                if ((int)draft.size() > g_draft_max) draft.resize((size_t)g_draft_max);
+                if ((int)draft.size() > depth) draft.resize((size_t)depth);
                 common_batch_clear(batch); common_batch_add(batch, id_last, n_past, { 0 }, true);
                 for (size_t i = 0; i < draft.size(); i++) common_batch_add(batch, draft[i], n_past + 1 + (llama_pos)i, { 0 }, true);
                 if (llama_decode(ctx, batch) || !common_speculative_process(spec, batch)) { st.status = "decode_failed"; break; }
                 const std::vector<llama_token> ids = common_sampler_sample_and_accept_n(smpl.get(), ctx, draft);   /* the accepted proposals, then one token of the target's own */
                 steps++; drafted += (int)draft.size(); accepted += (int)ids.size() - 1;
+                {   /* score this depth by what it actually delivered: tokens per millisecond of step */
+                    const double dt = (double)(ggml_time_us() - t_step) / 1e3;
+                    if (depth >= 1 && depth < 8 && dt > 0) { const double r = (double)ids.size() / dt;
+                        dep_rate[depth] = dep_tries[depth] ? dep_rate[depth] + 0.25 * (r - dep_rate[depth]) : r;
+                        dep_tries[depth]++; dep_used[depth]++; } }
                 hist.push_back(id_last); n_past += (int)ids.size();                  /* id_last and the accepted proposals are in the KV now */
                 for (size_t i = 0; i + 1 < ids.size(); i++) hist.push_back(ids[i]);
                 llama_memory_seq_rm(mem, 0, n_past, -1);                                /* the rejected rows */
@@ -312,11 +333,13 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
             if (peer_gone) break;
             char s2[512]; snprintf(s2, sizeof s2, "STATS status=%s prefill_tokens=%d prefill_tok_s=%.2f decode_tokens=%d decode_tok_s=%.2f ctx_used=%d ctx=%d steps=%d drafted=%d accepted=%d tokens_per_step=%.2f",
                                    st.status, st.n_prefill, st.prefill_s > 0 ? (st.n_prefill - 1) / st.prefill_s : 0.0, st.n_decode, st.decode_s > 0 ? st.n_decode / st.decode_s : 0.0, n_past, n_ctx, steps, drafted, accepted, steps ? (double)st.n_decode / steps : 0.0);
+            { char dsel[96] = {0}; int o = 0; for (int d = 1; d < 8 && o < 80; d++) if (dep_used[d]) o += snprintf(dsel + o, sizeof dsel - (size_t)o, "%s%d:%d", o ? "," : "", d, dep_used[d]);
+              outf("LOCAL turn %d depth choices (rows-1:steps): %s", served, dsel[0] ? dsel : "none"); }
             if (!chat_write(chat_fd, s2)) break;
             outf("LOCAL turn %d: %s", served, s2 + 6);
             if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
-                outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/step, %.2f rows each) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | pads inline %llu refilled %llu bank_min %llu | outliers kept %llu saturated %llu",
-                     served, (unsigned long long)ts.exchanges, ex / (steps ? steps : 1), ts.rows / ex, ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.window_mint_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3, (unsigned long long)ts.pads_minted_inline, (unsigned long long)ts.pads_refilled, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated); }
+                outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/step, %.2f rows each) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | pads inline %llu refilled %llu bank_min %llu | outliers kept %llu saturated %llu (CLIPPED %llu [hi %llu lo %llu] REPAIRED, max excess %llu, max err %.1f LSB)",
+                     served, (unsigned long long)ts.exchanges, ex / (steps ? steps : 1), ts.rows / ex, ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.window_mint_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3, (unsigned long long)ts.pads_minted_inline, (unsigned long long)ts.pads_refilled, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.sat_clipped, (unsigned long long)ts.sat_hi, (unsigned long long)ts.sat_lo, (unsigned long long)ts.sat_max_excess, ts.sat_max_err_lsb); }
             continue;
         }
         const int64_t t0 = ggml_time_us(); bool failed = false;
@@ -348,10 +371,10 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (!chat_write(chat_fd, s)) break;
         outf("LOCAL turn %d: %s", served, s + 6);   /* the owner's log sees the counters, never the text */
         if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
-            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | rx/exch %.2f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu redrawn %llu | %s",
+            outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/token) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | rx/exch %.2f | KB/token out %.0f in %.0f | pads inline %llu (%.1f ms each) bank_min %llu | outliers kept %llu saturated %llu (CLIPPED %llu [hi %llu lo %llu] REPAIRED, max excess %llu, max err %.1f LSB) redrawn %llu | %s",
                  served, (unsigned long long)ts.exchanges, ex / (st.n_decode ? st.n_decode : 1), ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.window_mint_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3, ts.rx_calls / ex,
                  ts.bytes_out / 1024.0 / (st.n_decode ? st.n_decode : 1), ts.bytes_in / 1024.0 / (st.n_decode ? st.n_decode : 1), (unsigned long long)ts.pads_minted_inline,
-                 ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.pads_redrawn, mem_line().c_str()); }
+                 ts.pads_minted_inline ? ts.mint_inline_us / 1e3 / ts.pads_minted_inline : 0.0, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated, (unsigned long long)ts.sat_clipped, (unsigned long long)ts.sat_hi, (unsigned long long)ts.sat_lo, (unsigned long long)ts.sat_max_excess, ts.sat_max_err_lsb, (unsigned long long)ts.pads_redrawn, mem_line().c_str()); }
     }
     if (g_tpu_fd >= 0) { if (void *th = dlopen((std::string(lib_dir) + "/libggml-tpu.so").c_str(), RTLD_NOW)) { auto stop = (void (*)(void))dlsym(th, "ggml_backend_tpu_refill_stop"); if (stop) stop(); } }
     outf("LOCAL engine ending after %d turns", served);
