@@ -37,16 +37,27 @@ const OPEN_MS = 15_000;
  * crash in the middle of a handshake.
  */
 class StreamSocket extends Duplex {
-  constructor(sendFrame, sid) {
-    super();
+  constructor(sendFrame, sid, pressure) {
+    super({ highWaterMark: 256 * 1024 });
     this.sid = sid;
     this._send = sendFrame;
+    // How much the tunnel's own socket is still holding. Without this there is no backpressure
+    // anywhere in the path: a guest streaming a 400 KB response would queue every frame in the
+    // agent's WebSocket buffer and the only limit would be memory.
+    this._pressure = pressure || (() => 0);
     this._closed = false;
   }
   _read() {}
   _write(chunk, _enc, cb) {
-    if (!this._closed) this._send({ t: "sd", sid: this.sid, d: Buffer.from(chunk).toString("base64") });
-    cb();
+    if (this._closed) return cb();
+    this._send({ t: "sd", sid: this.sid, d: Buffer.from(chunk).toString("base64") });
+    // Hand the callback back only once the tunnel has drained enough, which is what makes the
+    // pipe above this one slow down instead of buffering without bound.
+    const wait = () => {
+      if (this._closed || this._pressure() < 4 * 1024 * 1024) return cb();
+      setTimeout(wait, 20);
+    };
+    wait();
   }
   _final(cb) { this.closeRemote(); cb(); }
   _destroy(err, cb) { this.closeRemote(); cb(err); }
@@ -72,7 +83,7 @@ class StreamSocket extends Duplex {
  * null. It is a callback rather than a lookup in here because the node owns both facts and this
  * file should not know how it stores them.
  */
-export function appZone({ send, resolve, log = () => {} }) {
+export function appZone({ send, resolve, pressure, log = () => {} }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
@@ -82,7 +93,7 @@ export function appZone({ send, resolve, log = () => {} }) {
       send({ t: "s=", sid, ok: false, err: "too many app-zone streams on this box" });
       return null;
     }
-    const sock = new StreamSocket(send, sid);
+    const sock = new StreamSocket(send, sid, pressure);
     const st = { sid, sock, head: Buffer.alloc(0), upgraded: false,
                  timer: setTimeout(() => { log(`app-zone stream ${sid}: no upgrade request in ${OPEN_MS / 1000}s`); drop(sid); }, OPEN_MS) };
     streams.set(sid, st);
@@ -150,26 +161,35 @@ export function appZone({ send, resolve, log = () => {} }) {
         requestCert: false, rejectUnauthorized: false,
       });
       let app = null;
-      const bye = () => {
+      // TEARDOWN, and the order is the whole point. Destroying on the app's close threw away
+      // whatever was still in flight - the TLS socket's write buffer, the WebSocket stream, the
+      // tunnel's own send queue - which truncated every response big enough to still be moving.
+      // A 400 KB artifact came back a different length on every request. So a normal end FLUSHES:
+      // the app ending ends the TLS socket (pipe's default), and only when that has closed is the
+      // WebSocket closed. Destroying is for errors.
+      const abort = (why) => {
+        log(`app-zone ${id.slice(0, 10)}: ${why}`);
         try { tlsSock.destroy(); } catch {}
         try { if (app) app.destroy(); } catch {}
+        try { ws.terminate(); } catch {}
+        drop(st.sid);
+      };
+      const finish = () => {
         try { ws.close(); } catch {}
         drop(st.sid);
       };
-      tlsSock.on("error", (e) => { log(`app-zone ${id.slice(0, 10)}: tls ${e.message}`); bye(); });
-      tlsSock.on("close", bye);
+      tlsSock.on("error", (e) => abort(`tls ${e.message}`));
+      tlsSock.on("close", finish);
       tlsSock.on("secure", () => {
         // Only once the handshake is done is there anything to forward, and only then is it worth
         // opening the app's socket: a scanner that never completes one costs the app nothing.
         app = net.connect(target.port, "127.0.0.1");
-        app.on("error", (e) => { log(`app-zone ${id.slice(0, 10)}: app ${e.message}`); bye(); });
-        app.on("close", bye);
-        tlsSock.pipe(app);
-        app.pipe(tlsSock);
+        app.on("error", (e) => abort(`app ${e.message}`));
+        tlsSock.pipe(app);                     // the client's request, into the app
+        app.pipe(tlsSock);                     // the app's answer, ended when the app is done
         log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, serving from 127.0.0.1:${target.port}`);
       });
-      wsStream.on("error", bye);
-      wsStream.on("close", bye);
+      wsStream.on("error", (e) => abort(`stream ${e.message}`));
     });
   }
 

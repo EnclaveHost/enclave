@@ -193,7 +193,8 @@ export class Host {
     const refuse = chain.claimPolicy(d, { ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
                                           version: v, capacity: this.capacity(),
-                                          listedAt: this.listedAt(), invited: invited || force });
+                                          listedAt: this.listedAt(), invited: invited || force,
+                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
@@ -298,9 +299,13 @@ export class Host {
       const memMb = floor.memMb;
       if (memMb > (this.cfg.enclaveAppRamMb || 768))
         return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave's app budget is ${this.cfg.enclaveAppRamMb || 768} MB`);
-      // Compile once per CID and keep it: the bytecode is a pure function of the artifact, and a
-      // cold start should not pay cranelift twice for the same bytes.
-      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.cwasm`);
+      // Compile once per CID AND per runtime ABI, then keep it. The bytecode is a pure function
+      // of the artifact and the compiler's tunables, and the runtime refuses bytecode built with
+      // different ones ("compiled without epoch interruption but it is enabled for the host"), so
+      // the ABI belongs in the name: a runtime change simply misses the cache instead of loading
+      // something it will reject.
+      const abi = Number(this.cfg.enclaveAppAbi || 0);
+      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.rt${abi}.cwasm`);
       if (!fs.existsSync(cwasm) || fs.statSync(cwasm).size < 64) {
         this.#record(id, { status: "provisioning", reason: "compiling the app to enclave bytecode" });
         try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe, log: (m) => this.log(m) }); }
@@ -321,7 +326,7 @@ export class Host {
       }
       const env = {
         // The same environment the platform gives an app on a confidential VM.
-        ENCLAVE_CONFIG: this.appConfig(d, v),
+        ENCLAVE_CONFIG: await this.appConfig(d, v),
         ENCLAVE_MEM_MB: String(memMb),
         ...(want === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
         // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
@@ -365,11 +370,25 @@ export class Host {
    * the one the policy accepted and nothing else - a second, looser reading of the same field is
    * how a runner ends up honouring an option it told the tenant it had refused.
    */
-  appConfig(d, v) {
+  async appConfig(d, v) {
     try {
       const opts = chain.parseEnvelope(d?.configCid, d?.gpuMilli);
       if (opts.config !== undefined) return JSON.stringify(opts.config);
-    } catch { /* the policy already refused it; the version's own config stands */ }
+      if (opts.configCid) {
+        // Fetched through the CID verifier, not trusted from the gateway: the bytes are re-hashed
+        // against the CID the ledger names before they become an app's configuration.
+        const file = path.join(this.cfg.dir, "apps", `cfg-${opts.configCid}.json`);
+        if (!fs.existsSync(file)) {
+          await fetchArtifact({ cid: opts.configCid, dir: path.join(this.cfg.dir, "apps"),
+                                python: this.cfg.python, gateway: this.cfg.gateway,
+                                maxBytes: 1 << 20, out: file, log: (m) => this.log(m) });
+        }
+        const text = fs.readFileSync(file, "utf8");
+        JSON.parse(text);                              // it must BE JSON before an app sees it
+        this.log(`config: ${opts.configCid} applied to ${String(d.id).slice(0, 10)} (${text.length} bytes, CID-verified)`);
+        return text;
+      }
+    } catch (e) { this.log(`config: ${e.message}; the version's own config stands`); }
     return String(v?.config || "");
   }
   #record(id, patch) {
@@ -419,7 +438,8 @@ export class Host {
       if (!ours && claimed >= 1) continue;
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
       const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
-                                            scope, version: v, capacity: this.capacity(), listedAt: this.listedAt() });
+                                            scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
+                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
         // the console reads it off /v1/deployments. Only a CHANGE is worth a line.

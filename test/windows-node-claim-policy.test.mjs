@@ -51,6 +51,22 @@ test("an older stranger's deployment needs their own invitation", () => {
   // Not yet registered (no listing date): the scan has nothing to compare against and this rule
   // stays out of the way. The box cannot claim anything without a registry entry regardless.
   assert.equal(claimPolicy(older, ctx({ listedAt: 0 })), null);
+  // And an operator who has the standing to consent for those owners can waive it outright
+  // (CLAIM_LEGACY), which is a switch precisely because nobody else's box may decide it for them.
+  assert.equal(claimPolicy(older, ctx({ listedAt: LISTED, legacy: true })), null);
+});
+
+test("a config at a CID is honoured only by a box that fetches one", () => {
+  // Catalog rev 7 splits a big app-config out of the envelope, which shares one ledger field with
+  // everything else. The bytes are named by a CID, so they are re-hashed before they become an
+  // app's configuration - and a box that cannot do that must refuse rather than fall back to the
+  // version's config and run the app with settings its owner did not choose.
+  const withCid = dep({ configCid: JSON.stringify({ configCid: "bafkreifxoosjvq56tua7y325cabc" }) });
+  assert.match(String(claimPolicy(withCid, ctx())), /rides at a CID/);
+  assert.equal(claimPolicy(withCid, ctx({ fetchesConfigCid: true })), null);
+  // A bare CID in the field, with no envelope around it, is the retired form and stays refused.
+  assert.match(String(claimPolicy(dep({ configCid: "bafybeigdyrztabc123" }), ctx({ fetchesConfigCid: true }))),
+               /bare CID/);
 });
 
 test("what it refuses outright, each by name", () => {

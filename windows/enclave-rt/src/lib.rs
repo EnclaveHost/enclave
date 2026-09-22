@@ -462,8 +462,12 @@ pub extern "C" fn ee_rt_last_error(out: *mut u8, cap: usize) -> usize {
 
 /// Is the runtime present in this enclave image, and what does it run? The host publishes this so
 /// a row cannot claim in-enclave app hosting from an image that does not carry the runtime.
+/// The runtime's ABI, and ALSO the tag the host names cached bytecode after: a cwasm records the
+/// tunables it was compiled with and the runtime refuses a mismatch ("Module was compiled without
+/// epoch interruption but it is enabled for the host"), so bytecode compiled by an older
+/// ee-precompile must not be reused. BUMP THIS whenever the precompiler's settings change.
 #[no_mangle]
-pub extern "C" fn ee_rt_abi() -> u32 { 2 }
+pub extern "C" fn ee_rt_abi() -> u32 { 3 }
 
 /// Which worlds this build serves, as a bitmask: 1 = enclave:app, 2 = wasi:http. The host
 /// publishes it, so a row cannot claim to host ordinary platform apps from an image whose runtime

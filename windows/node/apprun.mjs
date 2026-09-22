@@ -155,10 +155,13 @@ export function appEnv({ config = "", memMb = 512, inferenceUrl = "" } = {}) {
 }
 
 /** Fetch an artifact by CID and verify it against that CID (the platform's own verifier). */
-export async function fetchArtifact({ cid, dir, python = "python", gateway = "https://ipfs.enclave.host", maxBytes = 128 * 1024 * 1024, log = () => {} }) {
+export async function fetchArtifact({ cid, dir, python = "python", gateway = "https://ipfs.enclave.host", maxBytes = 128 * 1024 * 1024, out: outPath = "", log = () => {} }) {
   if (!/^[A-Za-z0-9]{10,100}$/.test(String(cid || ""))) throw new Error(`not a CID: ${cid}`);
   fs.mkdirSync(dir, { recursive: true });
-  const out = path.join(dir, `ipfs-${cid}.wasm`);
+  // `out` names the file for anything that is not an artifact - a deployment's config at a CID
+  // (catalog rev 7) comes through this same verifier, because bytes that become an app's
+  // configuration deserve the same check as the bytes that become the app.
+  const out = outPath || path.join(dir, `ipfs-${cid}.wasm`);
   if (fs.existsSync(out) && fs.statSync(out).size > 0) return { path: out, cached: true };
   const script = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "fetch-cid.py");
   log(`fetching ${cid} from ${gateway} (CID-verified)`);
