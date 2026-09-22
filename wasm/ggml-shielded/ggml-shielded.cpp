@@ -284,6 +284,8 @@ struct sh_state {
     double t_split_gemm = 0, t_split_post = 0, t_split_join = 0;
     uint64_t local_island_ops = 0;
     uint64_t idle_islands = 0;      /* islands computed inside an exchange window */
+    uint64_t graph_calls = 0;
+    int card_index = -1;
     /* Why the selector said no. "No islands were eligible" is a claim about
      * the graph; without these it is indistinguishable from a selector that
      * rejects everything for a reason of its own. */
@@ -711,6 +713,7 @@ static void sh_pool_init(sh_pool &p) {
         parsed.push_back(std::move(s));
     }
     if (parsed.empty()) { reject("no usable worker lines"); return; }
+    for (size_t c = 0; c < parsed.size(); c++) parsed[c]->card_index = (int)c;
     // A single process-wide refill budget, divided over links. More cards must
     // not create N copies of the old ncores/2 thread pool.
     int threads = sh_env_int("SHIELDED_REFILL_THREADS", (int)std::max(1U, std::thread::hardware_concurrency()/2));
@@ -1663,6 +1666,10 @@ static int sh_overlap_cpu_mode() {
     return m;
 }
 static bool sh_overlap_cpu_enabled() { return sh_overlap_cpu_mode() != 0; }
+static bool sh_phase_trace() {
+    static const bool on = sh_env_int("SHIELDED_PHASE_TRACE", 0) != 0;
+    return on;
+}
 struct sh_idle_batch {
     sh_state *st = nullptr;
     std::vector<std::pair<ggml_tensor *, sh_fusion_pattern>> items;
@@ -1874,6 +1881,8 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
     if (sh_card_integrity_failed(s) || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
+    s.graph_calls++;
+    int trace_m = 0;   /* rows of the last offloaded node in this graph, for the phase trace */
     const sh_simd *simd = sh_link_simd();
 
     const int n = ggml_graph_n_nodes(cgraph);
@@ -2029,6 +2038,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         const int64_t K = e0.K;
         if (a->ne[1] < 0 || a->ne[1] > INT32_MAX) return GGML_STATUS_FAILED;
         const int32_t m = (int32_t)a->ne[1];
+        trace_m = (int)m;
         /* A zero-row matmul has a zero-element output and nothing to exchange.
          * The MTP head context issues one against the tied lm_head; sending it
          * was refused as m outside [1,max_m] and, worse, that refusal used to
@@ -2428,6 +2438,25 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             for (size_t t = 0; t < members.size(); t++) mark_produced(members[t]);
     }
     s.t_graph += sh_now_ms() - tg0;
+    /* SHIELDED_PHASE_TRACE=1: one CUMULATIVE record per graph_compute call.
+     * Cumulative on purpose -- differencing two records gives an exact window
+     * with no reset to reason about, which is what the per-pipe counters got
+     * wrong. Every field is inclusive of everything before it in this process,
+     * and the units are stated in the header so a reader does not have to
+     * infer whether a figure is per pass, per token or per card.
+     *   m        rows in THIS graph (1 = plain decode, k+1 = a verify pass)
+     *   nodes    offloaded nodes so far, this card
+     *   ex       exchanges so far, this card
+     *   idle     ms of post-RHS spin so far, this card
+     *   link     ms inside the exchange path so far, this card
+     *   graph    ms inside this backend's graph_compute so far, this card */
+    if (sh_phase_trace()) {
+        sh_link_profile lp{}; sh_link_profile_snapshot(s.link, &lp);
+        fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f\n",
+                s.card_index, sh_now_ms() / 1000.0, trace_m,
+                (unsigned long long)s.graph_calls, (unsigned long long)s.offloaded_nodes,
+                (unsigned long long)s.exchanges, lp.idle_ms, s.t_link, s.t_graph);
+    }
     /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
      * at the end: the engine inside a CVM never calls the stats entry point,
      * and the tenant's stderr (the owner's /logs) is the only channel out of
