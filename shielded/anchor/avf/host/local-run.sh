@@ -13,7 +13,9 @@ fi
 $ADB logcat -c
 $ADB shell "am force-stop $P; sleep 1; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard"; sleep 2
 [ "$($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')" -ge 1 ] || { echo "PHONE NOT AWAKE: refusing to measure"; exit 1; }
-$ADB shell "am start -n $P/.Main --es mode local --es vmname $VMNAME --es model $MODEL ${EXTRA:-} --es ask '$ASK' >/dev/null"
+# max_new is passed EXPLICITLY: without it the payload uses its own default (512) while tpu-run.sh passes
+# MAXNEW, so the two arms silently generated different lengths and no comparison between them was matched.
+$ADB shell "am start -n $P/.Main --es mode local --es vmname $VMNAME --es model $MODEL --ei max_new ${MAXNEW:-48} ${EXTRA:-} --es ask '$ASK' >/dev/null"
 for _ in $(seq 1 360); do sleep 5; $ADB logcat -d -s anchor-host:I | grep -q -E "LOCAL (done|failed)|HOST FAIL|CONTROL closed|VM error|VM stopped" && break; done
 $ADB logcat -d -s anchor-host:I | sed 's/.*anchor-host: //' | grep -E "^(HOST FAIL|MODEL (already|streamed)|LOCAL (ready|turn [0-9]+ (STATS|A:)|failed|done)|VSOCK (LOCAL (verified|context|refused)|MODEL (ok|fail)))" | cut -c1-${WIDTH:-260}
 echo "awake at end: $($ADB shell dumpsys power | grep -c 'mWakefulness=Awake')  cap: $($ADB shell cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq | tr -d '\r')"

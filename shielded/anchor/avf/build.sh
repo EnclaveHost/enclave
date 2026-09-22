@@ -6,6 +6,13 @@
 #   ./build.sh sink                 # host-side vsock sink for --debug none runs
 #   ./build.sh probe                # the complete trusted half + shielded-probe, static, for the phone
 #   ./build.sh engine               # libggml-shielded.so + ggml-test + shielded-run for the phone (see build-ggml-arm64.sh)
+#   ./build.sh engine-pvm           # the VM-side engine: libengine.so, liblocalengine.so, libggml-tpu.so
+#
+# The VM-side libraries are built ONLY by engine-pvm; `anchor` packages what it finds and now REFUSES if a
+# source is newer than its library. A run that touches the TPU worker needs both, in order, and the worker
+# libraries named:   ./build.sh engine-pvm && ANCHOR_TPU_LIBS=<dir> ./build.sh anchor
+# Without ANCHOR_TPU_LIBS the APK builds and installs happily and then fails at run time with
+# "TPU worker library not in this APK".
 #
 # Produces out/<name>.apk, signed with keys/anchor.jks. Then, on the device:
 #   vm create-idsig <apk> <idsig>
@@ -155,6 +162,15 @@ case "$NAME" in
                   GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
                   if [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$GR/lib/libggml-cpu.so" ]; then
                     cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
+                    # STALENESS GUARD. These libraries are built by `build.sh engine-pvm`, NOT here: editing
+                    # payload/ggml-tpu.cpp or engine_local.cpp and running `build.sh anchor` used to package the
+                    # PREVIOUS binary without a word. That shipped a fault-injection build into a measurement run
+                    # once already, and only the payload's self-attested "build config" line caught it. Refuse.
+                    for pair in "libggml-tpu.so:payload/ggml-tpu.cpp" "liblocalengine.so:payload/engine_local.cpp"; do
+                      lib="$OUT/engine-pvm/${pair%%:*}"; src="$HERE/${pair##*:}"
+                      if [ "$src" -nt "$lib" ]; then
+                        echo "STALE: $src is newer than ${pair%%:*}. Run ./build.sh engine-pvm first." >&2; exit 2; fi
+                    done
                     EXTRA_LIBS+=("$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so" "$OUT/engine-pvm/libggml-tpu.so" "$OUT/engine-pvm/libllama-common.so")
                     # the app-side (untrusted) TPU worker + LiteRT's Tensor dispatch library: prebuilt outside this repo (TPU.md), bundled when ANCHOR_TPU_LIBS names them
                     if [ -n "${ANCHOR_TPU_LIBS:-}" ] && [ -f "$ANCHOR_TPU_LIBS/libanchortpu.so" ] && [ -f "$ANCHOR_TPU_LIBS/libLiteRtDispatch_GoogleTensor.so" ]; then
