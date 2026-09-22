@@ -2580,10 +2580,34 @@ during the retry window some groups are computed on the fp32 CPU backend
 instead of in the field. How many depends on retry timing, which is the
 111-131 spread, and that path rounds differently -- near a tie, a token flips.
 
-Device bytes are 14.1 GB per card, so two 15 GB reservations fit. UNDER TEST:
-if the collision disappears, the local count should fall toward zero and the
-output become deterministic; if the count survives without a collision, this
-explanation joins the three above.
+Device bytes are 14.12 GB per card, so a reservation that both fits the weights
+and leaves room for a second context should remove the collision. The window is
+narrow, because reserve_cap is 0.90 x reservation: 0.9R >= 14.12 GB needs
+R >= 15.7, and two contexts in the 32.21 GB budget needs R <= 16.1.
+
+15 GB was tried first and was WRONG, instructively: cap 13.5 GB did not fit the
+weights, nearly everything fell back to the CPU, throughput collapsed to 0.60
+tok/s -- and the output DIVERGED. Heavy local fallback producing divergence is
+itself support for the rounding mechanism, arrived at by mis-specifying a test.
+
+At 16.0 GB (cap 14.40 GB, 2 x 16.0 = 32.0 <= 32.21) the prediction lands
+exactly:
+
+| reservation | collisions per run | locally-computed nodes |
+|---|---|---|
+| 20 GB (this harness all session) | 1 | 124-131, VARIES |
+| 16 GB | 0 | **0, constant** |
+
+The fallback does not shrink, it disappears. That is the cause: two contexts,
+each asking for 20 GB of a 32 GB budget, colliding on every single run, with
+the groups computed during the retry window taking a path that rounds in fp32
+where the offloaded path is exact in the field.
+
+Note what this says about the rest of this report: EVERY measurement in this
+campaign ran with that fallback active, because the harness has always asked
+for 20 GB. The performance numbers are unaffected in their comparisons (both
+arms of every A/B carried it) but the divergence was never a property of the
+masking, the arithmetic or the split.
 
 **SHIELDED_LOCAL_EXACT=1 does not help here.** It exists for exactly this -- it keeps the
 int64 field path so the fallback's output IS the worker's -- and it is
