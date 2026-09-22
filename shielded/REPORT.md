@@ -2730,23 +2730,54 @@ compute under. It is not.
 | 15.5 GB | 30.971 GB | 0.9991 |
 | 15.0 GB | 29.998 GB | 0.9999 |
 
-P tracks the SUM OF GRANTED RESERVATIONS, not the card. So "the pool holds
-31.977 against 16.0 reserved" means two links already hold 16 GB each, and the
-refusal is a THIRD request arriving while a previous run's reservations are
-still in the pool: 31.977 + 15.5 > 34.36 GB of card. The message reads as a
-contradiction -- it reports 18.1 GB free while refusing 15.5 -- until you see
-that the binding constraint is the pool total, not free memory.
+RETRACTED. I read P as "the sum of granted reservations" and built a story
+about a THIRD request arriving while a previous run's two were still held --
+a release race. worker.cu contradicts it, and I should have read the source
+before theorising from log text.
 
-That makes it unfixable by sizing, and the arithmetic is short:
+`hello` checks g_reserved + want against the 32.212 GB budget BEFORE calling
+claim_reservation, so a third 15.5 GB reservation would be refused as class A,
+not class B. My explanation was not merely unproven, it was impossible.
 
-    three simultaneous reservations must fit the card, 3R <= 34.36 GB -> R <= 11.45
-    the weight cap must hold the weights, 0.95R >= 13.89 GB          -> R >= 14.62
+What claim_reservation actually does:
 
-No R satisfies both. Class B is a RELEASE RACE against a persistent worker: it
-fires when the previous run's reservations have not been returned before the
-next run's first request, which is why a longer settle reduces it (45 s -> 90 s
-helped) without removing it. Restarting the workers between runs would remove
-it and costs ~14 s of weight upload per run.
+    const long long target = g_reserved + R + g_floating;
+    g_reserved += R;                          // added BEFORE the loop
+    for (int i = 0; i < 16 && ok; i++) {
+        const long long have = pool_reserved_now();
+        if (have >= target) break;
+        cudaMallocAsync(&p, target - have, 0); holds.push_back(p);
+    }
+    ...
+    if (ok && *held < target) ok = false;      // "the pool let the holds go"
+    if (!ok) { g_reserved -= R; pool_trim(); } // rollback, and hello prints
+                                               // g_reserved AFTER this
+
+So "the pool holds 31.977 against 16.0 reserved" is a failed SECOND claim with
+g_reserved printed post-rollback: one link held 16 GB, this claim asked for
+16 GB more, target was 32 GB, and the pool stopped 22,626,304 bytes short.
+
+HYPOTHESIS, source-supported and not yet measured: the loop fails when the
+remaining delta is smaller than the pool's allocation granularity. This file's
+own comment says "The pool releases in whole chunks (32 MiB on this driver)",
+and a sub-chunk cudaMallocAsync can be served from cached free space without
+growing ReservedMemCurrent -- so `have` never advances, the 16-iteration cap
+runs out, and a claim fails with ample driver memory free. Every shortfall
+observed is under one chunk:
+
+| held | target | shortfall | < 32 MiB |
+|---|---|---|---|
+| 31,977,373,696 | 32,000,000,000 | 22,626,304 | yes |
+| 31,776,047,104 | 31,800,000,000 | 23,952,896 | yes |
+| 30,970,740,736 | 31,000,000,000 | 29,259,264 | yes |
+| 29,997,662,208 | 30,000,000,000 | 2,337,792 | yes |
+
+That also explains what sizing could not: the gap is a pool-granularity
+artifact, so no reservation size removes it, and it is intermittent because it
+depends on the pool's cache state rather than on timing. Confirming it needs
+instrumentation inside claim_reservation -- ledger before and after, target,
+pool Used and Reserved, iteration count, CUDA status per iteration -- and that
+is the next step, not an assertion.
 
 Across 17 runs at 16.0, 15.9 and 15.5 GB the correspondence is exact in
 DIRECTION, though not in count -- an earlier draft of this section said
