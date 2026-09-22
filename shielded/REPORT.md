@@ -3197,3 +3197,71 @@ changes the order of computation, and it is the only remaining item of the
 required size that does not touch the model, the precision, the workload or
 the protections. The unexamined "neither" bucket at 6-12 ms/token is the other
 place of that size and is next.
+
+### 18.16 Spec-only C, after four corrections to the instrument
+
+The audit's objection to C=12.29 was right twice over: it was blended across
+the plain and speculative paths, and it was per MARGINAL token (64->192), which
+is a slower token than the one the target is defined on. Fixing it took four
+corrections, three of them to instruments I had written that day.
+
+1. `opdiff.py` divided by 128 where the delta spanned 256 tokens on two paths.
+2. The first per-phase window baselined at `dumps[idx+1]`, throwing away a
+   whole tick of speculative decode while still dividing by all 64 generated
+   tokens -- a truncated numerator over an untruncated denominator. That is
+   what produced 10.227 ms/token, which was 23% low.
+3. Coverage was never stated. It is now bounded and printed per run.
+4. The lazy `getenv` init I added was a data race: every compute thread tested
+   and wrote `g_eop_on` and `g_eop_every`. Same value stored by every writer is
+   still a race under the C memory model. Moved into a constructor that runs
+   once before any worker exists. (The accumulators remain ith==0-only, which
+   is safe for one threadpool and not for two; stated in the source rather
+   than assumed away.)
+
+Three runs, tick every 200 graphs, coverage >= 98.4% (raw and coverage-scaled
+figures now differ by 1.6%, so the bracket is tight):
+
+**C = 13.253 ms/token** (12.784-13.495), work 10.201, thread-0 idle 3.052.
+
+| op | ms/token | work | idle | idle% |
+|---|---|---|---|---|
+| GATED_DELTA_NET | 5.094 | 4.372 | 0.723 | 14% |
+| CPY | 1.697 | 1.144 | 0.553 | 33% |
+| CONCAT | 1.039 | 0.609 | 0.432 | 42% |
+| RMS_NORM | 0.751 | 0.656 | 0.095 | 13% |
+| UNARY | 0.745 | 0.547 | 0.197 | 27% |
+| MUL_MAT | 0.743 | 0.554 | 0.189 | 25% |
+| SSM_CONV | 0.670 | 0.510 | 0.161 | 24% |
+| GET_ROWS | 0.623 | 0.401 | 0.222 | 36% |
+
+The "idle" column is thread 0 waiting at the end of a node. It is NOT a
+recoverable saving and must not be subtracted from wall time: the other threads
+are working or descheduled during it. It bounds intra-op imbalance and nothing
+more. Also note GATED_DELTA_NET takes an extra barrier INSIDE the op, to
+publish the chunk counter, and that one lands in the work column rather than
+the idle column.
+
+Also measured, and the more structural number: 152070 nodes over 34530 graph
+executions is **4.4 nodes per CPU subgraph**. The CPU backend is entered ~193
+times per speculative token, because the shielded backend claims the matmuls
+and the two alternate all the way down each layer.
+
+**What this does to the budget.** These runs averaged 19.91 tok/s = 50.23
+ms/token, so 25 tok/s needs 10.23 ms. C is 13.25. So C is LARGER than the gap,
+which reverses what the truncated figure implied: hiding C entirely gives 27.04
+tok/s, and hiding about three quarters of it reaches 25.
+
+That is a ceiling, not a plan. The only mechanism that hides C rather than
+removing it is overlapping the CPU backend with the exchange, and within a
+layer the two alternate by data dependency. It remains the single item of the
+right magnitude, and nothing measured since has displaced it.
+
+And a measurement-hygiene note: the profiler dump now carries its own build
+stamp (`[opprof/v2 Sep 22 2026 07:38:04]`). Earlier I rebuilt a library, got
+rc=0, and the running process still loaded a different copy -- caught only
+because the OUTPUT FORMAT was old. The artifact now states its identity, so
+"which binary produced this" is verified rather than inferred. The build tree
+itself is worth recording as fragile: `bench-spec2` loads `libggml-cpu.so` from
+THIS session's scratchpad, whose CMake cache was copied from another session's
+and whose link rule still writes into that other tree -- so `make` in the
+obvious place silently updates the wrong artifact.
