@@ -28,6 +28,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import fs from "node:fs";
 import path from "node:path";
+import { parseWaf } from "./waf.mjs";
 
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
@@ -257,8 +258,10 @@ export function nodeFloorOf(v) {
  *
  * Known here: `config` (the inline app-config override), `gpu` ({"optional":true}) and `network`
  * ({"relay":"<name>"}, consumed at the DNS layer, nothing for a runner to do but not refuse it).
- * NOT known here: `waf` (this box enforces no per-IP rate limit or filter) and `configCid` (it
- * fetches no pinned config). Both are refused by name.
+ * ...and `waf` (per-IP rate limit, concurrency and body caps, method/path/agent filters), which
+ * this box now ENFORCES at both its doors - the relay's /x/<id> path and the app's own hostname.
+ * NOT known here: nothing. Any other namespace is still refused by name, because the envelope is
+ * fail-closed and silently ignoring an option an owner paid for is the one unacceptable answer.
  */
 export function parseEnvelope(raw, gpuMilli) {
   const s = String(raw || "").trim();
@@ -266,7 +269,7 @@ export function parseEnvelope(raw, gpuMilli) {
   if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network", "configCid"];
+  const known = ["config", "gpu", "network", "configCid", "waf"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
@@ -281,6 +284,10 @@ export function parseEnvelope(raw, gpuMilli) {
         throw new Error("gpu.optional applies only to a deployment that bought GPU share (this one is 0% GPU, so it already runs anywhere)");
       opts.gpuOptional = g.optional;
     }
+  }
+  if ("waf" in o) {
+    // Validated by the same module that enforces it, so "accepted" and "applied" cannot drift.
+    opts.waf = parseWaf(o.waf);
   }
   if ("network" in o) {
     const n = o.network;

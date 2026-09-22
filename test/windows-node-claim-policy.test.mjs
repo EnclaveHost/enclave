@@ -89,8 +89,12 @@ test("what it refuses outright, each by name", () => {
 });
 
 test("options it does not enforce are refused by name, never dropped", () => {
+  // The WAF namespace is ENFORCED here now (windows/node/waf.mjs, cross-checked against the
+  // platform runner's own seam), so what gets refused is a waf OPTION this box does not know -
+  // by name, with the list of the ones it does.
   assert.match(String(claimPolicy(dep({ configCid: JSON.stringify({ waf: { rateLimit: 10 } }) }), ctx())),
-               /waf, which this node does not enforce/, "no per-IP limit here: say so");
+               /unknown waf option "rateLimit"/, "an option nobody implements is named, not dropped");
+  assert.equal(claimPolicy(dep({ configCid: JSON.stringify({ waf: { rps: 5, blockScanners: true } }) }), ctx()), null);
   assert.match(String(claimPolicy(dep({ configCid: JSON.stringify({ secrets: ["API_KEY"] }) }), ctx())), /secrets/);
   assert.match(String(claimPolicy(dep({ configCid: "bafybeigdyrztabc123" }), ctx())),
                /bare CID/, "a pinned config is bytes this box does not fetch");

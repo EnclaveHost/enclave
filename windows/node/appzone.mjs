@@ -203,13 +203,19 @@ export function appZone({ send, resolve, pressure, serveHttp, log = () => {} }) 
       tlsSock.on("secure", () => {
         // Only once the handshake is done is there anything to forward, and only then is it worth
         // reaching the app: a scanner that never completes a handshake costs the app nothing.
-        if (target.gate) {
+        //
+        // A deployment with PROTECTION RULES is always parsed here rather than spliced to its
+        // port, because a rule about methods, paths or rates cannot be applied to an opaque byte
+        // stream. It costs an HTTP parse and a re-issue on the way to the same socket - the price
+        // of the owner having asked for the rules at all.
+        if (target.gate || target.waf) {
           // A gate-served app has no socket. Parse the request off this connection and carry it
           // through the gate as a frame, which is the same path /x/ takes - the difference is only
           // that the TLS ended here instead of at the relay.
           httpd.emit("connection", tlsSock);
           tlsSock.__enclaveId = id;
-          log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, carried through the gate`);
+          log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, `
+            + `${target.gate ? "carried through the gate" : "parsed here so its protection rules apply"}`);
           return;
         }
         app = net.connect(target.port, "127.0.0.1");

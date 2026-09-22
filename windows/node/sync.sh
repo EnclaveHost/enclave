@@ -6,7 +6,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; BOX="${BOX:-minipc-zt}"; DEST="C:/Users/c
 ssh "$BOX" 'New-Item -ItemType Directory -Force -Path C:\Users\claude\vbs\node | Out-Null'
 scp -q "$HERE"/agent.mjs "$HERE"/host.mjs "$HERE"/chain.mjs "$HERE"/apprun.mjs "$HERE"/client.mjs \
        "$HERE"/appframe.mjs "$HERE"/apptool.mjs "$HERE"/secrets.mjs \
-       "$HERE"/apptls.mjs "$HERE"/appzone.mjs "$HERE"/shieldedcard.mjs \
+       "$HERE"/apptls.mjs "$HERE"/appzone.mjs "$HERE"/shieldedcard.mjs "$HERE"/waf.mjs \
        "$HERE"/fetch-cid.py "$HERE"/package.json "$HERE"/install-node.cmd "$BOX:$DEST/"
 # the CID verifier is the platform's own (wasm/ipfs_fetch.py), copied rather than forked
 scp -q "$HERE"/../../wasm/ipfs_fetch.py "$BOX:$DEST/ipfs_fetch.py"

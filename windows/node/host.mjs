@@ -25,6 +25,7 @@ import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterface
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets } from "./secrets.mjs";
 import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
+import * as waf from "./waf.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -329,8 +330,15 @@ export class Host {
     // Did anybody with the standing to say so declare the card optional? The same two voices
     // claimPolicy listens to: the owner's envelope and the publisher's version config. When they
     // did, a card-dialled deployment runs here on cores and nothing below applies.
-    let gpuSoft = false;
-    try { gpuSoft = chain.parseEnvelope(d.configCid, d.gpuMilli).gpuOptional === true; } catch {}
+    let gpuSoft = false, wafRules = null;
+    try {
+      const opts = chain.parseEnvelope(d.configCid, d.gpuMilli);
+      gpuSoft = opts.gpuOptional === true;
+      wafRules = opts.waf || null;
+    } catch {}
+    // The owner's protection rules, kept beside the lease so every request can be checked against
+    // them without re-parsing the envelope. claimPolicy already refused anything unreadable.
+    this.#record(id, { waf: wafRules });
     gpuSoft = gpuSoft || chain.gpuOptionalOfConfig(v && v.config);
     // Bought the card, but built for a world that cannot reach it. The model in this enclave is
     // offered through the enclave:app world's `generate` and nowhere else: a wasi:http or wasi:cli
@@ -347,9 +355,12 @@ export class Host {
       // Against the budget capacity() computed, not a config number: the enclave is a fixed size
       // and what is left of it is the enclave's size less what the engine holds less what the
       // other apps were promised. A version bigger than that cannot fit however the file is set.
-      const budgetMb = this.capacity({ exclude: id }).ramMbFree;
-      if (memMb > budgetMb)
-        return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave has ${budgetMb} MB left`
+      const cap = this.capacity({ exclude: id });
+      if (!cap.ramMeasured)
+        return await this.#giveUp(id, "this box has not yet measured what its engine holds of the enclave,"
+          + " so it does not know how much memory it can honestly promise; it re-checks every 30 seconds");
+      if (memMb > cap.ramMbFree)
+        return await this.#giveUp(id, `the version asks for ${memMb} MB and this enclave has ${cap.ramMbFree} MB left`
           + ` of its ${Math.round((Number(this.cfg.enclaveGb) || 0) * 1024)} MB`);
       // Compile once per CID AND per runtime ABI, then keep it. The bytecode is a pure function
       // of the artifact and the compiler's tunables, and the runtime refuses bytecode built with
@@ -385,7 +396,9 @@ export class Host {
       }
       const env = {
         // The same environment the platform gives an app on a confidential VM.
-        ENCLAVE_CONFIG: await this.appConfig(d, v),
+        // RESOLVED against this deployment's secrets, which is what the platform's runner hands a
+        // guest. An app whose config says "$S3_ENDPOINT" must receive the endpoint, not the word.
+        ENCLAVE_CONFIG: await this.appConfigResolved(d, v),
         ENCLAVE_MEM_MB: String(memMb),
         // THE CARD SHARE THIS DEPLOYMENT BOUGHT, read off the ledger record and carried into VTL1,
         // where the runtime gates the model on it: `generate` answers a deployment that bought a
@@ -435,6 +448,49 @@ export class Host {
    * the one the policy accepted and nothing else - a second, looser reading of the same field is
    * how a runner ends up honouring an option it told the tenant it had refused.
    */
+  /**
+   * Resolve `$NAME` / `${NAME}` in an app config from this deployment's secrets.
+   *
+   * MIRRORED FROM THE PLATFORM RUNNER (wasm/wasm_manager.py `_subst_secrets`), deliberately and
+   * down to the escape rule, because a box that reads these differently from the rest of the fleet
+   * is worse than one that does not read them at all: the same app would be configured here and
+   * unconfigured there, with nothing having said no. The published apps depend on it - risc-box's
+   * catalog config is `"endpoint": "$S3_ENDPOINT"` and four more like it.
+   *
+   * The substitution walks the PARSED JSON and replaces inside string values only, so a secret
+   * holding a quote or a backslash is re-serialised safely rather than spliced into raw JSON text.
+   * Only names that really are secrets substitute; anything else keeps its literal `$`, because a
+   * config may legitimately contain dollar signs. `$$` is a literal `$`.
+   *
+   * The resolved text exists only in the environment handed to the enclave. What the node records
+   * and what the owner reads back keeps the placeholder - same exposure class as the secrets.
+   */
+  #substituteSecrets(text, secrets) {
+    if (!text || !secrets || !Object.keys(secrets).length || !text.includes("$")) return text;
+    const RE = /\$(\$)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+    const rep = (m, dollar, braced, bare) => {
+      if (dollar) return "$";
+      const name = braced || bare;
+      const v = secrets[name];
+      return v === undefined ? m : String(v);
+    };
+    const walk = (x) => {
+      if (typeof x === "string") return x.replace(RE, rep);
+      if (Array.isArray(x)) return x.map(walk);
+      if (x && typeof x === "object") {
+        const o = {};
+        for (const [k, val] of Object.entries(x)) o[k] = walk(val);
+        return o;
+      }
+      return x;
+    };
+    // A config that is not JSON is passed through untouched rather than mangled: the app owns its
+    // own format, and this box is not the place to discover it is not JSON.
+    let parsed;
+    try { parsed = JSON.parse(text); } catch { return text; }
+    return JSON.stringify(walk(parsed));
+  }
+
   async appConfig(d, v) {
     try {
       const opts = chain.parseEnvelope(d?.configCid, d?.gpuMilli);
@@ -455,6 +511,19 @@ export class Host {
       }
     } catch (e) { this.log(`config: ${e.message}; the version's own config stands`); }
     return String(v?.config || "");
+  }
+
+  /** The app's config as the GUEST sees it: resolved against this deployment's secrets. */
+  async appConfigResolved(d, v) {
+    const text = await this.appConfig(d, v);
+    const secrets = this.secrets.get(String(d?.id || "").toLowerCase()) || {};
+    const out = this.#substituteSecrets(text, secrets);
+    if (out !== text) {
+      const names = Object.keys(secrets).filter((n) => text.includes(n));
+      this.log(`config: resolved ${names.length} secret placeholder${names.length === 1 ? "" : "s"}`
+        + ` for ${String(d.id).slice(0, 10)} (${names.join(", ")})`);
+    }
+    return out;
   }
   #record(id, patch) {
     const cur = this.records.get(id) || { id, status: "unknown", reason: null };
@@ -603,6 +672,7 @@ export class Host {
     return this.records.get(id);
   }
   async #stopApp(id, why) {
+    waf.forget(id);
     this.secrets.delete(id);                           // they belong to the lease, not to this box
     this.appCerts.delete(id); this.appCertFails.delete(id);
     const app = this.apps.get(id);
@@ -686,17 +756,33 @@ export class Host {
     // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
     const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
     const hostMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024 * (1 - (this.cfg.reservedShare ?? 0.25)));
-    const engineMb = Number(this.cfg.engineHeldMb) || 0;
+    // UNKNOWN is not ZERO. `engineHeldMb` is null until the node has asked the enclave what the
+    // model, its KV cache and the pads hold (the host protocol's `mem`), and treating that as "the
+    // engine holds nothing" would offer a tenant the WHOLE enclave including the part the engine
+    // is already sitting in - an app admitted on that figure does not fit and thrashes VTL1.
+    //
+    // So an unmeasured box admits NOTHING NEW. It keeps serving what it already runs, and the
+    // agent re-probes every tick, so this is a startup window that closes itself rather than a
+    // state a box can be stuck in silently.
+    // `Number(null)` is 0, so the null check has to come FIRST or "not measured" silently becomes
+    // "measured as nothing" - which is the exact over-admission this guard exists to prevent.
+    const raw = this.cfg.engineHeldMb;
+    const measured = raw === null || raw === undefined || !Number.isFinite(Number(raw)) || Number(raw) < 0
+      ? null : Number(raw);
+    const engineMb = measured ?? 0;
     // The optional cap: an owner may keep an app ceiling below the enclave's own size. Absent, the
     // whole enclave less what the engine holds is the budget.
     const capMb = Number(this.cfg.enclaveAppRamMb) || 0;
     const budgetMb = this.appsInTee()
-      ? Math.min(Math.max(0, enclaveMb - engineMb), capMb > 0 ? capMb : Infinity)
+      ? (measured === null ? 0 : Math.min(Math.max(0, enclaveMb - engineMb), capMb > 0 ? capMb : Infinity))
       : hostMb;
     const ramMb = Math.max(0, budgetMb - committedMb);
     const card = this.card && this.card();
     return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree(),
              ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
+             // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
+             // is a refusal, not a capacity.
+             ramMeasured: !this.appsInTee() || measured !== null,
              cpuGflops: Number(this.cfg.gflops) || 0,
              // The card, in the same shape: what a GPU-dialled deployment is checked against.
              gpuShareFree: this.gpuShareFree(), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
@@ -825,14 +911,30 @@ export class Host {
       rateCap: true,          // it prices a claim off its own registry entry, asks the ledger first (claimableBy) and treats a cap-blocked renew as "stop at lease end"
       proofOfTime: true,      // it signs EIP-712 checkpoints from the proof key in its registry entry; /v1/attestation says where that key lives, which on this box is the Windows host
       // What it does not, each one a refusal in chain.claimPolicy rather than a silent gap.
-      waf: false,             // no per-IP rate limit and no request filter: a deployment carrying {"waf":…} is refused
+      // Per-deployment protection rules (rate, concurrency, body size, method/path/agent filters),
+      // enforced at BOTH of this box's doors because they funnel through one proxy. Mirrored from
+      // the platform runner down to the status codes: the envelope is fail-closed, so a box that
+      // read these rules differently would leave the same deployment protected in one place and
+      // open in another.
+      //
+      // ONE HONEST DIFFERENCE, published rather than implied. On the /x/<id> path the relay
+      // forwards the caller's address and the limits are per-address, as on the fleet. On the
+      // app's OWN hostname the relay splices TLS bytes without terminating them, so there is no
+      // client address to read and the rate and concurrency limits there count the DEPLOYMENT as a
+      // whole. The filters (method, path, agent, body size) are unaffected either way.
+      waf: true,
       // Relay-stored secrets, fetched as the lease holder and injected INTO the enclave with the
-      // app's environment (secrets.mjs, host.loadSecrets). `secretsInConfig` stays false: the
-      // substitution of $NAME inside a config string is the runner's job on the platform's boxes,
-      // and this box passes the environment through instead - an app that resolves its own
-      // placeholders (the s3-ipfs-adapter does) works either way, one that does not, does not.
-      secrets: !!this.cfg.secretsSign, secretsInConfig: false,
-      configCid: false, configCidOverride: false,   // it fetches no pinned config, so the rev-7 split is refused
+      // app's environment (secrets.mjs, host.loadSecrets) - AND resolved inside the app's config,
+      // which is what `secretsInConfig` means. An app that resolves its own placeholders (the
+      // s3-ipfs-adapter does) worked either way; one that expects the runner to do it (risc-box's
+      // config is "$S3_ENDPOINT" and four more) did not, and simply started unconfigured.
+      secrets: !!this.cfg.secretsSign, secretsInConfig: !!this.cfg.secretsSign,
+      // The envelope's `configCid` namespace: this box fetches the pinned bytes and RE-HASHES them
+      // against the CID the ledger names before they become an app's configuration (appConfig
+      // above), so the rev-7 split is honoured rather than refused. The bare `configCid` stays
+      // false: that one is the PUBLISHER's split, a field of the catalog version record, and this
+      // box's catalog reader does not read it.
+      configCid: false, configCidOverride: true,
       configEdit: false, shareResize: false,    // a live edit or resize lands on-chain and applies at re-claim, not in place
       customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>
       devDeploy: false,       // pending catalog versions stay refused, public or not
@@ -947,7 +1049,27 @@ export class Host {
   }
 
   /** Carry an /x/:id/... request to that deployment's app: into the enclave, or to a local port. */
-  async proxy(id, { method, pathRest, headers, body }) {
+  async proxy(id, { method, pathRest, headers, body, ip = null }) {
+    const key = String(id).toLowerCase();
+    // THE DEPLOYMENT'S OWN PROTECTION RULES, before the app is consulted. Both of this box's doors
+    // funnel through here - the relay's /x/<id> path and the app's own hostname - so the rules
+    // hold on either, which is the property the envelope promises.
+    const w = this.records.get(key)?.waf;
+    if (w) {
+      const v = waf.check(key, w, { method, url: pathRest, headers: headers || {}, ip });
+      if (v && !v.allow) {
+        return { status: v.status, headers: { "content-type": "application/json", ...(v.headers || {}) },
+                 body: JSON.stringify({ error: v.error, message: v.message }) };
+      }
+      // An allowed request holds a concurrency slot until it is answered. try/finally rather than
+      // a callback: every return below this point has to give the slot back, including the throws.
+      try { return await this.#proxyApp(key, { method, pathRest, headers, body }); }
+      finally { v.release(); }
+    }
+    return await this.#proxyApp(key, { method, pathRest, headers, body });
+  }
+
+  async #proxyApp(id, { method, pathRest, headers, body }) {
     const app = this.apps.get(String(id).toLowerCase());
     if (!app || app.state !== "running") return { status: 503, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "not_running", id, state: app?.state || "unknown", reason: this.records.get(String(id).toLowerCase())?.reason || null }) };
     if (app instanceof EnclaveApp) {
