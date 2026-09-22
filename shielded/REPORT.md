@@ -3416,3 +3416,46 @@ inside ggml, where it is unambiguous -- and consistent per-pass units with the
 draft pass accounted separately from verify. That is a small instrument change,
 and until it exists there is no measured statement about how much of C is
 hideable.
+
+### 18.20 Redone with indices: the overlap candidate is NOT closed
+
+The retracted analysis used truncated, reused tensor names. `ENCLAVE_GRAPH_DUMP`
+now prints each node's sources as INDICES by pointer identity inside ggml, where
+-1 means genuinely not produced in this graph. No name matching anywhere, no
+unresolved edges.
+
+Decode-phase verify pass: 3365 nodes, 642 splits (321 shielded, 321 CPU), 2724
+nodes on the CPU. For each CPU node, ready(n) is the largest index among its
+in-graph sources and needed(n) the first shielded node reachable from it; n can
+overlap exchange E only if E falls entirely inside that interval.
+
+**Upper bound: 82% of modelled CPU cost**, 10.84 of 13.25 ms/token. That would
+put the token at 39.39 ms, or 25.38 tok/s.
+
+So the bound does NOT exclude 25, and the retracted 18.18 would have closed a
+candidate that is still open. That is the more important correction of the two.
+
+**The bound is loose, and here is exactly how.** Checking one case instead of
+trusting the aggregate: node 39 is a GATED_DELTA_NET with ready 38 and first
+shielded consumer 48, and the exchange at [43,45) sits inside that gap. But its
+actual consumer is node 40 -- a CPU node before that exchange. Deferring 39 into
+the window therefore requires deferring 40, 41 and 42 as well, and they must all
+fit. Because `needed` tracks only the first SHIELDED consumer, the criterion
+permits arrangements that are not individually realisable. It over-permits,
+which keeps it a valid upper bound while making it a weak one. All 48 delta-net
+nodes are counted hideable on that basis and none of them may be in practice.
+
+What is solid: the structural counts, that no edge is now guessed, and that
+nothing measured so far rules 25 in or out by way of overlap.
+
+**What a prototype would need**, stated so the next attempt does not start from
+this report's optimism: the ggml scheduler runs one backend subgraph at a time
+to completion, so overlap needs the shielded backend to return before its
+exchange finishes and the scheduler to run an independent CPU subgraph against
+a not-yet-complete dependency. That touches buffer lifetimes -- a deferred
+node's inputs must stay live across the window -- and it must not disturb pad
+freshness or verification-before-use, since the reply is not trustworthy until
+Freivalds passes and no deferred CPU work may consume it beforehand. And with a
+paired SD of 1.35 tok/s, a prototype worth less than ~5% could not be
+distinguished from noise without hours of pairs, so it is worth building only
+for the large version, not a single-region pilot.
