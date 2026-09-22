@@ -2373,9 +2373,12 @@ SAME binary (`lm15s`, sha256 f592e1e4...) differing only in the flag:
 | `--sampler=model` (shipped behaviour) | 21/24 |
 | `--sampler=greedy` (forced argmax) | 21/24 |
 
-**Replies byte-identical on 24 of 24 rows.** The lane was already deterministic in effect, so the
-sampler was never a confound. A negative result, and worth the runner patch to have it as a
-measurement rather than a caveat.
+**Replies byte-identical on 24 of 24 rows.** So for THIS prompt set, at these settings, on this
+package, the sampler flag makes no difference to the output and is not a confound in these tables.
+That is the whole claim. It is not "the sampler never matters" -- 24 short, mostly single-answer
+prompts is a narrow sample, a longer or more open-ended generation has far more opportunity to
+diverge, and nothing here measured that. What the patch bought is that the question is now answered
+by measurement for the comparisons actually being made, instead of carried as a caveat.
 
 ### The cap: the artefact is real and it is worth 3 rows
 
@@ -2397,3 +2400,43 @@ stops at the cap there is a model that would not stop, not an artefact. It is th
 matched harness: both arms gated by the same fail-closed `coolgate.sh`, both VMs at 8192 MiB, and the
 settings and runner digest bound into every key. `results/qc6` is kept exactly as produced; it is
 superseded for rates, not deleted.
+
+
+## A shared checkout changed an experiment underneath itself (2026-09-22)
+
+While qc7 was running I edited `host/coolgate.sh` -- the gate BOTH arm runners source at startup. The
+run had recorded `runners sha256 2f1266993ec2...` before row 01, and for 2m23s that digest did not
+describe the file the row subprocesses were sourcing. The live file is restored and the aggregate
+matches again; the window, the rows inside it and the exact diff are written into that run's own
+directory, and nothing was re-run or relabelled to tidy it up. One row (02 cpu) started two seconds
+before the edit and cannot be shown to have sourced either version; it is recorded as ambiguous
+because it is.
+
+A digest captured once cannot prevent this -- it can only reveal it afterwards, and only if someone
+checks. So `quality-compare.sh` now FREEZES the harness: the runners are copied into `$OUT/harness`
+once, digested THERE, and invoked from there for every row, with `harness=frozen` in the key and the
+frozen copy left beside the results. An edit to the checkout cannot reach a run in progress.
+
+Staged rather than applied, because applying it to the live tree while qc7 runs would be the same
+mistake a second time.
+
+### And the Google lane's gate was not a gate at all
+
+`google-lane-run.sh` called `cool_gate || die` at line 37 and defined `die()` at line 41. With no
+errexit, a failed gate printed `die: command not found` and CARRIED ON. Driven against a COMPLETE fake
+device -- one that supplies identity digests, a LITERTLM header, `--sampler` in its help, and a runner
+that produces a benchmark block -- a phone at Thermal Status 3 ran the whole batch and recorded
+`nocool=0`.
+
+My own earlier probe of this concluded "the gate refuses" from a non-zero exit, and it proved nothing:
+that fixture was incomplete, so the script died later at the device-identity step without ever
+reaching the gate. `tpu/test/google-gate-test.sh` is the complete fixture, and it asserts what
+actually matters -- on a hot, failed or capped device the RUNNER IS NEVER INVOKED and NO usable row is
+written -- plus a cool control that does complete. Against the unfixed script it fails 11 of 14.
+
+Two more from the same review. The bridge that let the shared gate see an argv array,
+`ADB_SAVE="${ADB[*]}"` then `ADB=("${ADB_SAVE}")`, collapses `adb -s SERIAL` into one executable name
+containing a space; the gate now goes through an `_cg_adb` adapter the caller defines. And the gate
+ran ONCE before all 24 rows, which establishes nothing about rows 2..24 on a phone that heats up as it
+works -- it is now called before every measured row, with `gate=per-row` in the settings and therefore
+in every key, so batch-gated results cannot be served as per-row-gated ones.

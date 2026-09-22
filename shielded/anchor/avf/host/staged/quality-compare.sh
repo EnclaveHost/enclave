@@ -100,11 +100,26 @@ echo "graphs: $GN file(s) digested individually"
 # unreadable one, or a sha256sum that printed a plausible digest and exited nonzero all still produced
 # a non-empty final hash, which was then accepted as the identity of the harness. Same shape as the
 # bundle/graph digest defect, and the empty-input hash before that.
+# FREEZE THE HARNESS. This is a shared checkout: a repair committed to host/ while a run is in flight
+# changes what the row subprocesses execute, under a key that was fixed before row 01. It happened --
+# coolgate.sh was edited mid-run and two rows fall in the window, recorded in that run's directory
+# rather than tidied away. A digest captured once cannot prevent it; only not using the live files can.
+#
+# So the runners are COPIED into $OUT/harness once, digested there, and invoked from there for every
+# row. Edits to the checkout after this point cannot reach the run, and the frozen copy is kept beside
+# the results as the exact thing that produced them.
 RUNNER_FILES="tpu-run.sh local-run.sh coolgate.sh"
+FROZEN="$OUT/harness"
+rm -rf "$FROZEN"; mkdir -p "$FROZEN" || { echo "REFUSING: cannot create $FROZEN" >&2; exit 3; }
+for rf in $RUNNER_FILES; do
+  [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable" >&2; exit 3; }
+  cp "$rf" "$FROZEN/$rf" || { echo "REFUSING: could not freeze '$rf'" >&2; exit 3; }
+done
+chmod +x "$FROZEN"/*.sh 2>/dev/null
 RLIST=""
 for rf in $RUNNER_FILES; do
   [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable; the harness has no identity" >&2; exit 3; }
-  rout=$(sha256sum "$rf" 2>/dev/null); rrc=$?
+  rout=$(sha256sum "$FROZEN/$rf" 2>/dev/null); rrc=$?
   [ "$rrc" -eq 0 ] || { echo "REFUSING: digesting runner '$rf' failed (rc=$rrc)" >&2; exit 3; }
   rdig=$(printf '%s' "$rout" | awk 'NF{print $1; exit}')
   valid_sha "$rdig" || { echo "REFUSING: runner '$rf' digest is not usable: '${rdig:-<empty>}'" >&2; exit 3; }
@@ -112,7 +127,7 @@ for rf in $RUNNER_FILES; do
 "
 done
 RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha_of) || { echo "REFUSING: could not form the combined runner identity" >&2; exit 3; }
-POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0}"
+POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0} harness=frozen"
 { echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
   echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"
   echo "settings       $POLICY"
@@ -167,7 +182,7 @@ for p in "${PLIST[@]}"; do
     rc=0
     if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" \
          GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?
-    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
+    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" "$FROZEN/local-run.sh" > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
     # BOTH must hold: the producer exited cleanly AND the run reached its completion marker
     if [ "$rc" -eq 0 ] && grep -q "LOCAL done" "$f.tmp"; then
       mv "$f.tmp" "$f"; eval "st_$arm=ok"

@@ -1,0 +1,29 @@
+Staged, NOT applied, because qc7 is running and these files are what its row subprocesses execute.
+Apply only when no run is in flight:
+
+    cp host/staged/{coolgate.sh,tpu-run.sh,local-run.sh,quality-compare.sh,google-lane-run.sh} host/ \
+      && rm host/staged/APPLY-PENDING
+
+WHY THIS ROUND EXISTS: I edited the live host/coolgate.sh while qc7 was mid-run. Both arm runners
+SOURCE it at startup, so rows after the edit executed a file the run's recorded runner digest did not
+describe. The live file was restored, the window and the affected rows are recorded in that run's own
+directory, and the general fix is below.
+
+  coolgate.sh         calls through an _cg_adb adapter instead of $ADB directly. The caller may define
+                      it; if not, the string form is assumed, which is what the in-VM runners want.
+                      google-lane-run.sh holds adb as an argv ARRAY, and the old bridge --
+                      ADB_SAVE="${ADB[*]}" then ADB=("${ADB_SAVE}") -- collapsed `adb -s SERIAL` into a
+                      single executable name containing a space, which failed at the NEXT command.
+  google-lane-run.sh  die() is defined FIRST. It was called from `cool_gate || die` before it existed,
+                      so on a hot phone bash printed "die: command not found" and carried on -- there
+                      is no errexit -- and the whole batch ran and recorded nocool=0. The gate also
+                      moved INTO the row loop: one gate before 24 rows says nothing about rows 2..24.
+                      gate=per-row is in the settings string and therefore in every key, so batch-gated
+                      results cannot be served as per-row-gated ones.
+  quality-compare.sh  FREEZES the harness. The runners are copied into $OUT/harness once, digested
+                      there, and invoked from there for every row, so an edit to the checkout cannot
+                      reach a run in progress. harness=frozen is in the key. The frozen copy stays
+                      beside the results as the exact thing that produced them.
+
+Enforced by tpu/test/{coolgate,key-binding,runners-matched,google-gate}-test.sh, which check this
+directory while this marker exists and host/ once it is gone.
