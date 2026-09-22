@@ -392,6 +392,9 @@ function buildShieldedBackend(dstRoot) {
     { src: 'shielded-field.c', obj: 'shielded-field.o', cc: 'cc',  flags: [...base, '-ffp-contract=off'] },
     { src: 'shielded-wire.c',  obj: 'shielded-wire.o',  cc: 'cc',  flags: base },
     { src: 'shielded-tee.c',   obj: 'shielded-tee.o',   cc: 'cc',  flags: base },
+    // The link's elementwise field passes dispatch through sh_par_for, so the
+    // helper pool is part of the image exactly as it is part of CORE_SRC.
+    { src: 'shielded-parwork.c', obj: 'shielded-parwork.o', cc: 'cc', flags: base },
     // Dealt pads (shielded/dealer/PLAN.md): the shipment format, its AEAD and
     // the bank client the trusted half links against. Every file the Makefile's
     // CORE_SRC names must be here too - test/metal-shielded-build.test.mjs pins
