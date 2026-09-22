@@ -301,12 +301,16 @@ static int do_app_stop(uint32_t id, char *err) {
     const int st = p->status; free(p);
     return st;
 }
-static uint32_t app_abi(uint32_t *worlds) {
+static uint32_t app_abi(uint32_t *worlds, uint32_t *features) {
     if (worlds) *worlds = 0;
+    if (features) *features = 0;
     if (!g_EeAppAbi) return 0;
-    uint32_t v[2] = { 0, 0 };
+    /* Zeroed first, then the capacity handshake: an OLD enclave image fills only the first two
+     * words and leaves features 0, so every feature reads as absent rather than as garbage. */
+    uint32_t v[3] = { EE_ABI_QUERY_MAGIC, 3, 0 };
     if (call(g_EeAppAbi, v)) return 0;
     if (worlds) *worlds = v[1];
+    if (features) *features = v[2];
     return v[0];
 }
 
@@ -358,8 +362,12 @@ static void serve(int port) {
                     else snprintf(reply, sizeof reply, "ok %llu %llu\n",
                                   (unsigned long long)pmc.PrivateUsage, (unsigned long long)pmc.WorkingSetSize);
                 } else if (!strcmp(line, "appabi")) {
-                    uint32_t worlds = 0; const uint32_t abi = app_abi(&worlds);
-                    snprintf(reply, sizeof reply, "ok %u %u\n", abi, worlds);
+                    /* "<abi> <worlds> <features>". The third word is what the node turns into its
+                     * platform capability flags (mem64/set/p3/threads), so the box advertises what
+                     * this image can really do and nothing else. */
+                    uint32_t worlds = 0, features = 0;
+                    const uint32_t abi = app_abi(&worlds, &features);
+                    snprintf(reply, sizeof reply, "ok %u %u %u\n", abi, worlds, features);
                 } else if (!strncmp(line, "appopen ", 8)) {
                     /* appopen <world> <path to bytecode> [hex environment]
                      * By PATH, not by hex, for the bytecode: it is a hundred kilobytes and up and

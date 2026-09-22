@@ -356,11 +356,18 @@ export class Host {
       // different ones ("compiled without epoch interruption but it is enabled for the host"), so
       // the ABI belongs in the name: a runtime change simply misses the cache instead of loading
       // something it will reject.
+      // The cache key carries the runtime's ABI **and its feature mask**, both read from the
+      // enclave itself. The ABI alone was not enough: turning a wasm feature on does not change
+      // what wasmtime records in a cwasm, so an artifact compiled before the change would be
+      // reused unchanged unless someone remembered to bump the ABI by hand. Naming the file after
+      // the features removes that human step - any change on either side simply misses the cache.
       const abi = Number(this.cfg.enclaveAppAbi || 0);
-      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.rt${abi}.cwasm`);
+      const feats = Number(this.cfg.enclaveAppFeatures || 0);
+      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.rt${abi}f${feats}.cwasm`);
       if (!fs.existsSync(cwasm) || fs.statSync(cwasm).size < 64) {
         this.#record(id, { status: "provisioning", reason: "compiling the app to enclave bytecode" });
-        try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe, log: (m) => this.log(m) }); }
+        try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe,
+                                 features: this.cfg.enclaveAppFeatures, log: (m) => this.log(m) }); }
         catch (e) { return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` }); }
       }
       // A server-shaped app binds a port INSIDE the enclave, so the node picks the actual port
@@ -829,7 +836,19 @@ export class Host {
       configEdit: false, shareResize: false,    // a live edit or resize lands on-chain and applies at re-claim, not in place
       customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>
       devDeploy: false,       // pending catalog versions stay refused, public or not
-      p3: false, set: false, coopThreads: false, mem64: false,   // stock wasmtime: no SET spawn, no cooperative threads, and p3/memory64 untested here
+      // The wasm features, READ OFF THE ENCLAVE (the runtime's own ee_rt_features, carried out
+      // through `appabi`). Never a config value: these are compile-time engine features recorded
+      // in every cwasm, so a box that advertised one its image does not build would take a lease
+      // and then refuse the artifact.
+      //
+      // `set` is the one that costs real work: wasmtime refuses the threads proposal outright for
+      // a Pulley target, and with that gate lifted the compiler stops at the first `atomic_rmw`
+      // for want of a lowering - Pulley's ISA has no atomic instructions at all. Until they exist
+      // this stays false and a version declaring set:true is refused by name.
+      mem64: !!(Number(this.cfg.enclaveAppFeatures) & 1),
+      set: !!(Number(this.cfg.enclaveAppFeatures) & 2),
+      p3: !!(Number(this.cfg.enclaveAppFeatures) & 4),
+      coopThreads: !!(Number(this.cfg.enclaveAppFeatures) & 8),
       volumes: [],            // no attested model volumes: the one model on this box is the enclave's own
     };
   }

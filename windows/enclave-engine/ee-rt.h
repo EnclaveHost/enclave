@@ -86,6 +86,23 @@ typedef struct ee_session_params {
 /* There is no ABI constant here on purpose. The runtime answers for its own ABI (ee_rt_abi in
  * windows/enclave-rt/src/lib.rs, reported through EeAppAbi) and the node names its cached bytecode
  * after that number; a second copy in this header only ever disagrees with it, which it did. */
+
+/* EeAppAbi's OUT-BUFFER CONTRACT, and why it is a handshake rather than a fixed shape.
+ *
+ * The host hands the enclave a `uint32_t[]` to fill. The first version filled exactly two words
+ * (abi, worlds) and the host declared `uint32_t v[2]`. Adding a third (features) to the DLL alone
+ * would have the enclave write PAST a two-word buffer on any host binary that predates it - an
+ * out-of-bounds store into the host's stack, from the trusted side, on a version mismatch that is
+ * entirely possible because the two halves are separate files on disk.
+ *
+ * So the caller DECLARES ITS CAPACITY: EE_ABI_QUERY_MAGIC in word 0 and the number of words it
+ * owns in word 1. The enclave writes that many and no more. A caller that does not (the old host,
+ * which passed a zeroed buffer) is served the original two words exactly.
+ *
+ * The mirror hazard is the host's to handle, and it does: it zeroes the buffer first, so an OLD
+ * enclave that fills only two words leaves `features` at 0 and every feature reads as absent.
+ * Both directions of mismatch fail CLOSED - the box advertises less than it can do, never more. */
+#define EE_ABI_QUERY_MAGIC 0x45454142u   /* "EEAB"; the old host passed 0 in this word */
 /* Which world the artifact was built for. The HOST reads the bytes and says which (the node's
  * appframe.mjs worldOf), and the enclave serves that world or refuses by name.
  *   EE_WORLD_ENCLAVE  enclave:app@0.1.0 - written for this box, four host imports, the model

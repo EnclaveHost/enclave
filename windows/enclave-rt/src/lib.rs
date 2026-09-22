@@ -280,6 +280,10 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
     // get it back: another thread bumps the engine's epoch, the guest traps at its next check and
     // run() unwinds. It changes code generation, so ee-precompile sets it too.
     config.epoch_interruption(true);
+    // Must match ee-precompile EXACTLY, and for the same reason as the tunables above: a cwasm
+    // records the features it was compiled with. 64-bit memories are what an app with more than
+    // 4 GiB of guest state needs (the catalog calls it `mem64`).
+    config.wasm_memory64(true);
     let engine = match Engine::new(&config) { Ok(e) => e, Err(_) => { set_err("engine"); return 0; } };
     // SAFETY: deserialize trusts its input the way a loader trusts an image. The bytes came from
     // this box's own host half, through the enclave gate, and the enclave's threat model does not
@@ -494,12 +498,35 @@ pub extern "C" fn ee_rt_last_error(out: *mut u8, cap: usize) -> usize {
 /// ee-precompile must not be reused. BUMP THIS whenever the precompiler's settings change, and
 /// also whenever the enclave:app world changes shape: 4 made `generate` return a result, because
 /// the model is now something a deployment BUYS (a share of this box's card) and "you may not
-/// ask" has to be distinguishable from "here is your completion".
+/// ask" has to be distinguishable from "here is your completion". 5 turned 64-bit memories on,
+/// which is a compile-time feature and therefore recorded in every cwasm.
 #[no_mangle]
-pub extern "C" fn ee_rt_abi() -> u32 { 4 }
+pub extern "C" fn ee_rt_abi() -> u32 { 5 }
 
 /// Which worlds this build serves, as a bitmask: 1 = enclave:app, 2 = wasi:http. The host
 /// publishes it, so a row cannot claim to host ordinary platform apps from an image whose runtime
 /// only knows the enclave world.
 #[no_mangle]
 pub extern "C" fn ee_rt_worlds() -> u32 { WORLD_ENCLAVE | WORLD_HTTP | WORLD_CLI }
+
+/// Which WASM FEATURES this build actually enables, as a bitmask. The node publishes the platform
+/// capability flags (`mem64`, `set`, `p3`, `threads`) off this and nothing else: a version whose
+/// catalog config declares one is refused by name unless the bit is set here.
+///
+/// DETECTED rather than configured, for the same reason `appsInTee` is. These are compile-time
+/// engine features - a cwasm records them and the runtime refuses a mismatch - so the only honest
+/// source is the build itself. A flag in a config file could say `mem64: true` over an image that
+/// would then refuse every 64-bit artifact it was handed, after taking the lease.
+pub const FEAT_MEM64: u32 = 1;         // 64-bit linear memories (catalog `mem64`)
+pub const FEAT_SET: u32 = 2;           // shared-everything threads (catalog `set`)
+pub const FEAT_P3: u32 = 4;            // wasip3 (catalog `wasi: "0.3"`)
+pub const FEAT_COOP_THREADS: u32 = 8;  // cooperative threads (catalog `threads`)
+#[no_mangle]
+pub extern "C" fn ee_rt_features() -> u32 {
+    // SET is NOT here and cannot be until Pulley grows atomics: wasmtime refuses the threads
+    // proposal outright for a pulley target ("Pulley at this time fundamentally doesn't support
+    // the `threads` proposal"), and with that gate lifted the compiler stops at the first
+    // `atomic_rmw` for want of a lowering. Until those instructions exist, a box that advertised
+    // `set` would take a lease it must then hand back.
+    FEAT_MEM64
+}
