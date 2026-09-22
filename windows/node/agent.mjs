@@ -124,6 +124,9 @@ const host = new Host({
   relayBase: process.env.RELAY_BASE || 'https://api.enclave.host',
   // The zone the platform gives an app its own hostname in: <label>.app.enclave.host.
   appZone: process.env.APP_ZONE || 'app.enclave.host',
+  // Serve the hostnames a customer attached to their deployment. Off only if an operator
+  // deliberately turns it off; without it their domain resolves here and gets nothing.
+  customDomains: !/^(0|false|no|off)$/i.test(String(process.env.CUSTOM_DOMAINS ?? '1')),
   // Signing for the relay's secrets fetch: the operator key, which is what the registry entry
   // names, so the relay can tie the request to this box's on-chain lease. Set below once the key
   // is loaded; a box with no operator key fetches nothing and publishes secrets:false.

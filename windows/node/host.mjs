@@ -25,6 +25,8 @@ import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterface
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets } from "./secrets.mjs";
 import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
+import { fetchDomains } from "./domains.mjs";
+import tls from "node:tls";
 import * as waf from "./waf.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
@@ -56,6 +58,14 @@ export class Host {
     /// storm at the relay's issuer.
     this.appCerts = new Map();
     this.appCertFails = new Map();
+    /// The hostnames a customer attached to each deployment, their certificates, and what
+    /// issuance did. Kept with the lease, not in the domains client, so there is one copy of the
+    /// truth: `domains` is the list the relay last told us, `hostCerts` the certificate per name,
+    /// and `certReports` what to tell the customer about names that did NOT get one.
+    this.domains = new Map();        // id -> [hostname]
+    this.hostCerts = new Map();      // hostname -> { cert, ctx }
+    this.certReports = new Map();    // hostname -> { ok, error?, message?, at }
+    this.domainFails = new Map();    // hostname -> retry-after epoch ms
     this.appCertInflight = new Set();
     // Work this box GAVE BACK, and why. It survives a restart on purpose: a claim costs gas and a
     // lease takes a deployment off the market, so a box that has already found out it cannot run
@@ -498,7 +508,24 @@ export class Host {
         this.#record(id, { status: "provisioning", reason: "compiling the app to enclave bytecode" });
         try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe,
                                  features: this.cfg.enclaveAppFeatures, log: (m) => this.log(m) }); }
-        catch (e) { return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` }); }
+        catch (e) {
+          // A COMPILE FAILURE THAT NAMES A MISSING WASM FEATURE IS PERMANENT, and the lease must
+          // go back. wasmtime says "<feature> must be enabled for <thing>" when an artifact uses
+          // something this build does not have, and no amount of retrying changes that - while the
+          // lease keeps running and the tenant keeps paying for an app that will never start.
+          //
+          // Found live: this box claimed risc-box 0.6.15, whose catalog config does NOT declare
+          // set:true, and the artifact turned out to contain shared memories anyway. The claim gate
+          // reads the declaration; only the compiler reads the bytes. So the gate let it through
+          // and the box sat in "failed" holding the lease.
+          const missing = /([a-z0-9_-]+) must be enabled/i.exec(String(e.message || ""));
+          if (missing) {
+            return await this.#giveUp(id, `its artifact uses ${missing[1]}, which this box's enclave runtime`
+              + ` does not build for - whatever the catalog version declares. The bytes are the authority:`
+              + ` ${String(e.message).split("\n").filter((l) => /must be enabled/i.test(l))[0]?.trim() || e.message}`);
+          }
+          return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` });
+        }
       }
       // A server-shaped app binds a port INSIDE the enclave, so the node picks the actual port
       // (nothing else on this machine may already hold it) and tells the app through
@@ -525,6 +552,10 @@ export class Host {
         // The tenant never supplies this value; the only lie available to this side is giving its
         // own card away.
         ENCLAVE_GPU_MILLI: String(Number(d.gpuMilli) || 0),
+        // Every hostname this deployment answers on: its own subdomain first, then whatever its
+        // owner attached. An app that generates absolute URLs or checks the Host header needs to
+        // know its customer's name, and this is how the platform tells it.
+        ENCLAVE_HOSTS: this.hostsFor(id).join(","),
         ...(want === 4 ? { ENCLAVE_PORTS: `http:${declared}=${port}` } : {}),
         // ...plus this deployment's relay-stored secrets, which is how an app's credentials reach
         // it. They are fetched as the LEASE HOLDER (secrets.mjs) and injected into the enclave,
@@ -790,6 +821,10 @@ export class Host {
     // asking on the tick rather than only when a visitor arrives. Until it is issued the console's
     // padlock stays amber and a browser gets a handshake failure, so nobody should have to trigger
     // this by hand. appZoneTarget holds the backoff; this only re-enters it.
+    // An owner attaches a domain while the app is already RUNNING - that is the whole point - so
+    // the list is re-read on the tick rather than only at claim time.
+    for (const id of this.apps.keys())
+      await this.refreshDomains(id).catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
     for (const [id, app] of this.apps) {
       const cur = this.appCerts.get(id);
       if (app.state === "running" && app.port && (!cur || !cur.cert || cur.cert.selfSigned)) {
@@ -833,6 +868,8 @@ export class Host {
     waf.forget(id);
     this.secrets.delete(id);                           // they belong to the lease, not to this box
     this.appCerts.delete(id); this.appCertFails.delete(id);
+    for (const h of this.domains.get(id) || []) { this.hostCerts.delete(h); this.certReports.delete(h); this.domainFails.delete(h); }
+    this.domains.delete(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "stopped", reason: why });
@@ -1111,7 +1148,13 @@ export class Host {
       // node half is an admission and billing figure on this box, and a resize that no longer fits
       // hands the lease back rather than billing for a size it is not serving.
       shareResize: true,
-      customDomains: false,   // it mints no certificates: traffic reaches an app here through the relay's /x/<id>
+      // A hostname the deployment's owner attached and proved: this box reads the list from the
+      // relay (operator-signed, scoped by the live lease), gets a certificate for each name from
+      // the same service that certifies its own subdomain, answers TLS for them by SNI, and hands
+      // the guest ENCLAVE_HOSTS. Reported false when the box has no operator key to sign the
+      // fetch with, because then it cannot learn the names at all and a lease landing here would
+      // leave the customer's domain dark with nothing on the dashboard to explain it.
+      customDomains: !!this.cfg.secretsSign && this.cfg.customDomains !== false,
       devDeploy: false,       // pending catalog versions stay refused, public or not
       // The wasm features, READ OFF THE ENCLAVE (the runtime's own ee_rt_features, carried out
       // through `appabi`). Never a config value: these are compile-time engine features recorded
@@ -1170,13 +1213,110 @@ export class Host {
    * turns into a 503 rather than a broken handshake.
    */
   /**
-   * What the app zone needs to apply this deployment's rules: the rules themselves (so a request
-   * is parsed rather than spliced) and the body ceiling (so the READ stops at the limit instead of
-   * buffering past it and refusing afterwards).
+   * Learn this deployment's custom hostnames, and get a certificate for each.
+   *
+   * Runs on the tick for every deployment this box is serving, because an owner attaches a domain
+   * while the app is already running - that is the whole point of the feature - and a lease that
+   * only read the list at claim time would leave the customer's name dark until the next turnover.
+   *
+   * The failure semantics are the platform runner's and they are not symmetrical (domains.mjs has
+   * the reasoning): an authoritative "none" clears the list, but an unreachable relay KEEPS it,
+   * because forgetting a hostname is an outage on a name the customer owns.
    */
-  #zoneRules(id) {
-    const w = this.records.get(String(id).toLowerCase())?.waf || null;
-    return { waf: w, bodyLimit: waf.bodyLimit(w) };
+  async refreshDomains(id) {
+    if (!this.cfg.secretsSign || !this.cfg.customDomains) return;
+    const rec = this.records.get(id);
+    if (!rec || rec.status !== "running") return;
+    const previous = this.domains.get(id) || [];
+    // What to tell the customer about names that did not get a certificate. This is the only way
+    // somebody learns a CA refused their domain, so it rides on the next fetch and is cleared only
+    // once the relay has taken it.
+    const report = [];
+    for (const h of previous) { const r = this.certReports.get(h); if (r) report.push({ hostname: h, ...r }); }
+    let r;
+    try {
+      r = await fetchDomains({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
+                               base: this.cfg.relayBase, previous, report, log: (m) => this.log(m) });
+    } catch (e) { this.log(`domains ${id.slice(0, 10)}: ${e.message}`); return; }
+    for (const h of r.delivered) this.certReports.delete(h);
+    if (r.source === "kept" && r.why && rec.domainWhy !== r.why) {
+      this.log(`domains ${id.slice(0, 10)}: ${r.why}; keeping the ${previous.length} name(s) already known`);
+      this.#record(id, { domainWhy: r.why });
+    }
+    const before = previous.join(",");
+    this.domains.set(id, r.hosts);
+    if (before !== r.hosts.join(",")) {
+      // A name that has gone away stops being served AND stops being certified: its key is dropped
+      // here rather than left on disk answering for a domain this deployment no longer owns.
+      for (const h of previous) if (!r.hosts.includes(h)) { this.hostCerts.delete(h); this.certReports.delete(h); this.domainFails.delete(h); }
+      this.log(`domains ${id.slice(0, 10)}: ${r.hosts.length ? r.hosts.join(", ") : "no custom domains"}`);
+      this.#record(id, { domains: r.hosts, domainWhy: null });
+    }
+    for (const h of r.hosts) await this.#certifyHost(id, h);
+  }
+
+  /** One custom hostname's certificate, with its own backoff and its own report to the customer. */
+  async #certifyHost(id, hostname) {
+    const have = this.hostCerts.get(hostname);
+    if (have?.cert && new Date(have.cert.notAfter).getTime() - Date.now() > 7 * 24 * 3600 * 1000) return;
+    const fail = this.domainFails.get(hostname);
+    if (fail && Date.now() < fail) return;
+    try {
+      const cert = await ensureCert({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
+                                      base: this.cfg.relayBase, dir: this.cfg.dir,
+                                      hostname, log: (m) => this.log(m) });
+      this.hostCerts.set(hostname, { cert, ctx: tls.createSecureContext({ key: cert.key, cert: cert.cert }) });
+      this.certReports.set(hostname, { ok: true, notAfter: cert.notAfter, at: new Date().toISOString() });
+      this.domainFails.delete(hostname);
+      this.log(`${id.slice(0, 10)} custom domain ready: https://${hostname}/`);
+    } catch (e) {
+      const wait = Math.max(60, Number(e.retryAfterSec) || 600) * 1000;
+      this.domainFails.set(hostname, Date.now() + wait);
+      // Reported to the CUSTOMER, not just logged here: a CA refusing their domain is something
+      // only they can fix, and they cannot see this box's logs.
+      this.certReports.set(hostname, { ok: false, error: "issue_failed", message: String(e.message).slice(0, 200),
+                                       at: new Date().toISOString() });
+      this.log(`custom domain ${hostname}: ${e.message} (retrying in ${Math.round(wait / 1000)}s)`);
+    }
+  }
+
+  /** Every hostname a deployment answers on: its own subdomain first, then the customer's. */
+  hostsFor(id) {
+    const names = [];
+    const rec = this.records.get(String(id).toLowerCase());
+    if (rec?.appHost) names.push(rec.appHost);
+    else names.push(appHostFor(id, this.cfg.appZone));
+    for (const h of this.domains.get(String(id).toLowerCase()) || []) names.push(h);
+    return names;
+  }
+
+  /**
+   * What the app zone needs to serve one deployment: its protection rules (so a request is parsed
+   * rather than spliced), its body ceiling (so the READ stops at the limit instead of buffering
+   * past it), and which certificate to present for a given SNI name.
+   *
+   * Public rather than private because the app zone is a separate module that consumes it, and
+   * because a test that reimplements `contextFor` proves only that the reimplementation works -
+   * which is exactly how a cross-tenant check would go green while the real one drifted.
+   */
+  zoneRules(id) {
+    const key = String(id).toLowerCase();
+    const w = this.records.get(key)?.waf || null;
+    // contextFor: the certificate to present for a given SNI name. The app zone cannot know which
+    // of a deployment's hostnames a browser asked for until the ClientHello arrives, so the choice
+    // is a callback rather than a field. An unknown name answers null and the default is served,
+    // which gives the browser a name mismatch it can explain rather than a reset.
+    const hostCerts = this.hostCerts, mine = this.domains.get(key) || [];
+    return {
+      waf: w, bodyLimit: waf.bodyLimit(w),
+      contextFor: (name) => {
+        const h = String(name || "").toLowerCase().replace(/\.+$/, "");
+        // Only names THIS deployment owns: the map is global to the box, and serving another
+        // tenant's certificate off this socket would be a cross-tenant leak of nothing secret but
+        // of the wrong identity.
+        return mine.includes(h) ? hostCerts.get(h)?.ctx || null : null;
+      },
+    };
   }
 
   async appZoneTarget(ref) {
@@ -1199,7 +1339,7 @@ export class Host {
     // it will show a closed padlock.
     const gate = !app.port;
     const have = this.appCerts.get(id);
-    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, gate, cert: have.cert, ...this.#zoneRules(id) };
+    if (have && have.cert && !have.cert.selfSigned) return { id, port: app.port, gate, cert: have.cert, ...this.zoneRules(id) };
     // The FALLBACK pair, while the real certificate is being issued. Without it the connection
     // dies at the first byte and the failure reads as a broken box rather than a certificate that
     // has not arrived; with it the path is provable (a client told to skip verification gets the
@@ -1212,7 +1352,7 @@ export class Host {
         this.appCerts.set(id, f);
         this.log(`${id.slice(0, 10)} app-zone: serving a self-signed pair for ${f.cert.name} until the real one is issued`);
       }
-      return { id, port: app.port, gate, cert: f.cert, ...this.#zoneRules(id) };
+      return { id, port: app.port, gate, cert: f.cert, ...this.zoneRules(id) };
     };
     const fail = this.appCertFails.get(id);
     if (fail && Date.now() < fail) return fallback();
@@ -1224,7 +1364,7 @@ export class Host {
                                       zone: this.cfg.appZone, log: (m) => this.log(m) });
       this.appCerts.set(id, { cert });
       this.#record(id, { appHost: cert.name, certNotAfter: cert.notAfter });
-      return { id, port: app.port, gate, cert, ...this.#zoneRules(id) };
+      return { id, port: app.port, gate, cert, ...this.zoneRules(id) };
     } catch (e) {
       const wait = Math.max(30, Number(e.retryAfterSec) || 300) * 1000;
       this.appCertFails.set(id, Date.now() + wait);

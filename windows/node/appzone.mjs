@@ -289,8 +289,22 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
     wss.handleUpgrade(req, st.sock, head.rest, (ws) => {
       const wsStream = createWebSocketStream(ws, { decodeStrings: false });
       // Now it is just bytes: the client's TLS session, which terminates here.
+      // THE CERTIFICATE IS CHOSEN BY SNI, because a deployment may answer on more than one name:
+      // its own <label>.app.enclave.host and any domain its owner attached and proved. The relay
+      // routes all of them down this same /x/<id>/https path, so the name is only knowable from
+      // the ClientHello. `target.cert` stays the default for a client that sends no SNI at all.
       const tlsSock = new tls.TLSSocket(wsStream, {
         isServer: true, key: target.cert.key, cert: target.cert.cert,
+        SNICallback: (name, cb) => {
+          const ctx = target.contextFor && target.contextFor(name);
+          if (!ctx) {
+            // No certificate for this name: hand back the default rather than failing the
+            // handshake, so the browser gets a NAME MISMATCH it can explain instead of a reset.
+            log(`app-zone ${id.slice(0, 10)}: no certificate for ${name}, serving ${target.cert.name}`);
+            return cb(null, undefined);
+          }
+          cb(null, ctx);
+        },
         // No client certificates, and nothing else on this socket: it is one browser's session.
         requestCert: false, rejectUnauthorized: false,
       });
@@ -332,7 +346,7 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
             target.gate ? GATE_BODY_LIMIT : (maxBodyBytes || GATE_BODY_LIMIT));
           tlsSock.__enclaveId = id;
           httpd.emit("connection", tlsSock);
-          log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, `
+          log(`app-zone ${id.slice(0, 10)}: ${tlsSock.servername || target.cert.name} handshake done, `
             + `${target.gate ? "carried through the gate" : "parsed here so its protection rules apply"}`);
           return;
         }
