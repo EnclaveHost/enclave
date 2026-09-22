@@ -12,7 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseWaf, pathBlocked, check, forget, clientIp, SCANNER_PATHS } from "../windows/node/waf.mjs";
+import { parseWaf, pathBlocked, check, forget, clientIp, bucketCount, SCANNER_PATHS } from "../windows/node/waf.mjs";
 
 const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
@@ -159,6 +159,34 @@ test("a refused request does not hold a concurrency slot", () => {
   // The slot the refused request briefly took is back, so a later allowed request can have it.
   const st = check("0x7", parseWaf({ maxConcurrent: 1 }), { method: "GET", url: "/", headers: {}, ip: "7.7.7.7" });
   assert.equal(st.allow, true);
+});
+
+test("the per-address bucket map cannot be grown without end by the sender", () => {
+  // The buckets are keyed by CLIENT ADDRESS, so their number is chosen by whoever is sending
+  // traffic - the wrong person to let decide how much memory this box uses. A sweep handles
+  // addresses that go idle; this is the other case, a burst from many addresses at once.
+  forget("0x9");
+  const w = parseWaf({ rps: 1000, burst: 5 });
+  for (let i = 0; i < 6000; i++)
+    check("0x9", w, { method: "GET", url: "/", headers: {}, ip: `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}` });
+  assert.ok(bucketCount("0x9") <= 4096, `tracking ${bucketCount("0x9")} addresses`);
+  // ...and the limit still WORKS for an address that is actually there.
+  const ip = "10.99.99.99";
+  for (let i = 0; i < 5; i++) assert.equal(check("0x9", w, { method: "GET", url: "/", headers: {}, ip }).allow, true);
+  assert.equal(check("0x9", w, { method: "GET", url: "/", headers: {}, ip }).status, 429,
+    "evicting old buckets must not disarm the rule for a live one");
+});
+
+test("forgetting a deployment drops everything it was counting", () => {
+  forget("0xA");
+  const w = parseWaf({ rps: 1, burst: 1 });
+  assert.equal(check("0xA", w, { method: "GET", url: "/", headers: {}, ip: "1.2.3.4" }).allow, true);
+  assert.equal(check("0xA", w, { method: "GET", url: "/", headers: {}, ip: "1.2.3.4" }).status, 429);
+  forget("0xA");
+  assert.equal(bucketCount("0xA"), 0);
+  // A lease handed back can be re-claimed; the returning tenant must not meet a bucket their own
+  // traffic emptied an hour ago.
+  assert.equal(check("0xA", w, { method: "GET", url: "/", headers: {}, ip: "1.2.3.4" }).allow, true);
 });
 
 test("no rules means no checks at all", () => {

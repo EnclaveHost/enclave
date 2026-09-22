@@ -807,6 +807,12 @@ export class Host {
    * than by one that reads "running on nucbox-k11" over a restart loop.
    */
   async #giveUp(id, why) {
+    // Everything that belonged to the lease goes with it. The rate buckets and concurrency
+    // counters are keyed by deployment id, and an id CAN come back - a lease handed back for one
+    // reason is re-claimable once that reason changes. Leaving the counters behind would meet the
+    // returning tenant with a bucket their own traffic emptied an hour ago.
+    waf.forget(id);
+    this.secrets.delete(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
     this.#record(id, { status: "failed", reason: why, port: null });
