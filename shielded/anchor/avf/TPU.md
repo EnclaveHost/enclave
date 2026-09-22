@@ -2718,3 +2718,51 @@ TEE's attestation and holding a channel that terminates inside it.
 
 This does not satisfy the goal as written; it satisfies what the goal is FOR. Whether trading "the TPU"
 for "an attested remote accelerator" is acceptable is not a technical question.
+
+## Where the masked token actually goes, measured from both ends (2026-09-22)
+
+Both sides of every exchange log their own counters -- the VM its mask, link (correction, mint, wait)
+and unmask; the worker its recv, input-write, tpu-run, output-read and send. The VM's wait minus the
+worker's busy time is the boundary crossing itself, measured rather than inferred. Across the 21 qc7
+rows that carry both lines (medians, 140 exchanges per token, 1010 ms token):
+
+| term | per exchange | per token | share |
+|---|---|---|---|
+| boundary crossing (VM wait - worker busy) | 2.451 ms | 343 ms | 34 % |
+| TPU run | 2.092 ms | 293 ms | 29 % |
+| VM work outside any exchange | -- | 146 ms | 14 % |
+| worker I/O | 0.529 ms | 74 ms | 7 % |
+| VM unmask | 0.520 ms | 73 ms | 7 % |
+| VM correction + mask + other | 0.584 ms | 82 ms | 8 % |
+
+Two terms disagree with the model, and both have mechanisms:
+
+* **TPU run is 293 ms, not the ~229 the dispatch fit predicts.** The in-run bench already shows why:
+  the same Run is 30-50 % slower after a 3 ms idle gap, and the real pattern is always Run, gap, Run.
+* **146 ms of VM work outside the exchanges** is more than twice what the ZERO-offload backend took for
+  the entire model, every block included (74.5 ms). Removing work from the VM made what was left slower
+  than the whole had been.
+
+### The thread-count test: the mechanism is real and it is not a lever
+
+The masked backend is a ggml backend, so every offload boundary is a scheduler split -- about 140 per
+token -- and each CPU-side split wakes the thread pool for a sliver of work, then barriers and sleeps.
+Swept on one 57-token generation (`results/thread-sweep`, same answer, all gated cool):
+
+| VM threads | ms/token | inside exchanges | outside |
+|---|---|---|---|
+| 6 | 833 | 712 | 122 |
+| 2 | 826 | 750 | 77 |
+| 1 | 1099 | 952 | 147 |
+
+Two threads cut the outside term by 37 %, so split overhead is real. But the same threads carry the
+mask/unmask work inside the exchanges, which slows by almost as much: the total is flat, and one thread
+is worse on both. Recovering the outside term would mean decoupling the two -- a small CPU pool for the
+graph splits, a separate one for the pad arithmetic -- and even all 146 ms would take a 1010 ms token to
+about 860.
+
+### And the rate that belongs on a long generation
+
+That same 57-token generation runs at **1.20 tok/s**. The qc7 median of 0.98 is pulled down by rows
+that answer in one to five tokens, where per-turn fixed costs dominate the per-token rate. Both are
+measured; the second is the one that describes sustained generation.
