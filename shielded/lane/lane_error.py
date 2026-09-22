@@ -138,9 +138,116 @@ def product_block_intscale(enc, x, block=BLOCK):
     return (dots * m[:, :, None]).sum(axis=1) * np.exp2(-F.astype(np.float64))[:, None]
 
 
+def encode_block_affine(w, limit, block=BLOCK, scale_bits=16):
+    """An AFFINE narrow lane: w ~ (s_b * q + m_b) * 2^-F, with q in [0, limit],
+    and s_b, m_b integers.
+
+    This is the shape the model file already uses (q4_K stores a scale AND a
+    minimum per sub-block), and it is what the symmetric lanes above were
+    missing: a symmetric code has to spend a level on the sign and cannot sit
+    the grid where the weights actually are.
+
+    It stays exact for the masked offload, which is the whole constraint:
+
+        y_j = sum_b [ s_jb * (sum_{k in b} q_jbk * x_k) + m_jb * (sum_{k in b} x_k) ]
+
+    Every term is an integer dot product. The block sums of x are computed once
+    per exchange and shared by every output column, so the offset costs one
+    extra multiply-add per block per column, not a second pass over the weights.
+    """
+    N, K = w.shape
+    nb = K // block
+    wb = w[:, : nb * block].reshape(N, nb, block)
+    lo = wb.min(axis=2); hi = wb.max(axis=2)
+    colpeak = np.maximum(np.abs(lo), np.abs(hi)).max(axis=1)
+    F = pot_exponent(colpeak, (1 << (scale_bits - 2)))
+    loF = lo * np.exp2(F)[:, None]; hiF = hi * np.exp2(F)[:, None]
+    s = np.rint((hiF - loF) / limit)
+    s = np.clip(s, 1, (1 << scale_bits) - 1)
+    m = np.rint(loF)
+    q = np.rint((wb * np.exp2(F)[:, None, None] - m[:, :, None]) / s[:, :, None])
+    q = np.clip(q, 0, limit)
+    return (q, s, m, F, block)
+
+
+def product_block_affine(enc, x):
+    q, s, m, F, block = enc
+    N, nb, _ = q.shape
+    xb = x[: nb * block].reshape(nb, block, -1)
+    dots = np.einsum("nbk,bkm->nbm", q, xb)         # integer, per block
+    xsum = xb.sum(axis=1)                            # one per block, shared by all columns
+    y = (dots * s[:, :, None]).sum(axis=1) + m @ xsum
+    return y * np.exp2(-F.astype(np.float64))[:, None]
+
+
 def rel_err(a, b):
     return float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-30))
 
+
+
+
+def encode_direct_i6(w, limit=119, lane=31, block=BLOCK):
+    """The lane as actually shipped: int6 chosen from the FLOAT weights, with a
+    reconstruction that is still a valid int8 encoding.
+
+    encode_requant_i6 below shows why this distinction is the whole game. If
+    the block multiplier is chosen from the already-rounded int8 BYTES, the
+    weight is quantised twice and the error is ~3.5%. Choosing m and q from
+    w * 2^F directly rounds once, for ~2.1% -- and m*q is STILL an int8 in
+    +-119, so the enclave keeps handing every consumer the same int8 array and
+    only the card stores (q6, m).
+    """
+    N, K = w.shape
+    nb = K // block
+    F = pot_exponent(np.abs(w).max(axis=1), limit)
+    ws = (w * np.exp2(F)[:, None])[:, : nb * block].reshape(N, nb, block)
+    peak = np.abs(ws).max(axis=2)
+    m = np.maximum(1, np.ceil(peak / lane)).astype(np.int64)
+    q = np.clip(np.rint(ws / m[:, :, None]), -lane, lane)
+    rec = q * m[:, :, None]
+    over = np.abs(rec) > limit
+    q = np.where(over, np.sign(q) * np.floor(limit / m[:, :, None]), q)
+    rec = q * m[:, :, None]
+    return (rec.reshape(N, nb * block), F, float((m == 1).mean()))
+
+def encode_requant_i6(w, limit=119, lane=31, block=BLOCK):
+    """THE SHIPPED RULE (shielded-field.c::sh_requantise_rows_i6).
+
+    Not a second encoding of the model: it re-quantises the int8 lane that is
+    already there. The int8 encoding picks one power-of-two exponent per output
+    column so max|w * 2^F| <= 119; this then takes each 32-block of those
+    BYTES, picks the smallest integer m that brings the block inside +-31, and
+    replaces each byte by m * round(byte/m), stepping back toward zero if the
+    rounding would leave the +-119 lane.
+
+    The point of doing it this way is blast radius: the reconstruction is still
+    int8, so the Freivalds vectors, the pad-check vectors, the refill that
+    computes W.r, the local fallback and the weight hash all keep taking the
+    same array. Only the card stores (q6, m) and only its kernel changes.
+
+    A block whose bytes already fit +-31 takes m = 1 and is LOSSLESS, which on
+    real weights is most of them -- the column exponent is sized by the
+    column's single largest weight, so a typical block sits well under it.
+    """
+    N, K = w.shape
+    nb = K // block
+    F = pot_exponent(np.abs(w).max(axis=1), limit)          # the int8 lane, per column
+    b8 = np.clip(np.rint(w * np.exp2(F)[:, None]), -limit, limit)
+    blk = b8[:, : nb * block].reshape(N, nb, block)
+    amax = np.abs(blk).max(axis=2)
+    m = np.maximum(1, np.ceil(amax / lane)).astype(np.int64)
+    q = np.clip(np.rint(blk / m[:, :, None]), -lane, lane)
+    rec = q * m[:, :, None]
+    over = np.abs(rec) > limit                               # rounding overshoot
+    q = np.where(over, np.sign(q) * np.floor(limit / m[:, :, None]), q)
+    rec = q * m[:, :, None]
+    frac_lossless = float((m == 1).mean())
+    return (rec.reshape(N, nb * block), F, frac_lossless)
+
+
+def product_requant_i6(enc, x):
+    rec, F, _ = enc
+    return (rec @ x) * np.exp2(-F)[:, None]
 
 def main():
     ap = argparse.ArgumentParser()
@@ -181,14 +288,23 @@ def main():
 
         ref = {key: w @ x for key, x in xs.items()}
 
+        req = encode_requant_i6(w)
+        dir6 = encode_direct_i6(w)
         rows = [("int8 per column (today)", 1.0 + 2.0 / BLOCK, encode_column(w, 119), product_column),
+                (f"int6 REQUANT ({req[2]*100:.0f}% m=1)", 6 / 8 + 2.0 / BLOCK, req, product_requant_i6),
+                (f"int6 DIRECT ({dir6[2]*100:.0f}% m=1)", 6 / 8 + 2.0 / BLOCK, dir6, product_requant_i6),
                 ("int6 pow2 block",        6 / 8 + 1.0 / BLOCK, encode_block(w, 31), product_block),
                 ("int4 pow2 block",        4 / 8 + 1.0 / BLOCK, encode_block(w, 7),  product_block),
                 ("int6 INT scale block",   6 / 8 + 2.0 / BLOCK, encode_block_intscale(w, 31), product_block_intscale),
                 ("int5 INT scale block",   5 / 8 + 2.0 / BLOCK, encode_block_intscale(w, 15), product_block_intscale),
-                ("int4 INT scale block",   4 / 8 + 2.0 / BLOCK, encode_block_intscale(w, 7),  product_block_intscale)]
+                ("int4 INT scale block",   4 / 8 + 2.0 / BLOCK, encode_block_intscale(w, 7),  product_block_intscale),
+                ("int4 AFFINE block",      4 / 8 + 4.0 / BLOCK, encode_block_affine(w, 15), product_block_affine),
+                ("int4 AFFINE 16-block",   4 / 8 + 4.0 / 16,    encode_block_affine(w, 15, block=16), product_block_affine),
+                ("int5 AFFINE block",      5 / 8 + 4.0 / BLOCK, encode_block_affine(w, 31), product_block_affine)]
         for lane, bytes_per_w, enc, fn in rows:
             call = (lambda x, e=enc, f=fn: f(*e, x)) if len(enc) == 2 else (lambda x, e=enc, f=fn: f(e, x))
+            if fn in (product_block_affine, product_requant_i6):
+                call = lambda x, e=enc, f=fn: f(e, x)
             errs = [rel_err(call(xs[key]), ref[key]) for key in ("gauss", "heavy-tail")]
             print(f"{name:28s} {t.tensor_type.name:6s} {lane:22s} {bytes_per_w:9.4f} {errs[0]:10.2e} {errs[1]:11.2e}")
     print("\nB/weight counts the lane plus its exponent (one byte per 32-block for the")
