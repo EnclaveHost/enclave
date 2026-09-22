@@ -1585,3 +1585,43 @@ cause. The first was that a probe's `-128` weights crashed the compiler (they di
 compile, and `make_graphs.py` already clips to [-127, 127], so it never applied to the real layer). The
 second was over-commit, which I believed firmly enough to tell a colleague their benchmark was starving
 my work. It was not. In both cases the check that refuted it was one command.
+
+## The backend deviation, MEASURED on the deployed kernel (2026-09-22)
+
+`tpu/test/error_bound.py` derives the decode error under an IDEAL backend and says so in its own header;
+it then quotes a conditional figure for "if the backend deviates by up to one LSB". An audit was right
+that this is a simulation and not a measurement of the silicon. The payload has carried the measurement
+all along behind `kVerifyKernel`, compiled out. Turned on, it recomputes one element per projection per
+exchange with the reference's own expression, under the same bundle, weights and quantisation, and
+compares it against what the TPU returned -- on real activations, during real decode.
+
+| run | digit comparisons | paired samples | disagreements | worst per digit | worst in output LSB |
+|---|---|---|---|---|---|
+| 32-token prose | 2870 | 1435 | 0 | -- | 0.000 |
+| 128-token code | 52480 | 26240 | 4 | 1 | **2.500** |
+| 128-token prose | 20910 | 10455 | 1 | 1 | 0.010 |
+| 128-token code (repeat) | 52480 | 26240 | 2 | 1 | 0.010 |
+
+**About 129k digit comparisons, 7 disagreements, every one at most one digit-scale LSB.** The worst
+contribution to a decoded value was 2.500 output LSB, which is one such disagreement landing on the `hi`
+digit and being multiplied by 256/102.4 when the VM recombines -- the amplification that digit-split
+costs, appearing in a measurement rather than an argument. A disagreement on `lo` is worth a hundredth of
+that, which is the 0.010 rows.
+
+**What this is and is not.** It is observed evidence on sampled elements of the deployed kernel: about
+one element in 18,000 disagrees, by one LSB. It is NOT a universal bound on backend error -- one element
+per projection per exchange is a small sample of the products the lane computes, and nothing here
+constrains the elements that were not sampled. What it does do is replace an assumption: the ideal-backend
+premise behind the 1.755 LSB figure is supported by measurement, and the conditional 4.26 figure now has
+a measured worst case of 2.500 sitting under it rather than nothing at all.
+
+**Two defects in the instrument itself**, both found by audit, both of the family this file keeps
+recording:
+
+* The RMS was understated by exactly sqrt(2). `ver_n` counts TWO digit comparisons per sampled output
+  while the combined-output error is accumulated ONCE, and the reporter divided the second by the first.
+  Every run so far produced all-zero errors, and zero over the wrong divisor is still zero, so no
+  measurement that existed could have caught it. The divisor now lives in `tpu_ver_lsb_rms()` where a
+  test can reach it, and `tpu/test/verify-rms-test.c` drives it with 2.5, 0.0 and 1.5.
+* The paired-sample count is now reported alongside the digit count, because "n=52480" and "26240
+  samples" are different quantities and the line previously showed only the first.
