@@ -61,6 +61,10 @@ def _check_int_bits(bits, what):
 SAFE_STR_METHODS = {"join", "split", "strip", "lower", "upper", "replace", "startswith", "endswith",
                     "find", "rfind", "rstrip", "lstrip", "isdigit", "isalpha", "count", "index", "title"}
 SAFE_LIST_METHODS = {"append", "extend", "pop", "insert", "reverse", "sort", "index", "count"}
+# Consumers for which f(<generator>) and f(<the equivalent list>) give the SAME VALUE, verified by
+# probing each one on an empty and a non-empty sequence. Deliberately much smaller than SAFE_BUILTINS.
+GENEXP_SAFE_CALLS = {"sum", "any", "all", "list", "tuple", "set", "sorted", "min", "max", "dict"}
+GENEXP_SAFE_METHODS = {"join", "extend"}
 SAFE_BUILTINS = {"len", "range", "str", "int", "float", "list", "tuple", "reversed", "sorted", "abs",
                  "min", "max", "enumerate", "sum", "bool", "chr", "ord", "zip", "set", "dict", "any", "all"}
 
@@ -366,16 +370,25 @@ class Interp:
     def call(self, n, env):
         if n.keywords:
             raise UnsupportedCode("keyword arguments")
-        # A generator expression passed STRAIGHT into a call that consumes it EXACTLY ONCE --
-        # sum(1 for c in s), any(...), "".join(...) -- is equivalent to the same list, and the
-        # comprehension's tick() and MAX_LEN bounds still apply. "Exactly once" is the whole condition,
-        # and it does not hold for a USER-DEFINED callee: `def g(it): return sum(it) + sum(it)` would
-        # see a reusable list and answer 4 where Python answers 2. So the materialisation is allowed
-        # only for a str/list method or an unshadowed safe builtin, and refused everywhere else.
+        # A generator expression passed STRAIGHT into a call may be evaluated as the equivalent list
+        # ONLY where that substitution is known to give the same answer. "A safe builtin" is NOT that
+        # condition, and using it was a false PASS: `len(1 for c in s)` raises TypeError in Python
+        # because a generator has no __len__, but the list has one and answered 2; and an EMPTY
+        # generator is truthy while an empty list is falsy, so bool() flips. The allowlists below were
+        # derived by probing each name on a generator and on the equivalent list, empty and non-empty,
+        # and keeping only those that produced an identical VALUE both times.
+        #   excluded and why:  len, bool, str  -- different answers (see above)
+        #                      reversed, chr   -- TypeError on a generator, not on a list
+        #                      zip, enumerate  -- return lazy objects; equal elements, but the RESULT
+        #                                         is itself one-shot and this interpreter would not
+        #                                         model its exhaustion either
+        #                      int/float/abs/ord -- only "equal" in that both raise; not a result
+        # Anything not on the lists, and any USER-DEFINED callee (which may consume twice, as
+        # `def g(it): return sum(it) + sum(it)` does), is refused and scores REVIEW.
         f = n.func
-        gok = (isinstance(f, ast.Attribute) or
+        gok = ((isinstance(f, ast.Attribute) and f.attr in GENEXP_SAFE_METHODS) or
                (isinstance(f, ast.Name) and f.id not in env and f.id not in self.funcs
-                and f.id in SAFE_BUILTINS))
+                and f.id in GENEXP_SAFE_CALLS))
         args = []
         for a in n.args:
             if isinstance(a, ast.GeneratorExp):
