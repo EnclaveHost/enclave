@@ -2440,3 +2440,34 @@ containing a space; the gate now goes through an `_cg_adb` adapter the caller de
 ran ONCE before all 24 rows, which establishes nothing about rows 2..24 on a phone that heats up as it
 works -- it is now called before every measured row, with `gate=per-row` in the settings and therefore
 in every key, so batch-gated results cannot be served as per-row-gated ones.
+
+## The compiled graphs are the weights, not bloat -- so that lever does not exist (2026-09-22)
+
+I said in passing that the lane streams "1872 MB of compiled graphs against a 162 MiB GGUF, an 11x
+expansion that int8-vs-4bit only explains about 2x of", and offered the unexplained remainder as the
+largest unexplored lever in the whole campaign: if most of those bytes were padding or layout, packing
+them better would cut the dominant term without touching accuracy.
+
+**Withdrawn.** I had paired two numbers from different places without establishing they describe the
+same thing, and they do not. Measured on the shipped graph set (`gguf-e2b/tpu/graphs-h4-ds`):
+
+| compiled layer size | layers | total |
+|---|---|---|
+| 35.61 MB | 12 | 427.3 MB |
+| 42.72 MB | 3 | 128.1 MB |
+| 63.27 MB | 16 | 1012.4 MB |
+| 69.59 MB | 4 | 278.4 MB |
+| | **35** | **1846.2 MB** |
+
+Four distinct widths, which is the model's own shape. And the arithmetic closes: a Gemma-shaped block
+at `d_model` 2048 and `ffn` 8192, counting qkv + o + gate + up + down with the weights emitted once
+(which is what stacking the digits as rows buys), is 67.1M parameters -- **67.1 MB at int8, against
+69.59 MB measured.** About 4 % overhead for a compiled graph, which is not a lever, it is a format.
+
+So the 159 ms per token of graph streaming is the model, at one byte per weight. It does not come down
+by packing, only by narrowing the weights or shrinking the model: int4 is rejected above at 18.1x the
+int8 weight error, and a smaller model is a different product. The biggest term in the masked floor is
+the one with the least give in it, and the "unexplained 5x" I was pointing at never existed.
+
+The 162 MiB figure belongs to a different artefact in a streaming table and should not have been set
+against this at all.
