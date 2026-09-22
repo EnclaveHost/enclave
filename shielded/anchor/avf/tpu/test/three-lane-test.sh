@@ -105,6 +105,19 @@ OUT=$(rpt); rc=$?
 ck  "a manifest produced under a different contract is refused" "$rc" 1
 has "$OUT" "produced under the contract" "  and names both contracts"
 
+echo "== a real row with a BLANK recorded contract is refused, not waved through =="
+# The check read `if r["expect"] and r["expect"] != contract`, so an empty recorded contract skipped it
+# and the row was scored against the prompts file's contract anyway: rc 0, PASS on every lane.
+fresh; sed -i 's/\tnumeric=391$/\t/' "$W/m/MANIFEST.tsv" "$W/g/MANIFEST.tsv"
+OUT=$(rpt); rc=$?
+ck  "a blank recorded contract against a non-empty canonical one is refused" "$rc" 1
+has "$OUT" "produced under the contract ''" "  and shows the empty contract it refused"
+hasnt "$OUT" "PASS" "  and scores nothing"
+# and a missing row (no manifest line at all) is still scored as a failure, not refused
+fresh; grep -v '^02' "$W/m/MANIFEST.tsv" > "$W/t" && mv "$W/t" "$W/m/MANIFEST.tsv"; OUT=$(rpt); rc=$?
+ck  "a MISSING row is still scored, not refused" "$rc" 0
+has "$OUT" "masked TPU 1/2" "  as a failure against the canonical contract"
+
 echo "== a declared count that differs from the prompts file is refused =="
 fresh; sed -i 's/^# expect_rows\t2$/# expect_rows\t3/' "$W/m/MANIFEST.tsv" "$W/g/MANIFEST.tsv"
 OUT=$(rpt); rc=$?

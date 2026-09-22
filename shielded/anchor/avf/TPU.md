@@ -2475,7 +2475,7 @@ against this at all.
 ## The comparison, finished: parity holds, and the speed does not (2026-09-22)
 
 `results/qc7`, 24 prompts, both arms gated on a cool uncapped phone, both VMs at 8192 MiB, MAXNEW=256
-declared before the run and binding on nothing (the most any row used was 59 decode tokens), no
+declared before the run and binding on nothing (the most any row used was 149 decode tokens -- see the correction below), no
 drafter in either arm. Against `results/g-greedy`, Google's own NPU lane on the same prompts and the
 same contracts.
 
@@ -2826,3 +2826,49 @@ After a gap every mode lands within 2 % of the default. HighPerformance's smalle
 slower back-to-back time. So the ~0.35-0.5 ms a Run loses after idling is not controlled by the one API
 that sets TPU clocks, and the likelier cause is on the host side -- the dispatching thread and its core
 idle through the same gap. Not a lever through this API; closed.
+
+
+## Two corrections to the qc7 write-up, and what the verify counter means there (2026-09-22)
+
+**The maximum decode length was 149, not 59.** I wrote "the most any row used was 59" into TPU.md and
+into `results/qc7/PROVENANCE.txt`. 59 was the maximum over the first rows I checked while the run was
+still going; I did not re-check after the long code rows finished. From the archived logs:
+
+| row | arm | decode tokens |
+|---|---|---|
+| 22 | cpu | **149** |
+| 22 | tpu | 127 |
+| 23 | tpu, cpu | 80 |
+| 06 | cpu | 59 |
+
+The 256-token cap still did not bind, so the conclusion that the budget artefact is gone stands. But the
+headroom was about 1.7x, not the 4.5x my wording ("4.5x the longest observed answer") implied: that
+ratio described the BUDGET against the answer I had seen before the run, not against what this run
+produced. `PROVENANCE.txt` is covered by `results/qc7/MANIFEST.sha256` and has been checked against it
+independently, so it is left exactly as produced; the correction sits beside it in `CORRECTIONS.txt`,
+which the manifest deliberately does not cover.
+
+**The verify counter is a numerical diagnostic, not an integrity check, and qc7's reading is inside its
+established tolerance.** `kVerifyKernel` recomputes one sampled element per projection per exchange on
+the CPU, with the reference's own expression, and counts disagreements with what the TPU returned. The
+section "The backend deviation, MEASURED on the deployed kernel" established what that looks like on
+this kernel: about 129k comparisons, 7 disagreements, every one at most one digit-scale LSB -- the TPU's
+rounding differing from the CPU's. qc7's archived TPU logs:
+
+    7 rows with any disagreement, 13 disagreements in 141,450 comparisons, max 1 digit LSB
+    worst contribution to a decoded value in any qc7 log: 0.01 output LSB
+
+Same size, same rate within noise (0.009 % against 0.005 %), and every one landed on the `lo` digit,
+where a disagreement is worth about a hundredth of an output LSB; one on `hi` would have been worth up
+to 2.5. So these are the known arithmetic difference, not a sign of a misbehaving worker.
+
+What the counter does NOT establish, restated because it is easy to read too much into a clean number:
+it samples one element per projection per exchange, so it says nothing about the unsampled products of
+any exchange; it detects numerical drift, not a worker that is deliberately wrong only where it is not
+sampled. The protection against an untrusted worker is the masking and the bounded repair described in
+"Bounding the repair against an untrusted worker", not this counter.
+
+**Standing caveats on qc7, unchanged:** the mixed-harness window recorded in
+`results/qc7/PROVENANCE-NOTE-mixed-harness.txt` (row 02's CPU arm ambiguous, row 03's TPU arm started
+inside it); 24 short prompts is a narrow sample; and a quality result on this set says nothing about the
+15 tok/s requirement, which the masked lane misses by more than tenfold.
