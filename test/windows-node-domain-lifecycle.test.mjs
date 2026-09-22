@@ -193,6 +193,93 @@ test("losing a lease drops that deployment's names through the production cleanu
   } finally { await r.close(); }
 });
 
+test("A STALE CACHE NEVER RECLAIMS A NAME THAT HAS MOVED", async () => {
+  // The audit's second finding. `source: "kept"` is this box's own cache, returned because the
+  // relay could not be reached. It keeps the app answering, which is the point - but it is not
+  // NEWS, and writing it into the ownership index let A take back a name B already held: A loses
+  // it, B takes it, A's next fetch FAILS, and A's stale list put A back in the index and started
+  // re-issuing a certificate for a name it no longer owned.
+  const owner = { [A.toLowerCase()]: ["moving.example.com"], [B.toLowerCase()]: [] };
+  const r = await relay((id) => owner[id] || []);
+  let closed = false;
+  try {
+  const h = box(r.base);
+  for (const id of [A, B]) h.records.set(id, { id, status: "running", appHost: `${id.slice(2, 10)}.app.enclave.host` });
+  await h.refreshDomains(A);
+  const oldA = h.zoneRules(A);
+  assert.ok(oldA.contextFor("moving.example.com"), "A owns it to begin with");
+
+  owner[A.toLowerCase()] = []; owner[B.toLowerCase()] = ["moving.example.com"];
+  await h.refreshDomains(B);
+  await r.close(); closed = true;
+  assert.equal(h.domainOwner.get("moving.example.com"), B.toLowerCase());
+
+  // Now A refreshes and the relay is gone. Its cached list still names the domain.
+  h.cfg.relayBase = "http://127.0.0.1:1";
+  await h.refreshDomains(A);
+  assert.equal(h.domainOwner.get("moving.example.com"), B.toLowerCase(),
+    "a cache must never override newer authoritative knowledge");
+  assert.equal(oldA.contextFor("moving.example.com"), null, "A still cannot serve it");
+  assert.equal(h.zoneRules(A).contextFor("moving.example.com"), null);
+  assert.ok(h.zoneRules(B).contextFor("moving.example.com"), "and B is undisturbed");
+  assert.equal(h.hostCerts.get("moving.example.com")?.owner, B.toLowerCase(),
+    "nor was a certificate re-issued under A's name");
+  } finally { if (!closed) await r.close(); }
+});
+
+test("an issuance that lands AFTER the name moves is discarded", async () => {
+  // An ACME order can take minutes and a name can move underneath it. A result that arrives late
+  // must not be stored: it would put a certificate obtained on A's behalf under a name B owns and
+  // set the entry's owner back to A.
+  //
+  // Self-contained rather than built on the shared helpers, and only A's order is held. Holding
+  // BOTH deadlocks: B could never finish, so the move could never happen, so A could never be
+  // released. An audit caught that hang and was right that it was the test, not the code.
+  const owner = { [A.toLowerCase()]: ["slow.example.com"], [B.toLowerCase()]: [] };
+  const srv = http.createServer(async (req, res) => {
+    const c = []; for await (const x of req) c.push(x);
+    const body = JSON.parse(Buffer.concat(c).toString("utf8"));
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ domains: owner[body.id] || [] }));
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  let release = () => {};
+  const held = new Promise((res) => { release = res; });
+  let slowA = Promise.resolve();
+  try {
+    const h = new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test",
+                         appsEnabled: true, cpuPricePerSec6: 12, log: () => {},
+                         appZone: "app.enclave.host", customDomains: true,
+                         relayBase: `http://127.0.0.1:${srv.address().port}`,
+                         secretsSign: async () => SIG,
+                         issueCert: async ({ id, hostname }) => {
+                           if (String(id).toLowerCase() === A.toLowerCase()) await held;
+                           const c = selfSigned(hostname);
+                           return { name: hostname, key: c.key, cert: c.cert,
+                                    notAfter: new Date(Date.now() + 90 * 864e5).toISOString() };
+                         } });
+    for (const id of [A, B]) h.records.set(id, { id, status: "running", appHost: `${id.slice(2, 10)}.app.enclave.host` });
+
+    slowA = h.refreshDomains(A);                    // A starts asking for a certificate...
+    await new Promise((res) => setTimeout(res, 50));
+    owner[A.toLowerCase()] = []; owner[B.toLowerCase()] = ["slow.example.com"];
+    await h.refreshDomains(B);                      // ...the name moves to B while it is in flight
+    assert.equal(h.domainOwner.get("slow.example.com"), B.toLowerCase());
+    release();                                      // ...and A's order finally completes
+    await slowA;
+
+    assert.equal(h.domainOwner.get("slow.example.com"), B.toLowerCase());
+    assert.equal(h.hostCerts.get("slow.example.com")?.owner, B.toLowerCase(),
+      "A's late result must not overwrite B's entry");
+    assert.equal(h.zoneRules(A).contextFor("slow.example.com"), null);
+    assert.ok(h.zoneRules(B).contextFor("slow.example.com"));
+  } finally {
+    release();                                      // never leave the held order pending
+    await slowA.catch(() => {});
+    await new Promise((r) => srv.close(r));
+  }
+});
+
 test("an unreachable relay keeps the names AND keeps serving them", async () => {
   const r = await relay(() => ["shop.example.com"]);
   const h = box(r.base);

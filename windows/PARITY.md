@@ -55,12 +55,22 @@ self-test seam, or **live** (the thing is running now).
   engine holds (measured, asked of the enclave before any app is claimed).
 - **The card is outside the enclave.** It is used by masked offload and the row says `gpu`, not
   `tee gpu`.
-- **The session key is in VTL0.** metal0 mints it inside the measured guest, so its operator cannot
-  forge a session for somebody else's wallet. Here it is in the agent's process, so a session is
-  worth what the machine owner's word is worth. That is the SAME bar this box already publishes for
-  app traffic — the owner already carries every byte and holds the key that terminates its TLS — so
-  it adds no new exposure, but it is a real difference and `/availability` carries it
-  (`session.keyIn`). Moving it into VTL1 is the same piece of work as moving the TLS key.
+## The one that is a SECURITY GAP, not a difference
+
+**The session-signing key and the app-zone TLS key are held by the host, not the enclave.** metal0
+mints both inside the measured guest: its operator never sees the private half and therefore cannot
+forge a session for somebody else's wallet, nor terminate a tenant's TLS. Here both are in the
+agent's process in VTL0, so the machine owner can do either.
+
+**Disclosing this does not close it.** `/availability` carries `session.keyIn` and `appTls.keyIn`
+so a tenant is told rather than left to assume, and it is consistent with what this box already
+concedes about app traffic — but "the operator is trusted here and is not trusted there" is a
+difference in the SECURITY MODEL, and no amount of documentation makes the two equivalent. A tenant
+whose threat model includes the machine owner should not choose this box for a private deployment,
+and nothing here should be read as saying otherwise.
+
+Closing it means minting and using both keys inside VTL1, which is the same piece of work in both
+cases and is not done.
 
 ## A trap worth keeping: catalog declarations are wrong in both directions
 
