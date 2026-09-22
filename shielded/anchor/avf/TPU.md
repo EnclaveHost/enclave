@@ -1648,3 +1648,48 @@ failure.
 Recorded because it was a good lead, reached by a method worth reusing, and because asserting it without
 the `LD_PRELOAD` test would have been the third wrong diagnosis of the night rather than the first
 refuted one. CWD does not matter either (five directories, all fail identically).
+
+## Resolved: stale /tmp state broke the compiler, and the ORIGINAL rejection was right (2026-09-22)
+
+**The compiler failure was stale state, as a colleague predicted.** Six orphaned items from 2026-09-16 --
+three `/tmp/compiler_*` working directories and three 156 MB `/tmp/compiler_worker_*` binaries left behind
+by crashed runs -- were enough to make every compile fail in 21 ms before creating its own working
+directory. Moving them aside restored it immediately:
+
+| | before | after |
+|---|---|---|
+| 624-byte single-FC probe | 0 bytes | 226560 |
+| the probe that failed 5/5 | 0 bytes | 497488 |
+| **shipped known-good L0** | 0 bytes | **36402704, byte-identical to the 2026-09-19 output** |
+
+That last row is the control reproducing its own historical result exactly, which is as clean a
+confirmation as this gets. The stale files are kept at `~/.cache/stale-compiler-tmp` rather than deleted.
+The diagnostic that found it was `LD_DEBUG`, suggested by the same colleague; my own list had covered
+resources thoroughly and startup state not at all.
+
+**And with a working compiler, the recombination question answers itself -- against the idea.**
+
+| graph | compiled |
+|---|---|
+| shipped stacked digit-split L0 | 36,402,704 |
+| **the recombining L0 (`--digit-combine`)** | **71,906,880** |
+
+**1.97x. The weights ARE emitted twice**, which is precisely what the original note in
+`tpu/make_graphs.py` said -- "35.6 MB authored -> 71.9 MB compiled" -- reproduced here to within the
+authoring difference. Doubling the streamed weights adds about 273 ms per token to `tpu-run`, to save
+about 65 ms of reply bytes. Strictly worse, by a factor of four.
+
+**So the sequence of claims, in order, and which was right:**
+
+1. The original note: two FCs double the weights, so recombination costs more than it saves. **Correct.**
+2. My refutation of it, from `probe_shared_weight.py`: they share the buffer, 1.00x. **Wrong** -- the
+   probe used ZERO weights, which deduplicate trivially, and small shapes where fixed overhead swamps the
+   difference. With random weights at 512x512 even two SEPARATE buffers compiled to the same size.
+3. My retraction of the refutation, from the real layer failing to compile: right conclusion, **wrong
+   evidence** -- the compiler was down and the known-good control failed identically.
+4. This: the real layer compiles, at 1.97x. Right conclusion, and now for the right reason.
+
+The lesson is the one the whole evening keeps producing: a probe is a model of the thing, and a model
+that differs from the artifact in a detail you did not think mattered -- zero weights, a small shape --
+answers a different question convincingly. The real layer was always available to build; I built a probe
+instead, three times, before building it.
