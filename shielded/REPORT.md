@@ -2748,12 +2748,19 @@ next run's first request, which is why a longer settle reduces it (45 s -> 90 s
 helped) without removing it. Restarting the workers between runs would remove
 it and costs ~14 s of weight upload per run.
 
-Observed rate with the settle at 90 s: 2 of 13 runs across the 15.9 and 15.5
-configurations. Every one of those carried local=1; every run without it
-carried local=0. The correspondence refusalB=1 <=> local=1 has now held seven
-times across four reservation sizes, so the MECHANISM is not in doubt -- a
-single matmul computed in fp32 instead of the field, which rounds differently
-and can flip a near-tied token.
+Across 17 runs at 16.0, 15.9 and 15.5 GB the correspondence is exact in
+DIRECTION, though not in count -- an earlier draft of this section said
+local=1 and that was too precise:
+
+| | runs | locally-computed nodes |
+|---|---|---|
+| class B fired | 4 | 1, 1, 1, **3** |
+| class B did not | 13 | **0**, every one |
+
+So a class-B refusal leaves between one and three matmuls computed in fp32
+instead of the field, and its absence leaves exactly none. No exceptions in 17
+runs. The MECHANISM is not in doubt -- those nodes round differently and can
+flip a near-tied token -- only how many nodes a given refusal costs.
 
 What this means for the divergence: class A was the bulk of it (124-131 nodes
 per run, every run) and is gone. Class B leaves exactly one node, rarely. No
