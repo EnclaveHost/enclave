@@ -141,6 +141,9 @@ class Interp:
     def guard(self, v):
         if isinstance(v, (str, list, tuple, bytes, set, dict)) and len(v) > MAX_LEN:
             raise Bounded("a value grew past %d elements" % MAX_LEN)
+        # integers were never bounded here, so anything the pre-checks did not anticipate slipped through
+        if isinstance(v, int) and not isinstance(v, bool):
+            _check_int_bits(v.bit_length(), "a value")
         return v
 
     # ---- statements -------------------------------------------------------
@@ -162,7 +165,11 @@ class Interp:
             op = _BIN.get(type(n.op))
             if op is None:
                 raise UnsupportedCode("augmented operator %s" % type(n.op).__name__)
-            self.assign(n.target, self.guard(op(cur, self.expr(n.value, env))), env)
+            # `x *= x` in a loop reached a 131073-bit integer because this path skipped the pre-check that
+            # the plain binary operator already had. Augmented assignment is the same arithmetic.
+            rhs = self.expr(n.value, env)
+            self.precheck_bin(n.op, cur, rhs)
+            self.assign(n.target, self.guard(op(cur, rhs)), env)
             return
         if isinstance(n, ast.AnnAssign):
             if n.value is not None:

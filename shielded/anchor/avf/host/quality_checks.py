@@ -98,6 +98,17 @@ def _numbers(text):
     return re.findall(r"-?\d+(?:\.\d+)?", text)
 
 
+def _only_numbers(text):
+    """True when the reply carries nothing but numbers and separators.
+
+    A strict contract has to match the WHOLE reply. Checking only the extracted numbers let
+    "The answer is not 391" satisfy numeric=391 and "The numbers 2,3,5 are not primes" satisfy
+    sequence=2,3,5 -- the numbers were right and the sentence denied them."""
+    rest = re.sub(r"-?\d+(?:\.\d+)?", " ", text)
+    rest = re.sub(r"\band\b", " ", rest, flags=re.I)
+    return re.sub(r"[\s,;.\[\]()*_`\"'-]+", "", rest) == ""
+
+
 def parse_spec(spec):
     spec = (spec or "").strip()
     if not spec:
@@ -130,7 +141,11 @@ def check(spec, text):
         if len(uniq) > 1:
             # "391 is wrong; the answer is 400" contains 391 and still asserts something else
             return FAIL, "the reply contains other numbers too (%s), so its claim is ambiguous" % ", ".join(uniq)
-        return PASS, "the only number in the reply is %s" % want
+        if not _only_numbers(t):
+            # "The answer is not 391" carries exactly one number and denies it
+            return FAIL, ("the reply is a sentence, not a bare number, so what it asserts about %s is not "
+                          "decidable here: %r" % (want, t.strip()[:60]))
+        return PASS, "the whole reply is the number %s" % want
 
     if kind == "distinct":
         n, _, items = payload.partition(":")
@@ -151,9 +166,12 @@ def check(spec, text):
     if kind == "sequence":
         want = [x.strip() for x in payload.split(",") if x.strip()]
         got = _numbers(t)
-        if got == want:
-            return PASS, "exactly the %d expected numbers, in order" % len(want)
-        return FAIL, "expected exactly %s, got %s" % (", ".join(want), ", ".join(got) or "no number")
+        if got != want:
+            return FAIL, "expected exactly %s, got %s" % (", ".join(want), ", ".join(got) or "no number")
+        if not _only_numbers(t):
+            return FAIL, ("the reply is a sentence, not a bare list, so what it asserts about those "
+                          "numbers is not decidable here: %r" % t.strip()[:60])
+        return PASS, "the whole reply is exactly the %d expected numbers, in order" % len(want)
 
     if kind == "pyfunc":
         parts = payload.split("|")

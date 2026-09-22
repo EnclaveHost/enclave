@@ -92,6 +92,17 @@ FALSE_POSITIVES = [
      "Brazil is not in South America; Peru and Chile are.", PASS, {FAIL}),
     ("a sequence with extra numbers after it", "sequence=2,3,5",
      "2, 3, 5 are wrong, try 7", PASS, {FAIL}),
+    # --- third audit round: a strict contract must match the WHOLE reply -----------------------------
+    # Both of these carry exactly the right numbers and deny them. Checking only the extracted numbers
+    # cannot see the denial, so the contract now requires the reply to be bare.
+    ("the right number, denied", "numeric=391", "The answer is not 391.", PASS, {FAIL}),
+    ("the right sequence, denied", "sequence=2,3,5", "The numbers 2,3,5 are not primes.", PASS, {FAIL}),
+    ("a negated bare-looking answer", "numeric=100", "not 100", PASS, {FAIL}),
+    # Augmented assignment skipped the pre-check the plain operator had, so `x *= x` in a loop reached a
+    # 131073-bit integer past a 65536-bit bound.
+    ("integer growth through augmented assignment", "pyfunc=f|x->y",
+     "def f(z):\n    x = 2 ** 64\n    for i in range(11):\n        x *= x\n    return x\n",
+     PASS, {REVIEW, FAIL}),
 ]
 
 TRUE_POSITIVES = [
@@ -114,6 +125,10 @@ TRUE_POSITIVES = [
     ("a bare number", "numeric=391", "391", PASS),
     ("three bare countries", "exactset=3:Brazil,Argentina,Peru,Chile", "Brazil, Argentina, Peru", PASS),
     ("a bare sequence", "sequence=2,3,5", "2, 3, 5", PASS),
+    ("a bare sequence joined with and", "sequence=2,3,5", "2, 3 and 5", PASS),
+    ("a bare number in bold with a period", "numeric=391", "**391.**", PASS),
+    ("modest integer growth still runs", "pyfunc=f|x->256",
+     "def f(z):\n    x = 2\n    for i in range(3):\n        x *= x\n    return str(x)\n", PASS),
 ]
 
 
