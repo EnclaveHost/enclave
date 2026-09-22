@@ -2256,3 +2256,53 @@ One TPU invocation per token is what Google's own NPU lane does, and it gets 15.
 with the same prompt set. Masked offload cannot get there because it must enter the accelerator once per
 linear run, and the only way to enter once per token is to put the whole graph inside the trust boundary.
 That is not a performance problem any longer. It is one missing platform API.
+
+## The two arms were never matched for RATE, and the prefill claim has no support (2026-09-22)
+
+While waiting on the 24-prompt run I checked a claim this file has been carrying since 2026-09-19 --
+"It remains the right tool for PREFILL, where one invocation amortises over 128 rows" -- against the
+logs already on disk. It does not survive, and neither does the harness that would have tested it.
+
+**What the logs say.** Across the seven rows completed so far, prefill on the masked arm is SLOWER than
+on the CPU arm, on every prompt:
+
+| row | prefill tokens | masked TPU tok/s | in-VM CPU tok/s | ratio |
+|---|---|---|---|---|
+| 01 | 23 | 41.81 | 97.77 | 2.34x |
+| 02 | 25 | 42.43 | 107.74 | 2.54x |
+| 03 | 25 | 40.58 | 109.38 | 2.70x |
+| 04 | 26 | 40.49 | 110.44 | 2.73x |
+| 05 | 28 | 51.49 | 115.27 | 2.24x |
+| 06 | 28 | 51.44 | 108.90 | 2.12x |
+| 07 | 16 | 45.04 | 99.54 | 2.21x |
+
+And the amortisation argument does not describe what the lane actually does: the payload's own counter
+reports `exchanges=140 (140.0/token)` for a turn with 23-28 prefill tokens and ONE decode token. If
+prefill were being offloaded as its own batched pass the count would be 280. It is 140. Whatever those
+prompts cost, they are not costing TPU exchanges.
+
+**But the comparison is confounded, and the confound is mine.** The two arms are not matched:
+
+* `local-run.sh` waits for `Thermal Status: 0` AND the big cores at their full 3052000 kHz before it
+  measures anything. `tpu-run.sh` has no thermal gate at all -- zero occurrences. In
+  `quality-compare.sh` the TPU arm runs FIRST and the CPU arm second, so the CPU arm is guaranteed a
+  cool, uncapped phone while the masked arm runs on whatever state the previous row left behind. That
+  is a systematic bias in the CPU arm's favour on every rate this harness has ever produced.
+* The VMs are different sizes. `tpu-run.sh` passes `--ei mem 8192`; `local-run.sh` passes no `mem`, so
+  `mode local` defaults it to 7168 MiB (Main.java). A gigabyte of page cache, uncontrolled. This one
+  favours the masked arm, so the two biases do not cancel and neither is bounded.
+  (`threads` is 6 on both, by the same default, so that at least is matched.)
+
+**So what stands and what does not.** Task CORRECTNESS from this harness is unaffected: decoding is
+greedy, and clocks and page cache do not move an argmax. Every quality and parity result reported from
+these runs stands. Every RATE comparison BETWEEN the two arms from this harness is confounded and
+should not be quoted, including the 2.1-2.7x prefill gap above -- it is the direction the unmatched
+gate would produce anyway.
+
+What that leaves is: the prefill claim was never measured, the only data bearing on it points the other
+way, and that data is not clean enough to settle it either. Both statements should come out of this
+file rather than one replacing the other. The decode figures are not affected the same way -- they are
+corroborated by the per-exchange counters, and no thermal effect spans 1.06 against 15.37 tok/s -- but
+the fix is the same: gate `tpu-run.sh` exactly as `local-run.sh` gates, and pass `mem` explicitly and
+equally from `quality-compare.sh`. Held until the run in progress finishes, because changing the
+runners mid-run would mix two configurations inside one result set.
