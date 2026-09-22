@@ -283,6 +283,10 @@ struct sh_state {
     double t_split_gemm = 0, t_split_post = 0, t_split_join = 0;
     uint64_t local_island_ops = 0;
     uint64_t idle_islands = 0;      /* islands computed inside an exchange window */
+    /* Why the selector said no. "No islands were eligible" is a claim about
+     * the graph; without these it is indistinguishable from a selector that
+     * rejects everything for a reason of its own. */
+    uint64_t sel_pattern = 0, sel_notready = 0, sel_inflight = 0, sel_alias = 0, sel_taken = 0;
     double t_local_island = 0;
     std::vector<float> local_inv_rms;
 
@@ -556,6 +560,11 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
         if (s.local_island_ops)
             fprintf(stderr, "[shielded] local residual/norm islands: ops=%llu time=%.1fms (no product-weight fusion)\n",
                     (unsigned long long)s.local_island_ops, s.t_local_island);
+        if (s.sel_pattern)
+            fprintf(stderr, "[shielded] overlap selector: pattern=%llu taken=%llu rejected: in-flight=%llu not-ready=%llu alias=%llu\n",
+                    (unsigned long long)s.sel_pattern, (unsigned long long)s.sel_taken,
+                    (unsigned long long)s.sel_inflight, (unsigned long long)s.sel_notready,
+                    (unsigned long long)s.sel_alias);
         if (s.idle_islands)
             fprintf(stderr, "[shielded] overlap pilot: %llu islands computed inside an exchange window\n",
                     (unsigned long long)s.idle_islands);
@@ -2161,6 +2170,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                     if (sh_is_meta(nj) || nj->op == GGML_OP_MUL_MAT) continue;
                     sh_fusion_pattern pat;
                     if (!sh_local_island_pattern(nj, pat)) continue;
+                    s.sel_pattern++;
                     /* EVERY tensor the island reads must already be produced,
                      * not just the matmul it fuses. The first version checked
                      * pat.first alone and the graph failed closed on warm
@@ -2168,7 +2178,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                      * produced by a node this split has not reached. A pointer
                      * edge says what is read; it does not say it is ready. */
                     const ggml_tensor *reads[] = { pat.first, pat.residual, pat.add, pat.norm, pat.scaled };
-                    bool ready = true;
+                    bool ready = true, inflight = false;
                     for (const ggml_tensor *rt : reads) {
                         if (!rt || rt == nj) continue;
                         /* Follow the view chain: a read can be a reshape of a
@@ -2183,14 +2193,14 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                             for (size_t q = 0; q < members.size(); q++) {
                                 const ggml_tensor *mv = members[q];
                                 for (const ggml_tensor *w = mv; w; w = w->view_src)
-                                    if (w == v) { ready = false; break; }
+                                    if (w == v) { ready = false; inflight = true; break; }
                                 if (!ready) break;
                             }
                             if (!ready) break;
                         }
                         if (!ready) break;
                     }
-                    if (!ready) continue;
+                    if (!ready) { if (inflight) s.sel_inflight++; else s.sel_notready++; continue; }
                     /* Dependencies are not enough. ggml's allocator reuses
                      * tensor memory on the assumption that nodes run in graph
                      * order, so a node moved earlier can write into a range
@@ -2208,7 +2218,8 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                         if (!yb || !nb) continue;
                         if (nb < yb + ggml_nbytes(members[t]) && yb < ne_) aliases = true;
                     }
-                    if (aliases) continue;
+                    if (aliases) { s.sel_alias++; continue; }
+                    s.sel_taken++;
                     idle.items.emplace_back(nj, pat);
                 }
                 if (!idle.items.empty()) {

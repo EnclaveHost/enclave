@@ -3635,3 +3635,50 @@ that executing early triggers the failure; it did not establish the allocator
 as the cause, and I wrote it as though it had narrowed further than it did. And
 "3 windows fired" was a log capped at three prints, not a callback total --
 a count of how often I had allowed myself to be told, quoted as a measurement.
+
+### 18.25 Why zero islands are eligible, with the reason measured
+
+18.24 said the claimable class is "by construction immediately downstream of
+the matmul in flight". That was an assertion and it is wrong. Counting the
+selector's decisions on a full run:
+
+    overlap selector: pattern=192 taken=0 rejected: in-flight=0 not-ready=192 alias=0
+
+192 islands match the pattern, so the class is not absent. None is rejected as
+in-flight -- the guard I wrote for the reason I gave fires zero times. All 192
+are rejected because a tensor they read has not been produced.
+
+The real reason is the search direction. The selector scans FORWARD from the
+node being exchanged, so every candidate lies ahead in the graph and its
+matmul has not been issued yet. And nothing eligible can lie behind: the main
+loop is greedy in graph order, so any island whose inputs were complete has
+already been computed at the point it was reached. An in-order greedy loop
+leaves no ready work behind it, and everything ahead of it is waiting on work
+not yet done.
+
+So the outcome -- zero eligible -- is CONSERVATIVE REJECTION with a structural
+cause, and the cause is the scheduling discipline rather than the op class.
+That distinction matters because it says where to look next: not at a different
+claimable op, but at work that is ready and has been DEFERRED, which requires
+something that defers.
+
+**Consequence for safety, stated plainly.** Because nothing is ever selected,
+the early-compute path is never exercised. The repaired readiness rule is
+therefore unvalidated by any run: pfix-1 and psel-1 pass with matching output
+and zero fallback, but they pass without ever taking the branch in question.
+The pilot stays default off, and it must not be enabled on the strength of
+those runs. The focused tests the review asked for -- a positive case with
+already-verified disjoint inputs beside an unrelated exchange, and rejection of
+grouped producers, reshape aliases and a rejected reply -- cannot be built from
+the real graph, because the real graph never presents a positive case. They
+would have to construct one synthetically against the predicate, which means
+extracting the predicate from the loop it currently lives in. That is not done,
+and until it is, "the readiness rule is correct" is a claim about code I have
+read, not about code that has run.
+
+Also corrected: meta nodes (RESHAPE, VIEW, PERMUTE, TRANSPOSE) are skipped by
+the main loop and never marked produced, so a rule keyed on `produced` treats
+them as unready forever. That did not cause this result -- the 192 rejections
+are the forward-scan effect -- but it is a second way the rule is conservative
+beyond its intent, and it would have to be fixed before any positive case could
+pass.
