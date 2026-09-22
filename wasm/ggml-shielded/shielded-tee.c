@@ -2074,7 +2074,9 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
      * link's private scratch. Either way each row's pad is one pointer. */
     double t0 = now_ms();
     if (l->dealt && l->threads_running) dealt_wait(l, g, m);
+    const double tp_a = now_ms();
     const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;
+    l->profile.pads_ms += now_ms() - tp_a;
     /* A background rejection must reach the backend as an integrity error,
      * even if a different group still had ready pads. Taken pads stay burned. */
     if (sh_integrity_failed(l)) { rc = SH_ERR_VERIFY; goto fail; }
@@ -2183,7 +2185,15 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
             snprintf(l->err, sizeof l->err, "worker returned %zu bytes, expected %zu", rep.len, want);
             rc = SH_ERR_VIOLATION; goto fail;           /* the worker's fault: reconnect, see above */
         }
-        if (yw == 4 && !sh_reply32_balanced((const int32_t *)rep.data, want / 4)) {
+        /* A full scan of every reply value, which is a pass over megabytes and
+         * is charged to no phase. It is a security check -- a value outside the
+         * balanced range breaks the field arithmetic downstream -- so it stays;
+         * the timer is here to say what it costs, because it is a candidate for
+         * fusing into the unmask pass that already reads the same bytes. */
+        const double tc_a = now_ms();
+        const bool reply_ok = !(yw == 4) || sh_reply32_balanced((const int32_t *)rep.data, want / 4);
+        l->profile.check_ms += now_ms() - tc_a;
+        if (!reply_ok) {
             snprintf(l->err, sizeof l->err, "worker returned an int32 value outside the balanced field range");
             rc = SH_ERR_VIOLATION; goto fail;
         }

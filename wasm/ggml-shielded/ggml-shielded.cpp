@@ -274,6 +274,12 @@ struct sh_state {
      * left on the CPU, or as narrow graphs (someone upstream sliced it)? */
     uint64_t m_hist[10] = {0}, graph_w[4] = {0};
     double t_encode = 0, t_link = 0, t_post = 0, t_graph = 0;
+    /* Inside t_link, which the phase counters do not cover: the primary
+     * card's own exchange, its slice post, and the wait for the other
+     * cards' workers. Without these the split's share of a pass is a
+     * subtraction, and a subtraction is what sent me after the wrong
+     * millisecond once already. */
+    double t_split_gemm = 0, t_split_post = 0, t_split_join = 0;
     uint64_t local_island_ops = 0;
     double t_local_island = 0;
     std::vector<float> local_inv_rms;
@@ -533,12 +539,14 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                     (unsigned long long)bf, bb / 1e6, bst, berr[0] ? "; " : "", berr);
         }
         fprintf(stderr, "[shielded] profile: exchanges=%llu nodes=%llu (completions=%llu served=%llu) | link: mask=%.1fms wire=%.1fms "
-                        "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms total=%.1fms | backend: encode=%.1fms "
-                        "post=%.1fms graph_compute=%.1fms | pads used=%llu missed=%llu waited=%llu wait=%.1fms | contended=%d events=%llu | simd=%s refill_threads=%d refill_priority=%s omp_spincount=%s\n",
+                        "refill-on-path=%.1fms unmask+lhs=%.1fms rhs=%.1fms check=%.1fms pads=%.1fms total=%.1fms | backend: encode=%.1fms "
+                        "post=%.1fms graph_compute=%.1fms | split: gemm=%.1fms post=%.1fms join=%.1fms | pads used=%llu missed=%llu waited=%llu wait=%.1fms | contended=%d events=%llu | simd=%s refill_threads=%d refill_priority=%s omp_spincount=%s\n",
                 (unsigned long long)s.exchanges, (unsigned long long)s.offloaded_nodes,
                 (unsigned long long)s.completed, (unsigned long long)s.served,
-                lp.mask_ms, lp.wire_ms, lp.refill_ms, lp.unmask_lhs_ms, lp.rhs_ms, s.t_link,
-                s.t_encode, s.t_post, s.t_graph, (unsigned long long)used, (unsigned long long)missed,
+                lp.mask_ms, lp.wire_ms, lp.refill_ms, lp.unmask_lhs_ms, lp.rhs_ms,
+                lp.check_ms, lp.pads_ms, s.t_link,
+                s.t_encode, s.t_post, s.t_graph, s.t_split_gemm, s.t_split_post, s.t_split_join,
+                (unsigned long long)used, (unsigned long long)missed,
                 (unsigned long long)waited, wait_ms,
                 (int)s.contention.contended, (unsigned long long)s.contention.events,
                 sh_link_simd()->name, s.link ? sh_link_refill_threads(s.link) : 0,
@@ -1534,8 +1542,13 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
         { std::lock_guard<std::mutex> lk(w->mu); w->cv.notify_one(); }   /* only matters if it parked */
     }
     sh_state *card0 = p.cards[e0.part_cards[0]];
+    const double ts0 = sh_now_ms();
     int rc = sh_link_gemm_stride(card0->link, pnodes[0].data(), pnodes[0].size(), x, m, pyp[0].data(), pstride[0].data());
+    const double ts1 = sh_now_ms();
     if (rc == SH_OK && post) sh_split_post_slice(*post, pcol0[0].data(), pncols[0].data());
+    const double ts2 = sh_now_ms();
+    card0->t_split_gemm += ts1 - ts0;
+    card0->t_split_post += ts2 - ts1;
     for (size_t c = 1; c < nparts; c++) {
         sh_split_worker *w = p.split_workers[c - 1];
         const uint64_t want = w->gen.load(std::memory_order_relaxed);
@@ -1547,6 +1560,7 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
         if (rc == SH_OK) rc = w->rc;
         else if (w->rc == SH_ERR_VERIFY) rc = SH_ERR_VERIFY;
     }
+    card0->t_split_join += sh_now_ms() - ts2;
     if (rc == SH_OK) {
         for (size_t c = 1; c < nparts; c++) {
             sh_state *card = p.cards[e0.part_cards[c]];

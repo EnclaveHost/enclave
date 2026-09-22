@@ -214,6 +214,11 @@ void sh_link_stats(const sh_link *l, uint64_t *exchanges, uint64_t *macs, uint64
  * wire_ms excludes the verification RHS overlapped with the request. */
 typedef struct {
     double mask_ms, wire_ms, refill_ms, unmask_lhs_ms, rhs_ms;
+    /* Inside the exchange but in none of the phases above: the balanced-range
+     * scan over every reply value, and pad take/release. Named so the
+     * ~9 ms/pass that sh_link_gemm_stride does not otherwise account for
+     * stops being a subtraction. */
+    double check_ms, pads_ms;
     uint64_t completed_calls, missed_pads, used_pads;
 } sh_link_profile;
 void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out);
