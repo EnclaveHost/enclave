@@ -117,7 +117,16 @@ open, and larger than the session half.
 ## A trap worth keeping: catalog declarations are wrong in both directions
 
 `s3-ipfs-adapter:1.0.10` declares `set: true` and `threads: true` and runs perfectly well without
-either. `risc-box:0.6.15` declares neither and its artifact contains shared memories. The claim gate
+either — and on 2026-09-22 that stopped being a note and became an outage on this box. The engine
+was rebuilt several times in a row for the SET work; the node was down long enough for the lease on
+`0x7ae476a3` to expire at 12:32:29; and the re-claim was then refused, by name, for features the
+app had never used. It had been serving from inside the enclave twenty minutes earlier. A forced
+claim-hint does not help: `force` clears a previous failure, it does not overrule `claimPolicy`.
+
+The published service was unaffected (`ipfs.enclave.host` still answers), because the gateway is
+served elsewhere. What was lost is this box's ability to host an app it had been hosting. Until the
+version is republished without the false declaration, or this box genuinely offers SET, that
+deployment cannot come back here. `risc-box:0.6.15` declares neither and its artifact contains shared memories. The claim gate
 reads the declaration; only the compiler reads the bytes. So the gate refuses apps that would work,
 and admits apps that cannot — and the second one had this box holding a lease it could never honour
 until a compile failure naming a missing feature was made permanent.
