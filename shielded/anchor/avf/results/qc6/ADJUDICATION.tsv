@@ -1,0 +1,6 @@
+# Manual adjudication of the two review= rows. NOT part of the automatic score, by construction.
+# id	arm	verdict	who	note
+07	tpu	PASS	independent reviewer 2026-09-22	haiku: three lines, roughly 5-7-5, about rain -- meets the request
+07	cpu	PASS	independent reviewer 2026-09-22	haiku: three lines, roughly 5-7-5, about rain -- meets the request
+08	tpu	PASS	independent reviewer 2026-09-22	two sentences asserting Rayleigh scattering of shorter wavelengths, as asked
+08	cpu	FAIL	independent reviewer 2026-09-22	truncated at the token cap; remains a failure

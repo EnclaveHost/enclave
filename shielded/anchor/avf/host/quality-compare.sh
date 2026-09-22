@@ -22,7 +22,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
 ADB=("${ADB:-$HOME/Android/Sdk/platform-tools/adb}"); [ -n "${SERIAL:-}" ] && ADB+=(-s "$SERIAL")
-OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; mkdir -p "$OUT"
+OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; MEM="${MEM:-8192}"; mkdir -p "$OUT"
 # BUILD IDENTITY, recorded rather than assumed. Fault-injection experiments run the same source tree with a
 # different constant, and a filename never proved which binary answered: the digests below and the payload's
 # own "tpu: config" line (which prints repair/verify/inject as COMPILED) are what tie a result to a build.
@@ -64,6 +64,20 @@ dev_run() {   # dev_run '<remote sh script>' -> stdout; nonzero if EITHER the tr
   printf '%s\n' "$out" | sed '/^__RC__[0-9][0-9]*$/d'
 }
 valid_sha() { case "$1" in *[!0-9a-f]*|"") return 1;; esac; [ ${#1} -eq 64 ] && [ "$1" != "$SHA_EMPTY" ]; }
+# Every identity here was AGGREGATED through a pipeline whose status was thrown away:
+#   X=$(printf ... | sha256sum | awk '{print $1}')
+# keeps awk's status, not sha256sum's, so a digest command that failed after printing something
+# plausible still produced an identity -- the same defect as the per-file digests, one level up. This
+# is the only way an identity gets built now: the digest's own status is read, and the result must be
+# a usable digest before it is returned.
+sha_of() {   # data on stdin -> 64 hex on stdout; nonzero if the digest failed or is unusable
+  local out rc
+  out=$(sha256sum 2>/dev/null); rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  out=${out%% *}
+  valid_sha "$out" || return 1
+  printf '%s' "$out"
+}
 BPATH="$F_DIR/${BUNDLE:-tpu/lanes-h4ds.etpu}"; GPATH="$F_DIR/${GRAPHS:-tpu/g5-h4ds}"
 raw=$(dev_run "sha256sum \"$BPATH\"") || { echo "REFUSING: could not digest the bundle on the device" >&2; exit 3; }
 BUNDLE_ID=$(printf '%s\n' "$raw" | awk 'NF{print $1; exit}')
@@ -74,10 +88,36 @@ GLIST=$(printf '%s\n' "$raw" | awk 'NF>=2 {print $1"  "$2}' | sort)
 GN=$(printf '%s\n' "$GLIST" | grep -c . || true)
 [ "${GN:-0}" -ge 1 ] || { echo "REFUSING: no readable .tflite graphs at $GPATH" >&2; exit 3; }
 while read -r d _; do valid_sha "$d" || { echo "REFUSING: bad per-graph digest '$d'" >&2; exit 3; }; done <<< "$GLIST"
-GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha256sum | awk '{print $1}')
-valid_sha "$GRAPHS_ID" || { echo "REFUSING: graphs identity is not usable" >&2; exit 3; }
+GRAPHS_ID=$(printf '%s\n' "$GLIST" | sha_of) || { echo "REFUSING: could not form the graphs identity" >&2; exit 3; }
 echo "graphs: $GN file(s) digested individually"
-{ echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"; } >> "$OUT/BUILD"
+# The RUNNERS are part of the identity of a result, and they were not. Applying the thermal/memory fix
+# into an existing OUT would otherwise have found every row "cached" and reported logs produced by the
+# UNMATCHED runners as a matched run -- the relabelling defect again, now at the level of the harness
+# rather than the row. So the runner scripts and the gate they source are digested, and the controlled
+# settings are named, and both go into every key.
+# Each runner is digested SEPARATELY with its own status checked. Hashing a command group
+# ({ sha256sum a; sha256sum b; } | sha256sum) discards every individual status: a missing file, an
+# unreadable one, or a sha256sum that printed a plausible digest and exited nonzero all still produced
+# a non-empty final hash, which was then accepted as the identity of the harness. Same shape as the
+# bundle/graph digest defect, and the empty-input hash before that.
+RUNNER_FILES="tpu-run.sh local-run.sh coolgate.sh"
+RLIST=""
+for rf in $RUNNER_FILES; do
+  [ -r "$rf" ] || { echo "REFUSING: runner '$rf' is missing or unreadable; the harness has no identity" >&2; exit 3; }
+  rout=$(sha256sum "$rf" 2>/dev/null); rrc=$?
+  [ "$rrc" -eq 0 ] || { echo "REFUSING: digesting runner '$rf' failed (rc=$rrc)" >&2; exit 3; }
+  rdig=$(printf '%s' "$rout" | awk 'NF{print $1; exit}')
+  valid_sha "$rdig" || { echo "REFUSING: runner '$rf' digest is not usable: '${rdig:-<empty>}'" >&2; exit 3; }
+  RLIST="$RLIST$rdig  $rf
+"
+done
+RUNNERS_ID=$(printf '%s' "$RLIST" | sort | sha_of) || { echo "REFUSING: could not form the combined runner identity" >&2; exit 3; }
+POLICY="mem=$MEM maxnew=$MAXNEW nocool=${NOCOOL:-0}"
+{ echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"
+  echo "runners sha256 $RUNNERS_ID  (tpu-run.sh + local-run.sh + coolgate.sh)"
+  echo "settings       $POLICY"
+  [ "${NOCOOL:-0}" = 1 ] && echo "WARNING        NOCOOL=1: the thermal gate was BYPASSED; these rates are not controlled"
+} >> "$OUT/BUILD"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # This script cd's to its own directory, so a RELATIVE prompts path given from elsewhere silently
 # resolves to nothing. mapfile then leaves PLIST empty, the loop runs zero times, and the script
@@ -95,7 +135,11 @@ EXPECT_ROWS=0
 for p in "${PLIST[@]}"; do [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac; EXPECT_ROWS=$((EXPECT_ROWS+1)); done
 [ "$EXPECT_ROWS" -gt 0 ] || { echo "REFUSING: '$PROMPTS' contains no prompts" >&2; exit 2; }
 MANIFEST="$OUT/MANIFEST.tsv"
-{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"; printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
+{ printf '# expect_rows\t%s\n' "$EXPECT_ROWS"
+  printf '# settings\t%s\n' "$POLICY"
+  printf '# runners\t%s\n' "$RUNNERS_ID"
+  printf '# binary\t%s\n' "$RUN_IDENT"
+  printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n'; } > "$MANIFEST"
 n=0; failed=0
 for p in "${PLIST[@]}"; do
   [ -z "$p" ] && continue
@@ -108,7 +152,11 @@ for p in "${PLIST[@]}"; do
   # changed prompt inherit the previous prompt's log: the old loop wrote NN.prompt first, then saw a
   # non-empty NN.tpu.log and reported "already have", so an answer to a different question was relabelled
   # as this one's. Same defect an audit found in google-lane-run.sh.
-  key=$(printf '%s|%s|%s|%s|%s' "$p" "$MAXNEW" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" | sha256sum | cut -c1-16)
+  # settings AND runner identity in the key: a different MEM, a different token budget, or a bypassed
+  # thermal gate is a different experiment, and must re-run rather than be served from cache.
+  keyfull=$(printf '%s|%s|%s|%s|%s|%s' "$p" "$POLICY" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" "$RUNNERS_ID" | sha_of) \
+    || { echo "REFUSING: could not compute the cache key for row $id" >&2; exit 3; }
+  key=${keyfull:0:16}
   st_tpu=fail; st_cpu=fail
   for arm in tpu cpu; do
     f="$OUT/$id.$key.$arm.log"
@@ -117,9 +165,9 @@ for p in "${PLIST[@]}"; do
     fi
     echo "[$id/$arm] $p"
     rc=0
-    if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 \
+    if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" \
          GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?
-    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
+    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 MEM="$MEM" NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
     # BOTH must hold: the producer exited cleanly AND the run reached its completion marker
     if [ "$rc" -eq 0 ] && grep -q "LOCAL done" "$f.tmp"; then
       mv "$f.tmp" "$f"; eval "st_$arm=ok"
