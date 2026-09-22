@@ -1225,7 +1225,7 @@ established by a command run against the phone today rather than from memory.
 | TPU across the pVM boundary, masked | **1.09-1.37 tok/s** | measured; three floors each over the 67 ms budget |
 | TPU assigned INTO the pVM | closed | `vm info`: `VFIO-platform is not supported`, `Assignable devices: []` |
 | GPU into the pVM | closed | crosvm has ZERO strings for virtio-gpu / gfxstream / virglrenderer; the Microdroid guest kernel has no DRM driver |
-| GPU across the boundary, masked | ~2.67 tok/s | same 140 round trips; a 198 us submit floor against the TPU's 637 us moves almost nothing |
+| GPU across the boundary, masked | ~2.67 tok/s (**ESTIMATE**) | a projection, not a measurement: it takes a 198 us submit floor measured on a DIFFERENT device (an integrated GPU, not this phone's) and substitutes it for the TPU's measured 637 us in the same 140-round-trip model. No masked decode has been run on this phone's GPU |
 | any device via `--devices` | closed | the flag exists, the VFIO backend it needs does not |
 | CPU inside the pVM | **13.29 tok/s sustained** | 315 tokens, 459 core-ms/token, 5.6 cores, thermal status 0 throughout |
 
@@ -1255,3 +1255,56 @@ kernel 6.12 with VFIO, or a device we provision ourselves. Our half of that is a
 on this phone (EL2 reset handler, guest kernel with pvIOMMU); what is missing is a host that will hand
 the device over. That path is worth about 20-25 tok/s and satisfies every part of the brief at once,
 which no arrangement of a masked outside-the-boundary worker can.
+
+## The exchange is turnaround-bound, not bandwidth-bound (2026-09-22)
+
+A measurement taken while probing concurrency turns out to say something about the link itself. Three
+one-directional streams over the SAME protected-VM boundary, into a fresh encrypted store:
+
+| stream | bytes | time | rate |
+|---|---|---|---|
+| model | 162 MiB | 4601 ms | 34.6 MB/s |
+| model (repeat) | 162 MiB | 4678 ms | 34.6 MB/s |
+| TPU bundle | 1757 MiB | 42150 ms | 41.7 MB/s |
+
+**A stream gets 34-42 MB/s on ONE connection; the exchange path gets 22 MB/s.** Both cross the same
+boundary with the same bounce buffers, so the gap is not bandwidth. What differs is the shape: a stream
+pushes one way continuously, while an exchange is request, wait, reply, and cannot begin the next until
+the previous completes. About 40 % of the exchange's byte time is that turnaround.
+
+This matters for what striping across parallel connections could buy. It addresses the bandwidth portion
+and not the turnaround, so the honest expectation is smaller than a naive "N connections, N times the
+bytes".
+
+**And a retraction.** An earlier reading of a concurrent run claimed 74 MB/s aggregate by adding a
+drafter's 32.8 MB/s (averaged over 4.95 s) to a bundle's 41.7 MB/s (averaged over 42.15 s). Those averages
+cover different windows, so their sum measures nothing: a schedule that serves the drafter first and the
+bundle afterwards fits both totals exactly. **Concurrency remains unproven.** Establishing it needs equal-
+size streams with synchronised starts compared by total bytes over MAKESPAN, or time-aligned per-stream
+counters. The equal-size control was attempted and the run failed before streaming -- the guest refused
+storage for a fresh store (`memfd ftruncate errno=13`, encrypted storage and /data all refused) on a
+device at 99 % full -- so it is still open.
+
+### What the striping experiment needs, scoped
+
+Not a fresh store, which is what blocked the control. The link-scaling question can be settled inside an
+ordinary run by opening extra connections on the existing worker port and comparing one link carrying N
+bytes against two links carrying N/2 each, by makespan. That needs a field on the LOCAL line (which is a
+strict protocol: `anchor_local.h` parses exactly the listed keys in order, so the parser, `LocalChat.java`
+and `Main.java` move in lockstep), an accept loop in `run_local`, and an echo responder on the app side.
+Roughly 120 lines across three files. The masked path is untouched by it: the extra links carry benchmark
+bytes only, so pads, verification, ordering and lifetimes are unaffected.
+
+Its payoff is bounded by the floors above. Even taking the byte term to zero leaves TPU compute at 273 ms
+and latency at 104, so it cannot reach 67 ms; what it can do is move the asymptotic ceiling, which is
+worth knowing precisely rather than assuming.
+
+### And the Google task-level comparison, also scoped
+
+Token-level comparison with the Google NPU lane is impossible because the tokenizers differ, but task-level
+comparison on the same prompts and the same strict contracts is not, and it is still outstanding. What
+blocks it today is a runner: the phone carries the packages (`/data/local/tmp/*.litertlm`, 2.7-4.1 GB) but
+the binaries beside them are microbenchmarks -- `bench-android` is a memcpy harness that says so itself --
+not a LiteRT-LM inference runner. Standing one up is a separate piece of work from this harness, and until
+it exists the only comparable number against that lane is throughput (25.2 against 1.09-1.37 tok/s), not
+quality.
