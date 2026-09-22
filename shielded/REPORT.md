@@ -2550,7 +2550,42 @@ Root cause is a startup race. Line 2005 sends a group to the fp32 CPU path when
 `!live`, and the link is not live until the ~13.9 s weight upload finishes, so
 the count depends on timing. Those nodes land in prefill.
 
-**Not fixed.** SHIELDED_LOCAL_EXACT=1 exists for exactly this -- it keeps the
+### 18.5a Three explanations, measured and discarded, then the cause
+
+The hypothesis in 18.5 was tested by intervening on it, and it was WRONG. So
+were two others. In order:
+
+1. **The rs-alias graph-reuse trap (16.4).** ENCLAVE_RS_DEBUG audits the alias
+   assumption on every graph: VIOLATIONS 0.
+2. **A startup race on `!live`.** SHIELDED_WAIT_LIVE_MS was added to hold a
+   group until its card's link is live rather than sending it to the CPU
+   backend. It moved the locally-computed count 130 -> 128, i.e. nothing. The
+   `!live` branch is not what sends those nodes local.
+3. **The contention detector.** A grep for "contended" in a run's log returned
+   28 hits, which looked like confirmation; they were the profile line printing
+   its own `contended=0`. Across all 49 runs the detector never fired once:
+   `contended=0 events=0`, every run, clean and diverged alike.
+
+The cause is in the startup sequence, visible identically in every run:
+
+    worker live ... with 401 weights                      <- context 1
+    worker unavailable (HELLO (with reservation):
+      reservation 20000000000 exceeds the budget:
+      20000000000 reserved of 32212254720)                <- context 2 collides
+    worker live ... with 409 weights                      <- after retry
+
+The bench opens TWO contexts, target and drafter. Each asks the worker to
+reserve 20 GB against a 32 GB budget, so the second collides EVERY run, and
+during the retry window some groups are computed on the fp32 CPU backend
+instead of in the field. How many depends on retry timing, which is the
+111-131 spread, and that path rounds differently -- near a tie, a token flips.
+
+Device bytes are 14.1 GB per card, so two 15 GB reservations fit. UNDER TEST:
+if the collision disappears, the local count should fall toward zero and the
+output become deterministic; if the count survives without a collision, this
+explanation joins the three above.
+
+**SHIELDED_LOCAL_EXACT=1 does not help here.** It exists for exactly this -- it keeps the
 int64 field path so the fallback's output IS the worker's -- and it is
 INCOMPATIBLE WITH THE COLUMN SPLIT. It works by skipping the safe whole-tensor
 CPU path, and under a split a link holds only a column slice, so it computes a
