@@ -3729,3 +3729,47 @@ wrong class, and real overlap needs work the backend does not currently own.
 The pilot remains default off; with the view rule repaired it still selects
 nothing on this workload, and the accept branch remains unexercised outside
 the unit test. Runs: psel-2 spec 18.63, identical=True, local=0, verify_fail=0.
+
+### 18.27 Both routes ruled out by measurement, and what the exchange actually is
+
+**Overlap, tight bound.** 18.20's 82% used the first SHIELDED consumer, which
+permits deferring a node past its CPU consumers. Recomputed on the same index
+dump with the first consumer of ANY kind -- the only bound a real schedule
+could respect -- the eligible set is 687 of 2724 CPU nodes and **20% of CPU
+cost, 2.58 ms/token**. Against the 11.10 ms that 25 tok/s needs from a 51.10 ms
+token, and before any cost for private scratch, commit, or synchronisation. The
+eligible set is also mostly VIEW (160) and RESHAPE (143), which compute
+nothing. The route cannot reach the target and is closed on evidence, not on
+difficulty.
+
+**Exchange count.** 180.6 exchanges per token at 86 us of idle each is 15.53
+ms/token per card, and halving it would be 7.76 ms -- the right magnitude. But
+the count is already at its structural floor. The offloadable weights per layer
+are attn_qkv/attn_gate/ssm_alpha/ssm_beta (one group, one activation),
+ssm_out, ffn_gate/ffn_up (one group), ffn_down: four exchanges, and their
+inputs are sequentially dependent through the layer -- norm, then the
+recurrence, then the post-attention norm, then swiglu. 65 blocks x 4 is the
+observed count. Nothing is grouped that could be, so there is no merge to make
+without changing what the model computes.
+
+**And the exchange is not what I assumed.** The worker's own accounting is
+1069.7 ms of GEMM over 9906 exchanges: **108 us each**. At m=2 a decode
+exchange is 357 MFLOP-equivalent, about 6 us of arithmetic on a V100 -- 18x
+off. It is not compute at all. One ffn-sized matmul reads 85 MB of int8 weights
+to do that work, an arithmetic intensity of 4 ops/byte, and 85 MB at HBM2
+bandwidth is 99 us against the 108 measured.
+
+So the shielded exchange streams the weight matrix from VRAM, and at batch 2
+there is nothing to amortise it against. Per token the two cards read the whole
+27 GB model once: 15.0 ms at nominal bandwidth, 19.4 ms measured. The GPU side
+is at a hardware floor that no protocol, grouping or scheduling change moves --
+only a smaller model, a wider batch, or more bandwidth, and the first two are
+excluded by the workload and the third is not available.
+
+**Where that leaves the budget.** GPU weight streaming ~19 ms/token, C 13.25
+ms/token, both measured, serial because overlap is bounded at 2.58 ms. Their
+sum is ~32 ms against a measured 51.10 ms token, so roughly 19 ms is in neither
+and remains unattributed -- the same bucket 18.13 could not pin down. That gap,
+not the two floors, is now the only place a lever of the required size could
+still be hiding, and attributing it needs counters bound to phase and pass
+rather than another estimate.
