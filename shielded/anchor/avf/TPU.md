@@ -1862,3 +1862,45 @@ is a different product rather than a faster path to this one.
 
 That closes the last assumption in the argument. 15 tok/s is 67 ms per token; weight streaming alone is
 about 103 ms at the shipped model size, and no scheduling change reduces it.
+
+## Correcting my own framing: TPU compute was never the biggest term (2026-09-22)
+
+With 0.0848 ms/MB, 0.520 ms per invocation and 0.74 ms of latency all measured on this phone, the 893 ms
+token decomposes as:
+
+| term | ms/token | share |
+|---|---|---|
+| weight streaming (1872 MB compiled x 0.0848) | 159 | 18 % |
+| invocation floor (140 x 0.520) | 73 | 8 % |
+| round-trip latency (140 x 0.74) | 104 | 12 % |
+| **everything else** | **558** | **62 %** |
+
+I have been calling TPU compute the binding floor all session. It is not. TPU compute is weights plus
+invocation, 232 ms, which agrees with the 273 ms of `tpu-run` the worker reports. The larger half of the
+token is elsewhere, and breaking it down against the per-exchange counters: reply bytes across the
+protected-VM boundary about 208 ms, the VM's own mask/unmask/correction about 104, worker I/O about 65,
+and the ops the VM does not offload at all -- attention, norms, sampling, the lm_head -- about 139.
+
+**So the biggest single reducible term is the reply, at about 208 ms**, which is exactly what halving it
+would address. That makes the compiler bug the highest-value open item rather than a curiosity: it blocks
+the one construction (one FC, SLICE the output, ADD) that halves the reply without adding weights.
+
+### What model size would clear 15 tok/s, on measured constants
+
+Scaling the per-block terms and holding the measured per-exchange costs:
+
+| model | int8 params | compiled MB | weight ms | ceiling |
+|---|---|---|---|---|
+| Gemma 4 E2B (shipped) | 1210M | 1872 | 159 | 1.12 tok/s |
+| Gemma-3-1B class, 26 blocks | 759M | 1174 | 100 | 1.55 |
+| Gemma-3-270M class, 18 blocks | 270M | 418 | 35 | 2.42 |
+| 125M class, 12 blocks | 125M | 193 | 16 | 3.73 |
+| 60M class, 8 blocks | 60M | 93 | 8 | 5.69 |
+
+**Nothing in that table reaches 15**, and the reason is the 558 ms term: it is about 16 ms per block, or
+4 ms per exchange, of VM work and transport that does not shrink with the weights. 15 tok/s needs the
+whole token in 67 ms, which at 4 ms per exchange allows about 16 exchanges -- four transformer blocks.
+
+That is the honest shape of the answer. It is not "the accelerator is too slow" and it is not "the model
+is too big": it is that each masked exchange costs about 4 ms of VM work and boundary crossing before the
+TPU does anything, and a useful model needs more than sixteen of them.
