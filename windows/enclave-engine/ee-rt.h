@@ -83,7 +83,9 @@ typedef struct ee_session_params {
  * (windows/enclave-rt/src/lib.rs, the codec):
  *   request : u32 method | u32 path | u32 nheaders | (u32 name, u32 value) * n | u32 body
  *   response: u16 status | u32 nheaders | (u32 name, u32 value) * n | u32 body */
-#define EE_APP_ABI 2
+/* There is no ABI constant here on purpose. The runtime answers for its own ABI (ee_rt_abi in
+ * windows/enclave-rt/src/lib.rs, reported through EeAppAbi) and the node names its cached bytecode
+ * after that number; a second copy in this header only ever disagrees with it, which it did. */
 /* Which world the artifact was built for. The HOST reads the bytes and says which (the node's
  * appframe.mjs worldOf), and the enclave serves that world or refuses by name.
  *   EE_WORLD_ENCLAVE  enclave:app@0.1.0 - written for this box, four host imports, the model

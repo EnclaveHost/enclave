@@ -103,7 +103,14 @@ wasmtime::component::bindgen!({
     world: "app",
 });
 
-struct HostState;
+/// What the enclave knows about the app it is running. One field today, and it is the one that
+/// decides whether the model answers: the thousandths of this box's card the deployment bought,
+/// handed in with the app's environment (ENCLAVE_GPU_MILLI) by the half that read the ledger.
+///
+/// The host could lie about it, and the enclave cannot check a chain it cannot reach. But the
+/// only lie available to it is GIVING AWAY its own card - the tenant never supplies this value -
+/// so the property that matters holds: an app cannot help itself to the model.
+struct HostState { gpu_milli: u32 }
 
 impl enclave::app::types::Host for HostState {}
 
@@ -119,7 +126,15 @@ impl enclave::app::host::Host for HostState {
         let b = line.as_bytes();
         unsafe { ee_app_log(b.as_ptr(), b.len().min(4096)) }
     }
-    fn generate(&mut self, prompt: String, max_tokens: u32) -> String {
+    fn generate(&mut self, prompt: String, max_tokens: u32) -> Result<String, String> {
+        // The model runs on the box's card by masked offload, and that card is sold in shares.
+        // A deployment that bought none is told so in as many words rather than handed an empty
+        // completion, which every app would read as "the model had nothing to say".
+        if self.gpu_milli == 0 {
+            return Err(String::from(
+                "this deployment bought no share of this box's card, and the model here runs on it: \
+                 redeploy with a gpu share to use generate"));
+        }
         let p = prompt.as_bytes();
         let mut out = vec![0u8; 64 * 1024];
         let mut n: usize = 0;
@@ -127,9 +142,9 @@ impl enclave::app::host::Host for HostState {
             ee_app_generate(p.as_ptr(), p.len(), max_tokens.min(2048),
                             out.as_mut_ptr(), out.len(), &mut n)
         };
-        if rc != 0 { return String::new(); }
+        if rc != 0 { return Err(String::from("the enclave's engine refused the prompt")); }
         out.truncate(n.min(out.len()));
-        String::from_utf8(out).unwrap_or_default()
+        String::from_utf8(out).map_err(|_| String::from("the completion was not utf-8"))
     }
 }
 
@@ -318,7 +333,18 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
         if App::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |s| s).is_err() {
             set_err("linker"); return 0;
         }
-        let mut store = Store::new(&engine, HostState);
+        // The card share this deployment bought, from the environment the host built out of the
+        // ledger record. Absent or unparseable means none, which is the safe direction.
+        let gpu_milli = envv.iter().find(|(k, _)| k == "ENCLAVE_GPU_MILLI")
+            .and_then(|(_, v)| v.parse::<u32>().ok()).unwrap_or(0);
+        let mut store = Store::new(&engine, HostState { gpu_milli });
+        // BEFORE instantiate, for the same reason the WASI branch does it: epoch interruption is
+        // on for the whole engine, so a fresh store's deadline is ALREADY expired and the guest
+        // traps on its first instruction - "wasm trap: interrupt", inside the component's own
+        // initialiser. This world is a function call rather than a server and never looked like it
+        // needed a deadline, which is exactly how it went missing when the interruption landed for
+        // wasi:cli: every enclave:app app has failed to load since.
+        store.set_epoch_deadline(1);
         match App::instantiate(&mut store, &component, &linker) {
             Ok(instance) => Loaded::Enclave { store, instance },
             Err(e) => { set_err_owned(format!("instantiate: {e:?}")); return 0; }
@@ -465,9 +491,12 @@ pub extern "C" fn ee_rt_last_error(out: *mut u8, cap: usize) -> usize {
 /// The runtime's ABI, and ALSO the tag the host names cached bytecode after: a cwasm records the
 /// tunables it was compiled with and the runtime refuses a mismatch ("Module was compiled without
 /// epoch interruption but it is enabled for the host"), so bytecode compiled by an older
-/// ee-precompile must not be reused. BUMP THIS whenever the precompiler's settings change.
+/// ee-precompile must not be reused. BUMP THIS whenever the precompiler's settings change, and
+/// also whenever the enclave:app world changes shape: 4 made `generate` return a result, because
+/// the model is now something a deployment BUYS (a share of this box's card) and "you may not
+/// ask" has to be distinguishable from "here is your completion".
 #[no_mangle]
-pub extern "C" fn ee_rt_abi() -> u32 { 3 }
+pub extern "C" fn ee_rt_abi() -> u32 { 4 }
 
 /// Which worlds this build serves, as a bitmask: 1 = enclave:app, 2 = wasi:http. The host
 /// publishes it, so a row cannot claim to host ordinary platform apps from an image whose runtime

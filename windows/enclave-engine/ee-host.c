@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <psapi.h>
 #include "ee-rt.h"
 #pragma comment(lib, "ws2_32.lib")
 
@@ -343,6 +344,19 @@ static void serve(int port) {
                     else if (do_session(bin, bl, sout, sizeof sout, &st, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, sout, (size_t)st.out_len); k += 2 * (size_t)st.out_len;
                            snprintf(reply + k, sizeof reply - k, " %d %lld %lld %llu %llu %llu %llu\n", st.n_tokens, (long long)st.prompt_us, (long long)st.decode_us, (unsigned long long)st.offloaded, (unsigned long long)st.local, (unsigned long long)st.macs, (unsigned long long)st.verify_fail); }
+                } else if (!strcmp(line, "mem")) {
+                    /* WHAT THE ENCLAVE ACTUALLY HOLDS. VTL1 pages are committed as they are
+                     * touched and they are charged to THIS process, so this process's private
+                     * commit is the enclave's own footprint - the model, its KV cache, the pads
+                     * and whatever apps have touched. The node asks once before any app runs, and
+                     * that reading is the engine's share of the enclave's fixed size; everything
+                     * left is what it may promise a tenant. A number nobody measured would either
+                     * oversell the enclave or hide most of it. */
+                    PROCESS_MEMORY_COUNTERS_EX pmc; memset(&pmc, 0, sizeof pmc); pmc.cb = sizeof pmc;
+                    if (!GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc))
+                        snprintf(reply, sizeof reply, "err cannot read this process's memory: %lu\n", GetLastError());
+                    else snprintf(reply, sizeof reply, "ok %llu %llu\n",
+                                  (unsigned long long)pmc.PrivateUsage, (unsigned long long)pmc.WorkingSetSize);
                 } else if (!strcmp(line, "appabi")) {
                     uint32_t worlds = 0; const uint32_t abi = app_abi(&worlds);
                     snprintf(reply, sizeof reply, "ok %u %u\n", abi, worlds);

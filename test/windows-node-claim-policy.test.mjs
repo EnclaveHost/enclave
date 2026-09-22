@@ -20,7 +20,9 @@ const dep = (o = {}) => ({ id: "0x" + "a".repeat(64), owner: STRANGER, appRef: "
   configCid: "", gpuMilli: 0, cpuMilli: 250, isPublic: true, active: true, createdAt: 1790000000n,
   runner: ZERO32, leaseUntil: 0n, ...o });
 // Room for it: three slots, three quarters of a node, 80 GB.
-const roomy = { slots: 4, slotsFree: 3, cpuShareFree: 0.75, ramMbFree: 81920, cpuGflops: 1000 };
+const roomy = { slots: 4, slotsFree: 3, cpuShareFree: 0.75, ramMbFree: 81920, cpuGflops: 1000,
+                // The card, in the same shape: this box has one and has most of it left to sell.
+                gpuShareFree: 0.9, cardGb: 8 };
 const ctx = (o = {}) => ({ ownerAllow: OWNER, enclaveId: ENCLAVE, appsEnabled: true, capacity: roomy, ...o });
 const version = (o = {}) => ({ cid: "bafy", version: "1.0.0", memMb: 512, cpuGflops: 10, config: "", approval: 1, yanked: false, ...o });
 
@@ -98,10 +100,18 @@ test("options it does not enforce are refused by name, never dropped", () => {
   assert.equal(claimPolicy(dep({ configCid: JSON.stringify({ network: { relay: "us-west" } }) }), ctx()), null);
 });
 
-test("the card: refused unless the owner or the publisher said it is soft", () => {
+test("the card: sold when this box has one, refused by the numbers when it does not", () => {
+  // This box SELLS shares of its card. What a share buys is the model inside the enclave, whose
+  // linear algebra runs on the card by masked offload, so a card-dialled deployment is ordinary
+  // work here and is taken on the same terms as any other: if the share is free.
   const gpu = dep({ gpuMilli: 500 });
-  assert.match(String(claimPolicy(gpu, ctx())), /reserved for the enclave's masked inference/,
-               "this box's GPU serves the model in VTL1 and sells no share of itself");
+  assert.equal(claimPolicy(gpu, ctx()), null, "half the card, and 90% of it is free");
+  assert.match(String(claimPolicy(dep({ gpuMilli: 950 }), ctx())), /asks for 95% of this box's card and 90% of it is left/);
+  // A box with no card, or whose worker is not answering, has none to sell and says which.
+  const cardless = ctx({ capacity: { ...roomy, gpuShareFree: 0, cardGb: 0 } });
+  assert.match(String(claimPolicy(gpu, cardless)), /bought a share of a card and this box has none to sell/);
+  // ...and the soft dial still lets such a deployment run here on cores.
+  assert.equal(claimPolicy(dep({ gpuMilli: 500, configCid: JSON.stringify({ gpu: { optional: true } }) }), cardless), null);
   // The OWNER's dial: they bought a card slice and would rather run on cores than queue.
   const optional = dep({ gpuMilli: 500, configCid: JSON.stringify({ gpu: { optional: true } }) });
   assert.equal(claimPolicy(optional, ctx()), null);

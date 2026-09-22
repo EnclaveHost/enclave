@@ -1,1 +1,0 @@
-/home/steven/Projects/enclave/windows/enclave-app-hello/target/wasm32-unknown-unknown/release/enclave_app_hello.wasm: /home/steven/Projects/enclave/windows/enclave-app-hello/src/lib.rs /home/steven/Projects/enclave/windows/enclave-rt/wit/app.wit

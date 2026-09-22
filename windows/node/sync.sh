@@ -6,10 +6,12 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; BOX="${BOX:-minipc-zt}"; DEST="C:/Users/c
 ssh "$BOX" 'New-Item -ItemType Directory -Force -Path C:\Users\claude\vbs\node | Out-Null'
 scp -q "$HERE"/agent.mjs "$HERE"/host.mjs "$HERE"/chain.mjs "$HERE"/apprun.mjs "$HERE"/client.mjs \
        "$HERE"/appframe.mjs "$HERE"/apptool.mjs "$HERE"/secrets.mjs \
-       "$HERE"/apptls.mjs "$HERE"/appzone.mjs \
+       "$HERE"/apptls.mjs "$HERE"/appzone.mjs "$HERE"/shieldedcard.mjs \
        "$HERE"/fetch-cid.py "$HERE"/package.json "$HERE"/install-node.cmd "$BOX:$DEST/"
 # the CID verifier is the platform's own (wasm/ipfs_fetch.py), copied rather than forked
 scp -q "$HERE"/../../wasm/ipfs_fetch.py "$BOX:$DEST/ipfs_fetch.py"
+# the platform's own shielded probe, so the box can prove its card rather than assert it
+scp -q "$HERE"/../../metal/guest/shielded.mjs "$HERE"/../../metal/guest/shielded-probe.mjs "$BOX:C:/Users/claude/vbs/probe/"
 ssh "$BOX" "cmd /c \"cd /d C:\\Users\\claude\\vbs\\node && npm.cmd install --silent --no-audit --no-fund\"" >/dev/null 2>&1 || true
 if [ "${1:-}" != "no-restart" ]; then
   ssh "$BOX" 'schtasks /end /tn EnclaveWindowsNode 2>$null | Out-Null; Stop-Process -Name node,ee-host,shielded-worker,tpmattest -Force -ErrorAction SilentlyContinue; Start-Sleep 2; Remove-Item C:\Users\claude\vbs\node\agent.log -ErrorAction SilentlyContinue; schtasks /run /tn EnclaveWindowsNode' 2>&1 | grep -v "^\*\*" | tail -1
