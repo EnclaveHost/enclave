@@ -1,0 +1,19 @@
+# gwcheck -- does a compiled graph compute what it was built to compute?
+
+`gwcheck` runs ONE compiled `.tflite` on the Tensor NPU with deterministic int8 inputs and dumps the
+int16 output, so a host reference can check it. It uses the same LiteRT calls as the worker
+(`tpu/worker/tpu_worker_jni.cc`), so it exercises the same path. It exists because "the compiler
+accepted it" has been wrong here more than once, and a compiled graph is not a correct one.
+
+    gwcheck <dispatch_dir> <model.tflite> <out_prefix> <seed> [timed_runs]
+
+Build in a LiteRT-LM tree at 4698342e (drop this directory in as `tools/gwcheck`):
+
+    bazel build --config=android_arm64 -c opt //tools/gwcheck:gwcheck
+
+On the device the dispatch directory that works for SDK-compiled graphs is
+`/data/local/tmp/enclave-tensor-npu-1`; `/data/local/tmp/d15` fails with "No usable Dispatch runtime".
+
+`probe_groupwise.py` builds the group-wise int4 probes: G graph inputs, G FULLY_CONNECTEDs over
+disjoint input-column blocks with their own scales, and an ADD tree -- no SLICE, which is the op the G5
+compiler crashes on. See TPU.md, "Group-wise int4 works on this TPU -- and does not pay".
