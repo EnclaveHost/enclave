@@ -16,13 +16,23 @@ echo "checking $D $W"
 pass=0; fail=0
 ck() { if [ "$2" = "$3" ]; then printf '  ok   %s\n' "$1"; pass=$((pass+1));
        else printf '  FAIL %s (want %s, got %s)\n' "$1" "$3" "$2"; fail=$((fail+1)); fi; }
-gate() { grep -c "Thermal Status: 0" "$1" 2>/dev/null || echo 0; }
+# these strings appear in the explanatory comments too, so the assertion is presence, not a count
+at1() { if [ "${2:-0}" -ge 1 ]; then printf '  ok   %s\n' "$1"; pass=$((pass+1));
+        else printf '  FAIL %s (not present)\n' "$1"; fail=$((fail+1)); fi; }
+# The gate now lives in ONE sourced file, so "matched" means both runners source it and both refuse
+# when it does. Checking for the gate's text inside each runner would pass a COPY that had drifted.
+gate() { grep -c 'coolgate.sh' "$1" 2>/dev/null || echo 0; }
+refuses() { grep -c 'cool_gate || exit' "$1" 2>/dev/null || echo 0; }
 mem()  { grep -c -- '--ei mem' "$1" 2>/dev/null || echo 0; }
 nocool() { grep -c 'NOCOOL' "$1" 2>/dev/null || echo 0; }
 
+ck "the shared gate exists"                "$([ -f "$D/coolgate.sh" ] && echo yes)" yes
+at1 "the shared gate checks the thermal status" "$(grep -c 'Thermal Status: 0' "$D/coolgate.sh")"
+at1 "the shared gate honours NOCOOL"        "$(nocool "$D/coolgate.sh")"
+at1 "the shared gate can REFUSE"            "$(grep -c 'REFUSING to measure' "$D/coolgate.sh")"
 for f in tpu-run.sh local-run.sh; do
-  ck "$f gates on a cool, uncapped phone" "$(gate "$D/$f")" 1
-  ck "$f honours NOCOOL"                  "$(nocool "$D/$f")" 1
+  at1 "$f sources the shared gate"         "$(gate "$D/$f")"
+  ck "$f refuses when the gate fails"     "$(refuses "$D/$f")" 1
   ck "$f passes the VM memory explicitly" "$(mem "$D/$f")" 1
 done
 # the same default, so neither arm silently takes mode local's 7168
