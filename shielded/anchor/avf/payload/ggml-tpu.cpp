@@ -302,6 +302,9 @@ static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t,
     for (size_t p = 0; p < g.projs.size(); p++) g.cache[p].resize((size_t)rows * g.projs[p].n_out);
     for (size_t p = 0; p < g.projs.size(); p++) for (uint32_t r = 0; r < rows; r++) corr_one(g, outl, rows, p, r);
 }
+/* The repair, behind a switch so the two arms of a before/after comparison differ in NOTHING else.
+ * Off reproduces the defect exactly: the clipped reply is consumed as if correct. */
+static constexpr bool kRepairClips = false;
 static bool corr_threaded() {
     static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
     return v;
@@ -485,12 +488,16 @@ void exchange(group &g, const float *x, uint32_t rows) {
                         if (da > s.st.ver_max) s.st.ver_max = da;
                         if (db > s.st.ver_max) s.st.ver_max = db;
                         if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
-                        if (a == -32768 || b2 == -32768) s.st.rail_m32768++;
-                        if (a == -32767 || b2 == -32767) s.st.rail_m32767++;
-                        if (a == 32767 || b2 == 32767) s.st.rail_p32767++;
                     }
                     if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {   /* both rails, both clamp conventions */
                         s.st.saturated++;
+                        /* WHICH rail value the backend actually returns, counted where every rail is seen -- the
+                         * sampled verification above can never answer it (a few hundred rails in ~190M elements).
+                         * This is what says whether the hardware clamps negatives at -32768 or, like the reference,
+                         * at -32767, and therefore whether the original narrow test was missing clips. */
+                        if (a == -32768 || b2 == -32768) s.st.rail_m32768++;
+                        if (a == -32767 || b2 == -32767) s.st.rail_m32767++;
+                        if (a == 32767 || b2 == 32767) s.st.rail_p32767++;
                         /* Associate EXACTLY as ggml_backend_tpu_reference_worker does -- (acc * M) * mscale, not
                          * acc * (M * mscale). Floating multiply is not associative, so the two can differ by an ulp
                          * and this is meant to be the same expression, not merely the same value. */
@@ -511,8 +518,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
                              * computed from public weights and the VM's own masked row, so use it. Nothing crosses the
                              * link and nothing about the lane contract changes: this is the out-of-lane correction's
                              * remedy applied to the output side instead of the input side. */
-                            y[j] += s_d * (float)(256.0 * (double)ea + (double)eb) - pr.s_out * (float)P[j];
-                            continue;
+                            if (kRepairClips) { y[j] += s_d * (float)(256.0 * (double)ea + (double)eb) - pr.s_out * (float)P[j]; continue; }
                         }
                     }
                     y[j] += s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j];
@@ -760,7 +766,10 @@ extern "C" int ggml_backend_tpu_reference_worker(int fd) {
                 const long long acc = ds ? dot_i8_i8(p.Wq + (size_t)j * g->n_in, d.data() + (size_t)r * g->n_in, g->n_in)
                                          : dot_i8_i16(p.Wq + (size_t)j * g->n_in, q.data() + (size_t)r * g->n_in, g->n_in);
                 long long v = llround((double)acc * p.M[j] * mscale);
-                y[(size_t)r * p.n_out + j] = (int16_t)(v > 32767 ? 32767 : v < -32767 ? -32767 : v);
+                /* MEASURED 2026-09-22: the backend clamps negatives at -32768, never -32767 (rail histogram
+                 * over every detected rail: -32768 x98, -32767 x0, +32767 x90). The reference clamped one LSB
+                 * short of the hardware, so anything validated against it was off by an LSB at the negative rail. */
+                y[(size_t)r * p.n_out + j] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
             }
             if (!wr_all(fd, y.data(), y.size() * 2)) return -1;
         }
