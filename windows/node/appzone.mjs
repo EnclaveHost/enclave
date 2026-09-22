@@ -155,10 +155,62 @@ export async function readOrRefuse(req, res, limit, onRefuse = () => {}) {
   return null;
 }
 
-const clientIpOf = (req) => {
-  const xs = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
-  return xs[xs.length - 1] || "app-zone";
-};
+/**
+ * The caller's address as this box can know it on the APP ZONE, which is: it cannot.
+ *
+ * The relay splices TLS bytes here WITHOUT terminating them, so nothing between the client and
+ * this process inserts a forwarded header - which means any `x-forwarded-for` arriving on this
+ * path was written by the CALLER, inside their own TLS session. Reading it would let anyone mint a
+ * fresh rate-limit bucket per request by varying a header they control: not a weaker limit, no
+ * limit at all. I had it reading that header.
+ *
+ * So every app-zone caller shares ONE bucket, deliberately. That is a real difference from the
+ * /x/ path - where the relay does insert the header, measured - and host.features() publishes it
+ * rather than implying it. The honest cost is that one heavy client can consume the rate allowance
+ * for all of them here; the alternative on offer was an allowance nobody was subject to.
+ */
+export const APP_ZONE_BUCKET = "app-zone";
+const clientIpOf = (_req) => APP_ZONE_BUCKET;
+
+
+/**
+ * The app zone's HTTP request handler, as a factory so it can be DRIVEN BY A TEST.
+ *
+ * THE CATCH BOUNDARY IS THE WHOLE CALLBACK, not just the dispatch. A client that sends a partial
+ * body and disconnects makes the request stream REJECT, and this is an async callback: a rejection
+ * that escapes it is an unhandled promise rejection, which on node is a process exit. That is one
+ * TCP client ending the agent for every tenant on the box. The reading is exactly the part a peer
+ * can make fail, and it was outside the try.
+ */
+export function appRequestHandler({ serveHttp, log = () => {} }) {
+  return async (req, res) => {
+    const id = req.socket.__enclaveId;
+    try {
+      // COUNTED, and stopped at the limit rather than after it. The limit is the narrowest of:
+      // this deployment's own maxBodyMb, the operator's ceiling, and - for a gate-served app -
+      // what the enclave's request buffer can carry at all. Reading past it would spend exactly
+      // the memory the rule exists to protect, and refusing afterwards would arrive too late.
+      const limit = req.socket.__enclaveBodyLimit || GATE_BODY_LIMIT;
+      const body = await readOrRefuse(req, res, limit,
+        (n) => log(`app-zone ${String(id).slice(0, 10)}: request body over ${n} bytes, refused and closed`));
+      if (body === null) return;
+      const r = await serveHttp(id, { method: req.method, pathRest: req.url,
+                                      headers: req.headers, body, ip: clientIpOf(req) });
+      res.writeHead(r.status || 502, r.headers || {});
+      res.end(r.body || Buffer.alloc(0));
+    } catch (e) {
+      // An aborted request has nobody left to answer, so writing to it would throw again. Say it
+      // once, at a lower volume than a real failure, and let the socket go.
+      const gone = /ECONNRESET|aborted|premature close|socket hang up/i.test(e?.code || e?.message || "");
+      log(`app-zone ${String(id).slice(0, 10)}: ${gone ? "client went away mid-request" : e.message}`);
+      if (gone) { try { req.socket?.destroy(); } catch {} return; }
+      try {
+        res.writeHead(502, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "enclave_error", message: e.message }));
+      } catch { try { req.socket?.destroy(); } catch {} }
+    }
+  };
+}
 
 export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, log = () => {} }) {
   const streams = new Map();
@@ -166,28 +218,7 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
   // listens on anything - a TLS socket is handed to it with emit("connection"), which is the
   // supported way to put an http.Server on top of a stream you already have.
-  const httpd = http.createServer(async (req, res) => {
-    const id = req.socket.__enclaveId;
-    // COUNTED, and stopped at the limit rather than after it. The limit is the narrowest of: this
-    // deployment's own maxBodyMb, the operator's ceiling, and - for a gate-served app - what the
-    // enclave's request buffer can carry at all. Reading past it would spend exactly the memory
-    // the rule exists to protect, and a refusal afterwards would arrive too late to matter.
-    const limit = req.socket.__enclaveBodyLimit || GATE_BODY_LIMIT;
-    const body = await readOrRefuse(req, res, limit,
-      (n) => log(`app-zone ${String(id).slice(0, 10)}: request body over ${n} bytes, refused and closed`));
-    if (body === null) return;
-    try {
-      const r = await serveHttp(id, { method: req.method, pathRest: req.url,
-                                      headers: req.headers, body,
-                                      ip: clientIpOf(req) });
-      res.writeHead(r.status || 502, r.headers || {});
-      res.end(r.body || Buffer.alloc(0));
-    } catch (e) {
-      log(`app-zone ${String(id).slice(0, 10)}: ${e.message}`);
-      res.writeHead(502, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "enclave_error", message: e.message }));
-    }
-  });
+  const httpd = http.createServer(appRequestHandler({ serveHttp, log }));
   httpd.on("clientError", (e, sock) => { try { sock.destroy(); } catch {} });
 
   /** A tunnel stream that is not (yet) a WebSocket: collect the upgrade request, then decide. */
