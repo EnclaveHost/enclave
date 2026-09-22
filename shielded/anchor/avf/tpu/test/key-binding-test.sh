@@ -39,6 +39,9 @@ cat > "$W/bin/sha256sum" <<'EOF'
 #!/usr/bin/env bash
 # FAKE_SHA_FAIL_FOR=<file>: print a perfectly valid 64-hex digest for that file and then FAIL.
 # Valid-looking output with a failure status is the shape this suite exists to catch.
+if [ "${FAKE_SHA_FAIL_AGG:-0}" = 1 ] && [ $# -eq 0 ]; then
+  cat >/dev/null; echo "1111111111111111111111111111111111111111111111111111111111111111  -"; exit 42
+fi
 if [ -n "${FAKE_SHA_FAIL_FOR:-}" ] && [ "${1:-}" = "$FAKE_SHA_FAIL_FOR" ]; then
   echo "0000000000000000000000000000000000000000000000000000000000000000  $1"; exit 42
 fi
@@ -87,6 +90,9 @@ ck "  and no manifest is written" "$(ls "$W/out/MANIFEST.tsv" 2>/dev/null | wc -
 ck "a failing digest on the ARM runner is refused too" \
    "$(rm -rf "$W/out"; go MAXNEW=48 MEM=8192 FAKE_SHA_FAIL_FOR=tpu-run.sh)" 3
 rm -rf "$W/out"; ck "and a clean set still runs" "$(go MAXNEW=48 MEM=8192)" 0
+
+ck "a failing AGGREGATION digest is refused" "$(rm -rf "$W/out"; go MAXNEW=48 MEM=8192 FAKE_SHA_FAIL_AGG=1)" 3
+rm -rf "$W/out"; ck "and a clean aggregation still runs" "$(go MAXNEW=48 MEM=8192)" 0
 
 echo "== the settings that were in force are RECORDED, not just keyed =="
 go MAXNEW=48 MEM=8192 >/dev/null

@@ -121,7 +121,13 @@ for line in "${PLIST[@]}"; do
   want="${line#*	}"; [ "$want" = "$line" ] && want=""
   n=$((n+1)); id=$(printf '%02d' "$n")
   row() { printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$key" "$1" "$p" "$want" >> "$MANIFEST"; }
-  key=$(printf '%s|%s' "$KEY_BASE" "$p" | sha256sum | cut -c1-16)
+  # the digest's own status, not cut's: see quality-compare.sh's sha_of for the defect this closes
+  keyraw=$(printf '%s|%s' "$KEY_BASE" "$p" | sha256sum 2>/dev/null) \
+    || die "could not compute the cache key for row $id"
+  keyfull=${keyraw%% *}
+  case "$keyfull" in *[!0-9a-f]*|"") die "cache key digest is not usable: '${keyfull:-<empty>}'";; esac
+  [ ${#keyfull} -eq 64 ] || die "cache key digest is the wrong length"
+  key=${keyfull:0:16}
   base="$OUT/$id.$key"                       # the KEY is in the filename: a different prompt cannot
                                              # inherit this row's answer
   if [ -s "$base.txt" ] && [ -s "$base.rate" ]; then
