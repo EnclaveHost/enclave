@@ -3829,3 +3829,46 @@ bound (18.18). The framework term is too small. That leaves the TEE-side link
 CPU at 15.23 ms/token as the largest item whose internals have not been
 attacked since the SIMD work early in this campaign, and it is the next thing
 to break down per term rather than in aggregate.
+
+### 18.29 The logger, repaired twice, and an overhead I still cannot price
+
+Two defects in the instrumentation, both found by review, both real.
+
+**The idle fold could not detect a reconnect.** `sh_link_start` replaces the
+pipe but the fold kept the stale baseline, and the "a lower value means a new
+pipe" heuristic fails whenever the fresh pipe's first sample is HIGHER: old
+100ns/1, new 150ns/1, and it credits 50ns/0 instead of 150ns/1. A value cannot
+tell you which counter produced it. The baseline is now reset explicitly where
+the pipe is replaced, totals retained. Extracted to `shielded-idle.h` with nine
+checks covering higher, equal and lower first samples after a reconnect, a
+zero-idle reconnect, and an unannounced decrease.
+
+**The buffered trace was a use-after-free on every normal exit.** I registered
+`atexit(flush)` from one function-local static initialiser while the buffer was
+a function-local static constructed in another. Destructors and exit handlers
+run in reverse order of construction, the buffer was constructed second, so it
+died before the flush read it. The buffer is now a deliberately leaked
+allocation with no destructor, constructed BEFORE the handler is registered;
+appends are mutex-guarded rather than assumed single-threaded; and dropped
+records are counted and reported so a truncated trace cannot claim a full
+window. The test runs the shipped structure to normal exit under ASan, and I
+checked it is not inert: the original ordering reproduces
+heap-use-after-free in the same harness.
+
+**And the overhead is still unpriced.** Three paired runs against an
+uninstrumented arm yield ONE usable pair, +3.0%, which is nothing at a paired
+SD of 1.35. One pair fell to rc=2, one to a peer's wasmtime at 99.6% on one arm
+and an empty result on the other.
+
+`pairs.py` accepted the rc=2 run. It globbed `q*.log` for rc and intruder
+flags, so a queue driven by any other script had no rc visible and the run
+passed because nothing contradicted it -- absence of a marker read as evidence,
+which is the precise failure that file exists to prevent. It now reads every
+log and REJECTS a run that no log records.
+
+So the 5.61 ms residual in 18.28 remains an ESTIMATE and is not used to rule
+anything out. Its two terms still come from different runs, and while the trace
+no longer does I/O on the measured path, what remains of its cost is unmeasured.
+The trace itself is sound where runs completed: 34531 records, 0 dropped -- and
+the run that returned rc=2 had a valid result and a complete trace, so that
+failure is on the exit path rather than in the measurement.
