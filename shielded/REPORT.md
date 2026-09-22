@@ -3369,3 +3369,50 @@ and the dump pads op names to a fixed width, so `GATED_DELTA_NET` arrives as
 the alias was added. Both were caught by the modelled total disagreeing with
 the measured one -- which is the only reason that cross-check was worth
 computing.
+
+### 18.19 RETRACTED: the overlap estimate rested on unresolvable dependencies
+
+18.18 is withdrawn. The number (28% of C hideable, 3.65 ms/token, 21.5 tok/s)
+should not be used, and in particular it must not be used to conclude that
+overlap cannot reach 25.
+
+Three faults, each sufficient on its own.
+
+**The dependency graph was not reconstructed.** `GGML_SCHED_DEBUG` truncates
+tensor names to 20 characters, so `blk.0.attn_norm.weight` arrives as
+`blk.0.attn_norm.weig`. My lookup missed those and my code treated an
+unresolved source as an always-available leaf -- which makes a node look ready
+when it is not. 1275 distinct names were unresolved. Truncating both sides to
+match raises resolution only to 60.3%, and 128 truncated names are produced by
+SEVERAL nodes each (`norm-0` by nodes 1, 41 and 51), because ggml reuses names.
+So even the resolved edges are ambiguous. Name-based reconstruction from this
+dump cannot work, and the fraction of edges I silently dropped is larger than
+the effect I was measuring.
+
+**The cost agreement was circular.** I divided each op's measured total among
+its nodes and summed back, which recovers the input by construction. It checked
+only that every op had a cost entry -- which is how it caught the truncated
+`GATED_DELT` alias -- and validated nothing about per-node costs, dependency
+parsing or the schedule. Calling it "the check on the whole exercise" was
+wrong; it could not have failed for any reason except missing coverage.
+
+**The units were inconsistent, in the flattering direction.** COST is ms per
+GENERATED TOKEN; I used COST/nper as a per-node, per-forward-pass cost while
+dividing the exchange window by verify-passes-per-token. Per-node costs were
+therefore about 1.78x too small against the window, so more nodes fit than
+would really fit, and 28% is an overestimate even before the dependency fault.
+
+And a scope error on top: a greedy fill is a heuristic, not a bound. A
+different order or partition could hide more, so even a correct version of this
+simulation could not have closed the candidate.
+
+What the exercise does leave standing: the decode pass really is 2005 nodes in
+642 strictly alternating splits, 321 shielded and 321 CPU, 1604 nodes on the
+CPU. That is a structural count straight off the dump and does not depend on
+any of the broken inference.
+
+A sound version needs source INDICES rather than names -- pointer identity
+inside ggml, where it is unambiguous -- and consistent per-pass units with the
+draft pass accounted separately from verify. That is a small instrument change,
+and until it exists there is no measured statement about how much of C is
+hideable.
