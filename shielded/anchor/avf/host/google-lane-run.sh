@@ -1,52 +1,107 @@
 #!/usr/bin/env bash
 # google-lane-run.sh <prompts.txt> -- run the SAME task prompts through Google's own NPU lane.
 #
-# This is the parity baseline that was outstanding for most of this campaign. Getting it to run took
-# three separate version matches, none of which is guessable from the error messages:
+# Getting this lane to run at all took three version matches (see TPU.md): the runtime must be format 1.5
+# (c7adc1bf^ = 4698342e upstream, NOT the 1.6 the local tree builds), the dispatch library must be v2.1.6
+# and must sit beside the MODEL rather than on LD_LIBRARY_PATH, and the build needs ANDROID_NDK_HOME, the
+# git-lfs objects fetched, and a sane PATH for rules_rust.
 #
-#   1. The RUNTIME. Every published .litertlm is format 1.5 (the magic is followed by two LE u32s; check
-#      with `head -c16 | xxd`), while the local LiteRT-LM tree builds 1.6. A 1.6 runtime loads a 1.5
-#      package and then fails inside the decoder with "Invalid begin and size" at a SLICE node. Upstream
-#      history pins the boundary: c7adc1bf took the constant 5 -> 6, so c7adc1bf^ (4698342e) is the last
-#      1.5 runtime. A blobless clone plus `git checkout` gets there in seconds.
-#   2. The BUILD. ANDROID_NDK_HOME must be set or bazel cannot resolve a CC toolchain; the prebuilt .so
-#      files are git-lfs pointers that must be fetched (there is no git-lfs binary here, so the batch API
-#      does it); and rules_rust needs a sane PATH via --action_env or its linker cannot find ld.
-#   3. The DISPATCH library. It is loaded from the MODEL's directory, not LD_LIBRARY_PATH, and the version
-#      must match: of v2.1.5, v2.1.6 and v2.2.0 shipped beside the package, only v2.1.6 works with the
-#      1.5 runtime. The other two report "Unsupported dispatch runtime version" or abort.
-#
-#   OUT=/tmp/gl ./google-lane-run.sh quality-prompts.txt
+# EVIDENCE RULES, each of which an audit had to point out because the first version broke it:
+#   * every adb and runner invocation has its exit status checked; a failure aborts the row and the run
+#   * a row is usable only with a non-empty reply AND parseable benchmark data
+#   * results are keyed by a digest of (prompt, generation settings, runner, model, dispatch library), not
+#     by ordinal, because the first version overwrote NN.prompt with a new prompt, printed "cached", and
+#     kept the OLD answer and rate -- relabelling a stale result as a fresh one
+#   * prompts go to the device as FILES via --input_prompt_file, never interpolated into a remote shell
+#     command inside single quotes
+#   * partial files never become cache entries: work goes to a temp name and is renamed only on success
 set -uo pipefail
-ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
-OUT="${OUT:-/tmp/google-lane}"; mkdir -p "$OUT"
+
+ADB=("${ADB:-$HOME/Android/Sdk/platform-tools/adb}")
+[ -n "${SERIAL:-}" ] && ADB+=(-s "$SERIAL")      # an ARRAY: "$ADB -s x" would exec a filename with spaces
+
+OUT="${OUT:-/tmp/google-lane}"
 RUNNER="${RUNNER:-/data/local/tmp/lm15}"
 MODELDIR="${MODELDIR:-/data/local/tmp/enclave-tensor-npu-1}"
 MODEL="${MODEL:-$MODELDIR/model.litertlm}"
 LIBS="${LIBS:-/data/local/tmp/d15}"
+DISPATCH="$MODELDIR/libLiteRtDispatch_GoogleTensor.so"
+REMOTE_PROMPT=/data/local/tmp/.glr_prompt.txt
 PROMPTS="${1:?usage: $0 prompts.txt}"
+mkdir -p "$OUT"
 
-"$ADB" shell "[ -f $MODELDIR/libLiteRtDispatch_GoogleTensor.so ] || echo MISSING" | tr -d '\r' | grep -q MISSING && {
-  echo "REFUSING: no dispatch library beside the model at $MODELDIR"; exit 2; }
-printf '# google NPU lane, %s\n' "$(date -Is)" > "$OUT/BUILD"
-"$ADB" shell "head -c 16 $MODEL | xxd" 2>/dev/null | tr -d '\r' | head -1 >> "$OUT/BUILD"
+die() { echo "REFUSING: $*" >&2; exit 2; }
+sh_() { "${ADB[@]}" shell "$@" < /dev/null; }              # status propagates; stdin never eaten
+
+# ---- preflight: identity of everything that can change an answer -------------------------------------
+command -v sha256sum >/dev/null || die "no sha256sum"
+for f in "$RUNNER" "$MODEL" "$DISPATCH"; do
+  sh_ "[ -f '$f' ]" || die "missing on device: $f"
+done
+ident() { sh_ "sha256sum '$1' 2>/dev/null | cut -c1-32" | tr -d '\r'; }
+R_ID=$(ident "$RUNNER"); M_ID=$(ident "$MODEL"); D_ID=$(ident "$DISPATCH")
+[ -n "$R_ID" ] && [ -n "$M_ID" ] && [ -n "$D_ID" ] || die "could not digest runner/model/dispatch"
+FMT=$(sh_ "head -c 16 '$MODEL' | xxd -p" | tr -d '\r')
+# generation settings: this runner exposes no temperature or token-limit flag, so they are its defaults.
+# Recorded explicitly rather than assumed, and part of the cache key so a future flag invalidates it.
+SETTINGS="temp=runner-default max_new=runner-default backend=npu"
+{
+  echo "# google NPU lane, $(date -Is)"
+  echo "runner        $RUNNER  sha256:$R_ID"
+  echo "model         $MODEL  sha256:$M_ID"
+  echo "dispatch      $DISPATCH  sha256:$D_ID"
+  echo "litertlm hdr  $FMT   (magic then major/minor LE u32)"
+  echo "settings      $SETTINGS"
+} > "$OUT/BUILD"
 cat "$OUT/BUILD"
+KEY_BASE="$R_ID|$M_ID|$D_ID|$SETTINGS"
 
+n=0; used=0; failed=0
 mapfile -t PLIST < "$PROMPTS"
-n=0
 for line in "${PLIST[@]}"; do
   [ -z "$line" ] && continue
   case "$line" in \#*) continue;; esac
   p="${line%%	*}"
   n=$((n+1)); id=$(printf '%02d' "$n")
-  printf '%s\n' "$p" > "$OUT/$id.prompt"
-  [ -s "$OUT/$id.raw" ] && { echo "[$id] cached"; continue; }
+  key=$(printf '%s|%s' "$KEY_BASE" "$p" | sha256sum | cut -c1-16)
+  base="$OUT/$id.$key"                       # the KEY is in the filename: a different prompt cannot
+                                             # inherit this row's answer
+  if [ -s "$base.txt" ] && [ -s "$base.rate" ]; then
+    echo "[$id] cached ($key)"; used=$((used+1)); continue
+  fi
   echo "[$id] $p"
-  "$ADB" shell "cd /data/local/tmp && LD_LIBRARY_PATH=$LIBS timeout 600 $RUNNER --backend=npu \
-      --model_path=$MODEL --input_prompt='$p' 2>&1" < /dev/null | tr -d '\r' > "$OUT/$id.raw"
-  # the reply is what sits between the echoed prompt and the benchmark block
-  awk -v p="input_prompt: $p" 'index($0,p){f=1; sub(/.*input_prompt: /,""); sub(/^.*\$/,""); next}
-       /^BenchmarkInfo:/{f=0} f' "$OUT/$id.raw" | sed '1{/^$/d}' > "$OUT/$id.txt"
-  grep -oE "Decode Speed: [0-9.]+ tokens/sec" "$OUT/$id.raw" | tail -1 > "$OUT/$id.rate"
+  printf '%s' "$p" > "$OUT/$id.prompt.tmp"
+  "${ADB[@]}" push -q "$OUT/$id.prompt.tmp" "$REMOTE_PROMPT" >/dev/null 2>&1 \
+    || { echo "  FAILED: could not push the prompt"; failed=$((failed+1)); continue; }
+  if ! "${ADB[@]}" shell "cd /data/local/tmp && LD_LIBRARY_PATH=$LIBS timeout 600 $RUNNER \
+        --backend=npu --model_path=$MODEL --input_prompt_file=$REMOTE_PROMPT; echo \"__RC__\$?\"" \
+        < /dev/null | tr -d '\r' > "$base.raw.tmp"; then
+    echo "  FAILED: adb shell returned non-zero"; failed=$((failed+1)); rm -f "$base.raw.tmp"; continue
+  fi
+  rc=$(grep -oE '^__RC__[0-9]+$' "$base.raw.tmp" | tail -1 | sed 's/__RC__//')
+  if [ "${rc:-1}" != "0" ]; then
+    echo "  FAILED: runner exited ${rc:-<no status>}"; failed=$((failed+1))
+    mv "$base.raw.tmp" "$base.raw.failed"; continue
+  fi
+  # the reply sits between the echoed prompt and the benchmark block; require BOTH markers
+  if ! grep -q '^BenchmarkInfo:' "$base.raw.tmp"; then
+    echo "  FAILED: no BenchmarkInfo block, so the run did not complete"; failed=$((failed+1))
+    mv "$base.raw.tmp" "$base.raw.failed"; continue
+  fi
+  awk -v p="input_prompt: $p" 'index($0,p){f=1; sub(/.*input_prompt: /,""); next}
+       /^BenchmarkInfo:/{f=0} f' "$base.raw.tmp" | sed '1{/^$/d}' > "$base.txt.tmp"
+  grep -oE "Decode Speed: [0-9.]+ tokens/sec" "$base.raw.tmp" | tail -1 > "$base.rate.tmp"
+  if [ ! -s "$base.txt.tmp" ] || [ ! -s "$base.rate.tmp" ]; then
+    echo "  FAILED: empty reply or no decode rate"; failed=$((failed+1))
+    mv "$base.raw.tmp" "$base.raw.failed"; rm -f "$base.txt.tmp" "$base.rate.tmp"; continue
+  fi
+  mv "$base.raw.tmp" "$base.raw"; mv "$base.txt.tmp" "$base.txt"; mv "$base.rate.tmp" "$base.rate"
+  mv "$OUT/$id.prompt.tmp" "$OUT/$id.prompt"
+  used=$((used+1))
 done
-echo; echo "runs in $OUT"
+rm -f "$OUT"/*.tmp
+sh_ "rm -f $REMOTE_PROMPT" >/dev/null 2>&1
+echo
+echo "$used usable row(s), $failed failed; results in $OUT"
+[ "$failed" -gt 0 ] && exit 1
+exit 0
