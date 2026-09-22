@@ -955,7 +955,14 @@ The audit's standing requirement was representative end-to-end quality against a
 the residual error acceptable. This is that comparison. Six prompts, one run each so neither arm ever
 conditions on a history the other did not have, `max_new = 48` passed to BOTH arms, greedy, full
 untruncated replies, no drafter in either arm, and both on the same binary whose identity is recorded
-beside the results (`libggml-tpu.so` 5bc42588..., `repair=1 verify=0 inject=0`, built 02:21:17).
+beside the results: `libggml-tpu.so` **ba47bd16cfdfe122741ced6cdec0f5bc**, which is the digest of the
+library inside the APK the device actually had installed, with `repair=1 verify=0 inject=0` built 02:21:17.
+
+(An earlier draft of this paragraph quoted `5bc42588`. That was the staged library BEFORE the rebuild --
+the fault-injection build -- read out of `out/` rather than out of the installed artifact, which is the
+same class of mistake the build-staleness section above is about. `quality-compare.sh` now pulls the APK
+path from the device's package manager and digests the library inside it, so the recorded identity is the
+one that ran.)
 
 | # | prompt | result |
 |---|---|---|
@@ -966,12 +973,23 @@ beside the results (`libggml-tpu.so` 5bc42588..., `repair=1 verify=0 inject=0`, 
 | 05 | why the sky is blue | diverges at char 79 |
 | 06 | three countries in South America | **identical** |
 
+**These replies are TRUNCATED, and that bounds what the table means.** Every run was capped at 48 tokens,
+and at that cap prompt 03 stops before it has written any function body, prompt 04 stops after "Hello" and
+"Hola" with a bullet left open, and the CPU arm of 05 ends mid-sentence. Byte agreement between two capped
+prefixes is evidence that the decode tracks the baseline token for token; it is NOT evidence that either
+arm completed the task. The task-scored comparison below is the one that speaks to that, and it reports
+the stop reason per run so a capped answer can never be scored as a completed one.
+
 **Four of six replies are byte-identical to the unmasked CPU decode of the same GGUF.** The two that
 differ do so at a single early token and then compound, which is what greedy decoding does: 03 splits on
 "Here are `several` ways" against "Here are `a few` ways" and 05 on a rephrasing of the same Rayleigh
-explanation. Both continuations are coherent, both keep the same structure, and neither is wrong. That is
-the behaviour the 0.78 LSB rms error predicts -- a near-tie in the argmax flips, everything downstream
-follows -- and it is the first evidence that the flips are near-ties rather than damage.
+explanation. Both continuations are coherent, both keep the same structure, and neither is wrong.
+
+**The near-tie explanation is a HYPOTHESIS, not a result.** It is consistent with a 0.78 LSB rms error and
+with the fact that both continuations are sensible, but nothing here measured the logit margin at the
+position that flipped, so "the top two candidates were close" is not established. Establishing it needs
+the top-2 logits and their gap at each divergence, which neither arm currently reports. Until then the
+honest statement is that the outputs diverge at one token and both remain coherent.
 
 **What this does and does not establish.** The CPU arm decodes the same GGUF but dequantises to f32: it
 is a DIFFERENT quantisation, not a bit-exact oracle. That asymmetry cuts in a useful direction here --
@@ -993,3 +1011,50 @@ silently wrong: `local-run.sh` never passed `max_new` (so the CPU arm ran 512 to
 arm's 48), `quality-compare.sh` lost its prompt list to `adb` reading stdin (so only the first prompt
 ran), and the installed binary was a fault-injection build. An earlier version of this comparison would
 have produced a table that looked exactly as convincing and meant nothing.
+
+## Rows are free on this TPU: measured, and it fixes where the ceiling comes from (2026-09-22)
+
+Two runs on the same verified binary, same prompt, same bundle, differing only in whether a drafter was
+attached, decompose the per-row cost directly rather than by fitting a sweep:
+
+| per exchange | 1 row (no drafter) | 3.89 rows (drafter, depth 4) | change |
+|---|---|---|---|
+| worker `tpu-run` | 1.948 ms | 2.203 ms | **+13 %** for 3.9x the rows |
+| worker `output-read` | 0.268 ms | 1.096 ms | +309 %, i.e. linear in rows |
+| VM `link` | 4.939 ms | 9.984 ms | +102 % |
+| VM `mask` + `unmask` | 0.601 ms | 2.199 ms | linear in rows |
+
+**The TPU barely notices extra rows; the reply bytes are the entire marginal cost.** That is what
+`make_graphs.py` means by "rows are free on this TPU", now measured on the shipped path rather than
+asserted, and it relocates the ceiling: it is not the accelerator, it is what a row costs to carry back
+across the protected-VM boundary.
+
+Fitting the two points: `C` = 1.746 ms per row per exchange of link, plus 0.565 ms of VM mask/unmask, so
+`C_total` = 2.311 ms. At 140 exchanges per token that is **324 ms per token however many rows are in
+flight, which caps this design at about 3.1 tok/s** -- tighter than the 4.7 the earlier row sweep gave,
+because that one did not count the VM's own per-row work.
+
+For the 15 tok/s target: 67 ms per token, against a 324 ms per-row floor and a 273 ms TPU-compute term.
+Both exceed the whole budget on their own.
+
+### Two attempts to buy some of it back, both refused by the phone
+
+The drafter run showed the pad bank draining (`bank_min 2`, 1120 inline mints at 4.11 rows/exchange), so
+the bank looked like free throughput. It is not:
+
+| configuration | tokens/step | link ms | **tok/s** |
+|---|---|---|---|
+| BANK=64, no refill threads (shipping) | 2.53-2.67 | 9.86-9.98 | **1.30-1.37** |
+| BANK=256, refill threads 2 | 3.20 | 17.754 | 1.08 |
+| BANK=256, no refill threads | 3.20 | 19.901 | 0.93 |
+
+Both changes did exactly what they were meant to -- the bank stopped draining (`pads inline 0`,
+`bank_min` 190-258) and acceptance rose from 2.53 to 3.20 tokens per step -- and both made throughput
+WORSE, because `link` roughly doubled. The refill threads are the documented no-spare-core problem, the
+same one that made the `MSG_DONTWAIT` spin worse. But BANK=256 with no extra threads is worse still,
+which points at memory rather than CPU: minting 256 positions per group took guest memory available from
+1689 to 1091 MiB, and the lane bundle is 1757 MiB of evictable page cache in that same VM. Enlarging the
+bank evicts the bundle it is there to serve.
+
+So the shipping configuration stays BANK=64 with no refill threads, and "acceptance went up" is again not
+the same as "it got faster".

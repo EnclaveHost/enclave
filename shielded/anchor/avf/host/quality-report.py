@@ -29,6 +29,14 @@ def answer(path):
     return m[0].rstrip(), None
 
 
+def status(path):
+    """eos = the model stopped on its own; budget = it hit the token cap and the answer is TRUNCATED."""
+    if not os.path.exists(path):
+        return "?"
+    m = re.findall(r"status=(\w+)", open(path, errors="replace").read())
+    return m[0] if m else "?"
+
+
 def rate(path):
     m = re.findall(r"([\d.]+) tok/s", open(path, errors="replace").read()) if os.path.exists(path) else []
     return m[-1] if m else "?"
@@ -54,13 +62,32 @@ def main():
     if not rows:
         print("nothing comparable")
         return 1
-    print(f"{'#':3} {'first divergence':>16} {'tpu len':>8} {'cpu len':>8}  prompt")
+    print(f"{'#':3} {'tpu':>9} {'cpu':>9} {'agreement':>16}  prompt")
+    tok, cok, trunc = 0, 0, 0
     for i, prompt, a, b, k in rows:
         mark = "identical" if k == len(a) == len(b) else f"char {k}"
-        print(f"{i:3} {mark:>16} {len(a):8} {len(b):8}  {prompt[:60]}")
+        want = ""
+        wp = os.path.join(D, f"{i}.expect")
+        if os.path.exists(wp):
+            want = open(wp, errors="replace").read().strip()
+        # A reply that stopped at the token cap is TRUNCATED: scoring it as a completed task would count a
+        # cut-off answer as a success, which is exactly what the 48-token version of this table did.
+        sa, sb = status(os.path.join(D, f"{i}.tpu.log")), status(os.path.join(D, f"{i}.cpu.log"))
+        ta = (bool(re.search(want, a, re.I)) and sa == "eos") if want else None
+        tb = (bool(re.search(want, b, re.I)) and sb == "eos") if want else None
+        tok += 1 if ta else 0
+        cok += 1 if tb else 0
+        trunc += 1 if (sa != "eos" or sb != "eos") else 0
+        fa = ("PASS" if ta else "fail") + ("" if sa == "eos" else "/cut")
+        fb = ("PASS" if tb else "fail") + ("" if sb == "eos" else "/cut")
+        print(f"{i:3} {fa:>9} {fb:>9} {mark:>16}  {prompt[:52]}")
     ident = sum(1 for r in rows if r[4] == len(r[2]) == len(r[3]))
     pref = sum(r[4] for r in rows) / sum(min(len(r[2]), len(r[3])) for r in rows)
-    print(f"\n{ident}/{len(rows)} replies identical; common prefix = {pref*100:.0f}% of the shorter reply")
+    print(f"\nTASK CORRECTNESS (completed AND matching its expectation): tpu {tok}/{len(rows)}, cpu {cok}/{len(rows)}")
+    print(f"{trunc} of {len(rows)} prompts had an arm stop at the token cap rather than on its own")
+    print(f"DECODE AGREEMENT: {ident}/{len(rows)} replies identical; common prefix = {pref*100:.0f}% of the shorter")
+    print("The two measures are separate on purpose: agreement says the arithmetic tracks the baseline,")
+    print("correctness says the answer is actually usable. A truncated reply can agree perfectly and do neither.")
     for i, prompt, a, b, k in rows:
         print(f"\n--- {i}  {prompt}")
         print(f"    agree: {a[:k]!r}")
