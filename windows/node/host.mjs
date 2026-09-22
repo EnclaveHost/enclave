@@ -1273,10 +1273,28 @@ export class Host {
     const hdrs = {};
     for (const [k, v] of Object.entries(headers || {})) if (!/^host$|^connection$|^x-metal-|^x-enclave-/i.test(k)) hdrs[k] = v;
     return await new Promise((resolve) => {
+      // The app's RESPONSE is buffered whole here (both doors hand back a complete answer), so it
+      // needs the same bound its request has. An app that streams without end - a bug, or a tenant
+      // who does not care - would otherwise exhaust the agent's memory and take every OTHER tenant
+      // on this box down with it. Same class as the request-body hole, the other direction.
+      const cap = Math.round((Number(this.cfg.maxBodyMb) || 64) * 1048576);
       const req = http.request({ host: "127.0.0.1", port: app.port, method: method || "GET", path: pathRest || "/", headers: { ...hdrs, host: `127.0.0.1:${app.port}` } }, (r) => {
         const chunks = [];
-        r.on("data", (c) => chunks.push(c));
-        r.on("end", () => resolve({ status: r.statusCode || 502, headers: r.headers, body: Buffer.concat(chunks) }));
+        let seen = 0, over = false;
+        r.on("data", (c) => {
+          if (over) return;
+          seen += c.length;
+          if (seen > cap) {
+            over = true;
+            this.log(`${String(id).slice(0, 10)} answered with more than ${cap} bytes; cutting it off`);
+            try { req.destroy(new Error("response too large")); } catch {}
+            return resolve({ status: 502, headers: { "content-type": "application/json" },
+                             body: JSON.stringify({ error: "app_response_too_large",
+                                                    message: `The app answered with more than ${(cap / 1048576).toFixed(0)} MB.` }) });
+          }
+          chunks.push(c);
+        });
+        r.on("end", () => { if (!over) resolve({ status: r.statusCode || 502, headers: r.headers, body: Buffer.concat(chunks) }); });
       });
       req.setTimeout(120_000, () => { req.destroy(new Error("app timed out")); });
       req.on("error", (e) => resolve({ status: 502, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "app_unreachable", message: e.message }) }));

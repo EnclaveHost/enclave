@@ -137,6 +137,8 @@ const host = new Host({
   gflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),
   // what stays with the enclave, the shielded worker and the owner of the PC, never sold
   reservedShare: Number(process.env.RESERVED_SHARE || 0.25),
+  // The most one request body or one response this box holds in memory for an app.
+  maxBodyMb: Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64,
   wasmtime: process.env.WASMTIME_BIN || path.join(DIR, 'wasmtime.exe'),
   python: process.env.PYTHON_BIN || 'python',
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
@@ -446,7 +448,11 @@ function connect() {
   let ws, pending = null;   // pending: { nonce } between challenge and attest-result
   const dial = () => {
     log(`dialing ${RELAY_URL} as ${NAME}`);
-    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4 });
+    // maxPayload: an explicit ceiling on one tunnel frame. `ws` defaults to 100 MB, which is a
+    // lot of agent memory to hand a single message, and every frame this tunnel legitimately
+    // carries is one request or one response - already bounded by the same knob at the app.
+    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
+                                    maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     tunnelSend = send;
     tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
