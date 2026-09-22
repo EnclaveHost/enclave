@@ -1421,3 +1421,30 @@ changes and needs checking -- `hi` is now quantised against the full output scal
 current 102.4 headroom, so it should reach the rail more readily, and the existing repair path has to be
 shown to cover it. Until a graph runs on the device and its output is compared against the reference,
 this is a compiler result and nothing more.
+
+### What now blocks it: the worker binds exactly one input
+
+The construction needs hi and lo as two input tensors, because every way of separating them inside the
+graph crashes the compiler -- including slicing the INPUT, which was worth testing separately since all
+the earlier crashes were ops on a FULLY_CONNECTED's output. It crashes too.
+
+Two inputs is a problem only because of who owns the worker. `tpu_worker_jni.cc` is our code, but it is
+built in the LiteRT tree rather than here, shipped as a prebuilt `libanchortpu.so`, and it refuses
+multi-input signatures outright:
+
+    if (!in || !out || !names || in->size() != 1) { LOGI("L%d %s: buffers", ...); delete w; return 0; }
+
+and then writes the whole received blob into `s.in[0]` alone. So the change is small and specific:
+accept `in->size() == 2`, and split the received blob across `in[0]` and `in[1]` at the halfway point,
+which is exactly where hi ends and lo begins on the wire today. Roughly ten lines.
+
+The cost is not the ten lines. `libanchortpu.so` is a bazel target against `@litert`, the build tree is
+12 GB, and bazel is not installed on this machine. After that the graph builder changes, all 35 blocks
+recompile through the AOT compiler (about an hour), the VM-side payload stops recombining and expects one
+reply row per logical row, and about 1.8 GB restages to the phone.
+
+**And it is worth being clear about the size of the prize.** Halving the reply is worth about 65 ms per
+token against a measured 893, so roughly 1.13 -> 1.21 tok/s, and it moves the per-row asymptote from
+about 3.1 to about 4.5 tok/s. It is the first thing found in this campaign that moves a FLOOR rather than
+closing distance to one. It does not approach 15 tok/s, because TPU compute alone is 273 ms against a
+67 ms budget, and nothing about this touches that.
