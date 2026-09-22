@@ -11,6 +11,8 @@ R="$HERE/host/three-lane-report.py"
 pass=0; fail=0
 has() { if grep -qF "$2" <<<"$1"; then printf '  ok   %s\n' "$3"; pass=$((pass+1));
         else printf '  FAIL %s (missing %q)\n' "$3" "$2"; fail=$((fail+1)); fi; }
+hasnt() { if grep -qF "$2" <<<"$1"; then printf '  FAIL %s (found %q, should not be there)\n' "$3" "$2"; fail=$((fail+1));
+          else printf '  ok   %s\n' "$3"; pass=$((pass+1)); fi; }
 ck() { if [ "$2" = "$3" ]; then printf '  ok   %s\n' "$1"; pass=$((pass+1));
        else printf '  FAIL %s\n       want %s got %s\n' "$1" "$3" "$2"; fail=$((fail+1)); fi; }
 
@@ -85,6 +87,44 @@ echo "== two runs that asked different things are refused =="
 fresh; sed -i 's/What is the capital of France? Reply with only the city name./What is the capital of Japan? Reply with only the city name./' "$W/g/MANIFEST.tsv"
 OUT=$(rpt); rc=$?
 has "$OUT" "asks different things" "a prompt mismatch at the same id is refused"
+
+echo "== runs that agree with EACH OTHER but not with the prompts file are refused =="
+# The reported false PASS: both manifests ask "2 plus 2" under numeric=4, every reply is 391, and the
+# prompts file's row 01 is "17 times 23" under numeric=391. Scoring by ordinal alone printed PASS on all
+# three lanes beside a question the replies never answered.
+fresh
+sed -i 's/What is 17 times 23? Reply with only the number.\tnumeric=391/What is 2 plus 2? Reply with only the number.\tnumeric=4/' "$W/m/MANIFEST.tsv" "$W/g/MANIFEST.tsv"
+OUT=$(rpt); rc=$?
+ck  "a manifest asking a different question than the prompts file is refused" "$rc" 1
+has "$OUT" "cannot be scored against a question it was not asked" "  and says why"
+hasnt "$OUT" "PASS" "  and scores nothing"
+
+echo "== the same question under a different contract is refused =="
+fresh; sed -i 's/numeric=391/numeric=392/' "$W/m/MANIFEST.tsv"
+OUT=$(rpt); rc=$?
+ck  "a manifest produced under a different contract is refused" "$rc" 1
+has "$OUT" "produced under the contract" "  and names both contracts"
+
+echo "== a declared count that differs from the prompts file is refused =="
+fresh; sed -i 's/^# expect_rows\t2$/# expect_rows\t3/' "$W/m/MANIFEST.tsv" "$W/g/MANIFEST.tsv"
+OUT=$(rpt); rc=$?
+ck  "runs declaring 3 rows against a 2-prompt file are refused" "$rc" 1
+has "$OUT" "were not produced from it" "  and says so"
+
+echo "== row ids must bind to exactly one question =="
+for bad in "1" "03" "xx"; do
+  fresh; sed -i "s/^01\tk1\t/$bad\tk1\t/" "$W/m/MANIFEST.tsv"
+  OUT=$(rpt); rc=$?
+  ck "row id '$bad' is refused, not bound by position" "$rc" 1
+  # a traceback also exits 1; a REFUSAL says what it refused. Without this the '03' and 'xx' cases
+  # passed against a report with no id validation at all, because it crashed instead.
+  has "$OUT" "cannot be bound to a question" "  refused by the id check, not by a crash"
+  hasnt "$OUT" "Traceback" "  and without a traceback"
+done
+fresh; printf '02\tk2\tok\tok\tWhat is the capital of France? Reply with only the city name.\texact=Paris\n' >> "$W/m/MANIFEST.tsv"
+OUT=$(rpt); rc=$?
+ck  "a duplicate row id is refused" "$rc" 1
+has "$OUT" "twice" "  and says which row"
 
 echo "== mismatched declared counts are refused =="
 fresh; sed -i 's/^# expect_rows\t2$/# expect_rows\t3/' "$W/g/MANIFEST.tsv"; OUT=$(rpt)

@@ -48,22 +48,35 @@ def load(path, ncols, arms):
             continue
         f = line.split("\t")
         if len(f) < ncols:
-            rows.append(dict(id=(f[0] if f else "??"), key="", prompt="<malformed manifest row>",
+            rows.append(dict(kind="malformed", id=(f[0] if f else "??"), key="", prompt="<malformed manifest row>",
                              expect="", **{a: "malformed" for a in arms}))
             continue
-        r = dict(id=f[0], key=f[1], prompt=f[2 + len(arms)], expect=f[3 + len(arms)])
+        r = dict(kind="real", id=f[0], key=f[1], prompt=f[2 + len(arms)], expect=f[3 + len(arms)])
         for i, a in enumerate(arms):
             r[a] = f[2 + i]
         rows.append(r)
     if expect is None:
         sys.exit("REFUSING: %s/MANIFEST.tsv declares no expect_rows, so a run cut short cannot be "
                  "told from a complete one." % path)
-    seen = {r["id"] for r in rows}
+    # Every row binds to a contract by its OWN id, never by where it sits in the file, so a missing or
+    # malformed line cannot shift the rows after it onto the wrong question. That only holds if the ids
+    # are trustworthy: well formed, in range, and unique. Anything else is refused, because a row that
+    # cannot be bound to exactly one question cannot be scored against any.
+    seen = set()
+    for r in rows:
+        i = r["id"]
+        if not (i.isdigit() and i == "%02d" % int(i) and 1 <= int(i) <= expect):
+            sys.exit("REFUSING: %s/MANIFEST.tsv has a row id %r that is not one of 01..%02d, so it cannot "
+                     "be bound to a question." % (path, i, expect))
+        if i in seen:
+            sys.exit("REFUSING: %s/MANIFEST.tsv has row %s twice; which answer belongs to it is not "
+                     "decidable." % (path, i))
+        seen.add(i)
     for k in range(1, expect + 1):
         i = "%02d" % k
         if i not in seen:
-            rows.append(dict(id=i, key="", prompt="<row missing: the run did not reach it>", expect="",
-                             **{a: "missing" for a in arms}))
+            rows.append(dict(kind="missing", id=i, key="", prompt="<row missing: the run did not reach it>",
+                             expect="", **{a: "missing" for a in arms}))
     rows.sort(key=lambda r: r["id"])
     return rows, expect
 
@@ -104,14 +117,13 @@ def main():
     # from a manifest instead meant that when one producer's run was short, its placeholder row text
     # matched no spec, and the OTHER lane's perfectly good answer was scored against an empty
     # contract and came back REVIEW -- a missing row on one lane silently degraded the others.
-    specs, ordered = {}, []
+    canon = []                       # [(prompt, contract)] in file order; row NN is canon[NN-1]
     for line in open(PF, errors="replace"):
         line = line.rstrip("\n")
         if not line.strip() or line.lstrip().startswith("#") or "\t" not in line:
             continue
         pr, _, sp = line.partition("\t")
-        specs[pr.strip()] = sp.strip()
-        ordered.append(pr.strip())
+        canon.append((pr.strip(), sp.strip()))
 
     mrows, mexp = load(MD, 6, ["tpu", "cpu"])
     grows, gexp = load(GD, 5, ["npu"])
@@ -125,6 +137,27 @@ def main():
                 and not g["prompt"].startswith("<"):
             sys.exit("REFUSING: row %s asks different things in the two runs:\n  masked: %r\n  "
                      "google: %r" % (r["id"], r["prompt"], g["prompt"]))
+
+    # ...and each run must have asked the questions THIS prompts file asks, in this order, under these
+    # contracts. Resolving the contract by ordinal without this check scored an answer against a
+    # question that was never put: both manifests asked "2 plus 2", every reply said 391, the prompts
+    # file's row 01 was "17 times 23" with numeric=391 -- and the report printed PASS PASS PASS beside
+    # the 2+2 question. Two runs agreeing with each other is not them agreeing with the contract.
+    if mexp != len(canon):
+        sys.exit("REFUSING: the runs declared %d rows but %s has %d prompts, so they were not produced "
+                 "from it." % (mexp, PF, len(canon)))
+    for label, rows_ in (("masked + CPU", mrows), ("google NPU", grows)):
+        for r in rows_:
+            if r["kind"] != "real":
+                continue
+            q, contract = canon[int(r["id"]) - 1]
+            if r["prompt"] != q:
+                sys.exit("REFUSING: row %s of the %s run asked\n  %r\nbut row %s of %s is\n  %r\n"
+                         "An answer cannot be scored against a question it was not asked."
+                         % (r["id"], label, r["prompt"], r["id"], PF, q))
+            if r["expect"] and r["expect"] != contract:
+                sys.exit("REFUSING: row %s of the %s run was produced under the contract %r, but %s now "
+                         "says %r for the same question." % (r["id"], label, r["expect"], PF, contract))
 
     for name, d in (("masked + CPU", MD), ("google NPU", GD)):
         b = read(os.path.join(d, "BUILD"))
@@ -146,11 +179,7 @@ def main():
     print("%-3s %-7s %-7s %-7s  %s" % ("#", "masked", "cpu", "npu", "prompt"))
     for r in mrows:
         g = gby.get(r["id"], dict(id=r["id"], key="", npu="missing", prompt=r["prompt"], expect=""))
-        try:
-            canonical = ordered[int(r["id"]) - 1]
-        except (ValueError, IndexError):
-            canonical = r["prompt"]
-        spec = specs.get(canonical, specs.get(r["prompt"], r["expect"]))
+        spec = canon[int(r["id"]) - 1][1]   # ids were validated and every real row matched it
         a, sa, ea = vm_answer(MD, r, "tpu")
         b, sb, eb = vm_answer(MD, r, "cpu")
         c, sc, ec = npu_answer(GD, g)

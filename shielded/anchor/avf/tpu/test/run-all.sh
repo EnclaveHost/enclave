@@ -17,7 +17,12 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 pass=0; fail=0
-run() { printf '%-36s ' "$1"; if eval "$2" >/dev/null 2>&1; then echo ok; pass=$((pass+1)); else echo FAIL; fail=$((fail+1)); fi; }
+# A suite that calls a helper it never defined prints "command not found" to stderr, counts neither a
+# pass nor a fail, and still exits 0 -- a dead assertion that reads as coverage. three-lane-test shipped
+# one (hasnt) for a day. So a suite's output is checked for that, and a suite that produces it FAILS.
+run() { printf '%-36s ' "$1"; local o rc; o=$(eval "$2" 2>&1); rc=$?
+        if grep -q "command not found" <<<"$o"; then echo "FAIL (calls an undefined command)"; fail=$((fail+1))
+        elif [ $rc -eq 0 ]; then echo ok; pass=$((pass+1)); else echo FAIL; fail=$((fail+1)); fi; }
 
 # headers must be self-contained and idempotent: tpu_ver_lsb_rms was added AFTER the final #endif with
 # no math.h, so a second include redefined it and sqrt was implicit.
