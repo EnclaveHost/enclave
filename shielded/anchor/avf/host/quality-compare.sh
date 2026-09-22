@@ -20,28 +20,21 @@
 #
 #   OUT=/tmp/q MAXNEW=48 ./quality-compare.sh prompts.txt
 set -uo pipefail
-cd "$(dirname "$0")"
+HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
 OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; mkdir -p "$OUT"
 # BUILD IDENTITY, recorded rather than assumed. Fault-injection experiments run the same source tree with a
 # different constant, and a filename never proved which binary answered: the digests below and the payload's
 # own "tpu: config" line (which prints repair/verify/inject as COMPILED) are what tie a result to a build.
 : > "$OUT/BUILD"
-# The authority is the APK the DEVICE has, not what is lying in out/. An earlier version of this recorded
-# out/attest_probe.apk -- a target that was never installed -- next to results produced by out/anchor.apk,
-# and separately TPU.md quoted a staged sha taken BEFORE the rebuild, which was the fault-injection build.
-# So: pull the installed path from the package manager and digest the library inside it.
-APKPATH=$($ADB shell pm path host.enclave.anchor.avf 2>/dev/null | sed 's/^package://' | tr -d '\r' | head -1)
-if [ -n "$APKPATH" ]; then
-  printf 'installed apk  %s\n' "$APKPATH" >> "$OUT/BUILD"
-  printf '%s  libggml-tpu.so (FROM THE INSTALLED APK)\n' \
-    "$($ADB shell "cat $APKPATH" < /dev/null 2>/dev/null | unzip -p /dev/stdin lib/arm64-v8a/libggml-tpu.so 2>/dev/null | sha256sum | cut -c1-32)" >> "$OUT/BUILD"
+# Binary identity is established by build-identity.sh, which pulls the installed APK to a seekable file
+# and checks every step. The inline pipeline that used to live here recorded the SHA256 of ZERO BYTES as
+# the installed digest, because unzip cannot extract a member from a stream and nothing checked a status.
+if ! "$HERE/build-identity.sh" "$OUT/BUILD"; then
+  echo "REFUSING to run: the binary that would produce these results cannot be identified." >&2
+  cat "$OUT/BUILD" >&2
+  exit 3
 fi
-for f in ../out/anchor.apk; do
-  [ -f "$f" ] && printf '%s  %s (local, for comparison only)\n' "$(sha256sum "$f" | cut -c1-32)" "${f##*/}" >> "$OUT/BUILD"
-  [ -f "$f" ] && printf '%s  libggml-tpu.so inside that local apk\n' "$(unzip -p "$f" lib/arm64-v8a/libggml-tpu.so 2>/dev/null | sha256sum | cut -c1-32)" >> "$OUT/BUILD"
-done
-grep -n 'kRepairClips\|kVerifyKernel\|kInjectFault' ../payload/ggml-tpu.cpp | grep 'constexpr' >> "$OUT/BUILD"
 cat "$OUT/BUILD"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # The prompt list is read into an ARRAY first. Reading it with `while read < file` and running adb inside the
