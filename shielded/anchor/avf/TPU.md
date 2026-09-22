@@ -1308,3 +1308,58 @@ the binaries beside them are microbenchmarks -- `bench-android` is a memcpy harn
 not a LiteRT-LM inference runner. Standing one up is a separate piece of work from this harness, and until
 it exists the only comparable number against that lane is throughput (25.2 against 1.09-1.37 tok/s), not
 quality.
+
+## Does the protected-VM boundary scale per connection? Transport says: a little (2026-09-22)
+
+The control the earlier retraction called for, built as `payload/linkbench.h` and run inside an ordinary
+session so it needs no fresh encrypted store: the SAME 8 MiB, once over one link and once split evenly
+over N, compared by MAKESPAN, in seven ALTERNATING pairs so drift lands on both phases, reported as
+medians. A failed phase abandons the comparison rather than being dropped, because there is no way to
+resynchronise a stream whose announced bytes were never consumed, and dropping failures would bias the
+medians towards the quiet moments.
+
+| links | one link | N links | scaling |
+|---|---|---|---|
+| 2 | 102 ms (82.4 MB/s) | 94 ms (89.5 MB/s) | 1.09x |
+| 3 | 51 ms (165.1 MB/s) | 37 ms (225.4 MB/s) | 1.37x |
+| 4 | 89 ms (93.9 MB/s) | 70 ms (120.1 MB/s) | 1.28x |
+
+Earlier runs of the same benchmark gave 1.37x at 2 links and 1.13x at 3.
+
+**So it scales, sub-linearly, somewhere around 1.1-1.4x -- and the honest headline is the variance, not
+the factor.** The one-link CONTROL alone ranged from 66 to 165 MB/s across runs, a 2.5x spread on the
+thing everything else is measured against, and within a single run the seven samples of one phase spread
+41-186 ms. A fixed 8 MiB transfer varying four-fold points at scheduling rather than bandwidth as what
+governs this boundary, which is the same finding as the spin experiment and the refill threads: six big
+cores, no spare one, and extra connections contend for them.
+
+**What this does NOT say.** It is transport: a one-directional bulk receive with no TPU, no mask and no
+turnaround. It says nothing yet about masked decode, and the reported line carries `TRANSPORT ONLY` for
+that reason. Measuring decode would mean striping the real reply across links, which touches reply
+ordering and so needs the security review the benchmark links were designed to avoid needing.
+
+**What it suggests, as arithmetic rather than measurement.** Subtracting the worker's own measured time
+from the VM's `wait` at one row and at 3.89 rows separates the exchange's crossing into
+**1.02 ms fixed + bytes at 26.5 MB/s**. Against a single link that reaches 82-165 MB/s in bulk, the
+exchange realises a sixth to a third of one connection's capacity, so bandwidth is not what limits it.
+Projecting 26.5 -> 36 MB/s (the 1.37x best case) would save about 46 ms per token, roughly 5 %. That is a
+projection from a two-point fit and not a result.
+
+Against the 67 ms budget for 15 tok/s it changes nothing: TPU compute alone is 273 ms.
+
+### The benchmark's own failure modes, found by review rather than by running it
+
+Worth recording because a benchmark that cannot fail correctly produces numbers that look exactly like
+real ones, and every one of these was caught by reading the code:
+
+| defect | what it would have done |
+|---|---|
+| benchmark links opened on WORKER_PORT | the app starts both thread sets at once and the real worker loads 35 graphs before dialling, so accept ORDER could have handed a benchmark link to the lane AS the worker. Fixed by a separate port: role is decided by port and cannot race |
+| polled for POLLIN only | a peer that hangs up sets POLLHUP, and poll then returns immediately forever with no data and no error: an infinite spin that reads as a hang |
+| announced with `write()` | SIGPIPE to a departed peer would kill the payload rather than return an error. Now `send(MSG_NOSIGNAL)` |
+| dropped a failed sample and reused the stream | the peer may still be sending bytes announced for the failed phase, so a later sample counts them, and the one-link and N-link samples stop being matched pairs |
+
+`tpu/test/linkbench-test.c` drives the shipped code against a peer that hangs up, one that stays silent,
+a dead descriptor, and one that answers partially then stalls. Eight cases, all holding; the hangup case
+returns in 0 ms where it used to spin, and the partial-response case abandons at repetition 3 with 3
+complete pairs.
