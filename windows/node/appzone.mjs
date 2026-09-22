@@ -296,11 +296,19 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
       const tlsSock = new tls.TLSSocket(wsStream, {
         isServer: true, key: target.cert.key, cert: target.cert.cert,
         SNICallback: (name, cb) => {
+          const n = String(name || "").toLowerCase().replace(/\.+$/, "");
           const ctx = target.contextFor && target.contextFor(name);
           if (!ctx) {
-            // No certificate for this name: hand back the default rather than failing the
-            // handshake, so the browser gets a NAME MISMATCH it can explain instead of a reset.
-            log(`app-zone ${id.slice(0, 10)}: no certificate for ${name}, serving ${target.cert.name}`);
+            // No context for this name: hand back the default rather than failing the handshake,
+            // so a browser gets a NAME MISMATCH it can explain instead of a reset.
+            //
+            // Only WORTH SAYING when the name is not the default's. `contextFor` indexes the
+            // domains an OWNER attached; a deployment's own <label>.app.enclave.host is never in
+            // it, so every ordinary handshake logged "no certificate for e64f7cba.app.enclave.host,
+            // serving e64f7cba.app.enclave.host" - a line that names the same certificate twice
+            // and reads as a fault. It buried the real one, and I chased it as a defect.
+            const dflt = String(target.cert.name || "").toLowerCase().replace(/\.+$/, "");
+            if (n !== dflt) log(`app-zone ${id.slice(0, 10)}: no certificate for ${name}, serving ${target.cert.name}`);
             return cb(null, undefined);
           }
           cb(null, ctx);

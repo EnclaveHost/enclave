@@ -891,7 +891,11 @@ export class Host {
       const cur = this.appCerts.get(id);
       if (app.state === "running" && app.port && (!cur || !cur.cert || cur.cert.selfSigned)) {
         this.appZoneTarget(id).then((t) => {
-          if (t) this.log(`${id.slice(0, 10)} app-zone ready at https://${t.cert.name}/`);
+          // "Ready" has to mean a BROWSER WILL LOCK. appZoneTarget answers a target either way -
+          // the self-signed fallback is still a servable target - so logging on `t` alone printed
+          // "app-zone ready at https://..." every tick for an app whose padlock was amber, which
+          // is how a missing certificate stayed invisible here while the log said it was fine.
+          if (t && t.cert && !t.cert.selfSigned) this.log(`${id.slice(0, 10)} app-zone ready at https://${t.cert.name}/`);
         }).catch(() => {});
       }
     }
