@@ -1214,3 +1214,44 @@ So the masked TPU path cannot meet the bar at any useful model size, and the rea
 accelerator. The two architectures that DO meet it are unchanged: the in-VM CPU decode, measured at
 **13.40-15.48 tok/s on this phone today** in the very same runs (the baseline arm of the quality
 comparison), and TPU assignment into the pVM, which is a Google platform gate and not a silicon one.
+
+## The search, finished: every accelerator path on this device, checked on the device (2026-09-22)
+
+The brief was to find ANY viable option, so here is the enumeration rather than an argument, each row
+established by a command run against the phone today rather than from memory.
+
+| option | verdict | the evidence |
+|---|---|---|
+| TPU across the pVM boundary, masked | **1.09-1.37 tok/s** | measured; three floors each over the 67 ms budget |
+| TPU assigned INTO the pVM | closed | `vm info`: `VFIO-platform is not supported`, `Assignable devices: []` |
+| GPU into the pVM | closed | crosvm has ZERO strings for virtio-gpu / gfxstream / virglrenderer; the Microdroid guest kernel has no DRM driver |
+| GPU across the boundary, masked | ~2.67 tok/s | same 140 round trips; a 198 us submit floor against the TPU's 637 us moves almost nothing |
+| any device via `--devices` | closed | the flag exists, the VFIO backend it needs does not |
+| CPU inside the pVM | **13.29 tok/s sustained** | 315 tokens, 459 core-ms/token, 5.6 cores, thermal status 0 throughout |
+
+Platform state at the time of the check: kernel `6.6.118-android15-8`, Android release 17, SDK 37,
+security patch 2026-08-05. The gate is the 6.6 kernel: assignment needs 6.12 plus VFIO.
+
+**So on a stock Pixel 10 there is no way to put an accelerator inside the trust boundary, and outside it
+the masking protocol costs more CPU than the matmuls it moves.** That second half is the part that
+matters most, because the TPU requirement was instrumental -- it existed to keep a host's phone from
+being made slow, hot and flat:
+
+| | tok/s | core-ms/token | cores busy | thermal |
+|---|---|---|---|---|
+| CPU only, in the pVM | 13.29 | **459** | 5.6 | status 0 across a sustained run |
+| Shielded-TPU, H=4, digit-split | 0.67-1.37 | **6641** | 4.5 | -- |
+
+The masked TPU path uses about 15-20x more phone CPU per token while keeping the same number of cores
+busy. It does not move work off the CPU; it adds work to it, because minting a pad is the same integer
+MACs as the matmul it protects and the VM still does every norm, the attention and the sampling. On the
+one criterion that motivated requiring the TPU, the TPU path is strictly worse than the alternative it
+was meant to replace -- and it also has the weaker boundary, since the host sees masked activations where
+on the CPU path it sees nothing at all.
+
+**What would change the answer.** Not a better mask and not a better kernel schedule: the floors are
+structural. It takes an accelerator inside the pVM, which means a platform that can assign one --
+kernel 6.12 with VFIO, or a device we provision ourselves. Our half of that is already built and proven
+on this phone (EL2 reset handler, guest kernel with pvIOMMU); what is missing is a host that will hand
+the device over. That path is worth about 20-25 tok/s and satisfies every part of the brief at once,
+which no arrangement of a masked outside-the-boundary worker can.
