@@ -67,6 +67,7 @@ const host = new Host({
   enclaveAppRamMb: Number(process.env.ENCLAVE_APP_RAM_MB || 768),
   // filled in at startup from the enclave itself (`appabi`), never from config: see host.appsInTee
   enclaveAppAbi: 0,
+  enclaveAppWorlds: 0,          // the bitmask the runtime reports: 1 enclave:app | 2 wasi:http
   repo: process.env.NODE_REPO || 'EnclaveHost/enclave',
   // the VBS enclave's own identity key (sha256(FamilyId||ImageId||AuthorId)), published on the
   // registry row so the chain's view and the relay's attestation verdict can be compared
@@ -365,10 +366,13 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
   // whether it sells app hosting at all (host.mjs appsInTee).
   try {
-    const abi = Number(await hostCmd('appabi')) || 0;
-    host.cfg.enclaveAppAbi = abi;
+    const [abiStr, worldsStr] = String(await hostCmd('appabi')).trim().split(/\s+/);
+    const abi = Number(abiStr) || 0;
+    const worlds = Number(worldsStr) || (abi >= 1 ? 1 : 0);
+    host.cfg.enclaveAppAbi = abi; host.cfg.enclaveAppWorlds = worlds;
+    const names = [worlds & 1 ? 'enclave:app@0.1.0' : null, worlds & 2 ? 'wasi:http@0.2' : null].filter(Boolean);
     log(abi >= 1
-      ? `app runtime in the enclave: abi ${abi} (enclave:app@0.1.0, ${host.cfg.enclaveAppRamMb} MB budget)`
+      ? `app runtime in the enclave: abi ${abi}, worlds ${names.join(' + ')}, ${host.cfg.enclaveAppRamMb} MB budget`
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
   if (APPS) await host.init();

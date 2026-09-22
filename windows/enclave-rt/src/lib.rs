@@ -96,6 +96,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe { ee_app_abort(f.b.as_ptr(), f.n) }
 }
 
+pub mod wasihost;
+
 wasmtime::component::bindgen!({
     path: "wit",
     world: "app",
@@ -131,11 +133,16 @@ impl enclave::app::host::Host for HostState {
     }
 }
 
-/// One loaded app: its store and its instance, all in enclave memory. `App` is bindgen!'s name
-/// for the world binding, so the record that holds one is Loaded.
-struct Loaded {
-    store: Store<HostState>,
-    instance: App,
+/// One loaded app, of either kind this enclave can run. Both live entirely in enclave memory.
+///
+///  * `Enclave` is the enclave:app world (wit/app.wit): a function call, four host imports, and
+///    the model next door. Written for this box.
+///  * `Http` is an ORDINARY platform app: a wasi:http component, exactly as published to the
+///    catalog for the fleet's confidential VMs, served by the WASI host in wasihost.rs. Nothing
+///    about the artifact changes; what changes is where it runs.
+enum Loaded {
+    Enclave { store: Store<HostState>, instance: App },
+    Http { store: Store<wasihost::WasiState>, instance: wasihost::AppHttp },
 }
 
 // ---- the wire between VTL0 and the app -------------------------------------------------------
@@ -195,6 +202,12 @@ fn encode_response(resp: &enclave::app::types::Response) -> Vec<u8> {
 // ---- the C API the enclave image exposes -----------------------------------------------------
 // Handles rather than pointers across the boundary: a use-after-free of an app pointer handed out
 // to VTL0 would be a VTL1 memory bug reachable from the untrusted side.
+/// Which world an artifact was built for. The HOST decides and says so, because it is the half
+/// that read the bytes (windows/node/appframe.mjs worldOf): the enclave then serves that world or
+/// refuses, rather than guessing from a failed instantiation.
+pub const WORLD_ENCLAVE: u32 = 1;
+pub const WORLD_HTTP: u32 = 2;
+
 const MAX_APPS: usize = 8;
 static mut APPS: [Option<Loaded>; MAX_APPS] = [None, None, None, None, None, None, None, None];
 static mut LAST_ERROR: Option<String> = None;
@@ -210,9 +223,21 @@ fn set_err_owned(s: String) { unsafe { LAST_ERROR = Some(s) } }
 /// narrower and worth stating: whatever was loaded RUNS in here, and nothing in VTL0 can read or
 /// alter it afterwards.
 #[no_mangle]
-pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize) -> u32 {
+pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
+                             env: *const u8, env_len: usize) -> u32 {
     if cwasm.is_null() || len == 0 { set_err("no bytecode"); return 0; }
     let bytes = unsafe { core::slice::from_raw_parts(cwasm, len) };
+    // "K=V\0K=V\0\0", the same shape the engine's own init takes. This is where a version's
+    // config and a deployment's override reach an ordinary app (ENCLAVE_CONFIG), so an app reads
+    // its configuration in here exactly as it would on a confidential VM.
+    let envv: Vec<(String, String)> = if env.is_null() || env_len == 0 { Vec::new() } else {
+        let raw = unsafe { core::slice::from_raw_parts(env, env_len) };
+        raw.split(|&b| b == 0)
+            .filter(|p| !p.is_empty())
+            .filter_map(|p| core::str::from_utf8(p).ok())
+            .filter_map(|kv| kv.split_once('=').map(|(k, v)| (String::from(k), String::from(v))))
+            .collect()
+    };
     let mut config = Config::new();
     // The interpreter target, and the artifact must match it: a cwasm carrying machine code for a
     // real ISA is refused here rather than mapped executable, which is the point.
@@ -243,19 +268,38 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize) -> u32 {
             return 0;
         }
     };
-    let mut linker: Linker<HostState> = Linker::new(&engine);
-    if App::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |s| s).is_err() {
-        set_err("linker"); return 0;
-    }
-    let mut store = Store::new(&engine, HostState);
-    let instance = match App::instantiate(&mut store, &component, &linker) {
-        Ok(i) => i,
-        Err(e) => { set_err_owned(format!("instantiate: {e}")); return 0; }
+    let loaded = if world == WORLD_HTTP {
+        // An ordinary platform app. The WASI host it sees is wasihost.rs: buffered, single-request,
+        // no egress, and everything else the interfaces promise.
+        let mut linker: Linker<wasihost::WasiState> = Linker::new(&engine);
+        if let Err(e) = wasihost::AppHttp::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, &wasihost::LinkOptions::default(), |s| s) {
+            set_err_owned(format!("linker: {e}")); return 0;
+        }
+        let mut store = Store::new(&engine, wasihost::WasiState::new(envv));
+        match wasihost::AppHttp::instantiate(&mut store, &component, &linker) {
+            Ok(instance) => Loaded::Http { store, instance },
+            Err(e) => {
+                // The usual cause is an import this enclave does not provide - wasi:sockets, or
+                // wasi:filesystem. Carry wasmtime's own words out: they name the interface.
+                set_err_owned(format!("instantiate: {e:?}"));
+                return 0;
+            }
+        }
+    } else {
+        let mut linker: Linker<HostState> = Linker::new(&engine);
+        if App::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |s| s).is_err() {
+            set_err("linker"); return 0;
+        }
+        let mut store = Store::new(&engine, HostState);
+        match App::instantiate(&mut store, &component, &linker) {
+            Ok(instance) => Loaded::Enclave { store, instance },
+            Err(e) => { set_err_owned(format!("instantiate: {e:?}")); return 0; }
+        }
     };
     unsafe {
         let apps = &mut *core::ptr::addr_of_mut!(APPS);
         for (i, slot) in apps.iter_mut().enumerate() {
-            if slot.is_none() { *slot = Some(Loaded { store, instance }); return (i + 1) as u32; }
+            if slot.is_none() { *slot = Some(loaded); return (i + 1) as u32; }
         }
     }
     set_err("no free app slot in this enclave");
@@ -274,11 +318,23 @@ pub extern "C" fn ee_rt_handle(id: u32, req: *const u8, req_len: usize,
     };
     let buf = unsafe { core::slice::from_raw_parts(req, req_len) };
     let request = match decode_request(buf) { Some(r) => r, None => { set_err("malformed request frame"); return -3 } };
-    let resp = match app.instance.call_handle(&mut app.store, &request) {
-        Ok(r) => r,
-        Err(e) => { set_err_owned(format!("the app trapped: {e}")); return -4 }
+    // The two kinds answer the same frame; only the world in between differs.
+    let enc = match app {
+        Loaded::Enclave { store, instance } => {
+            let resp = match instance.call_handle(store, &request) {
+                Ok(r) => r,
+                Err(e) => { set_err_owned(format!("the app trapped: {e:?}")); return -4 }
+            };
+            encode_response(&resp)
+        }
+        Loaded::Http { store, instance } => {
+            store.data_mut().now_ms = unsafe { ee_app_now_ms() };
+            match wasihost::serve(store, instance, &request) {
+                Ok(v) => v,
+                Err(msg) => { set_err_owned(msg); return -4 }
+            }
+        }
     };
-    let enc = encode_response(&resp);
     if enc.len() > out_cap {
         // Say how much was needed rather than truncating a tenant's response into something that
         // looks like their app's answer.
@@ -316,4 +372,10 @@ pub extern "C" fn ee_rt_last_error(out: *mut u8, cap: usize) -> usize {
 /// Is the runtime present in this enclave image, and what does it run? The host publishes this so
 /// a row cannot claim in-enclave app hosting from an image that does not carry the runtime.
 #[no_mangle]
-pub extern "C" fn ee_rt_abi() -> u32 { 1 }
+pub extern "C" fn ee_rt_abi() -> u32 { 2 }
+
+/// Which worlds this build serves, as a bitmask: 1 = enclave:app, 2 = wasi:http. The host
+/// publishes it, so a row cannot claim to host ordinary platform apps from an image whose runtime
+/// only knows the enclave world.
+#[no_mangle]
+pub extern "C" fn ee_rt_worlds() -> u32 { WORLD_ENCLAVE | WORLD_HTTP }

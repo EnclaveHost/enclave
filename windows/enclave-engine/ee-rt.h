@@ -69,9 +69,17 @@ typedef struct ee_session_params {
  * (windows/enclave-rt/src/lib.rs, the codec):
  *   request : u32 method | u32 path | u32 nheaders | (u32 name, u32 value) * n | u32 body
  *   response: u16 status | u32 nheaders | (u32 name, u32 value) * n | u32 body */
-#define EE_APP_ABI 1
+#define EE_APP_ABI 2
+/* Which world the artifact was built for. The HOST reads the bytes and says which (the node's
+ * appframe.mjs worldOf), and the enclave serves that world or refuses by name.
+ *   EE_WORLD_ENCLAVE  enclave:app@0.1.0 - written for this box, four host imports, the model
+ *   EE_WORLD_HTTP     wasi:http - an ORDINARY platform app, unchanged from the catalog */
+#define EE_WORLD_ENCLAVE 1
+#define EE_WORLD_HTTP    2
 typedef struct ee_app_open_params {
     uint32_t size; const uint8_t *cwasm; uint64_t cwasm_len;   /* host memory: copied in */
+    uint32_t world;                                            /* EE_WORLD_* */
+    const uint8_t *env; uint64_t env_len;                      /* "K=V\0K=V\0\0": ENCLAVE_CONFIG lands here */
     uint32_t id;                                               /* out: the handle for Handle/Close */
     int32_t status; char error[256]; int64_t load_us;
 } ee_app_open_params;

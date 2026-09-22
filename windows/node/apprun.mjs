@@ -209,9 +209,14 @@ export function missingHostInterfaces(file) {
  * this class does is four commands: appabi, appopen, apphandle, appclose.
  */
 export class EnclaveApp {
-  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0 }) {
+  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {} }) {
     this.id = id; this.cwasmPath = cwasmPath; this.hostCmd = hostCmd; this.log = log;
     this.memMb = memMb;
+    // 1 = enclave:app (written for this box), 2 = wasi:http (an ordinary platform app).
+    this.world = world;
+    // "K=V\0K=V\0\0", hex on the wire: this is how ENCLAVE_CONFIG reaches an ordinary app, the
+    // same variables the VTL0 wasmtime path passed on its command line.
+    this.env = env;
     this.slot = 0; this.state = "stopped"; this.lines = []; this.loadUs = 0;
     this.inTee = true;                       // what host.mjs records and /availability publishes
   }
@@ -224,13 +229,17 @@ export class EnclaveApp {
   /** Load the bytecode into the enclave. The enclave copies it in and answers with a slot. */
   async start() {
     this.state = "starting";
-    const r = await this.hostCmd(`appopen ${this.cwasmPath}`);
+    const envBlob = Object.entries(this.env || {}).filter(([k, v]) => k && v != null)
+      .map(([k, v]) => `${k}=${v}\0`).join("");
+    const envHex = envBlob ? Buffer.from(envBlob + "\0", "utf8").toString("hex") : "";
+    const r = await this.hostCmd(`appopen ${this.world} ${this.cwasmPath}${envHex ? " " + envHex : ""}`);
     const [slot, us] = String(r).trim().split(/\s+/);
     this.slot = Number(slot) || 0;
     this.loadUs = Number(us) || 0;
     if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
     this.state = "running";
-    this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms`);
+    this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms`
+      + ` (${this.world === 2 ? "wasi:http" : "enclave:app"})`);
     return this;
   }
   async stop() {

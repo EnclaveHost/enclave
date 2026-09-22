@@ -28,6 +28,10 @@ extern "C" {
  * saying where it came from. Per-call, so an app cannot cache a stale one. */
 static uint64_t g_now_ms;
 uint64_t ee_app_now_ms(void) { return g_now_ms; }
+/* The enclave's own monotonic microseconds (ee-rt.c, off the host clock at init plus the TSC):
+ * a guest measuring an interval needs a clock that moves, and the wall clock above is only read
+ * once per call. */
+uint64_t ee_app_now_us(void) { return (uint64_t)ee_now_us(); }
 
 int ee_app_random(unsigned char *out, unsigned int len) {
     return ee_random(out, len) == 0 ? 0 : -1;        /* the enclave's own source, as for the keys */
@@ -58,7 +62,9 @@ __declspec(noreturn) void ee_app_abort(const char *msg, size_t len) {
 }
 
 /* ---- the runtime, from windows/enclave-rt ------------------------------------------------- */
-unsigned int ee_rt_open(const unsigned char *cwasm, size_t len);
+unsigned int ee_rt_open(const unsigned char *cwasm, size_t len, unsigned int world,
+                        const unsigned char *env, size_t env_len);
+unsigned int ee_rt_worlds(void);
 int          ee_rt_handle(unsigned int id, const unsigned char *req, size_t req_len,
                           unsigned char *out, size_t out_cap, size_t *out_len);
 int          ee_rt_close(unsigned int id);
@@ -81,17 +87,26 @@ __declspec(dllexport) void *WINAPI EeAppOpen(void *param) {
     if (!p->cwasm || p->cwasm_len < 64 || p->cwasm_len > (64u << 20)) {
         p->status = -2; snprintf(p->error, sizeof p->error, "bytecode size"); return (void *)(intptr_t)-2;
     }
+    const unsigned int world = p->world ? p->world : EE_WORLD_ENCLAVE;
+    if (!(ee_rt_worlds() & world)) {
+        p->status = -5; snprintf(p->error, sizeof p->error, "this enclave's runtime does not serve world %u", world);
+        return (void *)(intptr_t)-5;
+    }
     const int64_t t0 = ee_now_us();
-    std::vector<unsigned char> bytes;
-    try { bytes.assign(p->cwasm, p->cwasm + p->cwasm_len); }
+    std::vector<unsigned char> bytes, envv;
+    try {
+        bytes.assign(p->cwasm, p->cwasm + p->cwasm_len);
+        if (p->env && p->env_len && p->env_len < (1u << 20)) envv.assign(p->env, p->env + p->env_len);
+    }
     catch (...) { p->status = -3; snprintf(p->error, sizeof p->error, "out of enclave memory for %llu bytes",
                                            (unsigned long long)p->cwasm_len); return (void *)(intptr_t)-3; }
-    const unsigned int id = ee_rt_open(bytes.data(), bytes.size());
+    const unsigned int id = ee_rt_open(bytes.data(), bytes.size(), world,
+                                       envv.empty() ? NULL : envv.data(), envv.size());
     p->load_us = ee_now_us() - t0;
     if (!id) { p->status = -4; app_err(p->error, "the runtime refused the bytecode"); return (void *)(intptr_t)-4; }
     p->id = id; p->status = 0;
-    ee_log("[app] loaded app %u, %llu bytes of bytecode, in %lld us\n",
-           id, (unsigned long long)bytes.size(), (long long)p->load_us);
+    ee_log("[app] loaded app %u (world %u), %llu bytes of bytecode, in %lld us\n",
+           id, world, (unsigned long long)bytes.size(), (long long)p->load_us);
     return (void *)1;
 }
 
@@ -149,8 +164,9 @@ __declspec(dllexport) void *WINAPI EeAppClose(void *param) {
 
 /* Does this enclave image carry an app runtime, and which ABI? The host publishes it, so a row
  * can only advertise in-enclave app hosting from an image that actually has one. */
+/* param (optional): [0] = abi, [1] = the worlds bitmask this runtime serves. */
 __declspec(dllexport) void *WINAPI EeAppAbi(void *param) {
-    if (param) *(uint32_t *)param = ee_rt_abi();
+    if (param) { uint32_t *o = (uint32_t *)param; o[0] = ee_rt_abi(); o[1] = ee_rt_worlds(); }
     return (void *)(intptr_t)ee_rt_abi();
 }
 

@@ -129,10 +129,11 @@ static int do_session(const uint8_t *in, size_t in_len, uint8_t *out, size_t cap
 /* The host's whole part in this: read the bytecode off disk, carry request frames in and response
  * frames out. It cannot read the app's memory, and the app cannot reach past the four host
  * functions the enclave gives it. */
-static int do_app_open(const uint8_t *cwasm, size_t len, uint32_t *id, long long *load_us, char *err) {
+static int do_app_open(const uint8_t *cwasm, size_t len, uint32_t world,
+                       const uint8_t *env, size_t env_len, uint32_t *id, long long *load_us, char *err) {
     if (!g_EeAppOpen) { strcpy(err, "this enclave image has no app runtime"); return -1; }
     ee_app_open_params *p = (ee_app_open_params *)calloc(1, sizeof *p);
-    p->size = sizeof *p; p->cwasm = cwasm; p->cwasm_len = len;
+    p->size = sizeof *p; p->cwasm = cwasm; p->cwasm_len = len; p->world = world; p->env = env; p->env_len = env_len;
     if (call(g_EeAppOpen, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
     int st = p->status; *id = p->id; if (load_us) *load_us = (long long)p->load_us;
     if (st) strncpy(err, p->error, 255);
@@ -161,9 +162,14 @@ static int do_app_close(uint32_t id, char *err) {
     if (call(g_EeAppClose, p)) { free(p); strcpy(err, "CallEnclave"); return -1; }
     int st = p->status; free(p); return st;
 }
-static uint32_t app_abi(void) {
+/* out[0] = abi, out[1] = the worlds bitmask (1 enclave:app | 2 wasi:http). */
+static uint32_t app_abi(uint32_t *worlds) {
+    if (worlds) *worlds = 0;
     if (!g_EeAppAbi) return 0;
-    uint32_t v = 0; if (call(g_EeAppAbi, &v)) return 0; return v;
+    uint32_t v[2] = { 0, 0 };
+    if (call(g_EeAppAbi, v)) return 0;
+    if (worlds) *worlds = v[1];
+    return v[0];
 }
 
 /* ---- the loopback server for the agent ---------------------------------------------------- */
@@ -201,11 +207,28 @@ static void serve(int port) {
                     else { size_t k = snprintf(reply, sizeof reply, "ok "); hex(reply + k, sout, (size_t)st.out_len); k += 2 * (size_t)st.out_len;
                            snprintf(reply + k, sizeof reply - k, " %d %lld %lld %llu %llu %llu %llu\n", st.n_tokens, (long long)st.prompt_us, (long long)st.decode_us, (unsigned long long)st.offloaded, (unsigned long long)st.local, (unsigned long long)st.macs, (unsigned long long)st.verify_fail); }
                 } else if (!strcmp(line, "appabi")) {
-                    snprintf(reply, sizeof reply, "ok %u\n", app_abi());
+                    uint32_t worlds = 0; const uint32_t abi = app_abi(&worlds);
+                    snprintf(reply, sizeof reply, "ok %u %u\n", abi, worlds);
                 } else if (!strncmp(line, "appopen ", 8)) {
-                    /* by PATH, not by hex: bytecode is a hundred kilobytes and up, and the host is
-                     * the one that fetched it. The enclave copies it in before looking at it. */
-                    const char *path = line + 8; uint32_t id = 0; long long load_us = 0;
+                    /* appopen <world> <path to bytecode> [hex environment]
+                     * By PATH, not by hex, for the bytecode: it is a hundred kilobytes and up and
+                     * the host is the one that fetched it. The environment IS hex, because it
+                     * carries a deployment's config and must survive this line protocol intact. */
+                    uint32_t id = 0, world = 0; long long load_us = 0;
+                    static uint8_t envbuf[256 * 1024]; size_t env_len = 0;
+                    char pathbuf[1024]; const char *path = pathbuf;
+                    {
+                        const char *a = line + 8;
+                        char *sp1 = strchr(a, ' ');
+                        if (!sp1) { strcpy(reply, "err usage: appopen <world> <path> [hexenv]\n"); goto app_open_done; }
+                        world = (uint32_t)atoi(a);
+                        const char *rest = sp1 + 1;
+                        char *sp2 = strchr(rest, ' ');
+                        const size_t plen = sp2 ? (size_t)(sp2 - rest) : strlen(rest);
+                        if (!world || plen == 0 || plen >= sizeof pathbuf) { strcpy(reply, "err bad world or path\n"); goto app_open_done; }
+                        memcpy(pathbuf, rest, plen); pathbuf[plen] = 0;
+                        if (sp2 && unhex(envbuf, sizeof envbuf, sp2 + 1, &env_len)) { strcpy(reply, "err bad env hex\n"); goto app_open_done; }
+                    }
                     FILE *f = fopen(path, "rb");
                     if (!f) snprintf(reply, sizeof reply, "err cannot open %s\n", path);
                     else {
@@ -215,12 +238,13 @@ static void serve(int port) {
                         else if (fread(bytes, 1, (size_t)n, f) != (size_t)n) { strcpy(reply, "err short read\n"); fclose(f); free(bytes); }
                         else {
                             fclose(f);
-                            int st = do_app_open(bytes, (size_t)n, &id, &load_us, err);
+                            int st = do_app_open(bytes, (size_t)n, world, env_len ? envbuf : NULL, env_len, &id, &load_us, err);
                             free(bytes);                       /* the enclave has its own copy */
                             if (st) snprintf(reply, sizeof reply, "err %s\n", err);
                             else snprintf(reply, sizeof reply, "ok %u %lld\n", id, load_us);
                         }
                     }
+                    app_open_done: ;
                 } else if (!strncmp(line, "apphandle ", 10)) {
                     unsigned int id = 0; size_t rl = 0, ol = 0; long long us = 0;
                     const char *sp = strchr(line + 10, ' ');

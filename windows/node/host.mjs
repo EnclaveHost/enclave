@@ -244,10 +244,16 @@ export class Host {
     const world = worldOf(fs.readFileSync(art.path));
     if (!this.appsInTee())
       return await this.#giveUp(id, "this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it");
-    if (world !== "enclave-app")
-      return await this.#giveUp(id, `this box runs an app INSIDE its VBS enclave, which serves the enclave:app@0.1.0 world`
-        + ` (windows/enclave-rt/wit/app.wit). This artifact is built for ${world === "wasi-http" ? "wasi:http" : world},`
-        + ` which needs a socket and a poll loop that VTL1 does not have. Publish an enclave:app build to run it here`);
+    // Which worlds this enclave image actually serves (a bitmask from the runtime itself):
+    // 1 = enclave:app, 2 = wasi:http. An ordinary platform app is world 2 and runs unchanged.
+    const worlds = Number(this.cfg.enclaveAppWorlds || 1);
+    const want = world === "enclave-app" ? 1 : world === "wasi-http" ? 2 : 0;
+    if (!want || !(worlds & want))
+      return await this.#giveUp(id, `this box runs an app INSIDE its VBS enclave. It serves`
+        + ` ${worlds & 1 ? "enclave:app@0.1.0" : ""}${(worlds & 3) === 3 ? " and " : ""}${worlds & 2 ? "wasi:http" : ""},`
+        + ` and this artifact is built for ${world === "wasi-cli" ? "wasi:cli with wasi:sockets, a server that binds its own"
+            + " port: an enclave has no socket to bind and no reactor to poll, so that shape needs the brokered sockets"
+            + " that are not built yet" : world}`);
     let app = this.apps.get(id);
     if (app && force) { await app.stop(); this.apps.delete(id); app = null; }
     if (!app) {
@@ -262,7 +268,11 @@ export class Host {
         try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe, log: (m) => this.log(m) }); }
         catch (e) { return this.#record(id, { status: "failed", reason: `bytecode: ${e.message}` }); }
       }
-      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
+      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want,
+                             // The same environment the platform gives an app on a CVM: its
+                             // config (the version's, or this deployment's override) and its size.
+                             env: { ENCLAVE_CONFIG: this.appConfig(d, v), ENCLAVE_MEM_MB: String(memMb) },
+                             log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
     }
     if (app.state !== "running") {
@@ -523,6 +533,8 @@ export class Host {
         // covered is the traffic: VTL0 owns the socket and carries the request and response
         // frames, exactly as the platform's relay does for every other box in the fleet.
         isolation: "vbs-enclave", inTee: true, runtime: "wasmtime-pulley", abi: Number(this.cfg.enclaveAppAbi || 0),
+        worlds: [...(Number(this.cfg.enclaveAppWorlds || 1) & 1 ? ["enclave:app@0.1.0"] : []),
+                 ...(Number(this.cfg.enclaveAppWorlds || 1) & 2 ? ["wasi:http@0.2"] : [])],
         world: "enclave:app@0.1.0", traffic: "carried by the host",
         scope: this.scope(), public: true, running, capacity: cap.slots, ramMb: Number(this.cfg.enclaveAppRamMb) || 768,
         note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
