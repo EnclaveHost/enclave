@@ -22,18 +22,42 @@
 #include "ee-rt.h"
 #pragma comment(lib, "ws2_32.lib")
 
-static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession;
+static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession, g_EeThreadTest;
 /* the app runtime's entry points. Optional on purpose: an older enclave image has no app runtime,
  * and the host says so rather than failing to start. */
 static FARPROC g_EeAppOpen, g_EeAppHandle, g_EeAppClose, g_EeAppAbi, g_EeAppRun, g_EeAppStop;
 static FILE *g_logf; static CRITICAL_SECTION g_log_cs;
 static SOCKET g_socks[256]; static CRITICAL_SECTION g_sock_cs;
+/* One binary semaphore per park token (an enclave call-out slot index). Lazily created under the
+ * same lock the socket table uses; EE_MAX_PARK is the ceiling on enclave threads. */
+#define EE_MAX_PARK 256
+static HANDLE volatile g_park[EE_MAX_PARK];
+static HANDLE park_sem(uint32_t token) {
+    if (token >= EE_MAX_PARK) return NULL;
+    /* PUBLISHED WITH AN INTERLOCKED EXCHANGE, not under a lock that only the writer takes. The
+     * fast path reads this slot without the lock, so a plain store on the other side would be a
+     * torn or reordered publication - the reader could see a non-null handle before the object
+     * behind it was there. The loser of the race closes its own semaphore and uses the winner's. */
+    HANDLE h = (HANDLE)InterlockedCompareExchangePointer((PVOID volatile *)&g_park[token], NULL, NULL);
+    if (h) return h;
+    HANDLE mine = CreateSemaphoreW(NULL, 0, 1, NULL);
+    if (!mine) return NULL;
+    HANDLE won = (HANDLE)InterlockedCompareExchangePointer((PVOID volatile *)&g_park[token], mine, NULL);
+    if (won) { CloseHandle(mine); return won; }
+    return mine;
+}
 static int g_quiet;
 
 static void say(const char *fmt, ...) { va_list ap; va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap); fflush(stderr); }
 static int64_t now_us(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.QuadPart) QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); return (int64_t)(c.QuadPart * 1000000.0 / f.QuadPart); }
 
 /* ---- the call-out: the enclave's only way out ------------------------------------------ */
+/* Asks the enclave, from a DIFFERENT host thread, what identity it believes it has. */
+static DWORD WINAPI tok_probe(LPVOID p) {
+    LPVOID r = NULL;
+    CallEnclave((LPENCLAVE_ROUTINE)g_EeThreadTest, p, TRUE, &r);
+    return 0;
+}
 static DWORD WINAPI thr_enter(LPVOID p) { LPVOID r = NULL; if (!CallEnclave((LPENCLAVE_ROUTINE)g_EeThread, p, TRUE, &r)) say("[host] EeThread entry failed: %lu\n", GetLastError()); return 0; }
 /* Winsock errors as the errno numbers the enclave side expects. WSAEWOULDBLOCK -> EAGAIN is
  * load-bearing now that a tenant's app uses NON-BLOCKING sockets: without it "no data yet" arrives
@@ -64,6 +88,24 @@ static void *WINAPI host_callout(void *param) {
         if (!g_quiet) fwrite(c->data, 1, (size_t)c->len, stderr);
         if (g_logf) { fwrite(c->data, 1, (size_t)c->len, g_logf); fflush(g_logf); }
         LeaveCriticalSection(&g_log_cs); c->ret = 0; break; }
+    /* PARK/UNPARK -- one binary semaphore per token, so a permit released before its wait is
+     * remembered instead of lost. The enclave's wait queue lives in VTL1 where this side cannot
+     * see it, so the host has no condition to re-check: the permit IS the memory of the wakeup.
+     * Created on first use; tokens are enclave slot indices, so the array is bounded by n_slots. */
+    case EE_OP_PARK: {
+        HANDLE s = park_sem(c->handle);
+        if (!s) { c->ret = -11; break; }
+        const DWORD ms = c->arg ? (DWORD)c->arg : INFINITE;
+        const DWORD r = WaitForSingleObject(s, ms);
+        c->ret = r == WAIT_OBJECT_0 ? 0 : (r == WAIT_TIMEOUT ? 1 : -5);
+        break; }
+    case EE_OP_UNPARK: {
+        HANDLE s = park_sem(c->handle);
+        if (!s) { c->ret = -11; break; }
+        /* FALSE here means a permit is ALREADY pending, which is success: park/unpark does not
+         * count, it remembers at most one. */
+        ReleaseSemaphore(s, 1, NULL);
+        c->ret = 0; break; }
     case EE_OP_SPAWN: {
         HANDLE h = CreateThread(NULL, 4u << 20, thr_enter, (LPVOID)(uintptr_t)c->arg, 0, NULL);
         if (!h) { c->ret = -11; break; } CloseHandle(h); c->ret = 0; break; }
@@ -208,6 +250,7 @@ static int start_enclave(const wchar_t *dll, SIZE_T size, DWORD threads) {
     ENCLAVE_INIT_INFO_VBS ii; ii.Length = sizeof ii; ii.ThreadCount = threads;
     if (!InitializeEnclave(GetCurrentProcess(), g_base, &ii, sizeof ii, &err)) { say("[host] InitializeEnclave failed: enclaveError=0x%08lx lastError=%lu\n", err, GetLastError()); return -4; }
     g_EeInit = GetProcAddress((HMODULE)g_base, "EeInit"); g_EeThread = GetProcAddress((HMODULE)g_base, "EeThread");
+    g_EeThreadTest = GetProcAddress((HMODULE)g_base, "EeThreadTest");
     g_EeLoad = GetProcAddress((HMODULE)g_base, "EeLoad"); g_EeGenerate = GetProcAddress((HMODULE)g_base, "EeGenerate"); g_EeAttest = GetProcAddress((HMODULE)g_base, "EeAttest"); g_EeSession = GetProcAddress((HMODULE)g_base, "EeSession");
     g_EeAppOpen = GetProcAddress((HMODULE)g_base, "EeAppOpen"); g_EeAppHandle = GetProcAddress((HMODULE)g_base, "EeAppHandle");
     g_EeAppClose = GetProcAddress((HMODULE)g_base, "EeAppClose"); g_EeAppAbi = GetProcAddress((HMODULE)g_base, "EeAppAbi");
@@ -477,6 +520,10 @@ int main(int argc, char **argv) {
     if (start_enclave(wdll, size, nthreads)) return 4;
     /* call-out slots: one per enclave thread, 1 MiB of data each */
     const uint32_t n_slots = 96; const uint64_t slot_bytes = (1u << 20) + 4096;
+    /* A park token IS a slot index (ee_park_token), so the semaphore table has to cover them all.
+     * Checked rather than assumed: the two numbers live in different places and a later bump to
+     * n_slots would otherwise turn into threads that silently cannot block. */
+    if (n_slots > EE_MAX_PARK) { say("[host] n_slots %u exceeds EE_MAX_PARK %u\n", n_slots, (unsigned)EE_MAX_PARK); return -4; }
     uint8_t *slots = (uint8_t *)VirtualAlloc(NULL, (SIZE_T)(n_slots * slot_bytes), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     memset(&g_init, 0, sizeof g_init); g_init.size = sizeof g_init; g_init.version = EE_ABI_VERSION; g_init.callout = (void *)host_callout;
     g_init.slots = slots; g_init.slot_bytes = slot_bytes; g_init.n_slots = n_slots;
@@ -488,6 +535,77 @@ int main(int argc, char **argv) {
     if (cbytes) { g_init.files[1].name = calibname; g_init.files[1].data = cbytes; g_init.files[1].len = clen; g_init.n_files = 2; }
     if (call(g_EeInit, &g_init) || g_init.status) { say("[host] EeInit failed: %d %s\n", g_init.status, g_init.error); return 5; }
     memcpy(g_sign_pk, g_init.sign_pk, 32); memcpy(g_box_pk, g_init.box_pk, 32);
+
+    /* EE_THREAD_SELFTEST -- the HOST misbehaving on purpose, which is the only way to test what a
+     * hostile host can do to the enclave's thread identity and entry. One JSON line, then exit,
+     * before the model is loaded or anything is served. */
+    if (getenv("EE_THREAD_SELFTEST")) {
+        ee_thr_test t; memset(&t, 0, sizeof t);
+        int ok_replay = 0, ok_stale = 0, ok_tokens = 0, ok_many = 0;
+        uint32_t runs_after_replay = 0; int32_t many_status = 0;
+
+        /* (1) DUPLICATE ENTRY. Spawn a body that parks on a gate, then try to enter the very same
+         * record again while it is still live. The second entry must refuse and must not run the
+         * body: a body that owns its argument would otherwise free it twice. */
+        t.op = 1; call(g_EeThreadTest, &t);
+        if (t.status == 0) {
+            LPVOID r = NULL;
+            CallEnclave((LPENCLAVE_ROUTINE)g_EeThread, (LPVOID)(uintptr_t)t.entry_param, TRUE, &r);
+            const intptr_t replay = (intptr_t)r;
+            /* (2) STALE ID: same index, a generation that was never issued. */
+            LPVOID r2 = NULL;
+            const uint64_t stale = (t.entry_param & 0xffffffffu) | ((uint64_t)0xdead0000u << 32);
+            CallEnclave((LPENCLAVE_ROUTINE)g_EeThread, (LPVOID)(uintptr_t)stale, TRUE, &r2);
+            const intptr_t staler = (intptr_t)r2;
+            ok_replay = replay != 0;
+            ok_stale = staler != 0;
+            t.op = 2; call(g_EeThreadTest, &t);        /* release the gate */
+            Sleep(200);
+            runs_after_replay = t.runs;
+        }
+
+        /* (3) IDENTITY. Two threads take their identity, the host scribbles the same lie into
+         * every slot header, and they read it back. They must still differ: if the host can make
+         * two live threads report one name, the runtime above hands out two unsynchronised `&mut`
+         * to the same per-thread object. */
+        {
+            /* BOTH threads take their identity BEFORE the scribble, and read it back after. A
+             * thread that claims its slot afterwards rewrites the header itself and would not
+             * notice the lie - which is the mistake the first version of this test made. */
+            ee_thr_test a, b; memset(&a, 0, sizeof a); memset(&b, 0, sizeof b);
+            b.op = 5;
+            HANDLE h = CreateThread(NULL, 1u << 20, (LPTHREAD_START_ROUTINE)tok_probe, &b, 0, NULL);
+            a.op = 5;
+            HANDLE h2 = CreateThread(NULL, 1u << 20, (LPTHREAD_START_ROUTINE)tok_probe, &a, 0, NULL);
+            for (int i = 0; i < 5000 && !(a.runs && b.runs); i++) Sleep(1);
+            for (uint32_t i = 0; i < n_slots; i++) {
+                ee_callout *c = (ee_callout *)(slots + (uint64_t)i * slot_bytes);
+                c->slot = 7;                            /* the same lie in every slot */
+            }
+            a.gate = 1; b.gate = 1;
+            if (h) { WaitForSingleObject(h, 20000); CloseHandle(h); }
+            if (h2) { WaitForSingleObject(h2, 20000); CloseHandle(h2); }
+            ok_tokens = a.status == 0 && b.status == 0 && a.token != b.token;
+        }
+
+        /* (4) STABILITY. Sequential spawn+join well past n_slots: a slot that is never given back
+         * used to make the 97th thread of the enclave's LIFE fatal. */
+        uint32_t held_after = 0;
+        { ee_thr_test m; memset(&m, 0, sizeof m); m.op = 4; m.n = 200; call(g_EeThreadTest, &m);
+          many_status = m.status; held_after = m.token;
+          /* 200 threads, each of which took an identity. A handful may still be held by threads
+           * this process keeps alive; 200 would mean none were ever given back, and the enclave
+           * would die on the next one. */
+          ok_many = m.status == 0 && held_after < 16; }
+
+        printf("{\"duplicateEntryRefused\":%s,\"staleEntryRefused\":%s,\"bodyRuns\":%u,"
+               "\"tokensSurviveHostScribble\":%s,\"sequentialSpawnJoin200\":%s,\"tokensHeldAfter200\":%u,"
+               "\"manyStatus\":%d}\n",
+               ok_replay ? "true" : "false", ok_stale ? "true" : "false", runs_after_replay,
+               ok_tokens ? "true" : "false", ok_many ? "true" : "false", held_after, many_status);
+        fflush(stdout);
+        return (ok_replay && ok_stale && runs_after_replay == 1 && ok_tokens && ok_many) ? 0 : 9;
+    }
     { char h1[65], h2[65]; hex(h1, g_sign_pk, 32); hex(h2, g_box_pk, 32); say("[host] enclave keys: transport %s pad %s\n", h1, h2); }
     ee_load_params *lp = (ee_load_params *)calloc(1, sizeof *lp); lp->size = sizeof *lp; lp->model = "model.gguf"; lp->n_threads = threads; lp->n_ctx = n_ctx; lp->n_batch = 512;
     const int64_t t1 = now_us();

@@ -27,8 +27,29 @@
 
 /* ---- init state -------------------------------------------------------------------------- */
 static void *g_callout;                          /* VTL0 routine */
-static uint8_t *g_slots; static uint64_t g_slot_bytes; static uint32_t g_n_slots; static volatile LONG g_slot_next;
+static uint8_t *g_slots; static uint64_t g_slot_bytes; static uint32_t g_n_slots;
 static DWORD g_tls_slot = TLS_OUT_OF_INDEXES;
+/* THE THREAD'S IDENTITY, AND WHY IT IS NOT `c->slot`.
+ *
+ * `g_slots` is the HOST's buffer - it is how the two sides pass a call-out - so every byte of the
+ * ee_callout header, `slot` included, is writable by VTL0 at any moment. Reading it back as this
+ * thread's identity let the host rename a thread, or give two live threads the same name. The
+ * runtime above indexes per-thread state by that name and hands out unsynchronised `&mut` from it
+ * on the strength of its uniqueness, so the host could have produced two `&mut` to one object.
+ *
+ * So identity lives HERE, in enclave memory, and the host never sees it: an index into
+ * `g_tok_used` plus an EPOCH that increments every time the index is handed out. The epoch is
+ * what makes reuse safe - a consumer that cached state under an index can tell that the index is
+ * now a different thread, rather than inheriting the old one's state.
+ *
+ * Both the slot and the token are RETURNED when a thread exits. The previous slot allocator only
+ * ever counted up and `__fastfail`ed on the 97th thread of the enclave's LIFE, even if they ran
+ * one after another; a guest that spawns and joins in a loop would have killed the image. */
+#define EE_MAX_TOK 256
+static volatile LONG g_tok_used[EE_MAX_TOK];
+static volatile LONG64 g_tok_epoch[EE_MAX_TOK];
+static volatile LONG64 g_epoch_next = 1;
+static DWORD g_tls_tok = TLS_OUT_OF_INDEXES;      /* token + 1, so 0 means "none yet" */
 static char *g_env; static size_t g_env_len;
 static uint32_t g_cpus = 4;
 static int64_t g_unix0, g_ft0, g_qpc0, g_qpf;
@@ -39,6 +60,7 @@ int ee_rt_init(const ee_init_params *p) {
     if (!p->callout || !p->slots || p->slot_bytes < 65536 || !p->n_slots) return -2;
     g_callout = p->callout; g_slots = p->slots; g_slot_bytes = p->slot_bytes; g_n_slots = p->n_slots;
     if (g_tls_slot == TLS_OUT_OF_INDEXES) { g_tls_slot = TlsAlloc(); if (g_tls_slot == TLS_OUT_OF_INDEXES) return -3; }
+    if (g_tls_tok == TLS_OUT_OF_INDEXES) { g_tls_tok = TlsAlloc(); if (g_tls_tok == TLS_OUT_OF_INDEXES) return -3; }
     g_cpus = p->cpu_count ? p->cpu_count : 4;
     LARGE_INTEGER f, c; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); g_qpf = f.QuadPart; g_qpc0 = c.QuadPart;
     g_unix0 = p->unix_time; g_ft0 = p->filetime;
@@ -61,15 +83,53 @@ const ee_file_desc *ee_file_lookup(const char *name) {
 }
 
 /* ---- call-outs --------------------------------------------------------------------------- */
+/* Claim this thread's identity, once, from enclave memory. Returns the token or -1 when the
+ * enclave is out - which the caller reports rather than dying on. */
+static LONG ee_tok_claim(void) {
+    const LONG cap = (LONG)(g_n_slots < EE_MAX_TOK ? g_n_slots : EE_MAX_TOK);
+    for (LONG i = 0; i < cap; i++) {
+        if (InterlockedCompareExchange(&g_tok_used[i], 1, 0) == 0) {
+            InterlockedExchange64(&g_tok_epoch[i], InterlockedIncrement64(&g_epoch_next));
+            return i;
+        }
+    }
+    return -1;
+}
+static void ee_tok_free(LONG i) {
+    if (i < 0 || i >= EE_MAX_TOK) return;
+    /* Bump the epoch on release too, so state cached against the OLD incarnation is stale the
+     * moment the thread is gone, not merely once the index is handed out again. */
+    InterlockedExchange64(&g_tok_epoch[i], InterlockedIncrement64(&g_epoch_next));
+    InterlockedExchange(&g_tok_used[i], 0);
+}
+/* This thread's token, claimed on first use. `__fastfail` only when there is genuinely no way to
+ * continue: a thread with no token cannot call out at all. */
+static LONG ee_tok(void) {
+    const uintptr_t v = (uintptr_t)TlsGetValue(g_tls_tok);
+    if (v) return (LONG)(v - 1);
+    const LONG i = ee_tok_claim();
+    if (i < 0) { __fastfail(7); }
+    TlsSetValue(g_tls_tok, (void *)(uintptr_t)(i + 1));
+    return i;
+}
 ee_callout *ee_slot(void) {
     void *v = TlsGetValue(g_tls_slot);
     if (v) return (ee_callout *)v;
-    LONG i = InterlockedIncrement(&g_slot_next) - 1;
-    if ((uint32_t)i >= g_n_slots) { __fastfail(7); }
+    /* One slot per token, so the slot is the token's index - no second allocator to keep in step,
+     * and returning the token returns the slot. */
+    const LONG i = ee_tok();
     ee_callout *c = (ee_callout *)(g_slots + (uint64_t)i * g_slot_bytes);
     c->cap = g_slot_bytes - offsetof(ee_callout, data); c->slot = (uint32_t)i;
     TlsSetValue(g_tls_slot, c);
     return c;
+}
+/* Give back this thread's slot and token. Called when a spawned thread's body returns. */
+static void ee_slot_release(void) {
+    const uintptr_t v = (uintptr_t)TlsGetValue(g_tls_tok);
+    if (!v) return;
+    TlsSetValue(g_tls_slot, NULL);
+    TlsSetValue(g_tls_tok, NULL);
+    ee_tok_free((LONG)(v - 1));
 }
 int64_t ee_callout_call(ee_callout *c) {
     void *ret = NULL;
@@ -77,6 +137,80 @@ int64_t ee_callout_call(ee_callout *c) {
     return c->ret;
 }
 void ee_fatal(const char *msg) { ee_log("[enclave] FATAL: %s\n", msg); __fastfail(8); }
+
+/* ---- park / unpark ------------------------------------------------------------------------
+ * The blocking primitive `memory.atomic.wait` needs. See EE_OP_PARK in ee-rt.h for why it has to
+ * leave the enclave at all and why it is a PERMIT rather than a signal.
+ *
+ * The token is the thread's own call-out slot index: already unique per enclave thread, already
+ * bounded by n_slots, and already allocated lazily on first use - so a thread that never parks
+ * costs nothing. */
+/* ENCLAVE-OWNED, deliberately: see the note beside g_tok_used. `ee_slot()->slot` would be the
+ * host's copy of this number and the host may change it. */
+uint32_t ee_park_token(void) { return (uint32_t)ee_tok(); }
+/* The incarnation of this thread's token. State cached per token must be discarded when this
+ * changes, which is what makes reusing a token safe. */
+uint64_t ee_park_epoch(void) { return (uint64_t)g_tok_epoch[ee_tok()]; }
+int ee_park(uint32_t token, uint64_t timeout_ms) {
+    ee_callout *c = ee_slot();
+    c->op = EE_OP_PARK; c->handle = token; c->len = 0; c->arg = timeout_ms;
+    return (int)ee_callout_call(c);
+}
+void ee_unpark(uint32_t token) {
+    ee_callout *c = ee_slot();
+    c->op = EE_OP_UNPARK; c->handle = token; c->len = 0; c->arg = 0;
+    ee_callout_call(c);
+}
+
+/* ---- what the wasm runtime asks for --------------------------------------------------------
+ * The four hooks crates/wasmtime/src/runtime/vm/nostd_threads.rs declares. They are named for
+ * wasmtime rather than for this engine on purpose: wasmtime should not know it is inside a VBS
+ * enclave, and an embedder on some other OS-less target provides these same four and nothing
+ * else. Everything the threads proposal needs that an OS would normally give - blocking, waking,
+ * thread identity, a monotonic clock - is here and is four functions long. */
+int32_t wasmtime_thread_park(uint64_t timeout_ms) { return (int32_t)ee_park(ee_park_token(), timeout_ms); }
+void wasmtime_thread_unpark(uint32_t token) { ee_unpark(token); }
+uint32_t wasmtime_thread_token(void) { return ee_park_token(); }
+uint64_t wasmtime_thread_epoch(void) { return ee_park_epoch(); }
+/* MONOTONIC, which is all the runtime needs: ee_now_us counts from enclave start off the
+ * performance counter, so it cannot go backwards the way a host wall clock can. */
+/* How many threads a guest may usefully run. The enclave has no environment to read and no OS to
+ * ask, so this is the cpu_count the host passed at init - which is also where an operator's
+ * override belongs, since only the host can see one. */
+/* SPAWN and JOIN. The enclave already has a threading layer - CreateThread here routes through
+ * _beginthreadex to the host's EE_OP_SPAWN, and WaitForSingleObject blocks on the thread record's
+ * `done` flag - so the runtime does not need a new mechanism, only a name for the one that exists.
+ *
+ * `entry` is a trampoline the runtime supplies; `arg` is its boxed closure. The handle is the
+ * enclave's own thread record, opaque to the caller and released by the join. */
+static DWORD WINAPI ee_rt_thread_tramp(LPVOID p) {
+    struct { void (*entry)(void *); void *arg; } *b = p;
+    void (*entry)(void *) = b->entry; void *arg = b->arg;
+    free(b);
+    entry(arg);
+    return 0;
+}
+void *wasmtime_thread_spawn(void (*entry)(void *), void *arg) {
+    struct { void (*entry)(void *); void *arg; } *b = malloc(sizeof *b);
+    if (!b) return NULL;
+    b->entry = entry; b->arg = arg;
+    HANDLE h = CreateThread(NULL, 1u << 20, ee_rt_thread_tramp, b, 0, NULL);
+    if (!h) { free(b); return NULL; }
+    return (void *)h;
+}
+int32_t wasmtime_thread_join(void *handle) {
+    if (!handle) return -1;
+    const DWORD r = WaitForSingleObject((HANDLE)handle, INFINITE);
+    CloseHandle((HANDLE)handle);
+    return r == WAIT_OBJECT_0 ? 0 : -1;
+}
+/* Let go of a thread without waiting for it - the `detach` half of a join handle. */
+void wasmtime_thread_detach(void *handle) { if (handle) CloseHandle((HANDLE)handle); }
+
+/* The environment the host passed at init, read-only. Same block a tenant's app sees. */
+const char *wasmtime_getenv(const char *name) { return ee_getenv(name); }
+uint32_t wasmtime_available_parallelism(void) { const uint32_t n = ee_cpu_count(); return n ? n : 1; }
+uint64_t wasmtime_now_ms(void) { const int64_t us = ee_now_us(); return us > 0 ? (uint64_t)(us / 1000) : 0; }
 
 /* ---- logging (stdout/stderr) ------------------------------------------------------------- */
 void ee_write_log(const void *p, size_t n) {
@@ -111,32 +245,175 @@ pid_t getpid(void) { return 1; }
 /* ---- kernel32 the sources call directly (declared plain by _KERNEL32_) ------------------- */
 /* Threads: a host thread enters through EeThread (ee-main.cpp) and runs the body here. */
 #define EE_MAX_THREADS 256
-typedef struct ee_thread { unsigned (__stdcall *fn)(void *); void *arg; volatile LONG tid; volatile LONG done; volatile LONG refs; unsigned ret; LONG id; } ee_thread;
+/* `gen` and `entered` are the whole reason this struct is not the obvious one.
+ *
+ * The host chooses which id enters: `EeThread` is a dllexport and `thr_enter` passes whatever
+ * `EE_OP_SPAWN` was given. Nothing stopped it entering the same id twice, or entering a STALE id
+ * whose record had since been freed and its slot handed to a different thread. The body would
+ * then run more than once - and a body that owns its argument, as the wasm runtime's trampoline
+ * does (it reconstitutes a boxed Rust closure), turns that into a double free inside the trusted
+ * image.
+ *
+ * So: `gen` makes an id unique over time, and `entered` is claimed exactly once with an
+ * interlocked compare-and-swap before `fn` is ever called. A repeat, a stale id, or a race all
+ * lose the CAS and return without running anything. */
+typedef struct ee_thread { unsigned (__stdcall *fn)(void *); void *arg; volatile LONG tid; volatile LONG done; volatile LONG refs; unsigned ret; LONG id; LONG64 gen; volatile LONG entered; } ee_thread;
+static volatile LONG64 g_thr_gen = 1;
 static ee_thread *volatile g_thr[EE_MAX_THREADS]; static SRWLOCK g_thr_lock = SRWLOCK_INIT;
 static void thr_release(ee_thread *t) { if (InterlockedDecrement(&t->refs) == 0) { AcquireSRWLockExclusive(&g_thr_lock); g_thr[t->id] = NULL; ReleaseSRWLockExclusive(&g_thr_lock); free(t); } }
 uintptr_t __cdecl _beginthreadex(void *sec, unsigned stack, unsigned (__stdcall *fn)(void *), void *arg, unsigned flags, unsigned *tid_out) {
     (void)sec; (void)stack; (void)flags;
     ee_thread *t = (ee_thread *)calloc(1, sizeof *t); if (!t) return 0;
-    t->fn = fn; t->arg = arg; t->refs = 2; t->id = -1;
+    t->fn = fn; t->arg = arg; t->refs = 2; t->id = -1; t->entered = 0;
     AcquireSRWLockExclusive(&g_thr_lock);
     for (LONG i = 0; i < EE_MAX_THREADS; i++) if (!g_thr[i]) { g_thr[i] = t; t->id = i; break; }
+    if (t->id >= 0) t->gen = InterlockedIncrement64(&g_thr_gen);
     ReleaseSRWLockExclusive(&g_thr_lock);
     if (t->id < 0) { free(t); errno = EAGAIN; return 0; }
-    ee_callout *c = ee_slot(); c->op = EE_OP_SPAWN; c->arg = (uint64_t)t->id; c->len = 0;
+    /* id in the low 32 bits, generation in the high 32: the host carries it opaquely and hands it
+     * back, and a value it invents or replays fails the check on entry. */
+    ee_callout *c = ee_slot(); c->op = EE_OP_SPAWN;
+    c->arg = ((uint64_t)(uint32_t)t->gen << 32) | (uint32_t)t->id; c->len = 0;
     if (ee_callout_call(c) != 0) { AcquireSRWLockExclusive(&g_thr_lock); g_thr[t->id] = NULL; ReleaseSRWLockExclusive(&g_thr_lock); free(t); errno = EAGAIN; return 0; }
     while (!t->tid) { LONG z = 0; WaitOnAddress(&t->tid, &z, sizeof z, 1000); }
     if (tid_out) *tid_out = (unsigned)t->tid;
     return (uintptr_t)t;
 }
+static void ee_keys_run_dtors(void);     /* defined below, beside the key table */
 void *ee_thread_entry(void *param) {
-    LONG id = (LONG)(intptr_t)param; if (id < 0 || id >= EE_MAX_THREADS) return (void *)(intptr_t)-1;
-    ee_thread *t = g_thr[id]; if (!t) return (void *)(intptr_t)-2;
+    const uint64_t v = (uint64_t)(uintptr_t)param;
+    const LONG id = (LONG)(uint32_t)(v & 0xffffffffu);
+    const uint32_t gen = (uint32_t)(v >> 32);
+    if (id < 0 || id >= EE_MAX_THREADS) return (void *)(intptr_t)-1;
+
+    /* Look the record up and take a reference UNDER THE LOCK, so it cannot be released and freed
+     * between the read and the claim. The generation check rejects a stale id whose slot has been
+     * handed to a different thread since. */
+    AcquireSRWLockExclusive(&g_thr_lock);
+    ee_thread *t = g_thr[id];
+    if (t && (uint32_t)t->gen == gen) InterlockedIncrement(&t->refs); else t = NULL;
+    ReleaseSRWLockExclusive(&g_thr_lock);
+    if (!t) return (void *)(intptr_t)-2;
+
+    /* EXACTLY ONCE. A second entry - a replay, a race, a confused host - loses here and runs
+     * nothing. The body may own its argument; running it twice would free that argument twice. */
+    if (InterlockedCompareExchange(&t->entered, 1, 0) != 0) { thr_release(t); return (void *)(intptr_t)-3; }
+
     InterlockedExchange(&t->tid, (LONG)GetCurrentThreadId()); WakeByAddressAll((void *)&t->tid);
     t->ret = t->fn(t->arg);
     InterlockedExchange(&t->done, 1); WakeByAddressAll((void *)&t->done);
-    thr_release(t);
+    /* This thread is finished with the enclave. Destructors first - they may still call out, so
+     * they need the slot - then the slot and token go back, or the enclave leaks one identity per
+     * thread and dies at the cap. */
+    ee_keys_run_dtors();
+    ee_slot_release();
+    thr_release(t);                      /* the reference taken above */
+    thr_release(t);                      /* the spawn's own reference */
     return 0;
 }
+/* ---- thread-specific keys ------------------------------------------------------------------
+ * See posix/pthread.h for why the destructors run in ee_thread_entry rather than from a TLS
+ * callback. The table is small and never shrinks: keys are created once at startup by the code
+ * that needs them, not per request. */
+#define EE_MAX_KEYS 64
+static struct { DWORD tls; void (*dtor)(void *); volatile LONG used; } g_keys[EE_MAX_KEYS];
+int pthread_key_create(pthread_key_t *key, void (*dtor)(void *)) {
+    for (int i = 0; i < EE_MAX_KEYS; i++) {
+        if (InterlockedCompareExchange(&g_keys[i].used, 1, 0) == 0) {
+            const DWORD t = TlsAlloc();
+            if (t == TLS_OUT_OF_INDEXES) { InterlockedExchange(&g_keys[i].used, 0); return EAGAIN; }
+            g_keys[i].tls = t; g_keys[i].dtor = dtor;
+            if (key) *key = (pthread_key_t)i;
+            return 0;
+        }
+    }
+    return EAGAIN;
+}
+int pthread_key_delete(pthread_key_t key) {
+    if (key >= EE_MAX_KEYS || !g_keys[key].used) return EINVAL;
+    TlsFree(g_keys[key].tls); g_keys[key].dtor = NULL;
+    InterlockedExchange(&g_keys[key].used, 0);
+    return 0;
+}
+void *pthread_getspecific(pthread_key_t key) {
+    return (key < EE_MAX_KEYS && g_keys[key].used) ? TlsGetValue(g_keys[key].tls) : NULL;
+}
+int pthread_setspecific(pthread_key_t key, const void *value) {
+    if (key >= EE_MAX_KEYS || !g_keys[key].used) return EINVAL;
+    TlsSetValue(g_keys[key].tls, (void *)value);
+    return 0;
+}
+/* Run every key's destructor for THIS thread, once, at its exit. */
+static void ee_keys_run_dtors(void) {
+    for (int i = 0; i < EE_MAX_KEYS; i++) {
+        if (!g_keys[i].used || !g_keys[i].dtor) continue;
+        void *v = TlsGetValue(g_keys[i].tls);
+        if (!v) continue;
+        TlsSetValue(g_keys[i].tls, NULL);
+        g_keys[i].dtor(v);
+    }
+}
+
+/* ---- the adversarial seam ------------------------------------------------------------------
+ * Driven by EE_THREAD_SELFTEST in the host. See ee_thr_test in ee-rt.h for why the test has to be
+ * the host rather than something in here. */
+static ee_thr_test *volatile g_tt;
+static unsigned __stdcall tt_body(void *p) {
+    ee_thr_test *t = (ee_thr_test *)p;
+    /* Hold the record LIVE while the host tries to enter it a second time, so the test
+     * distinguishes "refused the replay" from "the record happened to be gone". */
+    for (int i = 0; i < 10000 && !t->gate; i++) ee_sleep_ms(1);
+    InterlockedIncrement((volatile LONG *)&t->runs);
+    return 0;
+}
+/* Claims a call-out slot, which is the point: a body that does nothing never takes an identity,
+ * so a test built on one would not notice slots that are never given back. */
+static unsigned __stdcall tt_noop(void *p) { (void)p; (void)ee_park_token(); return 0; }
+__declspec(dllexport) void *WINAPI EeThreadTest(void *param) {
+    ee_thr_test *t = (ee_thr_test *)param;
+    if (!t) return (void *)(intptr_t)-1;
+    switch (t->op) {
+    case 1: {                                  /* spawn a gated body and report its entry value */
+        g_tt = t; t->runs = 0; t->gate = 0;
+        uintptr_t h = _beginthreadex(NULL, 0, tt_body, t, 0, NULL);
+        if (!h) { t->status = -1; return (void *)(intptr_t)-1; }
+        ee_thread *th = (ee_thread *)h;
+        t->entry_param = ((uint64_t)(uint32_t)th->gen << 32) | (uint32_t)th->id;
+        t->status = 0; return (void *)0; }
+    case 2: {                                  /* let it finish, then join and release */
+        t->gate = 1;
+        t->status = 0; return (void *)0; }
+    case 3:                                    /* what this thread believes its identity is */
+        t->token = ee_park_token(); t->status = 0; return (void *)0;
+    case 5:
+        /* Claim the identity FIRST, announce, and only read it back after the host has had its
+         * chance to scribble. Reading it before the scribble - or on a thread that claims its slot
+         * afterwards and so rewrites the header - tests nothing, which is what the first version
+         * of this did. */
+        (void)ee_park_token();
+        InterlockedExchange((volatile LONG *)&t->runs, 1);
+        for (int i = 0; i < 10000 && !t->gate; i++) ee_sleep_ms(1);
+        t->token = ee_park_token();
+        t->status = 0; return (void *)0;
+    case 4: {                                  /* sequential spawn+join, past the slot count */
+        for (uint32_t i = 0; i < t->n; i++) {
+            uintptr_t h = _beginthreadex(NULL, 0, tt_noop, NULL, 0, NULL);
+            if (!h) { t->status = -(int32_t)(i + 1); return (void *)(intptr_t)-1; }
+            WaitForSingleObject((HANDLE)h, INFINITE);
+            CloseHandle((HANDLE)h);
+        }
+        /* HOW MANY IDENTITIES ARE STILL HELD. Counting the threads that finished proves nothing -
+         * a build that never gives a token back finishes them just the same, until it runs out.
+         * What distinguishes the two is whether 200 threads left 200 tokens behind. */
+        { uint32_t held = 0;
+          for (int i = 0; i < EE_MAX_TOK; i++) if (g_tok_used[i]) held++;
+          t->token = held; }
+        t->status = 0; return (void *)0; }
+    default:
+        t->status = -99; return (void *)(intptr_t)-1;
+    }
+}
+
 static int thr_wait(ee_thread *t, DWORD ms) { LONG z = 0; if (ms == INFINITE) { while (!t->done) WaitOnAddress(&t->done, &z, sizeof z, INFINITE); return 0; } if (!t->done) WaitOnAddress(&t->done, &z, sizeof z, ms); return t->done ? 0 : 1; }
 HANDLE WINAPI CreateThread(LPSECURITY_ATTRIBUTES a, SIZE_T stack, LPTHREAD_START_ROUTINE fn, LPVOID arg, DWORD flags, LPDWORD tid) {
     unsigned u = 0; uintptr_t h = _beginthreadex(a, (unsigned)stack, (unsigned (__stdcall *)(void *))fn, arg, flags, &u); if (tid) *tid = u; return (HANDLE)h;

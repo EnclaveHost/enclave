@@ -42,7 +42,7 @@ cl %CXXFLAGS% /Fo:%OBJ%\l_llama-model-loader.obj %EE%\patched\llama-model-loader
 echo === llama models
 for %%f in (%LL%\src\models\*.cpp) do (cl %CXXFLAGS% /Fo:%OBJ%\m_%%~nxf.obj %%f || set FAIL=1)
 echo === shielded engine
-for %%f in (shielded-tee.c shielded-wire.c shielded-field.c shielded-simd.c shielded-pads.c shielded-bank.c shielded-http.c prefix-kv.c poly1305-donna.c) do (cl %CCFLAGS% /Fo:%OBJ%\s_%%~nxf.obj %GG%\%%f || set FAIL=1)
+for %%f in (shielded-tee.c shielded-wire.c shielded-field.c shielded-simd.c shielded-parwork.c shielded-pads.c shielded-bank.c shielded-http.c prefix-kv.c poly1305-donna.c) do (cl %CCFLAGS% /Fo:%OBJ%\s_%%~nxf.obj %GG%\%%f || set FAIL=1)
 cl %CCFLAGS% /w /Fo:%OBJ%\s_tweetnacl.obj %GG%\tweetnacl.c || set FAIL=1
 cl %CCFLAGS% /arch:AVX512 /DSH_SIMD_AVX512 /D__AVX512F__ /D__AVX512BW__ /D__AVX512DQ__ /D__AVX512VL__ /D__AVX512VNNI__ /Fo:%OBJ%\s_shielded-simd-avx512.obj %GG%\shielded-simd.c || set FAIL=1
 cl %CXXFLAGS% /Fo:%OBJ%\s_ggml-shielded.obj %GG%\ggml-shielded.cpp || set FAIL=1

@@ -19,7 +19,23 @@ enum { EE_OP_LOG = 1, EE_OP_SPAWN = 2, EE_OP_CONNECT = 3, EE_OP_SEND = 4, EE_OP_
        EE_OP_LISTEN = 7,     /* arg = port (0 = any), loopback only; ret = handle, arg = bound port */
        EE_OP_ACCEPT = 8,     /* handle = listener; ret = handle, or -EAGAIN when none is pending */
        EE_OP_POLL = 9,       /* data = ee_poll_item[]; arg = timeout ms; ret = how many are ready */
-       EE_OP_RESOLVE = 10 }; /* data = hostname; ret = bytes of "addr\n" text written back */
+       EE_OP_RESOLVE = 10,   /* data = hostname; ret = bytes of "addr\n" text written back */
+       /* PARK/UNPARK: the blocking primitive `memory.atomic.wait` needs and VTL1 cannot provide.
+        * An enclave thread is a HOST thread that called in, so there is no scheduler in here to
+        * block on; and spinning is not an option, because a guest may wait indefinitely and a
+        * spinning enclave thread holds a core.
+        *
+        * PERMIT semantics, the same as std::thread::park/unpark: the host keeps one binary
+        * semaphore per token, so an UNPARK that arrives BEFORE its PARK is remembered rather than
+        * lost. That is the whole reason this is a permit and not an event - the wait queue lives
+        * in VTL1 where the host cannot see it, so the host cannot re-check a condition, and a
+        * bare signal would race the registration every time.
+        *
+        * handle = token (the enclave's own thread index, < n_slots).
+        * PARK:   arg = timeout ms, 0 = forever. ret 0 = a permit was taken, 1 = timed out.
+        * UNPARK: releases one permit; already-pending is success, not an error. */
+       EE_OP_PARK = 11,
+       EE_OP_UNPARK = 12 };
 /* One entry of an EE_OP_POLL set. The host overwrites `events` with what is actually ready, which
  * is how a guest thread blocks on a socket without spinning the enclave's CPU. */
 typedef struct ee_poll_item { uint32_t handle, events; } ee_poll_item;
@@ -152,6 +168,34 @@ int ee_engine_generate(const char *prompt, size_t plen, int n_predict,
 void ee_logv(const char *fmt, va_list ap);
 void ee_log(const char *fmt, ...);
 void ee_write_log(const void *p, size_t n);
+/* Block this enclave thread until a permit is available or `timeout_ms` passes (0 = forever).
+ * Returns 0 when a permit was taken, 1 on timeout, negative on failure. */
+int ee_park(uint32_t token, uint64_t timeout_ms);
+/* Hand `token` a permit, waking it if it is parked. Safe to call when it is not. */
+void ee_unpark(uint32_t token);
+/* The adversarial seam for the thread/identity boundary (EE_THREAD_SELFTEST in ee-host.c).
+ *
+ * These properties are about what an UNTRUSTED HOST can do, so they cannot be tested from inside
+ * alone: the test has to be the host, misbehaving on purpose. The struct lives in host memory like
+ * every other call parameter. */
+typedef struct ee_thr_test {
+    uint32_t op;            /* 1 spawn+gate, 2 release+join, 3 token, 4 spawn/join N */
+    uint32_t n;             /* in, op 4: how many sequential threads */
+    uint64_t entry_param;   /* out, op 1: the value the host may try to replay */
+    volatile uint32_t gate; /* the host sets this to 1 to let the body finish */
+    volatile uint32_t runs; /* how many times the body actually ran */
+    uint32_t token;         /* out, op 3 */
+    int32_t  status;        /* 0 ok */
+} ee_thr_test;
+
+/* This thread's own park token, stable for the life of the thread. Derived from ENCLAVE state,
+ * never from the host-writable call-out header: the host must not be able to rename a thread or
+ * give two of them the same name. */
+uint32_t ee_park_token(void);
+/* The incarnation of this thread's token. A token is returned when its thread exits and handed
+ * out again later, so anything cached per token must be discarded when this value changes. */
+uint64_t ee_park_epoch(void);
+
 int64_t ee_callout_call(ee_callout *c);
 ee_callout *ee_slot(void);
 void ee_sleep_ms(uint32_t ms);

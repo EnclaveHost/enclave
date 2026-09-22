@@ -23,6 +23,19 @@ int pthread_attr_init(pthread_attr_t *); int pthread_attr_destroy(pthread_attr_t
 typedef long pthread_once_t;
 #define PTHREAD_ONCE_INIT 0
 int pthread_once(pthread_once_t *once, void (*init)(void));
+
+/* THREAD-SPECIFIC KEYS, with destructors that actually run.
+ *
+ * Windows would normally run these from the PE TLS directory's callbacks, which an enclave image
+ * does not get. It does not need them: every thread in here enters and leaves through
+ * ee_thread_entry, so the destructors are run there - at the one place a thread is known to be
+ * finished. A thread the enclave did not spawn (the host's own entry threads) never exits, so it
+ * never had a destructor to run. */
+typedef unsigned long pthread_key_t;
+int pthread_key_create(pthread_key_t *key, void (*dtor)(void *));
+int pthread_key_delete(pthread_key_t key);
+void *pthread_getspecific(pthread_key_t key);
+int pthread_setspecific(pthread_key_t key, const void *value);
 int sched_yield(void);
 #ifdef __cplusplus
 }

@@ -75,23 +75,22 @@ overlapping differently-sized pair is not covered. WebAssembly explicitly permit
 applies between two genuine guest atomic ops of different widths, so it is not a consequence of the
 ordinary-access work — it was there already.
 
-Alignment does not help (both accesses are aligned). Byte-wise atomics everywhere would fix the
-overlap but break the guest: a wasm *atomic* op must be INDIVISIBLE, and four one-byte accesses are
-not — trading a host-model violation for one the guest can actually observe. Widening the narrow
-access to a read-modify-write of the containing word writes bytes the guest did not write.
+Alignment does not help (both accesses are aligned).
 
-What would work is leaving Rust's typed atomics behind for guest memory — inline assembly with the
-right constraints, where the access is opaque to the compiler and the hardware guarantee (an aligned
-`mov` is atomic on x86-64 and aarch64) is what is relied on. That is target-specific, which cuts
-against a portable interpreter, and is a larger change than anything here.
+**This section described the state before `wasm/wasmtime-shared-memory-soundness.patch`. Read
+"The mixed-size hole, and what closes it" below for what is actually implemented now.** What it got
+wrong is recorded there rather than deleted, because the wrong turn is instructive: byte-wise
+atomics everywhere were dismissed on the grounds that a wasm atomic op must be INDIVISIBLE and four
+one-byte accesses are not. True — of byte-wise atomics *without* a lock. With a stripe lock for the
+atomic instructions they are indivisible with respect to each other after all.
 
-`tools/parallelism-probe/mixed-width/` is the reduced reproducer, standalone so it can be handed to
-a checker: `cargo +nightly miri run`. **Not yet run** — miri is not installed on this machine and
-installing it needs a build window. The reasoning above stands on the cited model documentation;
-the checker run is the confirmation, not the argument.
+Miri has since been installed and run, on the box. It reports the design described above as
+undefined: *"Race condition detected between (1) 4-byte atomic load on thread `unnamed-21` and
+(2) 1-byte atomic store on thread `unnamed-22`"*. The reasoning was right and the confirmation
+agrees with it.
 
-Until all of that is covered, a guest can reach UB inside the trusted image, which is the one thing
-an enclave runtime may not allow. The gate stays on and the VBS box keeps advertising `set: false`.
+The gate stays on and the VBS box keeps advertising `set: false` — now for the reasons in
+"Still open" below, not for this one.
 
 ### Ordinary accesses: done, and what it cost
 
@@ -175,6 +174,17 @@ Neither result means anything without the pair that fails:
 |---|---|
 | the guard removed from `Shared::rmw` | the contention test returns **39201 of 160000** |
 | the width-sized fast path restored for aligned 4-byte accesses | Miri: **"Undefined Behavior: Race condition detected between (1) 4-byte atomic load on thread `unnamed-21` and (2) 1-byte atomic store on thread `unnamed-22`"** |
+| the wait precondition restored to a wide `AtomicU32::load` | Miri: **"Undefined Behavior: Race condition detected between (1) multiple differently-sized atomic loads ... and (2) 1-byte atomic store"** |
+
+The wait path has its own Miri run, on the PRODUCTION `ParkingSpot`, because the interpreter's six
+tests did not reach it and said nothing about it:
+
+    cargo miri test -p wasmtime --features ...,pulley,threads --lib parking_spot
+    3 passed, 12 ignored (the upstream parking_lot tests carry cfg_attr(miri, ignore))
+
+On Windows this needs `CARGO_TARGET_DIR` shortened: with the default path cargo-miri fails with
+"cargo uses an argfile to invoke rustc, which is not supported by cargo-miri", which looks like a
+build error and is a path-length limit.
 
 The second is this change's whole reason, reported by a tool instead of argued for in a comment.
 `tools/parallelism-probe/mixed-width` is the standalone reproducer for the same shape and has been
@@ -183,15 +193,63 @@ atomics *without* a lock for the atomic instructions.
 
 ### Still open before the refusal may move
 
-- **Host access.** Every host read or write of guest memory - WASI, the canonical ABI's lifting and
-  lowering - is a plain Rust access that may race a guest thread. `wasm/wasmtime-shared-utf8-adapters.patch`
-  does this correctly for the UTF-8 string path (snapshot, validate owned data, publish) and is the
-  shape the rest should follow; it is not applied to this tree and the rest is not done.
-- **`no_std`.** `threads = ["std"]` in wasmtime's manifest. `SharedMemory`, its `RwLock`, `Instant`
-  and the `memory.atomic.wait` parking spot all need enclave equivalents before any of this runs in
-  VTL1 at all.
-- **Tested behaviour** for wait/notify, spawn, and thread lifetime - not merely compiled.
-- **The cost**, unmeasured since the change. The numbers below are the width-sized version's.
+- **Host access.** Three paths fixed, one class audited, NOT a clean bill of health: what follows
+  is what was looked at, and "no other caller was found" is not the same as "no other caller
+  exists". `Memory::data`/`data_mut` guarded a shared memory with a
+  `debug_assert`, which is not there in a release build; they now assert for real, so a host path
+  that has not been converted breaks instead of racing. The canonical ABI's copy helpers used
+  `read_volatile`/`write_volatile`, which is the common mistake: volatile constrains the COMPILER
+  and does nothing for the MEMORY MODEL, so a volatile read racing a guest write is still a data
+  race. They are per-byte relaxed atomics now. `as_slice_mut_unshared`/`into_unshared_slice` already
+  refused a shared memory, and the enclave's own host code (`windows/enclave-rt`) touches only host
+  buffers - checked, not assumed.
+
+  **And one this missed, found by review after the interpreter's tests were green.**
+  `memory.atomic.wait32/64` built an `AtomicU32`/`AtomicU64` over the guest word to check its
+  expected value - a wide atomic over bytes Pulley writes one at a time, which is the same
+  mixed-size overlap on the path hardest to test. The check now goes through the interpreter's own
+  accessor, taking the same stripe lock the guest's atomics take, and still runs inside the parking
+  table's lock so check-and-enqueue stays atomic. `tests::wait_precondition_races_guest_writes`
+  races a real `ParkingSpot::wait32` against byte stores and wide RMWs through those accessors.
+
+  The lesson generalises and is worth stating plainly: the six `Shared` tests in the interpreter
+  cover the interpreter. They said nothing about wasmtime's own uses of guest memory, and reading
+  them as "shared access is done" is exactly the mistake that left this path wide.
+- **`no_std`.** Mostly done; one piece left. `wasmtime --no-default-features --features
+  runtime,component-model,pulley,threads` went from **35 errors to 3**, and all three are
+  `set_threads.rs` - `thread.spawn` and its join handles, 1981 lines built on
+  `std::thread::Builder` and `JoinHandle`. The enclave already has `EE_OP_SPAWN`; what it does not
+  have is join, which wants the same park/unpark permits this stage added. That is the next stage.
+
+  What landed: `runtime/vm/nostd_threads.rs`, which takes FOUR hooks from the embedder - park,
+  unpark, a thread token, a monotonic clock - and builds the rest in `core` + `alloc`. The enclave
+  side of those four is `ee_park`/`ee_unpark`/`ee_park_token`/`ee_now_us`, and the new `EE_OP_PARK`
+  / `EE_OP_UNPARK` call-outs behind them (one binary semaphore per token on the host, so a permit
+  released before its park is remembered instead of lost).
+
+  `parking_spot.rs` and `shared_memory.rs` were NOT rewritten - they are upstream files with
+  upstream churn. They say `use ...nostd_threads::shim as std;` and their existing `use std::...`
+  lines resolve to a std-shaped view of the enclave's primitives.
+
+  The table this replaced, kept because it is still the right map of the problem:
+
+  | needs | has | wants |
+  |---|---|---|
+  | `SharedMemory` | `std::sync::RwLock` | a spin `RwLock` - no OS to block on |
+  | `ParkingSpot` | `std::sync::Mutex`, `BTreeMap` | spin mutex, `alloc::collections::BTreeMap` |
+  | `memory.atomic.wait` | `std::thread::park`/`unpark` | **a call OUT to the host**: VTL1 has no scheduler, and enclave threads are host threads that called in |
+  | timeouts | `std::time::Instant` | `ee_app_now_ms`, which the enclave already has |
+  | `thread.spawn` | `std::thread::spawn` | **a call OUT to the host** to create a thread that calls back in |
+
+  Two of those five are new ABI calls (`ee-rt.h`, `ee-app.cpp`, `ee-host.c`), which is where this
+  stage starts. Spinning instead of parking is not an option for `atomic.wait`: a guest may wait
+  indefinitely, and a spinning enclave thread holds a core and the host's patience.
+- **Tested behaviour** for wait/notify, spawn, and thread lifetime - not merely compiled. The
+  wait PRECONDITION now has a racing test (below); spawn and teardown do not.
+- **The cost**, unmeasured since the change. The numbers below are the width-sized version's and
+  are stale in the direction that matters: byte-wise accesses and lock-based atomics are both
+  slower than what was measured. Treat every figure under "Measured" as an upper bound on
+  performance, not a current reading.
 
 ## What the atomics themselves are, and how far they are checked
 
