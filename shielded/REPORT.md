@@ -2082,3 +2082,66 @@ about 21.6 GB. A third of the streaming term is the wider lane, before a
 single masking operation is counted -- which is what 15.5 priced and rejected
 at 4 bits, and what an int6 lane with an integer block scale would partly
 recover.
+
+### 16.8 What did NOT move it, with numbers
+
+Every one of these was tried against the same build on the same afternoon, so
+they are comparable to each other and to the 17.1-18.0 tok/s the build was
+sitting at. None is worth keeping, and several are worth remembering.
+
+| lever | result (plain / spec k=1, tok/s) |
+|---|---|
+| decode threads 6 / **8** / 10 / 12 / 16 / 24 | 17.07 / **17.11** / 16.19 / 14.62 / 11.56 / 6.43 |
+| speculation depth k = **1** / 2 / 3 | **17.67** / 14.83 / 15.41 |
+| `GOMP_SPINCOUNT=infinite` + `OMP_WAIT_POLICY=ACTIVE` | 16.41 / 17.37 against 16.83 / 18.00 |
+| `GOMP_SPINCOUNT=1000` (park the decode threads early) | 15.26 / 15.11 against 16.37 / 16.74 |
+| `OMP_PROC_BIND=close` + `OMP_PLACES=cores` | **2.19 / 2.12** |
+| `SHIELDED_REFILL_THREADS=2` (give refill's cores to decode) | **5.26 / 5.37** |
+| delta-net inner loop fused, 4 sweeps -> 1 | 17.22 / 17.70 against 16.98 / 17.78 |
+| mask+encode split over 4 helper threads | **abandoned at 16 min, 226% CPU** |
+| workers off the MPS daemon (no server, no 50% SM cap) | 16.56 / 17.43 against 16.37 / 16.74 |
+| Freivalds RHS moved into the ring's spin window | **verification fails** |
+
+Five of these say something.
+
+**The box is exactly saturated.** 16 physical cores, 8 decode threads and 8
+pad-refill threads. Pinning threads to cores collapses it by 8x, and taking
+six cores off refill collapses it by 3x -- that run logged
+`refill-on-path=24467 ms` and `missed=12451`, i.e. the pad pool ran dry and
+every miss was generated on the request path. The refill threads are not
+spare capacity; they are what keeps the pads ahead of the decode.
+
+**The OpenMP wait policy is already at its optimum, from both sides.** Making
+the decode threads spin harder is worse, and making them park sooner is worse
+still -- a graph of ~3365 nodes at batch 1 pays the wake-up on every node.
+
+**The delta-net kernel was not call-bound.** Each of the four sweeps over the
+S_v x S_v state touches only row j, so they fuse into one pass, and the fused
+form is bit-identical (48 greedy tokens, same ids) -- and 1% faster. The state
+block is 64 KiB per head and already L2-resident, so the sweeps were never
+paying for memory, and `ggml_vec_*` on 128 floats is not paying for the call.
+
+**The elementwise field passes will not parallelise on this box.** Masking the
+activation into three byte planes and encoding it to field integers are pure
+maps over a range, on the one thread a decode round is serialized on, so they
+look like free parallelism. They are not: only the big tensors clear a useful
+chunk size, so the helpers go idle between dispatches and park, and then every
+dispatch pays a futex wake -- 241 exchanges a pass, twice over for the split.
+The run was still going after 16 minutes at 226% CPU. This is the same wall as
+the refill result: there are no spare cores here, and a thread that sleeps
+between exchanges costs more to wake than the work it is handed.
+
+**MPS is not the per-exchange floor.** The workers join an MPS daemon capped
+to 50% of each card's SMs, which looked like a candidate for the ~44 us of
+launch-and-sync each exchange pays. Taking them off it entirely changes
+nothing measurable. The floor is cudaGraphLaunch plus the synchronize, and
+241 exchanges x 44 us = 10.6 ms per pass is simply what this design costs.
+
+**The Freivalds overlap is broken, and its gate was hiding that.** `sh_link_gemm`
+excluded the overlap whenever a shm ring was attached, which looked like a
+leftover: the ring publishes the request before it spins and takes a work
+callback for exactly this, and the RHS depends only on the trusted input, so
+it is ~3.6 ms per pass of dead time. Enabling it makes verification fail on
+the first pass ("the worker lied or the field wrapped"), with AND without the
+column split. So the ring+overlap path has never worked, the gate is what has
+been hiding it, and the comment now says so.
