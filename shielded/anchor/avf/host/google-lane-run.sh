@@ -37,11 +37,17 @@ die() { echo "REFUSING: $*" >&2; exit 2; }
 # `cut`, which succeeds on empty input -- so an audit produced a device that printed a valid-looking
 # digest and exited 42 while this harness reported a usable row. The status comes back explicitly.
 sh_out() {
-    local raw rc
-    raw=$("${ADB[@]}" shell "$* ; echo __RC__\$?" < /dev/null 2>/dev/null | tr -d '\r')
+    local raw trc rc
+    # TWO statuses matter and they are independent: adb's own (the transport) and the remote command's.
+    # An audit built a device that printed a valid 64-hex digest and __RC__0 while adb ITSELF exited 42,
+    # and this accepted the row -- because the pipe to tr made the substitution report tr's status.
+    # So: no pipeline here, and the transport status is checked before the marker is believed.
+    raw=$("${ADB[@]}" shell "$* ; echo __RC__\$?" < /dev/null 2>/dev/null); trc=$?
+    if [ "$trc" -ne 0 ]; then return 126; fi                 # the transport failed
+    raw=$(printf '%s' "$raw" | tr -d '\r')
     rc=$(printf '%s\n' "$raw" | sed -n 's/^__RC__\([0-9][0-9]*\)$/\1/p' | tail -1)
     printf '%s\n' "$raw" | sed '/^__RC__[0-9][0-9]*$/d'
-    [ -n "$rc" ] || return 125          # no status marker at all: the shell itself failed
+    [ -n "$rc" ] || return 125          # no status marker at all: the remote shell never ran our command
     return "$rc"
 }
 sh_() { sh_out "$@" >/dev/null; }

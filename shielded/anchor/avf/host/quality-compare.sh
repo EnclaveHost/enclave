@@ -21,7 +21,7 @@
 #   OUT=/tmp/q MAXNEW=48 ./quality-compare.sh prompts.txt
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
-ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; [ -n "${SERIAL:-}" ] && ADB="$ADB -s $SERIAL"
+ADB=("${ADB:-$HOME/Android/Sdk/platform-tools/adb}"); [ -n "${SERIAL:-}" ] && ADB+=(-s "$SERIAL")
 OUT="${OUT:-/tmp/quality-compare}"; MAXNEW="${MAXNEW:-48}"; mkdir -p "$OUT"
 # BUILD IDENTITY, recorded rather than assumed. Fault-injection experiments run the same source tree with a
 # different constant, and a filename never proved which binary answered: the digests below and the payload's
@@ -38,12 +38,21 @@ fi
 cat "$OUT/BUILD"
 # the binary that will produce these rows, folded into every cache key
 RUN_IDENT=$(grep -oE '^[a-z-]+\.so sha256  [0-9a-f]+' "$OUT/BUILD" | head -1 | awk '{print $3}')
-[ -n "$RUN_IDENT" ] || RUN_IDENT="unknown-binary"
+[ -n "$RUN_IDENT" ] || { echo "REFUSING: no library digest in $OUT/BUILD; an unknown binary is not an identity" >&2; exit 3; }
+# The bundle and graphs are keyed by CONTENT, not by path: the same path can hold different bytes.
+F_DIR=/data/user/0/host.enclave.anchor.avf/files
+dev_sha() { "${ADB[@]}" shell "run-as host.enclave.anchor.avf sha256sum $1 2>/dev/null" < /dev/null | tr -d '\r' | awk '{print $1}' | head -1; }
+BUNDLE_ID=$(dev_sha "$F_DIR/${BUNDLE:-tpu/lanes-h4ds.etpu}")
+GRAPHS_ID=$("${ADB[@]}" shell "run-as host.enclave.anchor.avf sh -c 'cat $F_DIR/${GRAPHS:-tpu/g5-h4ds}/*.tflite 2>/dev/null | sha256sum'" < /dev/null | tr -d '\r' | awk '{print $1}' | head -1)
+[ -n "$BUNDLE_ID" ] && [ -n "$GRAPHS_ID" ] || { echo "REFUSING: could not digest the bundle or graphs on the device" >&2; exit 3; }
+{ echo "bundle sha256  $BUNDLE_ID"; echo "graphs sha256  $GRAPHS_ID"; } >> "$OUT/BUILD"
+MANIFEST="$OUT/MANIFEST.tsv"
+printf '# id\tkey\ttpu\tcpu\tprompt\texpect\n' > "$MANIFEST"
 PROMPTS="${1:-}"; [ -n "$PROMPTS" ] || { echo "usage: $0 prompts.txt"; exit 2; }
 # The prompt list is read into an ARRAY first. Reading it with `while read < file` and running adb inside the
 # loop silently ran ONE prompt and stopped: adb consumes stdin, so it ate the rest of the file.
 mapfile -t PLIST < "$PROMPTS"
-n=0
+n=0; failed=0
 for p in "${PLIST[@]}"; do
   [ -z "$p" ] && continue
   case "$p" in \#*) continue;; esac
@@ -55,26 +64,32 @@ for p in "${PLIST[@]}"; do
   # changed prompt inherit the previous prompt's log: the old loop wrote NN.prompt first, then saw a
   # non-empty NN.tpu.log and reported "already have", so an answer to a different question was relabelled
   # as this one's. Same defect an audit found in google-lane-run.sh.
-  key=$(printf '%s|%s|%s|%s|%s' "$p" "$MAXNEW" "${GRAPHS:-tpu/g5-h4ds}" "${BUNDLE:-tpu/lanes-h4ds.etpu}" \
-        "$RUN_IDENT" | sha256sum | cut -c1-16)
+  key=$(printf '%s|%s|%s|%s|%s' "$p" "$MAXNEW" "$GRAPHS_ID" "$BUNDLE_ID" "$RUN_IDENT" | sha256sum | cut -c1-16)
+  st_tpu=fail; st_cpu=fail
   for arm in tpu cpu; do
     f="$OUT/$id.$key.$arm.log"
     if [ -s "$f" ] && grep -q "LOCAL done" "$f"; then
-      echo "[$id/$arm] cached ($key)"; continue        # only a COMPLETE run is a cache hit
+      echo "[$id/$arm] cached ($key)"; eval "st_$arm=ok"; continue
     fi
     echo "[$id/$arm] $p"
+    rc=0
     if [ "$arm" = tpu ]; then ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 \
-         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null
-    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null; fi
-    if grep -q "LOCAL done" "$f.tmp"; then
-      mv "$f.tmp" "$f"                                  # renamed only when the run completed
+         GRAPHS="${GRAPHS:-tpu/g5-h4ds}" BUNDLE="${BUNDLE:-tpu/lanes-h4ds.etpu}" ./tpu-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?
+    else                      ASK="$p" MAXNEW="$MAXNEW" WIDTH=100000 NOCOOL="${NOCOOL:-0}" ./local-run.sh > "$f.tmp" 2>&1 < /dev/null || rc=$?; fi
+    # BOTH must hold: the producer exited cleanly AND the run reached its completion marker
+    if [ "$rc" -eq 0 ] && grep -q "LOCAL done" "$f.tmp"; then
+      mv "$f.tmp" "$f"; eval "st_$arm=ok"
     else
       mv "$f.tmp" "$f.failed"
-      echo "   FAILED (no LOCAL done): kept as $(basename "$f").failed"
+      echo "   FAILED (rc=$rc, LOCAL done: $(grep -qc 'LOCAL done' "$f.failed" 2>/dev/null && echo yes || echo no)): kept as $(basename "$f").failed"
+      failed=$((failed+1))
     fi
   done
-  # written only AFTER the arms, so a half-finished row cannot leave a prompt label with no result
-  printf '%s\n' "$p" > "$OUT/$id.prompt"
-  printf '%s\n' "$want" > "$OUT/$id.expect"
+  # The MANIFEST is the only thing a reader should trust: it binds this id and key to this prompt, these
+  # settings and this binary, with a per-arm status. quality-report.py used to glob NN.*.arm.log and take
+  # the lexicographically last hash, which let an OLD log for a DIFFERENT prompt be scored as this row --
+  # a false PASS. There is nothing to guess from any more.
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$key" "$st_tpu" "$st_cpu" "$p" "$want" >> "$MANIFEST"
 done
-echo; echo "runs in $OUT; compare with: python3 $(pwd)/quality-report.py $OUT"
+echo; echo "runs in $OUT ($failed failed arm(s)); compare with: python3 $(pwd)/quality-report.py $OUT"
+exit $(( failed > 0 ? 1 : 0 ))
