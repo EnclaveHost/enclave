@@ -227,7 +227,7 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                                * so decode mints its own there; with this on, g_tpu_refill 0 costs the worker no cores */
                               if (auto lbuf = (void (*)(uint64_t *, uint64_t *))dlsym(th, "ggml_backend_tpu_link_buf")) { uint64_t b = 0, a = 0; lbuf(&b, &a);
                                   outf("LOCAL tpu: vsock credit window %llu -> %llu bytes", (unsigned long long)b, (unsigned long long)a); }
-                              if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(wtarget, 8);
+                              if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(wtarget, 32);
                                   if (wtarget) outf("LOCAL tpu: minting inside the link window to a bank of %d positions", wtarget); } } }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
@@ -315,8 +315,8 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
             if (!chat_write(chat_fd, s2)) break;
             outf("LOCAL turn %d: %s", served, s2 + 6);
             if (tpu_stats) { ggml_backend_tpu_stats_t ts; tpu_stats(&ts, 1); const double ex = ts.exchanges ? (double)ts.exchanges : 1.0;
-                outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/step, %.2f rows each) ms per exchange: mask %.3f link %.3f unmask %.3f | pads inline %llu refilled %llu bank_min %llu | outliers kept %llu saturated %llu",
-                     served, (unsigned long long)ts.exchanges, ex / (steps ? steps : 1), ts.rows / ex, ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.unmask_us / ex / 1e3, (unsigned long long)ts.pads_minted_inline, (unsigned long long)ts.pads_refilled, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated); }
+                outf("LOCAL tpu turn %d: exchanges=%llu (%.1f/step, %.2f rows each) ms per exchange: mask %.3f link %.3f (corr %.3f mint %.3f wait %.3f) unmask %.3f | pads inline %llu refilled %llu bank_min %llu | outliers kept %llu saturated %llu",
+                     served, (unsigned long long)ts.exchanges, ex / (steps ? steps : 1), ts.rows / ex, ts.mask_us / ex / 1e3, ts.link_us / ex / 1e3, ts.corr_us / ex / 1e3, ts.window_mint_us / ex / 1e3, ts.wait_us / ex / 1e3, ts.unmask_us / ex / 1e3, (unsigned long long)ts.pads_minted_inline, (unsigned long long)ts.pads_refilled, (unsigned long long)ts.bank_min, (unsigned long long)ts.outlier_entries, (unsigned long long)ts.saturated); }
             continue;
         }
         const int64_t t0 = ggml_time_us(); bool failed = false;

@@ -9,6 +9,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <unistd.h>
+#include <sys/uio.h>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -31,6 +32,17 @@ struct Worker { litert::Environment env; std::vector<Layer> layers; int rows = 5
 const char* kKinds[4] = {"qkv", "o", "gu", "down"};
 bool rd_all(int fd, void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char*)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; } return true; }
 size_t packed(litert::TensorBuffer& b) { auto z = b.PackedSize(); return z ? *z : 0; }
+/* writev that finishes the job: a partial write means advancing into the iovec array, not an error. */
+bool wr_all_v(int fd, iovec* v, size_t n) {
+  while (n) {
+    ssize_t w = writev(fd, v, (int)n);
+    if (w < 0) { if (errno == EINTR) continue; return false; }
+    if (w == 0) return false;
+    while (n && (size_t)w >= v->iov_len) { w -= (ssize_t)v->iov_len; v++; n--; }
+    if (n && w) { v->iov_base = (char*)v->iov_base + w; v->iov_len -= (size_t)w; }
+  }
+  return true;
+}
 bool wr_all(int fd, const void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char*)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 }  // namespace
 
@@ -69,19 +81,13 @@ extern "C" JNIEXPORT jlong JNICALL Java_host_enclave_anchor_avf_TpuWorker_native
 
 extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeServe(JNIEnv* env, jclass, jlong handle, jint fd) {
   auto* w = (Worker*)(intptr_t)handle; if (!w) return env->NewStringUTF("TPU worker: not open");
-  uint64_t n = 0; double wait_us = 0, recv_us = 0, write_us = 0, run_us = 0, read_us = 0, send_us = 0; std::string err;
+  uint64_t n = 0, direct = 0, staged = 0; double wait_us = 0, recv_us = 0, write_us = 0, run_us = 0, read_us = 0, send_us = 0; std::string err;
   std::vector<int16_t> rx, tx; std::vector<int8_t> rx8; uint8_t hdr[4];
   for (;;) {
     auto t0 = Clock::now(); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
     // 0xE7: rows of int16.  0xE8: DIGIT-SPLIT, 2*rows of int8 (hi rows then lo rows) against a graph whose weights
     // the compiler therefore keeps at one byte instead of two. The reply carries both halves; the VM recombines.
-    if (hdr[0] == 0xE9) {                                                  /* link ping: reply with (hdr[2] | hdr[3]<<8) * 64 bytes, no TPU */
-    const size_t want = (size_t)((uint32_t)hdr[2] | ((uint32_t)hdr[3] << 8)) * 64;
-    static std::vector<uint8_t> zeros; if (zeros.size() < want) zeros.assign(want, 0);
-    if (!wr_all(fd, zeros.data(), want)) return -1;
-    continue;
-  }
-  const bool ds = hdr[0] == 0xE8;
+const bool ds = hdr[0] == 0xE8;
     if ((hdr[0] != 0xE7 && !ds) || hdr[1] >= w->layers.size() || hdr[2] > 3 || hdr[3] < 1 || hdr[3] > w->rows) { err = "malformed exchange header"; break; }
     Sig& s = w->layers[hdr[1]].sig[hdr[2]]; if (!s.present) { err = "no such signature"; break; }
     const size_t rows = hdr[3], wire_rows = ds ? 2 * rows : rows, max_wire = ds ? 2 * (size_t)w->rows : (size_t)w->rows;
@@ -100,17 +106,52 @@ extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nati
     auto t3 = Clock::now();
     if (auto r = w->layers[hdr[1]].compiled.Run(s.index, s.in, s.out); !r) { err = "run: " + r.Error().Message(); break; } auto t4 = Clock::now();
     size_t total = 0; for (size_t o = 0; o < s.out.size(); o++) total += wire_rows * (s.out_bytes[o] / 2 / max_wire);
-    tx.resize(total); size_t off = 0; bool ok = true;
-    for (size_t o = 0; o < s.out.size() && ok; o++) { const size_t cnt = wire_rows * (s.out_bytes[o] / 2 / max_wire); if (auto r = s.out[o].Read<int16_t>(litert::Span<int16_t>(tx.data() + off, cnt)); !r) { err = "output read: " + r.Error().Message(); ok = false; } off += cnt; }
-    if (!ok) break; auto t5 = Clock::now();
-    if (!wr_all(fd, tx.data(), tx.size() * 2)) { err = "reply write failed"; break; } auto t6 = Clock::now();
+    /* Send STRAIGHT out of the tensor buffers instead of staging them into tx first. This is the engine's
+     * 9c7e0e7c ("let the GEMM epilogue write into the ring instead of copying to it"): the products are already
+     * in mapped host memory, and copying them somewhere else before writing is pure cost. The rows in use are a
+     * contiguous prefix of each output (the buffers are sized for rows_max), so one iovec per output describes
+     * the reply exactly, and writev sends the lot in a single syscall.
+     * Lock/Unlock is best effort -- if any output will not give a host pointer the staging path below still
+     * runs, and the counters say which one was taken. */
+    /* MEASURED AND OFF (2026-09-21). Sending straight out of the tensor buffers is the engine's 9c7e0e7c
+     * ("let the GEMM epilogue write into the ring instead of copying to it"), and it does remove the staging
+     * copy -- output-read 0.317 -> 0.061 ms -- but the copy only MOVES: send goes 0.125 -> 1.148 ms, and decode
+     * 1.51 -> 1.26 tok/s. The counters say the path was taken every time (direct 4200, staged 0), so this is
+     * what it costs, not a silent fallback. The reason it wins on a server and loses here is that there the
+     * products are already in pinned host memory, while this Lock hands back device-coherent memory that the
+     * kernel's socket path then reads uncached. LiteRT's own Read into cached heap is the cheaper route. */
+    static constexpr bool kDirectSend = false;
+    bool ok = true; auto t5 = Clock::now(); bool sent = false;
+    if (kDirectSend) {
+      std::vector<iovec> iov(s.out.size()); std::vector<size_t> locked; locked.reserve(s.out.size());
+      for (size_t o = 0; o < s.out.size(); o++) {
+        auto hm = s.out[o].Lock(litert::TensorBuffer::LockMode::kRead);
+        if (!hm) break;
+        iov[o].iov_base = *hm; iov[o].iov_len = wire_rows * (s.out_bytes[o] / 2 / max_wire) * 2; locked.push_back(o);
+      }
+      if (locked.size() == s.out.size()) {
+        t5 = Clock::now();
+        sent = wr_all_v(fd, iov.data(), iov.size());
+        if (!sent) err = "reply writev failed";
+      }
+      for (size_t o : locked) (void)s.out[o].Unlock();
+      if (!sent && !err.empty()) break;
+    }
+    if (!sent) {                                                            /* fallback: stage, then write */
+      tx.resize(total); size_t off = 0;
+      for (size_t o = 0; o < s.out.size() && ok; o++) { const size_t cnt = wire_rows * (s.out_bytes[o] / 2 / max_wire); if (auto r = s.out[o].Read<int16_t>(litert::Span<int16_t>(tx.data() + off, cnt)); !r) { err = "output read: " + r.Error().Message(); ok = false; } off += cnt; }
+      if (!ok) break; t5 = Clock::now();
+      if (!wr_all(fd, tx.data(), tx.size() * 2)) { err = "reply write failed"; break; }
+      staged++;
+    } else { direct++; }
+    auto t6 = Clock::now();
     n++; wait_us += std::chrono::duration<double, std::micro>(t1 - t0).count(); recv_us += std::chrono::duration<double, std::micro>(t2 - t1).count();
     write_us += std::chrono::duration<double, std::micro>(t3 - t2).count(); run_us += std::chrono::duration<double, std::micro>(t4 - t3).count();
     read_us += std::chrono::duration<double, std::micro>(t5 - t4).count(); send_us += std::chrono::duration<double, std::micro>(t6 - t5).count();
   }
   char buf[512]; const double d = n ? (double)n : 1.0;
-  snprintf(buf, sizeof buf, "TPU worker: %llu exchanges; per exchange ms: idle-wait %.3f recv %.3f input-write %.3f tpu-run %.3f output-read %.3f send %.3f%s%s",
-           (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, err.empty() ? "" : " ERROR: ", err.c_str());
+  snprintf(buf, sizeof buf, "TPU worker: %llu exchanges; per exchange ms: idle-wait %.3f recv %.3f input-write %.3f tpu-run %.3f output-read %.3f send %.3f | direct %llu staged %llu%s%s",
+           (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, (unsigned long long)direct, (unsigned long long)staged, err.empty() ? "" : " ERROR: ", err.c_str());
   LOGI("%s", buf); return env->NewStringUTF(buf);
 }
 // What one invocation costs by itself: each signature of two blocks, back to back and then with an idle gap between calls
