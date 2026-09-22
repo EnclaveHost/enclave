@@ -1930,3 +1930,17 @@ That leaves the inflation unexplained rather than explained, which is the honest
 yet separated: the guest's own scheduling under a protected VM, page-cache pressure from a 1757 MB
 evictable bundle, or the non-offloaded ops genuinely costing more in the VM than the same ops cost inside
 a plain CPU decode.
+
+### Partial offload needs a matching BUNDLE, not just a worker (2026-09-22)
+
+`--ei tpu_layers N` loads N compiled blocks into the worker, but the VM decides what to offload from the
+BUNDLE, which lists all 35 groups. So a partial worker with a full bundle fails the moment the VM asks
+for a block the worker never loaded:
+
+    TPU worker: 4 compiled blocks loaded in 357 ms
+    VSOCK tpu: the worker link failed waiting for the reply (blk.4 kind 0)
+    LOCAL failed: the VM closed the conversation mid-turn
+
+Measuring the marginal cost of an offloaded layer therefore needs bundles built with `--layers 0-(N-1)`,
+which is cheap with `--no-graphs` since the compiled graphs are reused. Worth recording because the flag
+looks like it controls the split and does not.
