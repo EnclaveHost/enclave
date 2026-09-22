@@ -3529,3 +3529,61 @@ What made it expensive is that the refusal named no reason, and the reason is a
 COMPILE-TIME property invisible in the config string being rejected. The eight
 rejection sites now each say why, including that one by name with the flag to
 set. The control is unchanged; only its diagnosis is.
+
+### 18.23 Overlap pilot: the window works, the early execution does not
+
+Built, opt-in, default off, and reversible: `SHIELDED_OVERLAP_CPU`.
+
+**Mechanism.** `sh_link_set_idle_work` registers a callback on a link. It runs
+inside the exchange's existing idle window -- after the request is published,
+before the ring spin -- under the same contract the Freivalds RHS already
+uses: exactly once per exchange, never touching the pipe, never reading reply
+bytes. The backend fills it with local residual/norm islands (the ops
+`SHIELDED_FUSE_LOCAL` already claims) selected in graph order.
+
+**Selection, which is where the safety argument lives.** An island is eligible
+only if every tensor it reads is already produced -- not just the MUL_MAT it
+fuses. Such an island consumes a product that has already been unmasked and
+Freivalds-verified, so running it early cannot consume an unverified reply;
+that is a property of the selection, not of the timing. It is registered on the
+primary card's link only, so with a column split it stays single-threaded
+rather than needing a claim protocol between cards.
+
+**Result, by bisect rather than assertion.** Two modes, same selection:
+
+| mode | what the window does | outcome |
+|---|---|---|
+| 2 | registers, fires, computes NOTHING | rc=0, spec 18.24, identical=True, local=0, verify_fail=0, 3 windows fired |
+| 1 | registers, fires, computes the island | fails at warm prefill, graph status -1 |
+
+So the window mechanism is sound and demonstrably fires with real work
+selected -- `batch=1 at node 0 m=17`, `window fired, 1 items` -- and what fails
+is executing THIS work out of graph order. Mode 2 reaching decode (`m=1`) while
+mode 1 dies at prefill isolates it to the execution, not the hook.
+
+**Why it fails is not yet established.** The obvious candidate is ggml's
+allocator: it reuses tensor memory assuming nodes run in graph order, so a node
+moved earlier can write a range still live for something else. I added a guard
+refusing any island whose bytes overlap an output of the in-flight exchange and
+it did not help, which rules out that one case and no more -- a third tensor
+can be live in the range and the allocator does not expose liveness. The other
+open candidate is that `sh_fusion_compute_local` has preconditions tied to its
+normal call site that I have not enumerated.
+
+**What the pilot is worth.** It fails CLOSED: the graph aborts, no wrong output
+is produced, and with the flag unset the tree behaves exactly as before
+(pil-off-1: spec 19.05, identical=True, local=0). It establishes that the
+window is real and usable, and it locates the obstacle precisely -- out-of-order
+execution under an allocator that assumes order, not dependency analysis, which
+was the thing I had been treating as the hard part. Any further attempt needs
+allocator cooperation (liveness, or a node pinned to its own buffer), and that
+is a ggml change rather than a backend one.
+
+Two mistakes inside the pilot worth recording. The first eligibility check
+looked only at the fused MUL_MAT and not at the residual side of the add, and
+the graph failed closed on warm prefill -- a pointer edge says what is read, it
+does not say it is ready. And the replacement scanned the node array for every
+candidate and every tensor it reads: O(n^2) per exchange, tens of billions of
+comparisons over a 3799-node graph and 321 exchanges, killing the run before a
+single island was scheduled. An eligibility test that costs more than the work
+it schedules is not an optimisation.

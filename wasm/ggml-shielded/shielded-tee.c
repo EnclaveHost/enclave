@@ -341,6 +341,14 @@ struct sh_link {
     size_t     shm_bytes;
     bool       verify;
     bool       overlap_verify;
+    /* An OPT-IN hook the backend fills with trusted work it has proved does
+     * not depend on the reply in flight. It runs inside the same window the
+     * Freivalds RHS uses -- after the request is published, before the spin --
+     * and under the same contract: exactly once per exchange, never touching
+     * the pipe, and never reading reply bytes. Nothing here can weaken
+     * verification-before-use, because nothing here may look at the reply. */
+    void     (*idle_fn)(void *);
+    void      *idle_ctx;
     /* Bytes per reply value: 4 (FIELD_GEMM, protocol 1.1) or 3 (FIELD_GEMM24,
      * 1.2). Decided at start from the worker's HELLO; SHIELDED_REPLY32=1
      * forces the wide form against a worker that offers both. */
@@ -434,6 +442,10 @@ void sh_link_stats(const sh_link *l, uint64_t *e, uint64_t *m, uint64_t *v) {
     if (e) *e = l->exchanges;
     if (m) *m = l->macs;
     if (v) *v = l->verify_fail + (uint64_t)__atomic_load_n(&l->pad_integrity_failed, __ATOMIC_ACQUIRE);
+}
+void sh_link_set_idle_work(sh_link *l, void (*fn)(void *), void *ctx) {
+    if (!l) return;
+    l->idle_fn = fn; l->idle_ctx = ctx;
 }
 void sh_link_profile_snapshot(const sh_link *l, sh_link_profile *out) {
     if (!out) return;
@@ -1999,6 +2011,11 @@ typedef struct {
  * can run while the masked request travels. Nothing here touches the pipe or
  * a reply. The worker still has to pass the SAME unrelated-prime check before
  * the caller can use any output. */
+/* The window with no RHS to compute: the hook alone. Same contract. */
+static void sh_idle_only(void *ctx) {
+    sh_link *l = ((sh_verify_work *)ctx)->link;
+    if (l->idle_fn) l->idle_fn(l->idle_ctx);
+}
 static void sh_verify_rhs(void *ctx) {
     sh_verify_work *w = (sh_verify_work *)ctx;
     sh_link *l = w->link;
@@ -2010,6 +2027,10 @@ static void sh_verify_rhs(void *ctx) {
                                l->fv_rhs + (i * (size_t)w->m + row) * SH_FV_REPS);
     }
     w->elapsed_ms = now_ms() - t0;
+    /* Then the backend's deferred work, if it registered any. Ordering is
+     * deliberate: the RHS is what the window exists for and must not be
+     * displaced by an optional passenger. */
+    if (l->idle_fn) l->idle_fn(l->idle_ctx);
     w->ran = 1;
     l->profile.rhs_ms += w->elapsed_ms;
 }
@@ -2174,7 +2195,8 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
          * had this whole overlap gated off behind !sh_pipe_ring_live(). Ask
          * the work item whether it ran. */
         if (via_ring) {
-            rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep, overlap ? sh_verify_rhs : NULL, &work);
+            rc = sh_pipe_ring_exchange_work(l->pipe, &f, want, &rep,
+                                            overlap ? sh_verify_rhs : (l->idle_fn ? sh_idle_only : NULL), &work);
         } else {
             rc = SH_ERR_IO;
         }
