@@ -3872,3 +3872,48 @@ no longer does I/O on the measured path, what remains of its cost is unmeasured.
 The trace itself is sound where runs completed: 34531 records, 0 dropped -- and
 the run that returned rc=2 had a valid result and a complete trace, so that
 failure is on the exit path rather than in the measurement.
+
+### 18.30 The TEE-side link term, broken down: 42% of it has no timer
+
+18.28 left the TEE-side link work at 15.23 ms/token as the largest item never
+attacked since the SIMD work. Breaking it down needed the phase trace to carry
+the link profile's terms, so each one is divided by the same denominator as the
+total. Plain decode is one forward pass per generated token, so that path is
+used: the speculative path's round yields ~1+acc tokens across two passes and
+invites exactly the denominator confusion this exercise exists to avoid.
+
+Two runs, card 0, 64 tokens each, no instrumentation on the CPU backend:
+
+| | ms/token | range |
+|---|---|---|
+| token (bench) | 55.809 | |
+| graph_compute *(incl. link)* | 38.018 | 37.56-38.48 |
+| link *(incl. idle)* | 33.567 | 33.09-34.05 |
+| idle spin | 17.487 | 17.09-17.88 |
+| **TEE-side work** = link - idle | **16.080** | |
+| wire - idle (moving bytes) | 0.892 | |
+| prologue (input range scan, ensures) | 0.566 | 0.46-0.67 |
+| mask | 2.986 | 2.41-3.56 |
+| unmask + lhs | 1.916 | 1.68-2.15 |
+| Freivalds rhs | 2.847 | 2.32-3.38 |
+| reply range check | 0.131 | 0.11-0.15 |
+| pads | 0.062 | 0.06-0.06 |
+| **accounted** | **9.400** | 58% |
+| **untimed** | **6.680** | 42% |
+
+Two things I expected and got wrong. Moving bytes is 0.892 ms, not the missing
+chunk -- the ring reply is ~139 KB per exchange and I had it down as a
+candidate. And the prologue, which I timed specifically because the input range
+scan sweeps m*K int64 per exchange, is 0.566 ms.
+
+So 6.68 ms/token of the TEE-side link path has no timer on it at all: more than
+mask, more than the Freivalds rhs, and 42% of the term. Against the 15.8 ms
+that 25 tok/s needs off this token it is the largest single attributable
+target left, and it is attributable only in the sense that I now know where it
+is NOT. What remains untimed inside `sh_link_gemm_stride` is the per-node loop
+around the exchange, the descale and outlier work that the backend's t_post
+does not cover, and the group/cache bookkeeping.
+
+The instrumentation to find it is in place and costs nothing on the measured
+path (records buffered, written at exit). Finishing the attribution is a matter
+of placing three or four more timers, not of another estimate.

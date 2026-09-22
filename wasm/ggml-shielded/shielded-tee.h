@@ -219,6 +219,10 @@ typedef struct {
      * ~9 ms/pass that sh_link_gemm_stride does not otherwise account for
      * stops being a subtraction. */
     double check_ms, pads_ms;
+    /* Entry of the exchange to the start of masking: the input range scan over
+     * m*K and the buffer ensures. Untimed until now, and over half of the
+     * TEE-side link work had no timer at all. */
+    double pre_ms;
     /* Spin left over AFTER the overlapped RHS: the budget any further
      * overlap would have to fit into. */
     double idle_ms; uint64_t idle_n;

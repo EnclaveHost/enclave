@@ -2067,6 +2067,7 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
                  const int64_t *x_field, int32_t m, int64_t **y_out,
                  const int64_t *y_stride) {
+    const double t_entry = now_ms();   /* prologue: input range scan and buffer ensures */
     if (sh_integrity_failed(l)) {
         snprintf(l->err, sizeof l->err, "link retired after verification failure; recreate trusted state");
         return SH_ERR_VERIFY;
@@ -2120,6 +2121,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
      * PLACE and held until the unmask below; the rows made here live in the
      * link's private scratch. Either way each row's pad is one pointer. */
     double t0 = now_ms();
+    l->profile.pre_ms += t0 - t_entry;
     if (l->dealt && l->threads_running) dealt_wait(l, g, m);
     const double tp_a = now_ms();
     const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;

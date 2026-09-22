@@ -1684,7 +1684,8 @@ static bool sh_overlap_cpu_enabled() { return sh_overlap_cpu_mode() != 0; }
  *
  * CAPACITY. Drops are COUNTED and reported. A truncated trace that does not
  * say it is truncated would let a window claim to cover a phase it does not. */
-struct sh_trace_rec { int card; double t; int m; uint64_t graphs, nodes, ex; double idle, link, graph; };
+struct sh_trace_rec { int card; double t; int m; uint64_t graphs, nodes, ex;
+                      double idle, link, graph, mask, unmask, rhs, check, pads, wire, pre; };
 struct sh_trace_state {
     std::vector<sh_trace_rec> v;
     std::mutex mu;
@@ -1698,20 +1699,23 @@ static sh_trace_state *sh_trace_st() {
     }();
     return st;
 }
-static void sh_trace_push(int card, double t, int m, uint64_t graphs, uint64_t nodes,
-                          uint64_t ex, double idle, double link, double graph) {
+static void sh_trace_push(int card, double t, int m, uint64_t graphs, uint64_t nodes, uint64_t ex,
+                          double idle, double link, double graph,
+                          double mask, double unmask, double rhs, double check, double pads, double wire, double pre) {
     sh_trace_state *st = sh_trace_st();
     std::lock_guard<std::mutex> lk(st->mu);
-    if (st->v.size() < st->v.capacity()) st->v.push_back({card, t, m, graphs, nodes, ex, idle, link, graph});
+    if (st->v.size() < st->v.capacity())
+        st->v.push_back({card, t, m, graphs, nodes, ex, idle, link, graph, mask, unmask, rhs, check, pads, wire, pre});
     else st->dropped++;
 }
 static void sh_trace_flush() {
     sh_trace_state *st = sh_trace_st();
     std::lock_guard<std::mutex> lk(st->mu);
     for (const auto &r : st->v)
-        fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f\n",
+        fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f"
+                        " mask=%.1f unmask=%.1f rhs=%.1f check=%.1f pads=%.1f wire=%.1f pre=%.1f\n",
                 r.card, r.t / 1000.0, r.m, (unsigned long long)r.graphs, (unsigned long long)r.nodes,
-                (unsigned long long)r.ex, r.idle, r.link, r.graph);
+                (unsigned long long)r.ex, r.idle, r.link, r.graph, r.mask, r.unmask, r.rhs, r.check, r.pads, r.wire, r.pre);
     if (!st->v.empty() || st->dropped)
         fprintf(stderr, "[ph] flushed %zu records, DROPPED %llu (capacity %zu)\n",
                 st->v.size(), (unsigned long long)st->dropped, st->v.capacity());
@@ -2511,7 +2515,8 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
          * a few stores; the file is written once at exit. */
         sh_link_profile lp{}; sh_link_profile_snapshot(s.link, &lp);
         sh_trace_push(s.card_index, sh_now_ms(), trace_m, s.graph_calls,
-                      s.offloaded_nodes, s.exchanges, lp.idle_ms, s.t_link, s.t_graph);
+                      s.offloaded_nodes, s.exchanges, lp.idle_ms, s.t_link, s.t_graph,
+                      lp.mask_ms, lp.unmask_lhs_ms, lp.rhs_ms, lp.check_ms, lp.pads_ms, lp.wire_ms, lp.pre_ms);
     }
     /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
      * at the end: the engine inside a CVM never calls the stats entry point,
