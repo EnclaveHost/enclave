@@ -75,12 +75,19 @@ log "qemu: coconut-svsm/qemu $QREF with --enable-igvm (built, not installed)"
 if [ ! -d "$W/qemu/.git" ]; then step "Q0 qemu clone" no; tail -3 "$W/q-clone.log"; exit 1; fi
 echo "  $QREF at $(git -C "$W/qemu" rev-parse --short HEAD)"
 IGVM_PREFIX=${IGVM_PREFIX:-$W/../svsmkit/igvminst}
-if [ ! -f "$W/qemu/build/config-host.mak" ]; then
+# A build directory configured earlier records the igvm include path it was given. If that path has
+# moved since — which it did once here, when these trees were moved off tmpfs onto disk — meson keeps
+# using the old one and the build fails deep in backends/igvm-cfg.c. Reconfigure instead.
+if [ -d "$W/qemu/build" ] && ! grep -rqs "$IGVM_PREFIX/include" "$W/qemu/build/build.ninja"; then
+  echo "  the recorded igvm include path is stale; reconfiguring from scratch"
+  rm -rf "$W/qemu/build"
+fi
+if [ ! -f "$W/qemu/build/config-host.h" ]; then
   ( cd "$W/qemu" && PKG_CONFIG_PATH="$IGVM_PREFIX/lib/pkgconfig:$IGVM_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH" \
       ./configure --target-list=x86_64-softmmu --enable-igvm --disable-docs --disable-werror \
       --prefix="$W/qemu-inst" ) > "$W/q-configure.log" 2>&1 && r=ok || r=no
 else r=ok; fi
-grep -q 'CONFIG_IGVM=y' "$W/qemu/build/config-host.mak" 2>/dev/null && r=ok || r=no
+grep -q 'define CONFIG_IGVM' "$W/qemu/build/config-host.h" 2>/dev/null && r=ok || r=no
 step "Q1 QEMU configured WITH igvm (our packaged 11.1.1 has no igvm-cfg object at all)" $r
 ( cd "$W/qemu" && make -j"$J" ) > "$W/q-build.log" 2>&1 && r=ok || r=no
 QBIN="$W/qemu/build/qemu-system-x86_64"
@@ -92,8 +99,16 @@ if [ -x "$QBIN" ]; then
   "$QBIN" -machine q35,help 2>&1 | grep -iE 'plane|igvm' | sed 's/^/  machine: /' || true
   "$QBIN" -object help 2>&1 | grep -qi 'igvm-cfg' && r=ok || r=no
   step "Q3 the built QEMU offers an igvm-cfg object" $r
-  "$QBIN" -machine q35,help 2>&1 | grep -qi 'device-plane' && r=ok || r=no
-  step "Q4 the built QEMU offers the plane machine option (device-plane)" $r
+  # device-plane is added to the machine object at runtime (hw/core/machine.c), so it does NOT appear in
+  # the static -machine help list. Ask the binary itself instead: it must accept the option and then be
+  # refused by the kernel, which is exactly the state we are proving.
+  grep -rqs 'device-plane' "$W/qemu/hw/core/machine.c" && r=ok || r=no
+  step "Q4 this QEMU implements the device-plane machine property" $r
+  probe=$(timeout 20 "$QBIN" -machine q35,accel=kvm,device-plane=2,kernel-irqchip=split \
+            -display none -nodefaults -no-user-config -S 2>&1 | head -3)
+  echo "  plane probe against the RUNNING kernel: $probe"
+  echo "$probe" | grep -qi 'plane .* not supported' && r=ok || r=no
+  step "Q5 QEMU asks for a plane and the RUNNING kernel refuses it: the VMM side is ready and the kernel is the only missing piece" $r
 fi
 fi
 

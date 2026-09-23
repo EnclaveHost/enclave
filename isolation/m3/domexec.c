@@ -16,7 +16,7 @@
  * WEAKER than the VMPL separation described in PLAN.md section 1, and is not a substitute for it. SNP
  * still excludes the host from all of it.
  *
- * usage: domexec <id> <uid> [app|probe] (run by the monitor, never by a domain)
+ * usage: domexec <id> <uid> [app|probe] [memMiB] (run by the monitor, never by a domain)
  *   app   (default) the runtime serving the tenant's app, plus the front
  *   probe the measured adversary probe (domprobe.c) as the domain's only workload, for the isolation
  *         tests: it stands in for a compromised runtime and reports what it could reach
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
                   "serve", "-S", "cli", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/plat/front", "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                      "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", NULL};
-    char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, NULL};
+    char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
         rt_pid = spawn(probe_argv, uid);

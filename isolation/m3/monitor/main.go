@@ -342,7 +342,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if d.probe {
 		mode = "probe"
 	}
-	cmd := exec.Command("/plat/domexec", strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode)
+	cmd := exec.Command("/plat/domexec", strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB))
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,

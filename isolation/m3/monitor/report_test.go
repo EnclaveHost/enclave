@@ -363,3 +363,102 @@ func TestReportNamesTheCallersOwnAppWhateverItSends(t *testing.T) {
 		}
 	}
 }
+
+// A destroy can land while a report is in flight, and a crash can land while a destroy is running. The
+// audit asked for both: whatever the order, the domain must end up gone from both tables, its
+// reclamation must run once, and nothing may deadlock or panic.
+func TestDestroyWhileAReportIsInFlight(t *testing.T) {
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	m, sock := testMonitor(t, func(rd []byte) ([]byte, []byte, error) {
+		entered <- struct{}{}
+		<-release // still inside the hardware call when the destroy arrives
+		return okReport(rd)
+	})
+	d := registerSelf(m, 1)
+	d.dir = filepath.Join(t.TempDir(), "1")
+	d.cgroup = filepath.Join(t.TempDir(), "dom1")
+	os.MkdirAll(d.dir, 0o755)
+	os.MkdirAll(d.cgroup, 0o755)
+	close(d.exited) // nothing is actually running in this unit test
+
+	answer := make(chan map[string]string, 1)
+	go func() {
+		r, err := ask(sock, goodBind)
+		if err != nil {
+			r = map[string]string{"error": err.Error()}
+		}
+		answer <- r
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the report never reached the hardware call")
+	}
+
+	// destroy it from under the in-flight request
+	done := make(chan error, 1)
+	go func() { done <- m.destroy(d.ID) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("destroy during a report: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("destroy blocked behind an in-flight report")
+	}
+	close(release)
+
+	// the request finishes one way or the other, and it was admitted for a domain that existed then
+	select {
+	case r := <-answer:
+		t.Logf("the in-flight request ended as: %v", r)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the in-flight report never completed after its domain was destroyed")
+	}
+	m.mu.Lock()
+	_, byID := m.doms[d.ID]
+	_, byUID := m.byUID[d.UID]
+	m.mu.Unlock()
+	if byID || byUID {
+		t.Fatal("the destroyed domain is still registered")
+	}
+	if _, err := os.Stat(d.dir); !os.IsNotExist(err) {
+		t.Fatal("its directory survived")
+	}
+	// a later report from that uid must not find a domain at all
+	if got := mustAsk(t, sock, goodBind); got["error"] != "caller is not a domain" {
+		t.Fatalf("a destroyed domain must stop being a domain, got %v", got)
+	}
+}
+
+func TestCrashAndDestroyRacingLeaveOneCleanEnd(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	for i := 0; i < 20; i++ { // repeated create/end cycles, both endings racing each other
+		d := registerSelf(m, i+1)
+		d.dir = filepath.Join(t.TempDir(), "d")
+		d.cgroup = filepath.Join(t.TempDir(), "cg")
+		os.MkdirAll(d.dir, 0o755)
+		os.MkdirAll(d.cgroup, 0o755)
+		close(d.exited)
+		var wg sync.WaitGroup
+		for _, f := range []func(){
+			func() { m.retire(d, "crash") },   // the reaper's path
+			func() { m.destroy(d.ID) },        // the lease's path
+			func() { m.retire(d, "crash-2") }, // and again, because idempotent means idempotent
+		} {
+			wg.Add(1)
+			go func(fn func()) { defer wg.Done(); fn() }(f)
+		}
+		wg.Wait()
+		m.mu.Lock()
+		n := len(m.doms)
+		m.mu.Unlock()
+		if n != 0 {
+			t.Fatalf("cycle %d: %d domains still registered", i, n)
+		}
+		if _, err := os.Stat(d.dir); !os.IsNotExist(err) {
+			t.Fatalf("cycle %d: directory survived", i)
+		}
+	}
+}

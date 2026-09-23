@@ -27,7 +27,10 @@ IGVM_REF=${IGVM_REF:-main}
 SVSM_REF=${SVSM_REF:-main}
 # vtpm is COCONUT's default feature set and needs the TPM reference implementation; set FEATURES= to
 # skip it if that submodule or its toolchain is missing.
-FEATURES=${FEATURES:-vtpm}
+# ${FEATURES-vtpm}, not ${FEATURES:-vtpm}: an explicitly EMPTY FEATURES means "no features", and the
+# colon form would quietly turn that back into vtpm — which it did once here, making a no-vtpm build
+# look byte-identical to a vtpm one.
+FEATURES=${FEATURES-vtpm}
 
 log "1. rust target x86_64-unknown-none"
 rustup target add x86_64-unknown-none > "$W/1-target.log" 2>&1 && r=ok || r=no
@@ -100,24 +103,56 @@ if [ "$SKIP_REBUILD" != 1 ] && [ -x "$MEASURE" ] && [ -f "$IGVM_FILE" ]; then
 fi
 step "6 two checkouts at different paths give the SAME IGVM digest (what makes a published measurement auditable)" $r
 
-log "7. the remedy: trim the build paths out and measure again"
-# Cargo's trim-paths removes absolute source paths from the artifacts. Setting it through the profile
-# environment variable rather than RUSTFLAGS matters: RUSTFLAGS would REPLACE the rustflags the SVSM's
-# own .cargo/config.toml sets (force-frame-pointers, soft AES), silently changing the thing measured.
+log "7. the remedy: remap the build paths and measure again"
+# COCONUT pins its own Rust toolchain (rust-toolchain.toml -> cargo 1.88), where the `trim-paths` profile
+# option is still unstable, so setting CARGO_PROFILE_RELEASE_TRIM_PATHS just fails the build. The fix that
+# works within their pinned toolchain is --remap-path-prefix, and it has to be APPENDED to the rustflags
+# their own .cargo/config.toml already sets for the bare-metal target: putting flags in RUSTFLAGS would
+# REPLACE those (force-frame-pointers, soft AES) and silently change the thing being measured.
+#
+# Both checkouts remap their own absolute path to the SAME placeholder, which is what makes the outputs
+# comparable — and is exactly the change upstream would need for its measurements to be auditable.
 r=no
-if [ -d "$W/svsm-b" ] && [ -x "$MEASURE" ]; then
+if [ -d "$W/svsm-b" ]; then
   for d in "$W/svsm" "$W/svsm-b"; do
-    ( cd "$d" && CARGO_PROFILE_RELEASE_TRIM_PATHS=all make RELEASE=1 FEATURES="$FEATURES" igvm ) \
+    python3 - "$d" "$CARGO_HOME" <<'PY'
+import re, sys, pathlib
+d, cargo = sys.argv[1], sys.argv[2]
+p = pathlib.Path(d) / ".cargo" / "config.toml"
+s = p.read_text()
+# TWO sources of absolute paths end up in the binary, and both have to go:
+#   the checkout itself, and the DEPENDENCY SOURCES under CARGO_HOME, which panic messages in crates
+#   like intrusive-collections and cipher carry. The second is why this is not just our problem: every
+#   builder's cargo home is a different absolute path. rustc already remaps its own sysroot to
+#   /rustc/<hash>, which is the same idea.
+flags = ('"--remap-path-prefix",\n    "%s=/svsm",\n    '
+         '"--remap-path-prefix",\n    "%s=/cargo",\n    ') % (d, cargo)
+if "--remap-path-prefix" in s:
+    s = re.sub(r'\s*"--remap-path-prefix",\n\s*"[^"]*",', '', s)
+s = re.sub(r'(\[target\.x86_64-unknown-none\]\nrustflags = \[\n)', r'\1    ' + flags, s, count=1)
+p.write_text(s)
+print("patched", p)
+PY
+    ( cd "$d" && rm -rf target bin && make RELEASE=1 FEATURES="$FEATURES" igvm ) \
       > "$W/7-build-$(basename "$d").log" 2>&1 || true
   done
-  ta=$("$W/svsm/bin/igvmmeasure" "$W/svsm/bin/coconut-qemu.igvm" measure -b 2>&1 | tr -d '\r\n')
-  tb=$("$W/svsm-b/bin/igvmmeasure" "$W/svsm-b/bin/coconut-qemu.igvm" measure -b 2>&1 | tr -d '\r\n')
-  echo "  trim-paths A: $ta"
-  echo "  trim-paths B: $tb"
-  echo "  embedded build paths left in A: $(strings "$W/svsm/target/x86_64-unknown-none/release/svsm" | grep -c "$W/svsm/" || true)"
-  [ -n "$ta" ] && [ "$ta" = "$tb" ] && r=ok || r=no
+  ma="$W/svsm/bin/igvmmeasure"; mb="$W/svsm-b/bin/igvmmeasure"
+  ia="$W/svsm/bin/coconut-qemu.igvm"; ib="$W/svsm-b/bin/coconut-qemu.igvm"
+  if [ -x "$ma" ] && [ -f "$ia" ] && [ -x "$mb" ] && [ -f "$ib" ]; then
+    ta=$("$ma" "$ia" measure -b 2>&1 | tr -d '\r\n')
+    tb=$("$mb" "$ib" measure -b 2>&1 | tr -d '\r\n')
+    echo "  remapped A: $ta"
+    echo "  remapped B: $tb"
+    ea="$W/svsm/target/x86_64-unknown-none/release/svsm"
+    left=$(strings "$ea" 2>/dev/null | grep -cE "$W/svsm(-b)?/" || true)
+    echo "  absolute build paths left in the rebuilt A binary: $left (3 before the remedy)"
+    [ -n "$ta" ] && [ "$ta" = "$tb" ] && r=ok || r=no
+  else
+    echo "  one of the rebuilds did not produce an IGVM and an igvmmeasure; see $W/7-build-*.log"
+    tail -4 "$W/7-build-svsm.log" 2>/dev/null | sed 's/^/    /'
+  fi
 fi
-step "7 with trim-paths, the same commit at two paths measures the SAME (a fix we can carry, and upstream)" $r
+step "7 with --remap-path-prefix, the same commit at two paths measures the SAME (a fix we can carry, and upstream)" $r
 
 echo
 echo "--- what this establishes, and what it does not ---"

@@ -320,11 +320,19 @@ exists now:
 
 ### Touchpoints
 
-1. **Control plane.** The supervisor speaks HTTP to `VMMGR_URL` on guest loopback. The monitor speaks
-   line-JSON over vsock because M3a's harness drives it from outside the guest. Inside a CVM the
-   supervisor is in the guest, so the monitor should serve the same HTTP shape on loopback and keep
-   vsock for the out-of-guest case. Either a third `PROVISION_BACKEND=domain`, or the monitor answers
-   the existing manager's routes.
+1. **Control plane.** The supervisor speaks HTTP to `VMMGR_URL` on guest loopback:
+   `POST /vms {image, cpuShare, gpuShare, appPort, name, ports, config, configCid, egress, secrets,
+   hosts}` -> `201 {id, hostPort, portMap, status}`, plus `GET /vms`, `GET /vms/:id`, `DELETE /vms/:id`,
+   `GET /vms/:id/logs`, `POST /vms/lease` and `GET /health`. The monitor speaks line-JSON over vsock
+   because M3a's harness drives it from outside the guest; inside a CVM it should serve that HTTP shape
+   on loopback and keep vsock for the out-of-guest case.
+   **One field does not translate, and it is not a detail:** `image` is a *reference* the manager
+   fetches. The monitor has **no network at all** — vsock is its only channel, by design — so it cannot
+   fetch anything, and the supervisor must push the app bytes instead. That is a small supervisor-side
+   change (it already holds or can fetch the artifact) but it is a change, so a drop-in
+   `VMMGR_URL=monitor` is not available: the monitor takes bytes, the manager takes a reference. The
+   trade is deliberate. A component that can fetch can be pointed somewhere else; one that only accepts
+   bytes and hashes them cannot be.
 2. **Routing.** Today the manager exposes an app on `appPort` and the relay forwards `/x/:id`. A domain's
    front listens on a unix socket that the monitor relays; the monitor would instead relay to the
    loopback port the supervisor expects per deployment.
@@ -366,14 +374,50 @@ system-wide, no kernel installed, no reboot, the running host untouched. Work di
 - **COCONUT-SVSM** at `d37095e1` through its own Makefile (`make RELEASE=1 FEATURES=vtpm igvm`), which
   produces the SVSM ELF, `igvmbuilder`, `igvmmeasure`, and IGVM files for QEMU, Hyper-V and Vanadium.
   `FW_FILE` defaults to none, so this needs no edk2 build; M3b supplies a real OVMF.
-- **the planes host kernel** (coconut-svsm/linux `svsm-v7.2` at `bf5bafed3`) and the **patched QEMU**
-  (coconut-svsm/qemu `svsm-v7.2`), configured from this machine's own running kernel config so what was
-  built is a kernel this machine could actually boot.
+- **the planes host kernel** (coconut-svsm/linux `svsm-v7.2` at `bf5bafed3`), configured from this
+  machine's own running kernel config so what was built is a kernel this machine could actually boot:
+  it **compiles**, produces a 16.6 MB `bzImage`, and builds `kvm-amd.ko` with the planes and SEV-SNP
+  code in it. Its uAPI has `KVM_CAP_PLANES`, `KVM_CREATE_PLANE` and `KVM_EXIT_PLANE_EVENT`, none of
+  which exist in our running 7.2.3 header.
+- **the patched QEMU** (coconut-svsm/qemu `svsm-v7.2` at `1649642`, QEMU 11.1.0) built
+  `--enable-igvm` against that libigvm. It offers the `igvm-cfg` object our packaged 11.1.1 does not
+  have at all, and it implements the `device-plane` machine property (added at runtime in
+  `hw/core/machine.c`, which is why it is absent from `-machine q35,help`).
+
+**The VMM side is ready, and the running kernel is provably the only missing piece.** Asked to create a
+plane on this host, the built QEMU gets as far as the kernel and is refused, in the kernel's own words:
+
+```
+$ qemu-system-x86_64 -machine q35,accel=kvm,device-plane=2,kernel-irqchip=split ...
+qemu-system-x86_64: KVM plane 2 is not supported
+```
+
+And an SNP launch from the IGVM we built fails one layer lower, again in the kernel:
+
+```
+check_sev_features: VMSA contains unsupported sev_features: 29, supported features: 221
+failed to initialize kvm: Operation not permitted
+```
+
+Both messages name the mechanism rather than leaving it to inference: QEMU asks for the plane, the
+running kernel does not have it, and the SEV features the SVSM's VMSA needs are outside what this kernel
+supports. That is as far as the VMPL path can be validated without the reboot in section 13.
 
 **Two corrections to earlier sections of this page, found by building it:**
 1. `igvmmeasure` is part of **COCONUT-SVSM**, not microsoft/igvm. Section 2 implied the latter.
 2. `igvmmeasure`'s interface is `igvmmeasure [OPTIONS] <INPUT> <COMMAND>` — the file comes *before*
    `measure`.
+
+**The reproducibility remedy, as far as it goes.** Two `--remap-path-prefix` entries appended to the
+SVSM's own bare-metal rustflags — one for the checkout, one for `CARGO_HOME`, because dependency panic
+messages carry the registry path and every builder's cargo home differs — take the two checkouts' ELFs
+from **224,320 differing bytes to 56**. One source remains, identified: the vTPM's C code
+(`libtcgtpm/deps/tpm-20-ref`, compiled by gcc, not rustc), which needs the gcc equivalent
+(`-ffile-prefix-map`) added to `TCGTPM_CFLAGS`. So the complete fix is three remaps across two
+toolchains, and it is a change upstream needs rather than a local workaround. Two things worth knowing if
+you continue this: COCONUT pins Cargo 1.88, where the `trim-paths` profile option is not stabilised, so
+setting it simply fails the build; and setting `RUSTFLAGS` would replace the rustflags their
+`.cargo/config.toml` sets (`force-frame-pointers`, soft AES), silently changing the thing measured.
 
 **The finding that matters, and it is a blocker for the attestation story:** an SVSM launch measurement is
 **not reproducible across build paths**. Two checkouts of the **same commit** `d37095e1`, differing only
@@ -426,8 +470,20 @@ decision is concrete rather than open-ended.
    `nvidia-smi`; `grep -c PLANES /usr/include/linux/kvm.h` is irrelevant — instead confirm
    `KVM_CAP_PLANES` is advertised by the running kernel via a two-line ioctl probe; then the M1 and M2
    harnesses, which must still pass exactly as they do today.
-7. Only then the new work: COCONUT-SVSM at VMPL0 with our domain image at VMPL2, and the isolation tests
-   in section 7.
+7. Only then the new work, in this order, because each step is worth having on its own:
+   a. **COCONUT's own configuration first**, unmodified: SVSM at VMPL0, their guest at VMPL2, with
+      `kernel-irqchip=split` and `device-plane=2`. If this does not run, nothing of ours will, and the
+      fault is upstream rather than in our image.
+   b. **Our monitor guest at VMPL2**, under that SVSM. This is the VBS shape: a more privileged layer
+      below our whole OS, which is what VTL1 is to VTL0. It needs the identity change of section 3 —
+      under IGVM the firmware is what the digest covers, so our image arrives by disk and its own
+      measurement moves to the SVSM's vTPM or to the monitor's statement.
+   c. **A report at privilege level 2**, verified with `expectedVmpl: 2` and refused without it. That is
+      the first use of the verifier work already shipped, against real hardware evidence.
+   d. Only then **one plane per app** (at most three, section 1), which is the point at which app-vs-app
+      isolation stops resting on the guest kernel. Steps a to c do not achieve that: they move the
+      MONITOR/runtime split into hardware, which is worth having, and leave domains inside our plane
+      separated as they are today.
 
 **Rollback:** reboot and pick the original GRUB entry; nothing was replaced. If the new kernel does not
 boot at all, GRUB's menu is the rollback, which is why step 3 must not touch the default entry. If the
@@ -450,7 +506,9 @@ Kept separate deliberately, because the difference is the whole value of the cla
 | authenticated attestation: VCEK -> ASK -> pinned ARK, VCEK matching chip and TCB, caller's TCB floor | **measured** (M2 run 3, M3a) |
 | TLS terminating inside a domain, host relaying ciphertext only, switched-key reconnect refused | **measured** |
 | per-domain resource share, lifecycle reclamation, bounded monitor work | **measured** in-guest (M3a) plus offline Go tests |
-| a compromised domain (native code as the domain's uid) cannot reach another domain or the report authority | **measured in-guest with the `domprobe` adversary** — but against the GUEST-KERNEL boundary, not VMPL |
+| a compromised domain (native code as the domain's uid) cannot reach another domain or the report authority | **measured in-guest with the `domprobe` adversary** (checks 10-10c) — but against the GUEST-KERNEL boundary, not VMPL |
+| a compromised domain cannot exhaust the guest's memory | **measured**: it is killed at its own cap and nothing else is affected (check 8c) |
+| a domain's port cannot be opened from inside the guest, only by the host | **measured** (the probe's vsock attempts; the monitor's host-CID gate) |
 | **app-vs-app isolation by hardware (VMPL)** | **NOT measured. Not simulated either.** The kernel that can do it is built but not booted (section 13) |
 | the SVSM launch measurement is reproducible | **measured, and it FAILS today** (section 12) |
 | VBS enclaves inside SNP | source-based only, and negative (DESIGN.md section 3, `windows/vbs/snp/README.md`) |

@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -93,33 +94,57 @@ static void try_report(void) {
     }
 }
 
-/* can this domain reach a vsock port directly, going around the monitor's relay? */
-static void try_vsock(const char *what, unsigned cid, unsigned port) {
-    int fd = socket(AF_VSOCK_, SOCK_STREAM | SOCK_CLOEXEC, 0);
+/* A connect that actually respects a deadline. SO_SNDTIMEO does NOT bound a blocking connect(), so a
+ * refused vsock port left this probe sitting in the kernel for minutes and every later probe went
+ * unreported — which reads as a missing result, and a missing result must never be mistaken for a pass. */
+static void timed_connect(const char *what, struct sockaddr *sa, socklen_t len, int family, int ms) {
+    int fd = socket(family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
     if (fd < 0) { say(what, strerror(errno)); return; }
+    if (connect(fd, sa, len) == 0) { say(what, "CONNECTED"); close(fd); return; }
+    if (errno != EINPROGRESS) { say(what, strerror(errno)); close(fd); return; }
+    struct pollfd pfd = {.fd = fd, .events = POLLOUT};
+    int rc = poll(&pfd, 1, ms);
+    if (rc == 0) { say(what, "timed out (no answer)"); close(fd); return; }
+    if (rc < 0) { say(what, strerror(errno)); close(fd); return; }
+    int err = 0;
+    socklen_t elen = sizeof err;
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &elen);
+    say(what, err == 0 ? "CONNECTED" : strerror(err));
+    close(fd);
+}
+
+static void try_vsock(const char *what, unsigned cid, unsigned port) {
     struct sockaddr_vm_ sa = {0};
     sa.svm_family = AF_VSOCK_;
     sa.svm_cid = cid;
     sa.svm_port = port;
-    struct timeval tv = {5, 0};
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-    int rc = connect(fd, (struct sockaddr *)&sa, sizeof sa);
-    say(what, rc == 0 ? "CONNECTED" : strerror(errno));
-    close(fd);
+    timed_connect(what, (struct sockaddr *)&sa, sizeof sa, AF_VSOCK_, 2000);
 }
 
 static void try_tcp(const char *what, const char *ip, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (fd < 0) { say(what, strerror(errno)); return; }
     struct sockaddr_in sa = {0};
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
     sa.sin_addr.s_addr = inet_addr(ip);
-    struct timeval tv = {3, 0};
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-    int rc = connect(fd, (struct sockaddr *)&sa, sizeof sa);
-    say(what, rc == 0 ? "CONNECTED" : strerror(errno));
-    close(fd);
+    timed_connect(what, (struct sockaddr *)&sa, sizeof sa, AF_INET, 2000);
+}
+
+/* Can a compromised domain exhaust the guest's memory, or does its own cgroup contain it? Allocate and
+ * TOUCH memory in 1 MiB steps well past the domain's cap. Containment means this process is killed, so
+ * the last line printed is how far it got. An IDLE domain never reaches its cap, which is why this has to
+ * be deliberate rather than inferred from a small limit. */
+static void try_eat_memory(int cap_mib) {
+    int target = cap_mib > 0 ? cap_mib * 4 : 1024;
+    printf("PROBE%s eating memory: cap %d MiB, will try %d MiB\n", id, cap_mib, target);
+    fflush(stdout);
+    for (int i = 1; i <= target; i++) {
+        char *p = malloc(1 << 20);
+        if (!p) { printf("PROBE%s memory_refused_at=%d MiB\n", id, i); fflush(stdout); return; }
+        memset(p, (char)i, 1 << 20);
+        if (i % 16 == 0) { printf("PROBE%s memory_touched=%d MiB\n", id, i); fflush(stdout); }
+    }
+    printf("PROBE%s memory_UNCONTAINED=%d MiB touched without being stopped\n", id, target);
+    fflush(stdout);
 }
 
 int main(int argc, char **argv) {
@@ -156,21 +181,25 @@ int main(int argc, char **argv) {
     snprintf(n, sizeof n, "%d", reached);
     say("signalable_pids", n);   /* its own few, never the monitor's or another domain's */
 
-    /* 4. another domain's port, and the host, over vsock: the monitor relays the host to a domain, and
+    /* 4. its own report, which it is entitled to, and whose app half is the monitor's to write. FIRST,
+     *    because it is the security-critical one and must not be lost behind a slow network probe. */
+    try_report();
+
+    /* 5. another domain's port, and the host, over vsock: the monitor relays the host to a domain, and
      *    nothing inside the guest should be able to take that path itself */
     try_vsock("vsock_local_domain1", 1, 40001);
     try_vsock("vsock_local_domain2", 1, 40002);
     try_vsock("vsock_own_control", 1, 9000);
     try_vsock("vsock_host_control", 2, 9000);
 
-    /* 5. the network: its own loopback is all it has */
+    /* 6. the network: its own loopback is all it has */
     try_tcp("own_loopback_8080", "127.0.0.1", 8080);
     try_tcp("host_gateway", "10.0.2.2", 80);
 
-    /* 6. its own report, which it is entitled to, and whose app half is the monitor's to write */
-    try_report();
-
     printf("PROBE%s done\n", id);
     fflush(stdout);
-    for (;;) pause();   /* the harness ends this domain with stop or destroy */
+
+    /* 7. LAST, because being contained ends this domain: try to exhaust memory past its own share */
+    if (argc > 2) try_eat_memory(atoi(argv[2]));
+    for (;;) pause();   /* if it survived, the harness ends the domain with stop or destroy */
 }
