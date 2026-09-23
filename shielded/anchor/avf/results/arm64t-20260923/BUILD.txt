@@ -1,0 +1,7 @@
+compiler: Android (12470979, +pgo, +bolt, +lto, +mlgo, based on r522817c) clang version 18.0.3 (https://android.googlesource.com/toolchain/llvm-project d8003a456d14a3deb8054cdaa529ffbf02d9b262)
+flags: -O3 -g -std=c++17 -march=armv8.2-a+dotprod -static-libstdc++ -Ipayload
+source: b3496a8bfa7cba908b93d7a9477d7c1d8cc66ecd
+device: Pixel 10 Pro XL google/mustang/mustang:17/CP2A.260805.005/15828068:user/release-keys
+de39af4736ce436c8734351f3de60525a4165fc41e13264f235e9e454d7ca8d7  corr-order-test
+4f2dce64b44f05c018d08e83d69f9bc1ff8dea30794721f521b4e435e5843403  unmask-span-test
+694108b595b4a7065759c05d8c383916821fcfc4fe7d8adb507d357fd44e0734  sample-cover-test

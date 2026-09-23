@@ -699,6 +699,16 @@ local refusal. What makes that worth relying on is that the code is inside the l
 closed - not that anyone verified the refusal from outside. DESIGN.md states this at the same length, and
 no document should describe a lower-level report, on its own, as proving confinement.
 
+**IMPORTANT, measured 2026-09-23: on the IGVM path the monitor image is NOT in the launch measurement, so
+this justification does not hold there.** The live report equals `igvmmeasure`'s digest of the IGVM file
+exactly, and that file carries only the SVSM, OVMF and the VMSA - it has no knowledge of `-kernel` or
+`-initrd`. `run-domain.sh` sets `kernel-hashes=on` only on the non-IGVM branch. Confirmed from both
+directions by changing the monitor: the plain M3a predicted digest MOVED and live == predicted, while the M3b
+derived digest did not move at all. So on M3a the monitor is measured and the argument stands; on M3b the
+launch digest identifies the SVSM and firmware, and the monitor's own identity rests on nothing in the
+report. Until the guest image is inside the IGVM or measured by the SVSM's vTPM, `vmpl0=refused` on the M3b
+path is the word of code whose identity is unestablished. Do not write it up as measured code.
+
 ## 16. M3b results: measured on warden-host after the boot, 2026-09-23
 
 The boot happened (attended, non-default GRUB entry). **The kernel is good and planes work. The boundary
@@ -829,6 +839,16 @@ change and `measure -b` does not pass it.
 **Residual, unchanged and still to be said wherever this is written up:** the refusal at VMPL0 is the measured
 monitor's own word. The PSP does not attest the absence of a capability. What makes it worth relying on is
 that the code is inside the launch measurement - now a digest a verifier can derive - and that it fails closed.
+
+**IMPORTANT, measured 2026-09-23: on the IGVM path the monitor image is NOT in the launch measurement, so
+this justification does not hold there.** The live report equals `igvmmeasure`'s digest of the IGVM file
+exactly, and that file carries only the SVSM, OVMF and the VMSA - it has no knowledge of `-kernel` or
+`-initrd`. `run-domain.sh` sets `kernel-hashes=on` only on the non-IGVM branch. Confirmed from both
+directions by changing the monitor: the plain M3a predicted digest MOVED and live == predicted, while the M3b
+derived digest did not move at all. So on M3a the monitor is measured and the argument stands; on M3b the
+launch digest identifies the SVSM and firmware, and the monitor's own identity rests on nothing in the
+report. Until the guest image is inside the IGVM or measured by the SVSM's vTPM, `vmpl0=refused` on the M3b
+path is the word of code whose identity is unestablished. Do not write it up as measured code.
 
 **Still not app-vs-app isolation by hardware.** Inside our plane, one domain is separated from another by the
 guest kernel. What this achieves is the MONITOR/runtime split in hardware: a measured SVSM at VMPL0 above a

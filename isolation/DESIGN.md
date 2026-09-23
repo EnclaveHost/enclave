@@ -479,6 +479,16 @@ COCONUT-SVSM at VMPL0, and *that* is the hardware-authenticated part of "somethi
 us"; the refusal corroborates it and catches the case where the measurement allowlist is wrong. Never write
 the level field up, on its own, as proof of confinement.
 
+**IMPORTANT, measured 2026-09-23: on the IGVM path the monitor image is NOT in the launch measurement, so
+this justification does not hold there.** The live report equals `igvmmeasure`'s digest of the IGVM file
+exactly, and that file carries only the SVSM, OVMF and the VMSA - it has no knowledge of `-kernel` or
+`-initrd`. `run-domain.sh` sets `kernel-hashes=on` only on the non-IGVM branch. Confirmed from both
+directions by changing the monitor: the plain M3a predicted digest MOVED and live == predicted, while the M3b
+derived digest did not move at all. So on M3a the monitor is measured and the argument stands; on M3b the
+launch digest identifies the SVSM and firmware, and the monitor's own identity rests on nothing in the
+report. Until the guest image is inside the IGVM or measured by the SVSM's vTPM, `vmpl0=refused` on the M3b
+path is the word of code whose identity is unestablished. Do not write it up as measured code.
+
 **M3a is built and measured (2026-09-23): `isolation/m3/`, `test-m3.sh` ALL PASS, 21 checks**, plus
 `go test ./monitor/` for the report path's bounds, detailed in
 `isolation/m3/PLAN.md` section 10. Two apps run as separate domains in one SNP guest; the launch
@@ -512,6 +522,11 @@ privileged component that serves every other domain.
   And the VMPL0 refusal remains the measured monitor's own word - the PSP does not attest the absence of a
   capability - worth relying on only because that code is inside a measurement a verifier can now derive, and
   because it fails closed.
+  **Corrected 2026-09-23: true of the M3a path only.** On the IGVM path the monitor image is OUTSIDE the
+  launch measurement: the live digest equals igvmmeasure's digest of a file holding only the SVSM, OVMF and
+  the VMSA, and changing the monitor moved the M3a predicted digest while leaving the M3b derived one
+  unchanged. On M3b the refusal is the word of code whose identity the report does not establish. Closing
+  that is the first requirement of the per-app milestone.
 
 Details, artefact hashes and the exact rebuild in `isolation/m3/PLAN.md` section 16.
 

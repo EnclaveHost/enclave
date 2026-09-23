@@ -147,8 +147,8 @@ type monitor struct {
 	basePrt uint32
 	baseUID int
 
-	hostPort  uint32        // non-zero: no hardware signs here; the host launcher signs report_data over vsock (T0-hv)
-	tier      string        // what a report from this monitor is: contract.TierSNP / TierHyperV
+	hostPort  uint32 // non-zero: no hardware signs here; the host launcher signs report_data over vsock (T0-hv)
+	tier      string // what a report from this monitor is: contract.TierSNP / TierHyperV
 	format    string
 	vmpl      int           // the level the PSP put in our own signed report: the level we can actually speak for
 	vmplFloor int           // the lowest level this kernel will let us ask for. Its own claim, see tsmLevel
@@ -1092,7 +1092,6 @@ func must(err error) {
 		os.Exit(1)
 	}
 }
-
 
 // hostReport is the report backend of a Hyper-V child partition (windows/vbslike): nothing in the guest
 // signs, so report_data goes to the host launcher over the guest's only channel and comes back inside a
