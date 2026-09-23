@@ -4726,7 +4726,7 @@ percent of it at most.
   the encoding's quality risk as needing "an eval, not a norm check". That gap
   is OPEN.
 - The 512-token campaign runs (rep-1..20, all rc=3 "text differs") stay invalid
-  for any throughput acceptance. Their raw evidence is kept in the scratchpad:
+  for any throughput acceptance. Their raw evidence was kept in the scratchpad (lost in the 18.50 reboot; excerpts in `shielded/bench-harness/evidence-excerpts-2026-09-23/`):
   plain-token hash de03ea03 in all 20, first divergence at token 320 in all 20;
   the unmasked run's plain hash 8c5b7e6c, divergence at token 72.
 
@@ -4747,3 +4747,125 @@ row; the others are nearly flat. 18.36's argument that a second token's state
 sweep would be L2-hot and cheap was wrong: the per-token loop over every state
 row, not DRAM traffic, dominates. That makes the recurrent op, not bandwidth,
 the target for the verify round.
+
+### 18.50 A token-fused recurrent kernel, and an unclean reboot that took the scratchpad
+
+**The kernel.** 18.49's row-bucketed profile found GATED_DELTA_NET the one op
+whose cost doubles with the verify rows (76 us per layer at one row, 162 us at
+two; every other op 1.0-1.24x). Its per-token loop sweeps the whole
+S_v x S_v state once per token. But row j of the state is updated from row j
+and that token's q/k/v/beta/gate alone, so rows are independent across tokens:
+visiting each row once and applying tokens 0..n-1 to it in order performs, on
+every row, exactly the per-token loop's operations in the same order. The
+fused path (`wasm/llamacpp-gdn-tokfuse.patch`, switch
+`ENCLAVE_GGML_GDN_TOKFUSE`, default on while under test) covers 2..16 tokens with the scalar
+gate (the model's form); the per-channel gate and 1 or 17+ tokens keep the
+old path. Each token's output for row j and each rollback snapshot of row j
+are written where the per-token loop's whole-state copies put them.
+
+Correctness, before any timing:
+
+- `gdn-equiv` (72 op cases: the model's S_v 128 / 48 value heads over 16 key
+  heads, n_tokens 1-17, K 1-4 including K > n_tokens, in-place into a padded
+  multi-slot cache and the copy form, several sequences, odd shapes, threads
+  1/3/8, signed zeros, the per-channel gate) dumps every output and the whole
+  state buffer: byte-identical with the switch on and off. A planted one-ulp
+  mutant in the fused loop changes exactly the 52 fused cases and no other.
+- The real graph (0.8B, same architecture, spec verify batches of 2 with
+  rollback and resume): logits byte-identical on and off, and identical to the
+  libraries from before the change.
+- Production toolchain (ubuntu 22.04, GCC 11.4, AVX2 + FMA only): all conv
+  harnesses plus both tokfuse checks passed (the tokfuse checks are removed
+  from `prod-toolchain-check.sh` now that the patch is not applied). `run_pair` joins
+  `harness-check.sh` with fail-closed stub self-tests (an arm exiting nonzero,
+  a one-byte difference, a dump shorter than reported, zero cases).
+- Upper bound on the gain, an estimate from the profile: if two rows cost what
+  one does, ~86 us x 48 layers = ~4 ms of an ~80 ms verify round, ~5%.
+
+**Throughput: a 4-of-4 result the kernel did not cause.** Eight interleaved
+runs after the reboot (order off/on, on/off, off/on, on/off), all valid, the
+same workload (43,118 exchanges, local 0, verify_fail 0, text identical), same
+binaries throughout (hashes in `results-2026-09-23/tk.ids`):
+
+| pair | off: spec (plain) | on: spec (plain) | verify ms/round off -> on |
+|---|---|---|---|
+| 1 | 20.80 (18.59) | 21.77 (20.46) | 77.19 -> 73.14 |
+| 2 | 20.32 (19.56) | 23.83 (18.76) | 78.76 -> 67.47 |
+| 3 | 21.95 (19.31) | 22.71 (21.12) | 72.77 -> 70.98 |
+| 4 | 21.89 (18.47) | 23.09 (19.15) | 73.28 -> 69.53 |
+
+On is ahead in every pair (mean 22.85 vs 21.24), and the verify round is 1.8
+to 11.3 ms shorter, about the ~4 ms the profile allowed. It is not the kernel.
+The plain phase, which never takes the fused path (one row), was also 2.3
+ms/token faster in the on arms. The verify/plain ratio split 2-2 (means 1.433
+off, 1.398 on). The one pair from before the reboot went the other way (off
+20.60, on 19.76). And 4 of 4 is p = 0.06 against a coin. The direct measures
+settle it:
+
+- **Op profiler on the 27B** (two more pairs, the 2-row bucket, which is verify
+  work only): 149.6 and 154.9 us per call off, 151.7 and 145.6 on. No change.
+- **`gdn-bench`** (the op alone at the 27B's verify shape, in place, 2-slot
+  cache, interleaved processes): **the fused path is slower**: 2 tokens x 8
+  threads 70-73 vs 64-71 us, 1 thread 474 vs 394 (+20%), 4 tokens 138 vs 113
+  (+22%).
+
+Why: the state a thread owns (6 heads x 64 KB = 384 KB) stays in L2 between
+the two tokens, so the per-token path's second sweep was already cheap; fusing
+removed no memory traffic and made the inner loop worse (per-token pointer
+arrays, strided output writes). The patch is kept as a record, marked NOT
+APPLIED, and the fork is reverted. 23.83 tok/s (tk-on-2) is the highest valid
+reading so far, but it is a draw from the spread (18-24), not a milestone:
+**no 25**.
+
+**What the numbers do say about the op.** Alone, one token costs 34 us per
+call at 8 threads: ~44 ns, ~215 cycles, per state row per thread for four
+128-float vector operations (scale, dot, fused multiply-add, dot) that an
+AVX-512 core could issue in a few dozen cycles. In the graph the same op costs
+71 us, with the state arriving cold (48 layers x 3 MB exceeds the L3). So the
+op is neither at a bandwidth floor (18.36) nor bound by its sweeps (this
+section): it is bound by per-row overhead. That means four out-of-line vector calls,
+each dot ending in a serial horizontal reduction, and the row reloaded between
+them. The next candidate is a register-resident row kernel: load the 128-float
+row once, keep it in registers through all four steps (and through every token
+of the batch), store it once. It would be bit-identical by construction if it
+uses ggml's own `GGML_F32_VEC` macros in the same accumulation order as
+`ggml_vec_dot_f32` / `ggml_vec_mad_f32` / `ggml_vec_scale_f32` (verified with
+`gdn-equiv` before any timing). Estimate, not a measurement: if it reached ~60
+cycles per row, the verify round would lose ~4 ms and a plain step ~1 ms.
+
+**The reboot.** The box stopped uncleanly during the first A/B: the journal
+ends at 09:01:45 on a routine line with no shutdown sequence, panic or oops,
+and the next boot (09:13) found the journal uncleanly closed. The cause is not
+identified. Two coincident events have no established link: a peer session's
+SEV-SNP launch attempts through an out-of-tree QEMU (each returned a clean
+userspace error; the peer has stopped them), and a USB NIC re-lease at
+09:01:35 on a VIA hub that has logged intermittent protocol errors (-71) for
+three days and survived all the earlier bursts. That hub carries the camera,
+audio and a NIC, and is worth reseating whatever the cause.
+
+**What it cost.** `/tmp` is tmpfs, and the session scratchpad held the bench
+harness, the builds, the running queue (one valid pair: off 20.60, on 19.76)
+and evidence I had been asked to preserve: the b-eq-1 worker log copies, the
+sterms-1 run, and the twenty 512-token rep runs with the unmasked CPU-only
+run. Those raw files are gone. Recovered:
+
+- The harness, rebuilt on disk (`shielded/bench-harness/`, working copy in
+  `~/enclave-bench/`) by replaying the session transcript's writes, with
+  `run7.sh` verbatim from two full displays and `bench-spec2.cpp` from the
+  archived copy plus its one later edit. `workers-shm2.sh` is rewritten from
+  the running workers' recorded command line. The rebuilt stack reproduced the
+  pre-reboot plain decode exactly (token hash 0a1570d184a4, as in four earlier
+  runs) on the same workload (43,118 exchanges, local 0, verify_fail 0).
+  This A/B's raw artifacts are in `shielded/bench-harness/results-2026-09-23/`,
+  on disk from the start this time.
+- The evidence, as excerpts: every command run on the lost files and the
+  output it printed, verbatim from the transcript
+  (`shielded/bench-harness/evidence-excerpts-2026-09-23/`). They include both
+  rejection lines and the rep hashes; they are not the raw files. The REPORT
+  sections that summarised them stand as the record; the 512-token rc=3 runs
+  stay invalid for throughput acceptance.
+
+Nothing about the open findings changes: both production Freivalds rejections
+(sterms-1, b-eq-1) remain open and unexplained, the conv graph-integration
+limits (multi-sequence) stay documented, and the 27B shielded encoding still
+has no model-matched quality evaluation.

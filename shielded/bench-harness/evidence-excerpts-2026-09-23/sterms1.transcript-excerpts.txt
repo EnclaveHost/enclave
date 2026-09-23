@@ -1,0 +1,281 @@
+# Excerpts recovered from the session transcript after the 2026-09-23 unclean reboot wiped the
+# scratchpad. Each block is a command I ran on the ORIGINAL files and the output it printed then.
+# These are NOT the raw files; they are what was displayed, verbatim.
+
+===== 2026-09-22T21:43:46.821Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+cat > $B/split.py <<'PYEOF'
+#!/usr/bin/env python3
+"""Decode-only critical path of the column split, plain path, per generated token."""
+import re, sys, json, os
+B = os.path.dirname(os.path.abspath(__file__))
+R = re.compile(r'\[ph\] card=0 t=([\d.]+) m=(\d+) graphs=\d+ nodes=\d+ ex=(\d+) idle=([\d.]+) link=([\d.]+) graph=([\d.]+)'
+               r'.* sgemm=([\d.]+) spost=([\d.]+) sjoin=([\d.]+) hgemm=([\d.]+) hpost=([\d.]+)')
+K = "t m ex idle link graph sgemm spost sjoin hgemm hpost".split()
+def win(label):
+    rows = []
+    for line in open(f"{B}/{label}.err", errors="replace"):
+        mm = R.match(line)
+        if mm: rows.append({k: float(v) for k, v in zip(K, mm.groups())})
+    best, cur = [], []
+    for a, b in zip(rows, rows[1:]):
+        if b["m"] != a["m"] or b["t"] - a["t"] > 1.0:
+            if a["m"] == 1 and len(cur) > len(best): best = cur
+            cur = []
+        cur.append(b)
+    if cur and cur[0]["m"] == 1 and len(cur) > len(best): best = cur
+    a, b = best[0], best[-1]
+    j = json.loads(open(f"{B}/{label}.json").read().strip().splitlines()[-1])
+    d = {k: b[k] - a[k] for k in K}; d["tok"] = j["plain_generated"]; d["ms"] = j["plain_ms_per_tok"]
+    return d
+ws = [win(l) for l in sys.argv[1:]]
+n = len(ws)
+def m(k): return sum(w[k] / w["tok"] for w in ws) / n
+def per_ex(k): return sum(w[k] * 1000 / w["ex"] for w in ws) / n
+print(f"PLAIN decode, {n} runs, per generated token (card 0 thread unless 'helper')")
+print(f"  token                {sum(w['ms'] for w in ws)/n:7.2f} ms")
+print(f"  link                 {m('link'):7.2f}      = card0 gemm + card0 post + join")
+print(f"    card0 gemm         {m('sgemm'):7.2f}   {per_ex('sgemm'):6.1f} us/exchange")
+print(f"    card0 post         {m('spost'):7.2f}   {per_ex('spost'):6.1f} us/exchange")
+print(f"    join (waiting)     {m('sjoin'):7.2f}   {per_ex('sjoin'):6.1f} us/exchange")
+print(f"  helper gemm          {m('hgemm'):7.2f}   {per_ex('hgemm'):6.1f} us/exchange   concurrent")
+print(f"  helper post          {m('hpost'):7.2f}   {per_ex('hpost'):6.1f} us/exchange   concurrent")
+print(f"  exchanges/token      {m('ex'):7.1f}")
+PYEOF
+until grep -q QUEUE-DONE $B/sterms.log 2>/dev/null; do sleep 20; done
+grep -E 'rc=' $B/sterms.log; python3 $B/split.py sterms-1 sterms-2
+----- output
+Command running in background with ID: b2e28kcuu. Output is being written to: /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/b2e28kcuu.output. You will be notified when it completes. To check interim output, use Read on that file path.
+
+===== 2026-09-22T21:43:52.639Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+sleep 115; until grep -q QUEUE-DONE $B/sterms.log 2>/dev/null; do sleep 15; done
+grep -E 'rc=' $B/sterms.log; python3 $B/split.py sterms-1 sterms-2
+----- output
+Command did not complete within its 120s timeout and was moved to the background (ID: blf0m7b17). Output is being written to: /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/blf0m7b17.output. You will be notified when it completes. To check interim output, use Read on that file path.
+
+===== 2026-09-22T21:45:57.301Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+sleep 100; grep -E 'rc=' $B/sterms.log; grep -q QUEUE-DONE $B/sterms.log && python3 $B/split.py sterms-1 sterms-2
+----- output
+Exit code 1
+sterms-1 rc=2 wall=137s foreign=1.43 refusalA=0 refusalB=0 INTRUDER: python:101
+
+===== 2026-09-22T21:47:44.851Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+echo "ph lines: $(grep -c '^\[ph\] card' $B/sterms-1.err)  flushed: $(grep -h 'flushed' $B/sterms-1.err)"
+echo "bench summary: $(grep -c '^\[bench\] shielded:' $B/sterms-1.err)  json bytes: $(stat -c %s $B/sterms-1.json 2>/dev/null)"
+grep -nE 'rc=|exit|status' $B/run2.sh | head -8
+----- output
+ph lines: 22284  flushed: [ph] flushed 22284 records, DROPPED 0 (capacity 131072)
+bench summary: 0  json bytes: 0
+22:if [ "$n" -ne 0 ]; then echo "$LABEL ABORT: $n bench-spec2 already running"; exit 9; fi
+27:  awk -v b="$BUSY" -v g="$GATE" 'BEGIN{exit !(b<g)}' && break
+43:rc=$?
+52:echo "$LABEL rc=$rc wall=$(( $(date +%s) - t0 ))s foreign=$LOAD_PRE refusalA=$A refusalB=$Bc ${INTRUDER:+INTRUDER: $INTRUDER}"
+
+===== 2026-09-22T21:47:52.339Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+grep -v '^\[ph\]' $B/sterms-1.err | grep -v '^\[opprof\]' | tail -12 | cut -c1-170
+----- output
+[shielded] split verify: card 1 127.0.0.1:9602 says: 
+[shielded] split probe: card 0 node 125 cols 0..512 local rc=-10 verify=0 first=0,0
+[shielded] split probe: card 1 node 125 cols 512..1024 local rc=0 verify=1 first=45332,-199646
+[shielded] split verify: group blk.27.attn_q.weight m=17 members=1 xents=3 K=5120
+[shielded]   member blk.27.attn_k.weight N=1024 cols:0+512 / 512+512
+[shielded]   member blk.27.attn_q.weight N=12288 cols:0+6144 / 6144+6144
+[shielded]   member blk.27.attn_v.weight N=1024 cols:0+512 / 512+512
+graph_compute: ggml_backend_sched_graph_compute_async failed with error -1
+process_ubatch: failed to compute graph, compute status: -1
+decode: removing memory module entries for seq_id = 0, pos = [0, +inf)
+llama_decode: failed to decode, ret = -3
+spec prefill failed
+
+===== 2026-09-22T21:48:08.383Z
+$ grep -nE 'SH_ERR_[A-Z]+ *= *-?[0-9]+|define SH_ERR_' shielded-tee.h shielded-wire.h 2>/dev/null | head -14
+B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+echo "--- first failure lines ---"; grep -nE 'verification FAILED|verify|FAILED|retired|probe' $B/sterms-1.err | grep -v '^\S*\[ph\]' | head -6 | cut -c1-200
+----- output
+shielded-tee.h:54:#define SH_ERR_VERIFY   -10   /* worker lied, or the field wrapped */
+shielded-tee.h:55:#define SH_ERR_EXHAUST  -11   /* pad bank dry: stall the request, never wrap */
+shielded-tee.h:56:#define SH_ERR_RANGE    -12   /* weights do not fit the int8 lane */
+shielded-wire.h:75:#define SH_ERR_IO        -1
+shielded-wire.h:76:#define SH_ERR_VIOLATION -2
+shielded-wire.h:77:#define SH_ERR_PROTO     -3
+shielded-wire.h:78:#define SH_ERR_NOMEM     -4
+--- first failure lines ---
+5175:[shielded] split verify: card 0 127.0.0.1:9601 says: blk.27.attn_q.weight: verification FAILED -- the worker lied or the field wrapped. Link retired; recreate trusted state. Do not sample, stream
+5176:[shielded] split verify: card 1 127.0.0.1:9602 says: 
+5177:[shielded] split probe: card 0 node 125 cols 0..512 local rc=-10 verify=0 first=0,0
+5178:[shielded] split probe: card 1 node 125 cols 512..1024 local rc=0 verify=1 first=45332,-199646
+5179:[shielded] split verify: group blk.27.attn_q.weight m=17 members=1 xents=3 K=5120
+
+===== 2026-09-22T21:48:42.813Z
+$ B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+grep -nE 'no reply within|ring.*drop|abandon|socket|reconnect|retry|resend|exchange: ' $B/sterms-1.err | grep -v '^\S*\[ph\]' | head -8 | cut -c1-180
+echo "--- worker side around then ---"; grep -nE 'recompute|violation|closed|error' $B/worker1-shm.log | tail -4 | cut -c1-160
+----- output
+4888:[shielded] wire phases: calls=3 request_bytes=537667 reply_bytes=16955419 write=0.4ms overlap=0.2ms header=15.3ms body=5.9ms max=14.4ms over100ms=0 over1s=0 (socket FIELD_GEMM
+4889:[shielded] wire slowest: call=1 cmd=12 metadata=1 first_node=400 name=output.weight nodes=1 m=17 K=5120 request_bytes=261141 reply_bytes=8442889 write=0.2ms overlap=0.1ms head
+4894:[shielded] wire phases: calls=3 request_bytes=537667 reply_bytes=16918555 write=0.3ms overlap=0.1ms header=19.6ms body=7.5ms max=19.4ms over100ms=0 over1s=0 (socket FIELD_GEMM
+4895:[shielded] wire slowest: call=1 cmd=12 metadata=1 first_node=400 name=output.weight nodes=1 m=17 K=5120 request_bytes=261141 reply_bytes=8442889 write=0.1ms overlap=0.1ms head
+4900:[shielded] wire phases: calls=3 request_bytes=537667 reply_bytes=16955419 write=0.4ms overlap=0.2ms header=15.3ms body=5.9ms max=14.4ms over100ms=0 over1s=0 (socket FIELD_GEMM
+4901:[shielded] wire slowest: call=1 cmd=12 metadata=1 first_node=400 name=output.weight nodes=1 m=17 K=5120 request_bytes=261141 reply_bytes=8442889 write=0.2ms overlap=0.1ms head
+4906:[shielded] wire phases: calls=3 request_bytes=537667 reply_bytes=16918555 write=0.3ms overlap=0.1ms header=19.6ms body=7.5ms max=19.4ms over100ms=0 over1s=0 (socket FIELD_GEMM
+4907:[shielded] wire slowest: call=1 cmd=12 metadata=1 first_node=400 name=output.weight nodes=1 m=17 K=5120 request_bytes=261141 reply_bytes=8442889 write=0.1ms overlap=0.1ms head
+--- worker side around then ---
+766:[shielded-worker] 127.0.0.1:43810 closed: 17733 exchanges (17731 over the ring), 0 recomputes, 1664.9 ms worker GEMM elapsed (includes lock/setup/sync); sha
+771:[shielded-worker] 127.0.0.1:57850 closed: 9905 exchanges (9904 over the ring), 0 recomputes, 1040.2 ms worker GEMM elapsed (includes lock/setup/sync); share
+776:[shielded-worker] 127.0.0.1:46818 closed: 17734 exchanges (17731 over the ring), 0 recomputes, 1676.6 ms worker GEMM elapsed (includes lock/setup/sync); sha
+779:[shielded-worker] 127.0.0.1:43908 closed: 109 exchanges (109 over the ring), 0 recomputes, 55.0 ms worker GEMM elapsed (includes lock/setup/sync); share 0.4
+
+===== 2026-09-23T03:58:33.141Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; ls -la sterms-1.*; grep -v "^\[ph\]" sterms-1.err | grep -n -iE "verif|fail|integrity|mismatch|reject|error|retir|range|outside" | head -30
+----- output
+-rw-r--r-- 1 steven steven 5799210 Sep 22 14:45 sterms-1.err
+-rw-r--r-- 1 steven steven       0 Sep 22 14:43 sterms-1.json
+-rw-r--r-- 1 steven steven      72 Sep 22 14:45 sterms-1.meta
+5175:[shielded] split verify: card 0 127.0.0.1:9601 says: blk.27.attn_q.weight: verification FAILED -- the worker lied or the field wrapped. Link retired; recreate trusted state. Do not sample, stream, or cache this.
+5176:[shielded] split verify: card 1 127.0.0.1:9602 says: 
+5177:[shielded] split probe: card 0 node 125 cols 0..512 local rc=-10 verify=0 first=0,0
+5178:[shielded] split probe: card 1 node 125 cols 512..1024 local rc=0 verify=1 first=45332,-199646
+5179:[shielded] split verify: group blk.27.attn_q.weight m=17 members=1 xents=3 K=5120
+5183:graph_compute: ggml_backend_sched_graph_compute_async failed with error -1
+5184:process_ubatch: failed to compute graph, compute status: -1
+5186:llama_decode: failed to decode, ret = -3
+5187:spec prefill failed
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T03:58:36.991Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -v "^\[ph\]" sterms-1.err | sed -n 5150,5190p | cut -c1-260; cat sterms-1.meta
+----- output
+[shielded] profile registration blk.64.ffn_gate.weight: source=0.001ms (read=0.000ms auth=0.000ms) encode=49.623ms local_setup=0.016ms cache=0.002ms link=12.919ms commit=0.015ms total=62.575ms hit=0 catalog_read=0.000ms
+[shielded] registered blk.64.ffn_gate.weight K=5120 N=17408 f_w=8..12 act_frac=6 outliers=16 group=blk.64.ffn_gate.weight (63 ms)
+[shielded] split placement blk.64.ffn_gate.weight over 2 cards (N=17408)
+[shielded] blk.64.ffn_up.weight: q6_K source converted to the tier's encoding
+[shielded] profile registration checks blk.64.ffn_up.weight: scan_alloc=8.775ms fv=2.193ms pad=0.002ms public_identity=0.001ms commit=0.001ms total=10.972ms
+[shielded] profile registration blk.64.ffn_up.weight: source=0.001ms (read=0.000ms auth=0.000ms) encode=55.639ms local_setup=1.843ms cache=0.002ms link=12.856ms commit=0.008ms total=70.350ms hit=0 catalog_read=0.000ms
+[shielded] registered blk.64.ffn_up.weight K=5120 N=17408 f_w=8..12 act_frac=6 outliers=16 group=blk.64.ffn_gate.weight (70 ms)
+[shielded] blk.64.ffn_up.weight: q6_K source converted to the tier's encoding
+[shielded] profile registration checks blk.64.ffn_up.weight: scan_alloc=8.864ms fv=2.222ms pad=0.001ms public_identity=0.001ms commit=0.001ms total=11.089ms
+[shielded] profile registration blk.64.ffn_up.weight: source=0.001ms (read=0.000ms auth=0.000ms) encode=55.923ms local_setup=0.016ms cache=0.002ms link=13.275ms commit=0.007ms total=69.224ms hit=0 catalog_read=0.000ms
+[shielded] registered blk.64.ffn_up.weight K=5120 N=17408 f_w=8..12 act_frac=6 outliers=16 group=blk.64.ffn_gate.weight (69 ms)
+[shielded] split placement blk.64.ffn_up.weight over 2 cards (N=17408)
+[shielded] blk.64.nextn.eh_proj.weight: q6_K source converted to the tier's encoding
+[shielded] profile registration checks blk.64.nextn.eh_proj.weight: scan_alloc=5.296ms fv=1.871ms pad=0.001ms public_identity=0.001ms commit=0.001ms total=7.171ms
+[shielded] profile registration blk.64.nextn.eh_proj.weight: source=0.001ms (read=0.000ms auth=0.000ms) encode=33.052ms local_setup=0.024ms cache=0.002ms link=8.430ms commit=0.010ms total=41.519ms hit=0 catalog_read=0.000ms
+[shielded] registered blk.64.nextn.eh_proj.weight K=10240 N=5120 f_w=7..10 act_frac=4 outliers=0 group=blk.64.nextn.eh_proj.weight (42 ms)
+[shielded] blk.64.nextn.eh_proj.weight: q6_K source converted to the tier's encoding
+[shielded] profile registration checks blk.64.nextn.eh_proj.weight: scan_alloc=5.390ms fv=1.829ms pad=0.001ms public_identity=0.001ms commit=0.001ms total=7.222ms
+[shielded] profile registration blk.64.nextn.eh_proj.weight: source=0.001ms (read=0.000ms auth=0.000ms) encode=32.609ms local_setup=0.006ms cache=0.002ms link=8.558ms commit=0.012ms total=41.188ms hit=0 catalog_read=0.000ms
+[shielded] registered blk.64.nextn.eh_proj.weight K=10240 N=5120 f_w=7..10 act_frac=4 outliers=0 group=blk.64.nextn.eh_proj.weight (41 ms)
+[shielded] split placement blk.64.nextn.eh_proj.weight over 2 cards (N=5120)
+[shielded] link: proto 1.4, asked to reserve 14782 MiB; worker holds 14782 MiB for this link, 29564 MiB for all tenants, driver free 2516 MiB of a 30720 MiB budget
+[shielded] worker live over tcp 127.0.0.1:9601 proto 1.4 reply int24 + shm ring 0 (/dev/shm/enclave-shielded-shm/card-0) with 409 weights, 8 refill threads (18025 ms to upload, install and warm the pool)
+[shielded] link: proto 1.4, asked to reserve 14782 MiB; worker holds 14782 MiB for this link, 29564 MiB for all tenants, driver free 2509 MiB of a 30720 MiB budget
+[shielded] split: card 127.0.0.1:9602 live with 409 weight slices (17409 ms)
+[shielded] split verify: card 0 127.0.0.1:9601 says: blk.27.attn_q.weight: verification FAILED -- the worker lied or the field wrapped. Link retired; recreate trusted state. Do not sample, stream, or cache this.
+[shielded] split verify: card 1 127.0.0.1:9602 says: 
+[shielded] split probe: card 0 node 125 cols 0..512 local rc=-10 verify=0 first=0,0
+[shielded] split probe: card 1 node 125 cols 512..1024 local rc=0 verify=1 first=45332,-199646
+[shielded] split verify: group blk.27.attn_q.weight m=17 members=1 xents=3 K=5120
+[shielded]   member blk.27.attn_k.weight N=1024 cols:0+512 / 512+512
+[shielded]   member blk.27.attn_q.weight N=12288 cols:0+6144 / 6144+6144
+[shielded]   member blk.27.attn_v.weight N=1024 cols:0+512 / 512+512
+graph_compute: ggml_backend_sched_graph_compute_async failed with error -1
+process_ubatch: failed to compute graph, compute status: -1
+decode: removing memory module entries for seq_id = 0, pos = [0, +inf)
+llama_decode: failed to decode, ret = -3
+spec prefill failed
+pre=1.43 post=4.50 waited=0s intruder=python:101  refusalA=0 refusalB=0
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T04:31:52.030Z
+$ cd /home/steven/Projects/enclave/wasm/ggml-shielded; sed -i 's/^prefix-kv-selftest$/prefix-kv-selftest\npostmortem-selftest/' .gitignore; cd /home/steven/Projects/enclave; cat >> shielded/REPORT.md <<'EOF'
+
+### 18.34 A balanced split that fits, and the Freivalds rejection happens again
+
+**The card balance, at last testable.** 18.31's 53/47 overflowed card 0's
+cap. The cap is 95% of the per-link reservation, and the reservation was held
+at 15.5 GB because a link restart (the MTP context registering its layer)
+briefly holds two reservations per card on the worker: the TEE closes the old
+pipe first, but the worker releases the old reservation only after freeing
+that connection's weights, and the new HELLO arrives before that. Two
+overlapping links must fit the worker's 30 GiB budget, so a reservation up to
+~16.1 GB is legal. **Changed memory setup for this test:** card 0's per-link
+reservation 16.1 GB (was 15.5), card 1's unchanged at 15.5; both arms of the
+A/B use that same setup, so only the split differs. At 54/46 card 0 holds
+15.15 of a 15.30 GB cap and the transient overlap reaches 30708 of 30720 MiB
+-- valid for a bench, too thin for production.
+
+A/B, equal against 54/46, ABBA, three valid pairs (the fourth lost its equal
+arm, below): 54/46 faster in 1 of 3 (-2.02, +1.12, -0.13 tok/s). The balance
+did what it was for -- the join fell from 636-1042 ms to 186-478 ms per run --
+and card 0's own gemm grew by about as much. Null. The static imbalance is not
+a throughput lever either.
+
+**The second verification failure.** `b-eq-1` (equal split, plain decode,
+m=1): card 0's reply for the `blk.46.attn_qkv | attn_gate` group failed
+Freivalds; card 1's slice of the same group verified. The link retired, the
+decode stopped, rc=2, fail-closed exactly as designed. What the two events
+share and do not:
+
+| | sterms-1 | b-eq-1 |
+|---|---|---|
+| card | 0 (PG500-216) | 0 (PG500-216) |
+| phase | first spec-prefill pass after a link restart, m=17 | plain decode, m=1, no restart |
+| group | blk.27 q/k/v | blk.46 qkv/gate |
+| other card's slice | verified | verified |
+| worker's view | log overwritten by my own worker restart | no violation, no error; connection closed normally after 8923 exchanges |
+| yield detector | unknown | fired on both workers ~2.4 s before the bench exited |
+
+Ruled out, each by evidence rather than argument: a field wrap (the masked
+product is exact mod M and does not depend on the pad, so a wrap would be
+deterministic in the activations, which are identical across these runs --
+it would fail every run, not 2 of ~100); device memory (ECC is on, zero
+single- and double-bit errors volatile and aggregate on both cards); reported
+PCIe errors (no AER or Xid in the kernel log); a stale ring reply (each pipe's
+sequence base comes from the realtime clock and a reply is taken only on an
+exact match); the pad pool (slots are released after unmask and check, and
+the refill deficit counts held slots); the yield "probe" (timing only, no
+kernel). The restart window was my first hypothesis and b-eq-1 had no restart.
+
+**The next one will say what it is.** A failed check now writes a post-mortem
+before the link retires: the exact product recomputed in int64 from the TEE's
+own weight slice, compared column by column with the unmasked reply --
+how many values are wrong, in how many rows and 32-column blocks, over which
+columns, how many true values lie outside the field, three samples, and
+whether the ring or the socket carried the reply. The patterns separate the
+mechanisms: a few blocks is the transfer or the kernel, every column is the
+pad, a trailing range is a short or stale reply, and a reply that MATCHES the
+local product means the check side (the overlapped RHS) is at fault.
+`postmortem-selftest` checks each of those signatures on synthetic data. It
+runs only after a rejection and changes no decision.
+EOF
+git add wasm/ggml-shielded/shielded-tee.c wasm/ggml-shielded/shielded-tee.h wasm/ggml-shielded/postmortem-selftest.c wasm/ggml-shielded/Makefile wasm/ggml-shielded/.gitignore shielded/worker-cuda/worker.cu shielded/REPORT.md && git commit -q -m "shielded: a failed Freivalds check now names its corruption pattern; 54/46 split null
+
+sh_fv_postmortem recomputes the product locally after a rejection and logs
+which values are wrong (rows, 32-col blocks, columns, wraps, samples, ring or
+socket); postmortem-selftest covers each signature. Runs only on the failure
+path; the link retires exactly as before. NDK compile of shielded-tee.c
+checked. Also the kbench-x shm-reply option (diagnostic build only).
+REPORT 18.34: the 54/46 split fits with a 16.1 GB card-0 reservation and is
+null; a second fail-closed rejection on card 0, with what is ruled out.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" && git push -q origin main 2>&1 | tail -2; git log --oneline -1
+----- output
+f3b33031 shielded: a failed Freivalds check now names its corruption pattern; 54/46 split null
+
+===== 2026-09-23T06:59:43.400Z
+$ S=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad; du -sh $S/b27/samp-1.txt $S/b27/samp-2.txt $S/b27/samp-3.txt $S/kb $S/ndk $S/pm $S/mb 2>/dev/null; rm -f $S/b27/samp-1.txt $S/b27/samp-2.txt $S/b27/samp-3.txt $S/kb/*.o $S/ndk/*.o $S/ndk/*.so; du -sh $S; ls $S/b27/sterms-1.err $S/b27/b-eq-1.err $S/b27/worker1-shm.log >/dev/null && echo evidence-intact
+----- output
+92K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-1.txt
+88K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-2.txt
+1.5M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-3.txt
+2.7M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/kb
+176K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/ndk
+2.2M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/pm
+364K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/mb
+559M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad
+evidence-intact
+

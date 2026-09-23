@@ -32,21 +32,20 @@ any other compiler or flags before trusting the op there.
   `n_seq_max > 1` with or without the op (a pre-existing limitation).
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
-  workflow's CPU-relevant flags, and runs all three harnesses there, plus the
-  two token-fused GATED_DELTA_NET checks below.
+  workflow's CPU-relevant flags, and runs all three harnesses there.
 
-**Token-fused GATED_DELTA_NET** (`../llamacpp-gdn-tokfuse.patch`, switch
-`ENCLAVE_GGML_GDN_TOKFUSE`, default on). `gdn-equiv.cpp` runs 72 op cases
-(the model's S_v=128 / 48 value heads over 16 key heads, n_tokens 1-17
-across and past the fused window, K 1-4 including K > n_tokens, in-place into
-a padded multi-slot cache and the copy form, several sequences, odd shapes,
-threads 1/3/8, signed zeros, and the per-channel gate, which never takes the
-fused path) and dumps every output and the whole state buffer; run once per
-switch value, the dumps must be byte-identical (`run_pair` in
-`harness-check.sh`). A one-ulp mutant planted in the fused loop changes
-exactly the 52 fused cases and no other. `conv-graph-test` is also run with
-the tokfuse switch as the arm (`run_graph ... ENCLAVE_GGML_GDN_TOKFUSE`); its
-spec scenario's 2-token verify batches take the fused path.
+**Token-fused GATED_DELTA_NET: measured negative, not applied**
+(`../llamacpp-gdn-tokfuse.patch`, REPORT 18.50). `gdn-equiv.cpp` is its
+bitwise harness: 72 op cases (the model's S_v=128 / 48 value heads over 16 key
+heads, n_tokens 1-17, K 1-4 including K > n_tokens, in place into a padded
+multi-slot cache and the copy form, several sequences, odd shapes, threads
+1/3/8, signed zeros, the per-channel gate), every output and the whole state
+buffer dumped; run once per `ENCLAVE_GGML_GDN_TOKFUSE` value with `run_pair`
+in `harness-check.sh`, the dumps were byte-identical, and a planted one-ulp
+mutant changed exactly the 52 fused cases. `gdn-bench.cpp` times the op at the
+27B's verify shape; it showed the fused path slower (+20% at 1 thread, +22% at
+4 tokens), and the 27B's op profile showed no change, so the patch is kept as
+a record only. Both files apply only to a tree with the patch applied.
 
 Validated on two builds, both bit-identical: GCC 16.2.1 with AVX-512 (the
 vector path), and GCC 11.4 with the production workflow's flags, which are

@@ -1,0 +1,239 @@
+# Excerpts recovered from the session transcript after the 2026-09-23 unclean reboot wiped the
+# scratchpad. Each block is a command I ran on the ORIGINAL files and the output it printed then.
+# These are NOT the raw files; they are what was displayed, verbatim.
+
+===== 2026-09-23T04:26:16.276Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -v "^\[ph\]" b-eq-1.err | grep -n -iE "verif|fail|probe|member|violation|error|cannot|refus" | head -20; cat b-eq-1.meta; ls -la --time-style=+%T b-eq-1.err; grep -n "closed:\|attached\|VIOLATION" worker1-shm.log | tail -6 | cut -c1-160
+----- output
+4935:[shielded] split verify: card 0 127.0.0.1:9601 says: blk.46.attn_gate.weight: verification FAILED -- the worker lied or the field wrapped. Link retired; recreate trusted state. Do not sample, stream, or cache this.
+4936:[shielded] split verify: card 1 127.0.0.1:9602 says: 
+4937:[shielded] split probe: card 0 node 256 cols 0..3072 local rc=-10 verify=0 first=0,0
+4938:[shielded] split probe: card 1 node 256 cols 3072..6144 local rc=0 verify=1 first=-40967,1944
+4939:[shielded] split verify: group blk.46.attn_qkv.weight m=1 members=1 xents=2 K=5120
+4940:[shielded]   member blk.46.attn_gate.weight N=6144 cols:0+3072 / 3072+3072
+4941:[shielded]   member blk.46.attn_qkv.weight N=10240 cols:0+5120 / 5120+5120
+4942:graph_compute: ggml_backend_sched_graph_compute_async failed with error -1
+4943:process_ubatch: failed to compute graph, compute status: -1
+4945:llama_decode: failed to decode, ret = -3
+4946:plain decode failed
+pre=0.32 post=5.13 waited=0s intruder=none refusalA=0 refusalB=0 splitrefused=0 cpuonly=0
+-rw-r--r-- 1 steven steven 577911 20:59:47 b-eq-1.err
+248:[shielded-worker] 127.0.0.1:33656 attached shm ring 0 (reply mapped for the device)
+249:[shielded-worker] 127.0.0.1:33656 closed: 9905 exchanges (9904 over the ring), 0 recomputes, 1034.2 ms worker GEMM elapsed (includes lock/setup/sync); share
+251:[shielded-worker] 127.0.0.1:53510 attached shm ring 0 (reply mapped for the device)
+254:[shielded-worker] 127.0.0.1:53510 closed: 17733 exchanges (17731 over the ring), 0 recomputes, 1711.5 ms worker GEMM elapsed (includes lock/setup/sync); sha
+256:[shielded-worker] 127.0.0.1:46148 attached shm ring 0 (reply mapped for the device)
+259:[shielded-worker] 127.0.0.1:46148 closed: 9906 exchanges (9904 over the ring), 0 recomputes, 1038.7 ms worker GEMM elapsed (includes lock/setup/sync); share
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T04:26:31.699Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -n "closed:" worker1-shm.log | grep -vE "closed: (17733|9905|9906|17734|9907|17735) " | cut -c1-260; grep -n "VIOLATION\|error\|fail" worker1-shm.log | head; grep -o "offloaded=[0-9]*" b-eq-1.err | tail -1; grep -c "^\[ph\] card=0" b-eq-1.err
+----- output
+73:[shielded-worker] 127.0.0.1:48412 closed: 56026 exchanges (56024 over the ring), 0 recomputes, 4630.1 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 56026 turns, 4464.8 ms on the card, 0.0 ms waiting for it, 76.1 ms yielded to the owner
+78:[shielded-worker] 127.0.0.1:40496 closed: 32149 exchanges (32148 over the ring), 0 recomputes, 3030.6 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 32149 turns, 2896.7 ms on the card, 0.0 ms waiting for it, 75.2 ms yielded to the owner
+83:[shielded-worker] 127.0.0.1:58696 closed: 56026 exchanges (56024 over the ring), 0 recomputes, 4531.3 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 56026 turns, 4431.6 ms on the card, 0.0 ms waiting for it, 12.8 ms yielded to the owner
+88:[shielded-worker] 127.0.0.1:41074 closed: 32149 exchanges (32148 over the ring), 0 recomputes, 2977.0 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 32149 turns, 2860.1 ms on the card, 0.0 ms waiting for it, 56.4 ms yielded to the owner
+93:[shielded-worker] 127.0.0.1:35092 closed: 56026 exchanges (56024 over the ring), 0 recomputes, 4602.5 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 56026 turns, 4446.0 ms on the card, 0.0 ms waiting for it, 74.8 ms yielded to the owner
+98:[shielded-worker] 127.0.0.1:47294 closed: 32149 exchanges (32148 over the ring), 0 recomputes, 2993.4 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 32149 turns, 2916.1 ms on the card, 0.0 ms waiting for it, 16.2 ms yielded to the owner
+103:[shielded-worker] 127.0.0.1:60590 closed: 56028 exchanges (56024 over the ring), 0 recomputes, 4534.4 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 56028 turns, 4380.7 ms on the card, 0.0 ms waiting for it, 77.9 ms yielded to the owner
+108:[shielded-worker] 127.0.0.1:38014 closed: 32150 exchanges (32148 over the ring), 0 recomputes, 3099.7 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 32150 turns, 2937.5 ms on the card, 0.0 ms waiting for it, 98.9 ms yielded to the owner
+199:[shielded-worker] 127.0.0.1:60346 closed: 8923 exchanges (8921 over the ring), 0 recomputes, 1030.1 ms worker GEMM elapsed (includes lock/setup/sync); share 0.500: 8923 turns, 917.0 ms on the card, 0.0 ms waiting for it, 95.2 ms yielded to the owner
+0
+
+===== 2026-09-23T04:26:50.532Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; P=$(cat worker1.pid); echo "worker start (monotonic s): $(awk -v t=$(cut -d' ' -f22 /proc/$P/stat) -v hz=$(getconf CLK_TCK) 'BEGIN{printf "%.3f", t/hz}')"; grep "^\[ph\] card=0" b-eq-1.err | tail -2 | cut -c1-80; grep -n "g_start\|since start\|at +%" /home/steven/Projects/enclave/shielded/worker-cuda/worker.cu | head -5
+----- output
+worker start (monotonic s): 840278.440
+1426:        if (now_active) logf("[yield] owner active (%s; duty %.0f%%) at +%.3f s", why, g_yield_duty * 100, uptime());
+1427:        else { next_allowed_ns = 0; logf("[yield] owner idle: full speed (%s) at +%.3f s", why, uptime()); }
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T04:27:01.526Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; python3 -c "
+import os,time
+off=time.time()-time.monotonic()
+for f in ('b-eq-1.err','b-eq-1.json'):
+    print(f, 'mtime monotonic %.2f'%(os.path.getmtime(f)-off))
+print('yield on w1 at monotonic %.2f'%(840278.440+8611.569), 'w2 start?')
+"; P2=$(cat worker2.pid); awk -v t=$(cut -d' ' -f22 /proc/$P2/stat) -v hz=$(getconf CLK_TCK) 'BEGIN{printf "w2 start %.3f -> yield %.2f\n", t/hz, t/hz+8611.6}'; grep -n "plain\|bench\]" b-eq-1.err | grep -v "^\[ph\]" | head -12 | cut -c1-150
+----- output
+b-eq-1.err mtime monotonic 848892.46
+b-eq-1.json mtime monotonic 848814.80
+yield on w1 at monotonic 848890.01 w2 start?
+w2 start 840278.440 -> yield 848890.04
+2:[bench] backend /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/llama-alias/bin/libggml-cpu.so: loade
+4:[bench] backend /home/steven/Projects/enclave/wasm/ggml-shielded/libggml-shielded.so: loaded
+5:[bench] device 0: CPU
+6:[bench] device 1: Shielded
+1108:[bench] mtp_available=1 n_layer_nextn=1 recurrent=1
+1294:[bench] rewind_depth=1 (need >= 1)
+4886:[bench] warm: link opened; 0 timed prefills, median 0.0 ms
+4946:plain decode failed
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T04:31:52.030Z
+$ cd /home/steven/Projects/enclave/wasm/ggml-shielded; sed -i 's/^prefix-kv-selftest$/prefix-kv-selftest\npostmortem-selftest/' .gitignore; cd /home/steven/Projects/enclave; cat >> shielded/REPORT.md <<'EOF'
+
+### 18.34 A balanced split that fits, and the Freivalds rejection happens again
+
+**The card balance, at last testable.** 18.31's 53/47 overflowed card 0's
+cap. The cap is 95% of the per-link reservation, and the reservation was held
+at 15.5 GB because a link restart (the MTP context registering its layer)
+briefly holds two reservations per card on the worker: the TEE closes the old
+pipe first, but the worker releases the old reservation only after freeing
+that connection's weights, and the new HELLO arrives before that. Two
+overlapping links must fit the worker's 30 GiB budget, so a reservation up to
+~16.1 GB is legal. **Changed memory setup for this test:** card 0's per-link
+reservation 16.1 GB (was 15.5), card 1's unchanged at 15.5; both arms of the
+A/B use that same setup, so only the split differs. At 54/46 card 0 holds
+15.15 of a 15.30 GB cap and the transient overlap reaches 30708 of 30720 MiB
+-- valid for a bench, too thin for production.
+
+A/B, equal against 54/46, ABBA, three valid pairs (the fourth lost its equal
+arm, below): 54/46 faster in 1 of 3 (-2.02, +1.12, -0.13 tok/s). The balance
+did what it was for -- the join fell from 636-1042 ms to 186-478 ms per run --
+and card 0's own gemm grew by about as much. Null. The static imbalance is not
+a throughput lever either.
+
+**The second verification failure.** `b-eq-1` (equal split, plain decode,
+m=1): card 0's reply for the `blk.46.attn_qkv | attn_gate` group failed
+Freivalds; card 1's slice of the same group verified. The link retired, the
+decode stopped, rc=2, fail-closed exactly as designed. What the two events
+share and do not:
+
+| | sterms-1 | b-eq-1 |
+|---|---|---|
+| card | 0 (PG500-216) | 0 (PG500-216) |
+| phase | first spec-prefill pass after a link restart, m=17 | plain decode, m=1, no restart |
+| group | blk.27 q/k/v | blk.46 qkv/gate |
+| other card's slice | verified | verified |
+| worker's view | log overwritten by my own worker restart | no violation, no error; connection closed normally after 8923 exchanges |
+| yield detector | unknown | fired on both workers ~2.4 s before the bench exited |
+
+Ruled out, each by evidence rather than argument: a field wrap (the masked
+product is exact mod M and does not depend on the pad, so a wrap would be
+deterministic in the activations, which are identical across these runs --
+it would fail every run, not 2 of ~100); device memory (ECC is on, zero
+single- and double-bit errors volatile and aggregate on both cards); reported
+PCIe errors (no AER or Xid in the kernel log); a stale ring reply (each pipe's
+sequence base comes from the realtime clock and a reply is taken only on an
+exact match); the pad pool (slots are released after unmask and check, and
+the refill deficit counts held slots); the yield "probe" (timing only, no
+kernel). The restart window was my first hypothesis and b-eq-1 had no restart.
+
+**The next one will say what it is.** A failed check now writes a post-mortem
+before the link retires: the exact product recomputed in int64 from the TEE's
+own weight slice, compared column by column with the unmasked reply --
+how many values are wrong, in how many rows and 32-column blocks, over which
+columns, how many true values lie outside the field, three samples, and
+whether the ring or the socket carried the reply. The patterns separate the
+mechanisms: a few blocks is the transfer or the kernel, every column is the
+pad, a trailing range is a short or stale reply, and a reply that MATCHES the
+local product means the check side (the overlapped RHS) is at fault.
+`postmortem-selftest` checks each of those signatures on synthetic data. It
+runs only after a rejection and changes no decision.
+EOF
+git add wasm/ggml-shielded/shielded-tee.c wasm/ggml-shielded/shielded-tee.h wasm/ggml-shielded/postmortem-selftest.c wasm/ggml-shielded/Makefile wasm/ggml-shielded/.gitignore shielded/worker-cuda/worker.cu shielded/REPORT.md && git commit -q -m "shielded: a failed Freivalds check now names its corruption pattern; 54/46 split null
+
+sh_fv_postmortem recomputes the product locally after a rejection and logs
+which values are wrong (rows, 32-col blocks, columns, wraps, samples, ring or
+socket); postmortem-selftest covers each signature. Runs only on the failure
+path; the link retires exactly as before. NDK compile of shielded-tee.c
+checked. Also the kbench-x shm-reply option (diagnostic build only).
+REPORT 18.34: the 54/46 split fits with a 16.1 GB card-0 reservation and is
+null; a second fail-closed rejection on card 0, with what is ruled out.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" && git push -q origin main 2>&1 | tail -2; git log --oneline -1
+----- output
+f3b33031 shielded: a failed Freivalds check now names its corruption pattern; 54/46 split null
+
+===== 2026-09-23T06:59:43.400Z
+$ S=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad; du -sh $S/b27/samp-1.txt $S/b27/samp-2.txt $S/b27/samp-3.txt $S/kb $S/ndk $S/pm $S/mb 2>/dev/null; rm -f $S/b27/samp-1.txt $S/b27/samp-2.txt $S/b27/samp-3.txt $S/kb/*.o $S/ndk/*.o $S/ndk/*.so; du -sh $S; ls $S/b27/sterms-1.err $S/b27/b-eq-1.err $S/b27/worker1-shm.log >/dev/null && echo evidence-intact
+----- output
+92K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-1.txt
+88K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-2.txt
+1.5M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/samp-3.txt
+2.7M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/kb
+176K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/ndk
+2.2M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/pm
+364K	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/mb
+559M	/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad
+evidence-intact
+
+===== 2026-09-23T07:00:19.586Z
+$ cd /home/steven/Projects/enclave; cat >> shielded/REPORT.md <<'EOF'
+
+### 18.37 A soak cannot reproduce the rejections, and what that rules out
+
+`shielded-soak` (new, `make shielded-soak`) drives the production link path
+against a live worker for as long as asked: `sh_link_open` -> configure ->
+shm ring -> add weights -> start -> `sh_link_gemm` with verification on, the
+four per-card exchange shapes of one 27B layer (grouped qkv|gate|a|b,
+ssm_out, gate|up, down) cycling like a decode pass at m=1 or 2, fresh
+activations and fresh pads from the link's own refill threads, overlap-verify
+on as in the bench. One exchange in 256 is also compared value by value with
+a local int64 product. A rejection retires the link and the soak reopens and
+counts it, with the link's post-mortem classifying it (18.35).
+
+Both cards at once, 45 minutes: **11.7 M exchanges (5.66 M card 0, 6.05 M
+card 1), zero rejections, 45,764 exact checks all correct**, every exchange
+over the ring with the reply mapped for the device. Production had two
+rejections in about 2.8 M card-0 exchanges, so at that rate this should have
+seen ~4 on card 0; seeing none is strong evidence that the plain
+link/ring/kernel path under steady load is not where the fault is.
+
+What the soak did NOT have, and production did: the worker's yield detector
+never fired (0 activations against ~1 per production connection, and one
+~2.4 s before b-eq-1's rejection); 8 distinct graphs against 274-514; no
+m=17 prefill exchanges or lm_head; no link restarts; no CPU ops contending
+between exchanges. The next soak adds GPU contention on the same card to make
+the detector fire for real. The first attempt at it died at start when the
+per-user /tmp quota filled (another session's 23 GB of scratch, not this
+run's); it is being rerun.
+EOF
+git add wasm/ggml-shielded/shielded-soak.c wasm/ggml-shielded/Makefile wasm/ggml-shielded/.gitignore shielded/REPORT.md && git commit -q -m "shielded: a soak tool for the rare Freivalds rejection; 11.7M exchanges clean
+
+shielded-soak drives the production link path (ring, fresh pads, verify on,
+27B per-card shapes, m=1/2) against a live worker and counts rejections,
+with exact checks against a local product. 45 min on both cards: 11.7 M
+exchanges, 0 rejections, 45,764 exact checks correct. REPORT 18.37 records
+what that rules out and what the soak lacked (yield activations above all).
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" && git push -q origin main 2>&1 | tail -2; git log --oneline -1; B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; bash $B/soak2.sh > $B/soak2.log 2>&1 &
+echo started
+----- output
+8d7e47f1 shielded: a soak tool for the rare Freivalds rejection; 11.7M exchanges clean
+started
+
+===== 2026-09-23T11:02:50.023Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; cp -a worker1-shm.log worker1-shm.evidence-beq1.log; cp -a worker2-shm.log worker2-shm.evidence-beq1.log; ls -la worker*-evidence* | awk '{print $5, $9}'; cat > abyield.sh <<'EOF'
+#!/bin/bash
+B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27
+FIT=$'127.0.0.1|9601|0|15500000000|/dev/shm/enclave-shielded-shm/card-0|67108864\n127.0.0.1|9602|0|15500000000|/dev/shm/enclave-shielded-shm/card-1|67108864'
+export SHIELDED_SPLIT_COLS=1 SHIELDED_OVERLAP_VERIFY=1 SHIELDED_WEIGHT_BUDGET_FRAC=0.95
+restart() {   # $1 = on|off
+  $B/workers-shm2.sh stop >/dev/null
+  if [ "$1" = off ]; then SHIELDED_YIELD=0 $B/workers-shm2.sh start >/dev/null; else env -u SHIELDED_YIELD $B/workers-shm2.sh start >/dev/null; fi
+  sleep 3
+  echo "  workers ($1): exe $(sha256sum /proc/$(cat $B/worker1.pid)/exe | cut -c1-16) | $(grep -h -c 'background mode on' $B/worker1-shm.log $B/worker2-shm.log | tr '\n' ' ')background-mode lines (expect 1 1 for on, 0 0 for off)"
+}
+run() { bash $B/waitfree.sh; bash $B/waitquiet.sh; restart $2; WORKERS_OVERRIDE="$FIT" $B/run5.sh yd-$2-$1 1 8 64; }
+run 1 on; run 1 off; run 2 off; run 2 on; run 3 on; run 3 off; run 4 off; run 4 on
+restart on
+echo QUEUE-DONE
+EOF
+chmod +x abyield.sh; bash abyield.sh > abyield.log 2>&1 &
+sleep 1; echo started
+----- output
+ls: cannot access 'worker*-evidence*': No such file or directory
+started
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T11:02:58.107Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; ls -la worker*.evidence-beq1.log | awk '{print $5, $9}'; grep -c "closed: 8923" worker1-shm.evidence-beq1.log
+----- output
+123504 worker1-shm.evidence-beq1.log
+98612 worker2-shm.evidence-beq1.log
+1
+Shell cwd was reset to /home/steven/Projects/enclave
+

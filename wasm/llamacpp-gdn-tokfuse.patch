@@ -1,11 +1,20 @@
+# MEASURED NEGATIVE -- NOT APPLIED (shielded/REPORT.md 18.50). Kept as a record.
+#
 # GATED_DELTA_NET, token-fused CPU path: for a small batch (2..16 tokens, the
 # speculative verify rows) with the scalar gate, run every token through one
 # state row before moving to the next row, instead of sweeping the whole
 # S_v x S_v state once per token. Each row's operations and their order are
 # unchanged, so outputs, state and rollback snapshots are bit-identical
-# (wasm/llamacpp-conv-inplace/gdn-equiv.cpp; also run by prod-toolchain-check.sh).
-# ENCLAVE_GGML_GDN_TOKFUSE=0 restores the per-token path. Requires the fused-row
-# path (ENCLAVE_GGML_GDN_SWEEPS unset). Applies AFTER llamacpp-conv-inplace.patch.
+# (wasm/llamacpp-conv-inplace/gdn-equiv.cpp).
+#
+# It does not pay: on the 27B the op's 2-row cost is unchanged (op profiler,
+# 150/155 us per call off vs 152/146 on), and in isolation at the model's shape
+# it is SLOWER (gdn-bench: +20% at 1 thread, +22% at 4 tokens). The state a
+# thread owns (6 heads x 64 KB) already stays in L2 between tokens, so there is
+# no memory traffic to save, and the per-row work simply doubles.
+#
+# ENCLAVE_GGML_GDN_TOKFUSE=0 restores the per-token path. Applies AFTER
+# llamacpp-conv-inplace.patch.
 --- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 08:55:03.958825601 -0700
 +++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 08:55:03.960006142 -0700
 @@ -11003,6 +11003,21 @@
