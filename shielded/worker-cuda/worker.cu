@@ -923,7 +923,19 @@ static int kbench_x() {
         for (size_t i = 0; i < xbytes; i++) hx[i] = (uint8_t)(i * 2654435761u >> 24);
         uint8_t *hx_d; cudaHostGetDevicePointer((void **)&hx_d, hx, 0);
         int8_t *dx; dmalloc((void **)&dx, xbytes);
-        int32_t *hy, *hy_d; cudaHostAlloc((void **)&hy, yb, cudaHostAllocMapped); cudaHostGetDevicePointer((void **)&hy_d, hy, 0);
+        /* KB_Y_SHM=1: the reply lands in a /dev/shm mapping registered with
+         * cudaHostRegister, as the ring's reply slot is, instead of
+         * cudaHostAlloc memory. */
+        const bool y_shm = getenv("KB_Y_SHM") && atoi(getenv("KB_Y_SHM"));
+        int32_t *hy = nullptr, *hy_d = nullptr; size_t ymap = (yb + 4095) & ~(size_t)4095;
+        if (y_shm) {
+            char nm[64]; snprintf(nm, sizeof nm, "/dev/shm/kbench-y-%d", (int)getpid());
+            const int fd = open(nm, O_RDWR | O_CREAT | O_TRUNC, 0600); unlink(nm);
+            if (fd < 0 || ftruncate(fd, (off_t)ymap) != 0) { printf("shm fail\n"); return 1; }
+            hy = (int32_t *)mmap(nullptr, ymap, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0); close(fd);
+            ck(cudaHostRegister(hy, ymap, cudaHostRegisterMapped), "register y");
+            ck(cudaHostGetDevicePointer((void **)&hy_d, hy, 0), "map y");
+        } else { cudaHostAlloc((void **)&hy, yb, cudaHostAllocMapped); cudaHostGetDevicePointer((void **)&hy_d, hy, 0); }
         std::vector<cudaGraphExec_t> ga(copies), gb(copies);
         for (int variant = 0; variant < 2; variant++) for (int c = 0; c < copies; c++) {
             const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
@@ -960,7 +972,8 @@ static int kbench_x() {
         for (auto g : ga) cudaGraphExecDestroy(g);
         for (auto g : gb) cudaGraphExecDestroy(g);
         for (auto p : dW) dfree(p);
-        dfree(dx); cudaFreeHost(hx); cudaFreeHost(hy);
+        dfree(dx); cudaFreeHost(hx);
+        if (y_shm) { cudaHostUnregister(hy); munmap(hy, ymap); } else cudaFreeHost(hy);
     }
     return 0;
 }
