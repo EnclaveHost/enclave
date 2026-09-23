@@ -8,8 +8,8 @@ def expect(ok, what):
     global checks, fails; checks += 1
     if not ok: fails += 1; print('FAIL', what)
 
-def stat(pid, comm, ppid, ticks, start):
-    f = ['S', str(ppid)] + ['0'] * 9 + [str(ticks), '0'] + ['0'] * 6 + [str(start)]
+def stat(pid, comm, ppid, ticks, start, reaped=0):
+    f = ['S', str(ppid)] + ['0'] * 9 + [str(ticks), '0', str(reaped)] + ['0'] * 5 + [str(start)]
     return f'{pid} ({comm}) ' + ' '.join(f)
 
 def run(procs_at, times, win, toks=10, hz=100, ps_line=lambda t: 'PS ok 400'):
@@ -21,7 +21,7 @@ def run(procs_at, times, win, toks=10, hz=100, ps_line=lambda t: 'PS ok 400'):
             f.write(f'T {t:.2f} 0\n'); f.write(f'cpu  {int(t * 400)} 0 0 {int(t * 400)} 0 0 0 0 {int(t * 300)} 0\n')
             for p in procs_at(t):
                 if p[3] == 'GONE': f.write(f'P {p[0]} {p[1]} {p[2]} | GONE\n')
-                else: f.write(f'P {p[0]} {p[1]} {p[2]} | {stat(p[0], p[3], p[1], p[4], p[5])}\n')
+                else: f.write(f'P {p[0]} {p[1]} {p[2]} | {stat(p[0], p[3], p[1], p[4], p[5], p[6] if len(p) > 6 else 0)}\n')
             if ps_line(t): f.write(ps_line(t) + '\n')
         f.write('END\n')
     a, b = win
@@ -93,6 +93,17 @@ rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=lambda t: 'PS ok 0')
 expect(rc == 1 and 'INCOMPLETE' in out, 'an EMPTY process table is not a successful read: ' + out)
 rc, out = run(lambda t: chain(t)[:2], T, (5.0, 15.0))
 expect(rc == 1 and 'no VM process' in out, 'the app seen but its VM never seen: INCOMPLETE: ' + out)
+# sampler v2: fast KNOWN samples between full scans every 2 s -> COMPLETE; scans 5 s apart -> INCOMPLETE
+full_every = lambda period: (lambda t: 'PS ok 400' if abs((t - 1) / period - round((t - 1) / period)) < 1e-6 else 'PS known 3')
+rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=full_every(2.0))
+expect(rc == 0 and '41.50 core-s' in out, 'known-pid samples between 2 s scans: COMPLETE: ' + out)
+rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=full_every(5.0))
+expect(rc == 1 and 'scans were up to' in out, 'full scans 5 s apart through the window: INCOMPLETE: ' + out)
+def reaping(t):   # virtmgr reaps a short-lived child mid-window: its cutime grows by 2.00 core-s
+    ps = chain(t); v = list(ps[1]); v.append(200 if t >= 10 else 0); ps[1] = tuple(v); return ps
+rc, out = run(reaping, T, (5.0, 15.0))
+expect(rc == 1 and 'reaped children using 2.00 core-s' in out, 'a child that lived between scans is detected via cutime: ' + out)
+
 # the SAMPLER itself, run on this host with a fake ps: a failed enumeration is written as PS FAILED, never as an empty sample
 import time
 SAMPLER = os.path.join(H, '..', 'cpu-sampler.sh')
@@ -107,4 +118,5 @@ o = sampler('exit 3\n')
 expect('PS FAILED' in o and 'PS ok' not in o and o.rstrip().endswith('END'), 'the sampler marks a failed ps as PS FAILED: ' + o[-200:])
 o = sampler(f'echo "  PID  PPID   UID NAME"; echo "  {os.getpid()}  1  {os.getuid()} me"; echo "  1 0 0 init"\n')
 expect(f'P {os.getpid()} 1 me | {os.getpid()} (' in o and 'PS ok 3' in o, 'a good table: the uid row with its stat, then PS ok with the row count: ' + o[-300:])
+expect('PS known 1' in o and o.count('PS ok 3') >= 2, 'between scans the sampler re-reads the known pid (PS known), and scans again at the end: ' + o[-300:])
 print(f"{'PASS' if not fails else 'FAIL'}: {checks} checks, {fails} failures"); sys.exit(1 if fails else 0)

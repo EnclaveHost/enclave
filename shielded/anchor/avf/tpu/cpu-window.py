@@ -37,7 +37,10 @@ def parse_samples(path):
             # so it is not added again (summing all ten counted the VM's vCPUs twice: "10.31 cores busy" on 8 cores)
             cur['cpu'] = (sum(f[:8]), f[3] + (f[4] if len(f) > 4 else 0))     # total, idle + iowait
         elif line.startswith('PS ') and cur is not None:
-            f = line.split(); cur['ps'] = 'ok' if f[1] == 'ok' and len(f) > 2 and f[2].isdigit() and int(f[2]) > 1 else 'failed'
+            f = line.split()
+            if f[1] == 'ok' and len(f) > 2 and f[2].isdigit() and int(f[2]) > 1: cur['ps'] = 'ok'          # a full table scan
+            elif f[1] == 'known' and len(f) > 2 and f[2].isdigit(): cur['ps'] = 'known'                    # the last scan's pids only
+            else: cur['ps'] = 'failed'
         elif line.startswith('P ') and cur is not None:
             head, _, stat = line.partition(' | ')
             _, pid, _ppid, name = head.split(None, 3)
@@ -46,7 +49,8 @@ def parse_samples(path):
             comm = stat[stat.index('(') + 1:stat.rindex(')')]
             f = stat[stat.rindex(')') + 2:].split()
             # f[0]=state f[1]=ppid ... utime=f[11] stime=f[12] starttime=f[19]
-            cur['procs'][(int(pid), int(f[19]))] = dict(ppid=int(f[1]), name=name, comm=comm, ticks=int(f[11]) + int(f[12]))
+            cur['procs'][(int(pid), int(f[19]))] = dict(ppid=int(f[1]), name=name, comm=comm, ticks=int(f[11]) + int(f[12]),
+                                                        reaped=int(f[13]) + int(f[14]))                  # cutime + cstime
     return samples
 
 
@@ -73,7 +77,7 @@ def interp(t, pts):
     return pts[-1][1]
 
 
-def window_cpu(samples, a, b, app, hz, max_gap):
+def window_cpu(samples, a, b, app, hz, max_gap, scan_gap=3.0):
     notes = []; ts = [s['t'] for s in samples]
     if not samples or a < ts[0] or b > ts[-1]:
         return None, ['the window is not inside the sampled interval']
@@ -82,15 +86,26 @@ def window_cpu(samples, a, b, app, hz, max_gap):
         if ts[j] - ts[i] > max_gap: notes.append(f'the samples around the window {name} are {ts[j] - ts[i]:.2f} s apart (> {max_gap})')
     # Coverage of the process table itself: every sample that bears on the window must say its enumeration succeeded.
     near = [s for s in samples if a - max_gap <= s['t'] <= b + max_gap]
-    bad = [s for s in near if s['ps'] != 'ok']
+    bad = [s for s in near if s['ps'] not in ('ok', 'known')]
     if bad:
         notes.append(f"the process table was not recorded or not read in {len(bad)} of {len(near)} samples around the window "
                      f"(first at {bad[0]['t']:.2f}: {'no PS line' if bad[0]['ps'] is None else 'PS FAILED'})")
-    roots = set(); series = {}; names = {}
+    # a KNOWN sample only re-reads the pids of the last full scan, so a process that appears between scans is seen at
+    # the next one; the scans themselves must be frequent enough around and through the window
+    scans = [s['t'] for s in samples if s['ps'] == 'ok']
+    before = [t for t in scans if t <= a]; inside = [t for t in scans if a < t < b]; after = [t for t in scans if t >= b]
+    if not before or not after:
+        notes.append('no full process-table scan before the window start or after its end')
+    else:
+        pts = [before[-1]] + inside + [after[0]]
+        worst = max(t1 - t0 for t0, t1 in zip(pts, pts[1:]))
+        if worst > scan_gap: notes.append(f'full process-table scans were up to {worst:.2f} s apart through the window (> {scan_gap})')
+    roots = set(); series = {}; names = {}; reaped = {}
     for s in samples:
         own = owned(s, app, roots)
         for k in own:
             series.setdefault(k, []).append((s['t'], s['procs'][k]['ticks'])); names[k] = s['procs'][k]['name']
+            reaped.setdefault(k, []).append((s['t'], s['procs'][k]['reaped']))
         in_window = a <= s['t'] <= b
         for pid, name in s['gone']:
             if in_window and (name == app or any(k[0] == pid for k in series)):
@@ -129,6 +144,12 @@ def window_cpu(samples, a, b, app, hz, max_gap):
         else:
             vb = interp(b, pts)
         d = (vb - va) / hz; total += d; per[names[k]] = per.get(names[k], 0.0) + d
+        # a child that lived and died between two scans is invisible to the samples, but its parent's cutime/cstime
+        # (children it reaped) grows: then some owned CPU was never observed
+        rp = [(t, v) for t, v in reaped[k] if a - max_gap <= t <= b + max_gap]
+        if rp and rp[-1][1] > rp[0][1]:
+            notes.append(f'{names[k]} (pid {k[0]}) reaped children using {(rp[-1][1] - rp[0][1]) / hz:.2f} core-s around the window; '
+                         'a process that lived between scans was not observed')
         for edge in (a, b):   # the CPU in the interval bracketing each edge bounds the interpolation error
             for (t0, v0), (t1, v1) in zip(pts, pts[1:]):
                 if t0 <= edge <= t1: edge_err += (v1 - v0) / hz
@@ -142,7 +163,7 @@ def window_cpu(samples, a, b, app, hz, max_gap):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('samples'); ap.add_argument('capture')
     ap.add_argument('--hz', type=int, default=100); ap.add_argument('--app', default='host.enclave.anchor.avf')
-    ap.add_argument('--max-gap', type=float, default=1.0)
+    ap.add_argument('--max-gap', type=float, default=1.0); ap.add_argument('--scan-gap', type=float, default=3.0)
     A = ap.parse_args()
     samples = parse_samples(A.samples); cap = open(A.capture, errors='replace').read()
     wins = re.findall(r'LOCAL turn (\d+) window boottime_ms start=(\d+) first=(-?\d+) end=(\d+)', cap)
@@ -151,7 +172,7 @@ def main():
     rc = 0
     for n, s0, f0, e0 in wins:
         toks = int(stats.get(n, 0)); a = (int(f0) if int(f0) >= 0 else int(s0)) / 1000.0; b = int(e0) / 1000.0
-        r, notes = window_cpu(samples, a, b, A.app, A.hz, A.max_gap)
+        r, notes = window_cpu(samples, a, b, A.app, A.hz, A.max_gap, A.scan_gap)
         if r is None:
             print(f'cpu turn {n}: UNMEASURED -- ' + '; '.join(notes)); rc = 1; continue
         state = 'COMPLETE' if not notes else 'INCOMPLETE (a lower bound)'
