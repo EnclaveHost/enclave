@@ -4007,3 +4007,79 @@ that requires `.json`, `.err` and `.meta` and every field it reads, so an
 unknown observer, correctness or contamination state is a reject. The
 previous `pairs.py` accepted a copied clean run with NO `.meta` (reproduced);
 it now delegates to the validator, and the runner prints VALID only from it.
+
+### 18.32 The GPU side, measured decode-only: the kernel is at the floor, the cards differ, and the pinning penalty was pads
+
+18.31 estimated the GPU term from connection totals. This measures it.
+
+**The kernel alone** (`--kbench27`, diagnostic build only: the 27B's decode
+exchanges as one card of the column split sees them, Y in mapped host memory
+as the ring reply is, clocks warmed first):
+
+| per card, one pass (12.81 GB) | m=1 | m=2 | of peak HBM |
+|---|---|---|---|
+| card 0, Tesla PG500-216 (HBM 1107 MHz, ~1134 GB/s) | 14.07 ms | 14.77 ms | 80% / 76% |
+| card 1, Tesla V100-PCIE (HBM 877 MHz, ~898 GB/s) | 16.50 ms | 17.26 ms | 87% / 83% |
+
+- The planner's G is within 1.5% of the best forced G on every shape. There is
+  no block-shape lever. The first bench showed the planner up to 20% slower
+  than the same plan forced; that was the clock ramping after an idle gap,
+  timed first, and it vanished once the clocks were warmed.
+- Rotating the weights over 12 GB (TLB and DRAM-page reach of the real pass)
+  and idling the card 130 us between launches (the real gap) together cost 3%.
+- Running both cards at once equals running each alone: no shared-link or
+  host-side contention between them.
+- **The two cards are not the same part.** Card 0's HBM is 26% faster, and on
+  every decode pass card 1 is 17% slower. That is the static half of the join.
+  An ideal split would be ~54/46, worth ~1.3 ms/pass, and card 0 has 6% memory
+  headroom; 18.31's 52/48 was within noise for that reason.
+- Both cards are on PCIe 3.0 **x8**. The planes upload fits 6.4 us + 6.7 GB/s.
+  An SM pull kernel in place of the copy-engine upload is byte-identical and
+  saves only on `down` (-2.8 us card 0, -6.7 card 1): ~0.3 ms/pass. Not taken.
+
+**The worker in the real run** (per-exchange rows from the diagnostic worker,
+which now records ring exchanges too; m read from each request's size, so the
+rows are decode-only). Card 0, verify (m=2): worker service 102.8 us per
+exchange = upload 13.8 + kernel ~68 + launch call 13.8 + the rest; a tight
+loop of the same graphs costs ~72 us. Pinning the worker processes to their own
+cores did not move their service time (100.5 us), so the worker is not starved.
+
+Per verify round the worker is busy ~28 ms and the TEE side between exchanges
+~56 ms (mean gap 204 us). **Two thirds of the round is the TEE side.** That is
+the same wall 18.30 found from the other end.
+
+**Why pinning did not pay: it starved the pad refill.** Every pinned run missed
+pads (10-12, with 265-442 ms minted on the calling thread); every unpinned run
+missed none. The misses fall at the start of spec decode, when prefill has
+drained the pools, and one lm_head pad minted on path is 25-37 ms. That is the
+draft penalty exactly: the draft's mask window was 80.1 ms pinned against 2.6
+unpinned, and the mask window is where an on-path mint is timed. The refill
+threads are burst capacity, and pinning left them four fewer logical CPUs
+to burst on.
+
+**Waiting for reserved pads does not rescue it.** `SHIELDED_PAD_WAIT_US=30000`
+waits for pads a refill thread has already reserved. A/B, 4 valid pairs,
+unpinned default against pinned engine + pinned workers + pad wait: pinned
+faster in 1 of 4 (-0.26, -1.67, +1.50, -1.01 tok/s). Every pinned arm still
+missed 8-14 pads and spent 268-331 ms waiting before minting them anyway;
+every unpinned arm missed none. Placement is closed on this box: the code
+stays, opt-in and off by default, and the default layout is the best one
+measured.
+
+**The handoff is not the loss either.** In the same diagnostic run the TEE's
+publish-to-reply is 111.2 us per exchange and the worker's service 102.8: the
+ring notice both ways and the reply bytes are ~8 us. Rotating 257 distinct
+graph executables (production's count) instead of a few adds 1-3 us. In
+production the worker's service is ~86 us against the tight loop's ~72; that
+14 us is not located.
+
+**Speculation depth is not a lever** (checked, not re-run): 15.4 and 16.x
+measured k=2 below k=1, because each drafted row costs a full CPU pass. Here
+verify at m=2 is ~21 ms over plain m=1, so k=2 would be ~2.24 tokens per
+~105 ms round.
+
+What is left, each measured and each small: the in-situ worker gap (~3.9
+ms/round), the mask kernel's in-situ gap (~2), the card imbalance (~1.3 at
+54/46 if memory allowed it), the `down` pull kernel (~0.3). Together ~7.5
+ms/round against a ~81 ms round -- ~24 tok/s if all of it were recovered, so
+not 25 by themselves.
