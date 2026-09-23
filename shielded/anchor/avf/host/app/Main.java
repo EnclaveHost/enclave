@@ -1036,6 +1036,8 @@ public class Main extends Activity {
      *  boundary reaches 34-42 MB/s, and the question of whether that boundary scales per connection could
      *  not be answered by comparing two averages taken over different windows. */
     static void benchLink(Object vm, int which) {
+        /* the exchange-shaped round trips must meet a responder scheduled like the real TPU worker (URGENT_AUDIO, TpuWorker) */
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
         ParcelFileDescriptor pfd = connect(vm, BENCH_PORT, 200);
         if (pfd == null) { say("LINKBENCH " + which + ": could not connect"); return; }
         try {
@@ -1047,6 +1049,14 @@ public class Main extends Activity {
                 int n = 0;
                 while (n < 4) { int r = in.read(hdr, n, 4 - n); if (r <= 0) { say("LINKBENCH " + which + ": closed after " + total + " bytes"); return; } n += r; }
                 long count = (hdr[0] & 255L) | ((hdr[1] & 255L) << 8) | ((hdr[2] & 255L) << 16) | ((hdr[3] & 255L) << 24);
+                if ((count & 0x80000000L) != 0) {   // exbench.h: an exchange-shaped round trip -- read the request whole, then reply
+                    count &= 0x7fffffffL; int m = 0;
+                    while (m < 4) { int r = in.read(hdr, m, 4 - m); if (r <= 0) { say("LINKBENCH " + which + ": closed mid-request"); return; } m += r; }
+                    long req = (hdr[0] & 255L) | ((hdr[1] & 255L) << 8) | ((hdr[2] & 255L) << 16) | ((hdr[3] & 255L) << 24);
+                    while (req > 0) { int r = in.read(buf, 0, (int) Math.min(req, buf.length)); if (r <= 0) { say("LINKBENCH " + which + ": closed mid-request"); return; } req -= r; }
+                    int rep = (int) count; if (rep > buf.length) { byte[] big = new byte[rep]; out.write(big, 0, rep); } else out.write(buf, 0, rep);
+                    out.flush(); total += rep; continue;
+                }
                 while (count > 0) { int w = (int) Math.min(count, buf.length); out.write(buf, 0, w); count -= w; total += w; }
                 out.flush();
             }

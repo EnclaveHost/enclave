@@ -34,6 +34,7 @@
 #include "chacha4_check.h"
 #include "anchor_pins.h"
 #include "anchor_public_file.h"
+#include "exbench.h"
 #include "anchor_model_cache.h"   /* the model stage's retained-model decision (cache=only): pure, host-fixtured */
 #include "anchor_names.h"
 #include "anchor_gguf.h"
@@ -1058,6 +1059,23 @@ static void tpu_link_bench(int want) {
             a / b, (double)have);
     else
         OUT("LOCAL linkbench: medians could not be formed from %d pairs", res.n);
+    /* The exchange-SHAPED sweep (exbench.h), on the first benchmark link: request/reply round trips sized like the lane's
+     * digit-split exchanges -- per row ~7.4 KB out and ~24.5 KB back (qc7: 1039 and 3432 KB per token over 140) -- with no
+     * TPU and no pads. R rows, up then back down so drift lands on both; with and without 800 us of busy work before each
+     * (the lane's VM works ~0.6-0.9 ms between exchanges); replies read with read()s (the lane) or one MSG_WAITALL. */
+    {
+        static const int rows[] = { 1, 2, 4, 8, 16, 16, 8, 4, 2, 1 };
+        for (int w = 0; w < 2; w++) for (int g = 0; g < 2; g++) for (unsigned k = 0; k < sizeof rows / sizeof *rows; k++) {
+            const int R = rows[k]; exbench_stat st; long reads = 0;
+            if (exbench_run(fd[0], (size_t)R * 7424, (size_t)R * 24512, 100, g ? 800 : 0, w, &st, &reads) != 0) {
+                OUT("LOCAL exbench: ABANDONED at R=%d gap=%d waitall=%d (a round trip failed; the stream cannot be resynchronised)", R, g ? 800 : 0, w);
+                w = 2; g = 2; break;
+            }
+            OUT("LOCAL exbench R=%d gap_us=%d waitall=%d: %d round trips, min %.3f med %.3f p90 %.3f mean %.3f ms, %.2f reads per reply "
+                "(request %d B, reply %d B; TRANSPORT ONLY, no TPU, no mask)", R, g ? 800 : 0, w, st.n, st.min_ms, st.med_ms, st.p90_ms, st.mean_ms,
+                (double)reads / st.n, R * 7424, R * 24512);
+        }
+    }
     for (int i = 0; i < have; i++) close(fd[i]);
     close(ls);
 }
