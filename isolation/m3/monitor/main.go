@@ -167,6 +167,7 @@ type monitor struct {
 	basePrt uint32
 	baseUID int
 
+	vmpl     int           // the privilege level this guest runs at, as the kernel reports it
 	report   reporter      // the hardware path, or a stand-in under test
 	tsmMu    sync.Mutex    // one configfs entry at a time
 	reports  chan struct{} // global admission for report work
@@ -197,7 +198,17 @@ func main() {
 
 	cl, err := vsock.Listen(uint32(*control))
 	must(err)
-	fmt.Printf("MON ready control_port=%d snp=%v\n", *control, m.snp)
+	// Which privilege level are we? On a plain SNP guest this is 0. Under an SVSM at VMPL0 it reads 1, 2
+	// or 3, and THAT is the evidence that something more privileged than this monitor holds VMPL0 — the
+	// whole point of the VMPL work. It is printed unconditionally so a harness can assert it.
+	if m.snp {
+		if lvl, err := m.tsmLevel(); err == nil {
+			m.vmpl = lvl
+		} else {
+			fmt.Printf("MON WARN could not read this guest's privilege level: %v\n", err)
+		}
+	}
+	fmt.Printf("MON ready control_port=%d snp=%v vmpl=%d\n", *control, m.snp, m.vmpl)
 	slots := make(chan struct{}, maxControlConns)
 	for {
 		c, err := cl.Accept()
@@ -905,6 +916,29 @@ func peerUID(c net.Conn) (int, error) {
 	return int(cred.Uid), nil
 }
 
+// tsmLevel asks the kernel which privilege level this guest runs at. configfs-tsm exposes
+// `privlevel_floor`: the lowest level this guest may request a report for, which is its own VMPL (the
+// kernel will not let a guest speak for a level more privileged than itself). The attribute only exists
+// when the provider supports levels at all, so a missing file is an answer too.
+func (m *monitor) tsmLevel() (int, error) {
+	m.tsmMu.Lock()
+	defer m.tsmMu.Unlock()
+	dir := fmt.Sprintf("/sys/kernel/config/tsm/report/level%d", time.Now().UnixNano())
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return 0, err
+	}
+	defer os.Remove(dir)
+	b, err := os.ReadFile(dir + "/privlevel_floor")
+	if err != nil {
+		return 0, fmt.Errorf("privlevel_floor: %w", err)
+	}
+	lvl, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		return 0, fmt.Errorf("privlevel_floor %q: %w", b, err)
+	}
+	return lvl, nil
+}
+
 // tsmReport asks the PSP through configfs-tsm. One entry per request, used under a lock, so an outblob
 // always belongs to the inblob just written. No domain can reach this: /sys is not in any domain's
 // mount namespace.
@@ -916,6 +950,14 @@ func (m *monitor) tsmReport(rd []byte) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 	defer os.Remove(dir)
+	// Ask for the report at the level we actually run at, rather than letting it default. A verifier is
+	// told which level to expect and refuses anything else (relay/snp-verify.mjs expectedVmpl), so the
+	// two have to agree deliberately.
+	if m.vmpl > 0 {
+		if err := os.WriteFile(dir+"/privlevel", []byte(strconv.Itoa(m.vmpl)), 0); err != nil {
+			return nil, nil, fmt.Errorf("privlevel %d: %w", m.vmpl, err)
+		}
+	}
 	if err := os.WriteFile(dir+"/inblob", rd, 0); err != nil {
 		return nil, nil, err
 	}

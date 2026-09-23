@@ -139,6 +139,8 @@ out('doc_key_matches_handshake', a1.doc.transportKey === a1.spki.toString('base6
 const j1 = await judge(a1.doc, a1.spki, n1, want);
 for (const s of j1.reasons) console.log(`evidence: ${s}`);
 if (j1.measurement) { out('measurement', j1.measurement); out('report_data', j1.reportData); }
+out('expected_vmpl', want.expectedVmpl ?? 0);
+if (j1.vmpl !== undefined) out('report_vmpl', j1.vmpl);
 if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');

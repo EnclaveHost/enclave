@@ -56,7 +56,8 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   const report = Buffer.from(doc.report, 'base64');
   let p;
   try { p = parseSnpReport(report); } catch (e) { return out('reject', [`unparseable report: ${e.message}`]); }
-  const extra = { measurement: p.measurement.toString('hex'), reportData: p.reportData.toString('hex') };
+  const extra = { measurement: p.measurement.toString('hex'), reportData: p.reportData.toString('hex'),
+    vmpl: p.vmpl };   // which privilege level the report came from, so a caller can show it, not just pin it
   const auxblob = doc.certs ? Buffer.from(doc.certs, 'base64') : vcek ? vcekTable(vcek) : null;
   const v = await verifyQuote(report, {
     challenge: nonce, transportKeySpki: handshakeSpki, allowedMeasurements: [measurement], auxblob, kds,
