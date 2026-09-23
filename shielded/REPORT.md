@@ -4083,3 +4083,48 @@ ms/round), the mask kernel's in-situ gap (~2), the card imbalance (~1.3 at
 54/46 if memory allowed it), the `down` pull kernel (~0.3). Together ~7.5
 ms/round against a ~81 ms round -- ~24 tok/s if all of it were recovered, so
 not 25 by themselves.
+
+### 18.33 Where the main thread actually is, the left side of the thread curve, and the ceiling
+
+**Sampled, not estimated.** `eu-stack` on the bench's main thread through a
+whole diagnostic run (N=256; the process opts in to tracing with
+`PR_SET_PTRACER_ANY` from a preloaded constructor, since yama allows only
+ancestors otherwise; ~13 samples/s, so +-4% per bucket at 157 plain-decode
+samples). Plain decode, share of the main thread:
+
+| | share |
+|---|---|
+| shielded link: waiting for the reply (spin; the Freivalds rhs overlaps it) | 35% |
+| CPU ops (C), of which ~30% is OpenMP barrier / team-start wait | 28% |
+| split join + post | 10% |
+| unmask 7%, mask kernel 6%, Freivalds 4.5%, encode 4%, range check 1% | 22% |
+| framework (graph build, scheduler, sampling) | **~1%** |
+
+The "framework ~5.6 ms/token" of 18.28 was a residual, and the residual was
+wrong: the main thread is almost never in llama.cpp's own code.
+
+**Fewer decode threads do not pay** (16.2's sweep started at 8; 18.14 noted
+the left side was never measured). Three rounds, arm order rotated, all nine
+runs valid: 6 threads faster in 1 of 3 pairs (mean -0.30 tok/s), 4 threads in
+1 of 3 (mean -0.98). 8 stays.
+
+**The ceiling this leaves.** Every lever measured since 18.30, with what a
+perfect version would return:
+
+| lever | measured size | status |
+|---|---|---|
+| in-situ worker gap (service ~86 us vs tight loop ~72) | ~3.9 ms/round | not located |
+| mask kernel in-situ gap (1.07 vs 0.26 ns/elem, ~2x unexplained) | ~2 ms/round | not located |
+| card imbalance (card 1 17% slower HBM) at an ideal 54/46 | ~1.3 ms/pass | blocked: card 0 has 6% memory headroom while the bench holds two contexts per card |
+| SM pull kernel for `down` | ~0.3-0.4 ms/pass | byte-identical, not taken |
+| thread placement | 0 (pad refill starves) | closed |
+| split rebalance 52/48, decode threads 6/4, pad wait, yield | 0 | closed |
+| kernel block shape (G) | <1.5% | closed |
+| speculation depth k=2 | negative | closed (15.4) |
+
+Recovering ALL of the open rows takes a ~81 ms round to ~73.5: 1.778 tokens
+per round is ~24 tok/s. That is the measured ceiling of everything identified,
+and it is below 25 before any of it is built. The remaining large terms are
+the GPU kernel (at 76-87% of HBM peak on x8 links), C (synchronisation- and
+bandwidth-bound on tiny ops, 18.14) and the TEE link arithmetic that masking
+and verification require.
