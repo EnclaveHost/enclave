@@ -4705,3 +4705,45 @@ round near 71 ms. What grows with each verified row -- the CPU ops outside the
 link (~32 ms/round at m=2 against ~18 per plain token) and the per-row link work
 -- is the term to attack, and the candidates measured so far each recover a few
 percent of it at most.
+
+### 18.49 Corrections to 18.47, an open quality gap, and the op that scales with rows
+
+**Corrections to 18.47 (audit).**
+- The unmasked CPU-only run shows that speculative and plain decoding diverge at
+  baseline (token 72): batch-shape floating-point effects exist in llama.cpp
+  without any shielding. It does NOT show that the masked run's divergence at
+  token 320 has no shielding contribution. The shielded products are exact
+  integers, but everything downstream of them (descale, the CPU ops, the
+  sampler) runs on values that differ from the unmasked run's, and no
+  controlled per-op or per-logit comparison between the two paths has been
+  made. The causal statement "not because of anything the shielding does" is
+  withdrawn; what is established is only that a baseline divergence exists.
+- The claim that task quality was "measured at parity in the TPU comparison"
+  cited a different model and platform (Gemma 4 E2B on the Pixel lane) and
+  cannot validate the Qwen 27B shielded encoding. **No model-matched quality
+  evaluation of the 27B's int8 shielded encoding exists in this record**
+  (searched: this report, HANDOFF-27B.md, README.md); the handoff itself names
+  the encoding's quality risk as needing "an eval, not a norm check". That gap
+  is OPEN.
+- The 512-token campaign runs (rep-1..20, all rc=3 "text differs") stay invalid
+  for any throughput acceptance. Their raw evidence is kept in the scratchpad:
+  plain-token hash de03ea03 in all 20, first divergence at token 320 in all 20;
+  the unmasked run's plain hash 8c5b7e6c, divergence at token 72.
+
+**Which op makes a verify round cost ~1.46x a plain step.** The op profiler now
+also splits every op's time by the node's row count (1 = plain step or draft,
+2 = verify). Two clean runs (20.39 and 19.35 tok/s, both valid, box confirmed
+free by the peer session):
+
+| op | us/call at 1 row | at 2 rows | ratio |
+|---|---|---|---|
+| GATED_DELTA_NET | 76.4 / 70.4 | 162.4 / 155.6 | **2.13 / 2.21** |
+| MUL_MAT (CPU part) | 12.3 / 11.5 | 15.2 / 14.0 | 1.24 / 1.22 |
+| SSM_CONV_STATE | 32.4 / 30.5 | 33.8 / 33.3 | 1.04 / 1.09 |
+| RMS_NORM | 6.9 / 5.9 | 7.2 / 6.6 | 1.04 / 1.12 |
+
+The recurrent op is the one CPU op whose cost doubles with the verify's second
+row; the others are nearly flat. 18.36's argument that a second token's state
+sweep would be L2-hot and cheap was wrong: the per-token loop over every state
+row, not DRAM traffic, dominates. That makes the recurrent op, not bandwidth,
+the target for the verify round.
