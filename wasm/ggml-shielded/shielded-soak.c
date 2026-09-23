@@ -17,10 +17,19 @@
  * encoding's lane; activations are small enough that no true product leaves
  * the field, so any rejection is a transport, worker or link fault, never a
  * wrap. Every exchange is Freivalds-checked by the link (the check the engine
- * relies on); one in --exact-every is also compared value by value against a
- * local int64 product. A rejection retires the link as in production; the
- * soak logs it (the link's post-mortem line classifies the corruption),
- * reopens a fresh link and continues, so one run can count several.
+ * relies on); the exact check (value by value against a local int64 product)
+ * is STRATIFIED: every (shape, m) cell keeps its own counter and is checked on
+ * every --exact-every-th exchange OF THAT CELL, so all four shapes at both m
+ * are sampled at the same rate. (The first version counted exchanges across
+ * the A B C D cycle, and with a period divisible by 4 every exact check fell
+ * on D.) The per-cell counts are printed, and --schedule-selftest runs the
+ * same selection with no worker and fails unless every cell is checked.
+ * A rejection retires the link as in production; the soak logs it (the link's
+ * post-mortem line classifies the corruption), reopens a fresh link and
+ * continues, so one run can count several.
+ *
+ * A clean soak is evidence about the paths it exercised, for as long as it
+ * ran. It does not show a fault is unreachable.
  *
  *   shielded-soak --port 9601 --shm /dev/shm/enclave-shielded-shm/card-0 --seconds 1800
  *
@@ -46,6 +55,39 @@ static ex_t ex[4] = {
     {5120, 2, {8704, 8704}, "gate|up"},
     {17408, 1, {2560}, "down"},
 };
+
+/* Exact-check selection: the ONE function both the soak and its scheduling
+ * selftest use. cell_n[e][m] counts exchanges of shape e at m rows; the
+ * exchange is checked when its cell's count (after incrementing) is a
+ * multiple of every. */
+static uint64_t cell_n[4][3], cell_checked[4][3];
+static int exact_due(int e, int m, int every) {
+    const uint64_t n = ++cell_n[e][m];
+    const int due = every > 0 && n % (uint64_t)every == 0;
+    if (due) cell_checked[e][m]++;
+    return due;
+}
+static void print_cells(FILE *f) {
+    fprintf(f, "soak: exact checks per cell (shape x m):");
+    for (int e = 0; e < 4; e++) for (int mm = 1; mm <= 2; mm++)
+        fprintf(f, " %s/m%d=%llu of %llu", ex[e].name, mm, (unsigned long long)cell_checked[e][mm], (unsigned long long)cell_n[e][mm]);
+    fprintf(f, "\n");
+}
+
+/* The pass loop's scheduling, with no worker: same shape order, same random m
+ * per pass, same selection. Fails unless every (shape, m) cell got checked. */
+static int schedule_selftest(int every, uint64_t passes) {
+    for (uint64_t p = 0; p < passes; p++) {
+        const int m = 1 + (int)(nxt() & 1);
+        for (int e = 0; e < 4; e++) (void)exact_due(e, m, every);
+    }
+    print_cells(stdout);
+    int ok = 1;
+    for (int e = 0; e < 4; e++) for (int mm = 1; mm <= 2; mm++) if (!cell_checked[e][mm]) ok = 0;
+    printf(ok ? "schedule-selftest: PASS -- every shape at both m is exact-checked\n"
+              : "schedule-selftest: FAIL -- some (shape, m) cell is never exact-checked\n");
+    return ok ? 0 : 1;
+}
 
 static sh_link *open_link(const char *host, int port, const char *shm, uint64_t reserve, int refill) {
     int err = SH_OK;
@@ -83,6 +125,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--exact-every")) exact_every = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--seed")) rng = strtoull(argv[++i], NULL, 0) | 1;
     }
+    for (int i = 1; i < argc; i++)
+        if (!strcmp(argv[i], "--schedule-selftest")) return schedule_selftest(exact_every, 100000);
     int Kmax = 0, Nmax = 0;
     for (int e = 0; e < 4; e++) {
         if (ex[e].K > Kmax) Kmax = ex[e].K;
@@ -121,7 +165,7 @@ int main(int argc, char **argv) {
                 if (!l) return 3;
                 continue;
             }
-            if (exact_every > 0 && n_ex % (uint64_t)exact_every == 0) {
+            if (exact_due(e, m, exact_every)) {
                 n_exact++;
                 for (int i = 0; i < ex[e].n; i++)
                     for (int r = 0; r < m; r++)
@@ -146,8 +190,10 @@ int main(int argc, char **argv) {
                     t - t_start, (unsigned long long)n_ex, n_ex / (t - t_start), (unsigned long long)n_by_m[1],
                     (unsigned long long)n_by_m[2], (unsigned long long)n_rej, (unsigned long long)n_other,
                     (unsigned long long)n_exact, (unsigned long long)n_exact_bad);
+            print_cells(stderr);
         }
     }
+    print_cells(stderr);
     const double dt = now_s() - t_start;
     printf("{\"seconds\":%.0f,\"exchanges\":%llu,\"m1\":%llu,\"m2\":%llu,\"rejections\":%llu,\"other_errors\":%llu,"
            "\"exact_checks\":%llu,\"exact_bad\":%llu,\"port\":%d}\n",

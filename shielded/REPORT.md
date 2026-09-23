@@ -4287,3 +4287,40 @@ between exchanges. The next soak adds GPU contention on the same card to make
 the detector fire for real. The first attempt at it died at start when the
 per-user /tmp quota filled (another session's 23 GB of scratch, not this
 run's); it is being rerun.
+
+### 18.38 Correction to 18.37: the exact checks covered one shape
+
+An independent audit of 8d7e47f1 found that the soak's exact checks all fell
+on one shape. The soak chose them with `n_ex % 256 == 0`, counting exchanges
+across the A B C D cycle, and 256 is a multiple of 4, so every one of the
+45,764 exact checks was a `down` (D) exchange. A, B and C were never compared
+value by value. What 18.37 establishes, restated to what was measured:
+
+- **Freivalds covered all four shapes at both m**: 11.7 M exchanges, zero
+  rejections. That is the check the engine relies on, and it stands.
+- **The exact checks cover `down` only**: 45,764 of them, all correct, at m=1
+  and m=2 (m is random per pass, so both occurred).
+- **Neither shows the fault is unreachable.** A finite clean soak is evidence
+  about the paths it exercised for as long as it ran. At production's apparent
+  rate a clean run of this length is unlikely if the soak exercised the faulty
+  path, which is what makes it informative, but it proves nothing about the
+  conditions it lacked (yield activations, many graphs, m=17, link restarts,
+  CPU contention) and bounds the rest only statistically.
+
+The sampling is now stratified: each (shape, m) cell keeps its own counter and
+is checked on every Nth exchange of that cell, and the soak prints per-cell
+checked/total counts. `shielded-soak --schedule-selftest` runs the soak's own
+selection with no worker and fails unless every cell is checked;
+`test/shielded-soak-schedule` runs it at the default period and at periods
+that are multiples of the cycle (the case that broke the first version), and
+checks that a period of 0 fails.
+
+**The yield soak** (run with the old sampling, recorded with that limitation):
+card 0 alone, 30 minutes, an intermittent GPU competitor on the same card
+(~30 s of kernels, ~30 s idle) so the worker's yield detector fired for real.
+**4.19 M exchanges, 67 yield activations (44.5 s spent yielding), zero
+rejections**; 16,350 exact checks all correct, all on `down`. Slow replies from
+a yielding worker do not by themselves reproduce the fault under soak
+conditions. That leaves, of the production-only conditions 18.37 listed: many
+distinct graphs, m=17 prefill exchanges and lm_head, link restarts, and CPU
+contention between exchanges.
