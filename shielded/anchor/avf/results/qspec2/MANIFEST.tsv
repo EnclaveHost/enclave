@@ -1,0 +1,30 @@
+# expect_rows	24
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256 extra=--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128
+# prompts_sha256	fc78e6314b33359a80f601c3cd4d8f24955a1395a5fe2136d77a274547c7eb5f
+# driver_sha256	3be31241e56c50ec62c9db028b261d1430a7bbb57b20859868b5a90c82b30933 (frozen copy: driver/tpu/lane-run2.sh)
+# coolgate_sha256	382957034daef246d005879e59ff96e58feeb9e658c4107ed256c6b683b7c893
+# id	label	status	rc	prompt	expect
+01	qs2-01	ok	0	What is the capital of France? Reply with only the city name.	exact=Paris
+02	qs2-02	ok	0	What is 17 times 23? Reply with only the number.	numeric=391
+03	qs2-03	ok	0	List the first ten prime numbers. Reply with only the numbers separated by commas.	sequence=2,3,5,7,11,13,17,19,23,29
+04	qs2-04	ok	0	Name three countries in South America. Reply with only the three names separated by commas.	exactset=3:Brazil,Argentina,Peru,Chile,Colombia,Bolivia,Ecuador,Uruguay,Paraguay,Venezuela,Guyana,Suriname
+05	qs2-05	ok	0	What is the boiling point of water at sea level in Celsius? Reply with only the number.	numeric=100
+06	qs2-06	ok	0	Write a Python function called reverse_string that returns its argument reversed. Give only the code.	pyfunc=reverse_string|abc->cba|racecar->racecar|ab cd->dc ba|->|x->x
+07	qs2-07	ok	0	Write a haiku about rain.	review=three lines, roughly 5-7-5, about rain
+08	qs2-08	ok	0	Explain in two sentences why the sky is blue.	review=must ASSERT Rayleigh scattering of shorter wavelengths, not merely mention it
+09	qs2-09	ok	0	What is 144 divided by 12? Reply with only the number.	numeric=12
+10	qs2-10	ok	0	What is the chemical symbol for gold? Reply with only the symbol.	exact=Au
+11	qs2-11	ok	0	How many sides does a hexagon have? Reply with only the number.	numeric=6
+12	qs2-12	ok	0	List the first six Fibonacci numbers starting from 1. Reply with only the numbers separated by commas.	sequence=1,1,2,3,5,8
+13	qs2-13	ok	0	What is the capital of Japan? Reply with only the city name.	exact=Tokyo
+14	qs2-14	ok	0	Name the four cardinal directions. Reply with only the four words separated by commas.	exactset=4:North,South,East,West
+15	qs2-15	ok	0	What is 2 to the power of 10? Reply with only the number.	numeric=1024
+16	qs2-16	ok	0	How many days are in a leap year? Reply with only the number.	numeric=366
+17	qs2-17	ok	0	What is the largest planet in the solar system? Reply with only the planet name.	exact=Jupiter
+18	qs2-18	ok	0	List the squares of the first five positive integers. Reply with only the numbers separated by commas.	sequence=1,4,9,16,25
+19	qs2-19	ok	0	What is the freezing point of water in Fahrenheit? Reply with only the number.	numeric=32
+20	qs2-20	ok	0	What is 15 percent of 200? Reply with only the number.	numeric=30
+21	qs2-21	ok	0	What is the smallest prime number? Reply with only the number.	numeric=2
+22	qs2-22	ok	0	Write a Python function called count_vowels that returns how many of the letters a, e, i, o, u appear in its argument. Give only the code.	pyfunc=count_vowels|hello->2|xyz->0|aeiou->5|->0
+23	qs2-23	ok	0	Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.	pyfunc=shout|hi->HI!|abc->ABC!|->!
+24	qs2-24	ok	0	Name the three states of matter taught in school. Reply with only the three words separated by commas.	exactset=3:Solid,Liquid,Gas
