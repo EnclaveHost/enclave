@@ -494,10 +494,31 @@ can make the monitor do is bounded — authenticated before its bytes are parsed
 admitted under a global and a per-domain limit — so a tenant cannot move memory or work into the
 privileged component that serves every other domain.
 
+**M3b is done and measured (2026-09-23), on the KVM-planes kernel `7.2.0-gbf5bafed3e6d`.** Full
+`isolation/m3/m3b-verify.sh`: ALL STAGES PASSED, with no environment overrides.
+
+- **The hardware boundary.** COCONUT-SVSM holds VMPL0; our monitor and its domains run at VMPL2. Every SNP
+  guest reports `tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused` in exactly one coherent record, the same tuple
+  reaches every trusted client inside the attestation document over the domain's attested TLS, and the signed
+  report agrees at `report_vmpl=2`. The adversary, lifecycle, resource and parity checks all still hold
+  beneath the SVSM, and M1, M2 and M3a pass unchanged on the new kernel.
+- **Launch identity.** The digest `igvmmeasure` derives from the IGVM being launched equals the measurement in
+  the guests' signed reports (`62b4a946...`). This required moving the VMSA into guest memory
+  (coconut-svsm/svsm PR #1209, VMSA at `0x08FFF000` in the SVSM's measured kernel range) so QEMU takes the
+  direct-VMSA path; on the legacy path KVM synthesises and measures its own VMSA per vCPU and no predictor can
+  match. Entirely userspace: no kernel change, and the stock kit QEMU suffices.
+- **What it is NOT.** Still not app-vs-app isolation by hardware: inside our plane, domains are separated by
+  the guest kernel, and per-app separation needs one plane per app with `vmpl_count=4` capping that at three.
+  And the VMPL0 refusal remains the measured monitor's own word - the PSP does not attest the absence of a
+  capability - worth relying on only because that code is inside a measurement a verifier can now derive, and
+  because it fails closed.
+
+Details, artefact hashes and the exact rebuild in `isolation/m3/PLAN.md` section 16.
+
 Status: M3a done; M3b (the VMPL boundary) needs a host kernel and VMM and is Steven's call.
 
 
-## 13. Windows: the same guest, one Hyper-V partition per app (2026-09-23)
+## 14. Windows: the same guest, one Hyper-V partition per app (2026-09-23)
 
 The T2 row of section 2 now has a second shape beside the shared VBS enclave: **our own control plane
 over Hyper-V child partitions**, one per app, running the *same* m3 monitor image as the Linux path on the

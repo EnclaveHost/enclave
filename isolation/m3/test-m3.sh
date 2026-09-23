@@ -90,8 +90,22 @@ pred=$(sed -n 's/^predicted measurement: //p' "$W/build.txt")
 # of every trusted client failing on the allowlist. Be clear what that is worth: it is TRUST-ON-FIRST-USE.
 # It establishes that every guest reported the same measurement, NOT that we can derive what they ought to
 # report. Check 1 says so out loud when it is used.
+# Under IGVM the launch measurement IS derivable, but not by sev-snp-measure: the authority is igvmmeasure
+# reading the very IGVM being launched. That is the whole difference between acceptance and trust-on-first-use,
+# so it is computed here rather than supplied. The kit's own (unpatched) igvmmeasure computes it correctly with
+# `measure -b`; only --check-kvm needed the PR-1209 change, and this does not pass it.
+IGVMMEASURE=${IGVMMEASURE:-$HOME/.cache/enclave-isolation/svsmkit/svsm/bin/igvmmeasure}
 EXPECT_MEAS=${EXPECT_MEAS:-}
-want_meas=${EXPECT_MEAS:-$pred}
+derived_meas=""
+if [ -z "$EXPECT_MEAS" ] && [ -n "$IGVM" ] && [ -x "$IGVMMEASURE" ]; then
+  # lower-cased: igvmmeasure prints upper-case hex, the client reports the report's bytes in lower case
+  derived_meas=$("$IGVMMEASURE" "$IGVM" measure -b 2>/dev/null | tr -d ' \r\n' | tr 'A-F' 'a-f')
+  case "$derived_meas" in
+    [0-9a-f]*) : ;;
+    *) echo "WARN could not derive a digest from $IGVM with $IGVMMEASURE" >&2; derived_meas="" ;;
+  esac
+fi
+want_meas=${EXPECT_MEAS:-${derived_meas:-$pred}}
 shaA=$(sha256sum "$W/app-AAAAA.wasm" | cut -c1-64)
 shaB=$(sha256sum "$W/app-BBBBB.wasm" | cut -c1-64)
 
@@ -235,6 +249,11 @@ if [ -n "$EXPECT_MEAS" ]; then
   echo "evidence: the expected digest was SUPPLIED, not derived: $EXPECT_MEAS (sev-snp-measure predicted $pred, which does not apply under IGVM)"
   [ "$mA" = "$EXPECT_MEAS" ] && [ "$m2m" = "$EXPECT_MEAS" ] && r=ok || r=no
   check "1 measurement matches the SUPPLIED digest in both launches -- TRUST-ON-FIRST-USE, not an independently derived expectation, so it does NOT show this image could be recognised from its inputs" $r
+elif [ -n "$derived_meas" ]; then
+  echo "evidence: the expected digest was DERIVED by igvmmeasure from the launched IGVM $IGVM: $derived_meas"
+  echo "evidence: derived with $IGVMMEASURE (sev-snp-measure predicted $pred, which does not apply under IGVM)"
+  [ "$mA" = "$derived_meas" ] && [ "$m2m" = "$derived_meas" ] && r=ok || r=no
+  check "1 measurement DERIVED from the shipped IGVM by igvmmeasure equals the live signed report in both launches -- launch identity, not trust-on-first-use" $r
 else
   [ -n "$pred" ] && [ "$mA" = "$pred" ] && [ "$m2m" = "$pred" ] && r=ok || r=no
   check "1 measurement reproducible: live == predicted, both launches" $r
@@ -447,6 +466,10 @@ elif [ -n "$EXPECT_MEAS" ]; then
   echo "M3a: all checks pass, but NOT ACCEPTANCE: the launch measurement was SUPPLIED via EXPECT_MEAS"
   echo "  supplied: $EXPECT_MEAS"
   echo "  Trust-on-first-use. An allowlist built from this would only repeat a value it was given."
+elif [ -n "$derived_meas" ]; then
+  echo "M3a: ALL PASS"
+  echo "  launch identity: the digest igvmmeasure DERIVED from $IGVM equals the live signed report"
+  echo "  derived: $derived_meas"
 else
   echo "M3a: ALL PASS"
 fi
