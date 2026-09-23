@@ -61,6 +61,7 @@
 #include "bundlemagic.h"
 #include "tpu_corr.h"
 #include "tpu_unmask_span.h"
+#include "tpu_sample.h"
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
@@ -89,6 +90,7 @@ struct group {
     std::deque<pad> bank; std::mutex bank_mu; size_t minting = 0; bool fast = false;   /* fast: the batched integer minter's bounds hold */
     /* one exchange serves every projection of the group; the others read it here (keyed by the input's storage) */
     const void *cache_src = nullptr; uint32_t cache_rows = 0, served = 0; std::vector<std::vector<float>> cache;
+    tpu_sampler smp;   /* which output is verified and which exchange is self-checked: per group, secret (tpu_sample.h) */
 };
 struct state {
     std::vector<group *> groups; std::unordered_map<std::string, std::pair<group *, int>> by_name;
@@ -438,14 +440,14 @@ static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t
     g_cj.next.store(0, std::memory_order_relaxed); g_cj.done = 0; g_cj.pending = true; g_cj.gen++;
     g_cj.cv_go.notify_all();
 }
-static void unmask_post(group &g, const std::vector<pad> &pads, uint32_t rows) {
+static void unmask_post(group &g, const std::vector<pad> &pads, uint32_t rows, const std::vector<uint32_t> &jvs) {
     std::unique_lock<std::mutex> lk(g_cj.mu);
     g_uj.g = &g; g_uj.pads = &pads; g_uj.rows = rows; g_uj.acc = ggml_backend_tpu_stats_t{}; g_uj.rail_recomp = 0;
     g_uj.rx_p.assign(g.projs.size(), nullptr); g_uj.jv.assign(g.projs.size(), 0); g_uj.first_unit.assign(g.projs.size(), 0);
     const int16_t *rx = S().rxbuf.data(); size_t u = 0;
     for (size_t p = 0; p < g.projs.size(); p++) {
         g_uj.rx_p[p] = rx; rx += (size_t)2 * rows * g.projs[p].n_out;
-        g_uj.jv[p] = kVerifyKernel ? (uint32_t)(S().st.exchanges % g.projs[p].n_out) : UINT32_MAX;
+        g_uj.jv[p] = jvs[p];
         g_uj.first_unit[p] = u; u += (g.projs[p].n_out + kCorrChunk - 1) / kCorrChunk;
     }
     g_uj.units = u; g_cj.g = &g; g_cj.rows = rows; g_cj.kind = 1;
@@ -608,24 +610,32 @@ void exchange(group &g, const float *x, uint32_t rows) {
     const int64_t c2 = thread_cpu_us();
     /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
     uint64_t rail_recomp_add = 0;
+    /* The sampled output per projection and the self-check decision, stratified per group and secret to the VM
+     * (tpu_sample.h: the global exchange counter aliased with the 140-exchange pass and was public). */
+    if (!g.smp.ready) {
+        std::vector<uint32_t> n; for (const proj &pr : g.projs) n.push_back(pr.n_out);
+        if (!tpu_sampler_init(g.smp, n, [] { uint64_t v; fill_random(&v, sizeof v); return v; })) {
+            TPU_LOG("blk.%d kind %d: could not set up the verification sampler; refusing\n", g.layer, g.kind); abort(); }
+    }
+    std::vector<uint32_t> jvs(g.projs.size());
+    for (size_t p = 0; p < g.projs.size(); p++) jvs[p] = kVerifyKernel ? tpu_sample_jv(g.smp, p, g.projs[p].n_out) : UINT32_MAX;
     if (s_digit_split) {
         /* unmask_digit_span holds the per-element body. With helpers for the correction (corr_threads >= 2) the same
          * helpers unmask in parallel -- each chunk's y lines are the ones it just corrected -- and the counters merge;
          * with one helper it runs here, in order, as the serial reference (y is bit-identical either way). */
         if (ct && corr_threads() >= 2) {
-            /* SELF-CHECK on every 16th exchange: the serial reference runs on a copy of the same corrected cache with the
+            /* SELF-CHECK on the first and every 16th exchange of each (group, rows) cell: the serial reference runs on a copy of the same corrected cache with the
              * same reply and pads, and the parallel result must match it byte for byte (a digest across runs cannot
              * prove this: the TPU's rounding depends on the pad, which is fresh per run). */
-            const bool check = (s.st.exchanges % 16) == 0;
+            const bool check = tpu_sample_selfcheck(g.smp, rows, 16);
             std::vector<std::vector<float>> before; if (check) before = g.cache;
-            unmask_post(g, pads, rows); corr_join();
+            unmask_post(g, pads, rows, jvs); corr_join();
             stats_merge(s.st, g_uj.acc); rail_recomp_add = g_uj.rail_recomp;
             if (check) {
                 std::vector<std::vector<float>> parallel_y = g.cache; g.cache = before;
                 const int16_t *rxs = s.rxbuf.data(); ggml_backend_tpu_stats_t scratch{}; uint64_t scratch_rr = 0;
                 for (size_t p = 0; p < g.projs.size(); p++) {
-                    const uint32_t jv = kVerifyKernel ? (uint32_t)(s.st.exchanges % g.projs[p].n_out) : UINT32_MAX;
-                    unmask_digit_span(g, pads, rows, p, rxs, 0, g.projs[p].n_out, jv, scratch, scratch_rr, /*replay=*/true);
+                    unmask_digit_span(g, pads, rows, p, rxs, 0, g.projs[p].n_out, jvs[p], scratch, scratch_rr, /*replay=*/true);
                     rxs += (size_t)2 * rows * g.projs[p].n_out;
                 }
                 s.st.unmask_check_n++;
@@ -639,8 +649,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
         } else {
             const int16_t *rx = s.rxbuf.data(); ggml_backend_tpu_stats_t A{};
             for (size_t p = 0; p < g.projs.size(); p++) {
-                const uint32_t jv = kVerifyKernel ? (uint32_t)(s.st.exchanges % g.projs[p].n_out) : UINT32_MAX;
-                unmask_digit_span(g, pads, rows, p, rx, 0, g.projs[p].n_out, jv, A, rail_recomp_add);
+                unmask_digit_span(g, pads, rows, p, rx, 0, g.projs[p].n_out, jvs[p], A, rail_recomp_add);
                 rx += (size_t)2 * rows * g.projs[p].n_out;
             }
             stats_merge(s.st, A);
@@ -673,6 +682,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     }
     }
     rail_recomp += rail_recomp_add;
+    tpu_sample_advance(g.smp, rows);
     const int64_t t3 = now_us(); s.st.unmask_cpu_us += (uint64_t)(thread_cpu_us() - c2);
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2); s.st.unmask_hist[hist_bin(t3 - t2)]++;

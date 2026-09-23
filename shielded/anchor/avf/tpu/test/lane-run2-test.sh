@@ -67,11 +67,15 @@ echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main }"
 EOF
 cat > "$W/bin/fakeadb" <<'EOF'
 #!/usr/bin/env bash
+# install -r <apk>: "installs" by copying (FAKE_INSTALL_FAIL: refused; FAKE_INSTALL_CORRUPT: the stored copy differs)
+if [ "${1:-}" = install ]; then [ -n "${FAKE_INSTALL_FAIL:-}" ] && exit 1
+  cp "$3" "$FAKE_HOME/installed.apk" || exit 1; [ -n "${FAKE_INSTALL_CORRUPT:-}" ] && printf x >> "$FAKE_HOME/installed.apk"; exit 0; fi
 [ "${1:-}" = shell ] || exit 0
 shift
 case "$*" in *"$FAKE_ADB_FAIL_ON"*) [ -n "${FAKE_ADB_FAIL_ON:-}" ] && exit 255;; esac
 PATH="$FAKE_STUBS:$PATH" bash -c "$*"
 EOF
+printf '#!/bin/sh\n[ "$1" = path ] && [ -e "$FAKE_HOME/installed.apk" ] && echo "package:$FAKE_HOME/installed.apk"\nexit 0\n' > "$W/stubs/pm"
 chmod +x "$W/stubs"/* "$W/bin/fakeadb"
 
 run() {   # run <label> [VAR=value ...] -> sets RC and OUT
@@ -130,8 +134,18 @@ rm -rf "$W/home" "$W/lc"; mkdir -p "$W/home/files/capture"
 printf 'lc-1\ta\t\nlc-2\tb\t--ei threads 2\nlc-3\tc\t\n' > "$W/conds.tsv"
 OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 ASK="Say hi." \
       bash "$HERE/lane-conditions.sh" "$W/lc" "$W/conds.tsv" 2>&1)
-ck "lane-conditions runs every condition" "$(grep -c $'\tok\t0$' "$W/lc/RUNS.tsv")" 3
+ck "lane-conditions runs every condition" "$(grep -c $'\tok\t0\t-$' "$W/lc/RUNS.tsv")" 3
 ck "... and freezes the CPU tools beside the driver" "$(ls "$W/lc/driver/tpu" | tr '\n' ' ')" "cpu-sampler.sh cpu-window.py lane-run2.sh "
+# the APK column: installed and hashed on the device before the run; a failed install or a stored copy that is not the
+# local file fails THAT run without starting it, and the others still run
+printf 'apk-good' > "$W/a.apk"; A_SHA=$(sha256sum "$W/a.apk" | cut -d' ' -f1)
+lc_apk() { rm -rf "$W/home" "$W/lca"; mkdir -p "$W/home/files/capture"; printf 'la-1\ta\t\t%s\nla-2\tb\t\n' "$W/a.apk" > "$W/conds.tsv"
+  OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 ASK="Say hi." "$@" \
+        bash "$HERE/lane-conditions.sh" "$W/lca" "$W/conds.tsv" 2>&1); }
+lc_apk; ck "an APK row installs, is hashed on the device and runs" "$(grep -c "^la-1"$'\t'"a"$'\t\tok\t0\t'"$A_SHA\$" "$W/lca/RUNS.tsv")" 1
+lc_apk FAKE_INSTALL_FAIL=1; ck "a failed install fails that run (97) without starting it" "$(grep -c $'^la-1\ta\t\tfailed\t97\t' "$W/lca/RUNS.tsv")/$( [ -e "$W/lca/la-1.driver" ] && echo started || echo not-started)" "1/not-started"
+ck "... and the next condition still runs" "$(grep -c $'^la-2\tb\t\tok\t0\t-$' "$W/lca/RUNS.tsv")" 1
+lc_apk FAKE_INSTALL_CORRUPT=1; ck "an installed copy that differs from the local APK fails that run" "$(grep -c $'^la-1\ta\t\tfailed\t97\t' "$W/lca/RUNS.tsv")" 1
 ASK_='Say hi.'; run cpuonly GRAPHS=none FAKE_CPU_ONLY=1; ck "GRAPHS=none: a CPU-only run with no TPU records passes" "$RC" 0
 run cpuonly-tpu GRAPHS=none; ck "GRAPHS=none but the capture shows a TPU worker: refused" "$RC" 1
 run tpu-no-counters FAKE_CPU_ONLY=1; ck "a TPU run without TPU records: refused" "$RC" 1

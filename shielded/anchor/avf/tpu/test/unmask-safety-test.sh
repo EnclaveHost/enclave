@@ -14,4 +14,9 @@ grep -q '/\*replay=\*/true' "$G" || { echo "FAIL: the self-check does not replay
 # (fx_activation fixtures, never user data), which is what "confined to a synthetic-only test" allows
 grep -n 'y_digest\|y digest' "$H/payload/ggml-tpu.cpp" "$H/payload/ggml-tpu.h" "$H/payload/engine_local.cpp" "$H/payload/tpu_unmask_span.h" "$H/payload/tpu_corr.h" \
   && { echo "FAIL: a digest of unmasked outputs is back in the TPU lane"; fail=1; }
+# the samplers must be the stratified, VM-secret ones (tpu_sample.h, sample-cover-test.cpp), never the global exchange
+# counter again: 140 exchanges per pass aliased it onto kind 0 and one residue mod 4 of every projection
+grep -n 'exchanges % ' "$G" && { echo "FAIL: a sampler keys on the global exchange counter again"; fail=1; }
+grep -q 'tpu_sample_selfcheck(g.smp, rows, 16)' "$G" && grep -q 'tpu_sample_jv(g.smp, p' "$G" && grep -q 'tpu_sample_advance(g.smp, rows);' "$G" \
+  || { echo "FAIL: the backend does not drive the stratified sampler"; fail=1; }
 [ $fail = 0 ] && echo "unmask-safety: PASS" || echo "unmask-safety: FAIL"; exit $fail
