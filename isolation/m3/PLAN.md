@@ -132,7 +132,7 @@ default. 36/36 verifier tests pass.
 
 ## 6. Milestones
 
-**M3a — no host change, buildable now.** *The smallest useful milestone is M3a-1.*
+**M3a — no host change. BUILT AND MEASURED, 2026-09-23 (section 10).**
 
 - **M3a-1 (smallest useful): a domain whose identity comes from a monitor, not from the launch digest.**
   One stock SNP guest, monitor as PID 1, one app domain under it. The monitor loads the app over a host
@@ -150,7 +150,7 @@ default. 36/36 verifier tests pass.
   two builds of the SVSM from the same commit give the same `igvmmeasure` digest. Disk-bounded: the
   /tmp quota is shared with other sessions.
 
-**M3b — needs a host kernel and VMM, i.e. Steven's decision.** Run COCONUT-SVSM at VMPL0 with our domain
+**M3b — needs a host kernel and VMM, i.e. Steven's decision. Not started.** Run COCONUT-SVSM at VMPL0 with our domain
 image at VMPL2 on the `svsm-v7.2` branches, and move the M3a monitor's report path behind the plane
 boundary. Prerequisites, all of which are the blocked part: build and install kernel + QEMU from those
 branches, and boot the box on them. The honest framing for that decision: warden-host also carries the
@@ -211,3 +211,55 @@ Each is pass/fail with its own evidence, in the style of `test-m1.sh` and `test-
 - Local, measured on warden-host 2026-09-23: CPUID `Fn8000_001F`; `/usr/include/linux/kvm.h`;
   `/proc/kallsyms`; `qemu-system-x86_64 -object help` and `-machine q35,help`; `sev-snp-measure --help`;
   `rustup target list`; `ld --version`.
+
+## 10. M3a results: measured on warden-host, 2026-09-23
+
+`isolation/m3/test-m3.sh`, three boots of one monitor image (s1: SNP, two domains; s2: SNP, one domain;
+t1: plain KVM, two domains). **ALL PASS, 18 checks.** EPYC 9115, kernel 7.2.3, QEMU 11.1.1, Go 1.27.0,
+2 vCPUs and 1 GiB per guest. Another session's GPU work shared the machine, so the timings are noisy.
+
+**The identity change works, which was the point.**
+
+| what | evidence |
+|---|---|
+| the app is **not** in the launch measurement | two different apps in one guest, and a different mix in a second launch, all report the same digest `62dbc936…`, equal to the prediction from the image alone. M1's equivalent check showed a *different* digest per app |
+| the **monitor** names each app | domain A's report carries `report_data[32:64]` = sha256(app A), domain B's = sha256(app B), from the hashes the monitor took when it loaded them |
+| both domains are **attested** | AMD chain to the pinned Turin root, the VCEK naming this chip and TCB, the TCB meeting the supplied test floor, and the key the client's own handshake saw bound to its nonce |
+| a client cannot be fooled about which app it reached | a client expecting app B is rejected by the domain running app A, and sends it nothing |
+| the report interface is the monitor's alone | a root process inside a domain that is not a registered domain is refused a report; the monitor identifies callers by the socket's kernel credentials, and the request has no field naming an app |
+
+**Serving, per domain:** each domain serves its own app on its own port and its own TLS key, 4 x 16 MiB
+echoed intact, and the host relayed 134 MB of ciphertext for domain A with no plaintext marker in it.
+TLS ends inside the domain, so the monitor relays bytes it cannot read.
+
+**Separation, guest-kernel (WEAKER than VMPL, and named that way in the check itself):** each domain's
+workloads run as their own uid, see no `/sys`, no configfs and no other domain's tree, see only their own
+three processes, and both domains serve on `127.0.0.1:8080` at once without colliding or reaching each
+other. Each gets its own cgroup share: the same work took 2,209 ms at `cpu.max` 100% and 8,735 ms at 25%
+(**3.95x**). Destroying a domain stops its port answering and removes it from the monitor's table.
+
+**Cost, and this is the payoff:**
+
+| | M2 (one CVM per app) | M3a (domains in one CVM) |
+|---|---|---|
+| starting app N+1 | a whole guest: **3.4 s** | load -> serving: **5-13 ms** |
+| host memory for app N+1 | **+586 MB** (another SNP guest) | **0** — 1,125 MB with one domain and 1,125 MB with two, because SNP pins the guest's RAM at launch |
+| request latency p50 / p99 | 0.31 / 0.71 ms | 0.38 / 0.92 ms |
+| echo throughput | 576 MB/s | 800-1,032 MB/s (2 vCPUs here vs 1) |
+
+So a domain is three orders of magnitude cheaper to start than a guest, and free in host memory until the
+guest itself must grow — at the cost of a weaker app-vs-app boundary, which is exactly the trade M3b
+would remove for up to three domains.
+
+**Two defects the first run caught, both fixed:**
+- `domexec`'s credential probe printed `GRANTED` when it got **no answer**. The monitor had refused
+  correctly (its own log said so), but a read that timed out was being reported as a granted report. A
+  security check must never read silence as success; it now distinguishes `refused`, `no-answer` and
+  `GRANTED`, and only a reply actually carrying a report counts as the last.
+- The measurement was predicted for 1 vCPU while the guest booted with 2, so every trusted client
+  rejected on the allowlist. The vCPU count is part of a domain's identity (M1 section 7); the harness
+  now predicts and boots with the same number.
+
+**Not established here:** hardware separation between domains (that is M3b, and it is capped at three
+domains per guest by `vmpl_count=4`); anything about VMPL; a right-sized guest (1 GiB was chosen for
+headroom, not measured as a minimum).
