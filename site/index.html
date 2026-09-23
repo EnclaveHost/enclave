@@ -240,7 +240,7 @@
 
     <div class="iso-honest">
       <h4>What we do <u>not</u> claim</h4>
-      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation has been demonstrated in the lab and is under review, not shipped. <a href="architecture#protection">Every level, with its mechanism and its evidence →</a></p>
+      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation, one confidential guest per app, has been demonstrated and rechecked in the lab; it is not shipped, and the denser one-plane-per-app shape is still being built. <a href="architecture#protection">Every level, with its mechanism and its evidence →</a></p>
     </div>
   </div>
 </section>
@@ -259,7 +259,7 @@
 <section id="pricing" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Pricing">
   <div class="wrap">
     <c-section-head eyebrow="Pricing" heading="Metered per second. Pay as you go.">
-      <p>Deploying is <b>two dials</b>, what you rent, and <b>two rates</b>, what you pay. Prepaying buys runtime by the second; the deployment runs until that time is used up, and you top up to extend it. Payments convert straight into runtime, a paid app's publisher share goes straight to the publisher, and payments are final. Unspent time stays on the deployment's public record (stop now, resume later) but is not withdrawable, so fund in small top-ups. The rates below are the ledger's list rates; a host may post its own, and the store shows the rate of the host your deployment would land on.</p>
+      <p>Deploying is <b>two dials</b>, what you rent, and <b>two rates</b>, what you pay. Prepaying buys runtime by the second; the deployment runs until that time is used up, and you top up to extend it. Payments convert straight into runtime, a paid app's publisher share goes straight to the publisher, and payments are final. Unspent time stays on the deployment's public record (stop now, resume later) but is not withdrawable, so fund in small top-ups. The rates below are the ledger's list rates; a host may post its own, and the store shows the rate of the host your deployment would land on. A GPU share can only be bought while a GPU host is attached, and <a href="architecture#fleet">the live fleet panel</a> is the authority on that.</p>
     </c-section-head>
 
     <div class="price-grid">
@@ -318,12 +318,12 @@
       <div class="card jade">
         <span class="tag">available</span>
         <h3>In use today</h3>
-        <p>Wasm apps on the confidential Linux fleet · GPU inference inside the confidential VM · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier.</p>
+        <p>Wasm apps on confidential Linux hosts · GPU inference inside the confidential VM, on GPU hosts · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier. Which hosts are attached right now is a live panel, not a promise: <a href="architecture#fleet">see what is serving</a>.</p>
       </div>
       <div class="card amber">
         <span class="tag">experimental</span>
         <h3>Built, measured, not yet yours to pick</h3>
-        <p>A domain contract shared by every backend · per-app hardware isolation inside the confidential VM, demonstrated in the lab and under review · a Hyper-V partition per app on Windows · shielded inference on GPUs the enclave does not trust, running on one self-hosted server · permissionless host attach behind a published allowlist.</p>
+        <p>A domain contract shared by every backend · per-app hardware isolation inside the confidential VM, one guest per app, demonstrated in the lab and independently rechecked · a Hyper-V partition per app on Windows · shielded inference on GPUs the enclave does not trust, run on one self-hosted server · permissionless host attach behind a published allowlist.</p>
       </div>
       <div class="card">
         <span class="tag">planned</span>
