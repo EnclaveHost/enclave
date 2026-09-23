@@ -1,6 +1,6 @@
 # Native per-app isolation: one execution model across ordinary and TEE hardware
 
-Status: DRAFT design; milestone 1 implemented and passing on warden-host (2026-09-22, section 8). This page marks which parts are **measured**,
+Status: DRAFT design; milestones 1 and 2 implemented and passing on warden-host (2026-09-22, sections 8 and 11). This page marks which parts are **measured**,
 which are **source-based** (documentation or code we read, not run), and which are **proposals**. Only the
 first kind is a result.
 
@@ -99,13 +99,16 @@ A verifier accepts a domain only if all of these hold:
    from those inputs.
 3. `report_data` binds the report to this app and this challenge. **M1 (implemented):** the 64 bytes are
    app sha256 (32) || verifier nonce (32). The nonce reaches the guest via fw_cfg, deliberately unmeasured:
-   on the kernel command line it would change the launch digest on every boot. **Proposed for serving
-   domains:** replace the app half with sha256 of an in-domain transport key, as metal0 does, so the
-   report also vouches for the TLS key traffic terminates on.
+   on the kernel command line it would change the launch digest on every boot. **M2 serving domains
+   (implemented, section 10):** `[0:32]` = sha256(TLS key SPKI DER || verifier nonce), the binding
+   metal0 serves and `relay/snp-verify.mjs` checks, and `[32:64]` = app sha256 as in M1. The report then
+   also vouches for the TLS key traffic terminates on, and the nonce arrives per request, not per boot.
 4. Policy: debug off, VMPL0 for the domain's own report, and an acceptable TCB version.
 
 Known lab limit: this box's chip_id has no VCEK published by AMD KDS (recorded with metal0), so **(1)
-cannot be completed on warden-host**. M1 tests (2) and (3) and reports (1) as not tested here. T0 has no
+cannot be completed on warden-host**. M1 tests (2) and (3) and reports (1) as not tested here. M2's
+client therefore refuses every report from this box in its trusted default. Its `--lab-unsigned`
+diagnostic checks (2) to (4) and labels the result `unauthenticated`, never `attested` (section 10). T0 has no
 hardware attestation, and the platform must say so rather than present a T0 domain as attested.
 
 ## 6. What exists and is reused
@@ -185,6 +188,7 @@ What these results do and do not establish:
 
 - **M2 serving:** the domain exposes one port (virtio-vsock or virtio-net), terminates TLS inside, and
   binds the TLS key into report_data. This is what turns a domain into a platform deployment.
+  Implemented: sections 10 and 11.
 - **M2 cost:** a size-matched guest RAM and a minimal kernel config. Measure launch time and memory peak
   against M1.
 - **AOT vs JIT, measured:** precompiled native code inside the measured initramfs vs JIT at start. Compare
@@ -193,3 +197,178 @@ What these results do and do not establish:
 - **VMPL domains:** one CVM with a trusted monitor and apps at lower VMPLs. Needs KVM planes support,
   built or adopted.
 - **T0+:** the pKVM-style monitor for non-TEE x86, the literal Linux "VBS-like" component.
+
+## 10. Milestone 2: a serving domain, on T0 and T1
+
+M1's domain ran a command and powered off. M2 makes it a deployment: the domain serves one port for
+the life of a lease, TLS ends inside it, and the attestation report vouches for the TLS key. Same lab
+host, same unprivileged interfaces, same measured launch inputs (`isolation/m1/domain.env`).
+
+Design choices, with the reason for each:
+- **The one port is vsock, and the domain has no NIC.** `vhost-vsock-pci` is the domain's only device
+  besides the serial console. The domain then has no network stack facing anything but the host's vsock,
+  no IP configuration, and no egress by construction. The host maps a TCP port onto the domain's vsock
+  port 443, the Nitro Enclaves shape. `/dev/vhost-vsock` is usable without root here. Devices are not in
+  the SNP launch digest, so adding one does not change the domain's identity. Under SNP, QEMU turns on
+  `iommu_platform` for virtio by itself, so the guest bounces vsock traffic through shared memory.
+- **TLS ends in a small static front, not in the app or the runtime.** `m2/front` (Go, standard library
+  only, built `-trimpath` and byte-reproducible) mints a P-256 key in guest memory at start and writes
+  it nowhere. It terminates TLS 1.3 on vsock, answers `GET /.well-known/enclave-attestation?nonce=<64 hex>`
+  itself, and passes everything else as plaintext on the guest's loopback to the app under
+  `wasmtime serve`. The app is an ordinary wasi:http component and needs no TLS code. The front issues no
+  session tickets, so every connection does a full handshake and shows the key.
+- **report_data** (section 5): `[0:32]` = sha256(SPKI DER || nonce), `[32:64]` = app sha256. The first half
+  is exactly what `relay/snp-verify.mjs` checks for metal0, so the platform's verifier checks a domain's
+  report without change. The front also returns the configfs-tsm `auxblob` (the VCEK table) when the host
+  supplied one. It proves nothing by itself: the verifier chains the VCEK to AMD's pinned root.
+
+### The verdict, and the gate it opens
+
+One function, `m2/judge.mjs`, decides what a client may conclude. The client and the negative tests
+both call it, so the rule that is tested is the rule that runs.
+
+| verdict | meaning |
+|---|---|
+| `attested` | a T1 report whose AMD signature chain (VCEK -> ASK -> pinned ARK) verified, and whose policy, VMPL, measurement, key binding and app naming check out |
+| `unauthenticated` | the same field checks pass, but the chain did not verify. Nothing authenticates the fields: a host could have written every one of them |
+| `not-attested` | a T0 domain, which has no hardware report |
+| `reject` | anything else |
+
+| client mode | verdicts that open the gate |
+|---|---|
+| trusted (the default) | `attested` only |
+| `--lab-unsigned` | `attested`, `unauthenticated`. The explicit diagnostic for a chip with no VCEK at AMD KDS, like this one |
+| `--t0-diagnostic` | `not-attested` only. The explicit, untrusted T0 path: its pin is trust-on-first-use |
+
+**A closed gate sends no application request at all.** `m2/client.mjs`:
+1. fetches the document with a fresh nonce and takes the server key from that connection's TLS
+   handshake, never from the document's `transportKey` field. Before a verdict, that GET and its nonce
+   are the only traffic;
+2. judges it, and stops with exit 3 if the mode does not open the gate for that verdict;
+3. pins the judged key **at the handshake**. The client's HTTPS agent builds each socket itself and hands
+   it to a request only after the handshake has finished and the key matched, so no application byte is
+   ever queued on a socket with the wrong key. This covers reconnects. One mismatch trips a latch that
+   refuses every later connection, and the client exits 4.
+
+The first version of this client failed an independent audit (2026-09-22) on exactly these two
+points. It printed `attested` for a report whose AMD chain was not verified. It also checked the pin
+only after a response came back, and it sent application requests after a `reject`. Both are fixed as
+above, and each has a test below.
+
+**Found along the way, in shared code.** `relay/snp-verify.mjs` passed the VCEK's public key to
+`createPublicKey()`, which Node refuses for a public key object (`ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE`).
+Every report that arrived with a VCEK therefore failed as a "cert-chain verification error" before its
+signature was checked. That failed closed, but no report could ever verify through this code, the
+relay's attestation-gated attach included. No test covered it: every existing test ran
+`requireVcek: false` with no VCEK. Fixed, with `test/snp-vcek-signature.test.mjs`. Against the old code 2
+of its 3 cases fail. With the fix, a report signed by a host-made "VCEK" gets past the signature and is
+refused at the pinned chain, and a byte changed after signing is refused on the signature.
+
+Still open in the verifier, not introduced by M2: section 5 point 4 asks for an acceptable TCB version,
+and `relay/snp-verify.mjs` enforces no minimum TCB and does not compare the VCEK's TCB and hwID
+extensions with the report. A genuine VCEK signs only its own chip's reports, so this is not a forgery
+path. It is the missing TCB-policy half of point 4.
+
+### Code (`isolation/m2/`)
+
+- `app/`: the test app, a wasi:http component. `POST /echo` streams the body back; anything else
+  answers `APP <label> path=<path>`.
+- `dominit.c`: PID 1. It loads the vsock transport (and the report interface under SNP), brings up
+  loopback, starts `wasmtime serve` and the front, and powers off if either exits.
+- `front/`, `vsock/`, `domtls/`: the in-domain TLS and attestation front, a minimal AF_VSOCK binding, and
+  in-memory key minting.
+- `judge.mjs`, `client.mjs`: the verdict and the client described above.
+- `negative.mjs`: forged and unsigned evidence, judged offline (no VM).
+- `fwd/`: the host side. It relays TCP to the domain's vsock and holds no key. `-tee` records the bytes
+  it relays. `-mitm` is the attack: the host terminates TLS with its own key and re-encrypts to the
+  domain. `-switch-after N` relays N connections and then MITMs the rest. `-mitm-tee` records the
+  plaintext the host reads on MITM'd connections.
+- `build-domain.sh`, `run-domain.sh start|stop`, `test-m2.sh [workdir]` (`RECHECK=1` re-scores saved
+  outputs without booting).
+
+### Tests
+
+Three boots of one image: s1 (SNP), s2 (SNP, a second launch) and t1 (plain KVM). Every mode runs
+against the live domains.
+
+0. Build reproducible: two builds are byte-identical.
+1. Measurement reproducible: the live digest equals the prediction, for both SNP launches.
+2. The trusted default refuses what it cannot authenticate. On this chip a genuine T1 report is
+   `reject` ("no VCEK available"), and a T0 domain is refused. In both cases no application request is
+   sent. 2c is the negative suite (below).
+3. The lab diagnostic: policy, VMPL0, measurement, key and nonce binding, and app naming are all
+   consistent, and the verdict is `unauthenticated`. A second nonce on a new pinned connection gets the
+   same verdict under the same key. A report does not satisfy a different nonce.
+4. TLS ends inside the domain: the pinned key is the one the domain minted. A host terminating TLS
+   itself is rejected on the binding and receives no application request. The bytes the host relays
+   hold no plaintext. **4d:** a reconnect that meets a switched key is refused at the handshake, and
+   the host reads 0 plaintext bytes from it.
+5. The key is minted per launch: s1 and s2 keys differ while their identity does not.
+6. The app serves on the pinned key (lab diagnostic), and 4 x 16 MiB are echoed intact on T1 and T0.
+7. Tier parity: the same image serves the same output on T0 (`--t0-diagnostic`), and no mode calls T0
+   attested. A host in the middle of a T0 domain cannot be detected.
+8. Cost, measured without pass/fail.
+
+The negative suite (`negative.mjs`, check 2c) builds reports from nothing, the way a host that wants a
+client to trust its key would:
+
+| case | trusted | lab-unsigned |
+|---|---|---|
+| N1 every field forged to bind the host's key, no signature | reject (no VCEK) | `unauthenticated`: the lab mode cannot tell a forgery, which is why it opens no trusted gate |
+| N2 the same, signed by a host-made "VCEK" delivered in the auxblob | reject: "VCEK does not chain to ASK" | reject, same step |
+| N2c one signed byte changed after signing | reject: "VCEK signature over the report is invalid" | |
+| N3-N6 DEBUG policy, measurement off the allowlist, another app, binding to another key, another nonce | reject | reject |
+| N7 a T0 document | gate closed | gate closed (open only in `--t0-diagnostic`) |
+| N8 a T1 document in `--t0-diagnostic` | | reject: the modes do not mix |
+| N9 s1's genuine report | reject (no VCEK on this chip) | `unauthenticated`, never better |
+
+## 11. M2 results: measured on warden-host, 2026-09-22
+
+Same host and toolchain as section 8, Go 1.27.0, app `cd6f49cb…`. The code changed between two runs, and
+they are kept apart:
+
+- **Run 1: before the audit fixes, on a quiet machine.** `test-m2.sh` printed ALL PASS, but its check 2
+  counted a report with an unverified AMD chain as `attested`. **Its verdicts are superseded.** Its
+  serving measurements stand: the serving path did not change, only the client's rules and the front's
+  auxblob read on the attestation path.
+- **Run 2: after the fixes. ALL PASS, checks 0 to 7 (18 checks, plus the 14 negative cases).** It ran
+  while another session's 45-minute GPU soak (about 20 CPU threads) shared the machine, so its costs
+  are noisy and not used below. Measurement `8fc54dac…` (the front changed, so the identity changed
+  from run 1's `080b1eb2…`).
+
+What run 2 establishes:
+- **The trusted default refuses what it cannot authenticate.** No report from this chip can be
+  `attested`, and the client says so and sends no application request.
+- **Every field a report carries is consistent with the domain**, as far as a check without the AMD
+  chain can go: debug off, VMPL0, the predicted measurement, the key the client's own handshake saw
+  bound with its nonce, and the app named. That is labelled `unauthenticated`, and nothing treats it as
+  more.
+- **TLS ends inside the domain.** The pinned key is the minted key. A host that terminates TLS is caught
+  on the binding and receives nothing but the attestation GET. The host relays only ciphertext. A
+  switched-key reconnect is refused at the handshake, and the host reads 0 bytes from it.
+- **A fresh key per launch, the same identity, and the same app output on T0 and T1.**
+
+Cost, run 1 (quiet machine; 1 vCPU, 512 MiB):
+
+| | T1 SNP | T0 plain |
+|---|---|---|
+| guest kernel -> PID 1 | 808 ms | 650 ms |
+| PID 1 -> serving (app and front both up) | 70 ms | 66 ms |
+| host launch -> first HTTPS answer | 3.4 s | 1.2 s |
+| request latency, one kept-alive TLS connection, p50 / p99 | 0.31 / 0.71 ms | 0.29 / 0.72 ms |
+| echo throughput (16 MiB bodies, both directions) | 576 MB/s | 829 MB/s |
+| memory peak of the domain's cgroup | 586 MB | 279 MB |
+| host CPU for the whole domain lifetime | 2.1 s | 1.3 s |
+
+The host-only baseline (vsock loopback, no VM) is 0.3-0.5 ms and about 1.0-1.1 GB/s through the same
+front and forwarder. Latency is the same on T0 and T1. T1's echo runs at about 70% of T0's, consistent
+with SNP bouncing virtio buffers through shared memory. The launch gap (3.4 s vs 1.2 s) is firmware and
+SNP launch, as in M1. The memory gap is SNP backing all of guest RAM, as in M1, plus about 30 MB for
+`wasmtime serve` and the front.
+
+Not established here:
+- **Authenticated attestation.** This chip has no VCEK at AMD KDS, and the host supplies none, so no
+  report here can be `attested`. The first `attested` verdict needs a chip whose VCEK AMD publishes,
+  fetched by the verifier from KDS or loaded by the host into the report's certificate table.
+- A minimum-TCB policy (above); any confidentiality measurement (the host-memory test); a client that
+  is not this harness; anything on Windows or VBS.
