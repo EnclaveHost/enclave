@@ -19,9 +19,18 @@ EOF
 cat > "$W/stubs/cat" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in *cpufreq*) for _ in "$@"; do echo 2000; done; exit 0;; esac
+case "${1:-}" in /proc/*/stat) f="$FAKE_HOME/ticks.$(basename "$(dirname "$1")")"; t=$(( $(/bin/cat "$f" 2>/dev/null || echo 1000) + 150 )); echo $t > "$f"
+  echo "${1//[^0-9]/} (x) S 1 1 1 0 -1 0 0 0 0 0 $t 0 0 0"; exit 0;; esac
 exec /bin/cat "$@"
 EOF
 printf '#!/bin/sh\nexit 0\n' > "$W/stubs/input"; printf '#!/bin/sh\nexit 0\n' > "$W/stubs/wm"
+# ps + /proc/<pid>/stat for the CPU sample: pids 101 (app) and 202 (crosvm) always, 303 (virtmgr) only in the FIRST
+# sample (a process that exits must not count); each read of a stat file adds 150 ticks to it
+cat > "$W/stubs/ps" <<'EOF'
+#!/usr/bin/env bash
+echo "  PID NAME"; echo "  101 host.enclave.anchor.avf"; echo "  202 crosvm"; [ -e "$FAKE_HOME/ps-once" ] || { echo "  303 virtmgr_lave.anchor.avf"; : > "$FAKE_HOME/ps-once"; }
+echo "  404 crosvm_isolated_storage_service_vm"
+EOF
 # run-as <pkg> <cmd...>: runs in the fake app's home, where files/capture lives
 cat > "$W/stubs/run-as" <<'EOF'
 #!/usr/bin/env bash
@@ -43,6 +52,7 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
   echo "TPU worker: serving masked rows"
   echo "TPU bundle sha256=${FAKE_BSHA:-aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccdddddddddddddddd} (hashed in 900 ms)"
   echo "${FAKE_VM_LINE:-VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 ${FAKE_VM_BSHA16:-aaaaaaaaaaaaaaaa}..., re-hashed in 9.1 s)}"
+  echo "LOCAL ready: {ctx=4096}"
   echo "LOCAL ask sha256=$(printf '%s' "$ask" | sha256sum | cut -d' ' -f1) bytes=${#ask}"
   n=0; IFS='|' read -r -a parts <<<"$ask"; for p in "${parts[@]}"; do [ -n "$(tr -d '[:space:]' <<<"$p")" ] || continue; n=$((n+1))
      [ "${FAKE_DROP_STATS:-0}" = "$n" ] || echo "LOCAL turn $n STATS {status=eos, decode_tokens=5, decode_tok_s=1.00}"
@@ -113,4 +123,9 @@ sed -i '$d' "$W/keep.log"
 OUT=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" ASK="Say hi." LANE_CHECK_ONLY="$W/keep.log" bash "$HERE/lane-run2.sh" keep 2>&1); ck "LANE_CHECK_ONLY without the footer: refused" "$?" 1
 run vmdies FAKE_VM_DIES=1 LANE_TRIES=1000; ck "a VM that dies at load: refused" "$RC" 1
 grep -q "VM stopped before the run completed" <<<"$OUT"; ck "... at once, naming it" "$?" 0
+ASK_='Say hi.'; run cpu; cpuline=$(grep '^cpu from ready' <<<"$OUT")
+# 2 processes present in both samples (101, 202), 150 ticks each between samples = 3.0 core-s; 5 decode tokens
+ck "cpu: only processes in both samples, the storage VM excluded" "$(sed -n 's/.*(\([0-9]*\) processes).*/\1/p' <<<"$cpuline")" 2
+ck "cpu: 3.0 core-s over the window" "$(sed -n 's/.*: \([0-9.]*\) core-s.*/\1/p' <<<"$cpuline")" 3.0
+ck "cpu: 600 core-ms per decoded token" "$(sed -n 's/.* \([0-9]*\) core-ms per decoded token.*/\1/p' <<<"$cpuline")" 600
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

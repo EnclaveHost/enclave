@@ -1,0 +1,6 @@
+Aborted at 18:29 on 2026-09-22 after row 01 of 24, deliberately, and NOT to be scored as a batch.
+While row 02 was running, tpu/lane-run2.sh (the driver bash was executing) was rewritten in place to add CPU
+sampling. Bash reads a script as it runs, so row 02's execution is not trustworthy, and every later row would
+have run a driver whose digest differs from the one this MANIFEST recorded. Row 01 (qw4-01: "Paris", PASS,
+0 verification disagreements) completed before the edit and is kept for the record only.
+The batch was restarted from row 01 as results/qw4 with the new driver recorded in its manifest.

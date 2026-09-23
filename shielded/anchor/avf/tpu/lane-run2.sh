@@ -35,6 +35,16 @@ EXTRA="${EXTRA:-}"; case "$EXTRA" in *\'*|*\"*|*\\*) die "EXTRA must not contain
 # single-quote a word for the device's sh: ' -> '\''
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 rsh() { _cg_read "$1" || die "remote command failed or adb failed: $1"; }
+# CPU ticks (utime+stime, USER_HZ) of this app, its virtmgr and its crosvm, summed over pids present in BOTH samples
+# (a1 = "pid ticks" lines). Best effort: a failed sample makes the CPU figure "unmeasured", never a guess.
+cpu_snap() {
+  local ps pids out
+  ps=$(_cg_read "ps -A -o PID,NAME") || return 1
+  pids=$(awk '$2 == "host.enclave.anchor.avf" || $2 == "crosvm" || $2 ~ /^virtmgr/ { print $1 }' <<<"$ps" | tr '\n' ' ')
+  [ -n "$pids" ] || return 1
+  out=$(_cg_read "for p in $pids; do echo PID \$p; cat /proc/\$p/stat 2>/dev/null; done") || return 1
+  awk '/^PID /{ pid = $2; next } { i = index($0, ") "); if (!i) next; n = split(substr($0, i + 2), a, " "); if (n >= 13) print pid, a[12] + a[13] }' <<<"$out"
+}
 
 if [ -n "${LANE_CHECK_ONLY:-}" ]; then   # re-validate a captured log offline: the same checks, no device
   L="$LANE_CHECK_ONLY"; [ -s "$L" ] || die "no log at $L"
@@ -61,6 +71,9 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   caps=$(rsh "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq") || exit 1
   caps=$(tr '\n' ' ' <<<"$caps")
   echo "$(( $(date +%s) - t0 )) $caps" >> "$OUT/$LABEL.caps"
+  if [ -z "${cpu0:-}" ] && [ "$(rsh "run-as $P sh -c 'if grep -q \"^LOCAL ready\" files/capture/$LABEL.log 2>/dev/null; then echo READY; else echo NO; fi'")" = READY ]; then
+    cpu0=$(cpu_snap) || cpu0=FAILED; tcpu0=$(date +%s.%N)
+  fi
   st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; else echo WAIT; fi'") || exit 1
   [ "$st" = DONE ] && { done_=1; break; }
   # a VM that died never completes its capture: stop at once instead of polling out the hour
@@ -69,6 +82,7 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   [ "$st" = WAIT ] || die "unexpected completion probe answer: '$st'"
 done
 [ $done_ = 1 ] || die "the capture never completed within ${LANE_TRIES:-720} polls"
+cpu1=$(cpu_snap) || cpu1=FAILED; tcpu1=$(date +%s.%N)
 rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" || exit 1
 L="$OUT/$LABEL.log"
 fi
@@ -103,4 +117,12 @@ grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started
 grep -E '^TPU worker: [0-9]+ exchanges' "$L" | grep -q 'ERROR' && die "the worker reported an error"
 grep -E "LOCAL turn [0-9]+ STATS|tpu turn|TPU worker: [0-9]+ exchanges" "$L" | cut -c1-${WIDTH:-400}
 [ -z "${LANE_CHECK_ONLY:-}" ] && awk '{ if (min2 == "" || $2 < min2) min2 = $2; if (min7 == "" || $3 < min7) min7 = $3 } END { print "big-core cap through the run: cpu2 min " min2 ", cpu7 min " min7 " (" NR " samples)" }' "$OUT/$LABEL.caps"
+if [ -z "${LANE_CHECK_ONLY:-}" ]; then
+  toks=$(grep -oE 'decode_tokens=[0-9]+' "$L" | cut -d= -f2 | paste -sd+ | bc)
+  if [ -n "${cpu0:-}" ] && [ "$cpu0" != FAILED ] && [ "$cpu1" != FAILED ] && [ "${toks:-0}" -gt 0 ]; then
+    awk -v t0="$tcpu0" -v t1="$tcpu1" -v toks="$toks" 'NR == FNR { a[$1] = $2; next } ($1 in a) { d += $2 - a[$1]; n++ }
+      END { s = d / 100.0; w = t1 - t0; printf "cpu from ready to done (%d processes): %.1f core-s over %.1f s = %.2f cores busy, %.0f core-ms per decoded token (prefill and teardown included)\n", n, s, w, s / w, 1000 * s / toks }' \
+      <(printf '%s\n' "$cpu0") <(printf '%s\n' "$cpu1") | tee "$OUT/$LABEL.cpu"
+  else echo "cpu: unmeasured (a sample failed or the ready line was never seen)" | tee "$OUT/$LABEL.cpu"; fi
+fi
 echo "LANE-RUN OK $LABEL"
