@@ -122,7 +122,7 @@
       <p class="lede">Package an app <b>once</b> and run it on independent hosts. On confidential hardware the host is <b>locked out</b> of your memory and traffic, and the proof reaches your browser before you send a byte. Everywhere else, the protection level is <b>stated on the listing</b>, never assumed. Pay <b>per second</b> from a wallet, whether you are a person or an agent.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
-        <a href="architecture" class="btn btn-ghost">How it works</a>
+        <a href="develop#architecture" class="btn btn-ghost">How it works</a>
       </div>
       <div class="hero-foot">
         <span>one app package · many hosts</span>
@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
     <c-section-head eyebrow="What you get" heading="Portable apps. Explicit protection. Verifiable execution. Independent infrastructure.">
-      <p>Four things, in the order a careful buyer asks about them. Each one is a fact you can check rather than a promise you have to take, and each has a page behind it that says how far it has gotten. <a href="architecture">The long version, with mechanisms and status ↗</a></p>
+      <p>Four things, in the order a careful buyer asks about them. Each one is a fact you can check rather than a promise you have to take. The Architecture tab under Develop says how far each part has gotten. <a href="develop#architecture">The long version, with mechanisms and status ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -168,7 +168,7 @@
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></svg></div>
         <span class="tag">no gatekeeper</span>
         <h3>Independent</h3>
-        <p>The catalog, the deployment ledger and payment live in public contracts; app bundles are content-addressed; the source is public; hosts are independent machines paid on chain. The goal is a platform that outlives any one company or domain, and the page behind this card says which parts still run on ours. <a href="architecture#independent">What still runs on our servers →</a></p>
+        <p>The catalog, the deployment ledger and payment live in public contracts; app bundles are content-addressed; the source is public; hosts are independent machines paid on chain. The goal is a platform that outlives any one company or domain, and the page behind this card says which parts still run on ours. <a href="develop#independent">What still runs on our servers →</a></p>
       </div>
     </div>
   </div>
@@ -240,7 +240,7 @@
 
     <div class="iso-honest">
       <h4>What we do <u>not</u> claim</h4>
-      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation, one confidential guest per app, has been demonstrated and rechecked in the lab; it is not shipped, and the denser one-plane-per-app shape is still being built. <a href="architecture#protection">Every level, with its mechanism and its evidence →</a></p>
+      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation, one confidential guest per app, has been demonstrated and rechecked in the lab; it is not shipped, and the denser one-plane-per-app shape is still being built. <a href="develop#protection">Every level, with its mechanism and its evidence →</a></p>
     </div>
   </div>
 </section>
@@ -259,7 +259,7 @@
 <section id="pricing" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Pricing">
   <div class="wrap">
     <c-section-head eyebrow="Pricing" heading="Metered per second. Pay as you go.">
-      <p>Deploying is <b>two dials</b>, what you rent, and <b>two rates</b>, what you pay. Prepaying buys runtime by the second; the deployment runs until that time is used up, and you top up to extend it. Payments convert straight into runtime, a paid app's publisher share goes straight to the publisher, and payments are final. Unspent time stays on the deployment's public record (stop now, resume later) but is not withdrawable, so fund in small top-ups. The rates below are the ledger's list rates; a host may post its own, and the store shows the rate of the host your deployment would land on. A GPU share can only be bought while a GPU host is attached, and <a href="architecture#fleet">the live fleet panel</a> is the authority on that.</p>
+      <p>Deploying is <b>two dials</b>, what you rent, and <b>two rates</b>, what you pay. Prepaying buys runtime by the second; the deployment runs until that time is used up, and you top up to extend it. Payments convert straight into runtime, a paid app's publisher share goes straight to the publisher, and payments are final. Unspent time stays on the deployment's public record (stop now, resume later) but is not withdrawable, so fund in small top-ups. The rates below are the ledger's list rates; a host may post its own, and the store shows the rate of the host your deployment would land on. A GPU share can only be bought while a GPU host is attached, and <a href="develop#fleet">the live fleet panel</a> is the authority on that.</p>
     </c-section-head>
 
     <div class="price-grid">
@@ -304,7 +304,7 @@
         </tbody>
       </table>
       </div>
-      <p class="mig-note">Example points on a continuous scale, not a fixed menu: the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all; it is the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level, and on a confidential host they are always isolated from the operator by the processor. <a href="architecture#protection">How, exactly →</a></p>
+      <p class="mig-note">Example points on a continuous scale, not a fixed menu: the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all; it is the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level, and on a confidential host they are always isolated from the operator by the processor. <a href="develop#protection">How, exactly →</a></p>
     </div>
   </div>
 </section>
@@ -312,13 +312,13 @@
 <section id="status" data-view="overview" aria-label="Status">
   <div class="wrap">
     <c-section-head eyebrow="Status" heading="Available, experimental, planned. Labeled that way everywhere.">
-      <p>Three words, used the same way on every page: <b>available</b> means a deployment can have it now; <b>experimental</b> means built and measured on a lab machine or one box; <b>planned</b> means designed or intended and not yet run. The short list is here; the full board, with evidence, is on the architecture page.</p>
+      <p>Three words, used the same way on every page: <b>available</b> means a deployment can have it now; <b>experimental</b> means built and measured on a lab machine or one box; <b>planned</b> means designed or intended and not yet run. The short list is here; the Architecture tab under Develop has the full board and evidence.</p>
     </c-section-head>
     <div class="cards status-cards">
       <div class="card jade">
         <span class="tag">available</span>
         <h3>In use today</h3>
-        <p>Wasm apps on confidential Linux hosts · GPU inference inside the confidential VM, on GPU hosts · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier. Which hosts are attached right now is a live panel, not a promise: <a href="architecture#fleet">see what is serving</a>.</p>
+        <p>Wasm apps on confidential Linux hosts · GPU inference inside the confidential VM, on GPU hosts · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier. Which hosts are attached right now is a live panel, not a promise: <a href="develop#fleet">see what is serving</a>.</p>
       </div>
       <div class="card amber">
         <span class="tag">experimental</span>
@@ -331,7 +331,7 @@
         <p>Ordinary Linux hosts with one VM per app and no confidentiality claim · one hardware plane per app for density · host exclusion on Windows · publisher-owned signatures, local trust policy, mirrors and peer transports, interchangeable coordinators, independent recovery of secrets and state.</p>
       </div>
     </div>
-    <p class="mig-note" style="max-width:none;margin-top:18px;"><a href="architecture#status">The full status board, with what each item rests on →</a></p>
+    <p class="mig-note" style="max-width:none;margin-top:18px;"><a href="develop#status">The full status board, with what each item rests on →</a></p>
   </div>
 </section>
 <!-- ===================== ABOUT ===================== -->
@@ -345,7 +345,7 @@
       <div class="card jade">
         <span class="tag">the operator</span>
         <h3>Enclave Host, Inc.</h3>
-        <p>The company behind Enclave. Payments to it settle in the open on a public record, its enclaves prove what they are running before you send them a byte, and the design goal is that a running deployment depends on the company for as little as possible: public contracts, content-addressed bundles, published measurements, independent hosts. <a href="architecture#independent">What still runs on our servers, listed honestly →</a></p>
+        <p>The company behind Enclave. Payments to it settle in the open on a public record, its enclaves prove what they are running before you send them a byte, and the design goal is that a running deployment depends on the company for as little as possible: public contracts, content-addressed bundles, published measurements, independent hosts. <a href="develop#independent">What still runs on our servers, listed honestly →</a></p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub <span class="arr" aria-hidden="true">↗</span></a>
           <a class="btn btn-ghost" href="mailto:support@enclave.host">support@enclave.host</a>

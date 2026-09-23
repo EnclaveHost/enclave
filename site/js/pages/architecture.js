@@ -46,10 +46,11 @@ export function boot(){
   refreshFleet();
   const fl = document.querySelector(".arch-fleet c-fleet-list");
   if (fl) fl.addEventListener("refresh", refreshFleet);
-  // poll only while this page is mounted (a soft nav swaps <main>; a docs
-  // page must not keep hitting the relay from another page)
+  // Poll only while the Develop page's Architecture pane is mounted. The
+  // pane may be hidden behind another Develop sub-tab, but it is removed when
+  // soft navigation swaps to another page.
   if (!_poll) _poll = setInterval(() => {
-    if (!document.querySelector('section[data-view="architecture"]')) return;
+    if (!document.getElementById("architecture")) return;
     refreshFleet();
   }, 30000);
   wireStatusJumps();
