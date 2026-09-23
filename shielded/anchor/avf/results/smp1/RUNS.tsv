@@ -1,0 +1,12 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	3be31241e56c50ec62c9db028b261d1430a7bbb57b20859868b5a90c82b30933
+# label	condition	extra	status	rc	apk_sha256
+sm-01	old	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	b74653630f36c7165d8f84e408d110856268764efb210847b9c856e71a97392d
+sm-02	new	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
+sm-03	new	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
+sm-04	old	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	b74653630f36c7165d8f84e408d110856268764efb210847b9c856e71a97392d
+sm-05	old	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	b74653630f36c7165d8f84e408d110856268764efb210847b9c856e71a97392d
+sm-06	new	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
+sm-07	new	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
+sm-08	old	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0	b74653630f36c7165d8f84e408d110856268764efb210847b9c856e71a97392d
