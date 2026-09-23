@@ -1,0 +1,3 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+../results/padbank1/driver/tpu/lane-run2.sh: line 69: cannot create temp file for here-document: Disk quota exceeded
+LANE-RUN FAIL pb-08: PHONE NOT AWAKE: refusing to measure

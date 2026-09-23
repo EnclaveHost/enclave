@@ -135,4 +135,9 @@ ck "... and freezes the CPU tools beside the driver" "$(ls "$W/lc/driver/tpu" | 
 ASK_='Say hi.'; run cpuonly GRAPHS=none FAKE_CPU_ONLY=1; ck "GRAPHS=none: a CPU-only run with no TPU records passes" "$RC" 0
 run cpuonly-tpu GRAPHS=none; ck "GRAPHS=none but the capture shows a TPU worker: refused" "$RC" 1
 run tpu-no-counters FAKE_CPU_ONLY=1; ck "a TPU run without TPU records: refused" "$RC" 1
+# a TMPDIR that cannot be written stands in for a full /tmp: refused, and named as such
+mkdir -p "$W/ro"; chmod 0500 "$W/ro"
+OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" TMPDIR="$W/ro" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 OUT="$W/out" ASK="x" bash "$HERE/lane-run2.sh" tmpfull 2>&1); RC=$?
+ck "an unwritable TMPDIR: refused" "$RC" 1; grep -q "cannot create a temp file" <<<"$OUT"; ck "... and named as a disk problem, not a dozing phone" "$?" 0
+chmod 0700 "$W/ro"
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

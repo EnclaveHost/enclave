@@ -20,7 +20,7 @@ test('local engine chat grammar: the app request builder and the VM parser agree
     const payload = join(root, 'shielded/anchor/avf/payload'), app = join(root, 'shielded/anchor/avf/host/app');
     const binary = join(dir, 'local-proto-test');
     run('cc', ['-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-I'+payload, join(root, 'test/fixtures/anchor-local-proto.c'), '-o', binary]);
-    assert.deepEqual(JSON.parse(run(binary, [])), {status:'PASS', executed_checks:78});
+    assert.deepEqual(JSON.parse(run(binary, [])), {status:'PASS', executed_checks:84});
     run('javac', ['--release', '17', '-Xlint:all', '-Werror', '-d', dir, join(app, 'LocalChat.java'), join(root, 'test/fixtures/LocalChatTest.java')]);
     const j = JSON.parse(run('java', ['-cp', dir, 'host.enclave.anchor.avf.LocalChatTest']));
     assert.equal(j.status, 'PASS'); assert.equal(j.executed_checks, 13);

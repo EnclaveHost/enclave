@@ -48,6 +48,10 @@ public final class LocalChat {
     public static String withPoll(String plan, int poll) { return plan + " poll=" + Math.max(0, Math.min(100, poll)); }
     /** A separate, smaller thread pool for one-token decode; prompt processing keeps the line's threads. Last on the line. */
     public static String withDecodeThreads(String plan, int n) { return plan + " dthreads=" + Math.max(1, Math.min(16, n)); }
+    /** Helper threads for the TPU lane's out-of-lane correction (1..5). Last on the line; only with the TPU tail. */
+    public static String withCorrThreads(String plan, int n) { return plan + " corr=" + Math.max(1, Math.min(5, n)); }
+    /** A pool for speculative verification after the prompt (1..16). Last on the line. */
+    public static String withVerifyThreads(String plan, int n) { return plan + " vthreads=" + Math.max(1, Math.min(16, n)); }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;

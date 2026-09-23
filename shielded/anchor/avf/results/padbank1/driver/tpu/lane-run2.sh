@@ -31,10 +31,6 @@ ASK="${ASK:-}"; [ -n "$ASK" ] || die "ASK is required"
 case "$ASK" in *$'\n'*|*$'\r'*) die "ASK must be one line";; esac
 EXTRA="${EXTRA:-}"; case "$EXTRA" in *\'*|*\"*|*\\*) die "EXTRA must not contain quotes or backslashes";; esac
 . "$(cd "$(dirname "$0")/../host" && pwd)/coolgate.sh" || die "cannot source coolgate.sh"
-# bash's here-strings need temp files: with /tmp full or over quota they silently read as EMPTY input, and a run was once
-# refused as "PHONE NOT AWAKE" when the real cause was the disk. Name that cause before anything depends on it.
-_t=$(mktemp 2>/dev/null) && printf x > "$_t" 2>/dev/null && rm -f "$_t" || die "cannot create a temp file in ${TMPDIR:-/tmp} (disk full or over quota): refusing to run"
-[ "$(cat <<<probe 2>/dev/null)" = probe ] || die "bash here-strings fail (temp files cannot be created): refusing to run"
 
 # single-quote a word for the device's sh: ' -> '\''
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }

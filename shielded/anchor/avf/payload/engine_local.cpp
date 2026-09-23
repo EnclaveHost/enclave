@@ -68,7 +68,7 @@ extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank,
 /* Speculative rows (TPU.md, LOCAL.md): an OPTIONAL drafter proposes up to n_max tokens and the target verifies them as extra
  * rows of ONE step; on the Shielded-TPU path those rows ride the same 140 exchanges. The drafter needs no authentication:
  * the target checks every proposal, so a wrong or hostile drafter changes the speed and never the text. */
-static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr, *g_dpool = nullptr;
+static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr, *g_dpool = nullptr, *g_vpool = nullptr; static int g_dthreads = 0, g_vthreads = 0;
 extern "C" int engine_local_set_draft(const char *path, int n_max) { if (!path || !*path || n_max < 1 || n_max > 4) return -1; g_draft_path = path; g_draft_max = n_max; return 0; }
 /* exported by the pinned llama fork: every model tensor by name (tied weights may appear twice) */
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
@@ -224,8 +224,16 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                         g_dpool = tp_new(&dpp);
                         if (g_dpool) { llama_attach_threadpool(ctx, g_dpool, g_pool); llama_set_n_threads(ctx, dthreads, n_threads); }
                     }
-                    if (g_pool && !g_dpool) llama_attach_threadpool(ctx, g_pool, g_pool); }
-      outf("LOCAL context ready: ctx %d, %d threads (decode %d), persistent pool=%s (poll %d), model loaded in %.1f s", n_ctx, n_threads, g_dpool ? dthreads : n_threads, tp_new ? "yes" : "no", poll, load_s); }
+                    if (g_pool && !g_dpool) llama_attach_threadpool(ctx, g_pool, g_pool);
+                    g_dthreads = g_dpool ? dthreads : n_threads;
+                    /* ANCHOR_VERIFY_THREADS (vthreads=): after the prompt, speculative verification (a few rows, batched,
+                     * its projections on the TPU) runs on this pool instead of the prompt's large one */
+                    if (const char *e = getenv("ANCHOR_VERIFY_THREADS")) { char *end = nullptr; long v = strtol(e, &end, 10);
+                        if (end && !*end && v >= 1 && v <= 16 && g_pool) {
+                            if (g_dpool && v == dthreads) g_vpool = g_dpool;
+                            else { ggml_threadpool_params vpp = ggml_threadpool_params_default((int)v); vpp.poll = (uint32_t)poll; g_vpool = tp_new(&vpp); }
+                            if (g_vpool) g_vthreads = (int)v; } } }
+      outf("LOCAL context ready: ctx %d, %d threads (decode %d), persistent pool=%s (poll %d, verify %d), model loaded in %.1f s", n_ctx, n_threads, g_dpool ? dthreads : n_threads, tp_new ? "yes" : "no", poll, g_vthreads, load_s); }
     char model_hex[65] = ""; if (g_table->has_whole) for (int i = 0; i < 32; i++) snprintf(model_hex + 2 * i, 3, "%02x", g_table->whole_digest[i]);
     /* Pads last: the model load above is the VM's biggest consumer of memory, and the lane bundle's pages must still be resident
      * when decode walks them (a bundle page that went back to the encrypted store costs a disk read per touched page). */
@@ -287,12 +295,14 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
         if (n_past + n + 8 > n_ctx) { chat_write(chat_fd, "ERR context full (" + std::to_string(n_past) + " used + " + std::to_string(n) + " new > " + std::to_string(n_ctx) + "): send RESET to start a new conversation"); continue; }
         turn_stats st; st.n_prefill = n;
         if (spec) {   /* ---- a speculative turn: prefill all but the last prompt token, then draft -> verify rows -> accept ---- */
+            if (g_vpool) { llama_attach_threadpool(ctx, g_dpool ? g_dpool : g_pool, g_pool); llama_set_n_threads(ctx, g_dthreads, n_threads); }   /* the prompt gets the large pool back */
             const int64_t t0s = ggml_time_us(); bool bad = false; llama_batch batch = llama_batch_init(512, 0, 1);
             for (int i = 0; i + 1 < n && !bad; ) { common_batch_clear(batch); for (; i + 1 < n && batch.n_tokens < 512; i++) common_batch_add(batch, toks[i], n_past + i, { 0 }, false);
                 if (llama_decode(ctx, batch) || !common_speculative_process(spec, batch)) bad = true; }
             if (bad) { llama_batch_free(batch); llama_memory_seq_rm(mem, 0, n_past, -1); chat_write(chat_fd, "ERR prefill failed; the turn was rolled back"); continue; }
             for (int i = 0; i + 1 < n; i++) hist.push_back(toks[i]);
             n_past += n - 1; pending = -1; st.prefill_s = (ggml_time_us() - t0s) / 1e6;
+            if (g_vpool) { llama_attach_threadpool(ctx, g_dpool ? g_dpool : g_pool, g_vpool); llama_set_n_threads(ctx, g_dthreads, g_vthreads); }
             common_params_sampling sps; sps.temp = rq.temperature_milli / 1000.0f; sps.top_k = 64; sps.top_p = 0.95f;
             common_sampler_ptr smpl(common_sampler_init(model, sps));
             common_speculative_begin(spec, 0, hist);
