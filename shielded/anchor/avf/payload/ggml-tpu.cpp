@@ -455,8 +455,10 @@ static int64_t dot_i8_digit(const int8_t *w, const int16_t *q, uint32_t n, bool 
     return a;
 }
 
+static int64_t g_last_exchange_end = 0;
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
+    if (g_last_exchange_end) s.st.gap_us += (uint64_t)(t0 - g_last_exchange_end);
     std::vector<pad> pads; pads.reserve(rows + 3);
     { std::lock_guard<std::mutex> lk(g.bank_mu); while (pads.size() < rows && !g.bank.empty()) { pads.push_back(std::move(g.bank.front())); g.bank.pop_front(); } }
     if (pads.size() < rows) {                                              /* the bank ran dry: mint the rest here, in one batch, and say so */
@@ -565,6 +567,8 @@ void exchange(group &g, const float *x, uint32_t rows) {
                      * is a different quantisation and cannot settle it. Cost is 2 dots per projection per
                      * exchange, about 420 per token, against the 2.3 GMAC the token already costs. */
                     if (kVerifyKernel && j == (uint32_t)(s.st.exchanges % pr.n_out)) {
+                        const int64_t tv0 = now_us();
+                        struct ver_clock { state &s; int64_t t; ~ver_clock() { s.st.ver_us += (uint64_t)(now_us() - t); } } vc{s, tv0};
                         const int16_t *qv = s.txbuf.data() + (size_t)r * g.n_in;
                         const int64_t va = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, true) * pr.M[j] * 102.4);
                         const int64_t vb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, false) * pr.M[j] * 102.4);
@@ -663,6 +667,8 @@ void exchange(group &g, const float *x, uint32_t rows) {
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
     s.st.rx_calls = g_rx_calls.load(std::memory_order_relaxed);
+    pads.clear(); outl.clear();                                             /* timed: in a protected VM, returning pages is not free */
+    const int64_t t4 = now_us(); s.st.free_us += (uint64_t)(t4 - t3); g_last_exchange_end = t4;
 }
 
 bool claimable(const ggml_tensor *op) {
@@ -850,7 +856,7 @@ extern "C" void ggml_backend_tpu_refill_start(int target, int threads) {
         } });
 }
 extern "C" void ggml_backend_tpu_refill_stop(void) { if (!g_refill_on.exchange(false)) return; for (auto &t : g_refill) t.join(); g_refill.clear(); }
-extern "C" void ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset) { *out = S().st; size_t left = (size_t)-1; for (group *g : S().groups) { std::lock_guard<std::mutex> lk(g->bank_mu); if (g->bank.size() < left) left = g->bank.size(); } out->bank_min = S().groups.empty() ? 0 : left; if (reset) S().st = ggml_backend_tpu_stats_t{}; }
+extern "C" void ggml_backend_tpu_get_stats(ggml_backend_tpu_stats_t *out, int reset) { *out = S().st; size_t left = (size_t)-1; for (group *g : S().groups) { std::lock_guard<std::mutex> lk(g->bank_mu); if (g->bank.size() < left) left = g->bank.size(); } out->bank_min = S().groups.empty() ? 0 : left; if (reset) { S().st = ggml_backend_tpu_stats_t{}; g_last_exchange_end = 0; } }
 /* The batched minter against the scalar reference: for every group, `batch` pads from the batched path, each P recomputed from
  * the pad's own r with dot_i8_i16. Returns the number of differing values (0 = exact), or -1 without a bundle. */
 extern "C" long ggml_backend_tpu_mint_check(int batch) {

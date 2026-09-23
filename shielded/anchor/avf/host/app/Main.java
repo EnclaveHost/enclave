@@ -111,6 +111,8 @@ public class Main extends Activity {
         int tpuRefill = 0;                   // --ei tpu_refill 0..8: background minter threads in the VM during decode (0 = only the bank minted before READY)
         int tpuPrio = 99;                    // --ei tpu_prio: worker thread priority (99 = URGENT_AUDIO, the default; 0 = normal; 10 = background)
         int tpuLinks = 0;                    // --ei tpu_links 2..4: extra worker connections for the link-scaling benchmark ONLY (mode local)
+        int tpuSpin = 0;                     // --ei tpu_spin 1..20000: us the VM polls the worker link for a reply before sleeping (0 = block)
+        int tpuWorkerSpin = 0;               // --ei tpu_worker_spin 1..20000: us the worker polls for the next request before sleeping (0 = block)
         int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal)
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
@@ -193,6 +195,7 @@ public class Main extends Activity {
             if (i.getStringExtra("draft") != null) p.draft = i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
             p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
+            p.tpuSpin = i.getIntExtra("tpu_spin", p.tpuSpin); p.tpuWorkerSpin = i.getIntExtra("tpu_worker_spin", p.tpuWorkerSpin);
             p.tpuPrio = i.getIntExtra("tpu_prio", p.tpuPrio);
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
@@ -211,6 +214,8 @@ public class Main extends Activity {
                     else if (p.draftMax < 1 || p.draftMax > 4) p.configError = "draft_max must be 1..4";
                     else if (p.tpuLinks != 0 && (p.tpuLinks < 2 || p.tpuLinks > 4)) p.configError = "tpu_links must be 0 (off) or 2..4";
                     else if (p.tpuLinks != 0 && p.tpuGraphs.isEmpty()) p.configError = "tpu_links needs the Shielded-TPU path (tpu_graphs/tpu_bundle)";
+                    else if (p.tpuSpin < 0 || p.tpuSpin > 20000 || p.tpuWorkerSpin < 0 || p.tpuWorkerSpin > 20000) p.configError = "tpu_spin and tpu_worker_spin must be 0..20000 us";
+                    else if ((p.tpuSpin != 0 || p.tpuWorkerSpin != 0) && p.tpuGraphs.isEmpty()) p.configError = "tpu_spin/tpu_worker_spin need the Shielded-TPU path (tpu_graphs/tpu_bundle)";
                     else if (p.ctx < 512 || p.ctx > 32768) p.configError = "ctx must be 512..32768";
                     else if (p.threads < 1 || p.threads > 16) p.configError = "threads must be 1..16";
                     else if (p.maxNew < 1 || p.maxNew > 8192) p.configError = "max_new must be 1..8192";
@@ -555,6 +560,7 @@ public class Main extends Activity {
                                        : LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx);
                 if (!plan.draft.isEmpty()) localLine = LocalChat.withDraft(localLine, new java.io.File(plan.draft).length(), plan.draftMax);
                 if (plan.tpuLinks >= 2) localLine = LocalChat.withLinks(localLine, plan.tpuLinks);
+                if (tpu && plan.tpuSpin > 0) localLine = LocalChat.withSpin(localLine, plan.tpuSpin);
                 cmd.append(localLine).append('\n');
                 if (!plan.draft.isEmpty() && modelOk) new Thread(() -> streamPublicFile(vm, DRAFT_PORT, plan.draft, "drafter"), "vsock-draft").start();
                 if (tpu && modelOk) { new Thread(() -> streamPublicFile(vm, BUNDLE_PORT, plan.tpuBundle, "TPU bundle"), "vsock-bundle").start(); new Thread(() -> tpuWorker(vm, plan), "tpu-worker").start(); }
@@ -663,6 +669,14 @@ public class Main extends Activity {
         say(TpuWorker.nativeBench(h));
         ParcelFileDescriptor pfd = connect(vm, WORKER_PORT, 1500);
         if (pfd == null) { say("TPU worker: no connection to the VM's worker port"); TpuWorker.nativeClose(h); return; }
+        /* Set on EVERY open, zero included, on this handle only: a value left from an earlier run must not survive into
+         * one that asked for none. A library without the setter cannot spin at all, so 0 is honoured by it; a positive
+         * request it cannot honour is refused rather than silently measured as blocking. */
+        try { TpuWorker.nativeSetSpin(h, plan.tpuWorkerSpin); }
+        catch (UnsatisfiedLinkError e) {
+            if (plan.tpuWorkerSpin > 0) { say("TPU worker: REFUSED tpu_worker_spin=" + plan.tpuWorkerSpin + ": this libanchortpu.so has no per-handle spin setter"); TpuWorker.nativeClose(h); return; }
+        }
+        say("TPU worker: link poll before sleeping " + plan.tpuWorkerSpin + " us");
         say("TPU worker: serving masked rows");
         say(TpuWorker.nativeServe(h, pfd.getFd()));
         try { pfd.close(); } catch (Exception ignored) { }
@@ -692,6 +706,12 @@ public class Main extends Activity {
             java.util.Map<String, String> ready = s.awaitReady();
             {
                 localState("ready", String.valueOf(ready));
+                /* What arrived in --es ask, as a digest: a driver compares it to the digest of what it meant to send, so a
+                 * prompt the shell or `am` mangled on the way (an apostrophe, a backslash) is caught instead of measured. */
+                try { byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(plan.ask.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                      StringBuilder hx = new StringBuilder(); for (byte x : d) hx.append(String.format("%02x", x & 0xff));
+                      say("LOCAL ask sha256=" + hx + " bytes=" + plan.ask.getBytes(java.nio.charset.StandardCharsets.UTF_8).length); }
+                catch (java.security.NoSuchAlgorithmException e) { say("LOCAL ask sha256=unavailable"); }
                 int k = 0;
                 for (String q : plan.ask.split("\\|")) {
                     if (q.trim().isEmpty()) continue; k++;

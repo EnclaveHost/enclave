@@ -26,6 +26,14 @@ int main(int argc, char **argv) {
     expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096", &lp) && lp.tpu_bundle_bytes == 0 && lp.bank == 0, "LOCAL without the tail clears it");
     expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 draft_bytes=170194016 draft_max=4", &lp) && lp.tpu_bundle_bytes == 0 && lp.draft_bytes == 170194016ull && lp.draft_max == 4, "LOCAL draft tail alone");
     expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 draft_bytes=7 draft_max=1", &lp) && lp.tpu_bundle_bytes == 9 && lp.draft_bytes == 7 && lp.draft_max == 1, "LOCAL both tails");
+    /* the spin tail: how long the VM polls the worker link before sleeping on it; only with the TPU tail, last */
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=3000", &lp) && lp.tpu_bundle_bytes == 9 && lp.spin == 3000, "LOCAL spin tail");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 links=2 spin=20000", &lp) && lp.links == 2 && lp.spin == 20000, "LOCAL links then spin");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0", &lp) && lp.spin == 0, "LOCAL without spin clears it");
+    const char *sbad[] = { "LOCAL model_bytes=5 threads=6 ctx=4096 spin=3000", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=0",
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=20001", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=3000 links=2",
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=03000", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=3000 " };
+    for (size_t i = 0; i < sizeof sbad / sizeof *sbad; i++) expect(!anchor_local_parse(sbad[i], &lp), sbad[i]);
     const char *lbad[] = { "LOCAL", "LOCAL ", "LOCAL model_bytes=0 threads=6 ctx=4096", "LOCAL model_bytes=5 threads=0 ctx=4096", "LOCAL model_bytes=5 threads=17 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=511",
                            "LOCAL model_bytes=5 threads=6 ctx=32769", "LOCAL threads=6 model_bytes=5 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=4096 ", "LOCAL model_bytes=5  threads=6 ctx=4096", "LOCAL model_bytes=05 threads=6 ctx=4096",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 env=00", "LOCAL model_bytes=1099511627777 threads=6 ctx=4096", "LOCAL model_bytes=99999999999999999999 threads=6 ctx=4096", "LOCALmodel_bytes=5 threads=6 ctx=4096",

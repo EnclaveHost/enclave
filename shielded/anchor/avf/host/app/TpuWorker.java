@@ -18,4 +18,6 @@ public final class TpuWorker {
     static native String nativeServe(long handle, int fd);
     static native String nativeBench(long handle);
     static native void nativeClose(long handle);
+    /** Microseconds THIS worker handle polls the link before sleeping on it (0 = block). Set on every open, zero included. */
+    static native void nativeSetSpin(long handle, int us);
 }
