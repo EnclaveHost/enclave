@@ -169,7 +169,11 @@ case "$NAME" in
                     # payload/ggml-tpu.cpp or engine_local.cpp and running `build.sh anchor` used to package the
                     # PREVIOUS binary without a word. That shipped a fault-injection build into a measurement run
                     # once already, and only the payload's self-attested "build config" line caught it. Refuse.
-                    for pair in "libggml-tpu.so:payload/ggml-tpu.cpp" "liblocalengine.so:payload/engine_local.cpp"; do
+                    # The headers the two compile in count too: tpu_corr.h / tpu_unmask_span.h / tpu_sample.h hold the
+                    # correction, unmask and sampler bodies, and an edit there alone would ship the old library.
+                    for pair in "libggml-tpu.so:payload/ggml-tpu.cpp" "libggml-tpu.so:payload/ggml-tpu.h" "libggml-tpu.so:payload/tpu_corr.h" \
+                                "libggml-tpu.so:payload/tpu_unmask_span.h" "libggml-tpu.so:payload/tpu_sample.h" \
+                                "liblocalengine.so:payload/engine_local.cpp" "liblocalengine.so:payload/ggml-tpu.h"; do
                       lib="$OUT/engine-pvm/${pair%%:*}"; src="$HERE/${pair##*:}"
                       if [ "$src" -nt "$lib" ]; then
                         echo "STALE: $src is newer than ${pair%%:*}. Run ./build.sh engine-pvm first." >&2; exit 2; fi

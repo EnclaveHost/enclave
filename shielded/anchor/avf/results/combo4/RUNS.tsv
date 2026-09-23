@@ -1,0 +1,10 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	3be31241e56c50ec62c9db028b261d1430a7bbb57b20859868b5a90c82b30933
+# label	condition	extra	status	rc
+cv-01	best	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128	ok	0
+cv-02	v4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0
+cv-03	v4-ws	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4 --ei tpu_worker_spin 3000	ok	0
+cv-04	v4-ws	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4 --ei tpu_worker_spin 3000	ok	0
+cv-05	v4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4	ok	0
+cv-06	best	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128	ok	0

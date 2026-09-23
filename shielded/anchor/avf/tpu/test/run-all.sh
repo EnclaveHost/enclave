@@ -43,6 +43,8 @@ run "linkbench failure modes"   "cc -std=c11 -O1 -pthread tpu/test/linkbench-tes
 run "exchange bench failure modes" "cc -std=c11 -D_GNU_SOURCE -O1 -pthread tpu/test/exbench-test.c -o /tmp/exb.$$ && /tmp/exb.$$"
 run "correction row-major == column" "g++ -std=c++17 -O2 tpu/test/corr-order-test.cpp -o /tmp/cot.$$ && /tmp/cot.$$"
 run "parallel unmask is safe" "bash tpu/test/unmask-safety-test.sh"
+run "samplers cover every cell" "g++ -std=c++17 -O1 -Wall -Werror -fsanitize=address,undefined -Ipayload tpu/test/sample-cover-test.cpp -o /tmp/sct.$$ && /tmp/sct.$$ tpu/test/e2b-geometry.txt"
+run "fault logs are value-free" "python3 tpu/test/log-values-test.py"
 run "digit split under UBSan"   "clang++ -std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all tpu/test/digit-split-test.cpp -o /tmp/ds.$$ && /tmp/ds.$$"
 run "worker spin is per handle"  "bash tpu/test/worker-spin-test.sh"
 run "lane driver fails closed"  "bash tpu/test/lane-run2-test.sh"
@@ -50,6 +52,6 @@ run "public file: K only for its bytes" "cc -std=c11 -D_GNU_SOURCE -O1 -Wall -We
 run "cpu window: ownership, exits, gaps" "python3 tpu/test/cpu-window-test.py"
 [ "${1:-}" = "--fast" ] || run "error bound derivation" \
   "timeout 900 python3 tpu/test/error_bound.py ${BUNDLE:-/home/steven/gguf-e2b/tpu/graphs-h4-ds/lanes.etpu} 3 23"
-rm -f /tmp/vr.$$ /tmp/lb.$$ /tmp/ds.$$
+rm -f /tmp/vr.$$ /tmp/lb.$$ /tmp/ds.$$ /tmp/sct.$$
 echo; echo "$pass passed, $fail failed"
 exit $((fail ? 1 : 0))
