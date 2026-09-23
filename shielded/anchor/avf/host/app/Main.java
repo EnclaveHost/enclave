@@ -617,8 +617,18 @@ public class Main extends Activity {
     // accept order could not tell the roles apart -- a benchmark link could have been handed to the lane.
     static final int BENCH_PORT = 7784;
     static final int DRAFT_PORT = 7783;
-    /** A PUBLIC file into the VM's encrypted store (the lane bundle, a drafter): u64 size, then 'K' (already there at that size) or 'S' + the bytes. */
+    /** A PUBLIC file into the VM's encrypted store (the lane bundle, a drafter): u64 size, the first 8 bytes and the file's
+     *  SHA-256; then 'K' (the VM's cached copy IS that file, by its own recorded digest) or 'S' + the bytes, which the VM hashes
+     *  as they arrive and refuses if they are not the digest announced here. Size and magic alone reused a stale int8 bundle
+     *  under an int4 lane: the two have the same size and the same first 8 bytes. */
     static void streamPublicFile(Object vm, int port, String path, String what) {
+        byte[] sha;
+        try (InputStream f = new FileInputStream(path)) {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256"); byte[] b = new byte[1 << 20]; int n;
+            long t0 = System.nanoTime(); while ((n = f.read(b)) > 0) md.update(b, 0, n); sha = md.digest();
+            StringBuilder hx = new StringBuilder(); for (byte x : sha) hx.append(String.format("%02x", x & 0xff));
+            say(what + " sha256=" + hx + " (hashed in " + ((System.nanoTime() - t0) / 1_000_000) + " ms)");
+        } catch (Exception e) { say(what + ": cannot hash " + path + ": " + e); return; }
         ParcelFileDescriptor pfd = connect(vm, port, 900);
         if (pfd == null) { say(what + " connect failed"); return; }
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor()); InputStream f = new FileInputStream(path)) {
@@ -626,8 +636,8 @@ public class Main extends Activity {
             // ...followed by the file's first 8 bytes. The VM keeps a cached copy keyed on size, and the digit-split
             // lane bundle has exactly the same size as the a16w8 one, so size alone would silently reuse the wrong format.
             byte[] magic = new byte[8]; { int got = 0; while (got < 8) { int r = f.read(magic, got, 8 - got); if (r <= 0) break; got += r; } }
-            out.write(hdr); out.write(magic); out.flush(); int ans = in.read();
-            if (ans == 'K') { say(what + " already in the VM's encrypted storage (" + (bytes >> 20) + " MiB), not streamed"); return; }
+            out.write(hdr); out.write(magic); out.write(sha); out.flush(); int ans = in.read();
+            if (ans == 'K') { say(what + " already in the VM's encrypted storage (" + (bytes >> 20) + " MiB, same sha256), not streamed"); return; }
             if (ans != 'S') { say(what + ": the VM answered " + ans); return; }
             byte[] buf = new byte[1 << 20]; long sent = 0, t0 = System.nanoTime(); int n;
             out.write(magic); sent += magic.length;          // the 8 bytes already consumed to form the header

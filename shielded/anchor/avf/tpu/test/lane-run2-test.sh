@@ -41,6 +41,8 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
 [ "${FAKE_MANGLE:-0}" = 1 ] && ask="${ask//\'/}"
 { echo "CAPTURE BEGIN label=$label"
   echo "TPU worker: serving masked rows"
+  echo "TPU bundle sha256=${FAKE_BSHA:-aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccdddddddddddddddd} (hashed in 900 ms)"
+  echo "VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 ${FAKE_VM_BSHA16:-aaaaaaaaaaaaaaaa}...)"
   echo "LOCAL ask sha256=$(printf '%s' "$ask" | sha256sum | cut -d' ' -f1) bytes=${#ask}"
   n=0; IFS='|' read -r -a parts <<<"$ask"; for p in "${parts[@]}"; do [ -n "$(tr -d '[:space:]' <<<"$p")" ] || continue; n=$((n+1))
      [ "${FAKE_DROP_STATS:-0}" = "$n" ] || echo "LOCAL turn $n STATS {status=eos, decode_tokens=5, decode_tok_s=1.00}"
@@ -94,4 +96,8 @@ rm -rf "$W/home"; mkdir -p "$W/home/files/capture"; : > "$W/home/files/capture/r
 OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 OUT="$W/out" ASK="x" bash "$HERE/lane-run2.sh" reused 2>&1); RC=$?
 ck "a used label: refused" "$RC" 1; ck "... before the app was started" "$([ -e "$W/home/received-ask" ] && echo started || echo not-started)" not-started
 ASK_=$'two\nlines'; run newline; ck "a multi-line ASK: refused" "$RC" 1
+ASK_='Say hi.'
+run stalebundle FAKE_VM_BSHA16=eeeeeeeeeeeeeeee; ck "the VM holds a different bundle than the app sent: refused" "$RC" 1
+run wantbundle BUNDLE_SHA256=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff; ck "not the bundle the caller asked for: refused" "$RC" 1
+run rightbundle BUNDLE_SHA256=aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccdddddddddddddddd; ck "the bundle the caller asked for: exit 0" "$RC" 0
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

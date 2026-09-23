@@ -994,35 +994,53 @@ static void run_prepare(int ls_pads, int seconds) {
 typedef int (*engine_local_main_fn)(int, int, const char *, int, int);
 typedef int (*engine_local_set_tpu_fn)(const char *, int, int, int);
 /* The lane bundle is public data (int8 weights, scales, lanes): a wrong one cannot leak anything, it makes the unmasked products
- * wrong (the pads are computed from ITS weights). It is kept in the encrypted store and reused when the size matches. */
+ * wrong (the pads are computed from ITS weights). It is kept in the encrypted store and reused only when it is the SAME FILE.
+ *
+ * Wire: u64 size, the first 8 bytes, the file's SHA-256 (32 bytes); then 'K' (the cached copy is that file) or 'S' + the bytes.
+ *
+ * "The same file" used to mean the same size and the same first 8 bytes. The int4 lane bundle has exactly the int8 one's size
+ * and magic, so for two runs the VM cancelled its pads with the CACHED int8 matrix while the TPU multiplied by int4 -- 99.8 %
+ * of verification samples disagreed and the text was garbage (TPU.md, 2026-09-22). Now the copy is bound to its digest: the
+ * VM hashes the bytes AS THEY ARRIVE, refuses a stream whose bytes are not the digest the owner announced, and writes the
+ * digest to a sidecar only after the file is complete and renamed. A cached copy is reused only when its sidecar -- written by
+ * this VM, in its own encrypted store -- equals the announced digest. */
 static int receive_public_file(int ls, uint64_t bytes, const char *name, char *path, size_t pathcap) {
     const char *es = AVmPayload_getEncryptedStoragePath(); if (!es) { OUT("LOCAL: no encrypted store for a public file"); return -1; }
     snprintf(path, pathcap, "%s/%s", es, name);
+    char side[640]; snprintf(side, sizeof side, "%s.sha256", path);
     int c = vs_accept(ls, 120000); if (c < 0) { OUT("LOCAL %s: no stream from the owner", name); return -1; }
     uint64_t hdr = 0; if (read_exact(c, &hdr, 8) != 0 || hdr != bytes) { OUT("LOCAL %s: header %" PRIu64 " != %" PRIu64, name, hdr, bytes); close(c); return -1; }
-    /* The owner also sends the file's first 8 bytes. Size alone is NOT enough to decide the cached copy is the same
-     * file: the digit-split lane bundle (ETPUB002) is byte-for-byte the same LENGTH as the a16w8 one (ETPUB001), so a
-     * size-only check silently reuses the wrong format and the products come back wrong but plausible. */
-    uint8_t want_magic[8] = {0}; if (read_exact(c, want_magic, 8) != 0) { OUT("LOCAL %s: no magic", name); close(c); return -1; }
+    uint8_t want_magic[8] = {0}, want_sha[32] = {0};
+    if (read_exact(c, want_magic, 8) != 0 || read_exact(c, want_sha, 32) != 0) { OUT("LOCAL %s: no magic/digest in the header", name); close(c); return -1; }
+    char wh[17]; for (int i = 0; i < 8; i++) snprintf(wh + 2 * i, 3, "%02x", want_sha[i]);
     struct stat sb;
     if (stat(path, &sb) == 0 && (uint64_t)sb.st_size == bytes) {
-        uint8_t have[8] = {0}; int hf = open(path, O_RDONLY | O_CLOEXEC); ssize_t hr = hf >= 0 ? read(hf, have, 8) : -1; if (hf >= 0) close(hf);
-        if (hr == 8 && memcmp(have, want_magic, 8) == 0) { (void)!write(c, "K", 1); close(c); OUT("LOCAL %s: already in the encrypted store (%" PRIu64 " MiB)", name, bytes >> 20); return 0; }
-        /* Drop the stale copy BEFORE streaming: the replacement is written to <path>.part first, and the encrypted
-         * store has not got room for the model plus two full bundles - a 1.8 GB bundle died at 819 MB this way. The
-         * bundle is public data (int8 weights, scales, lanes), so losing it to a failed stream costs only a restream. */
-        OUT("LOCAL %s: same size but a different file (first 8 bytes differ): restreaming", name);
-        if (unlink(path) != 0) OUT("LOCAL %s: could not remove the stale copy: %s", name, strerror(errno));
+        uint8_t have[32] = {0}; int hf = open(side, O_RDONLY | O_CLOEXEC); ssize_t hr = hf >= 0 ? read(hf, have, 32) : -1; if (hf >= 0) close(hf);
+        if (hr == 32 && memcmp(have, want_sha, 32) == 0) { (void)!write(c, "K", 1); close(c); OUT("LOCAL %s: already in the encrypted store (%" PRIu64 " MiB, sha256 %s...)", name, bytes >> 20, wh); return 0; }
+        OUT("LOCAL %s: the cached copy is not sha256 %s... (%s): restreaming", name, wh, hr == 32 ? "a different file" : "no digest recorded for it");
     }
+    /* Drop the stale copy BEFORE streaming: the replacement is written to <path>.part first, and the encrypted store has not
+     * got room for the model plus two full bundles - a 1.8 GB bundle died at 819 MB this way. The sidecar goes first, so a
+     * crash in between can never leave a digest describing a file that is gone or different. */
+    (void)unlink(side);
+    if (stat(path, &sb) == 0 && unlink(path) != 0) OUT("LOCAL %s: could not remove the stale copy: %s", name, strerror(errno));
     (void)!write(c, "S", 1);
     char tmp[600]; snprintf(tmp, sizeof tmp, "%s.part", path); int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { OUT("LOCAL %s: cannot create %s: %s", name, tmp, strerror(errno)); close(c); return -1; }
+    anchor_sha256_ctx hc; anchor_sha256_init(&hc);
     static uint8_t buf[1 << 20]; uint64_t got = 0; double t0 = now_us();
     while (got < bytes) { size_t want = bytes - got < sizeof buf ? (size_t)(bytes - got) : sizeof buf; ssize_t r = read(c, buf, want); if (r < 0 && errno == EINTR) continue; if (r <= 0) break;
+        anchor_sha256_update(&hc, buf, (size_t)r);
         size_t o = 0; while (o < (size_t)r) { ssize_t w2 = write(fd, buf + o, (size_t)r - o); if (w2 < 0 && errno == EINTR) continue; if (w2 <= 0) { r = -1; break; } o += (size_t)w2; } if (r < 0) break; got += (uint64_t)r; }
-    close(c); if (got != bytes || fsync(fd) != 0) { close(fd); unlink(tmp); OUT("LOCAL %s: stream ended at %" PRIu64 " of %" PRIu64, name, got, bytes); return -1; }
-    close(fd); if (rename(tmp, path) != 0) { OUT("LOCAL %s: rename: %s", name, strerror(errno)); return -1; }
-    OUT("LOCAL %s: %" PRIu64 " MiB received in %.1f s", name, bytes >> 20, (now_us() - t0) / 1e6); return 0;
+    close(c); uint8_t got_sha[32]; anchor_sha256_final(&hc, got_sha);
+    if (got != bytes || fsync(fd) != 0) { close(fd); unlink(tmp); OUT("LOCAL %s: stream ended at %" PRIu64 " of %" PRIu64, name, got, bytes); return -1; }
+    close(fd);
+    if (memcmp(got_sha, want_sha, 32) != 0) { unlink(tmp); OUT("LOCAL %s: REFUSED: the bytes received are not the sha256 %s... the owner announced", name, wh); return -1; }
+    if (rename(tmp, path) != 0) { OUT("LOCAL %s: rename: %s", name, strerror(errno)); return -1; }
+    { char stmp[660]; snprintf(stmp, sizeof stmp, "%s.part", side); int sf = open(stmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+      int ok = sf >= 0 && write(sf, got_sha, 32) == 32 && fsync(sf) == 0; if (sf >= 0) close(sf);
+      if (!ok || rename(stmp, side) != 0) { unlink(stmp); OUT("LOCAL %s: could not record its digest (%s); it will be restreamed next time", name, strerror(errno)); } }
+    OUT("LOCAL %s: %" PRIu64 " MiB received in %.1f s, sha256 %s... verified", name, bytes >> 20, (now_us() - t0) / 1e6, wh); return 0;
 }
 /* Link-scaling benchmark: does the protected-VM boundary serialise, or does it scale per connection?
  *

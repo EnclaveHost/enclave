@@ -71,7 +71,10 @@ int main(int argc, char** argv) {
   for (size_t i = 0; i < in->size(); i++) {
     auto z = (*in)[i].PackedSize(); if (!z) { fprintf(stderr, "FAIL input size\n"); return 6; }
     std::vector<int8_t> v(*z);
-    for (auto& x : v) x = (int8_t)((int)(lcg(seed) >> 25) - 64);       // uniform in [-64, 63]
+    // uniform in [-64, 63] by default; GWCHECK_FULL=1 uses the whole int8 range [-128, 127], which is what a digit-split
+    // lo row carries (the default range never exercised it)
+    const bool full = getenv("GWCHECK_FULL") && getenv("GWCHECK_FULL")[0] == '1';
+    for (auto& x : v) x = full ? (int8_t)(int)(lcg(seed) >> 24) : (int8_t)((int)(lcg(seed) >> 25) - 64);
     if (auto r = (*in)[i].Write<int8_t>(litert::Span<const int8_t>(v.data(), v.size())); !r) {
       fprintf(stderr, "FAIL input write\n"); return 7; }
     if (!dump(pre + ".in" + std::to_string(i), v.data(), v.size())) { fprintf(stderr, "FAIL dump in\n"); return 8; }
