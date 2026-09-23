@@ -124,3 +124,6 @@ windows/enclave-app-hello/target/
 # A backup of metal's build output. metal/dist itself is untracked build output (0 tracked files), so a
 # dated copy of it is not repo content either; 279 MB of initramfs plus a kernel.
 /metal/dist.backup-*/
+
+# isolation/m4 builds the contract's bundle tool into the tree; it is reproducible output
+/isolation/m4/.bundle

@@ -53,6 +53,20 @@ func main() {
 		die(err)
 		id := contract.AppID(b)
 		fmt.Printf("app_id=%s artifact=%d bytes sha256=%s\nmanifest=%+v\n", hex.EncodeToString(id[:]), len(art), m.Artifact.Sha256, m)
+	// extract: write the artifact out, for a backend that has to hand the bytes to a runtime. Additive; the
+	// bundle format, the AppID and the ABI are untouched. isolation/m4 uses it to build one measured guest
+	// per app: the bundle's own bytes go into the image (so the AppID's preimage is measured) and the
+	// artifact is what wasmtime runs.
+	case "extract":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "usage: bundle extract BUNDLE OUT")
+			os.Exit(2)
+		}
+		b, err := os.ReadFile(os.Args[2])
+		die(err)
+		_, art, err := contract.Parse(b)
+		die(err)
+		die(os.WriteFile(os.Args[3], art, 0o644))
 	default:
 		fmt.Fprintln(os.Stderr, "unknown command")
 		os.Exit(2)

@@ -1,0 +1,3 @@
+corr-order-test      rc=0  PASS: 31 checks, 0 failures
+unmask-span-test     rc=0  PASS: 10 checks, 0 failures
+sample-cover-test    rc=0  PASS sample-cover
