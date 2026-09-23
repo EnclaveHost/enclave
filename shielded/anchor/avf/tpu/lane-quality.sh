@@ -12,7 +12,7 @@ mkdir -p "$OUTD" || exit 2; M="$OUTD/MANIFEST.tsv"; [ -e "$M" ] && { echo "REFUS
 # The driver and the gate it sources are FROZEN into the batch directory and only that copy runs: bash reads a script
 # as it executes, and the live file being rewritten mid-batch is how results/qw4-aborted-1 was lost.
 mkdir -p "$OUTD/driver/tpu" "$OUTD/driver/host" || exit 2
-cp "$H/lane-run2.sh" "$OUTD/driver/tpu/lane-run2.sh" && cp "$H/../host/coolgate.sh" "$OUTD/driver/host/coolgate.sh" || exit 2
+cp "$H/lane-run2.sh" "$H/cpu-sampler.sh" "$H/cpu-window.py" "$OUTD/driver/tpu/" && cp "$H/../host/coolgate.sh" "$OUTD/driver/host/coolgate.sh" || exit 2
 chmod 0555 "$OUTD/driver/tpu/lane-run2.sh"; DRV="$OUTD/driver/tpu/lane-run2.sh"
 mapfile -t rows < <(grep -v '^#' "$PROMPTS" | grep -v '^[[:space:]]*$')
 { printf '# expect_rows\t%d\n' "${#rows[@]}"
@@ -26,7 +26,7 @@ for row in "${rows[@]}"; do
   n=$((n+1)); id=$(printf '%02d' $n); prompt="${row%%$'\t'*}"; expect="${row#*$'\t'}"; label="$TAG-$id"
   case "$prompt" in *'|'*) printf '%s\t%s\tfailed\t2\t%s\t%s\n' "$id" "$label" "$prompt" "$expect" >> "$M"; continue;; esac   # '|' would split the turn
   echo "== $label $(date +%T)"
-  ASK="$prompt" OUT="$OUTD" "$DRV" "$label" > "$OUTD/$label.driver" 2>&1; rc=$?
+  ASK="$prompt" OUT="$OUTD" "$DRV" "$label" > "$OUTD/$label.driver" 2>&1 </dev/null; rc=$?   # </dev/null: adb shell reads stdin, and ate the rest of the list
   tail -3 "$OUTD/$label.driver"
   printf '%s\t%s\t%s\t%d\t%s\t%s\n' "$id" "$label" "$([ $rc = 0 ] && echo ok || echo failed)" "$rc" "$prompt" "$expect" >> "$M"
 done

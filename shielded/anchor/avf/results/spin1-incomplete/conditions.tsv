@@ -1,0 +1,8 @@
+sp1-01	t6	
+sp1-02	t2	--ei threads 2
+sp1-03	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp1-04	t6-spin	--ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp1-05	t6-spin	--ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp1-06	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp1-07	t2	--ei threads 2
+sp1-08	t6	
