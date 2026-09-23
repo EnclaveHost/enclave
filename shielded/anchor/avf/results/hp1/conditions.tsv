@@ -1,0 +1,4 @@
+hp-01	d2	--ei decode_threads 2
+hp-02	d2-huge	--ei decode_threads 2 --ei hugepages 1
+hp-03	d2-huge	--ei decode_threads 2 --ei hugepages 1
+hp-04	d2	--ei decode_threads 2
