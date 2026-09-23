@@ -193,7 +193,9 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
 void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, int m,
                       const int64_t *y, int64_t ystr, int plaintext_bits, char *out, size_t cap);
 /* SHIELDED_FAULT_DIAG_PLAINTEXT=1: fault diagnostics may include bits that
- * depend on the activations (never values). Read once; default 0. */
+ * depend on the activations (never values). Honoured only in a build compiled
+ * with -DSHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT (no deployment build is); in any
+ * other build it is ignored with a warning. Read once; default 0. */
 int sh_fault_diag_plaintext(void);
 
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
