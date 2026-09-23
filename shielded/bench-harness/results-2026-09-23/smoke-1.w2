@@ -1,0 +1,6 @@
+[shielded-worker] 127.0.0.1:41848 attached shm ring 0 (reply mapped for the device)
+[shielded-worker] 127.0.0.1:41848 closed: 17734 exchanges (17731 over the ring), 0 recomputes, 1695.1 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 17734 turns, 1679.0 ms on the card, 0.0 ms waiting for it, 0.0 ms yielded to the owner
+[shielded-worker] 127.0.0.1:41848 graph cache: limit=1024 high_water=514 hits=16963 misses=771 capacity_flushes=0 invalidations=4 capture=67.367 ms (host capture+instantiate, not GPU kernel time)
+[shielded-worker] 127.0.0.1:42584 attached shm ring 0 (reply mapped for the device)
+[shielded-worker] 127.0.0.1:42584 closed: 9905 exchanges (9904 over the ring), 0 recomputes, 1047.2 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 9905 turns, 1032.3 ms on the card, 0.0 ms waiting for it, 0.0 ms yielded to the owner
+[shielded-worker] 127.0.0.1:42584 graph cache: limit=1024 high_water=274 hits=9375 misses=530 capacity_flushes=0 invalidations=3 capture=14.874 ms (host capture+instantiate, not GPU kernel time)

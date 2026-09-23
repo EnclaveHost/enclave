@@ -1,0 +1,183 @@
+# Excerpts recovered from the session transcript after the 2026-09-23 unclean reboot wiped the
+# scratchpad. Each block is a command I ran on the ORIGINAL files and the output it printed then.
+# These are NOT the raw files; they are what was displayed, verbatim.
+
+===== 2026-09-23T14:14:04.062Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -v "^\[ph\]" rep-1.err | tail -8 | cut -c1-300; python3 -c "import json;d=json.loads(open('rep-1.json').read().strip().splitlines()[-1]);print({k:d[k] for k in ('generated','plain_generated','text_identical','first_diff_token','obs_fail','rounds','decode_tok_s')})"; grep -n "return 3" /home/steven/Projects/enclave/shielded/results-27b-loopback-2026-09-20/bench-spec2.cpp | head
+----- output
+[shielded] widths: exchanges by rows m1=0 m2=0 m3=0 m4=0 m5=0 m6=0 m7=0 m8=0 m9+=0 | graphs by widest matmul rows 1=0 2-4=0 5-8=0 9+=0
+[shielded] profile: exchanges=210846 nodes=0 (completions=0 served=0) | link: mask=3781.8ms wire=18273.3ms refill-on-path=1089.3ms unmask+lhs=2134.7ms rhs=3127.9ms check=185.1ms pads=64.4ms idle=16644.7ms/210842ex total=0.0ms | backend: encode=0.0ms post=0.0ms graph_compute=0.0ms | split: gemm=0.0ms
+[shielded] profile: card=1 group=output.weight pads=1454 missed=27 on-path=1089.3ms local_nodes=0
+[bench] shielded: offloaded=328938 local=0 GMAC=30514.28 verify_fail=0
+~llama_context:        CPU compute buffer size is 506.0195 MiB, matches expectation of 506.0195 MiB
+~llama_context:        CPU compute buffer size is   0.0000 MiB, matches expectation of   0.0000 MiB
+~llama_context:        CPU compute buffer size is 516.0196 MiB, matches expectation of 516.0196 MiB
+~llama_context:        CPU compute buffer size is   0.0000 MiB, matches expectation of   0.0000 MiB
+{'generated': 512, 'plain_generated': 512, 'text_identical': False, 'first_diff_token': 320, 'obs_fail': 0, 'rounds': 290, 'decode_tok_s': 18.35}
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T14:58:35.852Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; n=0; ex=0; for r in $(seq 1 20); do L=rep-$r; [ -f $L.json ] || continue; n=$((n+1)); python3 -c "
+import json;d=json.loads(open('$L.json').read().strip().splitlines()[-1]);print('$L diff_at', d['first_diff_token'], 'spec %.2f'%d['decode_tok_s'], end=' ')"; echo "vf=$(grep -oh 'verify_fail=[0-9]*' $L.err | tail -1 | cut -d= -f2) FAILED=$(grep -c 'verification FAILED' $L.err) card0ex=$(grep -h 'profile: exchanges=' $L.err | head -1 | grep -oE 'exchanges=[0-9]+' | cut -d= -f2) plain=$(grep -h 'plain tokens' $L.err | md5sum | cut -c1-8) intr=$(grep -o 'intruder=[^ ]*' $L.meta)"; done 2>/dev/null | tee /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/rep-summary.txt | tail -12; echo "runs: $(ls rep-*.json | wc -l)"
+----- output
+rep-9 diff_at 320 spec 18.00 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=clang-18:99.0
+rep-10 diff_at 320 spec 18.06 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-11 diff_at 320 spec 18.08 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-12 diff_at 320 spec 18.30 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-13 diff_at 320 spec 18.26 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-14 diff_at 320 spec 18.02 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-15 diff_at 320 spec 17.79 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-16 diff_at 320 spec 18.14 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-17 diff_at 320 spec 18.17 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=gzip:100
+rep-18 diff_at 320 spec 18.02 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-19 diff_at 320 spec 18.20 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+rep-20 diff_at 320 spec 18.18 vf=0 FAILED=0 card0ex=2048 plain=de03ea03 intr=intruder=none
+runs: 20
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T14:58:47.873Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; python3 - <<'EOF'
+import re
+tot0=tot1=0
+for r in range(1,21):
+    t=open(f"rep-{r}.err",errors='replace').read()
+    # the spec and plain links each end with a profile line; take the max count seen per card over the run's segments
+    c0=[int(m) for m in re.findall(r"\[shielded\] card 0 [^\n]*\n(?:[^\n]*\n){0,4}?\[shielded\] profile: exchanges=(\d+)",t)]
+    allp=[int(x) for x in re.findall(r"profile: exchanges=(\d+)",t)]
+    tot0+=0
+print("per-run final profile counts (first 3 runs):")
+for r in (1,2,3):
+    t=open(f"rep-{r}.err",errors='replace').read()
+    print(r, sorted(set(int(x) for x in re.findall(r"profile: exchanges=(\d+)",t)))[-4:])
+EOF
+grep -h "closed:" rep-1.w1 | cut -c1-110
+----- output
+per-run final profile counts (first 3 runs):
+1 [204800, 206848, 208896, 210846]
+2 [204800, 206848, 208896, 210846]
+3 [204800, 206848, 208896, 210846]
+[shielded-worker] 127.0.0.1:57528 closed: 132869 exchanges (132867 over the ring), 0 recomputes, 10345.5 ms wo
+[shielded-worker] 127.0.0.1:40332 closed: 77977 exchanges (77976 over the ring), 0 recomputes, 6881.3 ms worke
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T14:59:14.463Z
+$ cd /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -n "BACKENDS\|getenv(\"BACKENDS\")" /home/steven/Projects/enclave/shielded/results-27b-loopback-2026-09-20/bench-spec2.cpp | head -3; M=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad; bash waitfree.sh; bash waitquiet.sh; (cd $B 2>/dev/null; ENCLAVE_GGML_EXTRA_BUFTS=0 LD_LIBRARY_PATH=$M/ell-alias BACKENDS=$M/llama-alias/bin/libggml-cpu.so K=1 THREADS=16 LABEL=cpuonly PROMPT="Write a long, detailed history of astronomy from ancient Babylon to the present day, covering each era in several paragraphs." timeout 3600 ./bench-spec2 /home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf "Write a long, detailed history of astronomy from ancient Babylon to the present day, covering each era in several paragraphs." 512 > cpuonly.json 2> cpuonly.err &) ; sleep 2; echo started
+----- output
+28: * Conventions match bench-run: BACKENDS, N_GPU_LAYERS, THREADS, LABEL, one
+68:    if (const char *list = getenv("BACKENDS")) {
+started
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T14:59:23.063Z
+$ sleep 5; until ! pgrep -x bench-spec2 >/dev/null; do sleep 15; done; B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; tail -1 $B/cpuonly.json | cut -c1-400; grep -E "backend|offloaded" $B/cpuonly.err | head -5
+----- output
+Command running in background with ID: b5z68rjzq. Output is being written to: /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/b5z68rjzq.output. You will be notified when it completes. To check interim output, use Read on that file path.
+
+===== 2026-09-23T14:59:44.632Z
+$ cat /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/b5z68rjzq.output | cut -c1-500; B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; ls -la $B/cpuonly.json $B/cpuonly.err | awk '{print $5, $9}'; tail -5 $B/cpuonly.err | cut -c1-200
+----- output
+tail: cannot open '/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/cpuonly.json' for reading: No such file or directory
+ugrep: warning: /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/cpuonly.err: No such file or directory
+
+[exited with code 0]
+ls: cannot access '/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/cpuonly.json': No such file or directory
+ls: cannot access '/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/cpuonly.err': No such file or directory
+tail: cannot open '/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/cpuonly.err' for reading: No such file or directory
+
+===== 2026-09-23T14:59:51.275Z
+$ cd /home/steven/Projects/enclave; ls -la cpuonly.* 2>/dev/null; head -c 300 cpuonly.err 2>/dev/null; echo; git status --short cpuonly.* 2>/dev/null
+----- output
+(Bash completed with no output)
+
+===== 2026-09-23T14:59:58.567Z
+$ ls -la ~/cpuonly.* /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/cpuonly.* 2>/dev/null | head; find /home/steven/Projects/enclave /home/steven -maxdepth 2 -name "cpuonly.*" -newer /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27/rep-20.json 2>/dev/null | head
+----- output
+-rw-r--r-- 1 steven steven 78 Sep 23 07:59 /home/steven/cpuonly.err
+-rw-r--r-- 1 steven steven  0 Sep 23 07:59 /home/steven/cpuonly.json
+/home/steven/cpuonly.err
+/home/steven/cpuonly.json
+
+===== 2026-09-23T15:00:06.631Z
+$ cat /home/steven/cpuonly.err; rm -f /home/steven/cpuonly.err /home/steven/cpuonly.json; M=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad; B=$M/b27; cd $B && bash waitfree.sh && bash waitquiet.sh && (ENCLAVE_GGML_EXTRA_BUFTS=0 LD_LIBRARY_PATH=$M/ell-alias BACKENDS=$M/llama-alias/bin/libggml-cpu.so K=1 THREADS=16 LABEL=cpuonly timeout 3600 $B/bench-spec2 /home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf "Write a long, detailed history of astronomy from ancient Babylon to the present day, covering each era in several paragraphs." 512 > $B/cpuonly.json 2> $B/cpuonly.err &); sleep 20; pgrep -x bench-spec2 | wc -l; grep -m3 -E "backend.*loaded|device" $B/cpuonly.err
+----- output
+timeout: failed to run command ‘./bench-spec2’: No such file or directory
+1
+load_backend: loaded CPU backend from /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/llama-alias/bin/libggml-cpu.so
+[bench] backend /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/llama-alias/bin/libggml-cpu.so: loaded
+[bench] device 0: CPU
+Shell cwd was reset to /home/steven/Projects/enclave
+
+===== 2026-09-23T15:00:33.871Z
+$ sleep 5; until ! pgrep -x bench-spec2 >/dev/null; do sleep 15; done; B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; tail -1 $B/cpuonly.json | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print({k:d[k] for k in ('generated','plain_generated','text_identical','first_diff_token','decode_tok_s','plain_tok_s','acceptance_rate')})"
+----- output
+Command running in background with ID: b525r5w8o. Output is being written to: /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/b525r5w8o.output. You will be notified when it completes. To check interim output, use Read on that file path.
+
+===== 2026-09-23T15:03:03.559Z
+$ cat /tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/tasks/b525r5w8o.output | tail -3; B=/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27; grep -h "plain tokens" $B/cpuonly.err | md5sum | cut -c1-8; python3 - <<'EOF'
+B="/tmp/claude-1000/-home-steven-Projects-enclave/dabd8313-b25c-4bb4-84d5-77a88ab8b323/scratchpad/b27"
+def toks(f):
+    for l in open(f,errors='replace'):
+        if 'plain tokens' in l: return l.split(':',1)[1].strip().split(',')
+a=toks(B+"/cpuonly.err"); b=toks(B+"/rep-1.err")
+n=next((i for i,(x,y) in enumerate(zip(a,b)) if x!=y), min(len(a),len(b)))
+print("CPU-only plain vs shielded plain: first differing token", n, "of", min(len(a),len(b)))
+EOF
+----- output
+{'generated': 512, 'plain_generated': 512, 'text_identical': False, 'first_diff_token': 72, 'decode_tok_s': 7.91, 'plain_tok_s': 5.64, 'acceptance_rate': 0.829}
+
+[exited with code 0]
+8c5b7e6c
+CPU-only plain vs shielded plain: first differing token 72 of 512
+
+===== 2026-09-23T15:47:25.102Z
+$ cd /home/steven/Projects/enclave; cat >> shielded/REPORT.md <<'EOF'
+
+### 18.49 Corrections to 18.47, an open quality gap, and the op that scales with rows
+
+**Corrections to 18.47 (audit).**
+- The unmasked CPU-only run shows that speculative and plain decoding diverge at
+  baseline (token 72): batch-shape floating-point effects exist in llama.cpp
+  without any shielding. It does NOT show that the masked run's divergence at
+  token 320 has no shielding contribution. The shielded products are exact
+  integers, but everything downstream of them (descale, the CPU ops, the
+  sampler) runs on values that differ from the unmasked run's, and no
+  controlled per-op or per-logit comparison between the two paths has been
+  made. The causal statement "not because of anything the shielding does" is
+  withdrawn; what is established is only that a baseline divergence exists.
+- The claim that task quality was "measured at parity in the TPU comparison"
+  cited a different model and platform (Gemma 4 E2B on the Pixel lane) and
+  cannot validate the Qwen 27B shielded encoding. **No model-matched quality
+  evaluation of the 27B's int8 shielded encoding exists in this record**
+  (searched: this report, HANDOFF-27B.md, README.md); the handoff itself names
+  the encoding's quality risk as needing "an eval, not a norm check". That gap
+  is OPEN.
+- The 512-token campaign runs (rep-1..20, all rc=3 "text differs") stay invalid
+  for any throughput acceptance. Their raw evidence is kept in the scratchpad:
+  plain-token hash de03ea03 in all 20, first divergence at token 320 in all 20;
+  the unmasked run's plain hash 8c5b7e6c, divergence at token 72.
+
+**Which op makes a verify round cost ~1.46x a plain step.** The op profiler now
+also splits every op's time by the node's row count (1 = plain step or draft,
+2 = verify). Two clean runs (20.39 and 19.35 tok/s, both valid, box confirmed
+free by the peer session):
+
+| op | us/call at 1 row | at 2 rows | ratio |
+|---|---|---|---|
+| GATED_DELTA_NET | 76.4 / 70.4 | 162.4 / 155.6 | **2.13 / 2.21** |
+| MUL_MAT (CPU part) | 12.3 / 11.5 | 15.2 / 14.0 | 1.24 / 1.22 |
+| SSM_CONV_STATE | 32.4 / 30.5 | 33.8 / 33.3 | 1.04 / 1.09 |
+| RMS_NORM | 6.9 / 5.9 | 7.2 / 6.6 | 1.04 / 1.12 |
+
+The recurrent op is the one CPU op whose cost doubles with the verify's second
+row; the others are nearly flat. 18.36's argument that a second token's state
+sweep would be L2-hot and cheap was wrong: the per-token loop over every state
+row, not DRAM traffic, dominates. That makes the recurrent op, not bandwidth,
+the target for the verify round.
+EOF
+git add shielded/REPORT.md && git commit -q -m "shielded: REPORT 18.49 -- qualify 18.47, the 27B quality gap is open, the recurrent op doubles per verify row
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" && git pull -q --rebase --autostash origin main 2>&1 | tail -1; git push -q origin main 2>&1 | tail -1; git log --oneline -1
+----- output
+Applied autostash.
+350ee301 shielded: REPORT 18.49 -- qualify 18.47, the 27B quality gap is open, the recurrent op doubles per verify row
+
