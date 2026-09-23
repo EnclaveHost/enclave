@@ -1,9 +1,17 @@
-// front: the one port an M2 app domain exposes (isolation/DESIGN.md section 10). It runs inside the
+// front: the one port an app domain exposes (isolation/DESIGN.md section 10). It runs inside the
 // domain, beside the app:
 //   - mints the domain's TLS key in guest memory at start; the key is never written anywhere;
-//   - terminates TLS on vsock (the domain has no NIC, so this is its only channel);
+//   - terminates TLS on the domain's only channel;
 //   - answers GET /.well-known/enclave-attestation?nonce=<64 hex> itself;
 //   - proxies everything else, as plaintext on the guest's loopback, to the app (wasmtime serve).
+//
+// Two shapes, one binary:
+//
+//	M2, one app per guest: listen on vsock, and ask the hardware for the report directly (-snp).
+//	M3, many domains per guest: listen on a unix socket the monitor relays (-listen-unix), and ask the
+//	MONITOR for the report (-report-unix). The front then never touches the report interface, and the
+//	app half of report_data is written by the monitor from its own table rather than by this process
+//	(isolation/m3/PLAN.md section 3).
 //
 // Under SEV-SNP the report's 64-byte report_data is
 //
@@ -20,6 +28,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -53,12 +62,15 @@ type doc struct {
 type front struct {
 	spki, appSha []byte
 	snp          bool
+	monitor      string // M3: the monitor's socket, and then this process never opens configfs at all
 	app          http.Handler
 	tsmMu        sync.Mutex
 }
 
 func main() {
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
+	listenUnix := flag.String("listen-unix", "", "serve TLS on this unix socket instead of vsock (M3)")
+	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
 	upstream := flag.String("upstream", "127.0.0.1:8080", "the app on the guest loopback")
 	appShaPath := flag.String("app-sha", "/app.sha256", "hex sha256 of the app, written at build time")
 	snp := flag.Bool("snp", false, "this domain is an SEV-SNP guest: serve hardware reports")
@@ -72,12 +84,20 @@ func main() {
 	}
 	cert, spki, err := domtls.Mint("enclave-domain")
 	must(err)
-	l, err := vsock.Listen(uint32(*port))
+	var l net.Listener
+	where := fmt.Sprintf("vsock=%d", *port)
+	if *listenUnix != "" {
+		os.Remove(*listenUnix)
+		l, err = net.Listen("unix", *listenUnix)
+		where = "unix=" + *listenUnix
+	} else {
+		l, err = vsock.Listen(uint32(*port))
+	}
 	must(err)
 
 	rp := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: *upstream})
 	rp.Transport = &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64}
-	f := &front{spki: spki, appSha: appSha, snp: *snp, app: rp}
+	f := &front{spki: spki, appSha: appSha, snp: *snp, monitor: *reportUnix, app: rp}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
@@ -96,7 +116,7 @@ func main() {
 			}
 		}
 		fp := sha256.Sum256(spki)
-		fmt.Printf("DOM serving vsock=%d spki_sha256=%x ready_ms=%.0f\n", *port, fp, monoMs())
+		fmt.Printf("DOM serving %s spki_sha256=%x ready_ms=%.0f\n", where, fp, monoMs())
 	}()
 	must(srv.Serve(tl))
 }
@@ -122,16 +142,29 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	d := doc{Tier: "T0", Format: "none", TransportKey: base64.StdEncoding.EncodeToString(f.spki),
 		AppSha256: hex.EncodeToString(f.appSha), Nonce: hex.EncodeToString(nonce),
 		Reason: "T0 domain: an ordinary KVM guest with no hardware attestation; the host can read its memory"}
-	if f.snp {
-		bind := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
+	// The binding is the same in both shapes: sha256(this domain's TLS key SPKI || the verifier's nonce).
+	bind := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
+	var rep, certs []byte // err is already in scope from parsing the nonce
+	switch {
+	case f.monitor != "":
+		// M3: send the binding and nothing else. The app half of report_data is the monitor's to write,
+		// from the hash it took when it loaded this domain's app.
+		rep, certs, err = f.askMonitor(bind[:])
+		if err == errNoHardwareReport {
+			d.Reason = "T0 domain: the monitor has no hardware report interface on this tier"
+			err = nil
+		}
+	case f.snp:
 		rd := make([]byte, 64)
 		copy(rd, bind[:])
 		copy(rd[32:], f.appSha)
-		rep, certs, err := f.report(rd)
-		if err != nil {
-			http.Error(w, "report: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+		rep, certs, err = f.report(rd)
+	}
+	if err != nil {
+		http.Error(w, "report: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(rep) > 0 {
 		d.Tier, d.Format, d.Reason = "T1", "sev-snp-guest-domain-v1", ""
 		d.Report = base64.StdEncoding.EncodeToString(rep)
 		if len(certs) > 0 {
@@ -140,6 +173,39 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-type", "application/json")
 	json.NewEncoder(w).Encode(d)
+}
+
+var errNoHardwareReport = errors.New("no hardware report on this tier")
+
+// askMonitor is the M3 path: one request, one answer, over the socket the monitor bind-mounted into
+// this domain. The monitor identifies the caller from the socket's kernel credentials, so there is
+// nothing in this request that could name a different domain or a different app.
+func (f *front) askMonitor(bind []byte) ([]byte, []byte, error) {
+	c, err := net.DialTimeout("unix", f.monitor, 10*time.Second)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(30 * time.Second))
+	if err := json.NewEncoder(c).Encode(map[string]string{"bind": hex.EncodeToString(bind)}); err != nil {
+		return nil, nil, err
+	}
+	var resp struct{ Report, Certs, Error string }
+	if err := json.NewDecoder(c).Decode(&resp); err != nil {
+		return nil, nil, err
+	}
+	if resp.Error != "" {
+		if strings.Contains(resp.Error, "no hardware report") {
+			return nil, nil, errNoHardwareReport
+		}
+		return nil, nil, errors.New(resp.Error)
+	}
+	rep, err := base64.StdEncoding.DecodeString(resp.Report)
+	if err != nil {
+		return nil, nil, err
+	}
+	certs, _ := base64.StdEncoding.DecodeString(resp.Certs)
+	return rep, certs, nil
 }
 
 // report asks the PSP, through configfs-tsm, for a report carrying rd, plus the certificate table the

@@ -440,4 +440,12 @@ from a domain's. `verifyQuote({ expectedVmpl })` and `metal/verify.mjs --vmpl N`
 with `test/snp-vmpl-policy.test.mjs` covering the default, each explicit level, malformed expectations and
 the fact that the gate replaces none of the other checks. Production behaviour is unchanged.
 
-Status: research and the verifier prerequisite done; M3a-1 next (`isolation/m3/`).
+**M3a is built and measured (2026-09-23): `isolation/m3/`, `test-m3.sh` ALL PASS, 18 checks**, detailed in
+`isolation/m3/PLAN.md` section 10. Two apps run as separate domains in one SNP guest; the launch
+measurement is the same whichever apps are loaded, and each domain's report carries the app hash the
+monitor took when it loaded it. Both domains are attested, serve their own app on their own port and
+key, and a client expecting another app is refused. A root process that is not a registered domain
+cannot obtain a report. Starting a domain costs 5-13 ms against M2's 3.4 s per guest, and a second
+domain costs no extra host memory, because SNP pins the guest's RAM at launch.
+
+Status: M3a done; M3b (the VMPL boundary) needs a host kernel and VMM and is Steven's call.
