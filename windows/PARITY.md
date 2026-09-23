@@ -350,7 +350,7 @@ Why an open page halves the guest and stalls every key (source, `enclave-apps/ri
 Keystrokes wait behind both: a POST that lands during a scan or status turn waits for it to finish.
 Echo then needs guest instructions that are arriving at 55% speed.
 
-**Prepared in enclave-apps `4ba1f56` (NOT deployed; the after-numbers are still to be measured):**
+**Prepared in enclave-apps `4ba1f56`, then DEFERRED (2026-09-22, the user moved the work to native per-app isolation, `isolation/DESIGN.md`). NOT deployed and not measured live. The state-preserving rollout kit, never run, is in `windows/node/ops/riscbox-rollout/`:**
 tests pass (emu 45, app 64). Each new guard was mutation-checked: reverting its fix fails its tests.
 - the scan gap is never shorter than `cost x 4`. This is identical for any scan under 25 ms, i.e. every
   native host, and pinned by a test against the old formula.
