@@ -1,0 +1,8 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	ad92ded1c43687ea0b7cdc5b11f4a19a1171e278b91295ddf0794492ab98bd91
+# label	condition	extra	status	rc
+dr-01	d2	--ei decode_threads 2	ok	0
+dr-02	d2-draft4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4	ok	0
+dr-03	d2-draft4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4	ok	0
+dr-04	d2	--ei decode_threads 2	ok	0
