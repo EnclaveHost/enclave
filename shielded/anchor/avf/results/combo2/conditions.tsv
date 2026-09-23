@@ -1,0 +1,6 @@
+cc-01	c3	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3
+cc-02	c3-b128	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128
+cc-03	c5-b128	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 5 --ei tpu_bank 128
+cc-04	c5-b128	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 5 --ei tpu_bank 128
+cc-05	c3-b128	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3 --ei tpu_bank 128
+cc-06	c3	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4 --ei corr_threads 3
