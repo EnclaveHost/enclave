@@ -1,0 +1,450 @@
+# ggml_ssm_conv_state: the delta-net conv reads and updates its recurrent state in
+# place (one op instead of CONCAT + SSM_CONV + one or two CPYs per layer).
+# Applies AFTER llamacpp-rs-inplace.patch (it uses rs_identity from that patch).
+# Bit-identical to the concat graph on the reference build; see shielded/REPORT.md 18.42
+# and the harnesses in wasm/llamacpp-conv-inplace/. Not wired into the toolchain.
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -590,6 +590,8 @@
+ 
+         GGML_OP_GLU,
+ 
++        GGML_OP_SSM_CONV_STATE,   // ggml_ssm_conv_state: the conv reads and updates its state in place
++
+         GGML_OP_COUNT,
+     };
+ 
+@@ -2451,6 +2453,24 @@
+             struct ggml_tensor  * sx,
+             struct ggml_tensor  * c);
+ 
++    // The same convolution as ggml_ssm_conv(concat(state, x), c), with the
++    // conv state read from and written back to the recurrent cache in place.
++    // state: {d_conv - 1, d_inner, n_s} contiguous -- the LIVE cache rows,
++    //        overwritten with the last d_conv - 1 columns of (state | x);
++    // x:     {d_inner, n_t, n_s} (rows contiguous) -- the new tokens;
++    // K > 1: rollback snapshots, slot s (s tokens back) written at
++    //        state + s * snap_stride bytes, as build_conv_state writes them.
++    // Returns {d_inner, n_t, n_s}, bit-identical to the concat form. A new op
++    // rather than a mode of SSM_CONV, so no backend that implements SSM_CONV
++    // can be handed this one without implementing it: only the CPU does.
++    GGML_API struct ggml_tensor * ggml_ssm_conv_state(
++            struct ggml_context * ctx,
++            struct ggml_tensor  * state,
++            struct ggml_tensor  * x,
++            struct ggml_tensor  * c,
++            int64_t               K,
++            size_t                snap_stride);
++
+     GGML_API struct ggml_tensor * ggml_ssm_scan(
+             struct ggml_context * ctx,
+             struct ggml_tensor  * s,
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -1098,9 +1098,11 @@
+     "OPT_STEP_SGD",
+ 
+     "GLU",
++
++    "SSM_CONV_STATE",
+ };
+ 
+-static_assert(GGML_OP_COUNT == 101, "GGML_OP_COUNT != 101");
++static_assert(GGML_OP_COUNT == 102, "GGML_OP_COUNT != 102");
+ 
+ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
+     "none",
+@@ -1213,9 +1215,11 @@
+     "sgd(x)",
+ 
+     "glu(x)",
++
++    "ssm_conv_state(x)",
+ };
+ 
+-static_assert(GGML_OP_COUNT == 101, "GGML_OP_COUNT != 101");
++static_assert(GGML_OP_COUNT == 102, "GGML_OP_COUNT != 102");
+ 
+ static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
+ 
+@@ -5577,6 +5581,50 @@
+ 
+     return result;
+ }
++
++// ggml_ssm_conv_state
++
++struct ggml_tensor * ggml_ssm_conv_state(
++        struct ggml_context * ctx,
++        struct ggml_tensor  * state,
++        struct ggml_tensor  * x,
++        struct ggml_tensor  * c,
++        int64_t               K,
++        size_t                snap_stride) {
++    GGML_ASSERT(ggml_is_3d(state));
++    GGML_ASSERT(ggml_is_matrix(c));
++    GGML_ASSERT(state->type == GGML_TYPE_F32 && x->type == GGML_TYPE_F32 && c->type == GGML_TYPE_F32);
++    GGML_ASSERT(ggml_is_contiguous(state));
++    GGML_ASSERT(x->nb[0] == sizeof(float));
++    GGML_ASSERT(c->nb[0] == sizeof(float));
++
++    const int64_t d_conv  = c->ne[0];
++    const int64_t d_inner = c->ne[1];
++    const int64_t n_t     = x->ne[1];
++    const int64_t n_s     = x->ne[2];
++
++    GGML_ASSERT(d_conv >= 2 && d_conv <= 16);
++    GGML_ASSERT(state->ne[0] == d_conv - 1);
++    GGML_ASSERT(state->ne[1] == d_inner);
++    GGML_ASSERT(state->ne[2] == n_s);
++    GGML_ASSERT(x->ne[0] == d_inner);
++    GGML_ASSERT(n_t >= 1);
++    GGML_ASSERT(K >= 1 && K <= 64);
++    /* Slots past the first are written at snap_stride; one slot needs none. */
++    GGML_ASSERT(K == 1 || snap_stride >= (size_t) ggml_nbytes(state));
++
++    struct ggml_tensor * result = ggml_new_tensor_3d(ctx, GGML_TYPE_F32, d_inner, n_t, n_s);
++
++    const int32_t params[3] = { (int32_t) K, (int32_t) (uint32_t) (snap_stride & 0xffffffffu), (int32_t) (uint32_t) ((uint64_t) snap_stride >> 32) };
++    ggml_set_op_params(result, params, sizeof(params));
++
++    result->op     = GGML_OP_SSM_CONV_STATE;
++    result->src[0] = state;
++    result->src[1] = c;
++    result->src[2] = x;
++
++    return result;
++}
+ 
+ // ggml_ssm_scan
+ 
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -2012,6 +2012,10 @@
+             {
+                 ggml_compute_forward_ssm_conv(params, tensor);
+             } break;
++        case GGML_OP_SSM_CONV_STATE:
++            {
++                ggml_compute_forward_ssm_conv_state(params, tensor);
++            } break;
+         case GGML_OP_SSM_SCAN:
+             {
+                 ggml_compute_forward_ssm_scan(params, tensor);
+@@ -2398,6 +2402,7 @@
+         case GGML_OP_FLASH_ATTN_EXT:
+         case GGML_OP_FLASH_ATTN_BACK:
+         case GGML_OP_SSM_CONV:
++        case GGML_OP_SSM_CONV_STATE:
+         case GGML_OP_SSM_SCAN:
+         case GGML_OP_LIGHTNING_INDEXER:
+             {
+--- a/ggml/src/ggml-cpu/ops.h
++++ b/ggml/src/ggml-cpu/ops.h
+@@ -93,6 +93,7 @@
+         const bool masked,
+         struct ggml_tensor * dst);
+ void ggml_compute_forward_ssm_conv(const struct ggml_compute_params * params, struct ggml_tensor * dst);
++void ggml_compute_forward_ssm_conv_state(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_ssm_scan(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_win_part(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_win_unpart(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -1,5 +1,6 @@
+ #include <cstring>
+ #include "ops.h"
++#include <vector>
+ 
+ #include "ggml-cpu.h"
+ #include "ggml-impl.h"
+@@ -9697,6 +9698,178 @@
+     }
+ }
+ 
++// ggml_compute_forward_ssm_conv_state
++//
++// ROUNDING. The scalar loop below is what defines the op, and its rounding is
++// the compiler's: GCC in GNU mode contracts `sumf += a * b` into a fused
++// multiply-add. On the reference build (GCC 16.2.1, -O3 -mfma -mavx512*,
++// -ffp-contract=fast by default) a 4-tap loop -- the width every caller uses --
++// is a chain of FMAs from +0, and the AVX-512 path spells that chain out.
++// At 8 taps and more GCC compiles the reference loop differently, so the
++// vector path is used for d_conv == 4 ONLY; every other width takes the scalar
++// path (both checked bit for bit against the concat graph by conv-equiv2, at
++// widths 2-16). A build that does not contract would round differently again,
++// so the first call also checks the vector path against the ONE compiled copy
++// of the scalar helper on a synthetic block (ssm_conv_state_vector_ok) and
++// falls back to scalar if they disagree.
++//
++// The concat form builds conv_input = (state | x^T) per channel, convolves it,
++// and copies its last d_conv - 1 columns back into the cache (once per
++// rollback slot). This reads the window's elements where they already are --
++// window[j] is state[j] for j < d_conv - 1, else x at token j - (d_conv - 1) --
++// so every output is the same d_conv products summed in the same order, and
++// writes each slot's new state from the OLD state, slot 0 (in place) last.
++// Rows (channels) are independent, so the per-row in-place update is safe.
++// one channel, the defining arithmetic: w is its window (nw state values, then
++// n_t token values), outputs to out[i2 * out_stride]
++__attribute__((noinline)) static void ssm_conv_state_row_scalar(const float * w, const float * crow, int nc, int64_t n_t,
++                                             float * out, size_t out_stride) {
++    for (int64_t i2 = 0; i2 < n_t; ++i2) {
++        // NOTE: not using ggml_vec_dot_f32, because its sum is in double precision
++        float sumf = 0.0f;
++        for (int i0 = 0; i0 < nc; ++i0) {
++            sumf += w[i2 + i0] * crow[i0];
++        }
++        *(float *) ((char *) out + i2*out_stride) = sumf;
++    }
++}
++
++#if defined(__AVX512F__)
++// sixteen channels: W[j] holds window element j of each, C[i0] kernel tap i0
++static inline void ssm_conv_state_block16(const __m512 * W, const __m512 * C, int nc, int64_t n_t,
++                                          float * out, size_t out_stride) {
++    for (int64_t i2 = 0; i2 < n_t; ++i2) {
++        __m512 acc = _mm512_setzero_ps();
++        for (int i0 = 0; i0 < nc; ++i0) acc = _mm512_fmadd_ps(W[i2 + i0], C[i0], acc);
++        _mm512_storeu_ps((float *) ((char *) out + i2*out_stride), acc);
++    }
++}
++
++// Once per process: do the two paths agree on this build? Random values, so a
++// build that does not contract differs in the low bits of nearly every lane.
++static bool ssm_conv_state_vector_ok() {
++    static const bool ok = [] {
++        uint32_t r = 0x9e3779b9u;
++        auto rnd = [&] { r ^= r << 13; r ^= r >> 17; r ^= r << 5; return (float) ((int32_t) r) * (1.0f / 2147483648.0f); };
++        {   const int nc = 4;
++            const int64_t n_t = 3;
++            float w[16][16 + 3], cr[16][16], ref[3][16], vec[3][16];
++            for (int ch = 0; ch < 16; ++ch) {
++                for (int j = 0; j < nc - 1 + n_t; ++j) w[ch][j] = (j % 5 == 4) ? -0.0f : rnd();
++                for (int i0 = 0; i0 < nc; ++i0) cr[ch][i0] = (i0 % 7 == 6) ? 0.0f : rnd();
++                ssm_conv_state_row_scalar(w[ch], cr[ch], nc, n_t, &ref[0][ch], 16 * sizeof(float));
++            }
++            __m512 W[16 + 3], C[16];
++            for (int j = 0; j < nc - 1 + n_t; ++j) { float t[16]; for (int ch = 0; ch < 16; ++ch) t[ch] = w[ch][j]; W[j] = _mm512_loadu_ps(t); }
++            for (int i0 = 0; i0 < nc; ++i0) { float t[16]; for (int ch = 0; ch < 16; ++ch) t[ch] = cr[ch][i0]; C[i0] = _mm512_loadu_ps(t); }
++            ssm_conv_state_block16(W, C, nc, n_t, &vec[0][0], 16 * sizeof(float));
++            if (memcmp(ref, vec, sizeof ref) != 0) return false;
++        }
++        return true;
++    }();
++    return ok;
++}
++#endif
++
++static void ggml_compute_forward_ssm_conv_state_f32(
++        const ggml_compute_params * params,
++        ggml_tensor * dst) {
++    const ggml_tensor * st = dst->src[0]; // {d_conv - 1, d_inner, n_s} -- read AND written
++    const ggml_tensor * c  = dst->src[1]; // {d_conv, d_inner}
++    const ggml_tensor * x  = dst->src[2]; // {d_inner, n_t, n_s}
++
++    const int ith = params->ith;
++    const int nth = params->nth;
++
++    const int     nc  = (int) c->ne[0];          // d_conv
++    const int     nw  = nc - 1;                  // state columns
++    const int64_t nr  = c->ne[1];                // d_inner
++    const int64_t n_t = x->ne[1];
++    const int64_t n_s = x->ne[2];
++    const int64_t ncs = nw + n_t;                // window length, as ggml_ssm_conv's src0->ne[0]
++
++    const int64_t K = ggml_get_op_params_i32(dst, 0);
++    const size_t snap_stride = ((size_t) (uint32_t) ggml_get_op_params_i32(dst, 1)) |
++                               (((size_t) (uint32_t) ggml_get_op_params_i32(dst, 2)) << 32);
++
++    GGML_ASSERT(dst->ne[0] == nr);
++    GGML_ASSERT(st->nb[0] == sizeof(float) && c->nb[0] == sizeof(float) && x->nb[0] == sizeof(float));
++    GGML_ASSERT(nc <= 16);
++
++    const int64_t dr  = (nr + nth - 1)/nth;
++    const int64_t ir0 = dr*ith;
++    const int64_t ir1 = MIN(ir0 + dr, nr);
++
++    const size_t xnb1 = x->nb[1], xnb2 = x->nb[2];
++    const size_t dnb1 = dst->nb[1], dnb2 = dst->nb[2];
++    // The window, gathered once per row: w[0..nw) is the old state, w[nw..)
++    // the new tokens. Small n_t (decode, verify) uses the stack; a long
++    // prefill falls back to the heap once per call.
++    float wstack[16 + 64];
++    std::vector<float> wheap;
++    float * w = wstack;
++    if (ncs > (int64_t) (sizeof wstack / sizeof wstack[0])) { wheap.resize((size_t) ncs); w = wheap.data(); }
++
++    for (int64_t i3 = 0; i3 < n_s; ++i3) {
++        float * s_row0 = (float *) ((char *) st->data + i3*st->nb[2]);
++        const char * x3 = (const char *) x->data + i3*xnb2;
++        char * d3 = (char *) dst->data + i3*dnb2;
++        int64_t i1 = ir0;
++#if defined(__AVX512F__)
++        // Sixteen channels per step: the same per-channel sum, lane-wise, as a
++        // chain of fused multiply-adds from +0 -- the order and contraction the
++        // scalar loop below compiles to (checked bit for bit against the concat
++        // graph by conv-equiv, REPORT 18.42). State and kernel are gathered at
++        // their channel strides, x and the output are contiguous across channels.
++        if (nc == 4 && c->nb[1] == (size_t) nc*sizeof(float) && dnb1 % sizeof(float) == 0 && xnb1 % sizeof(float) == 0 && n_t <= 64 &&
++            ssm_conv_state_vector_ok()) {
++            const __m512i lane = _mm512_setr_epi32(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);
++            const __m512i sidx = _mm512_mullo_epi32(lane, _mm512_set1_epi32(nw));
++            const __m512i cidx = _mm512_mullo_epi32(lane, _mm512_set1_epi32(nc));
++            const float * cbase = (const float *) c->data;
++            for (; i1 + 16 <= ir1; i1 += 16) {
++                float * srow = s_row0 + i1*nw;
++                __m512 W[16 + 64];
++                for (int j = 0; j < nw; ++j) W[j] = _mm512_i32gather_ps(sidx, srow + j, 4);
++                for (int64_t t = 0; t < n_t; ++t) W[nw + t] = _mm512_loadu_ps((const float *) (x3 + i1*sizeof(float) + t*xnb1));
++                __m512 C[16];
++                for (int i0 = 0; i0 < nc; ++i0) C[i0] = _mm512_i32gather_ps(cidx, cbase + i1*nc + i0, 4);
++                ssm_conv_state_block16(W, C, nc, n_t, (float *) (d3 + i1*sizeof(float)), dnb1);
++                for (int64_t s = 0; s < K; ++s) {
++                    int64_t s_idx = ncs - nw - s;
++                    if (s_idx < 0) s_idx = 0;
++                    float * o = s == 0 ? srow : (float *) ((char *) srow + s*snap_stride);
++                    for (int j = 0; j < nw; ++j) _mm512_i32scatter_ps(o + j, sidx, W[s_idx + j], 4);
++                }
++            }
++        }
++#endif
++        for (; i1 < ir1; ++i1) {
++            float * srow = s_row0 + i1*nw;                                  // this channel's state
++            const float * crow = (const float *) ((const char *) c->data + i1*c->nb[1]);
++            for (int j = 0; j < nw; ++j) w[j] = srow[j];
++            const char * xc = x3 + i1*sizeof(float);
++            for (int64_t t = 0; t < n_t; ++t) w[nw + t] = *(const float *) (xc + t*xnb1);
++            ssm_conv_state_row_scalar(w, crow, nc, n_t, (float *) (d3 + i1*sizeof(float)), dnb1);
++            // Each slot's new state comes from w (the OLD state and x), so the
++            // order of the writes cannot matter; slot 0 is the row itself.
++            for (int64_t s = 0; s < K; ++s) {
++                int64_t s_idx = ncs - nw - s;
++                if (s_idx < 0) s_idx = 0;
++                float * o = s == 0 ? srow : (float *) ((char *) srow + s*snap_stride);
++                for (int j = 0; j < nw; ++j) o[j] = w[s_idx + j];
++            }
++        }
++    }
++}
++
++void ggml_compute_forward_ssm_conv_state(
++        const ggml_compute_params * params,
++        ggml_tensor * dst) {
++    GGML_ASSERT(dst->src[0]->type == GGML_TYPE_F32);
++    ggml_compute_forward_ssm_conv_state_f32(params, dst);
++}
++
+ void ggml_compute_forward_ssm_conv(
+         const ggml_compute_params * params,
+         ggml_tensor * dst) {
+--- a/src/models/models.h
++++ b/src/models/models.h
+@@ -76,6 +76,17 @@
+             int64_t              conv_channels,
+             int                  il);
+ 
++    // the conv output itself: ggml_ssm_conv(build_conv_state(...), conv_kernel),
++    // or, when the conv state IS the live cache, one ggml_ssm_conv_state that
++    // reads and updates it in place (no concat, no copy-back). Same values.
++    ggml_tensor * build_conv(
++            llm_graph_input_rs * inp,
++            ggml_tensor *        conv_states_all,
++            ggml_tensor *        qkv_mixed,
++            ggml_tensor *        conv_kernel,
++            int64_t              conv_channels,
++            int                  il);
++
+     // run delta-net attention and write the new recurrent state(s) back to ssm_states_all
+     // s: (head_v_dim, head_v_dim, num_v_heads, n_seqs); returns output: (head_v_dim, num_v_heads, n_seq_tokens, n_seqs)
+     ggml_tensor * build_recurrent_attn(
+--- a/src/models/delta-net-base.cpp
++++ b/src/models/delta-net-base.cpp
+@@ -524,6 +524,54 @@
+     return conv_input;
+ }
+ 
++// The conv, with its state read and written where it lies when build_rs handed
++// back the live cache (the identity gather: rs_identity, which the graph-reuse
++// checks already compare). Then one op replaces the concat, the convolution and
++// the one or two copy-backs per layer: on the 27B that is 48 CONCATs and up to
++// 96 CPYs per pass, each a whole-team barrier over ~160 KB. Bit-identical: the
++// op sums the same window in the same order and writes the same columns to the
++// same slots (ggml_compute_forward_ssm_conv_state). ENCLAVE_GGML_CONV_INPLACE=0
++// restores the concat form.
++static bool conv_inplace_enabled() {
++    static const bool on = []{
++        const char * e = getenv("ENCLAVE_GGML_CONV_INPLACE");
++        return !(e && e[0] == '0');
++    }();
++    return on;
++}
++
++ggml_tensor * llm_build_delta_net_base::build_conv(
++        llm_graph_input_rs * inp,
++        ggml_tensor *        conv_states_all,
++        ggml_tensor *        qkv_mixed,
++        ggml_tensor *        conv_kernel,
++        int64_t              conv_channels,
++        int                  il) {
++    const int64_t conv_kernel_size = conv_kernel->ne[0];
++    const auto * mctx_cur = inp->mctx;
++    const auto kv_head  = mctx_cur->get_head();
++    const auto mem_size = mctx_cur->get_size();
++    const int64_t n_seqs = ubatch.n_seqs;
++
++    if (conv_inplace_enabled() && inp->rs_identity) {
++        ggml_tensor * conv_states = build_rs(inp, conv_states_all, hparams.n_embd_r(), n_seqs);
++        const int64_t row_count = (conv_kernel_size - 1) * conv_channels;
++        const size_t  row_size  = ggml_row_size(conv_states_all->type, row_count);
++        if (conv_states->view_src == conv_states_all && conv_states->view_offs == (size_t) kv_head * row_size &&
++            ggml_is_contiguous(conv_states)) {
++            conv_states = ggml_reshape_3d(ctx0, conv_states, conv_kernel_size - 1, conv_channels, n_seqs);
++            cb(conv_states, "conv_states_inplace", il);
++            const int64_t K = cparams.n_rs_seq == 0 ? 1 : (int64_t) cparams.n_rs_seq + 1;
++            ggml_tensor * out = ggml_ssm_conv_state(ctx0, conv_states, qkv_mixed, conv_kernel, K,
++                                                    (size_t) mem_size * row_size);
++            ggml_build_forward_expand(gf, out);
++            return out;
++        }
++    }
++    ggml_tensor * conv_input = build_conv_state(inp, conv_states_all, qkv_mixed, conv_kernel_size, conv_channels, il);
++    return ggml_ssm_conv(ctx0, conv_input, conv_kernel);
++}
++
+ // The in-place recurrence is available exactly when the state we were handed IS
+ // the live recurrent cache -- build_rs hands back a view of it whenever the
+ // gather it would have done is the identity. The op then updates the state
+--- a/src/models/qwen35.cpp
++++ b/src/models/qwen35.cpp
+@@ -386,13 +386,12 @@
+     const int64_t conv_kernel_size = conv_kernel->ne[0];
+     const int64_t conv_channels    = d_inner + 2 * hparams.ssm_n_group * hparams.ssm_d_state;
+ 
+-    ggml_tensor * conv_input = build_conv_state(inp, conv_states_all, qkv_mixed, conv_kernel_size, conv_channels, il);
++    ggml_tensor * conv_output_proper = build_conv(inp, conv_states_all, qkv_mixed, conv_kernel, conv_channels, il);
+ 
+     ggml_tensor * state = build_rs(inp, ssm_states_all, hparams.n_embd_s(), n_seqs);
+     state = ggml_reshape_4d(ctx0, state, head_v_dim, head_v_dim, num_v_heads, n_seqs);
+     cb(state, "state_predelta", il);
+ 
+-    ggml_tensor * conv_output_proper = ggml_ssm_conv(ctx0, conv_input, conv_kernel);
+     cb(conv_output_proper, "conv_output_raw", il);
+ 
+     ggml_tensor * conv_output_silu = ggml_silu(ctx0, conv_output_proper);
+--- a/src/models/qwen35moe.cpp
++++ b/src/models/qwen35moe.cpp
+@@ -410,13 +410,12 @@
+     const int64_t conv_kernel_size = conv_kernel->ne[0];
+     const int64_t conv_channels    = d_inner + 2 * hparams.ssm_n_group * hparams.ssm_d_state;
+ 
+-    ggml_tensor * conv_input = build_conv_state(inp, conv_states_all, qkv_mixed, conv_kernel_size, conv_channels, il);
++    ggml_tensor * conv_output_proper = build_conv(inp, conv_states_all, qkv_mixed, conv_kernel, conv_channels, il);
+ 
+     ggml_tensor * state = build_rs(inp, ssm_states_all, hparams.n_embd_s(), n_seqs);
+     state = ggml_reshape_4d(ctx0, state, head_v_dim, head_v_dim, num_v_heads, n_seqs);
+     cb(state, "state_predelta", il);
+ 
+-    ggml_tensor * conv_output_proper = ggml_ssm_conv(ctx0, conv_input, conv_kernel);
+     cb(conv_output_proper, "conv_output_raw", il);
+ 
+     ggml_tensor * conv_output_silu = ggml_silu(ctx0, conv_output_proper);

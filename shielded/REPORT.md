@@ -4449,3 +4449,57 @@ shorter run or a rarer cell, which this run happened not to need.
 The two production rejections remain open. What separates every soak so far
 from production is the real model's activations and the CPU backend's ops
 interleaved between exchanges.
+
+### 18.42 An in-place delta-net conv: bit-identical, and no measurable throughput
+
+**What it is.** Each of the 27B's 48 recurrent layers ran, per pass, a CONCAT
+(the conv state joined with the new token), an SSM_CONV, and one or two CPYs
+writing the state back into the cache (two where a rollback snapshot is kept).
+Fresh op profile (two pairs, N=64 -> 192, divisors from the runs' own JSON; the
+old `opdelta.py` turned out to ignore its arguments and re-read 18.13's files,
+now fixed): C = 12.22 ms/token, CPY 1.278, CONCAT 1.205, SSM_CONV 0.617 --
+20% of C, for ~160 KB per op. `ggml_ssm_conv_state` (new op, CPU only)
+reads the state where it lies in the cache and writes every snapshot slot
+itself, when `build_rs` handed back the live cache (the `rs_identity` condition
+the graph-reuse checks already compare); otherwise the old graph is built.
+`ENCLAVE_GGML_CONV_INPLACE=0` restores it. It is a NEW op rather than a mode of
+SSM_CONV because nine other backends implement SSM_CONV and would have had to
+learn to decline it; every backend already declines an op it does not know.
+Kept as `wasm/llamacpp-conv-inplace.patch` (applies after rs-inplace), NOT
+wired into the toolchain.
+
+**Correctness** (separate from performance, and a property of the build: GCC
+16.2.1, `-O3 -mfma -mavx2 -mavx512{f,vl,dq,bw,vbmi,vnni,bf16}`, GNU default
+`-ffp-contract=fast`):
+
+- `conv-equiv`: 21 single-call cases, outputs and every state slot bytewise
+  identical to the concat graph, including signed zeros and scalar tails.
+- `conv-equiv2` (added after an audit): 32 cases over SEQUENCES of calls on one
+  simulated cache -- several sequences at a nonzero cache head with the
+  snapshot stride past the active state, K > n_t, 24-call rollback/resume runs
+  that interleave the fused path with the fallback path, the n_t 64/65
+  vector/scalar boundary, widths 2/3/5/16 -- output and the whole cache
+  compared after every call. All identical.
+- A mutant with a leading multiply instead of FMA-from-+0 in the vector path
+  differs in the signed-zero cases only (67-1021 outputs): the harness is
+  sensitive to exactly the rounding question, and the reference is a chain
+  of FMAs from +0 at 4 taps.
+- **What the extended harness caught.** The AVX-512 path, correct at 2-5 taps,
+  DIFFERED from the reference at 8 taps and more: GCC compiles the reference
+  loop differently at those lengths. A first-use self-check I had added (vector
+  against the scalar helper) passed at 16 taps anyway, because the inlined copy
+  of the helper inside the check compiled differently from the reference. The
+  vector path is now used at d_conv == 4 only (the width every caller uses);
+  other widths take the scalar path, which matches at every width tested; the
+  helper is `noinline` so the check and the kernel share one compiled copy.
+- End to end: identical greedy tokens with the op on and off and against the
+  old libraries (md5 0a1570d184a4, all runs).
+
+**Performance.** The conv path fell from ~455 ms to ~151 ms per 64-token run
+(the vector kernel; the first scalar versions reached only 351-412 ms, because
+the cost was the per-channel scattered work, not barriers or bytes). The A/B,
+op on against `ENCLAVE_GGML_CONV_INPLACE=0`, same binaries, 4 valid pairs:
+faster in 2 of 4 (+4.39, -2.05, +0.44, -0.11 tok/s). Mixed signs, **no effect
+established** -- an expected ~1 ms/token is below this box's run-to-run noise
+(18.5-22.9 tok/s within one arm). The wider graph/scheduler integration audit
+of the op remains open.
