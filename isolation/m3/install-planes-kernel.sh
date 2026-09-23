@@ -33,6 +33,22 @@ MODS=/usr/lib/modules/$KREL
 say() { printf '\n== %s\n' "$*"; }
 need_root() { [ "$(id -u)" = 0 ] || { echo "$action needs root: re-run with sudo"; exit 1; }; }
 
+# A failed install must leave NOTHING bootable and nothing half-written. The module tree is kept on
+# purpose: it is inert without a boot entry, it is what `uninstall` removes, and a rebuild reuses it.
+installing=0
+on_exit() {
+  rc=$?
+  [ "$rc" = 0 ] && return 0
+  [ "$installing" = 1 ] || return 0
+  echo
+  echo "FAILED (exit $rc). Removing what this run wrote, so nothing is half-installed:"
+  rm -rfv "$DEST" "$GRUBD" 2>/dev/null | sed 's/^/  /'
+  [ -e /boot/grub/grub.cfg ] && ! grep -q planes /boot/grub/grub.cfg \
+    && echo "  /boot/grub/grub.cfg has no planes entry, so nothing can boot it"
+  echo "  the module tree at $MODS is left in place (inert without a boot entry; 'uninstall' removes it)"
+}
+trap on_exit EXIT
+
 case "$action" in
 check)
   say "built kernel"
@@ -52,6 +68,7 @@ check)
 
 install)
   need_root
+  installing=1
   # Refuse to run if the pieces are not all there, rather than half-installing.
   [ -e "$SRC/arch/x86/boot/bzImage" ] || { echo "no bzImage in $SRC"; exit 1; }
   [ -e "$NV/nvidia.ko" ] || { echo "no built NVIDIA modules in $NV -- build them first, or there is no CUDA on this kernel"; exit 1; }
@@ -78,16 +95,60 @@ install)
   # If this is wrong the machine boots without CUDA, which is the thing the other sessions need.
   modinfo -k "$KREL" nvidia > /dev/null && echo "  depmod resolves nvidia for $KREL"
 
-  say "3. kernel and initramfs -> $DEST (NOT /boot/vmlinuz-*, see the header)"
-  install -Dm644 "$SRC/arch/x86/boot/bzImage" "$DEST/vmlinuz"
-  # autodetect scans the RUNNING machine, which is what we want: the same hardware has to come back.
-  mkinitcpio -k "$KREL" -g "$DEST/initramfs.img"
-  echo "  initramfs $(stat -c%s "$DEST/initramfs.img") bytes; /boot now $(df -h /boot | awk 'NR==2{print $4}') free"
-  # A truncated initramfs boots to a dracut-less panic, so refuse rather than leave one behind.
-  [ "$(stat -c%s "$DEST/initramfs.img")" -gt 10000000 ] || { echo "that initramfs is implausibly small; removing it"; rm -f "$DEST/initramfs.img"; exit 1; }
-  [ "$(df -Pk /boot | awk 'NR==2{print $4}')" -gt 20480 ] || { echo "/boot is nearly full after this; removing what we just wrote"; rm -rf "$DEST"; exit 1; }
+  say "3. can the configured initramfs hooks actually be satisfied by this kernel?"
+  # Derived from the hooks in /etc/mkinitcpio.conf rather than guessed: each hook's `add_module` names,
+  # minus the ones marked optional with a trailing '?'. Resolved with `modinfo -k`, which is how
+  # mkinitcpio itself resolves them, so built-ins and crypto aliases (crypto-lzo -> lzo) count as present.
+  # This check exists because a MISSING one is fatal but only announced in the middle of mkinitcpio, after
+  # the kernel has already been copied into /boot: CONFIG_DM_INTEGRITY was unset, sd-encrypt requires
+  # dm-integrity unconditionally, and the build died with a half-written initramfs.
+  # shellcheck disable=SC1091
+  hooks=$(. /etc/mkinitcpio.conf; echo "${HOOKS[@]}")
+  missing=""
+  for h in $hooks; do
+    hf=/usr/lib/initcpio/install/$h
+    [ -r "$hf" ] || continue
+    for m in $(grep -h 'add_module' "$hf" | grep -oE "'[^']+'" | tr -d "'" | grep -v '?$' | grep -v '[$]'); do
+      if modinfo -k "$KREL" "$m" > /dev/null 2>&1; then
+        printf '  %-16s %s: ok\n' "$h" "$m"
+      else
+        printf '  %-16s %s: MISSING\n' "$h" "$m"
+        missing="$missing $m"
+      fi
+    done
+  done
+  if [ -n "$missing" ]; then
+    cat <<EOF
 
-  say "4. a menu entry, after every generated one, leaving entry 0 alone"
+This kernel cannot satisfy the hooks this machine's initramfs is built from. Missing:$missing
+
+Enable each one in $SRC/.config and rebuild, e.g. for dm-integrity:
+    ./scripts/config --file $SRC/.config --module DM_INTEGRITY
+    make -C $SRC olddefconfig && make -C $SRC -j\$(nproc) modules
+then rebuild the NVIDIA modules if the vermagic changed, and run this script again.
+EOF
+    exit 1
+  fi
+
+  say "4. kernel and initramfs -> $DEST (NOT /boot/vmlinuz-*, see the header)"
+  install -Dm644 "$SRC/arch/x86/boot/bzImage" "$DEST/vmlinuz"
+  # -k takes the IMAGE, not the version: mkinitcpio then reads the release out of it, instead of warning
+  # "Could not find kernel image for version ..." because there is no /boot/vmlinuz-$KREL by design.
+  # autodetect scans the RUNNING machine, which is what we want: the same hardware has to come back.
+  mkinitcpio -k "$DEST/vmlinuz" -g "$DEST/initramfs.img"
+  echo "  initramfs $(stat -c%s "$DEST/initramfs.img") bytes; /boot now $(df -h /boot | awk 'NR==2{print $4}') free"
+  # Size is a poor test: the aborted build produced a plausible-looking 16.8 MB image. Ask instead
+  # whether the three things this machine needs to REACH a login are in there: unlock the LUKS root,
+  # see the NVMe it is on, and accept a typed passphrase. The GPUs are deliberately not checked here -
+  # nvidia loads later from the module tree, and stage A of m3b-verify.sh is what proves it.
+  for want in 'dm-crypt|dm_crypt' 'nvme' 'hid'; do
+    n=$(lsinitcpio "$DEST/initramfs.img" | grep -cE "($want)" || true)
+    [ "$n" -gt 0 ] && printf '  initramfs contains %-16s (%s matches)\n' "$want" "$n" \
+      || { echo "  the initramfs has nothing matching '$want'; refusing to install it"; exit 1; }
+  done
+  [ "$(df -Pk /boot | awk 'NR==2{print $4}')" -gt 20480 ] || { echo "/boot is nearly full after this"; exit 1; }
+
+  say "5. a menu entry, after every generated one, leaving entry 0 alone"
   esp=$(findmnt -no UUID /boot)
   # shellcheck disable=SC1090
   cmdline="$(. /etc/default/grub; echo "$GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT")"
@@ -110,7 +171,7 @@ ENTRY
 EOF
   chmod 755 "$GRUBD"
 
-  say "5. regenerate the menu, then CHECK the default did not move"
+  say "6. regenerate the menu, then CHECK the default did not move"
   grub-mkconfig -o /boot/grub/grub.cfg
   first=$(grep -m1 "^menuentry" /boot/grub/grub.cfg | sed "s/.*'\([^']*\)'.*/\1/")
   echo "  entry 0 is now: $first"
@@ -142,6 +203,7 @@ EOF
 
 uninstall)
   need_root
+  installing=1
   say "removing the entry, the files and the module tree for $KREL"
   rm -f "$GRUBD"
   rm -rf "$DEST"
