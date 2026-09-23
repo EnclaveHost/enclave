@@ -518,7 +518,7 @@ Details, artefact hashes and the exact rebuild in `isolation/m3/PLAN.md` section
 Status: M3a done; M3b (the VMPL boundary) needs a host kernel and VMM and is Steven's call.
 
 
-## 14. Windows: the same guest, one Hyper-V partition per app (2026-09-23)
+## 13. Windows: the same guest, one Hyper-V partition per app (2026-09-23)
 
 The T2 row of section 2 now has a second shape beside the shared VBS enclave: **our own control plane
 over Hyper-V child partitions**, one per app, running the *same* m3 monitor image as the Linux path on the
