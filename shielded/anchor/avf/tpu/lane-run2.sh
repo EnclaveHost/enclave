@@ -74,7 +74,10 @@ grep -q 'mWakefulness=Awake' <<<"$pw" || die "PHONE NOT AWAKE: refusing to measu
 args="-n $P/.Main --es mode local --es vmname $(q "${VMNAME:-anchorlocal}") --ei mem ${MEM:-8192} --es model $F/model.gguf"
 # GRAPHS=none runs the SAME model on the VM's CPU alone (no TPU, no pads): the reference every masked figure is compared with
 if [ "${GRAPHS:-}" = none ]; then TPU=0; args+=" --ei max_new ${MAXNEW:-48}"
-else TPU=1; args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48}"; fi
+else TPU=1; args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei max_new ${MAXNEW:-48}"
+     # the bank is named only when BANK is set: this driver used to send tpu_bank 64 on EVERY launch, so no run through
+     # it ever measured the app's own default (128 since smp2) -- results/df1 df-01 ran dry at 64 and minted 1680 pads inline
+     [ -z "${BANK:-}" ] || args+=" --ei tpu_bank $BANK"; fi
 args+=" --es capture $LABEL"
 for w in $EXTRA; do args+=" $(q "$w")"; done
 args+=" --es ask $(q "$ASK")"
