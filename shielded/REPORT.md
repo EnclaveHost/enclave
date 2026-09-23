@@ -4604,3 +4604,32 @@ One candidate left that this user cannot measure: physical page placement of
 the large 4 KiB-page buffers (L2 set conflicts, DRAM channel spread vary with
 which physical pages a run gets). Reading physical frame numbers from
 /proc/PID/pagemap needs CAP_SYS_ADMIN.
+
+### 18.46 The in-place conv, in the real graph and under the production toolchain
+
+**Real graph path** (`conv-graph-test`, CPU backend, the 0.8B qwen35 model of
+the same architecture): plain decode, the speculative verify/rollback/resume
+pattern with `n_rs_seq=1` (rollback via `seq_rm`, so the next ubatch reads a
+snapshot and takes the fallback), and cache lifetime (memory clear and context
+reuse, full `seq_rm`, re-prefill, alternating ubatch sizes across graph reuse).
+71 steps, 141 MB of logits: the new build with the op on, the same build with it
+off, and the pre-change libraries are all **byte-identical**. The op really ran:
+1,062 fused calls and 216 fallbacks (rollback reads) in the on process, against
+1,278 concat-path calls in the off process.
+
+**Multi-sequence is not testable in the real graph on this fork**: creating a
+context with `n_seq_max > 1` aborts (`GGML_ASSERT(ggml_can_repeat)` in graph
+reservation) with the op on, off, and on the pre-change libraries -- a
+pre-existing limitation, recorded, not introduced. The fused op cannot reach
+that case (it runs only for one sequence in a one-cell cache); the synthetic
+harness covers the multi-sequence arithmetic.
+
+**Production compiler configuration** (validation only, not deployment):
+inside `ubuntu:22.04` -- the llamacpp-toolchain runner's OS, stock GCC 11.4.0
+and cmake 3.22.1 -- with the workflow's CPU-relevant flags. Those flags compile
+the CPU backend for AVX2 + FMA with **no AVX-512** (`-msse4.2 -mf16c -mfma
+-mbmi2 -mavx -mavx2`), so production runs the op's scalar path. All three
+harnesses there: `conv-equiv` 21/21 identical, `conv-equiv2` 32/32 pass, the
+real-graph test byte-identical on/off. The op is therefore validated on both
+builds that matter; deploying it would still be a separate, reviewed change to
+the toolchain workflow, and its throughput effect is not established (18.42).

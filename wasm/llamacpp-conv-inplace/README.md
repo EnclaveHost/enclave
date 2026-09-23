@@ -22,3 +22,20 @@ the compiler's): it was established with GCC 16.2.1, `-O3 -mfma -mavx2
 -mavx512f -mavx512vl -mavx512dq -mavx512bw -mavx512vbmi -mavx512vnni
 -mavx512bf16`, GNU-mode default `-ffp-contract=fast`. Rerun both harnesses on
 any other compiler or flags before trusting the op there.
+
+- `conv-graph-test.cpp`: the REAL llama graph path (CPU backend, the 0.8B
+  qwen35 model): plain decode, the speculative verify/rollback/resume pattern
+  with `n_rs_seq=1`, and cache lifetime (clear, full `seq_rm`, re-prefill,
+  alternating ubatch sizes). Run once with `ENCLAVE_GGML_CONV_INPLACE=1` and
+  once with `=0`; the two logit dumps must be byte-identical. The multi-sequence
+  scenario runs only when named: this fork aborts in context creation for
+  `n_seq_max > 1` with or without the op (a pre-existing limitation).
+- `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
+  runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
+  workflow's CPU-relevant flags, and runs all three harnesses there.
+
+Validated on two builds, both bit-identical: GCC 16.2.1 with AVX-512 (the
+vector path), and GCC 11.4 with the production workflow's flags, which are
+AVX2 + FMA only, so production compiles the vector path out and runs the
+scalar path. Validation is not deployment: the patch is not wired into
+`.github/workflows/llamacpp-toolchain.yml`.
