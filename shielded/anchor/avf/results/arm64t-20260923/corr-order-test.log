@@ -1,0 +1,2 @@
+(of 200000 random cases, 0 round differently under the other association; the kernels agree on all)
+PASS: 31 checks, 0 failures
