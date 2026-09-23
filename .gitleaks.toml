@@ -105,3 +105,8 @@ paths = ['''^test/fixtures/''']
 regexes = [
   '''^(?:Gemma4ForConditionalGeneration|ChaCha20-Poly1305\.|proof-secp256k1\.hex|blk\.\d+\.[a-z_.]+|0x?REPLACE_WITH[A-Z_]*|warmup[0-9.]+s\.|iidconstantp=\.\d+|persists409bodyiffailed|(?:0123456789abcdef)+)$''',
 ]
+
+[[allowlists]]
+description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's Ed25519 verifying key (launcherKey / launcher.key) and each domain's P-256 SPKI (transportKey), plus signatures over them; the private halves are minted in memory per run and never written (windows/vbslike/README.md section 4)"
+targetRules = ["generic-api-key"]
+paths = ['''^windows/vbslike/evidence/''']
