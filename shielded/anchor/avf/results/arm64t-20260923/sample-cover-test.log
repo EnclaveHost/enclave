@@ -1,0 +1,17 @@
+ok   geometry has the 140 exchange groups of a pass
+     stratified: 700 (group,rows) cells, kinds self-checked 4/4, outputs verified exactly once 1.0000
+ok   every (group, rows) cell self-checked on its first visit
+ok   every cell checked periodically (>= ceil(visits/16))
+ok   self-checks land on all four kinds
+ok   every output of every projection verified exactly once per n_out visits
+     global-counter mutant: kinds self-checked 1/4, outputs verified exactly once 0.0000, ever verified 0.2500
+ok   mutant fails first-visit coverage
+ok   mutant fails all-kinds (it only ever checks kind 0)
+ok   mutant fails output coverage (one residue mod 4)
+ok   two VMs' verification orders differ (<= 4 of 256 visits coincide)
+ok   stride is coprime to the width
+ok   zero width refused
+ok   width 1 works
+ok   rows past the table clamp
+ok   degenerate randomness: coprime stride or refusal
+PASS sample-cover
