@@ -48,7 +48,7 @@ cpu_start() {
   $ADB push -q "$(dirname "$0")/cpu-sampler.sh" "$SMP" >/dev/null 2>&1 || { echo "cpu: sampler not started (push failed)"; return 0; }
   CPU_FILE=/data/local/tmp/lane-cpu.$LABEL
   _cg_read "rm -f $CPU_FILE $CPU_FILE.run; touch $CPU_FILE.run" >/dev/null || { CPU_FILE=; return 0; }
-  $ADB shell "nohup sh $SMP $uid $CPU_FILE ${LANE_CPU_PERIOD:-0.5} </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
+  $ADB shell "nohup sh $SMP $uid $CPU_FILE ${LANE_CPU_PERIOD:-0.25} ${LANE_CPU_SCAN_EVERY:-8} </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
 }
 cpu_stop() {
   [ -n "${CPU_FILE:-}" ] || return 0
