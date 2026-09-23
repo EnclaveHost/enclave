@@ -42,6 +42,7 @@ run "verify RMS divisor"        "cc -std=c11 -O1 -Ipayload tpu/test/verify-rms-t
 run "linkbench failure modes"   "cc -std=c11 -O1 -pthread tpu/test/linkbench-test.c -o /tmp/lb.$$ && timeout 300 /tmp/lb.$$"
 run "exchange bench failure modes" "cc -std=c11 -D_GNU_SOURCE -O1 -pthread tpu/test/exbench-test.c -o /tmp/exb.$$ && /tmp/exb.$$"
 run "correction row-major == column" "g++ -std=c++17 -O2 tpu/test/corr-order-test.cpp -o /tmp/cot.$$ && /tmp/cot.$$"
+run "parallel unmask is safe" "bash tpu/test/unmask-safety-test.sh"
 run "digit split under UBSan"   "clang++ -std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all tpu/test/digit-split-test.cpp -o /tmp/ds.$$ && /tmp/ds.$$"
 run "worker spin is per handle"  "bash tpu/test/worker-spin-test.sh"
 run "lane driver fails closed"  "bash tpu/test/lane-run2-test.sh"

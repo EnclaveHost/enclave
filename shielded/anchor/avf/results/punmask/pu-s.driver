@@ -1,0 +1,9 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 15 check(s)
+bundle sha256 b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358
+VSOCK LOCAL tpu turn 1: exchanges=2940 (140.0/step, 3.90 rows each) ms per exchange: mask 0.292 link 6.929 (corr 0.093 mint 0.000 wait 6.526) unmask 0.856 | pads inline 0 refilled 0 bank_min 46 | cancel n=72044449 max=0.0015 rms=0.00006 LSB | verify n=33620 bad=1 max=1 rms=0.005 (output LSB over 16810 paired samples: max 0.010 rms 0.000) rails(-32768/-32767/+32767)=45/0/50 | outliers kept 532910 s
+VSOCK LOCAL tpu turn 1: ms per exchange, split: of unmask, verification dots 0.076 | after it, releasing the pads 0.147 | between exchanges (the VM's own graph work) 1.177 | of wait, joining the correction after the reply 1.876 | out-of-lane entries per exchange 181.3 | the VM thread's own CPU: unmask 0.791, between exchanges 1.127 | y digest 0665fcc247a82243 | parallel unmask checked against seri
+VSOCK LOCAL tpu turn 1: exchanges by duration (<25us <100us <400us <1.6ms longer): unmask 0 679 971 963 327 | between exchanges 267 594 778 1074 226
+LOCAL turn 1 STATS {status=eos, prefill_tokens=28, prefill_tok_s=41.20, decode_tokens=57, decode_tok_s=2.05, ctx_used=85, ctx=4096, steps=21, drafted=61, accepted=40, tokens_per_step=2.71}
+big-core cap through the run: cpu2 min 2688000, cpu7 min 2937000 (26 samples)
+cpu turn 1 decode window 26.54 s (57 tokens): COMPLETE: the app's processes 123.85 core-s = 4.67 cores busy, 2173 core-ms per decoded token (edge interpolation +-2.31 core-s) [crosvm_anchorlocal 120.26, host.enclave.anchor.avf 3.60, virtmgr_lave.anchor.avf 0.00] | 5.21 cores busy device-wide
+LANE-RUN OK pu-s

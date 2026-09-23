@@ -1,0 +1,7 @@
+Stopped on 2026-09-23 after pu-a and part of pu-s, deliberately, and not to be used for any comparison.
+The build these ran (anchor-punmask, parallel unmask first cut) printed a 64-bit digest of every UNMASKED output into the
+control channel -- secret-derived data leaving the trust boundary (here only for the fixed test prompt), and not a proof of
+bit identity in any case. An audit flagged it with two more defects of that cut: a self-check mismatch was counted and then
+used, and the serial replay debited the real rail budget. All three are fixed (the digest removed from the TPU lane, a
+mismatch refuses before use, the replay debits nothing), with tpu/test/unmask-span-test.cpp and unmask-safety-test.sh.
+The logs are kept as raw evidence of what that build emitted. The corrected candidate was rerun as results/punmask2.
