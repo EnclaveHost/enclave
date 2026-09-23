@@ -495,3 +495,14 @@ admitted under a global and a per-domain limit — so a tenant cannot move memor
 privileged component that serves every other domain.
 
 Status: M3a done; M3b (the VMPL boundary) needs a host kernel and VMM and is Steven's call.
+
+
+## 13. Windows: the same guest, one Hyper-V partition per app (2026-09-23)
+
+The T2 row of section 2 now has a second shape beside the shared VBS enclave: **our own control plane
+over Hyper-V child partitions**, one per app, running the *same* m3 monitor image as the Linux path on the
+WSL kernel the box already ships, driven over hv_sock. The app-facing ABI, the bundle format and its
+identity, the report binding and the lifecycle are one package, `isolation/contract`, with vectors both
+backends pass. Built and measured on the NucBox K11: `windows/vbslike/README.md` (30/30). What it does
+not give is host exclusion — a Ryzen has no SNP and the launcher in the root partition signs — and every
+document says so (`tier=T0-hv`, `host_excluded=no`).

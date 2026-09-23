@@ -36,7 +36,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -55,6 +54,7 @@ import (
 	"syscall"
 	"time"
 
+	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/vsock"
 )
 
@@ -75,18 +75,10 @@ const (
 	exitGrace         = 15 * time.Second // how long to wait for a killed domain's processes to go
 )
 
-// A domain's life has four states, and they exist because startup and reclamation can race: a destroy
-// can arrive while the domain is still being built, and its process can die during startup. Without an
-// explicit state, a reclamation that ran first could consume the one-shot cleanup before the process
-// existed — and the domain that then started would never be reclaimable at all.
-type domainState int
-
-const (
-	domStarting domainState = iota // being built; nothing may reclaim it yet
-	domRunning                     // its process tree is live
-	domEnding                      // reclamation has begun
-	domEnded                       // reclamation finished
-)
+// A domain's life has four states (isolation/contract lifecycle.go: starting, running, ending, ended),
+// and they exist because startup and reclamation can race: a destroy can arrive while the domain is
+// still being built, and its process can die during startup. The state machine is the contract's, so
+// every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
 	ID     int    `json:"id"`
@@ -105,55 +97,42 @@ type domain struct {
 
 	probe    bool          // run the measured adversary probe instead of the app, for the isolation tests
 	exited   chan struct{} // closed when the process tree is gone
-	reclaim  sync.Once     // listener, mounts, directory and cgroup are released exactly once
 	inFlight chan struct{} // this domain's share of concurrent report work
 
-	mu        sync.Mutex
-	state     domainState
-	endWanted string      // set while starting: end it as soon as startup finishes, for this reason
-	proc      *os.Process // a STABLE handle, set once Start returned. Never signal by raw pid.
-	reaped    bool        // Wait returned: the pid is gone and must never be signalled again
+	life *contract.Lifecycle // starting -> running -> ending -> ended; reclamation exactly once
+
+	mu     sync.Mutex
+	proc   *os.Process // a STABLE handle, set once Start returned. Never signal by raw pid.
+	reaped bool        // Wait returned: the pid is gone and must never be signalled again
+}
+
+func (d *domain) lifecycle() *contract.Lifecycle {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.life == nil {
+		d.life = contract.NewLifecycle(contract.Starting)
+	}
+	return d.life
 }
 
 // requestEnd records that a domain should end. It returns true when the caller should reclaim it now,
 // and false when startup still owns it — in which case startup will reclaim it on the way out.
-func (d *domain) requestEnd(why string) bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	switch d.state {
-	case domStarting:
-		if d.endWanted == "" {
-			d.endWanted = why
-		}
-		return false
-	case domEnding, domEnded:
-		return false
-	}
-	d.state = domEnding
-	return true
-}
+func (d *domain) requestEnd(why string) bool { return d.lifecycle().RequestEnd(why) }
 
 // finishStart publishes the process handle and moves the domain to running. It returns the reason a
-// reclamation asked for while startup held the domain, or "" if none did.
+// reclamation asked for while startup held the domain, or "" if none did. Only ever forward: setting
+// running unconditionally would resurrect a domain that had already ended.
 func (d *domain) finishStart(proc *os.Process) string {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	d.proc = proc
-	// Only ever forward, from starting to running. Setting it unconditionally would resurrect a domain
-	// that had already ended, and the reclamation that followed would find its one-shot cleanup spent
-	// and leave the domain stuck half-ended.
-	if d.state == domStarting {
-		d.state = domRunning
-	}
-	return d.endWanted
+	d.mu.Unlock()
+	return d.lifecycle().FinishStart()
 }
 
 // failStart takes a domain that never got going straight to ending, so the caller can reclaim it.
-func (d *domain) failStart() {
-	d.mu.Lock()
-	d.state = domEnding
-	d.mu.Unlock()
-}
+func (d *domain) failStart() { d.lifecycle().FailStart() }
+
+func (d *domain) state() contract.State { return d.lifecycle().State() }
 
 type reporter func(rd []byte) (report, certs []byte, err error)
 
@@ -168,6 +147,9 @@ type monitor struct {
 	basePrt uint32
 	baseUID int
 
+	hostPort  uint32        // non-zero: no hardware signs here; the host launcher signs report_data over vsock (T0-hv)
+	tier      string        // what a report from this monitor is: contract.TierSNP / TierHyperV
+	format    string
 	vmpl      int           // the level the PSP put in our own signed report: the level we can actually speak for
 	vmplFloor int           // the lowest level this kernel will let us ask for. Its own claim, see tsmLevel
 	vmpl0     string        // what happened when we asked for a report at level 0: refused, GRANTED, or n/a
@@ -182,6 +164,7 @@ var errNoHardwareReport = errors.New("no hardware report on this tier")
 
 func main() {
 	snp := flag.Bool("snp", false, "this guest is an SEV-SNP guest: hardware reports are available")
+	reportHost := flag.Uint("report-host", 0, "vsock port on the HOST that signs report_data (a Hyper-V partition under windows/vbslike: no hardware signer here)")
 	control := flag.Uint("control-port", 9000, "vsock port the host loads domains on")
 	sock := flag.String("report-sock", "/run/monitor.sock", "unix socket domains ask for reports on")
 	plat := flag.String("plat", "/plat", "read-only platform tree bind-mounted into every domain")
@@ -191,6 +174,11 @@ func main() {
 	flag.Parse()
 
 	m := newMonitor(*snp, *plat, *root, uint32(*basePort), *baseUID)
+	if *reportHost != 0 {
+		m.hostPort = uint32(*reportHost)
+		m.report = m.hostReport
+		m.tier, m.format = contract.TierHyperV, contract.FormatHyperV
+	}
 	must(os.MkdirAll(m.root, 0o755))
 	must(os.MkdirAll(filepath.Dir(*sock), 0o755))
 	os.Remove(*sock)
@@ -236,6 +224,7 @@ func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *moni
 		plat: plat, root: root, basePrt: basePort, baseUID: baseUID,
 		reports: make(chan struct{}, maxReportsTotal), refusals: make(chan struct{}, maxRefusals)}
 	m.report = m.tsmReport
+	m.tier, m.format = contract.TierSNP, contract.FormatSNP
 	return m
 }
 
@@ -330,9 +319,24 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if _, err := io.ReadFull(br, app); err != nil {
 		return nil, fmt.Errorf("reading app: %w", err)
 	}
-	// The monitor hashes what it actually received. This hash, not anything the host said, is what
-	// every report for this domain will name.
-	sum := sha256.Sum256(app)
+	// The monitor hashes what it actually received: ALL of it, bundle or bare artifact (contract.AppID).
+	// This hash, not anything the host said, is what every report for this domain will name.
+	sum := contract.AppID(app)
+	// A bundle (isolation/contract) carries the manifest that decides the domain's share and the
+	// artifact that runs; a bare artifact is accepted as before, with the request's numbers. A bundle
+	// that does not parse -- non-canonical, or naming an artifact it does not carry -- has no identity
+	// and is refused.
+	artifact := app
+	var manifest *contract.Manifest
+	if man, art, err := contract.Parse(app); err == nil {
+		manifest, artifact = &man, art
+		if req.Label == "" {
+			req.Label = man.Label
+		}
+	} else if err != contract.ErrNotBundle {
+		return nil, fmt.Errorf("bundle refused: %w", err)
+	}
+	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
 
 	m.mu.Lock()
 	id := m.next
@@ -340,16 +344,10 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	m.mu.Unlock()
 
 	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum,
-		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: req.CPU, MemMiB: req.MemMiB,
+		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
-	if d.CPU <= 0 {
-		d.CPU = 100
-	}
-	if d.MemMiB <= 0 {
-		d.MemMiB = 256
-	}
-	if err := m.start(d, app); err != nil {
+	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
 	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB\n",
@@ -562,7 +560,7 @@ func (m *monitor) retire(d *domain, why string) {
 // release frees everything the domain holds. It runs once however often it is called, and it does not
 // unmount until the processes are actually gone, because a live process holds those mounts busy.
 func (d *domain) release() {
-	d.reclaim.Do(func() {
+	d.lifecycle().Reclaim(func() {
 		if d.ln != nil {
 			d.ln.Close() // the port stops answering at once, ahead of the slower cleanup below
 		}
@@ -611,9 +609,6 @@ func (d *domain) release() {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		d.mu.Lock()
-		d.state = domEnded
-		d.mu.Unlock()
 	})
 }
 
@@ -659,9 +654,9 @@ func (m *monitor) stop(id int) error {
 		return fmt.Errorf("no domain %d", id)
 	}
 	d.mu.Lock()
-	proc, state := d.proc, d.state
+	proc := d.proc
 	d.mu.Unlock()
-	if proc == nil || state != domRunning {
+	if proc == nil || d.state() != contract.Running {
 		fmt.Printf("MON domain %d stop: not running yet; ending it outright\n", d.ID)
 		m.retire(d, "stopped at lease end")
 		return nil
@@ -772,11 +767,8 @@ func (m *monitor) state() map[string]any {
 
 // --- reports ------------------------------------------------------------------------------------
 // A domain sends 32 bytes of binding (sha256 of its TLS key SPKI and the verifier's nonce) and nothing
-// else. There is no field for the app, because the app is not the domain's to state.
-
-type reportReq struct {
-	Bind string `json:"bind"`
-}
+// else (contract.ReportRequest). There is no field for the app, because the app is not the domain's to
+// state; anything else the request carries is not read.
 
 func (m *monitor) serveReports(l net.Listener) {
 	for {
@@ -866,29 +858,30 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	}
 
 	// 3. only now, and only a bounded number of bytes
-	var req reportReq
-	if err := json.NewDecoder(io.LimitReader(c, maxReportRequest)).Decode(&req); err != nil {
+	var raw json.RawMessage
+	if err := json.NewDecoder(io.LimitReader(c, maxReportRequest)).Decode(&raw); err != nil {
 		enc.Encode(map[string]string{"error": "bad request: " + err.Error()})
 		return true
 	}
-	bind, err := hex.DecodeString(req.Bind)
-	if err != nil || len(bind) != 32 {
-		enc.Encode(map[string]string{"error": "bind must be 32 bytes of hex"})
+	bind, err := contract.ParseReportRequest(raw)
+	if err != nil {
+		enc.Encode(map[string]string{"error": err.Error()})
 		return true
 	}
-	if !m.snp {
+	if !m.snp && m.hostPort == 0 {
 		enc.Encode(map[string]string{"error": errNoHardwareReport.Error()})
 		return true
 	}
-	rd := make([]byte, 64)
-	copy(rd, bind)              // [0:32] the domain's own key, bound to the verifier's challenge
-	copy(rd[32:], d.appHash[:]) // [32:64] the app THIS monitor loaded for THIS domain
+	// [0:32] the domain's own key, bound to the verifier's challenge; [32:64] the app THIS monitor
+	// loaded for THIS domain (contract.ReportData: the same 64 bytes on every backend)
+	rdArr := contract.ReportData(bind, d.appHash)
+	rd := rdArr[:]
 	rep, certs, err := m.report(rd)
 	if err != nil {
 		enc.Encode(map[string]string{"error": err.Error()})
 		return true
 	}
-	out := map[string]string{"report": base64.StdEncoding.EncodeToString(rep)}
+	out := map[string]string{"report": base64.StdEncoding.EncodeToString(rep), "tier": m.tier, "format": m.format}
 	if len(certs) > 0 {
 		out["certs"] = base64.StdEncoding.EncodeToString(certs)
 	}
@@ -1001,6 +994,14 @@ func (m *monitor) tsmReportAt(level int, rd []byte) ([]byte, []byte, error) {
 // Note what this monitor does NOT do: it only ever requests reports at its own floor (tsmReport passes
 // m.vmplFloor). The measured code therefore cannot mint a downward-claiming report even if asked to.
 func (m *monitor) selfTest() {
+	if m.hostPort != 0 {
+		// A Hyper-V child partition under the Windows launcher. No hardware signer and no privilege
+		// levels: the launcher in the root partition signs, and says so. The tuple keeps the same shape
+		// so the same gate reads it.
+		m.vmpl, m.vmplFloor, m.vmpl0 = -1, -1, "n/a"
+		m.boundary = "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no"
+		return
+	}
 	if !m.snp {
 		m.vmpl, m.vmplFloor, m.vmpl0 = -1, -1, "n/a"
 		m.boundary = "tier=t0 vmpl=n/a vmpl_floor=n/a vmpl0=n/a"
@@ -1090,4 +1091,36 @@ func must(err error) {
 		fmt.Printf("MON ERROR %v\n", err)
 		os.Exit(1)
 	}
+}
+
+
+// hostReport is the report backend of a Hyper-V child partition (windows/vbslike): nothing in the guest
+// signs, so report_data goes to the host launcher over the guest's only channel and comes back inside a
+// document the launcher signed with its own key. The launcher knows which partition asked from the
+// connection itself, and refuses to sign an app hash it did not load into that partition. What comes back
+// is the signed JSON, carried in the same `report` field the SNP path uses for the PSP's bytes.
+func (m *monitor) hostReport(rd []byte) ([]byte, []byte, error) {
+	c, err := vsock.Dial(vsock.CIDHost, m.hostPort)
+	if err != nil {
+		return nil, nil, fmt.Errorf("host report service: %w", err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(10 * time.Second))
+	if err := json.NewEncoder(c).Encode(map[string]string{"abi": contract.ABI, "reportData": hex.EncodeToString(rd)}); err != nil {
+		return nil, nil, err
+	}
+	var resp struct {
+		Report json.RawMessage `json:"report"`
+		Error  string          `json:"error"`
+	}
+	if err := json.NewDecoder(bufio.NewReader(c)).Decode(&resp); err != nil {
+		return nil, nil, fmt.Errorf("host report service: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, nil, errors.New("host report service: " + resp.Error)
+	}
+	if len(resp.Report) == 0 {
+		return nil, nil, errors.New("host report service: empty answer")
+	}
+	return []byte(resp.Report), nil, nil
 }

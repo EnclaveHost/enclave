@@ -1,0 +1,7 @@
+# built artifacts never enter the tree: the guest image (isolation/m3/build-domain.sh output), bundles,
+# the launcher binary and anything cargo produces
+*.cpio.gz
+*.bundle
+*.wasm
+*.exe
+host/target/
