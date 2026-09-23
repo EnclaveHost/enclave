@@ -19,6 +19,7 @@
 #     scripted turns", a worker that started serving, and no worker ERROR, HOST FAIL, VM error/stop or LOCAL failed
 # Anything else exits non-zero and says why. The last line of a good run is "LANE-RUN OK <label>".
 #
+# LANE_CHECK_ONLY=<log> runs only the evidence checks on a capture already on disk (ASK and BUNDLE_SHA256 still apply).
 #   GRAPHS=tpu/g5-h4ds BUNDLE=tpu/lanes-h4ds.etpu MAXNEW=256 ASK='...' EXTRA='--ei tpu_spin 3000' OUT=dir ./lane-run2.sh L
 # EXTRA is split on whitespace and each word is quoted for the device; it must not contain quotes itself.
 set -uo pipefail
@@ -35,6 +36,9 @@ EXTRA="${EXTRA:-}"; case "$EXTRA" in *\'*|*\"*|*\\*) die "EXTRA must not contain
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 rsh() { _cg_read "$1" || die "remote command failed or adb failed: $1"; }
 
+if [ -n "${LANE_CHECK_ONLY:-}" ]; then   # re-validate a captured log offline: the same checks, no device
+  L="$LANE_CHECK_ONLY"; [ -s "$L" ] || die "no log at $L"
+else
 cool_gate || exit 4
 free=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.log ] || [ -e files/capture/$LABEL.complete ]; then echo USED; else echo FREE; fi'") || exit 1
 [ "$free" = FREE ] || die "label $LABEL is already used on the device (or the check failed)"
@@ -59,11 +63,15 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   echo "$(( $(date +%s) - t0 )) $caps" >> "$OUT/$LABEL.caps"
   st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; else echo WAIT; fi'") || exit 1
   [ "$st" = DONE ] && { done_=1; break; }
+  # a VM that died never completes its capture: stop at once instead of polling out the hour
+  dead=$(rsh "run-as $P sh -c 'if grep -qE \"^(VM stopped|VM payload finished exit=[1-9]|HOST FAIL)\" files/capture/$LABEL.log 2>/dev/null; then echo DEAD; else echo ALIVE; fi'") || exit 1
+  [ "$dead" = DEAD ] && { rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" 2>/dev/null; die "the VM stopped before the run completed: $(grep -m1 -E '^(VM stopped|VM payload finished|HOST FAIL)' "$OUT/$LABEL.log" 2>/dev/null)"; }
   [ "$st" = WAIT ] || die "unexpected completion probe answer: '$st'"
 done
 [ $done_ = 1 ] || die "the capture never completed within ${LANE_TRIES:-720} polls"
 rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" || exit 1
 L="$OUT/$LABEL.log"
+fi
 
 # --- the evidence, checked; nothing here is advisory
 [ "$(tail -1 "$L" | grep -c "^CAPTURE END label=$LABEL .*status=complete")" = 1 ] || die "the capture's last line is not its complete footer"
@@ -83,7 +91,8 @@ done
 # (reused by its recorded sidecar, or hashed as it streamed). A stale cached bundle is what made the first int4 runs wrong.
 bsha=$(sed -n 's/^TPU bundle sha256=\([0-9a-f]\{64\}\) .*/\1/p' "$L" | tail -1)
 [ -n "$bsha" ] || die "the app did not report the bundle's sha256"
-grep -qE "^VSOCK LOCAL tpu\.bundle: (already in the encrypted store \(.*sha256 ${bsha:0:16}\.\.\.\)|.* received in .*sha256 ${bsha:0:16}\.\.\. verified)" "$L" \
+# (both wordings: 2b993ba7's sidecar receiver, and anchor_public_file.h's re-hashing one)
+grep -qE "^VSOCK LOCAL tpu\.bundle: (already in the encrypted store \(.*sha256 ${bsha:0:16}\.\.\.(\)|, re-hashed in )|.* received(,| in .*,) sha256 ${bsha:0:16}\.\.\. verified)" "$L" \
   || die "the VM did not confirm it holds bundle sha256 ${bsha:0:16}..."
 [ -z "${BUNDLE_SHA256:-}" ] || [ "$bsha" = "$BUNDLE_SHA256" ] || die "the run used bundle $bsha, not the requested $BUNDLE_SHA256"
 echo "bundle sha256 $bsha"
@@ -93,5 +102,5 @@ grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started
 # is inside, it must not carry an error
 grep -E '^TPU worker: [0-9]+ exchanges' "$L" | grep -q 'ERROR' && die "the worker reported an error"
 grep -E "LOCAL turn [0-9]+ STATS|tpu turn|TPU worker: [0-9]+ exchanges" "$L" | cut -c1-${WIDTH:-400}
-awk '{ if (min2 == "" || $2 < min2) min2 = $2; if (min7 == "" || $3 < min7) min7 = $3 } END { print "big-core cap through the run: cpu2 min " min2 ", cpu7 min " min7 " (" NR " samples)" }' "$OUT/$LABEL.caps"
+[ -z "${LANE_CHECK_ONLY:-}" ] && awk '{ if (min2 == "" || $2 < min2) min2 = $2; if (min7 == "" || $3 < min7) min7 = $3 } END { print "big-core cap through the run: cpu2 min " min2 ", cpu7 min " min7 " (" NR " samples)" }' "$OUT/$LABEL.caps"
 echo "LANE-RUN OK $LABEL"
