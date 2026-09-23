@@ -38,6 +38,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -167,11 +168,13 @@ type monitor struct {
 	basePrt uint32
 	baseUID int
 
-	vmpl     int           // the privilege level this guest runs at, as the kernel reports it
-	report   reporter      // the hardware path, or a stand-in under test
-	tsmMu    sync.Mutex    // one configfs entry at a time
-	reports  chan struct{} // global admission for report work
-	refusals chan struct{} // separate, small budget for politely closing refused callers
+	vmpl      int           // the level the PSP put in our own signed report: the level we can actually speak for
+	vmplFloor int           // the lowest level this kernel will let us ask for. Its own claim, see tsmLevel
+	vmpl0     string        // what happened when we asked for a report at level 0: refused, GRANTED, or n/a
+	report    reporter      // the hardware path, or a stand-in under test
+	tsmMu     sync.Mutex    // one configfs entry at a time
+	reports   chan struct{} // global admission for report work
+	refusals  chan struct{} // separate, small budget for politely closing refused callers
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
@@ -198,17 +201,36 @@ func main() {
 
 	cl, err := vsock.Listen(uint32(*control))
 	must(err)
-	// Which privilege level are we? On a plain SNP guest this is 0. Under an SVSM at VMPL0 it reads 1, 2
-	// or 3, and THAT is the evidence that something more privileged than this monitor holds VMPL0 — the
-	// whole point of the VMPL work. It is printed unconditionally so a harness can assert it.
+	// Which privilege level are we, and can we prove it? Three different things get printed, because
+	// they are worth different amounts:
+	//   vmpl_floor  what this kernel SAYS (tsmLevel). Cheap, and not evidence: see tsmLevel.
+	//   vmpl        the level the PSP wrote into our own signed report. Signed, so a verifier can pin it.
+	//   vmpl0       whether we can obtain a report at level 0. A guest that CAN is at VMPL0 whatever else
+	//               it claims, so a refusal here is the part that actually bounds us from above.
 	if m.snp {
 		if lvl, err := m.tsmLevel(); err == nil {
-			m.vmpl = lvl
+			m.vmplFloor = lvl
 		} else {
-			fmt.Printf("MON WARN could not read this guest's privilege level: %v\n", err)
+			fmt.Printf("MON WARN could not read this guest's privilege level floor: %v\n", err)
+		}
+		m.vmpl0 = "n/a"
+		if rep, _, err := m.tsmReport(make([]byte, 64)); err == nil {
+			m.vmpl = reportVmpl(rep)
+		} else {
+			fmt.Printf("MON WARN could not read our own level from a report: %v\n", err)
+		}
+		if m.vmplFloor > 0 {
+			// The one probe that cannot be faked downwards: ask for level 0. Our secrets page has no
+			// VMPCK0 unless we ARE at VMPL0, so this must fail.
+			if _, _, err := m.tsmReportAt(0, make([]byte, 64)); err == nil {
+				m.vmpl0 = "GRANTED"
+			} else {
+				m.vmpl0 = "refused"
+			}
 		}
 	}
-	fmt.Printf("MON ready control_port=%d snp=%v vmpl=%d\n", *control, m.snp, m.vmpl)
+	fmt.Printf("MON ready control_port=%d snp=%v vmpl=%d vmpl_floor=%d vmpl0=%s\n",
+		*control, m.snp, m.vmpl, m.vmplFloor, m.vmpl0)
 	slots := make(chan struct{}, maxControlConns)
 	for {
 		c, err := cl.Accept()
@@ -916,10 +938,16 @@ func peerUID(c net.Conn) (int, error) {
 	return int(cred.Uid), nil
 }
 
-// tsmLevel asks the kernel which privilege level this guest runs at. configfs-tsm exposes
-// `privlevel_floor`: the lowest level this guest may request a report for, which is its own VMPL (the
-// kernel will not let a guest speak for a level more privileged than itself). The attribute only exists
-// when the provider supports levels at all, so a missing file is an answer too.
+// tsmLevel reads configfs-tsm's `privlevel_floor`: the lowest level this guest may request a report for.
+// By default that is the guest's own VMPL, because arch/x86/coco/sev/core.c sets the VMPCK id from
+// snp_vmpl and drivers/virt/coco/sev-guest/sev-guest.c copies it into privlevel_floor.
+//
+// It is NOT evidence of anything. vmpck_id is a module parameter (sev_guest.vmpck_id=N), so this number
+// is the guest kernel's own claim about itself and whoever controls that kernel's command line chooses
+// it. We read it because we need a level to ASK for, not because it proves a level. What a verifier
+// pins is the VMPL field inside the signed report, and what bounds us from above is being refused at
+// level 0 (see vmpl0 in main). The attribute only exists when the provider supports levels at all, so
+// a missing file is an answer too.
 func (m *monitor) tsmLevel() (int, error) {
 	m.tsmMu.Lock()
 	defer m.tsmMu.Unlock()
@@ -943,6 +971,12 @@ func (m *monitor) tsmLevel() (int, error) {
 // always belongs to the inblob just written. No domain can reach this: /sys is not in any domain's
 // mount namespace.
 func (m *monitor) tsmReport(rd []byte) ([]byte, []byte, error) {
+	return m.tsmReportAt(m.vmplFloor, rd)
+}
+
+// tsmReportAt is tsmReport for one named level. Asking for a level we are not entitled to must fail, and
+// the startup probe depends on that failing rather than on anyone's claim about it.
+func (m *monitor) tsmReportAt(level int, rd []byte) ([]byte, []byte, error) {
 	m.tsmMu.Lock()
 	defer m.tsmMu.Unlock()
 	dir := fmt.Sprintf("/sys/kernel/config/tsm/report/mon%d", time.Now().UnixNano())
@@ -950,12 +984,13 @@ func (m *monitor) tsmReport(rd []byte) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 	defer os.Remove(dir)
-	// Ask for the report at the level we actually run at, rather than letting it default. A verifier is
-	// told which level to expect and refuses anything else (relay/snp-verify.mjs expectedVmpl), so the
-	// two have to agree deliberately.
-	if m.vmpl > 0 {
-		if err := os.WriteFile(dir+"/privlevel", []byte(strconv.Itoa(m.vmpl)), 0); err != nil {
-			return nil, nil, fmt.Errorf("privlevel %d: %w", m.vmpl, err)
+	// Ask for the report at the lowest level this kernel allows us, rather than letting it default: under
+	// an SVSM the default 0 is below our floor and the kernel refuses it outright. A verifier is told
+	// which level to expect and refuses anything else (relay/snp-verify.mjs expectedVmpl), so the two
+	// have to agree deliberately.
+	if level > 0 {
+		if err := os.WriteFile(dir+"/privlevel", []byte(strconv.Itoa(level)), 0); err != nil {
+			return nil, nil, fmt.Errorf("privlevel %d: %w", level, err)
 		}
 	}
 	if err := os.WriteFile(dir+"/inblob", rd, 0); err != nil {
@@ -967,6 +1002,17 @@ func (m *monitor) tsmReport(rd []byte) ([]byte, []byte, error) {
 	}
 	certs, _ := os.ReadFile(dir + "/auxblob")
 	return rep, certs, nil
+}
+
+// reportVmpl reads the VMPL field out of an SNP attestation report (table 22: 4 bytes little-endian at
+// offset 0x30). This is the PSP's word, inside the signed region, so a verifier can pin it -- which is
+// not the same as it proving the guest is confined: a guest AT VMPL0 holds every VMPCK and can therefore
+// ask for a report naming a lower level. Downward claims are cheap; being refused at level 0 is not.
+func reportVmpl(rep []byte) int {
+	if len(rep) < 0x34 {
+		return -1
+	}
+	return int(binary.LittleEndian.Uint32(rep[0x30:0x34]))
 }
 
 func must(err error) {
