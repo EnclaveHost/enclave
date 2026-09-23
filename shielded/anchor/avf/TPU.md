@@ -3104,3 +3104,25 @@ measured floor the int8 lane would still cost ~3 ms per exchange (~6.8 tok/s at 
 weights). So the necessity claim is sharper than before but not a proof: reaching 15 through masking needs BOTH the
 per-exchange cost near its floor AND roughly five accepted tokens per verification pass -- a better drafter or a tree
 of candidates over rows that are, it now turns out, nearly free to carry. Those are the open levers.
+
+### Two different "LSB"s in the verification line, classified over every run (2026-09-23)
+
+The kernel verification line reports two things that must not be merged. `max=` is the largest disagreement between
+the TPU and the VM's exact recomputation **in digit units** (per digit, hi or lo); `output LSB ... max` is the same
+disagreement **in output units**. A 1-unit disagreement on the `lo` digit is worth 0.0098 output LSB; on the `hi`
+digit it is multiplied by 256 on recombination and worth 256/102.4 = **2.5 output LSB**. So "max 1" with "output max
+2.500" is a hi-digit disagreement, not a <=1-LSB output error, and earlier summaries in this file that called every
+difference "<= 1 LSB" were describing the digit metric only.
+
+`results/verify-classification.tsv` classifies every run on disk (137 valid; the two stale-bundle runs excluded):
+2,099,200 sampled digit comparisons, 152 disagreements, **none beyond 1 digit unit**; 63 runs with no disagreement, 52
+with lo-digit disagreements only (max 0.0098 output LSB), **22 with at least one hi-digit disagreement (2.5 output
+LSB)** -- among them combo2's cc-04 and cc-05, and runs from before this week's changes (thread-sweep t1/t6, i8-e),
+so it is not new. qc7's 13 happened all to land on `lo`.
+
+Against the established analysis (`tpu/test/error_bound.py`): an ideal requantiser bounds the unmasked error at 1.756
+output LSB; if the backend may deviate by up to one unit per digit, the bound is 4.26 output LSB, and that figure is
+CONDITIONAL on |delta| <= 1 holding for every output. A hi-digit 1-unit disagreement is exactly such a |delta| = 1
+case, so these samples are inside the conditional bound -- and the only evidence for |delta| <= 1 is still SAMPLED
+(one element per projection per exchange), with the turn refused beyond it. Task quality has to be measured on the
+configuration in use, not inferred from this.
