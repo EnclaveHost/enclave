@@ -1,7 +1,7 @@
 #!/bin/bash
 # Inside ubuntu:22.04 (the llamacpp-toolchain runner's OS and stock compiler):
 # the CPU part of the production configuration, then the three conv harnesses.
-set -e
+set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >/dev/null && apt-get install -y -qq build-essential cmake git >/dev/null
 gcc --version | head -1; cmake --version | head -1
@@ -17,7 +17,8 @@ B=/work/build/bin; I="-I/work/llama-src/include -I/work/llama-src/ggml/include"
 for t in conv-equiv conv-equiv2 conv-graph-test; do
   g++ -O2 -std=c++17 -DGGML_MAX_NAME=128 $I -o /work/$t /tests/$t.cpp -L$B -lllama -lggml -lggml-cpu -lggml-base -Wl,-rpath,$B
 done
-echo "== conv-equiv";  /work/conv-equiv  | tail -3
-echo "== conv-equiv2"; /work/conv-equiv2 | grep -vE "^PASS" ; /work/conv-equiv2 | grep -c "^PASS"
-for v in 1 0; do CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so ENCLAVE_GGML_CONV_INPLACE=$v /work/conv-graph-test /model/m.gguf /out/cgt-$v.bin > /out/cgt-$v.log 2>&1; echo "graph test inplace=$v rc=$? $(grep -h steps= /out/cgt-$v.log)"; done
-cmp /out/cgt-1.bin /out/cgt-0.bin && echo "graph test: fused on == off, BYTE-IDENTICAL ($(stat -c %s /out/cgt-1.bin) bytes)"
+. /tests/harness-check.sh
+run_equiv conv-equiv  "ALL IDENTICAL" /work/conv-equiv
+run_equiv conv-equiv2 "ALL PASS"      /work/conv-equiv2
+CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out
+echo "ALL CHECKS PASSED"
