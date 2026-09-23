@@ -541,14 +541,34 @@ decision is concrete rather than open-ended.
   replacement, and nothing existing is overwritten.
 
 **The plan, in order:**
-1. Finish `build-planes-host.sh` green, and rebuild with the machine's FULL module config (this run used
-   `localmodconfig` to fit the disk and the time).
-2. `dkms build` the NVIDIA 580 module against the new kernel **before** installing anything. If it does
-   not build, stop: the cost is no longer just a reboot.
-3. Install as a SEPARATE GRUB entry (`vmlinuz-linux-planes` + its own initramfs). Do not touch
-   `vmlinuz-linux`, its initramfs, or the default entry. Verify `grub-mkconfig` output lists both.
-4. Confirm out-of-band access exists before the reboot. If the only way in is SSH, a kernel that does not
-   bring up the network is an on-site visit.
+1. ~~Rebuild with the machine's FULL module config~~ **resolved 2026-09-23: not needed, and skipped on
+   evidence rather than to save time.** The `localmodconfig` build was checked item by item against what
+   this machine actually boots, networks and displays on, and carries all of it: `USB_RTL8152` (the only
+   real NIC here is USB ethernet, `r8152`), xhci, `EXT4_FS`, `VFAT_FS`, `BLK_DEV_NVME`, `DM_CRYPT` with
+   `CRYPTO_XTS`/`AES`/`AES_NI` (the root LUKS is `xts(aes)`), `DRM` + `DRM_AST` + framebuffer console +
+   `USB_HID` + `VT` (there is a person at a keyboard), `KVM_AMD` with `KVM_AMD_SEV`, `VHOST_VSOCK`, and
+   the `vfio` modules `mkinitcpio.conf` names. Residual risk, stated rather than hidden: 212 modules
+   against the running kernel's 6476, so anything not currently bound has no driver. Acceptable for a
+   one-shot non-default test boot; not a kernel to leave as the general-purpose one. `SEV_GUEST` is
+   deliberately absent because this is the HOST kernel; guests keep using `/boot/vmlinuz-linux`.
+2. **Done 2026-09-23, and GREEN.** NVIDIA 580.178.04 builds clean against the planes tree: all five
+   modules, zero errors, vermagic `7.2.0-gbf5bafed3e6d`. Built without root in
+   `~/.cache/enclave-isolation/nvbuild` using the make line from the package's own `dkms.conf`. The GPUs
+   survive this kernel, so the boot is affordable. Secure Boot is disabled and `MODULE_SIG_FORCE` is not
+   set, so nothing needs signing.
+3. Install with **`install-planes-kernel.sh install`** (committed, reviewable, and it refuses to
+   half-install). It does NOT use `vmlinuz-linux-planes`, which would have been a real trap:
+   `/etc/grub.d/10_linux` globs `/boot/vmlinuz-*` and reverse-version-sorts the result, and
+   `GRUB_DEFAULT=0` - so that name could sort ahead of `vmlinuz-linux` and silently become the DEFAULT
+   entry, the one thing this step must not do. The files go in `/boot/planes/`, invisible to that glob,
+   and the entry comes from `/etc/grub.d/42_planes`, which runs after every generated entry. The script
+   reads `grub.cfg` back and refuses to finish if entry 0 moved. It copies the command line from
+   `/etc/default/grub` verbatim, which matters here: `rd.luks.name=` and `root=` for the encrypted root,
+   and `usbcore.autosuspend=-1` for the USB NIC.
+4. ~~Confirm out-of-band access exists~~ **checked 2026-09-23: there is none.** `/dev/ipmi0` exists and
+   the `ipmi_si`/`ipmi_devintf` modules are loaded, but no IPMI tool is installed (`ipmitool`, `ipmiutil`,
+   `freeipmi`, `redfishtool` all absent) and `/proc/cmdline` has no `console=`. So a kernel that does not
+   bring up networking is a keyboard visit, and nobody can watch the boot remotely.
 5. Announce, wait for every session to park work, and take the window.
 6. Boot the new entry **once**, non-default, then run **`m3b-verify.sh <workdir> <kernel-release>`**,
    which is the whole post-boot sequence in one command so the window is spent on the boundary rather
@@ -569,15 +589,23 @@ decision is concrete rather than open-ended.
       below our whole OS, which is what VTL1 is to VTL0. It needs the identity change of section 3 —
       under IGVM the firmware is what the digest covers, so our image arrives by disk and its own
       measurement moves to the SVSM's vTPM or to the monitor's statement.
-   c. **A report at privilege level 2**, verified with `expectedVmpl: 2` and refused without it. That is
-      the first use of the verifier work already shipped, against real hardware evidence. The guest side
-      of this is now built and committed: the monitor asks the kernel which level it is on
-      (`privlevel_floor`) and prints it in `MON ready ... vmpl=N`, it writes `privlevel` on every report
-      request above 0, `client.mjs` prints `report_vmpl` beside the `expected_vmpl` it demanded, and
-      `test-m3.sh` takes `VMPL=N` and adds **check 3e**, which requires the guest's own kernel, the
-      report, and the client's demand to name the same level. Offline, against forged reports, the three
-      cases already behave: level 2 demanded and present passes the level test; level 2 present with the
-      default 0 demanded is refused; level 0 present with 2 demanded is refused.
+   c. **A report at privilege level 2**, verified with `expectedVmpl: 2` and refused without it, **plus a
+      refusal at level 0, which is the part that is actually evidence.** A report's VMPL field alone does
+      not prove confinement: a guest at VMPL0 holds every VMPCK, so it can request a report naming a
+      LOWER level than it has. Downward claims are cheap, and that is precisely the direction a plain
+      VMPL0 guest would fake. What cannot be faked is being refused at level 0, because our secrets page
+      holds no VMPCK0 unless we really are at VMPL0. `privlevel_floor` is worth less still: it comes from
+      the `sev_guest.vmpck_id` module parameter, so it is the guest's own command line talking.
+
+      The guest side is built and committed, and prints the three separately: `vmpl_floor` (the kernel's
+      claim), `vmpl` (the PSP's VMPL field, parsed out of our own signed report at offset 0x30), and
+      `vmpl0` (`refused`, `GRANTED` or `n/a`). `GRANTED` means the boundary is not there whatever else
+      reads well. `client.mjs` prints `report_vmpl` beside the `expected_vmpl` it demanded, and
+      `test-m3.sh` takes `VMPL=N` with **check 3e** requiring the guest's kernel, the report and every
+      client's demand to agree. Validated on hardware at VMPL0 (`vmpl=0 vmpl_floor=0 vmpl0=n/a`, M3a 30
+      checks / 0 failures), and offline against forged reports: level 2 demanded and present passes, level
+      2 present with the default 0 demanded is refused, level 0 present with 2 demanded is refused. The
+      `vmpl0` probe can only do anything once the floor is above 0, which needs the boot.
    d. Only then **one plane per app** (at most three, section 1), which is the point at which app-vs-app
       isolation stops resting on the guest kernel. Steps a to c do not achieve that: they move the
       MONITOR/runtime split into hardware, which is worth having, and leave domains inside our plane
@@ -589,8 +617,9 @@ ends the agent that would verify the result and trigger the rollback. Stage A of
 written to be run by a person, or by an agent that reconnects afterwards, and the machine has
 `/dev/ipmi0` but **no `ipmitool` installed and no `console=` on the current cmdline**, so there is no
 out-of-band path for an agent to watch the boot or recover a kernel that does not bring up networking.
-This is what step 4 asks for, and it is not satisfied today. It does not block building or validating
-anything; it blocks an agent performing "reboot, verify, roll back" unattended.
+There is also **no passwordless sudo**, so installing a kernel and rebooting are not an agent's to
+perform at all. It does not block building or validating anything - all of that is done - it blocks an
+agent performing "reboot, verify, roll back" unattended. Steps 5 to 7 are for a person at the machine.
 
 **Rollback:** reboot and pick the original GRUB entry; nothing was replaced. If the new kernel does not
 boot at all, GRUB's menu is the rollback, which is why step 3 must not touch the default entry. If the
