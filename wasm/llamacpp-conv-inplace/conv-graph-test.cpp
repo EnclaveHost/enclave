@@ -30,12 +30,17 @@
 
 static FILE * out;
 static int steps;
+static long long bytes_written, rows_dumped;
 
 static void dump(llama_context * ctx, int n_logits_rows, int n_vocab, const char * tag) {
     for (int i = 0; i < n_logits_rows; i++) {
         const float * lg = llama_get_logits_ith(ctx, i);
         if (!lg) { fprintf(stderr, "%s: no logits for row %d\n", tag, i); exit(3); }
-        fwrite(lg, sizeof(float), (size_t) n_vocab, out);
+        if (fwrite(lg, sizeof(float), (size_t) n_vocab, out) != (size_t) n_vocab) {
+            fprintf(stderr, "%s: short write of the logit dump\n", tag); exit(4);
+        }
+        bytes_written += (long long) n_vocab * (long long) sizeof(float);
+        rows_dumped++;
     }
     steps++;
 }
@@ -74,8 +79,12 @@ static llama_context * make_ctx(llama_model * m, uint32_t n_seq_max, uint32_t n_
 
 int main(int argc, char ** argv) {
     if (argc < 3) { fprintf(stderr, "usage: conv-graph-test MODEL OUT\n"); return 2; }
-    out = fopen(argv[2], "wb");
     const std::string only = argc > 3 ? argv[3] : "";
+    if (!only.empty() && only != "plain" && only != "spec" && only != "multi" && only != "lifetime") {
+        fprintf(stderr, "unknown scenario '%s' (plain|spec|multi|lifetime)\n", only.c_str()); return 2;
+    }
+    out = fopen(argv[2], "wb");
+    if (!out) { fprintf(stderr, "cannot open output %s\n", argv[2]); return 2; }
     auto want = [&](const char * s) { return only.empty() ? strcmp(s, "multi") != 0 : only == s; };
     llama_backend_init();
     // a GGML_BACKEND_DL build: load exactly the CPU backend from the tree under test
@@ -174,8 +183,12 @@ int main(int argc, char ** argv) {
         llama_free(ctx);
     }
     }
-    fclose(out);
-    printf("steps=%d n_vocab=%d\n", steps, n_vocab);
+    if (fflush(out) != 0 || ferror(out) || fclose(out) != 0) { fprintf(stderr, "the logit dump did not close cleanly\n"); return 4; }
+    // zero executed scenarios, or a dump that does not account for every row, is a failure
+    if (steps <= 0 || rows_dumped <= 0 || bytes_written != rows_dumped * (long long) n_vocab * (long long) sizeof(float)) {
+        fprintf(stderr, "incomplete run: steps=%d rows=%lld bytes=%lld\n", steps, rows_dumped, bytes_written); return 5;
+    }
+    printf("steps=%d rows=%lld bytes=%lld n_vocab=%d\n", steps, rows_dumped, bytes_written, n_vocab);
     llama_model_free(model);
     return 0;
 }

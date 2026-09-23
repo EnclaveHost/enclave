@@ -39,3 +39,18 @@ vector path), and GCC 11.4 with the production workflow's flags, which are
 AVX2 + FMA only, so production compiles the vector path out and runs the
 scalar path. Validation is not deployment: the patch is not wired into
 `.github/workflows/llamacpp-toolchain.yml`.
+
+**Fail-closed checking.** `harness-check.sh` runs each harness exactly once,
+requires its exit status AND its exact pass line, and for the graph test
+requires both arms to finish with the same nonzero step/row/byte counts and
+byte-identical dumps; `prod-toolchain-check.sh` sources it under
+`set -euo pipefail`. `selftest-harness-check.sh` demonstrates that with stub
+harnesses (a pass line with exit 1, no pass line, a signal, an arm exiting
+nonzero, zero steps, a one-byte difference, differing step counts, and a
+script that must stop at the first failed check). `conv-graph-test` rejects an
+unknown scenario and an unopenable output path before loading a model, and
+checks every write and the final close.
+
+**Scope.** The graph test uses the 0.8B model of the same architecture on the
+CPU backend. It is evidence for the op's graph and cache integration, not
+acceptance on the full 27B shielded workload.
