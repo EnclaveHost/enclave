@@ -9,6 +9,8 @@
 //	m3ctl -cid N [-port 9000] load <app.wasm> [-label A] [-cpu 100] [-mem 256]
 //	m3ctl -cid N [-port 9000] list
 //	m3ctl -cid N [-port 9000] state
+//	m3ctl -cid N [-port 9000] load <app.wasm> -probe      (the measured adversary, for isolation tests)
+//	m3ctl -cid N [-port 9000] stop -id 1                  (graceful: signal the front, let it wind down)
 //	m3ctl -cid N [-port 9000] destroy -id 1
 package main
 
@@ -28,11 +30,12 @@ func main() {
 	label := flag.String("label", "", "a name for the domain, for the harness")
 	cpu := flag.Int("cpu", 100, "the domain's share of one CPU, in percent")
 	mem := flag.Int("mem", 256, "the domain's memory cap, in MiB")
-	id := flag.Int("id", 0, "the domain to destroy")
+	id := flag.Int("id", 0, "the domain to stop or destroy")
+	probe := flag.Bool("probe", false, "run the measured adversary probe as this domain's workload")
 	flag.Parse()
 	args := flag.Args()
 	if *cid == 0 || len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] load <app.wasm> | list | state | destroy -id N")
+		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] load <app.wasm> | list | state | stop -id N | destroy -id N")
 		os.Exit(2)
 	}
 
@@ -49,13 +52,16 @@ func main() {
 		}
 		app, err := os.ReadFile(args[1])
 		die(err)
-		die(enc.Encode(map[string]any{"cmd": "load", "label": *label, "size": len(app), "cpu": *cpu, "mem": *mem}))
+		die(enc.Encode(map[string]any{"cmd": "load", "label": *label, "size": len(app), "cpu": *cpu,
+			"mem": *mem, "probe": *probe}))
 		_, err = c.Write(app)
 		die(err)
 	case "list":
 		die(enc.Encode(map[string]any{"cmd": "list"}))
 	case "state":
 		die(enc.Encode(map[string]any{"cmd": "state"}))
+	case "stop":
+		die(enc.Encode(map[string]any{"cmd": "stop", "id": *id}))
 	case "destroy":
 		die(enc.Encode(map[string]any{"cmd": "destroy", "id": *id}))
 	default:
@@ -66,8 +72,8 @@ func main() {
 	line, err := br.ReadBytes('\n')
 	die(err)
 	os.Stdout.Write(line)
-	var probe struct{ Error string }
-	if json.Unmarshal(line, &probe) == nil && probe.Error != "" {
+	var answer struct{ Error string }
+	if json.Unmarshal(line, &answer) == nil && answer.Error != "" {
 		os.Exit(1)
 	}
 }
