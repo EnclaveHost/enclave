@@ -34,7 +34,10 @@
  * versions aliased: a global count over the A B C D cycle put every check on D
  * (period 256 is a multiple of 4), and a per-(shape, m) count put every check
  * on the last layer (the count advances once per layer per pass, and 256 is a
- * multiple of 64). Per-(shape, m) totals and per-layer coverage are printed,
+ * multiple of 64). Each pair is also checked on its FIRST visit, so a rare
+ * cell (an m=17 pair sees one visit per --prefill-every passes) has exact
+ * evidence before its periodic sample comes due, and a short run is not
+ * exact-blind. Per-(shape, m) totals and per-layer coverage are printed,
  * and --schedule-selftest runs the same pass generator and selection with no
  * worker and fails unless every (instance, m) pair the configuration produces
  * is checked.
@@ -99,7 +102,7 @@ static cnt_t *inst1_n, *inst1_checked;         /* card 1's link under --split */
 static int exact_due_in(cnt_t *cn, cnt_t *cc, int i, int m, int every) {
     const int c = mcls(m);
     const uint64_t n = ++cn[i][c];
-    const int due = every > 0 && n % (uint64_t)every == 0;
+    const int due = every > 0 && (n == 1 || n % (uint64_t)every == 0);   /* first visit, then periodic */
     if (due) cc[i][c]++;
     return due;
 }
@@ -130,12 +133,24 @@ static int schedule_selftest(const sched_t *s, int every, uint64_t passes) {
         for (int i = 0; i < n_inst; i++) (void)exact_due(i, m, every);
     }
     print_cells(stdout);
-    int ok = 1, pairs = 0, missed = 0;
-    for (int i = 0; i < n_inst; i++) for (int c = 0; c < MCLS; c++)
-        if (inst_n[i][c]) { pairs++; if (!inst_checked[i][c]) { ok = 0; missed++; } }
-    printf(ok ? "schedule-selftest: PASS -- all %d (instance, m) pairs are exact-checked\n"
-              : "schedule-selftest: FAIL -- %d of %d (instance, m) pairs are never exact-checked\n",
-           ok ? pairs : missed, pairs);
+    /* Two properties, checked separately so first-visit sampling cannot hide
+     * an aliased periodic sampler: every pair is checked at least once, and
+     * every pair visited at least `every` times has a periodic check too
+     * (checked >= 2: its first visit plus one more). */
+    int ok = 1, pairs = 0, missed = 0, periodic_due = 0, periodic_missed = 0;
+    for (int i = 0; i < n_inst; i++) for (int c = 0; c < MCLS; c++) {
+        if (!inst_n[i][c]) continue;
+        pairs++;
+        if (!inst_checked[i][c]) { ok = 0; missed++; }
+        if (every > 1 && inst_n[i][c] >= (uint64_t)every) {
+            periodic_due++;
+            if (inst_checked[i][c] < 2) { ok = 0; periodic_missed++; }
+        }
+    }
+    if (ok) printf("schedule-selftest: PASS -- all %d (instance, m) pairs are exact-checked; all %d pairs visited at least %d times have a periodic check\n",
+                   pairs, periodic_due, every);
+    else printf("schedule-selftest: FAIL -- %d of %d (instance, m) pairs never exact-checked; %d of %d pairs past the period have no periodic check\n",
+                missed, pairs, periodic_missed, periodic_due);
     return ok ? 0 : 1;
 }
 

@@ -4382,3 +4382,41 @@ reach has been ruled out except a two-links-in-one-process soak and the real
 model's activation magnitudes (the soak's |x| <= 3 against real activations
 near the 2^26 bound -- though the arithmetic above is exact over that whole
 range). Those are the next soaks.
+
+### 18.40 Qualifications to 18.37-18.39, and first-visit exact sampling
+
+An audit of 53fbd4e5/0e79e397 supports the per-instance fix, and asked for
+the following to be stated plainly. Each corrects wording in 18.37-18.39.
+
+- **The refill result is a finite test, not a proof.** 309,056 values at
+  production sizes (18.39's table) show the kernel exact on those inputs.
+  They do not cover every possible pad and weight. Only `mask_planes` and
+  `pad_planes` were checked over their entire input domains.
+- **Clean soaks do not rule out every synthetic-reachable fault.** They bound
+  the rate of faults on the paths they exercised, for as long as they ran.
+  18.39's "everything a synthetic test can reach has been ruled out" was
+  wrong and is withdrawn.
+- **Production differences remain open**, not closed: the real model's
+  activation magnitudes and distributions (the soak's |x| <= 3), the
+  interleaving of the CPU backend's ops between exchanges, and the timing that
+  produces. The exactness of the arithmetic over its whole input range does
+  not make those differences irrelevant.
+- **Both production rejections remain open and unexplained.**
+
+**The rare cell the per-instance sampler still missed.** In the split soak
+(soak4, running) an m=17 pair sees one visit per 50 passes. At the default
+period of 256 its first exact sample needs 12,800 passes, so a 45-minute run
+gets none: its m=17 exact coverage will be zero, recorded as such when it
+ends. The selftest did not catch this because its 20,000 simulated passes
+give each m=17 pair 400 visits, enough at 256; at 512 it fails, and an
+earlier test of mine ran 512 only without prefill, so it never saw that case.
+
+Fixed by checking every (instance, m) pair on its first visit as well as
+periodically, so a rare cell and a short run both have exact evidence. The
+selftest now checks the two properties separately, so first-visit sampling
+cannot hide an aliased periodic sampler: every pair checked at least once, and
+every pair visited at least `every` times checked periodically too. The
+full-configuration aliasing mutant fails both (744 of 771 pairs never checked,
+756 of 771 past the period with no periodic check); the fixed sampler passes
+at 64, 256 and 512, and at 512 reports honestly that only 514 of the 771
+pairs are past the period, with the m=17 pairs resting on their first visit.

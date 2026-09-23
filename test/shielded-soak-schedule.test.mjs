@@ -27,7 +27,7 @@ test("every (shape, m) cell is exact-checked, at the default period and at a mul
 test("with every production condition on, every (shape, m) cell including lm_head and m=17 is checked", () => {
   const r = spawnSync(path.join(dir, "shielded-soak"), ["--layers", "64", "--lm-head", "--prefill-every", "50", "--schedule-selftest"], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /all 771 \(instance, m\) pairs are exact-checked/);
+  assert.match(r.stdout, /all 771 \(instance, m\) pairs are exact-checked; all 771 pairs visited at least 256 times have a periodic check/);
   for (const shape of ["qkv\\|gate\\|a\\|b", "ssm_out", "gate\\|up", "down"])
     for (const m of ["m1", "m2", "m17"])
       assert.match(r.stdout, new RegExp(`${shape}/${m}=[1-9]\\d* of \\d+ \\[64 of 64 layers\\]`), `${shape}/${m} misses layers`);
@@ -38,8 +38,17 @@ test("periods that are multiples of the layer count still reach every layer", ()
   for (const every of ["64", "128", "256", "512"]) {
     const r = spawnSync(path.join(dir, "shielded-soak"), ["--layers", "64", "--exact-every", every, "--schedule-selftest"], { encoding: "utf8" });
     assert.equal(r.status, 0, `period ${every}: ${r.stdout}`);
-    assert.match(r.stdout, /all 512 \(instance, m\) pairs are exact-checked/, `period ${every}`);
+    assert.match(r.stdout, /all 512 \(instance, m\) pairs are exact-checked; all \d+ pairs visited at least \d+ times have a periodic check/, `period ${every}`);
   }
+});
+
+test("a period longer than the rare m=17 cells' visits still gives every pair a first-visit check", () => {
+  // 20000 simulated passes contain only 400 prefill passes, so at period 512 no
+  // m=17 pair reaches its first periodic sample; the first-visit check covers it.
+  const r = spawnSync(path.join(dir, "shielded-soak"), ["--layers", "64", "--lm-head", "--prefill-every", "50", "--exact-every", "512", "--schedule-selftest"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /all 771 \(instance, m\) pairs are exact-checked; all 514 pairs visited at least 512 times have a periodic check/);
+  assert.match(r.stdout, /down\/m17=\d+ of \d+ \[64 of 64 layers\]/);
 });
 
 test("the selftest fails when nothing is checked", () => {
