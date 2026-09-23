@@ -1,0 +1,4 @@
+dr-01	d2	--ei decode_threads 2
+dr-02	d2-draft4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4
+dr-03	d2-draft4	--ei decode_threads 2 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 4
+dr-04	d2	--ei decode_threads 2
