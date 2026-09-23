@@ -140,11 +140,13 @@ def sampler(ps_body):
     with open(os.path.join(b, 'ps'), 'w') as f: f.write('#!/bin/sh\n' + ps_body)
     os.chmod(os.path.join(b, 'ps'), 0o755); out = os.path.join(d, 'o'); open(out + '.run', 'w').close()
     p = subprocess.Popen(['sh', SAMPLER, str(os.getuid()), out, '0.05'], env=dict(os.environ, PATH=b + ':' + os.environ['PATH']))
-    time.sleep(0.4); os.unlink(out + '.run'); p.wait(timeout=10)
-    return open(out).read()
+    time.sleep(0.4); t_stop = float(open('/proc/uptime').read().split()[0]); os.unlink(out + '.run'); p.wait(timeout=10)
+    o = open(out).read(); sampler.last_t = max(float(l.split()[1]) for l in o.splitlines() if l.startswith('T ')); sampler.t_stop = t_stop
+    return o
 o = sampler('exit 3\n')
 expect(' FAILED 3' in o and ' ok ' not in o and o.rstrip().endswith('END'), 'the sampler records a failed ps as a FAILED scan: ' + o[-200:])
 o = sampler(f'echo "  PID  PPID   UID NAME"; echo "  {os.getpid()}  1  {os.getuid()} me"; echo "  1 0 0 init"\n')
 expect(f'P {os.getpid()} 1 me | {os.getpid()} (' in o and ' ok 3' in o, 'a good table: the uid row with its stat, and a D scan line with the row count: ' + o[-300:])
+expect(sampler.last_t >= sampler.t_stop, f'a timing sample is taken AFTER the stop (last {sampler.last_t}, stop {sampler.t_stop}): the window end is always bracketed')
 expect('PS known 1' in o and 'PS ok' not in o and o.count(' ok 3') >= 2, 'timing samples read the discovered pid (PS known 1); scans are D lines, at least one per loop and one at stop: ' + o[-300:])
 print(f"{'PASS' if not fails else 'FAIL'}: {checks} checks, {fails} failures"); sys.exit(1 if fails else 0)
