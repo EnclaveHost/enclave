@@ -1,0 +1,1 @@
+cpu turn 1 decode window 2.16 s (3 tokens): COMPLETE: the app's processes 11.25 core-s = 5.21 cores busy, 3750 core-ms per decoded token (edge interpolation +-2.56 core-s) [crosvm_anchorlocal 10.94, host.enclave.anchor.avf 0.31, virtmgr_lave.anchor.avf 0.00] | 5.75 cores busy device-wide

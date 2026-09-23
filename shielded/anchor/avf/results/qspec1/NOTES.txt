@@ -1,0 +1,16 @@
+results/qspec1 -- the masked int8 lane with the MTP drafter (draft_max 4), decode_threads 2, corr_threads 3, tpu_bank 128,
+on the 24-prompt contract set (lane-quality.sh, frozen driver, one fresh VM per row, MAXNEW=256). All 24 LANE-RUN OK.
+
+QUALITY (tpu/lane-score.py, the qc7 checker): 22/22 automatic contracts PASS, the same verdict as qc7's int8 TPU and CPU
+arms on every row. The two REVIEW rows, graded by reading them (a judgment, recorded so it can be disputed):
+  07 "three lines, roughly 5-7-5, about rain": "Soft drops touch the leaves, / Washing the dusty green world, / Earth
+     drinks and is calm." -- 5-7-5 about rain: PASS.
+  08 "must ASSERT Rayleigh scattering of shorter wavelengths": names Rayleigh scattering of shorter wavelengths: PASS.
+So 24/24, the same as int8 (qc7 TPU) and CPU (qc7 CPU) graded the same way.
+
+INTEGRITY: sampled kernel verification 12 disagreements in 274,700 digit comparisons, none beyond 1 digit unit; 17 runs
+with no disagreement, 6 with lo-digit only (0.010 output LSB), 1 with a hi-digit case (2.5 output LSB) -- inside the
+CONDITIONAL error bound, sampled (see TPU.md, "Two different LSBs").
+
+SPEED: token-weighted 1.88 tok/s over 407 decoded tokens (qc7's int8 TPU arm 0.96); per-row median 1.08, pulled down by
+the many 1-5-token answers where per-turn fixed costs dominate. Not time-matched with qc7. 15 tok/s: not met.
