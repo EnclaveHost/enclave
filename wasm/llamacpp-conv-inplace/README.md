@@ -33,8 +33,8 @@ any other compiler or flags before trusting the op there.
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
   workflow's CPU-relevant flags, and runs all three harnesses there, plus the
-  register-row GATED_DELTA_NET checks below. (The regrow additions to this
-  script have NOT been executed yet; the last executed run predates them.)
+  register-row and streaming-snapshot GATED_DELTA_NET checks below. (Those
+  additions have NOT been executed yet; the last executed run predates them.)
 
 **Token-fused GATED_DELTA_NET: measured negative, not applied**
 (`../llamacpp-gdn-tokfuse.patch`, REPORT 18.50). `gdn-equiv.cpp` is its
@@ -61,8 +61,19 @@ graph (state_size 128, so the path is live) byte-identical on and off.
 `gdn-bench` alone at the 27B's shape: ~40% faster at 8 threads for 1 and 2
 tokens, ~2x at 1 thread. `gdn-bench [N_TOKENS] [THREADS] [ITERS] [K] [NSTATES]`
 with NSTATES > 1 rotates per-layer states so they arrive cold, and
-`GDN_BENCH_WARM=1` warms each before its (timed) call; that mode is written
-but has not been run.
+`GDN_BENCH_WARM=1` warms each before its (timed) call; that mode is
+confounded (the warm-up lets the pool threads sleep and the timed call pays the
+wake-up) and is not evidence either way.
+
+**Streaming-store rollback snapshots** (`../llamacpp-gdn-ntsnap.patch`, switch
+`ENCLAVE_GGML_GDN_NTSNAP`, default on; REPORT 18.52). Evidence on the AVX-512
+build: `gdn-equiv` byte-identical on and off and identical to the pre-change
+dump (every snapshot slot is in the dump); a mutant in the 512-bit branch
+changed 4 cases and one in the 256-bit branch 16, so both streaming paths and
+the memcpy fallback are exercised; the 0.8B real graph, whose spec scenario
+rolls back and reads the snapshots, byte-identical on and off and identical to
+the logits from before either kernel change. Cold-state `gdn-bench` (48 rotating
+states, 2 tokens, K = 2), ABBA x3: 120.7-137.9 us on against 151.1-168.0 off.
 
 Validated on two builds, both bit-identical: GCC 16.2.1 with AVX-512 (the
 vector path), and GCC 11.4 with the production workflow's flags, which are

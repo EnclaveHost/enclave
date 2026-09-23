@@ -1,0 +1,91 @@
+# ENCLAVE_SCHED_PROF=1: one stderr line per scheduled graph, splitting its wall
+# time into split+alloc, input copies, and compute per backend (CPU vs the rest),
+# the remainder being the scheduler's own loop. Instrumentation only, off by
+# default, no behaviour change. Applies to ggml/src/ggml-backend.cpp of the fork.
+--- a/ggml/src/ggml-backend.cpp	2026-09-23 15:59:14.296623412 -0700
++++ b/ggml/src/ggml-backend.cpp	2026-09-23 15:59:14.297231837 -0700
+@@ -1601,6 +1601,21 @@
+     return true;
+ }
+
++// ENCLAVE_SCHED_PROF=1: one stderr line per scheduled graph, splitting its wall
++// time into split+alloc, input copies, and compute per backend (CPU vs the rest),
++// the remainder being the scheduler's own loop. Instrumentation only: no
++// behaviour change, off by default.
++#include <chrono>
++static bool g_sched_prof_on() {
++    static const bool on = [] { const char * e = getenv("ENCLAVE_SCHED_PROF"); return e && e[0] == '1'; }();
++    return on;
++}
++static double g_sched_prof_now() {
++    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++static double g_sched_prof_alloc_ms = 0;   // split+alloc since the last printed graph
++static int    g_sched_prof_allocs = 0;
++
+ static enum ggml_status ggml_backend_sched_compute_splits(ggml_backend_sched_t sched) {
+     GGML_ASSERT(sched);
+     struct ggml_backend_sched_split * splits = sched->splits;
+@@ -1609,12 +1624,16 @@
+     std::vector<int32_t> ids;
+     std::vector<ggml_bitset_t> used_ids;
+
++    const bool prof = g_sched_prof_on();
++    const double t_all0 = prof ? g_sched_prof_now() : 0;
++    double t_copy = 0, t_cpu = 0, t_other = 0; int n_cpu = 0, n_other = 0;
+     for (int split_id = 0; split_id < sched->n_splits; split_id++) {
+         struct ggml_backend_sched_split * split = &splits[split_id];
+         int split_backend_id = split->backend_id;
+         ggml_backend_t split_backend = sched->backends[split_backend_id];
+
+         // copy the input tensors to the split backend
++        const double t_i0 = prof ? g_sched_prof_now() : 0;
+         for (int input_id = 0; input_id < split->n_inputs; input_id++) {
+             ggml_backend_t input_backend = ggml_backend_sched_get_tensor_backend(sched, split->inputs[input_id]);
+             struct ggml_tensor * input = split->inputs[input_id];
+@@ -1737,11 +1756,17 @@
+             }
+         }
+
++        if (prof) t_copy += g_sched_prof_now() - t_i0;
++        const double t_c0 = prof ? g_sched_prof_now() : 0;
+         if (!sched->callback_eval) {
+             enum ggml_status ec = ggml_backend_graph_compute_async(split_backend, &split->graph);
+             if (ec != GGML_STATUS_SUCCESS) {
+                 return ec;
+             }
++            if (prof) {
++                const double dt = g_sched_prof_now() - t_c0;
++                if (ggml_backend_dev_type(ggml_backend_get_device(split_backend)) == GGML_BACKEND_DEVICE_TYPE_CPU) { t_cpu += dt; n_cpu++; } else { t_other += dt; n_other++; }
++            }
+         } else {
+             // similar to ggml_backend_compare_graph_backend
+             for (int j0 = 0; j0 < split->graph.n_nodes; j0++) {
+@@ -1784,6 +1809,13 @@
+         }
+     }
+
++    if (prof) {
++        const double t_all = g_sched_prof_now() - t_all0;
++        fprintf(stderr, "[schedprof] splits=%d rows=%lld alloc=%.3f(%d) total=%.3f copy=%.3f cpu=%.3f(%d) other=%.3f(%d) loop=%.3f ms\n",
++                sched->n_splits, sched->n_splits > 0 && sched->splits[0].graph.n_nodes > 0 ? (long long) sched->splits[0].graph.nodes[0]->ne[1] : -1LL,
++                g_sched_prof_alloc_ms, g_sched_prof_allocs, t_all, t_copy, t_cpu, n_cpu, t_other, n_other, t_all - t_copy - t_cpu - t_other);
++        g_sched_prof_alloc_ms = 0; g_sched_prof_allocs = 0;
++    }
+     return GGML_STATUS_SUCCESS;
+ }
+
+@@ -1932,11 +1964,13 @@
+     sched->cur_copy = sched->next_copy;
+     sched->next_copy = (sched->next_copy + 1) % sched->n_copies;
+
++    const double t_a0 = g_sched_prof_on() ? g_sched_prof_now() : 0;
+     ggml_backend_sched_split_graph(sched, graph);
+
+     if (!ggml_backend_sched_alloc_splits(sched)) {
+         return false;
+     }
++    if (g_sched_prof_on()) { g_sched_prof_alloc_ms += g_sched_prof_now() - t_a0; g_sched_prof_allocs++; }
+
+     sched->is_alloc = true;
+
