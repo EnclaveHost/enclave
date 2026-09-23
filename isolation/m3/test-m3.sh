@@ -42,7 +42,7 @@ fwdport() {
 }
 client() {   # client <out> <fwd log> [args]: one M2 client run against a domain, exit status recorded
   o=$1; f=$2; shift 2; rc=0
-  timeout 300 node "$m2/client.mjs" "https://127.0.0.1:$(fwdport "$f")" --measurement "$pred" "$@" > "$o" 2>&1 || rc=$?
+  timeout 300 node "$m2/client.mjs" "https://127.0.0.1:$(fwdport "$f")" --measurement "$want_meas" "$@" > "$o" 2>&1 || rc=$?
   echo "RESULT exit=$rc" >> "$o"
 }
 boot() {     # boot <tag> <snp|plain> [memMiB]: start the guest and wait for the monitor
@@ -80,6 +80,18 @@ if [ "${RECHECK:-0}" != 1 ]; then
   (cd "$here" && CGO_ENABLED=0 go build -trimpath -o "$W/m3ctl" ./m3ctl)
 fi
 pred=$(sed -n 's/^predicted measurement: //p' "$W/build.txt")
+# Under IGVM the prediction above does NOT apply: the firmware is the IGVM's rather than the OVMF that
+# sev-snp-measure was given, and on the legacy VMSA path the kernel synthesises the VMSA itself, so its
+# contribution differs from anything we computed. Measured on warden-host 2026-09-23: predicted 91d5b628...,
+# igvmmeasure's IGVM digest E0C43562..., live ed343d15... - three different values, and the live one is
+# stable across separate runs.
+#
+# EXPECT_MEAS supplies the digest the clients must demand, so the REST of the suite can run at VMPL2 instead
+# of every trusted client failing on the allowlist. Be clear what that is worth: it is TRUST-ON-FIRST-USE.
+# It establishes that every guest reported the same measurement, NOT that we can derive what they ought to
+# report. Check 1 says so out loud when it is used.
+EXPECT_MEAS=${EXPECT_MEAS:-}
+want_meas=${EXPECT_MEAS:-$pred}
 shaA=$(sha256sum "$W/app-AAAAA.wasm" | cut -c1-64)
 shaB=$(sha256sum "$W/app-BBBBB.wasm" | cut -c1-64)
 
@@ -219,8 +231,14 @@ mA=$(res "$W/s1-A.client" measurement); mB=$(res "$W/s1-B.client" measurement); 
 echo "evidence: measurement seen by domain A $mA"
 echo "evidence: measurement seen by domain B $mB"
 echo "evidence: measurement of the second launch (app B only) $m2m"
-[ -n "$pred" ] && [ "$mA" = "$pred" ] && [ "$m2m" = "$pred" ] && r=ok || r=no
-check "1 measurement reproducible: live == predicted, both launches" $r
+if [ -n "$EXPECT_MEAS" ]; then
+  echo "evidence: the expected digest was SUPPLIED, not derived: $EXPECT_MEAS (sev-snp-measure predicted $pred, which does not apply under IGVM)"
+  [ "$mA" = "$EXPECT_MEAS" ] && [ "$m2m" = "$EXPECT_MEAS" ] && r=ok || r=no
+  check "1 measurement matches the SUPPLIED digest in both launches -- TRUST-ON-FIRST-USE, not an independently derived expectation, so it does NOT show this image could be recognised from its inputs" $r
+else
+  [ -n "$pred" ] && [ "$mA" = "$pred" ] && [ "$m2m" = "$pred" ] && r=ok || r=no
+  check "1 measurement reproducible: live == predicted, both launches" $r
+fi
 [ -n "$mA" ] && [ "$mA" = "$mB" ] && [ "$mA" = "$m2m" ] && r=ok || r=no
 check "2 the app is NOT in the measurement: two different apps in one guest, and a different mix in another launch, all report the SAME digest (M1 gave different digests per app)" $r
 

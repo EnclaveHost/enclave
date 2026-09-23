@@ -743,5 +743,47 @@ is made to match: either QEMU is taught the vCPU-scoped call, or an older kernel
 the sentinel is found and rebuilt (another full kernel build, DKMS rebuild and attended reboot). That is a
 decision, not a detail, and it is the one remaining gap between M3a and app-vs-app isolation by hardware.
 
-**The `vmpl0=refused` evidence therefore remains unobserved on hardware**, exactly as section 14 says: the
-probe only acts once the floor is above 0, and nothing has yet run above it.
+**UPDATE, same day: stage C now PASSES, 31 checks / 0 failures at VMPL2.** The block above described a
+branch skew, and that reading was wrong; the two COCONUT branches agree. The real cause was a QEMU
+path-selection bug that misfires on this CPU:
+
+  * COCONUT's IGVM marks its VP context with the sentinel GPA `0xFFFFFFFFF000`, which `backends/igvm.c`
+    documents as "the invalid VMSA GPA selects the legacy VMSA path".
+  * `target/i386/sev.c` gates the DIRECT path on `sev_vmsa_gpa_valid()`, which only asks whether the GPA
+    fits within the vCPU's `phys_bits`.
+  * QEMU computes **52** `phys_bits` here although the host reports **46**, so the sentinel looks like a real
+    address, `sev_set_direct_vmsa()` sends the VMSA page to `KVM_SEV_SNP_LAUNCH_UPDATE` at a GPA with no
+    memslot, and the kernel refuses it at `!kvm_slot_has_gmem()`.
+
+Pinning `phys-bits=46` puts the sentinel out of range, QEMU takes the legacy path it intended, and the
+kernel synthesises and encrypts the VMSA itself at LAUNCH_FINISH. No QEMU patch, no kernel change, no second
+reboot. `run-domain.sh` carries `PHYS_BITS` with that reasoning inline.
+
+**What is now measured on hardware:**
+
+    MON boundary tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused
+
+in all three SNP guests, across independent runs. Check 3e passes in the full sense the audit demanded: one
+coherent console record, the SAME tuple delivered to every trusted client inside the attestation document
+over the domain's attested TLS, and the signed report agreeing at `report_vmpl=2` - with the AMD chain
+verified to the pinned root and the TCB floor met (check 3b). The adversary checks (10, 10b, 10c) and the
+lifecycle, resource and parity checks all hold beneath the SVSM too. Both items the boot checklist listed as
+unproven are closed: the whole COCONUT stack boots (SVSM at VMPL0, vTPM manufactured, request loop on both
+CPUs, OVMF up), and OVMF DOES pick up `-kernel`/`-initrd` under IGVM, so no bootable disk is needed.
+
+**The one thing NOT established, and it is load-bearing: the launch measurement is not independently
+derivable.** Three different values exist - `sev-snp-measure` predicts `91d5b628...`, `igvmmeasure`'s IGVM
+digest is `E0C43562...`, and the guests report `ed343d15...`. The live value is stable across separate runs
+and independent of which apps are loaded (check 2), so it can be PINNED, and the suite runs with
+`EXPECT_MEAS` supplying it. Check 1 is worded to say what that is worth: **trust-on-first-use, not an
+independently derived expectation.** It shows every guest reported the same digest, NOT that this image could
+be recognised from its inputs - so a verifier could hold an allowlist only by being told the answer, which is
+not attestation of a known image. The likeliest cause is the legacy VMSA path itself: the kernel synthesises
+the VMSA, so its contribution differs from anything computed ahead of time. Closing this needs either a
+derivation that accounts for the synthesised VMSA, or an IGVM carrying a real VMSA GPA so the direct path is
+taken. A second session is examining the QEMU side (`~/.cache/enclave-isolation/parallel-vmsa-handoff/`).
+
+**Still not app-vs-app isolation by hardware.** Inside our plane, one domain is separated from another by the
+guest kernel. What this achieves is the MONITOR/runtime split in hardware: a measured SVSM at VMPL0 above a
+monitor that provably cannot reach VMPL0. Per-app hardware separation needs one plane per app, and
+`vmpl_count=4` caps that at three domains per guest.
