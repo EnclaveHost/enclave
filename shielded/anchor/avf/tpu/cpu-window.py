@@ -25,10 +25,17 @@ running on the phone.
 import argparse, re, sys
 
 
+SCANS = []   # (start, end, ok) of each background discovery scan, from "D <start> <end> ok|FAILED <n>" lines
+
+
 def parse_samples(path):
-    samples = []; cur = None
+    samples = []; cur = None; SCANS.clear()
     for line in open(path, errors='replace'):
         line = line.rstrip('\n')
+        if line.startswith('D '):
+            f = line.split()
+            ok = len(f) >= 5 and f[3] == 'ok' and f[4].isdigit() and int(f[4]) > 1
+            SCANS.append((float(f[1]), float(f[2]), ok)); continue
         if line.startswith('T '):
             cur = dict(t=float(line.split()[1]), cpu=None, procs={}, gone=[], ps=None); samples.append(cur)
         elif line.startswith('cpu ') and cur is not None:
@@ -92,7 +99,9 @@ def window_cpu(samples, a, b, app, hz, max_gap, scan_gap=3.0):
                      f"(first at {bad[0]['t']:.2f}: {'no PS line' if bad[0]['ps'] is None else 'PS FAILED'})")
     # a KNOWN sample only re-reads the pids of the last full scan, so a process that appears between scans is seen at
     # the next one; the scans themselves must be frequent enough around and through the window
-    scans = [s['t'] for s in samples if s['ps'] == 'ok']
+    scans = sorted([s['t'] for s in samples if s['ps'] == 'ok'] + [t0 for t0, t1, ok in SCANS if ok])
+    failed = [t0 for t0, t1, ok in SCANS if not ok and a - scan_gap <= t0 <= b + scan_gap]
+    if failed: notes.append(f'{len(failed)} discovery scan(s) around the window failed (first at {failed[0]:.2f})')
     before = [t for t in scans if t <= a]; inside = [t for t in scans if a < t < b]; after = [t for t in scans if t >= b]
     if not before or not after:
         notes.append('no full process-table scan before the window start or after its end')

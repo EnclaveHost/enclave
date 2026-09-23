@@ -1,0 +1,4 @@
+sp3-01	t6	
+sp3-02	t6d2	--ei decode_threads 2
+sp3-03	t6d2	--ei decode_threads 2
+sp3-04	t6	

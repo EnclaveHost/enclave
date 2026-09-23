@@ -104,6 +104,34 @@ def reaping(t):   # virtmgr reaps a short-lived child mid-window: its cutime gro
 rc, out = run(reaping, T, (5.0, 15.0))
 expect(rc == 1 and 'reaped children using 2.00 core-s' in out, 'a child that lived between scans is detected via cutime: ' + out)
 
+# sampler v3: timing samples carry only "PS known", discovery is separate "D" lines every 2 s
+def with_scans(every, fail_at=None):
+    def gen(procs_at, times, win, **kw):
+        rc, out = run(procs_at, times, win, ps_line=lambda t: 'PS known 3', **kw)
+        return rc, out
+    return gen
+def run_d(procs_at, times, win, scans):
+    d = tempfile.mkdtemp(); sp = os.path.join(d, 's'); cp = os.path.join(d, 'c')
+    with open(sp, 'w') as f:
+        for t in times:
+            f.write(f'T {t:.2f} 0\n'); f.write(f'cpu  {int(t * 400)} 0 0 {int(t * 400)} 0 0 0 0 {int(t * 300)} 0\n')
+            for p in procs_at(t): f.write(f'P {p[0]} {p[1]} {p[2]} | {stat(p[0], p[3], p[1], p[4], p[5])}\n')
+            f.write('PS known 3\n')
+        for line in scans: f.write(line + '\n')
+        f.write('END\n')
+    a, b = win
+    with open(cp, 'w') as f:
+        f.write(f'LOCAL turn 1 window boottime_ms start={int(a * 1000) - 500} first={int(a * 1000)} end={int(b * 1000)}\n')
+        f.write('LOCAL turn 1 STATS {status=eos, prefill_tokens=5, decode_tokens=10, decode_tok_s=1.0}\n')
+    r = subprocess.run([sys.executable, TOOL, sp, cp], capture_output=True, text=True); return r.returncode, r.stdout
+good = [f'D {t:.2f} {t + 1.3:.2f} ok 800' for t in range(1, 22, 2)]
+rc, out = run_d(lambda t: chain(t), T, (5.0, 15.0), good)
+expect(rc == 0 and '41.50 core-s' in out, 'timing samples + discovery scans every 2 s (each 1.3 s long): COMPLETE: ' + out)
+rc, out = run_d(lambda t: chain(t), T, (5.0, 15.0), [x for x in good if not x.startswith(('D 7.', 'D 9.', 'D 11.'))])
+expect(rc == 1 and 'scans were up to' in out, 'discovery scans 8 s apart: INCOMPLETE: ' + out)
+rc, out = run_d(lambda t: chain(t), T, (5.0, 15.0), good + ['D 10.00 10.50 FAILED 1'])
+expect(rc == 1 and 'discovery scan(s) around the window failed' in out, 'a failed discovery scan: INCOMPLETE: ' + out)
+
 # the SAMPLER itself, run on this host with a fake ps: a failed enumeration is written as PS FAILED, never as an empty sample
 import time
 SAMPLER = os.path.join(H, '..', 'cpu-sampler.sh')
@@ -115,8 +143,8 @@ def sampler(ps_body):
     time.sleep(0.4); os.unlink(out + '.run'); p.wait(timeout=10)
     return open(out).read()
 o = sampler('exit 3\n')
-expect('PS FAILED' in o and 'PS ok' not in o and o.rstrip().endswith('END'), 'the sampler marks a failed ps as PS FAILED: ' + o[-200:])
+expect(' FAILED 3' in o and ' ok ' not in o and o.rstrip().endswith('END'), 'the sampler records a failed ps as a FAILED scan: ' + o[-200:])
 o = sampler(f'echo "  PID  PPID   UID NAME"; echo "  {os.getpid()}  1  {os.getuid()} me"; echo "  1 0 0 init"\n')
-expect(f'P {os.getpid()} 1 me | {os.getpid()} (' in o and 'PS ok 3' in o, 'a good table: the uid row with its stat, then PS ok with the row count: ' + o[-300:])
-expect('PS known 1' in o and o.count('PS ok 3') >= 2, 'between scans the sampler re-reads the known pid (PS known), and scans again at the end: ' + o[-300:])
+expect(f'P {os.getpid()} 1 me | {os.getpid()} (' in o and ' ok 3' in o, 'a good table: the uid row with its stat, and a D scan line with the row count: ' + o[-300:])
+expect('PS known 1' in o and 'PS ok' not in o and o.count(' ok 3') >= 2, 'timing samples read the discovered pid (PS known 1); scans are D lines, at least one per loop and one at stop: ' + o[-300:])
 print(f"{'PASS' if not fails else 'FAIL'}: {checks} checks, {fails} failures"); sys.exit(1 if fails else 0)
