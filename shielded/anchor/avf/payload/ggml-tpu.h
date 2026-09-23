@@ -30,6 +30,7 @@ typedef struct {
     uint64_t corr_us, wait_us;                       /* of link_us: the out-of-lane correction run while the request is in flight, and what was left of the window */
     uint64_t ver_us, free_us, gap_us;                /* of unmask_us: the kernel-verification dots | after it: releasing the exchange's pads | between one exchange's end and the next one's start (the VM's own graph work) */
     uint64_t unmask_hist[5], gap_hist[5];            /* per exchange: < 25 us, < 100 us, < 400 us, < 1600 us, longer -- a constant cost and a sporadic stall look alike in a mean */
+    uint64_t corr_join_us;                           /* of wait_us: time blocked joining the out-of-lane correction after the reply arrived */
 } ggml_backend_tpu_stats_t;
 struct ggml_backend_reg;
 struct ggml_backend_reg *ggml_backend_tpu_reg(void);

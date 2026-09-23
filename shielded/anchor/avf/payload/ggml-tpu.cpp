@@ -59,6 +59,7 @@
 #include <vector>
 #include "ggml-tpu.h"
 #include "bundlemagic.h"
+#include "tpu_corr.h"
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
@@ -295,29 +296,25 @@ extern "C" void ggml_backend_tpu_window_mint(int target, int chunk) {
 /* One (projection, row) is an independent piece of the correction: it writes its own slice of the cache and reads
  * only public weights, so it parallelises with no sharing at all. That matters for speculative rows, where the work
  * scales with them -- one row's correction fits the link window with room over, five rows' does not. */
-static void corr_one(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows, size_t p, uint32_t r) {
-    const proj &pr = g.projs[p]; (void)rows;
-    float *y = g.cache[p].data() + (size_t)r * pr.n_out;
-    /* Accumulate the correction as INTEGERS and scale once. The term is s_in * sw[j] * sum_i delta_i *
-     * W[j][i], and that sum is exact in int64 -- so it is independent of how many out-of-lane entries
-     * there are and of the order they are added in. That matters because the count is PAD-DEPENDENT: a
-     * modular wrap is a function of the pad, so three runs of the same prompt kept 394433 / 394590 /
-     * 394756 entries, and in float32 that is a different rounding each time. Two runs agreed and the
-     * third flipped a token at a near-tie (95 % identical, diverging at the same character the clipped
-     * runs did). Integer accumulation removes that source: same inputs, same bytes, whatever pad. */
-    static thread_local std::vector<int64_t> acc; if (acc.size() < pr.n_out) acc.assign(pr.n_out, 0);
-    std::fill(acc.begin(), acc.begin() + pr.n_out, (int64_t)0);
-    for (const auto &o : outl[r]) {
-        const int64_t d = (int64_t)o.second; const int8_t *w = pr.Wq + o.first; const size_t stride = g.n_in;
-        for (uint32_t j = 0; j < pr.n_out; j++) { if (j + 24 < pr.n_out) __builtin_prefetch(w + (size_t)(j + 24) * stride, 0, 0);
-            acc[j] += d * (int64_t)w[(size_t)j * stride]; }
+/* The out-of-lane correction: tpu_corr.h (row-major since 2026-09-22 -- one sweep of W per exchange however many rows;
+ * the column-major walk it replaced cost 4.97 ms of an 11.2 ms exchange at ~4 rows). Bit-identical, tested on the host. */
+static constexpr uint32_t kCorrChunk = 512;   /* output rows per work unit */
+static void corr_rows(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows, size_t p, uint32_t j0, uint32_t j1) {
+    const proj &pr = g.projs[p];
+    tpu_corr_rows(pr.Wq, g.n_in, pr.n_out, pr.sw, g.s_in, outl, rows, g.cache[p].data(), j0, j1);
+}
+static size_t corr_units(const group &g) { size_t u = 0; for (const proj &p : g.projs) u += (p.n_out + kCorrChunk - 1) / kCorrChunk; return u; }
+static void corr_unit(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows, size_t unit) {
+    for (size_t p = 0; p < g.projs.size(); p++) {
+        const size_t n = (g.projs[p].n_out + kCorrChunk - 1) / kCorrChunk;
+        if (unit < n) { const uint32_t j0 = (uint32_t)(unit * kCorrChunk); corr_rows(g, outl, rows, p, j0, std::min<uint32_t>(g.projs[p].n_out, j0 + kCorrChunk)); return; }
+        unit -= n;
     }
-    for (uint32_t j = 0; j < pr.n_out; j++) y[j] = (float)((double)acc[j] * (double)g.s_in * (double)pr.sw[j]);
 }
 static void corr_run(group &g, const std::vector<std::vector<std::pair<uint32_t, int32_t>>> &outl, uint32_t rows) {
     g.cache.resize(g.projs.size());
     for (size_t p = 0; p < g.projs.size(); p++) g.cache[p].resize((size_t)rows * g.projs[p].n_out);
-    for (size_t p = 0; p < g.projs.size(); p++) for (uint32_t r = 0; r < rows; r++) corr_one(g, outl, rows, p, r);
+    for (size_t u = 0, n = corr_units(g); u < n; u++) corr_unit(g, outl, rows, u);
 }
 /* The repair, behind a switch so the two arms of a before/after comparison differ in NOTHING else.
  * Off reproduces the defect exactly: the clipped reply is consumed as if correct. */
@@ -407,10 +404,10 @@ static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t
                 g_cj.cv_go.wait(lk, [&] { return g_cj.gen != seen || g_cj.stop; });
                 if (g_cj.stop) return;
                 seen = g_cj.gen; group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows;
-                const size_t total = g->projs.size() * (size_t)rw;
+                const size_t total = corr_units(*g);
                 lk.unlock();
                 for (;;) { const size_t i = g_cj.next.fetch_add(1, std::memory_order_relaxed); if (i >= total) break;
-                           corr_one(*g, *ol, rw, i / rw, (uint32_t)(i % rw)); }
+                           corr_unit(*g, *ol, rw, i); }
                 lk.lock();
                 if (++g_cj.done == g_cj.nthreads) { g_cj.pending = false; g_cj.cv_done.notify_all(); }
             } });
@@ -542,7 +539,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     const int64_t t_mint = now_us();
     if (!rd_all_spin(s.link, s.rxbuf.data(), s.rxbuf.size() * 2, &s.st.spin_us)) { TPU_LOG("the worker link failed waiting for the reply (blk.%d kind %d)\n", g.layer, g.kind); abort(); }
     if (kInjectFault) inject_fault(s.rxbuf.data(), s.rxbuf.size(), s.st.exchanges);
-    if (ct) corr_join();                                                   /* the cache must be complete before the reply is added to it */
+    if (ct) { const int64_t j0 = now_us(); corr_join(); s.st.corr_join_us += (uint64_t)(now_us() - j0); }   /* the cache must be complete before the reply is added to it */
     const int64_t t2 = now_us();
     wait_ewma_us += 0.05 * ((double)(t2 - t_corr) - wait_ewma_us);
     /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
