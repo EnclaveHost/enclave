@@ -18,6 +18,9 @@
 //   --vcek           a VCEK the caller already holds; judged exactly like one in the report's certificate table
 //   --amd-chain      AMD's cert_chain for a product line, held locally; refused unless its ARK is the pinned root
 //   --no-kds         never contact AMD KDS (which answers 429 after a couple of requests)
+//   --vmpl N         the privilege level the report must come from (default 0). A domain beneath a
+//                    monitor at VMPL0 reports its own level, and the launch measurement is the same at
+//                    every level, so this is the only thing that distinguishes them
 //
 // Prints `RESULT k=v` lines for the harness, `evidence:` lines for people, and one VERDICT line.
 // Exit status: 0 served, 3 gate closed (no application traffic), 4 application traffic aborted on a key
@@ -37,6 +40,7 @@ if (lab && t0diag) { console.error('--lab-unsigned and --t0-diagnostic are exclu
 const mode = lab ? 'lab-unsigned' : t0diag ? 't0-diagnostic' : 'trusted';
 const want = { measurement: (opt('--measurement') || '').toLowerCase(), appSha: (opt('--app-sha') || '').toLowerCase(), mode,
   kds: !args.includes('--no-kds') };
+if (opt('--vmpl') !== undefined) want.expectedVmpl = Number(opt('--vmpl'));
 if (opt('--min-tcb') !== undefined) {
   const raw = opt('--min-tcb');
   const text = raw.startsWith('@') ? fs.readFileSync(raw.slice(1), 'utf8') : raw;

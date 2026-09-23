@@ -351,8 +351,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	// Every failure below reclaims what this function took, rather than leaving that to a caller that
 	// cannot know how far it got.
 	fail := func(err error) error {
-		d.failStart()
-		d.release()
+		m.abandon(d, "failed to start: "+err.Error())
 		return err
 	}
 	for _, sub := range []string{"plat", "run", "tmp", "proc"} {
@@ -404,7 +403,6 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err != nil {
 		return fail(fmt.Errorf("vsock port %d: %w", d.Port, err))
 	}
-	d.ln = ln
 
 	mode := "app"
 	if d.probe {
@@ -422,13 +420,23 @@ func (m *monitor) start(d *domain, app []byte) error {
 		UseCgroupFD:  true,
 		CgroupFD:     int(cgFD.Fd()),
 	}
-	d.cmd = cmd
+	return m.launch(d, cmd, ln)
+}
+
+// launch starts a built domain's process tree and publishes it. Everything that can fail from here on
+// abandons the domain, which is why this is separate: it is the only window in which a domain is in the
+// tables but has no process, and it has to close that window whichever way it goes.
+func (m *monitor) launch(d *domain, cmd *exec.Cmd, ln *vsock.Listener) error {
+	// This function owns both from here on, so that abandoning the domain closes the listener too. Taking
+	// the listener without recording it would leave a port answering for a domain that never ran.
+	d.cmd, d.ln = cmd, ln
 	// In the table before its first instruction, so a domain that dies during startup is still found
 	// and reclaimed. While it is `starting`, a destroy does not tear it down: it records the request and
 	// leaves it to this function, which is the only thing that knows how far the build got.
 	m.register(d)
 	if err := cmd.Start(); err != nil {
-		return fail(fmt.Errorf("starting domain: %w", err))
+		m.abandon(d, "failed to start")
+		return fmt.Errorf("starting domain: %w", err)
 	}
 	go func() {
 		err := cmd.Wait()
@@ -443,23 +451,25 @@ func (m *monitor) start(d *domain, app []byte) error {
 
 	// The monitor relays the domain's one port. TLS ends INSIDE the domain, so what passes here is
 	// ciphertext: the monitor moves the bytes without being able to read them.
-	go func() {
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				return // the listener is closed when the domain is retired
+	if ln != nil {
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if err != nil {
+					return // the listener is closed when the domain is retired
+				}
+				// Only the HOST may open a domain's port. vsock is not fully namespaced, so without this a
+				// process inside one domain could connect to another domain's port and be relayed straight
+				// to that domain's front — a cross-domain channel through the monitor itself.
+				if !fromHost(c) {
+					fmt.Printf("MON refused a connection to domain %d's port from inside the guest (%s)\n", d.ID, c.RemoteAddr())
+					c.Close()
+					continue
+				}
+				go relay(c, filepath.Join(d.dir, "run", "front.sock"))
 			}
-			// Only the HOST may open a domain's port. vsock is not fully namespaced, so without this a
-			// process inside one domain could connect to another domain's port and be relayed straight
-			// to that domain's front — a cross-domain channel through the monitor itself.
-			if !fromHost(c) {
-				fmt.Printf("MON refused a connection to domain %d's port from inside the guest (%s)\n", d.ID, c.RemoteAddr())
-				c.Close()
-				continue
-			}
-			go relay(c, filepath.Join(d.dir, "run", "front.sock"))
-		}
-	}()
+		}()
+	}
 
 	// Publish the process handle and go live. If a destroy arrived while this was building, honour it
 	// now — in that order, so reclamation always runs against a fully-built domain.
@@ -490,11 +500,11 @@ func (m *monitor) register(d *domain) {
 	m.mu.Unlock()
 }
 
-// retire ends a domain exactly once, from whichever direction it ended: a crash, a destroy, or a failed
-// start. It leaves the table first, so no new report request can find it while it is being reclaimed,
-// and a request already in flight finishes against the domain it was admitted for.
-func (m *monitor) retire(d *domain, why string) {
+// deregister removes exactly this domain from both tables. Compare-and-delete, so a later domain that
+// has taken the same id or uid is left alone. It reports whether the domain was still listed.
+func (m *monitor) deregister(d *domain) bool {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	_, listed := m.doms[d.ID]
 	if m.doms[d.ID] == d {
 		delete(m.doms, d.ID)
@@ -502,7 +512,28 @@ func (m *monitor) retire(d *domain, why string) {
 	if m.byUID[d.UID] == d {
 		delete(m.byUID, d.UID)
 	}
-	m.mu.Unlock()
+	return listed
+}
+
+// abandon ends a domain that never got running. It goes STRAIGHT to the tables and the reclamation,
+// without the starting-state deferral in requestEnd: that deferral exists to hand a domain back to
+// start(), and this IS start() finishing with it. Leaving the tables matters as much as freeing the
+// files — a registered domain whose files are gone would still be listed, and its uid would still
+// authenticate for reports.
+func (m *monitor) abandon(d *domain, why string) {
+	listed := m.deregister(d)
+	d.failStart()
+	d.release()
+	if listed {
+		fmt.Printf("MON domain %d ended: %s\n", d.ID, why)
+	}
+}
+
+// retire ends a domain exactly once, from whichever direction it ended: a crash, a destroy, or a failed
+// start. It leaves the table first, so no new report request can find it while it is being reclaimed,
+// and a request already in flight finishes against the domain it was admitted for.
+func (m *monitor) retire(d *domain, why string) {
+	listed := m.deregister(d)
 	// Leaving the tables always happens: no new report request can find a domain that is ending. Whether
 	// this caller also RECLAIMS it depends on the lifecycle — a domain still starting up belongs to
 	// start(), which will reclaim it once it knows what it built.
@@ -526,10 +557,16 @@ func (d *domain) release() {
 		proc, reaped := d.proc, d.reaped
 		d.mu.Unlock()
 		if proc != nil && !reaped {
-			// Kill by CGROUP, not by pid or process group. The cgroup is a stable identity for exactly
-			// this domain's processes; a pid or a pgid can be recycled between being read and being
-			// signalled, and the signal would then land on unrelated later work. cgroup.kill takes the
-			// whole domain at once, and os.Process is a handle we own rather than a number.
+			// Kill by CGROUP. That is the strong identity here: it names exactly this domain's
+			// processes, however many there are, and it cannot be confused with anything else. A pid or
+			// a process-group id can be recycled between being read and being signalled, and the signal
+			// would then land on unrelated later work.
+			//
+			// The os.Process fallback is safe for a narrower reason, and not because it is necessarily
+			// pidfd-backed — that is a runtime detail this code does not verify and should not rely on.
+			// It is safe because we are the PARENT: until we reap the child, its pid is held by a zombie
+			// and cannot be reused, and `reaped` above is set by the one goroutine that reaps it. So the
+			// only pid we ever signal is one that is still ours.
 			if err := os.WriteFile(filepath.Join(d.cgroup, "cgroup.kill"), []byte("1"), 0); err != nil {
 				fmt.Printf("MON WARN domain %d cgroup.kill: %v\n", d.ID, err)
 				proc.Kill() // fall back to the handle, which knows whether the process is already gone

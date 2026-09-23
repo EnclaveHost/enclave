@@ -23,6 +23,9 @@
 //   vcek    a VCEK (DER) the caller already holds, used exactly like one in the report's certificate table:
 //           it must sign the report, chain to AMD's pinned root and name this chip and TCB
 //   kds     false: never contact AMD KDS (the VCEK and the chain must then be supplied)
+//   expectedVmpl  the plane the report must come from, passed through to relay/snp-verify.mjs. Default 0.
+//                 A domain running beneath a VMPL0 monitor reports its own level, and every level shares
+//                 one launch measurement, so this field is what tells them apart
 import { verifyQuote, parseSnpReport } from '../../relay/snp-verify.mjs';
 
 export const MODES = ['trusted', 'lab-unsigned', 't0-diagnostic'];
@@ -37,7 +40,7 @@ export function vcekTable(vcekDer) {
   return Buffer.concat([hdr, vcekDer]);
 }
 
-export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true }) {
+export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl }) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${mode}`);
   const out = (verdict, reasons, extra = {}) => ({ verdict, reasons, gateOpen: OPENS[mode].includes(verdict), ...extra });
 
@@ -59,6 +62,7 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
     challenge: nonce, transportKeySpki: handshakeSpki, allowedMeasurements: [measurement], auxblob, kds,
     requireVcek: mode === 'trusted',      // lab-unsigned alone may continue without the chain
     ...(minTcb !== undefined ? { minTcb } : {}),
+    ...(expectedVmpl !== undefined ? { expectedVmpl } : {}),
   });
   const reasons = [...v.reasons];
   if (v.tcb) extra.tcb = v.tcb;

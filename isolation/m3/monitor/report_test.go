@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"enclave.host/isolation/m2/vsock"
 )
 
 // a monitor whose "hardware" is a function the test controls
@@ -724,4 +726,105 @@ func TestRefusalsDoNotStallTheAcceptLoop(t *testing.T) {
 	} else {
 		t.Logf("12 refusals answered in %s", d)
 	}
+}
+
+// A domain is in the tables before its first instruction, which is deliberate: one that dies during
+// startup must still be found and reclaimed. That leaves one window where a domain is registered but has
+// no process, and a failed launch has to close it completely. Freeing the files is not enough — a domain
+// left in the tables would still be listed, and its uid would still authenticate for reports, against a
+// domain whose directory and cgroup no longer exist.
+func TestAFailedLaunchLeavesNothingBehind(t *testing.T) {
+	var reportCalls atomic.Int32
+	m, sock := testMonitor(t, func(rd []byte) ([]byte, []byte, error) {
+		reportCalls.Add(1)
+		return okReport(rd)
+	})
+
+	// a domain built as far as start() builds one, with the files and cgroup in place
+	base := t.TempDir()
+	d := &domain{ID: 1, UID: os.Getuid(), Port: 40001, state: domStarting,
+		dir: filepath.Join(base, "1"), cgroup: filepath.Join(base, "dom1"),
+		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+	copy(d.appHash[:], []byte("app-1"))
+	for _, p := range []string{d.dir, filepath.Join(d.dir, "run"), filepath.Join(d.dir, "plat"), d.cgroup} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(d.dir, "app.wasm"), []byte("wasm"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+
+	// cmd.Start fails deterministically: there is no such program. This drives the real launch path,
+	// registration and all, rather than a stand-in for it.
+	err := m.launch(d, exec.Command(filepath.Join(base, "no-such-binary")), nil)
+	if err == nil {
+		t.Fatal("launching a domain whose binary does not exist must fail")
+	}
+	t.Logf("launch failed as expected: %v", err)
+
+	// BOTH tables
+	m.mu.Lock()
+	_, byID := m.doms[d.ID]
+	_, byUID := m.byUID[d.UID]
+	m.mu.Unlock()
+	if byID {
+		t.Error("a failed launch is still listed by id")
+	}
+	if byUID {
+		t.Error("a failed launch is still listed by uid: its uid could still authenticate")
+	}
+	// its files, its cgroup, and its state
+	if _, err := os.Stat(d.dir); !os.IsNotExist(err) {
+		t.Errorf("its directory survived: %v", err)
+	}
+	if _, err := os.Stat(d.cgroup); !os.IsNotExist(err) {
+		t.Errorf("its cgroup survived: %v", err)
+	}
+	d.mu.Lock()
+	st := d.state
+	d.mu.Unlock()
+	if st != domEnded {
+		t.Errorf("state is %v, want domEnded", st)
+	}
+
+	// and the thing that matters most: that uid is no longer a domain, so no report can be had for it
+	got := mustAsk(t, sock, goodBind)
+	if got["error"] != "caller is not a domain" {
+		t.Fatalf("a failed launch must stop being a domain, got %v", got)
+	}
+	if reportCalls.Load() != 0 {
+		t.Fatal("the hardware path ran for a domain that never started")
+	}
+
+	// a later destroy finds nothing rather than a phantom
+	if err := m.destroy(d.ID); err == nil {
+		t.Fatal("destroying a failed launch must say there is no such domain")
+	}
+}
+
+// A listener belongs to a domain that was built; a failed launch must close it rather than leave it
+// answering on a port whose domain is gone.
+func TestAFailedLaunchClosesItsListener(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	base := t.TempDir()
+	d := &domain{ID: 2, UID: os.Getuid() + 2, Port: 40002, state: domStarting,
+		dir: filepath.Join(base, "2"), cgroup: filepath.Join(base, "dom2"),
+		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+	os.MkdirAll(d.dir, 0o755)
+	os.MkdirAll(d.cgroup, 0o755)
+
+	ln, err := vsock.Listen(d.Port)
+	if err != nil {
+		t.Skipf("no vsock on this host: %v", err) // the rest of the suite does not need it
+	}
+	if err := m.launch(d, exec.Command(filepath.Join(base, "no-such-binary")), ln); err == nil {
+		t.Fatal("launch must fail")
+	}
+	// the port is free again: binding it a second time proves the listener was closed
+	again, err := vsock.Listen(d.Port)
+	if err != nil {
+		t.Fatalf("the failed launch left its port bound: %v", err)
+	}
+	again.Close()
 }
