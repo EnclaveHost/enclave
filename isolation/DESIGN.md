@@ -140,7 +140,7 @@ Deliverables (`isolation/m1/`, implemented):
 Tests. Each result is recorded as run or not run:
 1. **Measurement reproducible**: live digest == `sev-snp-measure` prediction.
 2. **App bound into identity**: app A and app B give different digests; A twice gives the same digest.
-3. **Freshness**: report_data equals sha256(app sha256 || nonce) for the nonce the host passed in.
+3. **Freshness**: report_data equals app sha256 (32) || nonce (32) for the nonce the host passed in.
 4. **CPU share enforced**: a CPU-bound app's wall time at `cpu.max` 100% vs 25% of one CPU.
 5. **Lifecycle cost**: launch -> app output -> report, and host RSS per domain.
 6. **Tier parity**: the same image runs as a T0 domain (no report) and prints the same app output.
