@@ -3050,3 +3050,20 @@ their time on is the per-exchange work around 140 exchanges per token -- masking
 unmasking, the graph splits between exchanges, and waiting at ggml's default hybrid polling -- not arithmetic the
 TPU could take. These are CPU measurements of the app's process tree over the decode window; the pads' minting
 (before decode, into the bank) is outside that window and is additional.
+
+### Speculation and huge pages on the 2-thread decode pool (2026-09-22)
+
+* **MTP drafter (`results/draft1`):** 2.7-2.85 tokens per step, yet 1.10/1.15 tok/s against 1.04/1.12 without it,
+  at 3,134-3,213 core-ms per token against 1,942-2,056 (COMPLETE windows). Each exchange now carries ~4 rows and the
+  link grows with them (11.6-12.4 ms); masking grows to 1.9-2.3 ms because the 64-position pad bank ran dry (1,960
+  inline mints). Without the inline mints the per-row link still bounds this at about 1.7 tok/s.
+* **Guest huge pages (`results/hp1`, `setShouldUseHugepages`):** 1.09/0.96 against 1.01/1.07 tok/s, link and CPU
+  unchanged. No effect. (hp-03's CPU is UNMEASURED: its window fell outside the sampled interval.)
+
+**Where that leaves 15 tok/s.** A token has 66.7 ms. The masked lane needs 140 exchanges, each measured at 5.3-5.8
+ms end to end, and the TPU's own weight streaming across 140 separate invocations is 150-290 ms per token before
+any masking. Rows per exchange are nearly free on the TPU but not on the link or the pads, so speculation buys
+nothing net. Every knob measured today (int4, threads, pools, polling, link spinning, drafter, huge pages) moves
+the rate by tens of percent at most. The only structure that escapes the per-exchange floor is one invocation per
+token, which needs the whole graph inside the trust boundary -- the TPU assigned to the pVM, which the AVF app API
+does not offer (see "The platform gate is a missing API").

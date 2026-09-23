@@ -1,0 +1,9 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 26 check(s)
+bundle sha256 b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358
+VSOCK LOCAL tpu turn 1: exchanges=7980 (140.0/token) ms per exchange: mask 0.109 link 6.043 (corr 0.079 mint 0.000 wait 5.747) unmask 0.314 | rx/exch 1.51 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 7 | cancel n=50079669 max=0.0010 rms=0.00006 LSB | verify n=23370 bad=0 max=0 rms=0.000 (output LSB over 11685 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=34
+VSOCK LOCAL tpu turn 1: ms per exchange, split: of unmask, verification dots 0.054 | after it, releasing the pads 0.080 | between exchanges (the VM's own graph work) 0.919
+VSOCK LOCAL tpu turn 1: exchanges by duration (<25us <100us <400us <1.6ms longer): unmask 51 3218 3162 1381 168 | between exchanges 49 1773 3104 2241 812
+LOCAL turn 1 STATS {status=eos, prefill_tokens=28, prefill_tok_s=52.75, decode_tokens=57, decode_tok_s=0.96, ctx_used=85, ctx=4096}
+big-core cap through the run: cpu2 min 3052000, cpu7 min 3398000 (30 samples)
+cpu turn 1: UNMEASURED -- the window is not inside the sampled interval
+LANE-RUN OK hp-03
