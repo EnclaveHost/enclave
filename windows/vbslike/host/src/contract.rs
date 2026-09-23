@@ -1,0 +1,296 @@
+//! The Rust mirror of isolation/contract (Go): bundle format and app ID, report binding, the
+//! one-field report request, and the lifecycle state machine. `vbslike-host vectors <vectors.json>`
+//! runs isolation/contract/vectors.json against this code, so the two implementations cannot drift
+//! without a failing check. Anything that changes meaning bumps ABI in both places.
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::sync::Mutex;
+
+pub const ABI: &str = "enclave-domain-abi/1";
+pub const BUNDLE_MAGIC: &[u8] = b"ENCLAVE-BUNDLE/1\n";
+pub const MAX_MANIFEST: usize = 64 << 10;
+pub const NONCE_LEN: usize = 32;
+pub const TIER_HYPERV: &str = "T0-hv";
+pub const FORMAT_HYPERV: &str = "hyperv-partition-domain/v1";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct Manifest {
+    pub abi: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub world: String,
+    pub artifact: Artifact,
+    pub policy: Policy,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct Artifact {
+    pub kind: String,
+    pub sha256: String,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct Policy {
+    #[serde(rename = "cpuPercent")]
+    pub cpu_percent: i64,
+    #[serde(rename = "memMiB")]
+    pub mem_mib: i64,
+    pub vcpus: i64,
+}
+
+/// Canonical JSON: compact, keys sorted at every level. serde_json's Value keeps a BTreeMap, and its
+/// string escaping is the standard minimal one, which is what the Go side emits with HTML escaping off.
+pub fn canonical<T: Serialize>(v: &T) -> Vec<u8> {
+    let val: Value = serde_json::to_value(v).expect("serialises");
+    serde_json::to_vec(&val).expect("serialises")
+}
+
+pub fn app_id(b: &[u8]) -> [u8; 32] {
+    Sha256::digest(b).into()
+}
+
+pub fn is_bundle(b: &[u8]) -> bool {
+    b.starts_with(BUNDLE_MAGIC)
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ParseError {
+    NotBundle,
+    Malformed(String),
+}
+
+pub fn parse(b: &[u8]) -> Result<(Manifest, &[u8]), ParseError> {
+    if !is_bundle(b) {
+        return Err(ParseError::NotBundle);
+    }
+    let p = &b[BUNDLE_MAGIC.len()..];
+    if p.len() < 4 {
+        return Err(ParseError::Malformed("truncated at manifest length".into()));
+    }
+    let ml = u32::from_le_bytes([p[0], p[1], p[2], p[3]]) as usize;
+    let p = &p[4..];
+    if ml > MAX_MANIFEST || ml > p.len() {
+        return Err(ParseError::Malformed("manifest length out of range".into()));
+    }
+    let mb = &p[..ml];
+    let p = &p[ml..];
+    if p.len() < 4 {
+        return Err(ParseError::Malformed("truncated at artifact length".into()));
+    }
+    let al = u32::from_le_bytes([p[0], p[1], p[2], p[3]]) as usize;
+    let art = &p[4..];
+    if al != art.len() {
+        return Err(ParseError::Malformed(format!("artifact length {al} does not match {} bytes present", art.len())));
+    }
+    let m: Manifest = serde_json::from_slice(mb).map_err(|e| ParseError::Malformed(format!("manifest: {e}")))?;
+    if canonical(&m) != mb {
+        return Err(ParseError::Malformed("manifest is not in canonical form".into()));
+    }
+    if m.abi != ABI {
+        return Err(ParseError::Malformed(format!("abi {:?} is not {ABI:?}", m.abi)));
+    }
+    if m.artifact.sha256 != hex::encode(Sha256::digest(art)) {
+        return Err(ParseError::Malformed("manifest names a different artifact than it carries".into()));
+    }
+    Ok((m, art))
+}
+
+pub fn bind(spki: &[u8], nonce: &[u8]) -> Option<[u8; 32]> {
+    if nonce.len() != NONCE_LEN {
+        return None;
+    }
+    let mut h = Sha256::new();
+    h.update(spki);
+    h.update(nonce);
+    Some(h.finalize().into())
+}
+
+pub fn report_data(bind: &[u8; 32], app: &[u8; 32]) -> [u8; 64] {
+    let mut rd = [0u8; 64];
+    rd[..32].copy_from_slice(bind);
+    rd[32..].copy_from_slice(app);
+    rd
+}
+
+/// The whole of what a domain may ask: `bind`. Any other field is not read.
+pub fn parse_report_request(b: &[u8]) -> Result<[u8; 32], String> {
+    let v: Value = serde_json::from_slice(b).map_err(|e| e.to_string())?;
+    let s = v.get("bind").and_then(|x| x.as_str()).ok_or("bind must be 32 bytes of hex")?;
+    let raw = hex::decode(s).map_err(|_| "bind must be 32 bytes of hex".to_string())?;
+    if raw.len() != 32 {
+        return Err("bind must be 32 bytes of hex".into());
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&raw);
+    Ok(out)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum State {
+    Starting,
+    Running,
+    Ending,
+    Ended,
+}
+impl State {
+    pub fn name(self) -> &'static str {
+        match self {
+            State::Starting => "starting",
+            State::Running => "running",
+            State::Ending => "ending",
+            State::Ended => "ended",
+        }
+    }
+}
+
+/// starting -> running -> ending -> ended, reclamation exactly once (isolation/contract lifecycle.go).
+pub struct Lifecycle {
+    inner: Mutex<Inner>,
+    once: std::sync::Once,
+}
+struct Inner {
+    state: State,
+    end_wanted: String,
+    reclaims: u32,
+}
+impl Lifecycle {
+    pub fn new(s: State) -> Lifecycle {
+        Lifecycle { inner: Mutex::new(Inner { state: s, end_wanted: String::new(), reclaims: 0 }), once: std::sync::Once::new() }
+    }
+    pub fn state(&self) -> State {
+        self.inner.lock().unwrap().state
+    }
+    pub fn request_end(&self, why: &str) -> bool {
+        let mut i = self.inner.lock().unwrap();
+        match i.state {
+            State::Starting => {
+                if i.end_wanted.is_empty() {
+                    i.end_wanted = why.to_string();
+                }
+                false
+            }
+            State::Ending | State::Ended => false,
+            State::Running => {
+                i.state = State::Ending;
+                true
+            }
+        }
+    }
+    pub fn finish_start(&self) -> String {
+        let mut i = self.inner.lock().unwrap();
+        if i.state == State::Starting {
+            i.state = State::Running;
+        }
+        i.end_wanted.clone()
+    }
+    pub fn fail_start(&self) {
+        self.inner.lock().unwrap().state = State::Ending;
+    }
+    pub fn reclaim(&self, f: impl FnOnce()) {
+        self.once.call_once(|| {
+            self.inner.lock().unwrap().reclaims += 1;
+            f();
+            self.inner.lock().unwrap().state = State::Ended;
+        });
+    }
+    pub fn reclaims(&self) -> u32 {
+        self.inner.lock().unwrap().reclaims
+    }
+}
+
+/// Run isolation/contract/vectors.json against this implementation. Returns the failures.
+pub fn run_vectors(path: &str) -> Result<Vec<String>, String> {
+    let raw = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    let v: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let mut fails = Vec::new();
+    if v["abi"].as_str() != Some(ABI) {
+        fails.push(format!("abi: vectors say {:?}, this code is {ABI}", v["abi"]));
+    }
+    for b in v["bundles"].as_array().cloned().unwrap_or_default() {
+        let name = b["name"].as_str().unwrap_or("?");
+        let bundle = hex::decode(b["bundle_hex"].as_str().unwrap_or("")).unwrap_or_default();
+        if hex::encode(app_id(&bundle)) != b["app_id"].as_str().unwrap_or("") {
+            fails.push(format!("bundle {name}: app id"));
+        }
+        let parses = b["parses"].as_bool().unwrap_or(false);
+        match parse(&bundle) {
+            Ok((m, art)) => {
+                if !parses {
+                    fails.push(format!("bundle {name}: parsed but must not"));
+                }
+                if hex::encode(art) != b["artifact_hex"].as_str().unwrap_or("") {
+                    fails.push(format!("bundle {name}: artifact"));
+                }
+                let want: Manifest = serde_json::from_value(b["manifest"].clone()).unwrap_or_default();
+                if m != want {
+                    fails.push(format!("bundle {name}: manifest {m:?} != {want:?}"));
+                }
+            }
+            Err(e) => {
+                if parses {
+                    fails.push(format!("bundle {name}: refused: {e:?}"));
+                }
+                if b["bare"].as_bool().unwrap_or(false) && e != ParseError::NotBundle {
+                    fails.push(format!("bundle {name}: bare bytes must be NotBundle, got {e:?}"));
+                }
+            }
+        }
+    }
+    for x in v["bind"].as_array().cloned().unwrap_or_default() {
+        let spki = hex::decode(x["spki_hex"].as_str().unwrap_or("")).unwrap_or_default();
+        let nonce = hex::decode(x["nonce_hex"].as_str().unwrap_or("")).unwrap_or_default();
+        let b = bind(&spki, &nonce).unwrap_or([0; 32]);
+        if hex::encode(b) != x["bind"].as_str().unwrap_or("") {
+            fails.push("bind".into());
+        }
+        let mut app = [0u8; 32];
+        app.copy_from_slice(&hex::decode(x["app_id"].as_str().unwrap_or("")).unwrap_or(vec![0; 32]));
+        if hex::encode(report_data(&b, &app)) != x["report_data"].as_str().unwrap_or("") {
+            fails.push("report_data".into());
+        }
+    }
+    for r in v["report_requests"].as_array().cloned().unwrap_or_default() {
+        let j = r["json"].as_str().unwrap_or("");
+        let ok = r["ok"].as_bool().unwrap_or(false);
+        match parse_report_request(j.as_bytes()) {
+            Ok(b) => {
+                if !ok || hex::encode(b) != r["bind"].as_str().unwrap_or("") {
+                    fails.push(format!("request {j}: accepted wrongly"));
+                }
+            }
+            Err(_) => {
+                if ok {
+                    fails.push(format!("request {j}: refused wrongly"));
+                }
+            }
+        }
+    }
+    for s in v["lifecycle"].as_array().cloned().unwrap_or_default() {
+        let name = s["name"].as_str().unwrap_or("?");
+        let l = Lifecycle::new(State::Starting);
+        let mut got = Vec::new();
+        for op in s["ops"].as_array().cloned().unwrap_or_default() {
+            let op = op.as_str().unwrap_or("");
+            if let Some(why) = op.strip_prefix("request_end:") {
+                got.push(format!("end:{}", l.request_end(why)));
+            } else if op == "finish_start" {
+                got.push(format!("start:{}", l.finish_start()));
+            } else if op == "fail_start" {
+                l.fail_start();
+                got.push("fail".into());
+            } else if op == "reclaim" {
+                l.reclaim(|| {});
+                got.push(format!("reclaim:{}", l.reclaims()));
+            } else if op.starts_with("state") {
+                got.push(format!("state:{}", l.state().name()));
+            } else {
+                got.push("unknown-op".into());
+            }
+        }
+        let want: Vec<String> = s["results"].as_array().cloned().unwrap_or_default().iter().map(|x| x.as_str().unwrap_or("").to_string()).collect();
+        if got != want || l.state().name() != s["final"].as_str().unwrap_or("") {
+            fails.push(format!("lifecycle {name}: got {got:?} final {}, want {want:?} final {}", l.state().name(), s["final"]));
+        }
+    }
+    Ok(fails)
+}

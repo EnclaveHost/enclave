@@ -155,12 +155,13 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	// The binding is the same in both shapes: sha256(this domain's TLS key SPKI || the verifier's nonce).
 	bind := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
 	var rep, certs []byte // err is already in scope from parsing the nonce
-	var boundary string
+	var boundary, tier, format string
 	switch {
 	case f.monitor != "":
 		// M3: send the binding and nothing else. The app half of report_data is the monitor's to write,
-		// from the hash it took when it loaded this domain's app.
-		rep, certs, boundary, err = f.askMonitor(bind[:])
+		// from the hash it took when it loaded this domain's app. The monitor also says what kind of
+		// report it is (the PSP's bytes, or a launcher-signed document on a Hyper-V partition).
+		rep, certs, boundary, tier, format, err = f.askMonitor(bind[:])
 		if err == errNoHardwareReport {
 			d.Reason = "T0 domain: the monitor has no hardware report interface on this tier"
 			err = nil
@@ -177,6 +178,9 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(rep) > 0 {
 		d.Tier, d.Format, d.Reason = "T1", "sev-snp-guest-domain-v1", ""
+		if tier != "" && format != "" {
+			d.Tier, d.Format = tier, format
+		}
 		d.Report = base64.StdEncoding.EncodeToString(rep)
 		if len(certs) > 0 {
 			d.Certs = base64.StdEncoding.EncodeToString(certs)
@@ -192,32 +196,32 @@ var errNoHardwareReport = errors.New("no hardware report on this tier")
 // askMonitor is the M3 path: one request, one answer, over the socket the monitor bind-mounted into
 // this domain. The monitor identifies the caller from the socket's kernel credentials, so there is
 // nothing in this request that could name a different domain or a different app.
-func (f *front) askMonitor(bind []byte) ([]byte, []byte, string, error) {
+func (f *front) askMonitor(bind []byte) (rep, certs []byte, boundary, tier, format string, err error) {
 	c, err := net.DialTimeout("unix", f.monitor, 10*time.Second)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", "", err
 	}
 	defer c.Close()
 	c.SetDeadline(time.Now().Add(30 * time.Second))
 	if err := json.NewEncoder(c).Encode(map[string]string{"bind": hex.EncodeToString(bind)}); err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", "", err
 	}
-	var resp struct{ Report, Certs, Boundary, Error string }
+	var resp struct{ Report, Certs, Boundary, Tier, Format, Error string }
 	if err := json.NewDecoder(c).Decode(&resp); err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", "", err
 	}
 	if resp.Error != "" {
 		if strings.Contains(resp.Error, "no hardware report") {
-			return nil, nil, "", errNoHardwareReport
+			return nil, nil, "", "", "", errNoHardwareReport
 		}
-		return nil, nil, "", errors.New(resp.Error)
+		return nil, nil, "", "", "", errors.New(resp.Error)
 	}
-	rep, err := base64.StdEncoding.DecodeString(resp.Report)
+	rep, err = base64.StdEncoding.DecodeString(resp.Report)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", "", err
 	}
-	certs, _ := base64.StdEncoding.DecodeString(resp.Certs)
-	return rep, certs, resp.Boundary, nil
+	certs, _ = base64.StdEncoding.DecodeString(resp.Certs)
+	return rep, certs, resp.Boundary, resp.Tier, resp.Format, nil
 }
 
 // report asks the PSP, through configfs-tsm, for a report carrying rd, plus the certificate table the
