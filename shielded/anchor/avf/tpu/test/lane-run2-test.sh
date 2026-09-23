@@ -42,7 +42,7 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
 { echo "CAPTURE BEGIN label=$label"
   echo "TPU worker: serving masked rows"
   echo "TPU bundle sha256=${FAKE_BSHA:-aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccdddddddddddddddd} (hashed in 900 ms)"
-  echo "VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 ${FAKE_VM_BSHA16:-aaaaaaaaaaaaaaaa}...)"
+  echo "${FAKE_VM_LINE:-VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 ${FAKE_VM_BSHA16:-aaaaaaaaaaaaaaaa}..., re-hashed in 9.1 s)}"
   echo "LOCAL ask sha256=$(printf '%s' "$ask" | sha256sum | cut -d' ' -f1) bytes=${#ask}"
   n=0; IFS='|' read -r -a parts <<<"$ask"; for p in "${parts[@]}"; do [ -n "$(tr -d '[:space:]' <<<"$p")" ] || continue; n=$((n+1))
      [ "${FAKE_DROP_STATS:-0}" = "$n" ] || echo "LOCAL turn $n STATS {status=eos, decode_tokens=5, decode_tok_s=1.00}"
@@ -50,6 +50,7 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
   [ -n "${FAKE_EXTRA_LINE:-}" ] && echo "$FAKE_EXTRA_LINE"
   echo "LOCAL done: $n scripted turns"
   [ "${FAKE_NO_FOOTER:-0}" = 1 ] || echo "CAPTURE END label=$label lines=9 bytes=99 status=complete"; } > "$L"
+[ "${FAKE_VM_DIES:-0}" = 1 ] && { printf 'CAPTURE BEGIN label=%s\nVM payload started\nVM payload finished exit=1\nVM stopped reason=3\n' "$label" > "$L"; exit 0; }
 [ "${FAKE_NO_COMPLETE:-0}" = 1 ] || : > "$c/$label.complete"
 echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main }"
 EOF
@@ -100,4 +101,16 @@ ASK_='Say hi.'
 run stalebundle FAKE_VM_BSHA16=eeeeeeeeeeeeeeee; ck "the VM holds a different bundle than the app sent: refused" "$RC" 1
 run wantbundle BUNDLE_SHA256=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff; ck "not the bundle the caller asked for: refused" "$RC" 1
 run rightbundle BUNDLE_SHA256=aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccdddddddddddddddd; ck "the bundle the caller asked for: exit 0" "$RC" 0
+for vl in "VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 aaaaaaaaaaaaaaaa...)" \
+          "VSOCK LOCAL tpu.bundle: 1757 MiB received in 41.9 s, sha256 aaaaaaaaaaaaaaaa... verified" \
+          "VSOCK LOCAL tpu.bundle: 1757 MiB received, sha256 aaaaaaaaaaaaaaaa... verified"; do
+  run wording FAKE_VM_LINE="$vl"; ck "VM wording accepted: ${vl:27:40}" "$RC" 0; done
+run wrongwording FAKE_VM_LINE="VSOCK LOCAL tpu.bundle: 1757 MiB received, sha256 eeeeeeeeeeeeeeee... verified"; ck "a streamed bundle with another digest: refused" "$RC" 1
+# offline re-validation of a capture: same verdicts, no device
+run keep; cp "$W/home/files/capture/keep.log" "$W/keep.log"
+OUT=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" ASK="Say hi." LANE_CHECK_ONLY="$W/keep.log" bash "$HERE/lane-run2.sh" keep 2>&1); ck "LANE_CHECK_ONLY on a good capture: exit 0" "$?" 0
+sed -i '$d' "$W/keep.log"
+OUT=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" ASK="Say hi." LANE_CHECK_ONLY="$W/keep.log" bash "$HERE/lane-run2.sh" keep 2>&1); ck "LANE_CHECK_ONLY without the footer: refused" "$?" 1
+run vmdies FAKE_VM_DIES=1 LANE_TRIES=1000; ck "a VM that dies at load: refused" "$RC" 1
+grep -q "VM stopped before the run completed" <<<"$OUT"; ck "... at once, naming it" "$?" 0
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

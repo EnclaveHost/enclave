@@ -1,0 +1,19 @@
+ATTRIBUTION of the runs in this directory (written 2026-09-22 after the fact; the logs themselves are unchanged)
+
+w4.0.log, w4-a.log/.caps, w4-b.log/.caps -- NOT int4 runs. EXCLUDED from every int4 quality or performance conclusion.
+    The worker ran the int4 graphs (tpu/g5-h4ds-w4), but the VM did not receive the int4 bundle: it reused the int8
+    bundle already in its encrypted store (lanes-h4ds, sha256 b9a24410...), because its cache check compared only
+    the size and the first 8 bytes, and the int4 bundle (cd56ee87...) has the same size and the same magic. Each log
+    says so itself: "TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed". So the VM cancelled
+    its pads with the int8 matrix while the TPU multiplied by int4, and the verification counter (104,724 and 104,693
+    of 104,960 samples wrong) measured that MISMATCH, not int4 arithmetic. gwcheck + gw_ref.py afterwards showed the
+    int4 graphs compute their own integers to 1 LSB (tpu/gwcheck, commit 2b993ba7).
+    They remain useful only as evidence of the defect (the bundle cache, and a verifier that counted instead of
+    refusing), both fixed in 2b993ba7. w4.0.log is an empty stub: that run's results were lost to logcat rotation.
+
+i8-a.log/.caps, i8-b.log/.caps -- valid int8 controls (int8 graphs, int8 bundle in the VM). 57 tokens at 1.02 and
+    (i8-b) similar tok/s; verification 2 and 1 disagreements of 1 LSB. Run on a warm, charging phone whose big-core
+    cap fell to 2.09-2.19 GHz mid-run (the .caps files), so the absolute rates are not comparable with cool runs.
+
+i8-c, w4-c, i8-d, w4-d -- the digest-bound rerun (lane-run2.sh with BUNDLE_SHA256); each log names the bundle the
+    VM confirmed. These are the only runs here that can speak for int4.
