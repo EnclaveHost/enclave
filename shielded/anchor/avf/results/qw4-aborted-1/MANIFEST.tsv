@@ -1,0 +1,6 @@
+# expect_rows	24
+# settings	graphs=tpu/g5-h4ds-w4 bundle=tpu/lanes-h4ds-w4.etpu bundle_sha256=cd56ee8722f9cf1ba5af2c69ca595c878f9fea42bbe9bf3f1a03d4dfe7648535 maxnew=256 extra=
+# prompts_sha256	fc78e6314b33359a80f601c3cd4d8f24955a1395a5fe2136d77a274547c7eb5f
+# driver_sha256	cb8e0e97dd8c9fd2236f87c3e854433999f4060a2376a9b6f1a386436c73d0f3
+# id	label	status	rc	prompt	expect
+01	qw4-01	ok	0	What is the capital of France? Reply with only the city name.	exact=Paris
