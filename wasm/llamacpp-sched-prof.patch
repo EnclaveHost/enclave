@@ -75,7 +75,7 @@
      return GGML_STATUS_SUCCESS;
  }
 
-@@ -1932,11 +1964,13 @@
+@@ -1932,10 +1964,12 @@
      sched->cur_copy = sched->next_copy;
      sched->next_copy = (sched->next_copy + 1) % sched->n_copies;
 
@@ -88,4 +88,3 @@
 +    if (g_sched_prof_on()) { g_sched_prof_alloc_ms += g_sched_prof_now() - t_a0; g_sched_prof_allocs++; }
 
      sched->is_alloc = true;
-
