@@ -1,0 +1,3 @@
+pd23 -- INCOMPLETE: 2 of 10 runs. The host rebooted during p23-03 (08:07; `uptime` 3 min at 09:16) and the queue died
+with it; the phone was not enumerated on USB afterwards. Kept as produced. p23-01 (d1) and p23-02 (d2) are complete,
+fail-closed runs on anchor-smp1.apk (installed + hashed per run). The full sweep is re-queued as results/dp1 on one APK.

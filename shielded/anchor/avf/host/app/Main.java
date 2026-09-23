@@ -118,7 +118,8 @@ public class Main extends Activity {
         int corrThreads = 0;                 // --ei corr_threads 1..5: helpers for the TPU lane's out-of-lane correction (0 = the engine's default, 1)
         int verifyThreads = 0;               // --ei verify_threads 1..16: the pool speculative verification uses after the prompt (0 = the prompt's)
         int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
-        String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal)
+        String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal); "none" = no drafter
+        String laneDefaults = "";            // which Shielded-TPU profile values this launch took by default (logged in "LOCAL plan"), "" off the TPU lane
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
@@ -196,7 +197,7 @@ public class Main extends Activity {
             }
             p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
-            if (i.getStringExtra("draft") != null) p.draft = i.getStringExtra("draft");
+            if (i.getStringExtra("draft") != null) p.draft = "none".equals(i.getStringExtra("draft")) ? "" : i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
             p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
             p.poolPoll = i.getIntExtra("pool_poll", p.poolPoll); p.decodeThreads = i.getIntExtra("decode_threads", p.decodeThreads); p.corrThreads = i.getIntExtra("corr_threads", p.corrThreads); p.verifyThreads = i.getIntExtra("verify_threads", p.verifyThreads);
@@ -209,6 +210,20 @@ public class Main extends Activity {
                 if (i.getIntExtra("mem", 0) == 0) p.memMib = 7168;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 6144;
                 if (i.getIntExtra("threads", 0) == 0) p.threads = 6;               // the six big cores of a Tensor G5; the little ones drag every parallel section
+                // The MEASURED Shielded-TPU profile (TPU.md; TRANSFER-27B.md): before this, a launch that named only the graphs and
+                // bundle ran the lane with none of it -- no drafter, one correction helper (so no parallel unmask), a 64-position
+                // bank -- about 1 tok/s instead of 2.4-2.6. Applied ONLY on the TPU lane and ONLY to settings the launch did not
+                // name, so a condition file still pins every value it gives; the CPU-only lane keeps its own, separately measured
+                // defaults. The verification pool was only measured with a drafter, so it follows the drafter.
+                if (!p.tpuGraphs.isEmpty()) {
+                    final StringBuilder d = new StringBuilder();
+                    if (!i.hasExtra("corr_threads")) { p.corrThreads = 3; d.append(" corr_threads=3"); }
+                    if (!i.hasExtra("decode_threads")) { p.decodeThreads = 2; d.append(" decode_threads=2"); }
+                    if (!i.hasExtra("tpu_bank")) { p.tpuBank = 128; d.append(" tpu_bank=128"); }
+                    if (!i.hasExtra("draft")) { final java.io.File df = new java.io.File(filesDir, "draft.gguf"); if (df.isFile()) { p.draft = df.getPath(); d.append(" draft=").append(df.getPath()); } }
+                    if (!i.hasExtra("verify_threads") && !p.draft.isEmpty()) { p.verifyThreads = 4; d.append(" verify_threads=4"); }
+                    p.laneDefaults = d.length() == 0 ? "none (every profile setting named by the launch)" : d.toString().trim();
+                }
                 if (p.configError.isEmpty()) {
                     if (!p.pads.isEmpty() || !p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.artifacts.isEmpty() || !p.artifactsUrl.isEmpty()) p.configError = "mode local takes no pads, prefix or artifacts: nothing leaves the VM, so nothing is blinded";
                     else if ("catalog".equals(p.modelAuth)) p.configError = "mode local stages with the whole-file digest; model_auth catalog is not wired into the local engine yet";
@@ -579,6 +594,7 @@ public class Main extends Activity {
                 if (tpu && modelOk) { new Thread(() -> streamPublicFile(vm, BUNDLE_PORT, plan.tpuBundle, "TPU bundle"), "vsock-bundle").start(); new Thread(() -> tpuWorker(vm, plan), "tpu-worker").start(); }
                 if (tpu && modelOk && plan.tpuLinks >= 2) for (int li = 0; li < plan.tpuLinks; li++) { final int w = li; new Thread(() -> benchLink(vm, w), "linkbench-" + li).start(); }
                 say("LOCAL plan: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + (plan.ask.isEmpty() ? ", no turns scripted (--es ask)" : ", scripted turns"));
+                if (tpu) say("LOCAL tpu lane: corr_threads " + plan.corrThreads + ", decode_threads " + plan.decodeThreads + ", verify_threads " + plan.verifyThreads + ", tpu_bank " + plan.tpuBank + ", drafter " + (plan.draft.isEmpty() ? "none" : plan.draft + " draft_max " + plan.draftMax) + " | defaulted: " + plan.laneDefaults);
                 if (modelOk) new Thread(() -> localSession(vm, plan), "vsock-local").start(); else say("LOCAL not started: the model stage did not pass");
             }
             if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes

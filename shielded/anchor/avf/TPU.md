@@ -3141,3 +3141,21 @@ A ~4-row exchange now costs ~7 ms: masking 0.29, the worker ~2.5 (TPU run 1.78, 
 transport's median under this load), unmask 0.71, the VM's graph work between exchanges 0.88. None of those is a single
 code-level walk like the correction was; what remains is incremental unless a verification pass accepts many more tokens
 (~5 per pass would be needed with every term at its floor). 15 tok/s is not met.
+
+## 2026-09-23: what transferred from the Shielded-27B session (TRANSFER-27B.md)
+
+The item-by-item inventory is in `TRANSFER-27B.md`. The outcomes that change this lane:
+
+* **Both samplers were aliased, the 27B's REPORT 18.38 defect.** A decode pass is exactly 140 exchanges. The
+  parallel-unmask self-check (`exchanges % 16`) replayed only kind-0 exchanges; the kernel verification
+  (`exchanges % n_out`) recomputed only one residue mod 4 of each projection's outputs, at an index the worker could
+  predict. `payload/tpu_sample.h` stratifies both per group with first-visit checks and a VM-secret walk
+  (`tpu/test/sample-cover-test.cpp`). On the phone (results/smp1, ABBA against the previous APK): 560 self-checks per
+  turn instead of 175-184, 0 mismatches, the same text, verification unchanged; cost +2.1 % time and +1.2 % CPU per
+  decode step on a 57-token turn (first visits; they amortise). The verification is still one output per projection
+  per exchange: a drift detector with coverage, not a defence against a selectively lying worker.
+* **The app's defaults were the old baseline.** Every optimisation since 09-22 was switched on by launch extras.
+  anchor-smp2.apk defaults the measured profile on the TPU lane (see TRANSFER-27B.md, "Defaults").
+* **Inapplicable:** the delta-net in-place conv (Gemma 4 E2B has no recurrent layers), equality pad-independence
+  (this lane's requantised worker product makes it pad-dependent by construction, as established above), the
+  lost-wakeup fence (our pool is mutex + predicate waits).
