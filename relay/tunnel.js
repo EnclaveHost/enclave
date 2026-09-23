@@ -59,7 +59,7 @@ function selfRoutedUrl(url, name) {
 }
 
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
-// attest: { allowedMeasurements: [hex], requireVcek,   — permissionless sellers:
+// attest: { allowedMeasurements: [hex], requireVcek, minTcb,   — permissionless sellers:
 //           avf: { codeHashes: [hex], padCodeHashes: [hex], authorityHashes: [hex] } }
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
@@ -409,7 +409,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               const report = Buffer.from(f.rad.body, "base64");
               const aux = f.rad.certs ? Buffer.from(f.rad.certs, "base64") : null;
               res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
-                allowedMeasurements: attest.allowedMeasurements || [], requireVcek: !!attest.requireVcek });
+                allowedMeasurements: attest.allowedMeasurements || [], requireVcek: !!attest.requireVcek,
+                ...("minTcb" in attest ? { minTcb: attest.minTcb } : {}) });   // absent: TCB unjudged, as before
             }
             // verification is a network round trip (KDS): the timeout may have
             // denied and closed this socket while we waited. Binding it now
