@@ -12,7 +12,7 @@ def stat(pid, comm, ppid, ticks, start):
     f = ['S', str(ppid)] + ['0'] * 9 + [str(ticks), '0'] + ['0'] * 6 + [str(start)]
     return f'{pid} ({comm}) ' + ' '.join(f)
 
-def run(procs_at, times, win, toks=10, hz=100, extra=None):
+def run(procs_at, times, win, toks=10, hz=100, ps_line=lambda t: 'PS ok 400'):
     """procs_at(t) -> list of (pid, ppid, name, comm, ticks, start) or (pid, ppid, name, 'GONE')"""
     d = tempfile.mkdtemp(); sp = os.path.join(d, 's'); cp = os.path.join(d, 'c')
     with open(sp, 'w') as f:
@@ -21,6 +21,7 @@ def run(procs_at, times, win, toks=10, hz=100, extra=None):
             for p in procs_at(t):
                 if p[3] == 'GONE': f.write(f'P {p[0]} {p[1]} {p[2]} | GONE\n')
                 else: f.write(f'P {p[0]} {p[1]} {p[2]} | {stat(p[0], p[3], p[1], p[4], p[5])}\n')
+            if ps_line(t): f.write(ps_line(t) + '\n')
         f.write('END\n')
     a, b = win
     with open(cp, 'w') as f:
@@ -44,6 +45,7 @@ expect('crosvm_anchorlocal 40.00' in out, 'the VM process is counted under its r
 
 rc, out = run(lambda t: chain(t) + [(900, 1, 'crosvm_other', 'crosvm_other', int(1000 * t), 100)], T, (5.0, 15.0))
 expect('41.50 core-s' in out, 'a crosvm that is NOT a descendant of the app is not counted: ' + out)
+expect(rc == 1 and 'ownership unresolved' in out, '... and a VM-type process of the uid outside the tree makes it INCOMPLETE: ' + out)
 
 rc, out = run(lambda t: chain(t, vmm_until=10.0), T, (5.0, 15.0))
 expect(rc == 1 and 'INCOMPLETE' in out and 'exited inside the window' in out, 'a VM that exits mid-window is kept and flagged: ' + out)
@@ -76,5 +78,31 @@ rc, out = run(late, T, (5.0, 15.0))
 expect(rc == 0 and 'crosvm_anchorlocal 24.00' in out, 'a process that starts inside the window counts from zero, COMPLETE: ' + out)
 
 rc, out = run(lambda t: [(100, 1, APP, 'imposter', 10 * int(t), 100)] + chain(t)[1:], T, (5.0, 15.0))
-expect('0.00 core-s' in out, 'a process with the app name but another comm is not the root: ' + out)
+expect(rc == 1 and 'UNMEASURED' in out, 'a process with the app name but another comm is not the root, so nothing is owned: ' + out)
+
+# the audit's repro: samples with valid device lines but no process of the app at all -> never "COMPLETE, 0 core-s"
+rc, out = run(lambda t: [], [0.0, 1.0, 2.0, 3.0], (1.0, 2.0))
+expect(rc == 1 and 'UNMEASURED' in out and 'COMPLETE:' not in out, 'no process observed is UNMEASURED, not zero CPU: ' + out)
+rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=lambda t: 'PS FAILED 1' if abs(t - 9.0) < 0.01 else 'PS ok 400')
+expect(rc == 1 and 'INCOMPLETE' in out and 'PS FAILED' in out, 'a failed process-table read inside the window: INCOMPLETE: ' + out)
+rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=lambda t: None if abs(t - 12.0) < 0.01 else 'PS ok 400')
+expect(rc == 1 and 'no PS line' in out, 'a sample without its process-table marker: INCOMPLETE: ' + out)
+rc, out = run(lambda t: chain(t), T, (5.0, 15.0), ps_line=lambda t: 'PS ok 0')
+expect(rc == 1 and 'INCOMPLETE' in out, 'an EMPTY process table is not a successful read: ' + out)
+rc, out = run(lambda t: chain(t)[:2], T, (5.0, 15.0))
+expect(rc == 1 and 'no VM process' in out, 'the app seen but its VM never seen: INCOMPLETE: ' + out)
+# the SAMPLER itself, run on this host with a fake ps: a failed enumeration is written as PS FAILED, never as an empty sample
+import time
+SAMPLER = os.path.join(H, '..', 'cpu-sampler.sh')
+def sampler(ps_body):
+    d = tempfile.mkdtemp(); b = os.path.join(d, 'bin'); os.mkdir(b)
+    with open(os.path.join(b, 'ps'), 'w') as f: f.write('#!/bin/sh\n' + ps_body)
+    os.chmod(os.path.join(b, 'ps'), 0o755); out = os.path.join(d, 'o'); open(out + '.run', 'w').close()
+    p = subprocess.Popen(['sh', SAMPLER, str(os.getuid()), out, '0.05'], env=dict(os.environ, PATH=b + ':' + os.environ['PATH']))
+    time.sleep(0.4); os.unlink(out + '.run'); p.wait(timeout=10)
+    return open(out).read()
+o = sampler('exit 3\n')
+expect('PS FAILED' in o and 'PS ok' not in o and o.rstrip().endswith('END'), 'the sampler marks a failed ps as PS FAILED: ' + o[-200:])
+o = sampler(f'echo "  PID  PPID   UID NAME"; echo "  {os.getpid()}  1  {os.getuid()} me"; echo "  1 0 0 init"\n')
+expect(f'P {os.getpid()} 1 me | {os.getpid()} (' in o and 'PS ok 3' in o, 'a good table: the uid row with its stat, then PS ok with the row count: ' + o[-300:])
 print(f"{'PASS' if not fails else 'FAIL'}: {checks} checks, {fails} failures"); sys.exit(1 if fails else 0)

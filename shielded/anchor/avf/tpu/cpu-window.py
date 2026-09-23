@@ -30,10 +30,12 @@ def parse_samples(path):
     for line in open(path, errors='replace'):
         line = line.rstrip('\n')
         if line.startswith('T '):
-            cur = dict(t=float(line.split()[1]), cpu=None, procs={}, gone=[]); samples.append(cur)
+            cur = dict(t=float(line.split()[1]), cpu=None, procs={}, gone=[], ps=None); samples.append(cur)
         elif line.startswith('cpu ') and cur is not None:
             f = [int(x) for x in line.split()[1:]]
             cur['cpu'] = (sum(f), f[3] + (f[4] if len(f) > 4 else 0))     # total, idle + iowait
+        elif line.startswith('PS ') and cur is not None:
+            f = line.split(); cur['ps'] = 'ok' if f[1] == 'ok' and len(f) > 2 and f[2].isdigit() and int(f[2]) > 1 else 'failed'
         elif line.startswith('P ') and cur is not None:
             head, _, stat = line.partition(' | ')
             _, pid, _ppid, name = head.split(None, 3)
@@ -76,6 +78,12 @@ def window_cpu(samples, a, b, app, hz, max_gap):
     for edge, name in ((a, 'start'), (b, 'end')):
         i = max(k for k, t in enumerate(ts) if t <= edge); j = min(k for k, t in enumerate(ts) if t >= edge)
         if ts[j] - ts[i] > max_gap: notes.append(f'the samples around the window {name} are {ts[j] - ts[i]:.2f} s apart (> {max_gap})')
+    # Coverage of the process table itself: every sample that bears on the window must say its enumeration succeeded.
+    near = [s for s in samples if a - max_gap <= s['t'] <= b + max_gap]
+    bad = [s for s in near if s['ps'] != 'ok']
+    if bad:
+        notes.append(f"the process table was not recorded or not read in {len(bad)} of {len(near)} samples around the window "
+                     f"(first at {bad[0]['t']:.2f}: {'no PS line' if bad[0]['ps'] is None else 'PS FAILED'})")
     roots = set(); series = {}; names = {}
     for s in samples:
         own = owned(s, app, roots)
@@ -85,6 +93,20 @@ def window_cpu(samples, a, b, app, hz, max_gap):
         for pid, name in s['gone']:
             if in_window and (name == app or any(k[0] == pid for k in series)):
                 notes.append(f'a stat read failed for {name} (pid {pid}) at {s["t"]:.2f}')
+    # Evidence of the expected identities, not just the absence of contrary evidence: the app itself and a VM process
+    # descended from it must have been seen inside the window, and no VM-type process of the uid may be left unowned.
+    seen = {k for k, pts in series.items() if any(a <= t <= b for t, _ in pts)}
+    if not seen:
+        return None, notes + ['no process of the app was observed inside the window (nothing to measure is not zero CPU)']
+    if not any(names[k] == app for k in seen):
+        notes.append('the app process itself was not observed inside the window')
+    if not any(names[k].startswith('crosvm') for k in seen):
+        notes.append('no VM process (crosvm) descended from the app was observed inside the window')
+    for s in near:
+        own_pids = {k[0] for k in series if any(t == s['t'] for t, _ in series[k])}
+        for k, v in s['procs'].items():
+            if (v['name'].startswith('crosvm') or v['name'].startswith('virtmgr')) and k[0] not in own_pids:
+                notes.append(f"{v['name']} (pid {k[0]}, parent {v['ppid']}) belongs to the app's uid but not to its process tree: ownership unresolved")
     total = 0.0; edge_err = 0.0; per = {}
     for k, pts in series.items():
         first_t, last_t = pts[0][0], pts[-1][0]
