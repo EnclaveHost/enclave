@@ -7,6 +7,7 @@
   "description": "Enclave supervisor — the whole service, running inside the Tinfoil enclave behind the shim. Control + data + per-use container launch. Nothing external touches a prompt.",
   "main": "supervisor.js",
   "scripts": {
+    "prepare": "node -e \"try{require('child_process').execFileSync('git',['config','core.hooksPath','.githooks'],{stdio:'ignore'})}catch{}\"",
     "start": "node supervisor.js",
     "dev": "node --watch supervisor.js",
     "test": "node --test --test-timeout=120000 test/*.test.mjs",

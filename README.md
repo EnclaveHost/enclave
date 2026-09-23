@@ -127,6 +127,7 @@ twice.
 ## Development
 
 - `npm test` runs the supervisor/contract test suite (`test/*.test.mjs`).
+- `npm install` also points `core.hooksPath` at `.githooks/`: the pre-commit and pre-push hooks refuse cryptocurrency private keys (Ethereum/Bitcoin hex, WIF, xprv, BIP39 seed phrases, keystore JSON) and, when [gitleaks](https://github.com/gitleaks/gitleaks) is on your PATH, provider tokens too. GitHub's own push protection never sees a raw wallet key, so the hook is the real block; `.github/workflows/secret-scan.yml` is the backstop. A confirmed false positive is bypassed with `--no-verify`.
 - `npm run build:site` bundles the site into `site/dist/` (Tailwind + esbuild + build-time component prerender). `site/` itself is valid unbundled ES modules; serve it raw for dev, or `npm run watch:site` for CSS. Site URLs are extensionless (`/apps`, `/dashboard`): `site/_redirects` rewrites them on the DNSLink/subdomain IPFS gateway, and the router always fetches the real `.html` files, so soft navigation works on any dumb static server; only a HARD reload of a pretty URL needs rewrite support (use `npx serve site`, or just hit the `.html` path; the router re-prettifies the bar).
 - `site/deploy.sh` builds and publishes the site to the box and IPFS (the IPNS gateway caches ~5 min). CI does this automatically on push.
 

@@ -1,0 +1,106 @@
+# gitleaks config for this repo: the DEFAULT provider-token rules PLUS
+# cryptocurrency private keys, which no default rule covers (GitHub's own
+# push protection does not cover them either). Used by .githooks/pre-push when
+# gitleaks is installed and by .github/workflows/secret-scan.yml. The precise
+# checks (base58/BIP39 checksums, secp256k1 address derivation against
+# .githooks/known-addresses.txt) live in .githooks/scan-crypto-keys.py; these
+# regexes are the coarse net that also runs where only gitleaks is available.
+title = "enclave"
+
+[extend]
+useDefault = true
+
+# ---- cryptocurrency private keys ------------------------------------------
+
+[[rules]]
+id = "bitcoin-wif-private-key"
+description = "Bitcoin WIF private key (base58, 51-52 chars, starts 5/K/L)"
+regex = '''\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b'''
+entropy = 4.3
+
+[[rules]]
+id = "bip32-extended-private-key"
+description = "BIP32 extended private key (xprv/yprv/zprv/tprv...)"
+regex = '''\b[xyztuvYZUV]prv[1-9A-HJ-NP-Za-km-z]{100,112}\b'''
+keywords = ["prv"]
+
+[[rules]]
+id = "bip39-mnemonic-labelled"
+description = "BIP39 seed phrase next to a mnemonic/seed/recovery label"
+regex = '''(?i)(?:mnemonic|seed[ _-]?phrase|recovery[ _-]?phrase|secret[ _-]?recovery|backup[ _-]?phrase|seed[ _-]?words)[^\n]{0,40}?((?:[a-z]{3,8}[ ,"']+){11,23}[a-z]{3,8})'''
+secretGroup = 1
+keywords = ["mnemonic", "seed", "recovery", "backup"]
+[[rules.allowlists]]
+regexes = ['''test test test test test test test test test test test junk''']
+
+[[rules]]
+id = "ethereum-private-key-labelled"
+description = "32-byte hex private key assigned to a private-key/secret/signer field"
+regex = '''(?i)(?:private[_ -]?key|privkey|priv[_ -]?key|secret[_ -]?key|signing[_ -]?key|(?:operator|deployer|registry|wallet|owner|admin|funder|payer|relayer|burner|governance|signer|account|eoa|mint|minter)[_ -]?(?:private[_ -]?)?key|\bpk\b|\bsk\b)[^\n]{0,24}?[:=][^\n]{0,8}?["'`]?(?:0x)?([0-9a-fA-F]{64})\b'''
+secretGroup = 1
+keywords = ["key", "pk", "sk"]
+[[rules.allowlists]]
+regexTarget = "line"
+regexes = ['''(?i)sha-?256|sha3|keccak|digest|hash|measurement|topic|pubkey|public[_ -]?key|hmac|cipher|encrypted|thumbprint|fingerprint|checksum''']
+[[rules.allowlists]]
+regexes = ['''(?i)^(?:0x)?(?:ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d|5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a|7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6|47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e|4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356|dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97|2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6|0{64}|1{64}|2{64}|3{64}|4{64}|5{64}|6{64}|7{64}|8{64}|9{64}|a{64}|b{64}|c{64}|d{64}|e{64}|f{64}|(?:0123456789abcdef){4})$''']
+
+[[rules]]
+id = "ethereum-private-key-env"
+description = "32-byte hex private key in a *KEY= / *SECRET= / *PRIV*= env line"
+regex = '''(?m)^\s*(?:export\s+)?[A-Z][A-Z0-9_]*(?:KEY|SECRET|PRIV|_PK|_SK)[A-Z0-9_]*\s*=\s*["']?(?:0x)?([0-9a-fA-F]{64})\b'''
+secretGroup = 1
+[[rules.allowlists]]
+regexTarget = "line"
+regexes = ['''(?i)PUB|HASH|DIGEST|SHA|MEASUREMENT|TOPIC|CID|HMAC|CIPHER|ENCRYPTED''']
+[[rules.allowlists]]
+regexes = ['''(?i)^(?:0x)?(?:ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d|5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a|7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6|47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e|4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356|dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97|2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6|0{64}|1{64}|2{64}|3{64}|4{64}|5{64}|6{64}|7{64}|8{64}|9{64}|a{64}|b{64}|c{64}|d{64}|e{64}|f{64}|(?:0123456789abcdef){4})$''']
+
+[[rules]]
+id = "ethereum-private-key-constructor"
+description = "32-byte hex private key passed to a wallet/signer constructor or --private-key flag"
+regex = '''(?i)(?:privateKeyToAccount|new\s+(?:ethers\.)?Wallet|fromPrivateKey|fromPrivate|--private-key(?:=|\s+)|--priv(?:ate)?(?:=|\s+)|-k\s+|from_key|privateKeyToAddress|Keypair\.from|SigningKey|LocalAccount)\s*\(?\s*["'`]?(?:0x)?([0-9a-fA-F]{64})\b'''
+secretGroup = 1
+[[rules.allowlists]]
+regexes = ['''(?i)^(?:0x)?(?:ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d|5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a|7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6|47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e|4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356|dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97|2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6|0{64}|1{64}|2{64}|3{64}|4{64}|5{64}|6{64}|7{64}|8{64}|9{64}|a{64}|b{64}|c{64}|d{64}|e{64}|f{64}|(?:0123456789abcdef){4})$''']
+
+[[rules]]
+id = "web3-keystore-json"
+description = "encrypted web3 keystore JSON (kdf + ciphertext) - still a wallet file"
+regex = '''"kdf"\s*:\s*"(?:scrypt|pbkdf2)"'''
+keywords = ["kdf"]
+
+# ---- global allowlists ------------------------------------------------------
+
+[[allowlists]]
+description = "vendored bundles, public fixtures and this tooling hold curve constants and public test keys"
+paths = [
+  '''(^|/)node_modules/''',
+  '''^site/vendor/''',
+  '''^site/privy/''',
+  '''^contracts/foundry/lib/''',
+  '''^\.githooks/bip39-english\.txt$''',
+  '''^\.githooks/known-addresses\.txt$''',
+  '''^\.gitleaks\.toml$''',
+]
+
+[[allowlists]]
+description = "an Ethereum ADDRESS or a bare hex digest is not a secret (the crypto rules above decide what a 64-hex string is)"
+regexes = [
+  '''^0x[0-9a-fA-F]{40}$''',
+  '''^(?:0x)?[0-9a-fA-F]{64}$''',
+  '''^sha256:[0-9a-f]{64}$''',
+]
+
+[[allowlists]]
+description = "relay attach-token digests are published on purpose (hash only; the token is off-repo)"
+regexTarget = "line"
+regexes = ['''tokenSha256''']
+
+[[allowlists]]
+description = "generic-api-key false positives triaged by hand over the full history on 2026-09-23 (TPM KAT fixtures, model class names, prose fragments, placeholders)"
+targetRules = ["generic-api-key"]
+paths = ['''^test/fixtures/''']
+regexes = [
+  '''^(?:Gemma4ForConditionalGeneration|ChaCha20-Poly1305\.|proof-secp256k1\.hex|blk\.\d+\.[a-z_.]+|0x?REPLACE_WITH[A-Z_]*|warmup[0-9.]+s\.|iidconstantp=\.\d+|persists409bodyiffailed|(?:0123456789abcdef)+)$''',
+]

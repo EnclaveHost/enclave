@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# pre-commit: the same crypto-key scan as pre-push, on the staged diff, so a
+# key is caught before it is in a commit at all (removing it from a commit
+# means rewriting history; removing it from the index is `git reset <file>`).
+# Bypass for a confirmed false positive: git commit --no-verify
+set -u
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python3 "$here/scan-crypto-keys.py" --staged || {
+  echo "pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)" >&2
+  exit 1
+}
+exit 0
