@@ -6,11 +6,12 @@
 #include <stdio.h>
 static int checks = 0, fails = 0;
 static void expect(int ok, const char *w) { checks++; if (!ok) { fails++; printf("FAIL %s\n", w); } }
-static int mode;   /* 0 proper, 1 hang up at once, 2 silent, 3 partial then stall */
+static int mode;   /* 0 proper, 1 hang up at once, 2 silent, 3 partial then stall, 4 never reads (send backpressure) */
 static void *responder(void *arg) {
     int fd = *(int *)arg; unsigned char h[8]; static unsigned char buf[1 << 20];
     for (;;) {
         if (mode == 1) { close(fd); return NULL; }
+        if (mode == 4) { usleep(1500000); close(fd); return NULL; }   /* stays open and reads nothing */
         size_t o = 0; while (o < 8) { ssize_t r = read(fd, h + o, 8 - o); if (r <= 0) { close(fd); return NULL; } o += (size_t)r; }
         uint32_t rep, req; memcpy(&rep, h, 4); memcpy(&req, h + 4, 4); rep &= 0x7fffffffu;
         size_t got = 0; while (got < req) { ssize_t r = read(fd, buf, req - got < sizeof buf ? req - got : sizeof buf); if (r <= 0) { close(fd); return NULL; } got += (size_t)r; }
@@ -33,5 +34,8 @@ int main(void) {
     expect(one(2, 7400, 24500, 5, 0, &st, &ms) == -1 && ms < 1000, "a silent peer: -1 within the wait bound");
     expect(one(3, 7400, 24500, 5, 0, &st, &ms) == -1 && ms < 1000, "a partial reply then a stall: -1 within the wait bound");
     expect(one(0, 7400, 24500, 0, 0, &st, &ms) == -1, "zero iterations refused");
+    expect(one(3, 7400, 24500, 5, 1, &st, &ms) == -1 && ms < 1000, "a partial reply then a stall, read with MSG_WAITALL: -1 within the bound (the audit's hang)");
+    expect(one(3, 2, 2, 5, 1, &st, &ms) == -1 && ms < 1000, "... the audit's exact shape: one byte of a two-byte reply");
+    expect(one(4, 8u << 20, 16, 1, 0, &st, &ms) == -1 && ms < 1000, "a peer that never reads an 8 MiB request (send backpressure): -1 within the bound");
     printf("%s: %d checks, %d failures\n", fails ? "FAIL" : "PASS", checks, fails); return fails != 0;
 }

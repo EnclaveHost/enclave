@@ -10,8 +10,8 @@
  *
  * Wire, on a BENCHMARK link (never the worker link, never a masked row): the VM sends a u32 (reply bytes | 1<<31), a
  * u32 (request bytes) and the request; the app reads the request whole, then writes the reply. One round trip each.
- * A failed round trip abandons the whole benchmark (a stream with bytes in flight cannot be resynchronised), and
- * every wait is bounded by poll() so a silent or departed peer returns an error instead of a hang.
+ * A failed round trip abandons the whole benchmark (a stream with bytes in flight cannot be resynchronised), and every
+ * round trip is bounded by an absolute deadline (EXBENCH_WAIT_MS), sends and reads included.
  */
 #ifndef ANCHOR_EXBENCH_H
 #define ANCHOR_EXBENCH_H
@@ -32,13 +32,21 @@ typedef struct { int n; double min_ms, med_ms, p90_ms, mean_ms; } exbench_stat;
 
 static double exb_now_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e3 + t.tv_nsec / 1e6; }
 
-static int exb_send_all(int fd, const unsigned char *p, size_t n) {
+/* Every wait is bounded by an ABSOLUTE deadline for the round trip. The first version polled and then made BLOCKING
+ * calls: poll only proves that one byte is ready (or some buffer space), so a peer that sent part of a reply and stopped,
+ * or stopped reading a large request, hung recv(MSG_WAITALL) or send() indefinitely -- an audit reproduced the hang. */
+static int exb_remaining_ms(double deadline) { double r = deadline - exb_now_ms(); return r <= 0 ? 0 : (int)(r + 1); }
+
+static int exb_send_all(int fd, const unsigned char *p, size_t n, double deadline) {
     size_t o = 0;
     while (o < n) {
-        ssize_t w = send(fd, p + o, n - o, MSG_NOSIGNAL);
+        ssize_t w = send(fd, p + o, n - o, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (w < 0 && errno == EINTR) continue;
         if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            struct pollfd q = { fd, POLLOUT, 0 }; if (poll(&q, 1, EXBENCH_WAIT_MS) <= 0 || (q.revents & (POLLERR | POLLHUP | POLLNVAL))) return -1;
+            const int left = exb_remaining_ms(deadline); if (!left) return -1;
+            struct pollfd q = { fd, POLLOUT, 0 }; const int pr = poll(&q, 1, left);
+            if (pr < 0 && errno == EINTR) continue;
+            if (pr <= 0 || (q.revents & (POLLERR | POLLHUP | POLLNVAL))) return -1;
             continue;
         }
         if (w <= 0) return -1;
@@ -47,19 +55,29 @@ static int exb_send_all(int fd, const unsigned char *p, size_t n) {
     return 0;
 }
 
-/* waitall: one recv(MSG_WAITALL) per poll wake instead of read()s of whatever has arrived. *reads counts the calls. */
-static int exb_recv_all(int fd, unsigned char *p, size_t n, int waitall, long *reads) {
+/* waitall=0: nonblocking reads of whatever has arrived, polling between them. waitall=1 (one wake per reply): a blocking
+ * recv(MSG_WAITALL) whose SO_RCVTIMEO is set to the time left before EVERY call, so it returns (partial, or EAGAIN) at
+ * the deadline instead of waiting for bytes that never come. *reads counts the calls. */
+static int exb_recv_all(int fd, unsigned char *p, size_t n, int waitall, long *reads, double deadline) {
     size_t o = 0;
     while (o < n) {
-        struct pollfd q = { fd, POLLIN, 0 };
-        int pr = poll(&q, 1, EXBENCH_WAIT_MS);
-        if (pr < 0 && errno == EINTR) continue;
-        if (pr <= 0) return -1;                                             /* silent peer: bounded */
-        if (!(q.revents & POLLIN)) return -1;                               /* hung up with nothing to read */
-        ssize_t r = recv(fd, p + o, n - o, waitall ? MSG_WAITALL : 0);
+        const int left = exb_remaining_ms(deadline); if (!left) return -1;
+        ssize_t r;
+        if (waitall) {
+            struct timeval tv = { left / 1000, (left % 1000) * 1000 };
+            if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) != 0) return -1;
+            r = recv(fd, p + o, n - o, MSG_WAITALL);
+        } else {
+            struct pollfd q = { fd, POLLIN, 0 };
+            const int pr = poll(&q, 1, left);
+            if (pr < 0 && errno == EINTR) continue;
+            if (pr <= 0) return -1;
+            if (!(q.revents & POLLIN)) return -1;                            /* hung up with nothing to read */
+            r = recv(fd, p + o, n - o, MSG_DONTWAIT);
+        }
         if (reads) (*reads)++;
-        if (r < 0 && errno == EINTR) continue;
-        if (r <= 0) return -1;
+        if (r < 0 && (errno == EINTR || (!waitall && (errno == EAGAIN || errno == EWOULDBLOCK)))) continue;
+        if (r <= 0) return -1;                                              /* EOF, error, or (waitall) the deadline */
         o += (size_t)r;
     }
     return 0;
@@ -80,8 +98,8 @@ static int exbench_run(int fd, size_t req, size_t rep, int iters, int gap_us, in
     int rc = 0;
     for (int i = 0; i < iters; i++) {
         if (gap_us > 0) { const double e = exb_now_ms() + gap_us / 1000.0; while (exb_now_ms() < e) { } }
-        const double a = exb_now_ms();
-        if (exb_send_all(fd, q, 8 + req) != 0 || exb_recv_all(fd, r, rep, waitall, reads) != 0) { rc = -1; break; }
+        const double a = exb_now_ms(), deadline = a + EXBENCH_WAIT_MS;
+        if (exb_send_all(fd, q, 8 + req, deadline) != 0 || exb_recv_all(fd, r, rep, waitall, reads, deadline) != 0) { rc = -1; break; }
         t[i] = exb_now_ms() - a;
     }
     if (rc == 0) {
