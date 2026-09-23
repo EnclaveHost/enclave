@@ -223,6 +223,10 @@ typedef struct {
      * m*K and the buffer ensures. Untimed until now, and over half of the
      * TEE-side link work had no timer at all. */
     double pre_ms;
+    /* Inside mask_ms: the plane split itself, and dealt_wait, separately. */
+    double mask_kernel_ms, dealt_wait_ms;
+    /* mask kernel: elements masked, and calls over 20 us (count + time) */
+    uint64_t mask_elems, mask_slow_n; double mask_slow_ms;
     /* Spin left over AFTER the overlapped RHS: the budget any further
      * overlap would have to fit into. */
     double idle_ms; uint64_t idle_n;

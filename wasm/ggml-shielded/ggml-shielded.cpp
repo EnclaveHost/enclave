@@ -23,6 +23,10 @@ extern "C" {
 #include <cstring>
 #include <cstdint>
 #include <dlfcn.h>
+#include <dirent.h>
+#include <sched.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -332,6 +336,9 @@ struct sh_pool {
     std::map<std::string, int> layers;
 };
 static sh_pool &sh_pool_get() { static sh_pool p; return p; }
+static void sh_split_report();   /* defined after sh_split_worker */
+static double sh_split_helper_gemm();
+static double sh_split_helper_post();
 static void sh_pool_init(sh_pool &p);
 void ggml_backend_shielded_set_cpu_idle_hook(ggml_shielded_cpu_idle_hook hook, void *ctx) {
     sh_pool &p = sh_pool_get();
@@ -538,6 +545,7 @@ void ggml_backend_shielded_stats(uint64_t *off, uint64_t *loc, uint64_t *macs, u
                 wt.peak.first_node_name[0] ? wt.peak.first_node_name : "unknown", wt.peak.nodes, wt.peak.rows,
                 (unsigned long long)wt.peak.K, (unsigned long long)wt.peak.request_bytes, (unsigned long long)wt.peak.reply_bytes,
                 wt.peak.write_ms, wt.peak.work_ms, wt.peak.header_ms, wt.peak.body_ms, wt.max_ms);
+        sh_split_report();
         fprintf(stderr, "[shielded] widths: exchanges by rows m1=%llu m2=%llu m3=%llu m4=%llu m5=%llu m6=%llu m7=%llu m8=%llu m9+=%llu | graphs by widest matmul rows 1=%llu 2-4=%llu 5-8=%llu 9+=%llu\n",
                 (unsigned long long)s.m_hist[1], (unsigned long long)s.m_hist[2], (unsigned long long)s.m_hist[3], (unsigned long long)s.m_hist[4], (unsigned long long)s.m_hist[5], (unsigned long long)s.m_hist[6], (unsigned long long)s.m_hist[7], (unsigned long long)s.m_hist[8], (unsigned long long)s.m_hist[9],
                 (unsigned long long)s.graph_w[0], (unsigned long long)s.graph_w[1], (unsigned long long)s.graph_w[2], (unsigned long long)s.graph_w[3]);
@@ -1437,9 +1445,29 @@ struct sh_split_worker {
     const sh_split_post *post = nullptr; const int64_t *col0 = nullptr, *ncols = nullptr;
     int rc = SH_OK;
     uint64_t seen = 0;
+    /* What the join is made of, measured on the helper's own clock:
+     * dispatch -> start, its exchange, its post. Written only by the helper,
+     * read at report time. */
+    double t_dispatch = 0, t_start_delay = 0, t_gemm = 0, t_post = 0;
+    uint64_t runs = 0;
 };
 static int sh_split_spin_us() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_SPLIT_SPIN_US", 2000); return v; }
+static double sh_split_helper_gemm() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_gemm; return t; }
+static double sh_split_helper_post() { double t = 0; for (auto *w : sh_pool_get().split_workers) if (w) t += w->t_post; return t; }
+static void sh_place_report();
+static void sh_split_report() {
+    sh_place_report();
+    for (auto *w : sh_pool_get().split_workers) {
+        if (!w || !w->runs) continue;
+        fprintf(stderr, "[shielded] split helper: runs=%llu start_delay=%.1fms gemm=%.1fms post=%.1fms "
+                        "(per run: %.1f / %.1f / %.1f us)\n",
+                (unsigned long long)w->runs, w->t_start_delay, w->t_gemm, w->t_post,
+                1000 * w->t_start_delay / w->runs, 1000 * w->t_gemm / w->runs, 1000 * w->t_post / w->runs);
+    }
+}
+static void sh_place_helper_self();
 static void sh_split_worker_main(sh_split_worker *w) {
+    sh_place_helper_self();
     for (;;) {
         const uint64_t want = w->seen + 1;
         const auto t0 = std::chrono::steady_clock::now();
@@ -1459,8 +1487,12 @@ static void sh_split_worker_main(sh_split_worker *w) {
             #endif
         }
         w->seen = want;
+        const double ta = sh_now_ms();
+        w->t_start_delay += ta - w->t_dispatch;
         const int rc = sh_link_gemm_stride(w->link, w->nodes, w->n, w->x, w->m, w->y, w->stride);
+        const double tb = sh_now_ms();
         if (rc == SH_OK && w->post) sh_split_post_slice(*w->post, w->col0, w->ncols);
+        w->t_gemm += tb - ta; w->t_post += sh_now_ms() - tb; w->runs++;
         w->rc = rc;
         w->done.store(want, std::memory_order_release);
     }
@@ -1560,6 +1592,7 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
         w->post = post; w->col0 = pcol0[c].data(); w->ncols = pncols[c].data();
         w->rc = SH_OK;
         const uint64_t g = w->gen.load(std::memory_order_relaxed) + 1;
+        w->t_dispatch = sh_now_ms();   /* published by the release store below */
         w->gen.store(g, std::memory_order_release);
         { std::lock_guard<std::mutex> lk(w->mu); w->cv.notify_one(); }   /* only matters if it parked */
     }
@@ -1685,7 +1718,9 @@ static bool sh_overlap_cpu_enabled() { return sh_overlap_cpu_mode() != 0; }
  * CAPACITY. Drops are COUNTED and reported. A truncated trace that does not
  * say it is truncated would let a window claim to cover a phase it does not. */
 struct sh_trace_rec { int card; double t; int m; uint64_t graphs, nodes, ex;
-                      double idle, link, graph, mask, unmask, rhs, check, pads, wire, pre; };
+                      double idle, link, graph, mask, unmask, rhs, check, pads, wire, pre,
+                             sgemm, spost, sjoin, hgemm, hpost, mkern, dwait;
+                      uint64_t melems, mslown; double mslow; };
 struct sh_trace_state {
     std::vector<sh_trace_rec> v;
     std::mutex mu;
@@ -1701,11 +1736,13 @@ static sh_trace_state *sh_trace_st() {
 }
 static void sh_trace_push(int card, double t, int m, uint64_t graphs, uint64_t nodes, uint64_t ex,
                           double idle, double link, double graph,
-                          double mask, double unmask, double rhs, double check, double pads, double wire, double pre) {
+                          double mask, double unmask, double rhs, double check, double pads, double wire, double pre,
+                          double sgemm, double spost, double sjoin, double hgemm, double hpost, double mkern, double dwait,
+                          uint64_t melems, uint64_t mslown, double mslow) {
     sh_trace_state *st = sh_trace_st();
     std::lock_guard<std::mutex> lk(st->mu);
     if (st->v.size() < st->v.capacity())
-        st->v.push_back({card, t, m, graphs, nodes, ex, idle, link, graph, mask, unmask, rhs, check, pads, wire, pre});
+        st->v.push_back({card, t, m, graphs, nodes, ex, idle, link, graph, mask, unmask, rhs, check, pads, wire, pre, sgemm, spost, sjoin, hgemm, hpost, mkern, dwait, melems, mslown, mslow});
     else st->dropped++;
 }
 static void sh_trace_flush() {
@@ -1713,9 +1750,10 @@ static void sh_trace_flush() {
     std::lock_guard<std::mutex> lk(st->mu);
     for (const auto &r : st->v)
         fprintf(stderr, "[ph] card=%d t=%.3f m=%d graphs=%llu nodes=%llu ex=%llu idle=%.1f link=%.1f graph=%.1f"
-                        " mask=%.1f unmask=%.1f rhs=%.1f check=%.1f pads=%.1f wire=%.1f pre=%.1f\n",
+                        " mask=%.1f unmask=%.1f rhs=%.1f check=%.1f pads=%.1f wire=%.1f pre=%.1f sgemm=%.1f spost=%.1f sjoin=%.1f hgemm=%.1f hpost=%.1f mkern=%.1f dwait=%.1f melems=%llu mslown=%llu mslow=%.1f\n",
                 r.card, r.t / 1000.0, r.m, (unsigned long long)r.graphs, (unsigned long long)r.nodes,
-                (unsigned long long)r.ex, r.idle, r.link, r.graph, r.mask, r.unmask, r.rhs, r.check, r.pads, r.wire, r.pre);
+                (unsigned long long)r.ex, r.idle, r.link, r.graph, r.mask, r.unmask, r.rhs, r.check, r.pads, r.wire, r.pre, r.sgemm, r.spost, r.sjoin, r.hgemm, r.hpost, r.mkern, r.dwait,
+                (unsigned long long)r.melems, (unsigned long long)r.mslown, r.mslow);
     if (!st->v.empty() || st->dropped)
         fprintf(stderr, "[ph] flushed %zu records, DROPPED %llu (capacity %zu)\n",
                 st->v.size(), (unsigned long long)st->dropped, st->v.capacity());
@@ -1935,8 +1973,128 @@ static bool sh_card_integrity_failed(sh_state &s) {
     return s.verify_fail != 0;
 }
 
+/* Opt-in thread placement (off unless SHIELDED_CPU_MAIN is set). A decode
+ * round is serialized on two threads -- the thread that runs card 0's link
+ * (also OpenMP's master for the CPU ops) and the split helper -- and the
+ * join waits on whichever of them could not get a core. Blanket taskset
+ * starved the other ~17 threads (REPORT 18.9); this reserves only the two
+ * critical cores and their SMT siblings and leaves every other thread the
+ * rest of the box (SHIELDED_CPU_REST, e.g. "2-15,18-31").
+ *
+ * Placement only: no buffer, pad, mask or check path depends on it, and a
+ * failed setaffinity changes nothing but where a thread runs. The sweep
+ * re-masks every thread of the process that is not one of the two, so
+ * OpenMP workers and refill threads created later are caught on the next
+ * sweep; a thread already on the right mask is left alone. */
+static bool sh_parse_cpus(const char *s, cpu_set_t *set) {
+    CPU_ZERO(set);
+    if (!s || !*s) return false;
+    int n = 0;
+    for (const char *p = s; *p; ) {
+        char *end = nullptr; long a = strtol(p, &end, 10);
+        if (end == p || a < 0 || a >= CPU_SETSIZE) return false;
+        long b = a;
+        if (*end == '-') { p = end + 1; b = strtol(p, &end, 10); if (end == p || b < a || b >= CPU_SETSIZE) return false; }
+        for (long c = a; c <= b; c++) { CPU_SET((int)c, set); n++; }
+        p = *end == ',' ? end + 1 : end;
+        if (*end && *end != ',') return false;
+    }
+    return n > 0;
+}
+struct sh_placement {
+    bool on = false;
+    cpu_set_t main_set, helper_set, rest_set;
+    bool has_helper = false, has_rest = false;
+    std::atomic<pid_t> main_tid{0}, helper_tid{0};
+    uint64_t sweeps = 0, moved = 0;
+};
+static sh_placement &sh_place() {
+    static sh_placement *p = [] {
+        auto *q = new sh_placement();                 /* leaked: threads read it until exit */
+        const char *m = getenv("SHIELDED_CPU_MAIN");
+        if (m && *m) {
+            if (!sh_parse_cpus(m, &q->main_set)) {
+                fprintf(stderr, "[shielded] SHIELDED_CPU_MAIN=\"%s\" is not a cpu list; placement off\n", m);
+                return q;
+            }
+            q->has_helper = sh_parse_cpus(getenv("SHIELDED_CPU_HELPER"), &q->helper_set);
+            q->has_rest = sh_parse_cpus(getenv("SHIELDED_CPU_REST"), &q->rest_set);
+            /* helpers started from here on begin on the rest mask rather than
+             * inheriting a pinned creator's one core */
+            if (q->has_rest) sh_thread_spawn_cpus(&q->rest_set, sizeof q->rest_set);
+            q->on = true;
+        }
+        return q;
+    }();
+    return *p;
+}
+static void sh_place_set(pid_t tid, const cpu_set_t *want, uint64_t *moved) {
+    cpu_set_t cur; CPU_ZERO(&cur);
+    if (sched_getaffinity(tid, sizeof cur, &cur) == 0 && CPU_EQUAL(&cur, want)) return;
+    if (sched_setaffinity(tid, sizeof *want, want) == 0 && moved) (*moved)++;
+}
+/* Called from the helper itself when it starts. */
+static void sh_place_helper_self() {
+    sh_placement &p = sh_place();
+    if (!p.on) return;
+    const pid_t tid = (pid_t)syscall(SYS_gettid);
+    p.helper_tid.store(tid);
+    if (p.has_helper) sh_place_set(tid, &p.helper_set, nullptr);
+}
+/* Called by card 0's compute thread, under its state mutex, every 256 graphs. */
+static void sh_place_sweep() {
+    sh_placement &p = sh_place();
+    if (!p.on) return;
+    const pid_t self = (pid_t)syscall(SYS_gettid);
+    if (p.main_tid.load() != self) { p.main_tid.store(self); }
+    sh_place_set(self, &p.main_set, &p.moved);
+    if (!p.has_rest) return;
+    const pid_t helper = p.helper_tid.load();
+    DIR *d = opendir("/proc/self/task");
+    if (!d) return;
+    while (struct dirent *e = readdir(d)) {
+        if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
+        const pid_t tid = (pid_t)atoi(e->d_name);
+        if (tid == self || tid == helper) continue;
+        sh_place_set(tid, &p.rest_set, &p.moved);
+    }
+    closedir(d);
+    p.sweeps++;
+}
+
+static void sh_place_report() {
+    sh_placement &p = sh_place();
+    if (!p.on) return;
+    const pid_t main_tid = p.main_tid.load(), helper_tid = p.helper_tid.load();
+    cpu_set_t a, b; CPU_ZERO(&a); CPU_ZERO(&b);
+    const int ma = main_tid ? sched_getaffinity(main_tid, sizeof a, &a) : -1;
+    const int mb = helper_tid ? sched_getaffinity(helper_tid, sizeof b, &b) : -1;
+    /* Stragglers: any OTHER thread whose mask touches a reserved core (main's
+     * or helper's). Nonzero means some thread escaped the rest mask. */
+    int threads = 0, stragglers = 0;
+    if (DIR *d = opendir("/proc/self/task")) {
+        while (struct dirent *e = readdir(d)) {
+            if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
+            const pid_t tid = (pid_t)atoi(e->d_name);
+            threads++;
+            if (tid == main_tid || tid == helper_tid) continue;
+            cpu_set_t c; CPU_ZERO(&c);
+            if (sched_getaffinity(tid, sizeof c, &c) != 0) continue;
+            cpu_set_t x; CPU_AND(&x, &c, &p.main_set);
+            bool hit = CPU_COUNT(&x) > 0;
+            if (p.has_helper) { CPU_AND(&x, &c, &p.helper_set); hit = hit || CPU_COUNT(&x) > 0; }
+            if (hit) stragglers++;
+        }
+        closedir(d);
+    }
+    fprintf(stderr, "[shielded] placement: main tid=%d cpus=%d helper tid=%d cpus=%d rest=%s sweeps=%llu moved=%llu threads=%d stragglers=%d\n",
+            (int)main_tid, ma == 0 ? CPU_COUNT(&a) : -1, (int)helper_tid, mb == 0 ? CPU_COUNT(&b) : -1,
+            p.has_rest ? "yes" : "no", (unsigned long long)p.sweeps, (unsigned long long)p.moved, threads, stragglers);
+}
+
 static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
     std::lock_guard<std::mutex> lk(s.mu);
+    if (s.card_index == 0 && (s.graph_calls & 255) == 0) sh_place_sweep();
     if (sh_card_integrity_failed(s) || s.weight_cache_failed || s.source_verification_failed) return GGML_STATUS_FAILED;
     const double tg0 = sh_now_ms();
     s.graph_calls++;
@@ -2516,7 +2674,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         sh_link_profile lp{}; sh_link_profile_snapshot(s.link, &lp);
         sh_trace_push(s.card_index, sh_now_ms(), trace_m, s.graph_calls,
                       s.offloaded_nodes, s.exchanges, lp.idle_ms, s.t_link, s.t_graph,
-                      lp.mask_ms, lp.unmask_lhs_ms, lp.rhs_ms, lp.check_ms, lp.pads_ms, lp.wire_ms, lp.pre_ms);
+                      lp.mask_ms, lp.unmask_lhs_ms, lp.rhs_ms, lp.check_ms, lp.pads_ms, lp.wire_ms, lp.pre_ms,
+                      s.t_split_gemm, s.t_split_post, s.t_split_join, sh_split_helper_gemm(), sh_split_helper_post(),
+                      lp.mask_kernel_ms, lp.dealt_wait_ms,
+                      lp.mask_elems, lp.mask_slow_n, lp.mask_slow_ms);
     }
     /* Under SHIELDED_PROFILE, say the per-term totals periodically as well as
      * at the end: the engine inside a CVM never calls the stats entry point,

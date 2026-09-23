@@ -674,7 +674,7 @@ static void fv_prepare_parallel(sh_link *l, const int8_t *W, int64_t K, int64_t 
     for (int t = 0; t < nt; t++) {
         const int64_t j0 = N * t / nt, j1 = N * (t + 1) / nt;
         jobs[t] = (fv_job){ l->simd, W + j0 * K, K, j1 - j0, s + j0 * reps, reps, part + (size_t)t * K * reps };
-        if (pthread_create(&th[t], NULL, fv_job_main, &jobs[t]) == 0) made[t] = true; else fv_job_main(&jobs[t]);
+        if (sh_thread_create(&th[t], fv_job_main, &jobs[t]) == 0) made[t] = true; else fv_job_main(&jobs[t]);
     }
     for (int t = 0; t < nt; t++) if (made[t]) pthread_join(th[t], NULL);
     for (int64_t i = 0; i < K * reps; i++) {
@@ -1469,7 +1469,7 @@ static int start_pools(sh_link *l) {
         if (!l->threads) return SH_ERR_NOMEM;
         l->stop = false;
         int made = 0;
-        for (int i = 0; i < l->n_threads; i++) if (pthread_create(&l->threads[i], NULL, refill_main, l) == 0) made++; else break;
+        for (int i = 0; i < l->n_threads; i++) if (sh_thread_create(&l->threads[i], refill_main, l) == 0) made++; else break;
         l->n_threads = made;                       /* join exactly what was created */
         if (!made) { free(l->threads); l->threads = NULL; l->threads_running = false; return SH_OK; }
         l->threads_running = true;
@@ -1808,7 +1808,7 @@ int sh_link_start(sh_link *l) {
             const bool ahead = prefetch && nd->w_read && next < bytes;
             if (ahead) {   /* the next chunk's read starts before this exchange leaves */
                 pf.off = next; pf.part = bytes - next < CHUNK ? bytes - next : CHUNK; pf.buf = bufs[cur ^ 1]; pf.rc = 0;
-                started = pthread_create(&th, NULL, prefetch_main, &pf) == 0;
+                started = sh_thread_create(&th, prefetch_main, &pf) == 0;
                 if (!started) prefetch_main(&pf);   /* no thread: read it here, still correct */
             }
             uint8_t hdr[24];
@@ -2124,6 +2124,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
     l->profile.pre_ms += t0 - t_entry;
     if (l->dealt && l->threads_running) dealt_wait(l, g, m);
     const double tp_a = now_ms();
+    l->profile.dealt_wait_ms += tp_a - t0;
     const int took = l->threads_running ? take_pads(l, g, m, l->slots) : 0;
     l->profile.pads_ms += now_ms() - tp_a;
     /* A background rejection must reach the backend as an integrity error,
@@ -2165,12 +2166,19 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
     /* Splitting the activation into its three byte planes is a pure map over
      * K with no reduction, and it sits on the one thread a decode round is
      * serialized on. SHIELDED_FIELD_THREADS spreads it; width 1 is this loop. */
+    const double tk_a = now_ms();
     for (int32_t row = 0; row < m; row++) {
         sh_mask_range mr = { l->simd, x_field + (size_t)row * K, l->rp[row],
                              l->planes + (size_t)row * K,
                              l->planes + ((size_t)m + row) * K,
                              l->planes + ((size_t)2 * m + row) * K };
         sh_par_for(K, SH_PAR_MIN_MASK, sh_mask_range_fn, &mr);
+    }
+    {
+        const double dk = now_ms() - tk_a;
+        l->profile.mask_kernel_ms += dk;
+        l->profile.mask_elems += (uint64_t)m * (uint64_t)K;
+        if (dk > 0.020) { l->profile.mask_slow_n++; l->profile.mask_slow_ms += dk; }
     }
     const size_t hn = sh_pack_field_gemm(l->hdr, (uint32_t)n_nodes, (uint32_t)m, nodes);
     double t1 = now_ms(); l->profile.mask_ms += t1 - t0;
@@ -2464,7 +2472,7 @@ int sh_link_mint_shipment(sh_link *l, const uint8_t seed[32], const uint8_t seed
         char *started = (char *)calloc((size_t)nth, 1);
         if (!tasks || !th || !started) { free(tasks); free(th); free(started); sh_pads_writer_close(w); return SH_ERR_NOMEM; }
         for (int i = 0; i < nth; i++) { sh_mint_task t = { l, seed, index0, count, w, (size_t)i, (size_t)nth, SH_OK, assignment }; tasks[i] = t; }
-        for (int i = 0; i < nth; i++) started[i] = pthread_create(&th[i], NULL, sh_mint_worker, &tasks[i]) == 0;
+        for (int i = 0; i < nth; i++) started[i] = sh_thread_create(&th[i], sh_mint_worker, &tasks[i]) == 0;
         /* a share whose thread could not start is minted here, on the calling thread: every
          * group is covered exactly once either way, so the shipment is complete or the error is real */
         for (int i = 0; i < nth; i++) if (!started[i]) sh_mint_worker(&tasks[i]);

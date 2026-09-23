@@ -3917,3 +3917,93 @@ does not cover, and the group/cache bookkeeping.
 The instrumentation to find it is in place and costs nothing on the measured
 path (records buffered, written at exit). Finishing the attribution is a matter
 of placing three or four more timers, not of another estimate.
+
+### 18.31 The untimed 42% found; four levers measured, none of them pays
+
+**Where 18.30's untimed 6.68 ms/token went.** Inside `sh_link_gemm_stride`
+the named phases account for 97.6% of its time. The untimed remainder is
+OUTSIDE it: the split's card-0 post and the join (card 0 waiting for the
+helper), which the link profile never saw. Timed on both sides now
+(`sgemm/spost/sjoin` on card 0, `hgemm/hpost` and dispatch-to-start on the
+helper). Helper start delay is 0.8-2.0 us per exchange: the handoff is not the
+cost. The join is.
+
+**The split rebalance does not pay, again, for the reason 18.9 gave.** In three
+traced runs card 1's gemm was 6-17% slower than card 0's, all the same sign, so
+`SHIELDED_SPLIT_WEIGHTS` looked worth a second try.
+
+- 53/47 is INVALID, not slow. Card 0 holds 13.89 GB of a 14.73 GB cap at an
+  equal split, 6% headroom, and 53/47 needs slightly more. 258 slice refusals,
+  `local=210`, and the layer it lost was blk.64 -- the MTP head -- so spec fell
+  to 1.9 tok/s. Verification stayed clean (verify_fail=0, identical text); the
+  failure was placement, and it was loud in the log. It was NOT loud in the
+  run's `.meta`, which counted only two refusal phrases (`refusalA=0
+  refusalB=0`). The harness now counts every refusal form, local fallback,
+  offloaded=0 and the CPU-only pool, and prints `VALID=NO` for any of them;
+  `pairs.py` rejects the same set from the `.err` itself.
+- 52/48 fits (local=0, no refusals). Two clean pairs survived (a peer's job
+  intruded in pairs 3-4): -0.95 and +0.75 tok/s. Mixed signs, no effect.
+- Why: within the EQUAL arm alone the card0/card1 gemm ratio ran 1.00-1.15 and
+  the join 443-804 ms. The imbalance changes run to run with the config
+  unchanged, so it is scheduling, and a static column share cannot follow it.
+
+**The worker's yield-to-owner detector is not a lever.** On a quiet box it
+fired 0-1 times per run, and `SHIELDED_YIELD=0` was not faster.
+
+**The mask kernel is 4x slower in the run than alone.** Decode-only, card 0:
+9.0 us per exchange at 8435 elements, 1.07 ns/element. The same function in
+isolation (production codegen is identical to the microbench's) is 0.26
+ns/element. Measured contributions: a busy SMT sibling 1.75x, the all-core
+clock (3.6 vs 4.1 GHz) ~1.14x, pads cold from DRAM 1.2x. Slow calls (>20 us)
+are few (75 of 16447 in plain decode), so it is uniformly slow, not a tail.
+About 2x is unexplained. Its whole cost is ~2.3 ms/token plain and ~3.6
+ms/round spec, so a perfect fix is worth ~2 ms/round: real, not the 25.
+
+**A Freivalds failure I cannot explain.** One run of the phase-trace set
+(`sterms-1`, pilot OFF) stopped with `blk.27.attn_q.weight: verification
+FAILED` on card 0 during spec prefill and exited rc=2. It failed closed, as
+designed. No CUDA error, no ring error, not reproducible in the next runs, and
+not a deterministic field wrap (the same prompt passed before and after). The
+two earlier failures this campaign were the overlap pilot corrupting its own
+input, which Freivalds caught; this one had no pilot. It is open, and it is the
+reason every run is checked for `verify_fail` and rc before its number counts.
+
+**What the verify round is made of now** (decode-only, one traced run, 71.8
+ms/round): link 44.7 (GPU/ring wait 21.6, join 5.7-6.9, mask 3.6, unmask 3.0,
+post 3.1; the Freivalds rhs overlaps the wait), CPU ops + framework ~23.6.
+25 tok/s needs ~67.
+
+**Placing the two critical threads: faster verify rounds, no established
+throughput gain.** 18.9 retired blanket `taskset` (it starved ~17 threads) and
+predicted the join shrinks with MORE room for the critical threads, not less.
+So this pins only card 0's link thread (also OpenMP's master) and the split
+helper, each to its own core, and keeps every other thread off those cores and
+their SMT siblings (`SHIELDED_CPU_MAIN=0 SHIELDED_CPU_HELPER=1
+SHIELDED_CPU_REST=2-15,18-31`, opt-in, off by default, placement only).
+
+First build, 4 valid pairs: verify 72.8-75.9 vs 79.2-83.3 ms/round -- faster
+in every pair, and that is the term 25 needs -- but the draft doubled and spec
+prefill went 29 -> 48 s, and spec throughput came out mixed (+1.06 mean, 3 of
+4). The cause was mine: a thread inherits its creator's affinity, so every
+helper started by a pinned thread (pad mint workers, Freivalds prepare jobs,
+weight prefetch, bank, parwork) ran on that thread's one core. All six spawn
+sites now go through `sh_thread_create`, which starts a helper on the rest
+mask when placement is on and is `pthread_create` otherwise; the placement
+report counts stragglers (any other thread whose mask touches a reserved
+core), and it read 0 of 25 in every run.
+
+Second build, 3 valid pairs (a peer's rustc/wasm-tools build contaminated the
+third): +1.91, -1.51, +0.93 tok/s. Mixed signs, no effect. Spec prefill is 34
+s, still 4.6 s over unpinned; the draft is back (4.0-4.8 ms/round, one 7.0).
+With the spawn fix the verify rounds overlap: 72.4-77.6 pinned against
+72.6-85.9 unpinned. What placement visibly does is narrow the spread -- valid
+pinned runs 20.69-21.41 against 18.79-22.20 unpinned -- without moving the
+centre. The unpinned arm's best run (22.20) is the highest of the set, so the
+fast case is reachable without placement too; what makes a run fast is still
+not identified.
+
+Harness: every run is now judged by one validator (`validate.py`, scratchpad)
+that requires `.json`, `.err` and `.meta` and every field it reads, so an
+unknown observer, correctness or contamination state is a reject. The
+previous `pairs.py` accepted a copied clean run with NO `.meta` (reproduced);
+it now delegates to the validator, and the runner prints VALID only from it.
