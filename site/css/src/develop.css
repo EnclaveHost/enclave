@@ -41,7 +41,7 @@ table.params.cmds td{overflow-wrap:break-word;}
 .docs-nav a .n{color:var(--text-dim);font-size:.66rem;flex:none;width:1.6em;}
 /* ---------- develop sub-tabs ---------- */
 [id]{scroll-margin-top:78px;}                     /* anchor jumps clear the sticky header */
-#docs,#cli,#api{scroll-margin-top:132px;}         /* pane jumps also keep the sub-tab bar in view */
+#docs,#cli,#mcp,#api,#architecture{scroll-margin-top:132px;} /* pane jumps also keep the sub-tab bar in view */
 .dev-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-top:26px;}
 .dev-tabs a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;
   font-family:var(--font-mono);font-size:.92rem;color:var(--text-muted);padding:10px 20px;
@@ -50,7 +50,7 @@ table.params.cmds td{overflow-wrap:break-word;}
 .dev-tabs a:hover{color:var(--text);background:var(--surface);}
 /* underline: the active tab reads without color (WCAG 1.4.1) */
 .dev-tabs a.on{color:var(--jade);border-color:var(--line);background:var(--bg-1);text-decoration:underline;text-underline-offset:5px;}
-/* ≤640px the four tabs split the row evenly (segmented, like the header's
+/* ≤640px the five tabs split the row evenly (segmented, like the header's
    mobile tab row) instead of overflowing the wrap */
 @media (max-width:640px){
   .dev-tabs{gap:2px;}

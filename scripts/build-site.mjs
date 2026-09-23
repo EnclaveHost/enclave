@@ -228,7 +228,7 @@ const LASTMOD = (() => {
 fs.writeFileSync(path.join(DIST, "sitemap.xml"),
   '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-  ["", "apps/", "apps/publish", "develop", "architecture", "host", "terms", "privacy"]
+  ["", "apps/", "apps/publish", "develop", "host", "terms", "privacy"]
     .map(u => `  <url><loc>https://enclave.host/${u}</loc><lastmod>${LASTMOD}</lastmod></url>`).join("\n") +
   "\n</urlset>\n");
 // Google's favicon crawler needs a fetchable file, and legacy fetchers ask
