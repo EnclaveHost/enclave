@@ -205,14 +205,24 @@ void sh_par_for(int64_t n, int64_t min_chunk, sh_par_fn fn, void *ctx) {
 
 /* Spawn mask: written once by the backend before the threads it governs are
  * started (and again only if the placement changes), read at each create. */
+/* glibc only: Android's bionic has no pthread_attr_setaffinity_np (the pVM
+ * engine and anchor build this file), and there the placement it serves does
+ * not exist, so off glibc this is exactly pthread_create. */
+#if defined(__GLIBC__)
 static cpu_set_t g_spawn_set;
 static _Atomic int g_spawn_on = 0;
+#endif
 void sh_thread_spawn_cpus(const void *set, size_t size) {
+#if defined(__GLIBC__)
     if (!set || size != sizeof(cpu_set_t)) { atomic_store(&g_spawn_on, 0); return; }
     memcpy(&g_spawn_set, set, sizeof g_spawn_set);
     atomic_store(&g_spawn_on, 1);
+#else
+    (void)set; (void)size;
+#endif
 }
 int sh_thread_create(pthread_t *th, void *(*fn)(void *), void *arg) {
+#if defined(__GLIBC__)
     if (atomic_load(&g_spawn_on)) {
         pthread_attr_t a;
         if (pthread_attr_init(&a) == 0) {
@@ -222,5 +232,6 @@ int sh_thread_create(pthread_t *th, void *(*fn)(void *), void *arg) {
             if (rc == 0) return 0;
         }
     }
+#endif
     return pthread_create(th, NULL, fn, arg);
 }
