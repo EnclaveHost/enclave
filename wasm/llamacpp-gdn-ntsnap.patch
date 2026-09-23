@@ -65,7 +65,7 @@
 
      for (int64_t ir = ir0; ir < ir1; ++ir) {
          const int64_t iv1 = ir % H; // head_index
-@@ -11267,14 +11307,15 @@
+@@ -11267,13 +11307,14 @@
                      if (!inplace) {
                          float * curr_state_o = state_out_base + target_slot * state_size_per_snap +
                                           (iv3 * H + iv1) * S_v * S_v;
@@ -82,4 +82,3 @@
      }
 +    gdn_snapshot_fence(used_nt);
  }
-
