@@ -4226,3 +4226,36 @@ by a genuine field wrap is itself activation-dependent (it happens only when
 the product leaves the field), so the FACT of a rejection can carry that one
 bit. That is a property of the integer check's design, predates this work, and
 applies to any fail-closed check of this kind.
+
+### 18.36 Memory bandwidth: the box has little, the refill is not what takes it, and the recurrent kernel is at its floor
+
+**The box.** A plain AVX-512 read stream reaches 49 GB/s on one thread, 79 on
+eight, 107 on sixteen and **115 GB/s** on all 32. That is far below what this
+CPU's memory controllers support fully populated, which points at few DIMMs
+(the population is not readable without root). It makes bandwidth the budget
+every CPU-side term shares: the recurrent state, the pad refill's weight
+streams, the mask's pad reads.
+
+**The pad refill is not the thief.** Each refill pass streams its group's whole
+weight slice, so refill traffic scales as 1/unit: ~30 GB/s at the default unit
+of 16. Three rounds, arm order rotated, all nine runs valid:
+
+| refill unit | spec tok/s | vs 16 | pads missed |
+|---|---|---|---|
+| 16 (default) | 21.77 / 20.99 / 19.71 | | 0 |
+| 32 | 15.44 / 15.00 / 15.44 | slower in 3 of 3, mean -5.53 | 82-245 (0.9-1.7 s minted on path) |
+| 64 | 20.70 / 17.88 / 19.56 | slower in 3 of 3, mean -1.44 | 0 |
+
+A quarter of the refill traffic (unit 64, no misses) bought nothing, so the
+refill's share of the bandwidth is not what bounds the rest. 16 stays.
+
+**The recurrent kernel is at its floor.** `GATED_DELTA_NET` (34% of C, 18.13)
+already fuses its four per-token steps into one pass per state row. Its state
+is 128x128 fp32 per head, 48 heads, 3 MB per layer; every token reads and
+writes all of it, ~288 MB per token over 48 layers, which at the 79 GB/s eight
+threads reach is ~3.7 ms against the ~4.2 ms measured. The obvious further
+fusion -- running both verify tokens through a row while it is hot -- buys only
+L2 traffic, because the token loop already sits inside the per-head loop and a
+head's 64 KB state is still in L2 for the second token (~0.15 ms/round). Less
+state traffic would need a narrower state type, which is a precision change
+and out of bounds.
