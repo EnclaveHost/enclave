@@ -1,0 +1,140 @@
+# run	sampled_digit_comparisons	disagreements	max_digit_LSB	output_LSB_samples	max_output_LSB	rms_output_LSB	class
+cmp1/cm-02.log	23370	4	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+cmp1/cm-03.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+cmp1/cm-04.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+cmp1/cm-05.log	23370	2	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-01.log	34030	5	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-02.log	34030	2	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-03.log	31980	2	1	15990	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-04.log	34030	0	0	17015	0.000	0.000	no disagreement
+combo1/cb-05.log	33210	3	1	16605	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+combo1/cb-06.log	33620	3	1	16810	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+combo1/cb-07.log	32390	2	1	16195	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-08.log	31980	3	1	15990	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo1/cb-09.log	34030	2	1	17015	2.500	0.027	hi-digit 1 LSB (2.5 output LSB)
+combo1/cb-10.log	34850	3	1	17425	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+combo2/cc-01.log	34030	2	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo2/cc-02.log	34030	3	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo2/cc-03.log	31980	2	1	15990	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo2/cc-04.log	34030	5	1	17015	2.500	0.027	hi-digit 1 LSB (2.5 output LSB)
+combo2/cc-05.log	34030	2	1	17015	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+combo2/cc-06.log	34030	1	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+combo3/cw-01.log	31980	0	0	15990	0.000	0.000	no disagreement
+corrjoin/cj-1row.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+corrjoin/cj-spec.log	33620	1	1	16810	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+cpuval2/cv2-d2-1.log	23370	0	0	11685	0.000	0.000	no disagreement
+cpuval2/cv3-d2-1.log	23370	4	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+cpuval/cpuval-i8-1.log	23370	5	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+draft1/dr-01.log	23370	5	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+draft1/dr-02.log	34030	4	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+draft1/dr-03.log	33620	2	1	16810	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+draft1/dr-04.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+exbench1/dr-w1.log	34850	3	1	17425	0.010	0.000	lo-digit only (<=0.01 output LSB)
+exbench1/exb-1.log	410	0	0	205	0.000	0.000	no disagreement
+hp1/hp-01.log	23370	2	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+hp1/hp-02.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+hp1/hp-03.log	23370	0	0	11685	0.000	0.000	no disagreement
+hp1/hp-04.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/01.d4dde3c16db27a8b.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/02.4033d8df1420eeb6.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc6/03.793e10fbdba19ca7.tpu.log	10250	0	0	5125	0.000	0.000	no disagreement
+qc6/04.bb42842efec03b8f.tpu.log	2050	1	1	1025	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/05.08a663ebedf4a84a.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc6/06.695143fa1dcc0e3f.tpu.log	19680	2	1	9840	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/07.9991bd8980ea1938.tpu.log	8610	0	0	4305	0.000	0.000	no disagreement
+qc6/08.03b6604fd6784d44.tpu.log	19270	1	1	9635	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/09.f44a0ef9dd17db43.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc6/10.f949ab6c8313aa5a.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/11.ecbb6847c0b9d050.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/12.2f74c818af93ae6d.tpu.log	4510	0	0	2255	0.000	0.000	no disagreement
+qc6/13.625488ab85db0f77.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/14.3ed5a0029360f995.tpu.log	2870	1	1	1435	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/15.6c27f788b5d9064d.tpu.log	1640	0	0	820	0.000	0.000	no disagreement
+qc6/16.fdcb808066487853.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc6/17.ea42ec44c3cd6a20.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/18.2ef78dbb0ca3cc15.tpu.log	4510	1	1	2255	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/19.8b67ef6ab201cff1.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc6/20.ad1fbed6bd4cf1b8.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc6/21.24d35f3857eed33d.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc6/22.34b0eac6c32ef92a.tpu.log	19680	1	1	9840	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/23.b26dc57df52ea47c.tpu.log	19680	1	1	9840	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc6/24.fd32745bb5c6bbf8.tpu.log	2050	0	0	1025	0.000	0.000	no disagreement
+qc7/01.0277782c0fcf6be7.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc7/02.5c77565f8d992595.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc7/03.b297a72779c19976.tpu.log	10250	1	1	5125	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/04.91464680141670ed.tpu.log	2050	0	0	1025	0.000	0.000	no disagreement
+qc7/05.9a2d0cca868153f0.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc7/06.82c12fbb6bad0fd2.tpu.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/07.5ae4e88e9baff3c9.tpu.log	9020	0	0	4510	0.000	0.000	no disagreement
+qc7/08.d4bbd6da6e946daf.tpu.log	19680	2	1	9840	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/09.dcdaf8b6fecca76a.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc7/10.853b2ff0a7f6eb9d.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc7/11.4e756a3563dcb655.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc7/12.5cc4291d3566c1b7.tpu.log	4510	0	0	2255	0.000	0.000	no disagreement
+qc7/13.a7f3873815bcc326.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc7/14.78ecbcf9fdc86de6.tpu.log	2870	1	1	1435	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/15.a832692e36ff957e.tpu.log	1640	0	0	820	0.000	0.000	no disagreement
+qc7/16.d0e294624231c774.tpu.log	1230	0	0	615	0.000	0.000	no disagreement
+qc7/17.0405cf1dcbd5f048.tpu.log	410	1	1	205	0.010	0.001	lo-digit only (<=0.01 output LSB)
+qc7/18.23a43df435d935f2.tpu.log	4510	0	0	2255	0.000	0.000	no disagreement
+qc7/19.0ec6dc74e884d2c5.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc7/20.e5f960b8de800a10.tpu.log	820	0	0	410	0.000	0.000	no disagreement
+qc7/21.b9a8c93fba390176.tpu.log	410	0	0	205	0.000	0.000	no disagreement
+qc7/22.c907f41b2fb852ff.tpu.log	52070	3	1	26035	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/23.5561ade554bc3393.tpu.log	32800	4	1	16400	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qc7/24.1d8751f16347c063.tpu.log	2050	0	0	1025	0.000	0.000	no disagreement
+qw4-aborted-1/qw4-01.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-01.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-02.log	1230	0	0	615	0.000	0.000	no disagreement
+qw4/qw4b-03.log	10250	1	1	5125	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qw4/qw4b-04.log	2050	0	0	1025	0.000	0.000	no disagreement
+qw4/qw4b-05.log	1230	0	0	615	0.000	0.000	no disagreement
+qw4/qw4b-06.log	6560	0	0	3280	0.000	0.000	no disagreement
+qw4/qw4b-07.log	10250	2	1	5125	2.500	0.035	hi-digit 1 LSB (2.5 output LSB)
+qw4/qw4b-08.log	16810	2	1	8405	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qw4/qw4b-09.log	820	0	0	410	0.000	0.000	no disagreement
+qw4/qw4b-10.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-11.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-12.log	4510	0	0	2255	0.000	0.000	no disagreement
+qw4/qw4b-13.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-14.log	2870	1	1	1435	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qw4/qw4b-15.log	1640	1	1	820	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qw4/qw4b-16.log	1230	0	0	615	0.000	0.000	no disagreement
+qw4/qw4b-17.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-18.log	4510	2	1	2255	2.500	0.053	hi-digit 1 LSB (2.5 output LSB)
+qw4/qw4b-19.log	820	0	0	410	0.000	0.000	no disagreement
+qw4/qw4b-20.log	820	0	0	410	0.000	0.000	no disagreement
+qw4/qw4b-21.log	410	0	0	205	0.000	0.000	no disagreement
+qw4/qw4b-22.log	22140	4	1	11070	0.010	0.000	lo-digit only (<=0.01 output LSB)
+qw4/qw4b-23.log	7380	0	0	3690	0.000	0.000	no disagreement
+qw4/qw4b-24.log	2050	0	0	1025	0.000	0.000	no disagreement
+rowmajor/rm-1row.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+rowmajor/rm-spec.log	34030	1	1	17015	0.010	0.000	lo-digit only (<=0.01 output LSB)
+speccross/sx-01.log	31980	2	1	15990	0.010	0.000	lo-digit only (<=0.01 output LSB)
+speccross/sx-02.log	32800	2	1	16400	0.010	0.000	lo-digit only (<=0.01 output LSB)
+speccross/sx-03.log	33210	2	1	16605	2.500	0.019	hi-digit 1 LSB (2.5 output LSB)
+speccross/sx-04.log	34440	1	1	17220	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin1-incomplete/sp1-01.log	23370	0	0	11685	0.000	0.000	no disagreement
+spin2/sp2-01.log	23370	3	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin2/sp2-02.log	23370	1	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+spin2/sp2-03.log	23370	2	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+spin2/sp2-04.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin2/sp2-05.log	23370	3	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+spin2/sp2-06.log	23370	2	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin2/sp2-07.log	23370	1	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+spin2/sp2-08.log	23370	2	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin3/sp3-01.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+spin3/sp3-02.log	23370	3	1	11685	2.500	0.033	hi-digit 1 LSB (2.5 output LSB)
+spin3/sp3-03.log	23370	0	0	11685	0.000	0.000	no disagreement
+spin3/sp3-04.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+thread-sweep/t1.log	23370	3	1	11685	2.500	0.033	hi-digit 1 LSB (2.5 output LSB)
+thread-sweep/t2.log	23370	0	0	11685	0.000	0.000	no disagreement
+thread-sweep/t6.log	23370	2	1	11685	2.500	0.033	hi-digit 1 LSB (2.5 output LSB)
+w4/i8-a.log	23370	2	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+w4/i8-b.log	23370	1	1	11685	0.010	0.000	lo-digit only (<=0.01 output LSB)
+w4/i8-e.log	23370	3	1	11685	2.500	0.023	hi-digit 1 LSB (2.5 output LSB)
+w4/i8-f.log	23370	0	0	11685	0.000	0.000	no disagreement
+w4/w4-a.log	104960	104724	9959	52480	5229.170	366.176	EXCLUDED: stale int8 bundle under int4 graphs (w4/ATTRIBUTION.txt)
+w4/w4-b.log	104960	104693	10079	52480	6448.926	366.119	EXCLUDED: stale int8 bundle under int4 graphs (w4/ATTRIBUTION.txt)
+w4/w4-e.log	6560	0	0	3280	0.000	0.000	no disagreement
+w4/w4-f.log	6560	0	0	3280	0.000	0.000	no disagreement
