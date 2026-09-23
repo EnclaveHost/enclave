@@ -550,10 +550,17 @@ decision is concrete rather than open-ended.
 4. Confirm out-of-band access exists before the reboot. If the only way in is SSH, a kernel that does not
    bring up the network is an on-site visit.
 5. Announce, wait for every session to park work, and take the window.
-6. Boot the new entry **once**, non-default. First checks, in order: SSH answers; `uname -r`;
-   `nvidia-smi`; `grep -c PLANES /usr/include/linux/kvm.h` is irrelevant — instead confirm
-   `KVM_CAP_PLANES` is advertised by the running kernel via a two-line ioctl probe; then the M1 and M2
-   harnesses, which must still pass exactly as they do today.
+6. Boot the new entry **once**, non-default, then run **`m3b-verify.sh <workdir> <kernel-release>`**,
+   which is the whole post-boot sequence in one command so the window is spent on the boundary rather
+   than on assembling checks. It stops at the first stage that fails:
+   - **stage A, is this kernel safe to keep:** the intended `uname -r`, `nvidia-smi` (the other sessions'
+     CUDA work), a default route, DNS, `sshd` active, and whether QEMU is granted a plane. The plane gate
+     is checked against a real negative: on the kernel running today it answers `KVM plane 2 is not
+     supported`, so the gate can fail rather than merely being present. Any stage-A failure prints ROLL
+     BACK and attempts nothing else.
+   - **stage B, regression:** M1, M2 and M3a re-run unchanged. A kernel that enables planes but breaks
+     what already worked is not a step forward.
+   - **stage C, the boundary:** step 7 below, with the gates of section 7.
 7. Only then the new work, in this order, because each step is worth having on its own:
    a. **COCONUT's own configuration first**, unmodified: SVSM at VMPL0, their guest at VMPL2, with
       `kernel-irqchip=split` and `device-plane=2`. If this does not run, nothing of ours will, and the
@@ -563,11 +570,27 @@ decision is concrete rather than open-ended.
       under IGVM the firmware is what the digest covers, so our image arrives by disk and its own
       measurement moves to the SVSM's vTPM or to the monitor's statement.
    c. **A report at privilege level 2**, verified with `expectedVmpl: 2` and refused without it. That is
-      the first use of the verifier work already shipped, against real hardware evidence.
+      the first use of the verifier work already shipped, against real hardware evidence. The guest side
+      of this is now built and committed: the monitor asks the kernel which level it is on
+      (`privlevel_floor`) and prints it in `MON ready ... vmpl=N`, it writes `privlevel` on every report
+      request above 0, `client.mjs` prints `report_vmpl` beside the `expected_vmpl` it demanded, and
+      `test-m3.sh` takes `VMPL=N` and adds **check 3e**, which requires the guest's own kernel, the
+      report, and the client's demand to name the same level. Offline, against forged reports, the three
+      cases already behave: level 2 demanded and present passes the level test; level 2 present with the
+      default 0 demanded is refused; level 0 present with 2 demanded is refused.
    d. Only then **one plane per app** (at most three, section 1), which is the point at which app-vs-app
       isolation stops resting on the guest kernel. Steps a to c do not achieve that: they move the
       MONITOR/runtime split into hardware, which is worth having, and leave domains inside our plane
       separated as they are today.
+
+**Who can actually run this, which is a constraint and not a detail:** every session working on this
+box, including the one that built all of the above, runs **on warden-host itself**. A reboot therefore
+ends the agent that would verify the result and trigger the rollback. Stage A of `m3b-verify.sh` is
+written to be run by a person, or by an agent that reconnects afterwards, and the machine has
+`/dev/ipmi0` but **no `ipmitool` installed and no `console=` on the current cmdline**, so there is no
+out-of-band path for an agent to watch the boot or recover a kernel that does not bring up networking.
+This is what step 4 asks for, and it is not satisfied today. It does not block building or validating
+anything; it blocks an agent performing "reboot, verify, roll back" unattended.
 
 **Rollback:** reboot and pick the original GRUB entry; nothing was replaced. If the new kernel does not
 boot at all, GRUB's menu is the rollback, which is why step 3 must not touch the default entry. If the
@@ -593,6 +616,7 @@ Kept separate deliberately, because the difference is the whole value of the cla
 | a compromised domain (native code as the domain's uid) cannot reach another domain or the report authority | **measured in-guest with the `domprobe` adversary** (checks 10-10c) — but against the GUEST-KERNEL boundary, not VMPL |
 | a compromised domain cannot exhaust the guest's memory | **measured**: it is killed at its own cap and nothing else is affected (check 8c) |
 | a domain's port cannot be opened from inside the guest, only by the host | **measured** (the probe's vsock attempts; the monitor's host-CID gate) |
+| a report names the privilege level it came from, and a verifier pins it | **built and tested offline** against forged reports (levels 0 and 2, demanded and not); on hardware it has only ever seen VMPL0, where it is trivially true |
 | **app-vs-app isolation by hardware (VMPL)** | **NOT measured. Not simulated either.** The kernel that can do it is built but not booted (section 13) |
 | the SVSM launch measurement is reproducible | **measured, and it FAILS today** (section 12) |
 | VBS enclaves inside SNP | source-based only, and negative (DESIGN.md section 3, `windows/vbs/snp/README.md`) |
