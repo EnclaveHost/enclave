@@ -590,7 +590,8 @@ decision is concrete rather than open-ended.
       under IGVM the firmware is what the digest covers, so our image arrives by disk and its own
       measurement moves to the SVSM's vTPM or to the monitor's statement.
    c. **A report at privilege level 2**, verified with `expectedVmpl: 2` and refused without it, **plus a
-      refusal at level 0, which is the part that is actually evidence.** A report's VMPL field alone does
+      refusal at level 0, which is the part that is actually evidence and is now ENFORCED rather than
+      described** (see section 15). A report's VMPL field alone does
       not prove confinement: a guest at VMPL0 holds every VMPCK, so it can request a report naming a
       LOWER level than it has. Downward claims are cheap, and that is precisely the direction a plain
       VMPL0 guest would fake. What cannot be faked is being refused at level 0, because our secrets page
@@ -646,9 +647,54 @@ Kept separate deliberately, because the difference is the whole value of the cla
 | a compromised domain cannot exhaust the guest's memory | **measured**: it is killed at its own cap and nothing else is affected (check 8c) |
 | a domain's port cannot be opened from inside the guest, only by the host | **measured** (the probe's vsock attempts; the monitor's host-CID gate) |
 | a report names the privilege level it came from, and a verifier pins it | **built and tested offline** against forged reports (levels 0 and 2, demanded and not); on hardware it has only ever seen VMPL0, where it is trivially true |
+| a report naming a LOWER level proves the guest is confined | **FALSE, and no longer claimed anywhere.** A guest at VMPL0 holds every VMPCK and can request a report naming VMPL1-3 |
+| the guest was REFUSED a report at VMPL0 (the part that cannot be faked) | **enforced in three places offline**: the monitor fails closed before serving (16 mutants), `judge.mjs checkBoundary` rejects a document that cannot show it (10 cases), `boundary-gate.sh` demands exactly one coherent console record (26 fixtures). **Not yet observed on hardware:** the probe only does anything once the floor is above 0, which needs the boot |
+| that refusal is attested BY THE HARDWARE | **No, and it cannot be.** The PSP signs the level a request came from, not the absence of a capability. A verifier relies on measured monitor code truthfully reporting its own local refusal; the code is in the launch measurement and fails closed, which is what makes that reliance worth anything |
 | **app-vs-app isolation by hardware (VMPL)** | **NOT measured. Not simulated either.** The kernel that can do it is built but not booted (section 13) |
 | the SVSM launch measurement is reproducible | **measured, and it FAILS today** (section 12) |
 | VBS enclaves inside SNP | source-based only, and negative (DESIGN.md section 3, `windows/vbs/snp/README.md`) |
 
 The honest summary: every layer of the design **except the VMPL boundary itself** is now measured on real
 SEV-SNP hardware. The VMPL boundary is blocked on one reviewed reboot, and its prerequisites are built.
+
+## 15. The VMPL0-refusal gate: closing the gap between describing a property and enforcing it
+
+An audit found that the acceptance tests described this property and did not check it. `test-m3.sh` check
+3e required only that the guest log contain `vmpl=$VMPL` and that clients accept signed reports carrying
+that level; `m3b-verify.sh` C2 grepped the same string and C3 only required 3e to pass. **None of that
+distinguishes a confined guest from a VMPL0 guest claiming a lower level**, and the old grep would have
+passed a log that also read `vmpl0=GRANTED`.
+
+What changed, in the order the evidence travels:
+
+1. **The monitor fails closed.** `selfTest()` now runs BEFORE `serveReports` starts - it previously ran
+   after, so a domain could obtain a report before the monitor had established whether anything bounded it.
+   On an incoherent tuple it prints `MON BOUNDARY FAULT` and exits rather than serving. The decision lives
+   in a pure `boundaryFault()`, so all 16 bad cases are tested without hardware: `GRANTED` at any level, a
+   probe that never ran, an unreadable report or floor, the two numbers disagreeing, and the
+   floor-0-but-claiming-lower forgery. The monitor also only ever requests reports at its own floor, so the
+   measured code cannot mint a downward-claiming report even if a caller asks it to.
+2. **One canonical record.** The tuple is emitted exactly once as `MON boundary tier=... vmpl=...
+   vmpl_floor=... vmpl0=...`, and the level was removed from the `MON ready` line: two sources of the same
+   fact is one more than a checker can safely believe.
+3. **It reaches a verifier over attested TLS.** Serial text is not verifier-visible evidence - the console
+   belongs to the host, which could write those lines. The tuple now travels with the report to the domain's
+   front and into the attestation document, served over the TLS connection whose key is bound into
+   `report_data`. `judge.mjs checkBoundary` rejects a document that omits it, contradicts the signed VMPL
+   field, says `GRANTED`, says the probe never ran, or is malformed, duplicated or oversized - 10 cases in
+   `test/isolation-boundary-policy.test.mjs`. Absence is tolerated only when the caller demands VMPL0, where
+   no confinement is claimed, which is what keeps M2 documents valid.
+4. **The harness gate is shared and pinned.** `boundary-gate.sh` is the single implementation used by check
+   3e and by `m3b-verify.sh` C2. It demands exactly one record, rejects zero, duplicates (even identical
+   ones), repeated or missing fields and unexpected fields. `boundary-gate-fixtures.sh` runs 26 crafted
+   logs, most of which the old check would have accepted.
+5. **The prose was narrowed.** C2 now reads as the refusal gate rather than a level grep, C3 says what
+   reached the client, a new C3b fails if any guest reported a boundary fault, and the final verdict
+   separates what the IGVM measurement authenticates (COCONUT-SVSM at VMPL0) from what rests on measured
+   code reporting its own refusal.
+
+**The residual assumption, which cannot be engineered away:** the hardware does not attest "this guest
+cannot reach VMPL0". A verifier relies on measured monitor code truthfully performing and reporting its own
+local refusal. What makes that worth relying on is that the code is inside the launch measurement and fails
+closed - not that anyone verified the refusal from outside. DESIGN.md states this at the same length, and
+no document should describe a lower-level report, on its own, as proving confinement.

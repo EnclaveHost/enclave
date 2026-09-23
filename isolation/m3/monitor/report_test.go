@@ -828,3 +828,91 @@ func TestAFailedLaunchClosesItsListener(t *testing.T) {
 	}
 	again.Close()
 }
+
+// --- the boundary self-test: every bad case must fail closed -------------------------------------
+//
+// The property under test is the one the acceptance tests used NOT to enforce: a report naming a lower
+// privilege level does not show confinement, because a guest at VMPL0 holds every VMPCK and can request
+// one. Only a REFUSAL at level 0 bounds us from above. So the monitor must refuse to serve unless the
+// three facts form exactly one coherent tuple, and each way of being wrong is a separate mutant here.
+func TestTheBoundaryVerdictFailsClosedOnEveryIncoherentTuple(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		vmpl, floor int
+		probe       string
+		wantFault   bool
+	}{
+		// the only two shapes that may serve
+		{"confined at VMPL2, level 0 refused", 2, 2, "refused", false},
+		{"a plain SNP guest at VMPL0 claims nothing", 0, 0, "n/a", false},
+
+		// GRANTED is fatal however good the rest looks: we hold VMPL0
+		{"GRANTED while claiming VMPL2", 2, 2, "GRANTED", true},
+		{"GRANTED at VMPL0", 0, 0, "GRANTED", true},
+		{"GRANTED with otherwise perfect fields", 3, 3, "GRANTED", true},
+
+		// the probe did not run, so there is no evidence. Silence is not a pass
+		{"confined-looking but the probe never ran", 2, 2, "n/a", true},
+		{"probe result is empty", 2, 2, "", true},
+		{"probe result is unrecognised", 2, 2, "ok", true},
+		{"probe result is a near-miss", 2, 2, "Refused", true},
+
+		// the downward-claim forgery: floor says VMPL0, the report says otherwise
+		{"floor 0 but the report claims VMPL2", 2, 0, "n/a", true},
+		{"floor 0 but the report claims VMPL1", 1, 0, "refused", true},
+
+		// the two numbers disagree
+		{"report VMPL1 against floor 2", 1, 2, "refused", true},
+		{"report VMPL3 against floor 2", 3, 2, "refused", true},
+
+		// something could not be read at all
+		{"the kernel would not say the floor", 2, -1, "refused", true},
+		{"our own report was unreadable", -1, 2, "refused", true},
+		{"neither could be read", -1, -1, "refused", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			why := boundaryFault(c.vmpl, c.floor, c.probe)
+			if c.wantFault && why == "" {
+				t.Fatalf("vmpl=%d floor=%d probe=%q was accepted; it must fail closed", c.vmpl, c.floor, c.probe)
+			}
+			if !c.wantFault && why != "" {
+				t.Fatalf("vmpl=%d floor=%d probe=%q was refused: %s", c.vmpl, c.floor, c.probe, why)
+			}
+		})
+	}
+}
+
+// A guest at VMPL0 asking for a report that names VMPL2 is the exact forgery the old check would have
+// accepted: the serial log would have read vmpl=2 and every client would have been satisfied. Pin it.
+func TestAVmpl0GuestCannotPassByClaimingALowerLevel(t *testing.T) {
+	if boundaryFault(2, 0, "n/a") == "" {
+		t.Fatal("a VMPL0 guest presenting a VMPL2 report was accepted")
+	}
+	// and it does not help to also claim the probe refused, which a VMPL0 guest cannot honestly say
+	if boundaryFault(2, 0, "refused") == "" {
+		t.Fatal("a VMPL0 guest claiming both VMPL2 and a refusal was accepted")
+	}
+}
+
+// The tuple the monitor emits has to be the one a checker parses, so lock its shape down. A checker that
+// greps for "vmpl=2" alone would match vmpl=2 vmpl0=GRANTED, which is why the fields travel together.
+func TestTheEmittedTupleCarriesAllThreeFieldsTogether(t *testing.T) {
+	for _, c := range []struct{ snp bool }{{true}, {false}} {
+		m := &monitor{snp: c.snp}
+		if !c.snp {
+			m.selfTest()
+			for _, want := range []string{"tier=t0", "vmpl=n/a", "vmpl_floor=n/a", "vmpl0=n/a"} {
+				if !strings.Contains(m.boundary, want) {
+					t.Fatalf("T0 tuple %q is missing %q", m.boundary, want)
+				}
+			}
+		}
+	}
+	// the T1 shape, built the same way selfTest builds it
+	got := fmt.Sprintf("tier=t1 vmpl=%d vmpl_floor=%d vmpl0=%s", 2, 2, "refused")
+	for _, want := range []string{"tier=t1 ", " vmpl=2 ", " vmpl_floor=2 ", " vmpl0=refused"} {
+		if !strings.Contains(got+" ", want) {
+			t.Fatalf("T1 tuple %q is missing %q", got, want)
+		}
+	}
+}

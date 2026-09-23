@@ -25,10 +25,74 @@
 //   kds     false: never contact AMD KDS (the VCEK and the chain must then be supplied)
 //   expectedVmpl  the plane the report must come from, passed through to relay/snp-verify.mjs. Default 0.
 //                 A domain running beneath a VMPL0 monitor reports its own level, and every level shares
-//                 one launch measurement, so this field is what tells them apart
+//                 one launch measurement, so this field is what tells them apart.
+//
+//                 IT DOES NOT, ON ITS OWN, SHOW CONFINEMENT. A guest at VMPL0 holds every VMPCK, so it can
+//                 request a signed report naming a LOWER privilege level than it has; a report reading
+//                 VMPL2 is therefore consistent both with being confined beneath a VMPL0 monitor and with
+//                 being VMPL0 and saying otherwise. What distinguishes them is being REFUSED a report at
+//                 level 0, which a guest holding VMPCK0 cannot honestly claim. So whenever expectedVmpl is
+//                 above 0 this judge additionally REQUIRES the monitor's boundary tuple (doc.boundary) to
+//                 be coherent and to record that refusal, and rejects when it is absent, contradictory or
+//                 disagrees with the signed report. See checkBoundary.
 import { verifyQuote, parseSnpReport } from '../../relay/snp-verify.mjs';
 
 export const MODES = ['trusted', 'lab-unsigned', 't0-diagnostic'];
+
+// checkBoundary judges the monitor's boundary self-test, relayed in the attestation document over the
+// connection whose key is bound into the report. `reportVmpl` is the level the PSP signed, so the tuple is
+// also cross-checked against it: a relayed claim that disagrees with the signed field is a reject.
+//
+// Returns { ok, reasons }. The rules mirror boundaryFault in isolation/m3/monitor/main.go deliberately -
+// the monitor refuses to serve on a fault, and a verifier must not accept what the monitor would refuse.
+//
+// What this is worth: the monitor and the front that relays it are both inside the measured launch image,
+// and the monitor serves no report at all unless the tuple is coherent. What it is NOT: hardware proof.
+// The PSP does not attest "this guest cannot reach VMPL0"; a verifier relies on measured code truthfully
+// reporting its own local refusal, and that reliance is the residual assumption, not a checked fact.
+export function checkBoundary(boundary, expectedVmpl, reportVmpl) {
+  const reasons = [];
+  const want = expectedVmpl ?? 0;
+  if (boundary === undefined || boundary === null || boundary === '') {
+    if (want === 0) return { ok: true, reasons: ['no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed'] };
+    return { ok: false, reasons: [`REJECT: the document carries no boundary self-test, so nothing shows this guest cannot reach VMPL0; a report naming VMPL${want} alone is consistent with a VMPL0 guest claiming a lower level`] };
+  }
+  if (typeof boundary !== 'string' || boundary.length > 200) return { ok: false, reasons: ['REJECT: the boundary self-test is not a short string'] };
+  const f = {};
+  for (const part of boundary.trim().split(/\s+/)) {
+    const i = part.indexOf('=');
+    if (i <= 0) return { ok: false, reasons: [`REJECT: malformed boundary self-test ${JSON.stringify(boundary)}`] };
+    const k = part.slice(0, i);
+    if (k in f) return { ok: false, reasons: [`REJECT: the boundary self-test names ${k} more than once: ${JSON.stringify(boundary)}`] };
+    f[k] = part.slice(i + 1);
+  }
+  for (const k of ['tier', 'vmpl', 'vmpl_floor', 'vmpl0']) {
+    if (!(k in f)) return { ok: false, reasons: [`REJECT: the boundary self-test is missing ${k}: ${JSON.stringify(boundary)}`] };
+  }
+  if (f.vmpl0 === 'GRANTED') return { ok: false, reasons: [`REJECT: the monitor obtained a report at VMPL0 (vmpl0=GRANTED), so nothing more privileged is above it, whatever level its report names`] };
+  if (!['refused', 'n/a'].includes(f.vmpl0)) return { ok: false, reasons: [`REJECT: vmpl0=${JSON.stringify(f.vmpl0)} is not one of refused, GRANTED, n/a`] };
+  if (want === 0) {
+    if (f.vmpl0 !== 'n/a') reasons.push(`the monitor probed level 0 and recorded ${f.vmpl0}`);
+    if (f.tier === 't1' && !(f.vmpl === '0' && f.vmpl_floor === '0')) {
+      return { ok: false, reasons: [`REJECT: VMPL0 was expected but the self-test reads vmpl=${f.vmpl} vmpl_floor=${f.vmpl_floor}`] };
+    }
+    reasons.push('at VMPL0: no confinement above the guest is claimed, and none is checked');
+    return { ok: true, reasons };
+  }
+  if (f.tier !== 't1') return { ok: false, reasons: [`REJECT: confinement at VMPL${want} was demanded but the self-test says tier=${f.tier}`] };
+  if (f.vmpl !== String(want) || f.vmpl_floor !== String(want)) {
+    return { ok: false, reasons: [`REJECT: VMPL${want} was demanded but the self-test reads vmpl=${f.vmpl} vmpl_floor=${f.vmpl_floor}; both must equal ${want}`] };
+  }
+  if (reportVmpl !== undefined && String(reportVmpl) !== f.vmpl) {
+    return { ok: false, reasons: [`REJECT: the SIGNED report says VMPL${reportVmpl} but the relayed self-test claims vmpl=${f.vmpl}`] };
+  }
+  if (f.vmpl0 !== 'refused') {
+    return { ok: false, reasons: [`REJECT: a report at VMPL0 must have been REFUSED to show this guest is confined, but the probe recorded vmpl0=${f.vmpl0}`] };
+  }
+  reasons.push(`the monitor was REFUSED a report at VMPL0 and runs at VMPL${want} (vmpl=${f.vmpl} vmpl_floor=${f.vmpl_floor} vmpl0=refused), which is what distinguishes being confined from a VMPL0 guest naming a lower level`);
+  reasons.push('that refusal is the measured monitor\'s own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkBoundary)');
+  return { ok: true, reasons };
+}
 const OPENS = { trusted: ['attested'], 'lab-unsigned': ['attested', 'no-tcb-policy', 'unauthenticated'], 't0-diagnostic': ['not-attested'] };
 
 // the certificate table configfs-tsm returns, holding one VCEK: {guid, offset, length}, zero-terminated
@@ -73,6 +137,15 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
     return out('reject', reasons, extra);
   }
   reasons.push('report_data[32:64] names the expected app');
+  // The boundary self-test is judged BEFORE the chain verdict, deliberately. An incoherent tuple - vmpl0
+  // GRANTED, a probe that never ran, a claim that disagrees with the signed level - is a security fault
+  // and must be a REJECT in every mode, including the lab-unsigned diagnostic. It sat after the
+  // `unauthenticated` return at first, which meant lab-unsigned never reached it and accepted every bad
+  // tuple; that was found by replaying a real report from hardware, not by the unit tests.
+  const b = checkBoundary(doc.boundary, expectedVmpl, p.vmpl);
+  extra.boundary = doc.boundary ?? null;
+  reasons.push(...b.reasons);
+  if (!b.ok) return out('reject', reasons, extra);
   if (v.vcekVerified !== true) {
     reasons.push('UNAUTHENTICATED: the AMD signature chain did not verify, so every field above is unauthenticated '
       + '(a host could have written them); lab diagnostic only, not attestation');

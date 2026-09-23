@@ -18,9 +18,11 @@
 //   --vcek           a VCEK the caller already holds; judged exactly like one in the report's certificate table
 //   --amd-chain      AMD's cert_chain for a product line, held locally; refused unless its ARK is the pinned root
 //   --no-kds         never contact AMD KDS (which answers 429 after a couple of requests)
-//   --vmpl N         the privilege level the report must come from (default 0). A domain beneath a
-//                    monitor at VMPL0 reports its own level, and the launch measurement is the same at
-//                    every level, so this is the only thing that distinguishes them
+//   --vmpl N         the privilege level the report must come from (default 0). A domain beneath a monitor
+//                    at VMPL0 reports its own level, and the launch measurement is the same at every level.
+//                    Above 0 this ALSO requires the monitor's boundary self-test in the document to record
+//                    that a report at VMPL0 was refused: a guest at VMPL0 holds every VMPCK and can request
+//                    a report naming a lower level, so the level alone never shows confinement
 //
 // Prints `RESULT k=v` lines for the harness, `evidence:` lines for people, and one VERDICT line.
 // Exit status: 0 served, 3 gate closed (no application traffic), 4 application traffic aborted on a key
@@ -141,6 +143,10 @@ for (const s of j1.reasons) console.log(`evidence: ${s}`);
 if (j1.measurement) { out('measurement', j1.measurement); out('report_data', j1.reportData); }
 out('expected_vmpl', want.expectedVmpl ?? 0);
 if (j1.vmpl !== undefined) out('report_vmpl', j1.vmpl);
+// The monitor's boundary self-test, as it arrived over THIS attested connection rather than on the host's
+// serial console. A report naming a lower level proves nothing on its own; the refusal at level 0 is the
+// part that distinguishes confinement, and judge.mjs rejects a document that cannot show it.
+if (j1.boundary !== undefined) out('boundary', JSON.stringify(j1.boundary));
 if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');

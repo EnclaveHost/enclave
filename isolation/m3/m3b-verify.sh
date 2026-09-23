@@ -84,12 +84,21 @@ if (cd "$here" && QEMU="$QEMU" IGVM="$IGVM" PLANE="$PLANE" VMPL="$PLANE" ./test-
      > "$W/c-m3b.log" 2>&1; then r=ok; else r=no; fi
 grep -aE '^(PASS|FAIL) 3e|^M3a:|^FAIL' "$W/c-m3b.log" | head -12 | sed 's/^/    /'
 gate "C1 the M3a suite passes with the guest on plane $PLANE under the SVSM" $r
-lvl=$(grep -aoE 'MON ready .* vmpl=[0-9]+' "$W/m3b/s1.serial" 2>/dev/null | head -1)
-echo "    the guest's own kernel says: ${lvl:-nothing (it did not boot far enough to say)}"
-echo "$lvl" | grep -q "vmpl=$PLANE" && r=ok || r=no
-gate "C2 the monitor runs at VMPL$PLANE, so something more privileged holds VMPL0" $r
+# C2 is the VMPL0-REFUSAL gate, not a grep for the level. A report naming VMPL$PLANE is equally consistent
+# with being confined beneath a VMPL0 monitor and with being VMPL0 and saying so, because a guest at VMPL0
+# holds every VMPCK and may request a report naming a lower level. Only a REFUSAL at level 0 separates them.
+if g=$("$here/boundary-gate.sh" "$W/m3b/s1.serial" "$PLANE" 2>&1); then r=ok; else r=no; fi
+echo "    $g"
+gate "C2 the monitor was REFUSED a report at VMPL0 while running at VMPL$PLANE, in exactly one coherent record: the only part of this that cannot be faked by a VMPL0 guest" $r
 grep -aq 'PASS 3e' "$W/c-m3b.log" && r=ok || r=no
-gate "C3 its reports carry level $PLANE and a client that demands that level accepts them" $r
+gate "C3 check 3e passed: the same tuple reached every trusted client inside the attestation document over the domain's attested TLS, and the signed report agreed with it" $r
+# The monitor refuses to serve any report at all on an incoherent tuple, so a FAULT line means it died
+# rather than served - which is the fail-closed behaviour, but it is not a pass.
+if grep -aq 'MON BOUNDARY FAULT' "$W/m3b"/*.serial 2>/dev/null; then
+  echo "    the monitor refused to serve:"; grep -ah 'MON BOUNDARY FAULT' "$W/m3b"/*.serial | head -3 | sed 's/^/      /'
+  r=no
+else r=ok; fi
+gate "C3b no guest reported a boundary fault (the monitor refuses to serve reports at all when its own tuple is incoherent)" $r
 grep -aq 'PASS 10 ' "$W/c-m3b.log" && grep -aq 'PASS 10c' "$W/c-m3b.log" && r=ok || r=no
 gate "C4 the compromised-domain adversary is still contained, now beneath the SVSM" $r
 
@@ -98,13 +107,28 @@ if [ "$fails" -eq 0 ]; then
   cat <<'EOF'
 ALL STAGES PASSED.
 
-What this establishes: a more privileged component (COCONUT-SVSM) holds VMPL0, our monitor and its
-domains run on a lower plane, the hardware reports say so, and a verifier that demands that level
-accepts the evidence while one that does not refuses it. M1, M2 and M3a still pass.
+What this establishes, stated as precisely as the evidence allows:
+  * the launch measurement is the IGVM's, which places COCONUT-SVSM at VMPL0. This is the part that is
+    hardware-authenticated, and it is what actually establishes who holds VMPL0 - a verifier holding the
+    expected IGVM digest learns that the measured SVSM is the occupant.
+  * our monitor and its domains run on a lower plane, the signed report says so, and a verifier that
+    demands that level accepts it while one that does not refuses it.
+  * the monitor was REFUSED a report at VMPL0, in exactly one coherent record, and it would have refused
+    to serve any report at all had that not held.
+  * M1, M2 and M3a still pass.
 
-What it does NOT establish, and must not be written up as if it did: app-vs-app isolation BY HARDWARE.
-Inside our plane, one domain is still separated from another by the guest kernel. Per-app hardware
-separation needs one plane per app, and vmpl_count=4 caps that at three domains per guest.
+What it does NOT establish, and must not be written up as if it did:
+  * A REPORT NAMING A LOWER LEVEL IS NOT PROOF OF CONFINEMENT. A guest at VMPL0 holds every VMPCK and can
+    request a signed report naming VMPL1-3. The level field alone therefore never distinguishes "confined
+    beneath a VMPL0 monitor" from "at VMPL0 and saying otherwise".
+  * The refusal that does distinguish them is NOT hardware-attested. The PSP does not attest "this guest
+    cannot reach VMPL0". A verifier relies on measured monitor code truthfully performing and reporting its
+    own local refusal - the code is covered by the measurement and fails closed, which is why the claim is
+    worth making, but the reliance is an assumption and not a checked fact. Say so wherever this is written
+    up; see isolation/m2/judge.mjs checkBoundary and isolation/DESIGN.md.
+  * APP-VS-APP ISOLATION BY HARDWARE. Inside our plane, one domain is still separated from another by the
+    guest kernel. Per-app hardware separation needs one plane per app, and vmpl_count=4 caps that at three
+    domains per guest.
 EOF
 else
   echo "$fails gate(s) failed. Investigate and write up what happened; do not weaken a check to make it"

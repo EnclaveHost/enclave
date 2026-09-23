@@ -208,6 +208,13 @@ echo "evidence: s1 domains: $(cat "$W/s1-AAAAA.load" "$W/s1-BBBBB.load" 2>/dev/n
 cmp -s "$W/mon.cpio.gz" "$W/mon2.cpio.gz" && r=ok || r=no
 check "0 build reproducible: two builds of the monitor image are byte-identical" $r
 
+# 0b the VMPL0-refusal gate's OWN failure modes, before trusting its verdict below. A gate nobody has
+# watched fail is not a gate, and the check this replaced (grep for "vmpl=$VMPL") would have passed most
+# of these logs, including one that also said vmpl0=GRANTED.
+if fx=$("$here/boundary-gate-fixtures.sh" "$W/bgate" 2>&1); then r=ok; else r=no; fi
+echo "evidence: $(printf '%s' "$fx" | tail -1)"
+check "0b the boundary gate rejects every crafted bad log: GRANTED, a probe that never ran, mismatched levels, the downward-claim shape, missing and repeated fields, and zero or duplicate records" $r
+
 mA=$(res "$W/s1-A.client" measurement); mB=$(res "$W/s1-B.client" measurement); m2m=$(res "$W/s2-B.client" measurement)
 echo "evidence: measurement seen by domain A $mA"
 echo "evidence: measurement seen by domain B $mB"
@@ -225,15 +232,38 @@ check "3 the MONITOR names each app: every domain's report carries the hash the 
 [ "$(verdict "$W/s1-A.client")" = attested ] && [ "$(verdict "$W/s1-B.client")" = attested ] \
   && [ "$(verdict "$W/s2-B.client")" = attested ] && r=ok || r=no
 check "3b both domains and the second launch are ATTESTED: AMD chain to the pinned root, VCEK names this chip and TCB, TCB meets the supplied floor, key+nonce bound" $r
-echo "evidence: level: the monitor's own kernel says '$(ser s1 | grep -aoE 'MON ready .*' | head -1)'"
+# 3e is the VMPL0-REFUSAL gate, and it is deliberately not "the log mentions vmpl=$VMPL". A signed report
+# naming VMPL$VMPL does not show confinement: a guest at VMPL0 holds every VMPCK and can request a report
+# naming a LOWER level, so that string matches a guest that is not confined at all. What distinguishes them
+# is being REFUSED a report at level 0. Three things therefore have to agree, and any one of them failing
+# fails the check:
+#   (i)   the guest's own console carries EXACTLY ONE coherent boundary record (boundary-gate.sh, whose own
+#         failure modes are pinned by boundary-gate-fixtures.sh);
+#   (ii)  every trusted client demanded level $VMPL and the SIGNED report carried it;
+#   (iii) the same tuple reached each client inside the attestation document, over the domain's attested
+#         TLS - not merely on the serial console, which belongs to the host.
 r=ok
-for c in s1-A s1-B s2-B; do
-  got=$(res "$W/$c.client" report_vmpl); want=$(res "$W/$c.client" expected_vmpl)
-  echo "evidence: level: $c saw report_vmpl=${got:-none} and demanded expected_vmpl=${want:-none}"
-  [ "$got" = "$VMPL" ] && [ "$want" = "$VMPL" ] || r=no
+for tag in s1 s2 s3; do
+  [ -f "$W/$tag.serial" ] || continue
+  if g=$("$here/boundary-gate.sh" "$W/$tag.serial" "$VMPL" 2>&1); then
+    echo "evidence: boundary($tag): $g"
+  else
+    echo "evidence: boundary($tag): REFUSED: $g"; r=no
+  fi
 done
-[ "$(ser s1 | grep -ac "MON ready .* vmpl=$VMPL")" -ge 1 ] || r=no
-check "3e every report comes from privilege level $VMPL: the level the guest's own kernel reports AND the level each client demanded" $r
+for c in s1-A s1-B s2-B; do
+  got=$(res "$W/$c.client" report_vmpl); wnt=$(res "$W/$c.client" expected_vmpl); b=$(res "$W/$c.client" boundary)
+  echo "evidence: boundary($c): signed report_vmpl=${got:-none}, demanded=${wnt:-none}, document tuple=${b:-none}"
+  [ "$got" = "$VMPL" ] && [ "$wnt" = "$VMPL" ] || r=no
+  # the document must carry the tuple, and it must agree with the level the signed report named
+  case "$b" in
+    *"vmpl=$VMPL"*"vmpl_floor=$VMPL"*) ;;
+    *) r=no ;;
+  esac
+  [ "$VMPL" = 0 ] || case "$b" in *vmpl0=refused*) ;; *) r=no ;; esac
+  case "$b" in *GRANTED*) r=no ;; esac
+done
+check "3e the VMPL0-REFUSAL gate at level $VMPL: exactly one coherent boundary record on the console, the same tuple delivered to every client over attested TLS, and the signed report agreeing - a lower-level report alone is NOT accepted as confinement" $r
 [ "$(verdict "$W/s1-A-as-B.client")" = reject ] && [ "$(res "$W/s1-A-as-B.client" app_requests_sent)" = 0 ] && r=ok || r=no
 check "3c a client expecting app B is REJECTED by the domain running app A, and sends it nothing" $r
 roots=$(ser s1 | grep -ac 'report_as_root=refused' || true)
