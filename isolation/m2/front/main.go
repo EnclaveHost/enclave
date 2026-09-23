@@ -57,6 +57,16 @@ type doc struct {
 	AppSha256    string `json:"appSha256"`
 	Nonce        string `json:"nonce"`
 	Reason       string `json:"reason,omitempty"`
+	// Boundary is the monitor's own boundary self-test, relayed here so it reaches a verifier over THIS
+	// connection - whose key is bound into the report above - rather than only on a serial console the
+	// host owns and could write. Shape: "tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused".
+	//
+	// What it is worth: the monitor and this front are both inside the measured launch image, and the
+	// monitor refuses to serve any report at all unless this tuple is coherent, so a verifier that has
+	// checked the measurement knows measured code produced it and would not have produced a report
+	// otherwise. What it is NOT: hardware proof. The PSP does not attest "this guest cannot reach VMPL0";
+	// a verifier relies on the measured monitor truthfully reporting its own local refusal.
+	Boundary string `json:"boundary,omitempty"`
 }
 
 type front struct {
@@ -145,11 +155,12 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	// The binding is the same in both shapes: sha256(this domain's TLS key SPKI || the verifier's nonce).
 	bind := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
 	var rep, certs []byte // err is already in scope from parsing the nonce
+	var boundary string
 	switch {
 	case f.monitor != "":
 		// M3: send the binding and nothing else. The app half of report_data is the monitor's to write,
 		// from the hash it took when it loaded this domain's app.
-		rep, certs, err = f.askMonitor(bind[:])
+		rep, certs, boundary, err = f.askMonitor(bind[:])
 		if err == errNoHardwareReport {
 			d.Reason = "T0 domain: the monitor has no hardware report interface on this tier"
 			err = nil
@@ -170,6 +181,7 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 		if len(certs) > 0 {
 			d.Certs = base64.StdEncoding.EncodeToString(certs)
 		}
+		d.Boundary = boundary
 	}
 	w.Header().Set("content-type", "application/json")
 	json.NewEncoder(w).Encode(d)
@@ -180,32 +192,32 @@ var errNoHardwareReport = errors.New("no hardware report on this tier")
 // askMonitor is the M3 path: one request, one answer, over the socket the monitor bind-mounted into
 // this domain. The monitor identifies the caller from the socket's kernel credentials, so there is
 // nothing in this request that could name a different domain or a different app.
-func (f *front) askMonitor(bind []byte) ([]byte, []byte, error) {
+func (f *front) askMonitor(bind []byte) ([]byte, []byte, string, error) {
 	c, err := net.DialTimeout("unix", f.monitor, 10*time.Second)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	defer c.Close()
 	c.SetDeadline(time.Now().Add(30 * time.Second))
 	if err := json.NewEncoder(c).Encode(map[string]string{"bind": hex.EncodeToString(bind)}); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
-	var resp struct{ Report, Certs, Error string }
+	var resp struct{ Report, Certs, Boundary, Error string }
 	if err := json.NewDecoder(c).Decode(&resp); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if resp.Error != "" {
 		if strings.Contains(resp.Error, "no hardware report") {
-			return nil, nil, errNoHardwareReport
+			return nil, nil, "", errNoHardwareReport
 		}
-		return nil, nil, errors.New(resp.Error)
+		return nil, nil, "", errors.New(resp.Error)
 	}
 	rep, err := base64.StdEncoding.DecodeString(resp.Report)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	certs, _ := base64.StdEncoding.DecodeString(resp.Certs)
-	return rep, certs, nil
+	return rep, certs, resp.Boundary, nil
 }
 
 // report asks the PSP, through configfs-tsm, for a report carrying rd, plus the certificate table the

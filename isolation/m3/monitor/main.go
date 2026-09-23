@@ -171,6 +171,7 @@ type monitor struct {
 	vmpl      int           // the level the PSP put in our own signed report: the level we can actually speak for
 	vmplFloor int           // the lowest level this kernel will let us ask for. Its own claim, see tsmLevel
 	vmpl0     string        // what happened when we asked for a report at level 0: refused, GRANTED, or n/a
+	boundary  string        // the canonical tuple above, emitted ONCE and handed to every domain
 	report    reporter      // the hardware path, or a stand-in under test
 	tsmMu     sync.Mutex    // one configfs entry at a time
 	reports   chan struct{} // global admission for report work
@@ -194,6 +195,11 @@ func main() {
 	must(os.MkdirAll(filepath.Dir(*sock), 0o755))
 	os.Remove(*sock)
 
+	// The boundary self-test runs BEFORE anything can be served. It used to run after serveReports had
+	// already started, which meant a domain could obtain a report before the monitor had established
+	// whether anything bounded it at all.
+	m.selfTest()
+
 	rl, err := net.Listen("unix", *sock)
 	must(err)
 	must(os.Chmod(*sock, 0o666)) // every domain uid may ask; who is asking comes from the kernel, not the request
@@ -201,36 +207,10 @@ func main() {
 
 	cl, err := vsock.Listen(uint32(*control))
 	must(err)
-	// Which privilege level are we, and can we prove it? Three different things get printed, because
-	// they are worth different amounts:
-	//   vmpl_floor  what this kernel SAYS (tsmLevel). Cheap, and not evidence: see tsmLevel.
-	//   vmpl        the level the PSP wrote into our own signed report. Signed, so a verifier can pin it.
-	//   vmpl0       whether we can obtain a report at level 0. A guest that CAN is at VMPL0 whatever else
-	//               it claims, so a refusal here is the part that actually bounds us from above.
-	if m.snp {
-		if lvl, err := m.tsmLevel(); err == nil {
-			m.vmplFloor = lvl
-		} else {
-			fmt.Printf("MON WARN could not read this guest's privilege level floor: %v\n", err)
-		}
-		m.vmpl0 = "n/a"
-		if rep, _, err := m.tsmReport(make([]byte, 64)); err == nil {
-			m.vmpl = reportVmpl(rep)
-		} else {
-			fmt.Printf("MON WARN could not read our own level from a report: %v\n", err)
-		}
-		if m.vmplFloor > 0 {
-			// The one probe that cannot be faked downwards: ask for level 0. Our secrets page has no
-			// VMPCK0 unless we ARE at VMPL0, so this must fail.
-			if _, _, err := m.tsmReportAt(0, make([]byte, 64)); err == nil {
-				m.vmpl0 = "GRANTED"
-			} else {
-				m.vmpl0 = "refused"
-			}
-		}
-	}
-	fmt.Printf("MON ready control_port=%d snp=%v vmpl=%d vmpl_floor=%d vmpl0=%s\n",
-		*control, m.snp, m.vmpl, m.vmplFloor, m.vmpl0)
+	// ONE canonical record of the tuple, emitted exactly once. It used to appear on the MON ready line
+	// too, and two sources of the same fact is one more than a checker can safely believe.
+	fmt.Printf("MON boundary %s\n", m.boundary)
+	fmt.Printf("MON ready control_port=%d snp=%v\n", *control, m.snp)
 	slots := make(chan struct{}, maxControlConns)
 	for {
 		c, err := cl.Accept()
@@ -912,6 +892,10 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	if len(certs) > 0 {
 		out["certs"] = base64.StdEncoding.EncodeToString(certs)
 	}
+	// The tuple travels WITH the report, so it can reach a verifier over the domain's attested TLS rather
+	// than only on a serial console the HOST owns and could have written. It remains the measured
+	// monitor's own word about its own probe; DESIGN.md states exactly what that is and is not worth.
+	out["boundary"] = m.boundary
 	enc.Encode(out)
 	return false
 }
@@ -1002,6 +986,92 @@ func (m *monitor) tsmReportAt(level int, rd []byte) ([]byte, []byte, error) {
 	}
 	certs, _ := os.ReadFile(dir + "/auxblob")
 	return rep, certs, nil
+}
+
+// selfTest establishes, once, which privilege level this guest is at and whether anything more privileged
+// is above it - and REFUSES TO RUN if the answer is incoherent. Three facts, worth three different amounts:
+//
+//	vmpl_floor  what this kernel says (tsmLevel). Cheap, and NOT evidence: a module parameter sets it.
+//	vmpl        the level the PSP wrote into our own signed report. Signed, so a verifier can pin it - but
+//	            a guest at VMPL0 holds every VMPCK and can request a report naming a LOWER level, so on its
+//	            own this shows nothing about confinement.
+//	vmpl0       whether we can obtain a report at level 0 AT ALL. Our secrets page holds no VMPCK0 unless
+//	            we really are at VMPL0, so a refusal here is the one part that cannot be faked downwards.
+//
+// Note what this monitor does NOT do: it only ever requests reports at its own floor (tsmReport passes
+// m.vmplFloor). The measured code therefore cannot mint a downward-claiming report even if asked to.
+func (m *monitor) selfTest() {
+	if !m.snp {
+		m.vmpl, m.vmplFloor, m.vmpl0 = -1, -1, "n/a"
+		m.boundary = "tier=t0 vmpl=n/a vmpl_floor=n/a vmpl0=n/a"
+		return
+	}
+	m.vmpl = -1
+	if lvl, err := m.tsmLevel(); err == nil {
+		m.vmplFloor = lvl
+	} else {
+		m.vmplFloor = -1
+		fmt.Printf("MON WARN could not read this guest's privilege level floor: %v\n", err)
+	}
+	if rep, _, err := m.tsmReport(make([]byte, 64)); err == nil {
+		m.vmpl = reportVmpl(rep)
+	} else {
+		fmt.Printf("MON WARN could not read our own level from a report: %v\n", err)
+	}
+	m.vmpl0 = "n/a"
+	if m.vmplFloor > 0 {
+		if _, _, err := m.tsmReportAt(0, make([]byte, 64)); err == nil {
+			m.vmpl0 = "GRANTED" // we hold VMPL0 while claiming to sit beneath something. Fatal.
+		} else {
+			m.vmpl0 = "refused"
+		}
+	}
+	m.boundary = fmt.Sprintf("tier=t1 vmpl=%d vmpl_floor=%d vmpl0=%s", m.vmpl, m.vmplFloor, m.vmpl0)
+	if why := boundaryFault(m.vmpl, m.vmplFloor, m.vmpl0); why != "" {
+		fmt.Printf("MON BOUNDARY FAULT %s: %s\n", m.boundary, why)
+		fmt.Printf("MON refusing to serve: no domain may get a report from a monitor that cannot say what bounds it\n")
+		os.Exit(1)
+	}
+}
+
+// boundaryFault returns "" when the three facts are coherent, and otherwise why they are not. Pure and
+// separate from the hardware, so every bad case is testable without any.
+//
+// The rules, and what each is for:
+//   - vmpl0 == "GRANTED" is always fatal: we can obtain a VMPL0 report, so nothing is above us, whatever
+//     level our own report claims.
+//   - floor > 0 demands vmpl == floor AND vmpl0 == "refused". A probe that did not run ("n/a") or a report
+//     we could not read (-1) is a FAILURE, not a pass: silence is never evidence.
+//   - floor == 0 demands vmpl == 0. A floor of 0 with a report claiming some lower privilege level is
+//     precisely the downward-claim forgery, so it is refused rather than reported.
+func boundaryFault(vmpl, floor int, probe string) string {
+	switch probe {
+	case "refused", "GRANTED", "n/a":
+	default:
+		return fmt.Sprintf("vmpl0=%q is not one of refused, GRANTED, n/a", probe)
+	}
+	if probe == "GRANTED" {
+		return "this guest CAN obtain a report at VMPL0, so nothing more privileged is above it"
+	}
+	if floor < 0 {
+		return "the kernel would not say which privilege level this guest is at"
+	}
+	if vmpl < 0 {
+		return "could not read our own privilege level out of a signed report"
+	}
+	if floor == 0 {
+		if vmpl != 0 {
+			return fmt.Sprintf("the floor is 0, so we are at VMPL0, but our report claims VMPL%d: a guest at VMPL0 can request a lower level, and that is a forgery rather than confinement", vmpl)
+		}
+		return ""
+	}
+	if vmpl != floor {
+		return fmt.Sprintf("our report says VMPL%d but the kernel's floor is %d; the two have to agree", vmpl, floor)
+	}
+	if probe != "refused" {
+		return fmt.Sprintf("the floor is %d, so a report at VMPL0 must have been REFUSED, but the probe result was %q", floor, probe)
+	}
+	return ""
 }
 
 // reportVmpl reads the VMPL field out of an SNP attestation report (table 22: 4 bytes little-endian at

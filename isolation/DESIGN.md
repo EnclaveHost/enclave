@@ -440,6 +440,45 @@ from a domain's. `verifyQuote({ expectedVmpl })` and `metal/verify.mjs --vmpl N`
 with `test/snp-vmpl-policy.test.mjs` covering the default, each explicit level, malformed expectations and
 the fact that the gate replaces none of the other checks. Production behaviour is unchanged.
 
+### What a VMPL number is worth, and what it is not
+
+Pinning the level is necessary and **is not sufficient**, and the difference is easy to write up wrongly.
+
+**A signed report naming VMPL2 does not show that the guest is confined.** A guest at VMPL0 holds every
+VMPCK, so it may request a report naming VMPL1, 2 or 3. The level field is therefore equally consistent
+with *confined beneath a monitor at VMPL0* and with *at VMPL0 and saying otherwise*. Downward claims are
+cheap, and that is precisely the direction an unconfined guest would lie in.
+
+Three facts get gathered, and they are worth three different amounts:
+
+| fact | where it comes from | what it is worth |
+|---|---|---|
+| `vmpl_floor` | configfs-tsm | **nothing.** `sev-guest` sets it from `vmpck_id`, a module parameter, so it is the guest's own command line talking |
+| `vmpl` | the VMPL field of our own signed report (offset 0x30) | signed, so a verifier can pin it — but see above: it can name a level below the one we hold |
+| `vmpl0` | asking for a report at level 0 and **being refused** | the only part that cannot be faked downwards: our secrets page holds no VMPCK0 unless we really are at VMPL0 |
+
+So the boundary claim rests on the refusal, and the enforcement is layered:
+
+1. The monitor runs the probe **before it serves anything**, and `os.Exit(1)`s on an incoherent tuple
+   (`boundaryFault`, 16 mutants in `monitor/report_test.go`). It also only ever requests reports at its own
+   floor, so the measured code cannot mint a downward-claiming report even if asked.
+2. The tuple travels to a verifier **inside the attestation document, over the domain's attested TLS**,
+   because a serial console belongs to the host and is not verifier-visible evidence. `judge.mjs`
+   `checkBoundary` rejects a document that is missing it, contradicts the signed report, says `GRANTED`,
+   or says the probe never ran — 10 cases in `test/isolation-boundary-policy.test.mjs`.
+3. The harness gate `boundary-gate.sh` demands **exactly one** coherent console record, with 26 fixtures in
+   `boundary-gate-fixtures.sh` covering `GRANTED`, `n/a`, mismatches, missing and repeated fields, and zero
+   or duplicate records. Most of those logs would have passed the earlier `grep vmpl=$VMPL`.
+
+**The residual assumption, stated plainly because it cannot be removed:** the hardware does not attest
+"this guest cannot reach VMPL0". The PSP signs the level a request came from, not the absence of a
+capability. A verifier therefore relies on **measured monitor code truthfully performing and reporting its
+own local refusal**. What makes that worth relying on is that the code is inside the launch measurement and
+fails closed — not that anyone checked the refusal from outside. Under an IGVM the launch measurement covers
+COCONUT-SVSM at VMPL0, and *that* is the hardware-authenticated part of "something more privileged is above
+us"; the refusal corroborates it and catches the case where the measurement allowlist is wrong. Never write
+the level field up, on its own, as proof of confinement.
+
 **M3a is built and measured (2026-09-23): `isolation/m3/`, `test-m3.sh` ALL PASS, 21 checks**, plus
 `go test ./monitor/` for the report path's bounds, detailed in
 `isolation/m3/PLAN.md` section 10. Two apps run as separate domains in one SNP guest; the launch
