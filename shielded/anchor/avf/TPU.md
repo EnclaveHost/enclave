@@ -2898,3 +2898,91 @@ deep-idle exit could be settled with a uclamp floor, which counters the first an
 0 included (EPERM). So the only fix available is to spin, which burns a whole core to recover about 6 %
 of a token -- the opposite of the goal's reason for using the TPU, and the VM-side spin in this file
 measured WORSE for exactly that reason. Closed.
+
+## Where a token's multiply-accumulates actually happen (2026-09-22)
+
+"35 of 35 blocks on the TPU" counts layers, not work. `tpu/mac_share.py` counts MACs per decoded row from
+the two files that decide them: the lane bundle (every projection the TPU is sent) and the GGUF (every
+other matmul, and the attention shapes). KV-shared blocks (the last 20) are excluded from K and V, because
+their `attn_k`/`attn_v` tensors are in the file but never multiplied.
+
+    projections in the model 1,835,532,288 MACs/row; on the TPU 1,835,532,288 (100.0 %)
+    by kind: qkv 146.3M, o 132.1M, gate+up 1038.1M, down 519.0M
+    left on the VM: lm_head 402.7M, per-layer embedding in 13.8M, per-block inp_gate+proj 27.5M
+
+| ctx | TPU | VM online | of which attention | TPU share online | VM pads | TPU share counting pads |
+|---|---|---|---|---|---|---|
+| 128 | 1835.5M | 466.0M | 22.0M | **79.8 %** | 1835.5M | **44.4 %** |
+| 512 | 1835.5M | 532.0M | 88.1M | 77.5 % | 1835.5M | 43.7 % |
+| 2048 | 1835.5M | 620.1M | 176.2M | 74.7 % | 1835.5M | 42.8 % |
+| 4096 | 1835.5M | 737.5M | 293.6M | 71.3 % | 1835.5M | 41.6 % |
+
+Two things this makes explicit that "35 of 35" hid.
+
+* **The biggest thing left on the VM is the lm_head**, 402.7M MACs, a fifth of the online work. It is
+  eligible: it is a plain matmul of the final hidden row. Moving it costs a 262,144-wide reply per token
+  (1 MB with the digit split), which at this link's measured exchange rate is 40 ms or more -- more than
+  the whole CPU token. It stays on the VM until the link is cheaper, and the share is quoted with it there.
+* **The pads cost the VM exactly what the TPU does.** A pad's correction is `W.r` for every projection:
+  the same 1835.5M integer MACs, per decoded row. They are minted before decode (the bank: 64 positions
+  in 2.0-2.8 s on six threads, about 190 core-ms per token-row) or inline when the bank runs dry. Counting
+  them, the TPU does 44 % of the arithmetic. That is the honest ceiling of "most compute on the TPU" for
+  any design where the trusted side computes its own pad corrections, and it holds whatever the link
+  does. Moving the pads off the phone means a trusted dealer (the dealt-pads design, which adds a party to
+  the trust boundary); structured pads (LWE/LPN) cut the VM's share but were measured to buy 1.1-1.2x
+  here (`shielded/lpn`), and they widen the reply.
+
+## The int4 lane: a stale bundle, then an exact one (2026-09-22)
+
+`make_graphs.py --wbits 4` builds the per-row int4 lane (a clip search per row, INT4 weight tensors packed
+low nibble first, the SAME integers kept as int8 in the bundle so the VM cancels with the TPU's matrix).
+`tpu/test/wbits_match.py` reads both files independently: 205 projections, 1,835,532,288 weights, 0
+integer and 0 scale mismatches. It compiles to 925 MB against int8's 1786.
+
+**The first two phone runs verified 104,724 and 104,693 of 104,960 samples WRONG** (max 9,959 LSB, 1,060
+false rails) and decoded 256 tokens of garbage. They were not int4's fault. `gwcheck` now runs any
+signature of a compiled layer (`GWCHECK_SIG`) over the full int8 input range (`GWCHECK_FULL=1`, which a
+digit-split `lo` row uses), and `gwcheck/gw_ref.py` recomputes every output from the authored integers:
+all four signatures of L0 and L20, int8 and int4, agree to 1 LSB. The bundle's and the graph's scales agree
+exactly. What differed was the VM's copy of the bundle: it reused its cached file when the size and the
+first 8 bytes matched, and the int4 bundle has the int8 one's size and magic. The VM cancelled with int8
+while the TPU multiplied by int4. Those runs are kept, attributed, and excluded
+(`results/w4/ATTRIBUTION.txt`).
+
+Two defects, both fixed:
+
+* **Bundle identity.** The stream header carries the file's SHA-256; the VM answers "reuse" only after
+  re-hashing its stored copy end to end against it (`payload/anchor_public_file.h`), and hashes a new
+  stream as it arrives, refusing bytes that are not the announced digest. The digest is the untrusted
+  owner's statement of WHICH artifact -- identity, not authentication. `tpu/test/public-file-test.c`
+  drives the real receiver: other bytes of the same size and magic restream, altered or truncated streams
+  refuse and leave nothing, a copy altered in place is not reused, and a power loss at each step followed
+  by either next request never yields a reuse of other bytes. (A first version kept the digest in a
+  sidecar; an audit pointed out that its correctness then rested on crash ordering and on an unlink whose
+  failure was ignored. Re-hashing removes the dependency; it costs one read of the stored copy per run.)
+* **A verifier that counted.** Kernel verification now refuses the turn when a sample disagrees by more
+  than 1 digit LSB (the established requantiser rounding); it used to count and decode on.
+
+With the bundle bound, int4 on the phone (`results/w4`, `lane-run2.sh`, all four runs LANE-RUN OK):
+
+| lane | runs | tokens | tok/s | link ms/exchange | verify |
+|---|---|---|---|---|---|
+| int8 | i8-e, i8-f | 57, 57 (same text) | 1.13, 1.03 | 4.67, 5.16 | 3 and 0 of 23,370, max 1 |
+| int4 | w4-e, w4-f | 16, 16 (same text) | 1.21, 1.24 | 4.16, 3.95 | 0 and 0 of 6,560 |
+
+The TPU multiplies by exactly the integers the VM cancels with; the link is 0.5-1.2 ms per exchange
+shorter (about 70-170 ms per token), close to what halving the streamed weights predicted. The answer
+changes: on this prompt int4 writes the function without the docstring and without the closing fence.
+Whether 12.8x the int8 weight error keeps the task quality is the 24-prompt question
+(`tpu/lane-quality.sh` -> `results/qw4`, scored by `tpu/lane-score.py`, which reproduces qc7's 22/24 on
+both arms from the archived logs).
+
+### Tooling that failed open, and now does not
+
+* `tpu-run.sh` read results out of logcat, whose 256 KiB ring a warm, charging phone's thermal HAL floods
+  in minutes; a whole run's lines were lost. `lane-run2.sh` reads the app's own capture file and exits 0
+  only with checked adb calls, the capture's footer and marker, the app's digest of the prompt it RECEIVED
+  (apostrophes used to be mangled), the bundle the VM confirmed, every expected record, and a VM that did
+  not die first. 32 fake-device cases.
+* The worker's link poll was a process global set only for positive values, so it survived into a later
+  zero-spin run in the same process; it is per worker handle now and set on every open, zero included.
