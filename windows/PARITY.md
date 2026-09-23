@@ -316,6 +316,46 @@ the enclave runtime has no SET `thread.spawn` yet, so the deployed build's `pthr
 fails ("no display worker") exactly as a non-SET build's `worker()` returns false. It also drops
 the 22 GiB up-front shared-memory reservation that locked risc-box out of a long-lived enclave.
 
+## The terminal is slowest while you look at it: the page steals the loop
+
+Measured READ-ONLY on the live instance, 2026-09-22: `GET /status` and `GET /ping` one at a time, plus
+the node log. Nothing was typed into the console and nothing was restarted. Deployed artifact verified on
+disk: sha256 `05135d5a…` = the local build of enclave-apps `e966242`, so it carries the UART cadence
+(`d6d11b9`), time-sized turns (`b07bdb2`) and ordered keystrokes (`e966242`).
+
+| | measured |
+|---|---|
+| guest throughput, page closed (5 min sampler) | **0.658 MIPS retired**, 0.50-0.72 per 15 s; retired/dispatched 1.001 |
+| same, per-minute from this boot's log | page closed **0.661** (29 min) vs page open **0.367** (73 min) |
+| turns, page closed | <= 126 ms |
+| turns carrying a framebuffer scan (page open) | run phase p50 **659 ms**, p90 892, max 1179; ~50 slow turns a minute |
+| `GET /status` vs `GET /ping` | p50 **363 ms** vs **33 ms**: ~330 ms of loop time to build a status body |
+
+**Correction to the section above:** the time-sized turns did NOT cost raw throughput. 0.66 MIPS now vs
+~0.55 before. The heartbeat's `mips=0.4` is a since-boot average of the dispatched budget. It counts
+the 675 s restore and the long page-open stretches, so it understates the machine.
+
+Why an open page halves the guest and stalls every key (source, `enclave-apps/risc-box`):
+1. **Inline scans outran their own budget.** This build has no display worker (no SET), so a page
+   pulling `/fb.bands` makes the loop scan the framebuffer itself. `scan_interval_boosted` is meant to cap
+   scanning at 1/(1+4) of the thread, but it also clamped the gap to `FB_SCAN_MS` = 100 ms. That ceiling
+   is tuned for native scans of a few ms. Interpreted, a scan costs 258 ms+ (`capMs`), so the gap stayed
+   100 ms and scanning took most of the loop. The time-sized turns made the loop reach that check every
+   ~100 ms instead of once per 800 ms turn, which is why the "regression" appeared with them.
+2. **The page polls `/status` every 1.5 s, and a status body was O(RAM + framebuffer).** Building one
+   walked 348k 64 KiB slots of the 21 GiB guest, plus the root image. It also read and summed the full
+   2.3 MB scanout twice for `gpuDebug`, a field nothing outside the app reads. Its comment said "cheap
+   (sums 4 KiB)".
+
+Keystrokes wait behind both: a POST that lands during a scan or status turn waits for it to finish.
+Echo then needs guest instructions that are arriving at 55% speed.
+
+**Prepared in enclave-apps `4ba1f56` (NOT deployed; the after-numbers are still to be measured):**
+tests pass (emu 45, app 64). Each new guard was mutation-checked: reverting its fix fails its tests.
+- the scan gap is never shorter than `cost x 4`. This is identical for any scan under 25 ms, i.e. every
+  native host, and pinned by a test against the old formula.
+- `gpuDebug` is computed only for `/status?debug=1`; the key stays in the JSON as `null`.
+- `footprint` is O(1): counters kept where slots change, pinned to the walk by a 4000-step random test.
 
 ## VTL1 refuses executable pages: measured, not assumed
 
