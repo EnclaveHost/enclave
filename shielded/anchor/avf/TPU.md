@@ -2970,7 +2970,10 @@ With the bundle bound, int4 on the phone (`results/w4`, `lane-run2.sh`, all four
 | int8 | i8-e, i8-f | 57, 57 (same text) | 1.13, 1.03 | 4.67, 5.16 | 3 and 0 of 23,370, max 1 |
 | int4 | w4-e, w4-f | 16, 16 (same text) | 1.21, 1.24 | 4.16, 3.95 | 0 and 0 of 6,560 |
 
-The TPU multiplies by exactly the integers the VM cancels with; the link is 0.5-1.2 ms per exchange
+No sampled output disagreed: the kernel verification recomputes ONE element per projection per exchange (6,560 of
+the lane's outputs per run), so this is 0 disagreements in a sample, consistent with the TPU multiplying by the
+integers the VM cancels with (gwcheck's full-output check of L0 and L20 agrees to 1 LSB), not a proof that every
+output was exact. The link is 0.5-1.2 ms per exchange
 shorter (about 70-170 ms per token), close to what halving the streamed weights predicted. The answer
 changes: on this prompt int4 writes the function without the docstring and without the closing fence.
 Whether 12.8x the int8 weight error keeps the task quality is the 24-prompt question
@@ -2991,17 +2994,23 @@ both arms from the archived logs).
 
 `tpu/cpu-sampler.sh` + `tpu/cpu-window.py` measure the app's whole process tree (the app, its virtmgr, its
 `crosvm_anchorlocal`, bound by parentage and start time) over each turn's own decode window, on the clock the
-app stamps it with. The first figure (`results/cpuval`): **masked int8 decode keeps 5.1 cores busy -- 5,365
-core-ms per decoded token at 0.95 tok/s, 97 % of it inside the VM.** The CPU-only engine spends about 330
+app stamps it with. The first figure (`results/cpuval`): **masked int8 decode keeps at least 5.1 cores busy -- at
+least 5,365 core-ms per decoded token at 0.95 tok/s, 97 % of it inside the VM.** "At least": the analyser marked
+this window INCOMPLETE, because under that load the sampler's intervals at the window edges stretched to 1.0-1.4 s
+(its limit is 1.0 s), so the edges are interpolated over a wider interval than allowed (bound: +-5.4 core-s). The
+figure is a lower bound, not a complete total-CPU measurement, and every CPU number in this section carries the
+same qualification. The CPU-only engine spends about 330
 core-ms per token on the whole model. So the masked lane, with every block projection on the TPU, costs the
 phone about sixteen times more CPU per token than not using the TPU at all, and it is why the phone thermal-
 capped itself all day (the big cores' cap fell to 1.8-2.2 GHz during masked runs). The VM's pool of six threads
 waits for the link at ggml's default hybrid polling, spinning through most of every exchange.
 
 `results/spin2`, one prompt (57 tokens, identical text in every run), ABBA order, every run LANE-RUN OK,
-verification at most 3 disagreements of 1 LSB in 23,370 samples:
+sampled verification at most 3 disagreements, each of 1 digit LSB, in 23,370 sampled comparisons per run (not exact
+equality of every output). **Every CPU figure below is INCOMPLETE -- a lower bound**: in each run the samples around
+the window edges were 1.0-1.4 s apart, over the analyser's 1.0 s limit. No criterion was relaxed to call them complete.
 
-| condition | tok/s | link ms/exch | unmask | between exch | app cores | core-ms/token | prefill tok/s |
+| condition | tok/s | link ms/exch | unmask | between exch | app cores (>=) | core-ms/token (>=) | prefill tok/s |
 |---|---|---|---|---|---|---|---|
 | 6 threads (default) | 0.99, 0.99 | 5.32, 5.35 | 0.64 | 0.92 | 5.06, 5.12 | 5,099, 5,184 | 53, 52 |
 | **2 threads** | **1.16, 1.07** | 5.25, 5.46 | 0.26-0.31 | 0.50-0.73 | **2.20, 2.21** | **1,902, 2,075** | 22, 20 |
