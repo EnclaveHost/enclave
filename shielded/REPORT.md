@@ -4669,3 +4669,39 @@ equivalence at length.
 Also closed: the conv graph test's two deferred checks. The positive run passes
 the fail-closed checker (fused on == off, 71 steps, 142 rows, 141,045,760
 bytes), and a dump to /dev/full is rejected on its write check (rc=4).
+
+### 18.48 An alternative masked exchange, assessed before building: a shared pad across the cards
+
+**The design.** Today the column split masks the activation twice, once per
+card with independent pads (card 0 receives x + r0, card 1 x + r1), and each
+link draws its own pad and computes its own u = W_c r_c. The alternative masks
+once: one pad r per exchange, the SAME ciphertext x + r to both workers, each
+card unmasking with its own slice u_c = W_c r from a pad pool the two links share
+(one refill computes both slices from the same r).
+
+**Security argument.** The adversary is the host that operates both workers.
+Today it sees two ciphertexts of x under independent uniform pads; with a shared
+pad it sees one. Each pad still masks exactly one activation vector (the one-time
+property is per plaintext, and broadcasting one ciphertext is one use), so the
+host's view is a function of a single uniformly masked value and reveals nothing
+about x -- no weaker than today, and strictly fewer ciphertexts. Freivalds is
+per card with its own secret vectors and is unaffected; a card's wrong reply
+still fails its own check before use, and the verification-before-use order does
+not change. Pad freshness, the pool's one-use accounting and the fail-closed
+paths would all carry over, and would need the same tests as today.
+
+**Why it is not built.** It saves one mask pass per exchange (~5.5 ms/round of
+CPU) and half the pad draws, but not latency: today the two masks already run
+concurrently on the two card threads, while a shared mask must finish before
+EITHER card can publish, so the critical path keeps one full mask either way.
+Refill cost is unchanged (two slices per pad), and the refill is not the
+constraint anyway (18.36). A CPU-time saving with no latency effect does not
+move tok/s here.
+
+**Where the round goes, and the gap.** Verify at m=2 costs ~1.46x a plain m=1
+step on this box (~80 vs ~55 ms), so k=1 speculation at 1.778 tokens per round
+gives ~1.22x over plain. 25 tok/s from plain ~18 needs ~1.39x, i.e. a verify
+round near 71 ms. What grows with each verified row -- the CPU ops outside the
+link (~32 ms/round at m=2 against ~18 per plain token) and the per-row link work
+-- is the term to attack, and the candidates measured so far each recover a few
+percent of it at most.
