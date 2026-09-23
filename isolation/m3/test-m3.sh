@@ -22,6 +22,50 @@ W=${1:-$(mktemp -d)}; mkdir -p "$W"; W=$(cd "$W" && pwd)
 res() { tr -d '\r' < "$1" 2>/dev/null | grep -a "^RESULT $2=" | head -1 | sed "s/^RESULT $2=//"; }
 verdict() { tr -d '\r' < "$1" 2>/dev/null | grep -a '^VERDICT ' | head -1 | cut -d' ' -f2; }
 ser() { tr -d '\r' < "$W/$1.serial" 2>/dev/null; }
+
+# --- run context: what this workdir was produced with ------------------------------------------------
+# A saved workdir has to describe itself. RECHECK=1 used to re-score whatever it found using whatever
+# happened to be in the environment, so a bare `RECHECK=1 test-m3.sh <igvm-workdir>` silently fell back to
+# the non-IGVM prediction and VMPL0 while reading VMPL2 evidence, and reported checks 1 and 3e as failures
+# that were really missing context. Silence there is worse than refusing: it invents a verdict.
+#
+# A live run therefore records the launch context and the identity of every tool that decided a digest, and
+# RECHECK recovers it and VERIFIES it. Anything missing, altered or contradicted is a refusal, never a
+# quiet change of mode.
+sha_of() { [ -r "$1" ] && sha256sum "$1" 2>/dev/null | cut -c1-64 || echo absent; }
+CTXF=$W/run-context
+# What the caller explicitly asked for, kept apart from the defaults so a conflict can be spotted.
+cli_VMPL=${VMPL-}; cli_PLANE=${PLANE-}; cli_IGVM=${IGVM-}
+cli_IGVMMEASURE=${IGVMMEASURE-}; cli_EXPECT_MEAS=${EXPECT_MEAS-}
+ctx_bad=""
+if [ "${RECHECK:-0}" = 1 ]; then
+  [ -r "$CTXF" ] || { echo "RECHECK: $CTXF is missing, so this workdir does not say what produced it."; \
+    echo "  Re-scoring it would guess the launch context and could invent passes or failures. Refusing."; exit 2; }
+  # shellcheck disable=SC1090
+  . "$CTXF"
+  VMPL=${CTX_VMPL}; PLANE=${CTX_PLANE}; IGVM=${CTX_IGVM}; IGVMMEASURE=${CTX_IGVMMEASURE}
+  EXPECT_MEAS=${CTX_EXPECT_MEAS}
+  echo "RECHECK: recovered context v${CTX_VERSION:-?} from $CTXF"
+  printf '  %-14s %s\n' vmpl "$VMPL" plane "${PLANE:-none}" igvm "${IGVM:-none}"
+  # Every tool that decided a digest must still be the tool that decided it.
+  for pair in "igvm:$IGVM:$CTX_IGVM_SHA" "igvmmeasure:$IGVMMEASURE:$CTX_IGVMMEASURE_SHA" "qemu:$CTX_QEMU:$CTX_QEMU_SHA"; do
+    what=${pair%%:*}; rest=${pair#*:}; path=${rest%:*}; wantsha=${rest##*:}
+    [ -n "$path" ] || continue
+    [ -n "$wantsha" ] || { echo "  MALFORMED $what: $path recorded with no hash"; ctx_bad="$ctx_bad $what"; continue; }
+    now=$(sha_of "$path")
+    if [ "$now" != "$wantsha" ]; then
+      echo "  MISMATCH $what: $path is $now, the run used $wantsha"; ctx_bad="$ctx_bad $what"
+    else
+      printf '  %-14s %s  %s\n' "$what ok" "$(echo "$wantsha" | cut -c1-16)" "$path"
+    fi
+  done
+  # A caller may still name values, but disagreeing with the record is a refusal rather than an override.
+  for pair in "VMPL:$cli_VMPL:$CTX_VMPL" "PLANE:$cli_PLANE:$CTX_PLANE" "IGVM:$cli_IGVM:$CTX_IGVM" "EXPECT_MEAS:$cli_EXPECT_MEAS:$CTX_EXPECT_MEAS"; do
+    what=${pair%%:*}; rest=${pair#*:}; given=${rest%:*}; rec=${rest##*:}
+    [ -n "$given" ] && [ "$given" != "$rec" ] && { echo "  CONFLICT $what: you passed '$given', the run recorded '$rec'"; ctx_bad="$ctx_bad $what"; }
+  done
+  [ -n "$ctx_bad" ] && { echo "RECHECK refusing: context is not the one this workdir was produced with:$ctx_bad"; exit 2; }
+fi
 # VMPL: the privilege level the guest is expected to run at, and the level every trusted client
 # then DEMANDS of its reports. 0 is a plain SNP guest (M3a). Under COCONUT-SVSM at VMPL0 (M3b) it
 # is the guest's own level, and run-domain.sh is given IGVM/QEMU/PLANE to launch that way.
@@ -106,6 +150,41 @@ if [ -z "$EXPECT_MEAS" ] && [ -n "$IGVM" ] && [ -x "$IGVMMEASURE" ]; then
   esac
 fi
 want_meas=${EXPECT_MEAS:-${derived_meas:-$pred}}
+
+if [ "${RECHECK:-0}" = 1 ]; then
+  # The digest is re-derived from the recorded IGVM with the recorded tool and must reproduce what the run
+  # recorded. This is what makes the workdir tamper-evident rather than merely self-describing: swap the
+  # IGVM and the hashes above catch it; swap its contents and this catches it.
+  if [ "$derived_meas" != "${CTX_DERIVED_MEAS}" ]; then
+    echo "RECHECK refusing: re-deriving the digest gives '${derived_meas:-none}', the run recorded '${CTX_DERIVED_MEAS:-none}'"
+    exit 2
+  fi
+  [ "$want_meas" = "${CTX_WANT_MEAS}" ] || { echo "RECHECK refusing: expected digest is '$want_meas', the run recorded '${CTX_WANT_MEAS}'"; exit 2; }
+  [ -n "$derived_meas" ] && echo "  re-derived digest matches the record: $derived_meas"
+else
+  # Record it, so a later recheck neither guesses nor needs the environment reconstructed by hand.
+  {
+    echo "# written by test-m3.sh; RECHECK=1 reads and VERIFIES this. Do not hand-edit."
+    echo "CTX_VERSION=1"
+    echo "CTX_WHEN=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "CTX_VMPL=$VMPL"
+    echo "CTX_PLANE=${PLANE:-}"
+    echo "CTX_IGVM=${IGVM:-}"
+    echo "CTX_IGVM_SHA=$([ -n "${IGVM:-}" ] && sha_of "$IGVM" || echo '')"
+    echo "CTX_IGVMMEASURE=${IGVMMEASURE:-}"
+    # A recorded path always carries its hash. Recording the tool without one made the verify loop read
+    # "path set, hash empty" as a mismatch and wrongly refuse a non-IGVM workdir.
+    echo "CTX_IGVMMEASURE_SHA=$([ -r "${IGVMMEASURE:-}" ] && sha_of "$IGVMMEASURE" || echo '')"
+    echo "CTX_QEMU=${QEMU:-}"
+    echo "CTX_QEMU_SHA=$([ -n "${QEMU:-}" ] && sha_of "$QEMU" || echo '')"
+    echo "CTX_EXPECT_MEAS=${EXPECT_MEAS:-}"
+    echo "CTX_DERIVED_MEAS=${derived_meas:-}"
+    echo "CTX_PRED=${pred:-}"
+    echo "CTX_WANT_MEAS=${want_meas:-}"
+    echo "CTX_GUEST_KREL=$( . "$here/../m1/domain.env" >/dev/null 2>&1 && echo "$GUEST_KREL" )"
+  } > "$CTXF"
+  echo "evidence: run context recorded in $CTXF (RECHECK=1 verifies it)"
+fi
 shaA=$(sha256sum "$W/app-AAAAA.wasm" | cut -c1-64)
 shaB=$(sha256sum "$W/app-BBBBB.wasm" | cut -c1-64)
 
