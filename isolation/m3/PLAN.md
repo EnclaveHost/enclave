@@ -771,17 +771,64 @@ lifecycle, resource and parity checks all hold beneath the SVSM too. Both items 
 unproven are closed: the whole COCONUT stack boots (SVSM at VMPL0, vTPM manufactured, request loop on both
 CPUs, OVMF up), and OVMF DOES pick up `-kernel`/`-initrd` under IGVM, so no bootable disk is needed.
 
-**The one thing NOT established, and it is load-bearing: the launch measurement is not independently
-derivable.** Three different values exist - `sev-snp-measure` predicts `91d5b628...`, `igvmmeasure`'s IGVM
-digest is `E0C43562...`, and the guests report `ed343d15...`. The live value is stable across separate runs
-and independent of which apps are loaded (check 2), so it can be PINNED, and the suite runs with
-`EXPECT_MEAS` supplying it. Check 1 is worded to say what that is worth: **trust-on-first-use, not an
-independently derived expectation.** It shows every guest reported the same digest, NOT that this image could
-be recognised from its inputs - so a verifier could hold an allowlist only by being told the answer, which is
-not attestation of a known image. The likeliest cause is the legacy VMSA path itself: the kernel synthesises
-the VMSA, so its contribution differs from anything computed ahead of time. Closing this needs either a
-derivation that accounts for the synthesised VMSA, or an IGVM carrying a real VMSA GPA so the direct path is
-taken. A second session is examining the QEMU side (`~/.cache/enclave-isolation/parallel-vmsa-handoff/`).
+**Launch identity: RESOLVED. The digest is DERIVED and matches the live signed report.**
+
+The earlier entry said the measurement was not independently derivable, and that was true only of the legacy
+launch path. The cause was never a derivation gap: `phys-bits=46` forced QEMU onto the legacy path, where KVM
+synthesises one VMSA per vCPU and measures its own, so no predictor could match. Fixing the launch model
+rather than the predictor makes the digest derivable.
+
+The repair is entirely userspace, needs no kernel change and no second reboot, and comes from
+coconut-svsm/svsm draft **PR #1209** ("Put launch VMSA in kernel range for QEMU"): the IGVM places the VMSA at
+`kernel_base + kernel_min_size - 4K` = `0x08FFF000`, inside the SVSM's own measured kernel range, with
+`vmsa_in_kernel_range = 1` so the SVSM reserves that page. QEMU then takes the **direct** VMSA path, KVM
+measures the VMSA at its real GPA with our contents, and `igvmmeasure` computes the same value.
+
+**Measured on warden-host, full `m3b-verify.sh`, no environment overrides - ALL STAGES PASSED:**
+
+| stage | result |
+|---|---|
+| A health and capability | A1-A7b PASS: intended kernel, three GPUs, route, DNS, sshd, `VMPL Levels 4`, an SNP guest GRANTED plane 2, plane 9 REFUSED |
+| B regression | M1 ALL PASS, M2 ALL PASS, M3a ALL PASS on the planes kernel |
+| C boundary | C1-C4 PASS: `tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused`, one coherent record, tuple delivered over attested TLS, signed `report_vmpl=2`, adversary contained |
+| **C5 launch identity** | **PASS: digest DERIVED by igvmmeasure == the live signed report** |
+
+    derived by igvmmeasure from bin/coconut-qemu.igvm : 62b4a946...09a232c3
+    measurement in the guests' signed SNP reports     : 62b4a946...09a232c3
+
+`test-m3.sh` derives the expectation by running `igvmmeasure <the IGVM it launches> measure -b`, so nothing is
+supplied. `EXPECT_MEAS` remains only as an explicit trust-on-first-use path and still prints NOT ACCEPTANCE;
+`m3b-verify.sh` C5 positively requires derivation evidence and fails when there is none. Recheck correctness
+holds on both an IGVM workdir (derived) and a non-IGVM one (predicted).
+
+**Artefacts, with hashes, so this is reproducible:**
+
+| what | value |
+|---|---|
+| kit IGVM (ours, PR 1209 applied in `svsmkit/svsm` at d37095e) | sha256 `1510025f66e38d5526dac60f91b1c0c52795cff67fce04f7275df8e2849743b9` |
+| its launch digest | `62B4A946794B41ECF5E5C8A2C8E56E734D0A92DC005EDF4EE99F1BD3CA2457E2E2C919D1436815F234A9767209A232C3` |
+| VMSA page GPA | `0x8fff000` (was the `0xfffffffff000` sentinel) |
+| QEMU used | the **stock kit** build, `planeskit/qemu/build/qemu-system-x86_64` |
+| pre-change backup | `~/.cache/enclave-isolation/pre-pr1209-backup/` (old IGVM digest `E0C43562...`) |
+
+Rebuild: apply `svsm-pr1209-vmsa-in-kernel.diff` in `svsmkit/svsm`, then with rustup's cargo and
+`CARGO_HOME=svsmkit/cargo`, `FW_FILE=/usr/share/edk2-ovmf/x64/OVMF.4m.fd cargo xbuild -f vtpm --release
+./configs/qemu-target.json`. Digests are **per build** (an OpenSSL build stamp differs between builds), so
+re-derive after any rebuild rather than reusing a recorded digest - which is exactly why the harness derives
+it at run time.
+
+**Two findings worth keeping.** First, the QEMU patch from the parallel workstream
+(`0001-target-i386-sev-never-launch-the-legacy-VMSA-sentine.patch`, audited: it removes no check, narrows the
+direct path to non-sentinel GPAs and adds a fail-closed guest_memfd backing test) is **not required for this
+configuration**: with a non-sentinel IGVM the stock kit QEMU already selects the direct path correctly, which
+was confirmed by running both binaries. It remains the right fix for the sentinel case and for anyone on an
+older IGVM, but nothing in our acceptance path depends on a binary built outside the kit. Second, the kit's
+own **unpatched** `igvmmeasure` derives the correct digest, because only `--check-kvm` needed PR 1209's tool
+change and `measure -b` does not pass it.
+
+**Residual, unchanged and still to be said wherever this is written up:** the refusal at VMPL0 is the measured
+monitor's own word. The PSP does not attest the absence of a capability. What makes it worth relying on is
+that the code is inside the launch measurement - now a digest a verifier can derive - and that it fails closed.
 
 **Still not app-vs-app isolation by hardware.** Inside our plane, one domain is separated from another by the
 guest kernel. What this achieves is the MONITOR/runtime split in hardware: a measured SVSM at VMPL0 above a

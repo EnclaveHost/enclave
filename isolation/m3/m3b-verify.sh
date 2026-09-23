@@ -141,7 +141,13 @@ gate "C4 the compromised-domain adversary is still contained, now beneath the SV
 if grep -aqE 'NOT ACCEPTANCE|digest was SUPPLIED' "$W/c-m3b.log"; then
   echo "    the suite was handed its expected measurement, so the launch identity is UNVERIFIED"
   r=no
-else r=ok; fi
+elif grep -aq 'digest was DERIVED by igvmmeasure' "$W/c-m3b.log"; then
+  echo "    $(grep -ah 'digest was DERIVED by igvmmeasure' "$W/c-m3b.log" | head -1 | sed 's/^evidence: //')"
+  r=ok
+else
+  echo "    no derivation evidence in the log at all: neither supplied nor derived, so identity is unverified"
+  r=no
+fi
 gate "C5 the launch measurement was DERIVED, not supplied: without this an allowlist only repeats a value it was given" $r
 
 printf '\n======== result\n'

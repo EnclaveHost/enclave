@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# pre-push: refuse to push commits that carry cryptocurrency private keys or
+# other secrets. This is the actual block - GitHub's free-plan push protection
+# only knows provider tokens (AWS, Stripe, GitHub...), never a raw Ethereum or
+# Bitcoin key, and the CI scan runs AFTER the push, when the key is already
+# public. Installed by `npm install` (package.json "prepare" sets
+# core.hooksPath=.githooks) or by hand: git config core.hooksPath .githooks
+#
+# Every commit in every pushed range is scanned (a key added in one commit and
+# removed in the next is still in history). Two scanners:
+#   1. scan-crypto-keys.py  - always; WIF/xprv/BIP39 (checksum-verified),
+#                             labelled/known Ethereum keys, keystore JSON
+#   2. gitleaks (if found)  - provider tokens + .gitleaks.toml crypto rules
+# Confirmed false positive? git push --no-verify (and say so in the commit).
+set -u
+remote="$1"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(git rev-parse --show-toplevel)"
+z40=0000000000000000000000000000000000000000
+
+gitleaks_bin=""
+for c in "${GITLEAKS:-}" "$(command -v gitleaks 2>/dev/null || true)" "$HOME/.local/bin/gitleaks"; do
+  if [ -n "$c" ] && [ -x "$c" ]; then gitleaks_bin="$c"; break; fi
+done
+cfg=()
+if [ -f "$here/../.gitleaks.toml" ]; then cfg=(--config "$here/../.gitleaks.toml"); fi
+
+fail=0
+scanned=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ -z "${local_sha:-}" ] || [ "$local_sha" = "$z40" ]; then continue; fi   # nothing / deleting a remote ref
+  if [ "$remote_sha" = "$z40" ] || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    range="$local_sha --not --remotes=$remote"      # new branch or unknown base: everything not already on the remote
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  scanned=$((scanned + 1))
+
+  # shellcheck disable=SC2086  # $range is intentionally word-split
+  if ! python3 "$here/scan-crypto-keys.py" --range $range; then fail=1; fi
+
+  if [ -n "$gitleaks_bin" ]; then
+    log="$(mktemp)"
+    if "$gitleaks_bin" git "$root" "${cfg[@]}" --log-opts="$range" --no-banner --redact=60 --exit-code 1 -v >"$log" 2>&1; then
+      :
+    elif grep -q 'leaks found' "$log"; then
+      fail=1
+      { echo; echo "gitleaks: secrets in the commits being pushed ($range):"; grep -E '^(Finding|Secret|RuleID|File|Line|Commit):' "$log"; } >&2
+    else
+      { echo "pre-push: gitleaks could not run - provider-token rules skipped (the crypto-key scan still ran):"; tail -n 3 "$log"; } >&2
+    fi
+    rm -f "$log"
+  fi
+done
+
+if [ "$scanned" -gt 0 ] && [ -z "$gitleaks_bin" ]; then
+  { echo "pre-push: gitleaks not installed - provider-token rules skipped (the crypto-key scan still ran)."
+    echo "          install: https://github.com/gitleaks/gitleaks/releases -> ~/.local/bin/gitleaks"; } >&2
+fi
+if [ "$fail" -ne 0 ]; then
+  { echo; echo "pre-push: PUSH REFUSED - remove the secret from history before pushing."
+    echo "          (confirmed false positive: git push --no-verify)"; } >&2
+  exit 1
+fi
+exit 0
