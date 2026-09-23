@@ -8,6 +8,7 @@
 //
 //	m3ctl -cid N [-port 9000] load <app.wasm> [-label A] [-cpu 100] [-mem 256]
 //	m3ctl -cid N [-port 9000] list
+//	m3ctl -cid N [-port 9000] state
 //	m3ctl -cid N [-port 9000] destroy -id 1
 package main
 
@@ -31,7 +32,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if *cid == 0 || len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] load <app.wasm> | list | destroy -id N")
+		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] load <app.wasm> | list | state | destroy -id N")
 		os.Exit(2)
 	}
 
@@ -53,6 +54,8 @@ func main() {
 		die(err)
 	case "list":
 		die(enc.Encode(map[string]any{"cmd": "list"}))
+	case "state":
+		die(enc.Encode(map[string]any{"cmd": "state"}))
 	case "destroy":
 		die(enc.Encode(map[string]any{"cmd": "destroy", "id": *id}))
 	default:

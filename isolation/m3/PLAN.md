@@ -215,7 +215,7 @@ Each is pass/fail with its own evidence, in the style of `test-m1.sh` and `test-
 ## 10. M3a results: measured on warden-host, 2026-09-23
 
 `isolation/m3/test-m3.sh`, three boots of one monitor image (s1: SNP, two domains; s2: SNP, one domain;
-t1: plain KVM, two domains). **ALL PASS, 18 checks.** EPYC 9115, kernel 7.2.3, QEMU 11.1.1, Go 1.27.0,
+t1: plain KVM, two domains). **ALL PASS, 21 checks**, plus 7 offline tests of the monitor's report path. EPYC 9115, kernel 7.2.3, QEMU 11.1.1, Go 1.27.0,
 2 vCPUs and 1 GiB per guest. Another session's GPU work shared the machine, so the timings are noisy.
 
 **The identity change works, which was the point.**
@@ -250,6 +250,38 @@ other. Each gets its own cgroup share: the same work took 2,209 ms at `cpu.max` 
 So a domain is three orders of magnitude cheaper to start than a guest, and free in host memory until the
 guest itself must grow — at the cost of a weaker app-vs-app boundary, which is exactly the trade M3b
 would remove for up to three domains.
+
+**Lifecycle and bounds (added 2026-09-23 after an independent source audit; checks 9-9c and
+`monitor/report_test.go`).** The first version reaped a domain's process and did nothing else, so a
+domain whose workload died stayed in the table with its port, mounts and cgroup still held, and the
+report socket parsed whatever a caller sent before checking who the caller was. Both are fixed:
+
+- **Every domain ends exactly once, however it ends.** A crash, a failed start and an explicit destroy
+  all run one idempotent reclamation, which closes the port first, then waits for the process tree to be
+  gone (not a fixed sleep) before unmounting, removing the directory and the cgroup. A domain is put in
+  the table *before* its first instruction, so one that dies during startup is still reclaimed.
+  **Measured:** five create-and-crash cycles — a deliberately invalid app, so the runtime fails and the
+  domain's init exits, a real crash path with no test-only hook in the guest — leave the guest identical
+  to before them: `{"cgroups":2,"dirs":["1","2"],"domains":2,"mounts":4,"userspace_procs":7}` both times,
+  with five `domain N ended` lines and nothing left in the table. A new domain then loads, attests and
+  serves. The whole-tree kill path is what `destroy` does and is covered by check 7. The front-exit
+  branch shares the same handler as the runtime-exit branch and was not separately triggered: adding a
+  host command to kill a process inside a running domain would be a hole, not a test.
+- **What a domain can make the monitor do is bounded.** Callers are authenticated from the socket's
+  kernel credentials *before* their bytes are parsed; requests are read under a 1 KiB cap and a 20 s
+  deadline; reports are admitted under a global limit (16) and a per-domain limit (2), with admission
+  taken before a goroutine exists so a flood cannot cost one stack per connection; a refused caller is
+  answered and drained rather than reset. The control channel gets the same treatment: bounded command
+  lines, a 64 MiB app cap, deadlines and a connection limit. `go test ./monitor/` covers this offline,
+  with no VM and no root: an unauthenticated caller pushing 64 MiB is refused after 219 KB and never
+  reaches the hardware path; an oversized request is refused and the domain is still served next;
+  one domain at its limit does not delay another; a flood is refused at the global limit; a half-open
+  request cannot hold the monitor past its deadline; retire is idempotent; and report_data's app half
+  comes from the monitor's table even when the request carries an `appSha256` field naming another app.
+
+`domexec` now fails closed on every setup step (its private `/proc`, `/tmp` and loopback), drops
+supplementary groups before `setgid`/`setuid` — otherwise a domain workload would have kept the
+monitor's groups, root's among them — and confirms the privilege drop held before exec.
 
 **Two defects the first run caught, both fixed:**
 - `domexec`'s credential probe printed `GRANTED` when it got **no answer**. The monitor had refused
