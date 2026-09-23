@@ -472,6 +472,38 @@ step 7 of the script is Cargo's `trim-paths`, set through `CARGO_PROFILE_RELEASE
 interpreter's file offset. The first toolchain run died at its last line for that reason, after all its
 steps had completed.
 
+### The image the boundary test will use (2026-09-23)
+
+Step (b) of the post-boot sequence needed one more artifact, and it is built: an **IGVM carrying the SVSM
+and firmware**, 4.8 MB, digest
+
+```
+E0C43562CE5D804959DCC6996606BB4B7F0D878AC6D29B789B855D907D8889387C7992EA21314CD8E3FBC0C38272E499
+```
+
+made with the OVMF this machine already boots M1 and M2 images with
+(`make RELEASE=1 FW_FILE=/usr/share/edk2-ovmf/x64/OVMF.4m.fd igvm`), so no edk2 build was needed after
+all — which is just as well, since building edk2 would need `nasm` and `iasl`, neither of which is
+installed and neither of which I will install on a shared host.
+
+The guest side turns out to need no disk image either: `igvmbld`'s `--kernel` is the **SVSM** elf and
+`--firmware` is OVMF, and the built QEMU **accepts `igvm-cfg` together with `-kernel`/`-initrd`** —
+it gets as far as KVM and stops on the same missing kernel feature, not on the configuration. So the plan
+is the M1/M2 boot path (fw_cfg, firmware, our bzImage and initramfs) with the firmware coming from the
+IGVM instead of `-bios`. The exact command line is in `~/.cache/enclave-isolation/BOOT-CHECKLIST.md`, and
+it has been run on this kernel to confirm every part of it parses.
+
+**Two things the boot will answer and nothing before it can:** whether OVMF *inside* an IGVM still picks
+up `-kernel` from fw_cfg the way it does with `-bios`, and whether our monitor image runs correctly at
+VMPL2 rather than VMPL0. If the first turns out negative, the guest needs a bootable disk and that is
+extra work inside the window.
+
+**A rebuild trap worth knowing:** the SVSM pins cargo 1.88 via `rust-toolchain.toml`, and Arch's
+`/usr/bin/cargo` ignores that pin and uses sysroot `/usr`, which has no bare-metal std — the build then
+fails with "can't find crate for `core`", which looks like a missing rustup component and is not. I lost
+time to it because of my own shell bug: `export CARGO_HOME=X PATH=$CARGO_HOME/bin:$PATH` expands
+`$CARGO_HOME` *before* the assignment, so PATH began with `/bin` and picked up the system cargo.
+
 ## 13. The boot that needs a decision, and how to undo it
 
 Everything above is built and validated without touching the running host. The VMPL boundary itself
