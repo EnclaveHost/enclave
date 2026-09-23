@@ -172,6 +172,17 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
  * length; NULL means the node's own N (the ordinary layout). This is what a
  * column-split placement needs: several links each own a contiguous slice of
  * the same weight's output columns and write straight into one row. */
+/* Post-mortem of a FAILED Freivalds check, for the log and nothing else: the
+ * exact product W.x recomputed locally in int64 and reduced to the balanced
+ * field, compared column by column with the unmasked reply. The pattern names
+ * the mechanism -- a few kernel blocks (transfer or kernel), every column (the
+ * pad's u), a trailing range (a short or stale reply), wraps (the calibration).
+ * w is (N,K) int8, x is m rows of K, y is m rows at stride ystr. Writes one
+ * summary line into out. Runs only after a check has already failed and the
+ * link is being retired; it changes no decision. */
+void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, int m,
+                      const int64_t *y, int64_t ystr, char *out, size_t cap);
+
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
                         const int64_t *x_field, int32_t m, int64_t **y_out,
                         const int64_t *y_stride);

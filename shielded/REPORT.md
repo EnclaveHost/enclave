@@ -4128,3 +4128,62 @@ and it is below 25 before any of it is built. The remaining large terms are
 the GPU kernel (at 76-87% of HBM peak on x8 links), C (synchronisation- and
 bandwidth-bound on tiny ops, 18.14) and the TEE link arithmetic that masking
 and verification require.
+
+### 18.34 A balanced split that fits, and the Freivalds rejection happens again
+
+**The card balance, at last testable.** 18.31's 53/47 overflowed card 0's
+cap. The cap is 95% of the per-link reservation, and the reservation was held
+at 15.5 GB because a link restart (the MTP context registering its layer)
+briefly holds two reservations per card on the worker: the TEE closes the old
+pipe first, but the worker releases the old reservation only after freeing
+that connection's weights, and the new HELLO arrives before that. Two
+overlapping links must fit the worker's 30 GiB budget, so a reservation up to
+~16.1 GB is legal. **Changed memory setup for this test:** card 0's per-link
+reservation 16.1 GB (was 15.5), card 1's unchanged at 15.5; both arms of the
+A/B use that same setup, so only the split differs. At 54/46 card 0 holds
+15.15 of a 15.30 GB cap and the transient overlap reaches 30708 of 30720 MiB
+-- valid for a bench, too thin for production.
+
+A/B, equal against 54/46, ABBA, three valid pairs (the fourth lost its equal
+arm, below): 54/46 faster in 1 of 3 (-2.02, +1.12, -0.13 tok/s). The balance
+did what it was for -- the join fell from 636-1042 ms to 186-478 ms per run --
+and card 0's own gemm grew by about as much. Null. The static imbalance is not
+a throughput lever either.
+
+**The second verification failure.** `b-eq-1` (equal split, plain decode,
+m=1): card 0's reply for the `blk.46.attn_qkv | attn_gate` group failed
+Freivalds; card 1's slice of the same group verified. The link retired, the
+decode stopped, rc=2, fail-closed exactly as designed. What the two events
+share and do not:
+
+| | sterms-1 | b-eq-1 |
+|---|---|---|
+| card | 0 (PG500-216) | 0 (PG500-216) |
+| phase | first spec-prefill pass after a link restart, m=17 | plain decode, m=1, no restart |
+| group | blk.27 q/k/v | blk.46 qkv/gate |
+| other card's slice | verified | verified |
+| worker's view | log overwritten by my own worker restart | no violation, no error; connection closed normally after 8923 exchanges |
+| yield detector | unknown | fired on both workers ~2.4 s before the bench exited |
+
+Ruled out, each by evidence rather than argument: a field wrap (the masked
+product is exact mod M and does not depend on the pad, so a wrap would be
+deterministic in the activations, which are identical across these runs --
+it would fail every run, not 2 of ~100); device memory (ECC is on, zero
+single- and double-bit errors volatile and aggregate on both cards); reported
+PCIe errors (no AER or Xid in the kernel log); a stale ring reply (each pipe's
+sequence base comes from the realtime clock and a reply is taken only on an
+exact match); the pad pool (slots are released after unmask and check, and
+the refill deficit counts held slots); the yield "probe" (timing only, no
+kernel). The restart window was my first hypothesis and b-eq-1 had no restart.
+
+**The next one will say what it is.** A failed check now writes a post-mortem
+before the link retires: the exact product recomputed in int64 from the TEE's
+own weight slice, compared column by column with the unmasked reply --
+how many values are wrong, in how many rows and 32-column blocks, over which
+columns, how many true values lie outside the field, three samples, and
+whether the ring or the socket carried the reply. The patterns separate the
+mechanisms: a few blocks is the transfer or the kernel, every column is the
+pad, a trailing range is a short or stale reply, and a reply that MATCHES the
+local product means the check side (the overlapped RHS) is at fault.
+`postmortem-selftest` checks each of those signatures on synthetic data. It
+runs only after a rejection and changes no decision.

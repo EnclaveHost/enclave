@@ -41,7 +41,7 @@ GGML_INC := -I$(GGML_SRC)/ggml/include -I$(GGML_SRC)/ggml/src
 CXX      ?= c++
 CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno
 
-all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest
+all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest postmortem-selftest
 
 shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
 shielded-tee.o shielded-tee.dealer.o: shielded-pad-mint-v3.h shielded-pad-mint-v3.inc shielded-pads-v3.h shielded-pad-manifest.h shielded-pad-layout.h
@@ -102,6 +102,9 @@ pads-unbox: pads-unbox.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 bank-probe: bank-probe.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+postmortem-selftest: postmortem-selftest.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
 prefix-kv-selftest: prefix-kv-selftest.c prefix-kv.o shielded-pads.o tweetnacl.o poly1305-donna.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
