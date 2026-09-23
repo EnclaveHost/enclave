@@ -22,6 +22,10 @@ W=${1:-$(mktemp -d)}; mkdir -p "$W"; W=$(cd "$W" && pwd)
 res() { tr -d '\r' < "$1" 2>/dev/null | grep -a "^RESULT $2=" | head -1 | sed "s/^RESULT $2=//"; }
 verdict() { tr -d '\r' < "$1" 2>/dev/null | grep -a '^VERDICT ' | head -1 | cut -d' ' -f2; }
 ser() { tr -d '\r' < "$W/$1.serial" 2>/dev/null; }
+# VMPL: the privilege level the guest is expected to run at, and the level every trusted client
+# then DEMANDS of its reports. 0 is a plain SNP guest (M3a). Under COCONUT-SVSM at VMPL0 (M3b) it
+# is the guest's own level, and run-domain.sh is given IGVM/QEMU/PLANE to launch that way.
+VMPL=${VMPL:-0}
 VCPUS=2                      # the guest's vCPU count is part of its identity: predict and boot with the same
 BIGMEM=${BIGMEM:-1024}       # the guest size earlier runs used, kept for comparable cost figures
 SMALLMEM=${SMALLMEM:-512}    # a right-sized guest: how little does one need for two domains?
@@ -92,6 +96,7 @@ if [ "${RECHECK:-0}" != 1 ]; then
   [ -f "$W/vcek.der" ] || node "$m2/vcek-prep.mjs" "$W/s1.doc.json" "$W" > "$W/vcek-prep.txt" 2>&1 || true
   product=$(sed -n 's/^product //p' "$W/vcek-prep.txt")
   TR="--no-kds --vcek $W/vcek.der --amd-chain $product=$here/../../test/fixtures/amd/$product-cert_chain.pem --min-tcb @$W/min-tcb.json"
+  [ "$VMPL" != 0 ] && TR="$TR --vmpl $VMPL"
   # shellcheck disable=SC2086
   {
     client "$W/s1-A.client" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR --perf
@@ -220,6 +225,15 @@ check "3 the MONITOR names each app: every domain's report carries the hash the 
 [ "$(verdict "$W/s1-A.client")" = attested ] && [ "$(verdict "$W/s1-B.client")" = attested ] \
   && [ "$(verdict "$W/s2-B.client")" = attested ] && r=ok || r=no
 check "3b both domains and the second launch are ATTESTED: AMD chain to the pinned root, VCEK names this chip and TCB, TCB meets the supplied floor, key+nonce bound" $r
+echo "evidence: level: the monitor's own kernel says '$(ser s1 | grep -aoE 'MON ready .*' | head -1)'"
+r=ok
+for c in s1-A s1-B s2-B; do
+  got=$(res "$W/$c.client" report_vmpl); want=$(res "$W/$c.client" expected_vmpl)
+  echo "evidence: level: $c saw report_vmpl=${got:-none} and demanded expected_vmpl=${want:-none}"
+  [ "$got" = "$VMPL" ] && [ "$want" = "$VMPL" ] || r=no
+done
+[ "$(ser s1 | grep -ac "MON ready .* vmpl=$VMPL")" -ge 1 ] || r=no
+check "3e every report comes from privilege level $VMPL: the level the guest's own kernel reports AND the level each client demanded" $r
 [ "$(verdict "$W/s1-A-as-B.client")" = reject ] && [ "$(res "$W/s1-A-as-B.client" app_requests_sent)" = 0 ] && r=ok || r=no
 check "3c a client expecting app B is REJECTED by the domain running app A, and sends it nothing" $r
 roots=$(ser s1 | grep -ac 'report_as_root=refused' || true)
