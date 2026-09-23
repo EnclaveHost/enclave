@@ -887,6 +887,193 @@ static int kbench() {
     }
     return 0;
 }
+
+/* Copy the planes from mapped pinned host memory into device memory with the
+ * SMs instead of the copy engine: 16-byte loads, grid-stride. */
+__global__ void planes_pull_kernel(const int4 *__restrict__ src, int4 *__restrict__ dst, long long n16) {
+    for (long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x; i < n16; i += (long long)gridDim.x * blockDim.x)
+        dst[i] = src[i];
+}
+
+/* --kbench-x: one exchange END TO END as the worker runs it -- host graph
+ * launch -> stream sync complete, the card idle ~130 us between exchanges --
+ * for the current graph (copy-engine upload + GEMM) against a pull kernel
+ * (SMs read the mapped planes) + GEMM. Per shape and m, both orders
+ * alternated, many reps; also checks the two graphs produce identical Y. */
+static int kbench_x() {
+    cudaDeviceProp pr; cudaGetDeviceProperties(&pr, 0); g_sm_count = std::max(1, pr.multiProcessorCount);
+    printf("device %s, %d SMs\n", pr.name, g_sm_count);
+    struct Ex { int K; std::vector<int> N; const char *name; };
+    auto h = [](int n) { return (n / 2) & ~31; };
+    std::vector<Ex> ex = { {5120, {h(10240), h(6144), 32, 32}, "lin qkv|gate|a|b"}, {6144, {h(5120)}, "ssm_out/attn_out"},
+                           {5120, {h(17408), h(17408)}, "ffn gate|up"}, {17408, {h(5120)}, "ffn down"} };
+    const int gap_us = getenv("KB_GAP_US") ? atoi(getenv("KB_GAP_US")) : 130;
+    cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
+    for (int m = 1; m <= 2; m++) for (auto &e : ex) {
+        const int nn = (int)e.N.size();
+        size_t wb = 0, yb = 0; for (int n : e.N) { wb += (size_t)e.K * n; yb += (size_t)m * n * 4; }
+        /* KB_GRAPHS: how many distinct graph executables to rotate through
+         * (production cycles ~257 per pass); weights rotate over 1 GB. */
+        const int wcopies = (int)std::max<size_t>(2, (size_t)(1024u << 20) / wb + 1);
+        const int copies = getenv("KB_GRAPHS") ? std::max(wcopies, atoi(getenv("KB_GRAPHS"))) : wcopies;
+        std::vector<int8_t *> dW(wcopies);
+        for (auto &p : dW) { dmalloc((void **)&p, wb); cudaMemset(p, 3, wb); }
+        const size_t xbytes = (size_t)3 * m * e.K;
+        uint8_t *hx; cudaHostAlloc((void **)&hx, xbytes, cudaHostAllocMapped);
+        for (size_t i = 0; i < xbytes; i++) hx[i] = (uint8_t)(i * 2654435761u >> 24);
+        uint8_t *hx_d; cudaHostGetDevicePointer((void **)&hx_d, hx, 0);
+        int8_t *dx; dmalloc((void **)&dx, xbytes);
+        int32_t *hy, *hy_d; cudaHostAlloc((void **)&hy, yb, cudaHostAllocMapped); cudaHostGetDevicePointer((void **)&hy_d, hy, 0);
+        std::vector<cudaGraphExec_t> ga(copies), gb(copies);
+        for (int variant = 0; variant < 2; variant++) for (int c = 0; c < copies; c++) {
+            const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+            size_t wo = 0, yo = 0;
+            for (int i = 0; i < nn; i++) { Ws[i] = dW[c % wcopies] + wo; wo += (size_t)e.K * e.N[i]; Ys[i] = (uint8_t *)hy_d + yo; yo += (size_t)m * e.N[i] * 4; Ns[i] = e.N[i]; }
+            ck(cudaStreamBeginCapture(s, cudaStreamCaptureModeThreadLocal), "capture");
+            if (variant == 0) ck(cudaMemcpyAsync(dx, hx, xbytes, cudaMemcpyHostToDevice, s), "upload");
+            else { const long long n16 = (long long)(xbytes / 16); planes_pull_kernel<<<(int)std::min<long long>(g_sm_count, (n16 + 255) / 256), 256, 0, s>>>((const int4 *)hx_d, (int4 *)dx, n16); }
+            gemm_launch_planned(gemm_plan(Ws, Ys, Ns, nn, m), e.K, dx, e.K, (long long)m * e.K, s);
+            cudaGraph_t g; ck(cudaStreamEndCapture(s, &g), "end"); ck(cudaGraphInstantiate(variant ? &gb[c] : &ga[c], g, 0), "inst"); cudaGraphDestroy(g);
+        }
+        /* correctness: both graphs, same inputs, byte-identical Y */
+        std::vector<uint8_t> ya(yb), ybv(yb);
+        cudaGraphLaunch(ga[0], s); cudaStreamSynchronize(s); memcpy(ya.data(), hy, yb);
+        memset(hy, 0, yb);
+        cudaGraphLaunch(gb[0], s); cudaStreamSynchronize(s); memcpy(ybv.data(), hy, yb);
+        const bool same = !memcmp(ya.data(), ybv.data(), yb);
+        const int reps = 600;
+        double ta = 0, tb = 0; std::vector<double> va, vb;
+        for (int i = 0; i < reps; i++) {
+            for (int v = 0; v < 2; v++) {
+                const int which = (i & 1) ? 1 - v : v;          /* alternate order */
+                const auto t0 = std::chrono::steady_clock::now();
+                cudaGraphLaunch(which ? gb[i % copies] : ga[i % copies], s); cudaStreamSynchronize(s);
+                const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+                if (i >= 50) { (which ? vb : va).push_back(us); (which ? tb : ta) += us; }
+                const auto t_end = std::chrono::steady_clock::now() + std::chrono::microseconds(gap_us);
+                while (std::chrono::steady_clock::now() < t_end) {}
+            }
+        }
+        std::sort(va.begin(), va.end()); std::sort(vb.begin(), vb.end());
+        printf("m=%d %-18s x=%6zu B | copy-engine %6.1f us (med %6.1f) | pull-kernel %6.1f us (med %6.1f) | delta %+5.1f | identical=%s\n",
+               m, e.name, xbytes, ta / va.size(), va[va.size() / 2], tb / vb.size(), vb[vb.size() / 2], tb / vb.size() - ta / va.size(), same ? "yes" : "NO");
+        for (auto g : ga) cudaGraphExecDestroy(g);
+        for (auto g : gb) cudaGraphExecDestroy(g);
+        for (auto p : dW) dfree(p);
+        dfree(dx); cudaFreeHost(hx); cudaFreeHost(hy);
+    }
+    return 0;
+}
+
+/* --kbench27: the 27B's decode exchanges as ONE card of a two-card column
+ * split sees them (each node's N halved to a 32-column boundary), Y in mapped
+ * host memory as the ring reply is. Per shape: the planner's own choice, then
+ * a forced-G sweep. Weight buffers are rotated across enough copies to exceed
+ * L2 by far, so no launch reads weights another launch left cached. Prints the
+ * per-pass total at the planner's choice and at the best G per shape. */
+static int kbench27() {
+    struct Ex { int K; std::vector<int> N; int count; const char *name; };
+    auto h = [](int n) { return (n / 2) & ~31; };
+    std::vector<Ex> ex = {
+        {5120, {h(10240), h(6144), 48 / 2 > 32 ? h(48) : 48, 48}, 48, "lin qkv|gate|a|b"},
+        {6144, {h(5120)}, 48, "lin ssm_out"},
+        {5120, {h(12288), h(1024), h(1024)}, 16, "full q|k|v"},
+        {6144, {h(5120)}, 16, "full attn_output"},
+        {5120, {h(17408), h(17408)}, 64, "ffn gate|up"},
+        {17408, {h(5120)}, 64, "ffn down"},
+        {5120, {h(248320)}, 1, "lm_head"},
+    };
+    /* ssm_alpha/beta are N=48: the split puts 32 on card 0 (0..32) and 16 on card 1 */
+    ex[0].N[2] = 32; ex[0].N[3] = 32;
+    /* --kbench27 returns during argument parsing, before main reads the SM
+     * count; the planner must see the real device, not the default. */
+    { cudaDeviceProp pr; cudaGetDeviceProperties(&pr, 0); g_sm_count = std::max(1, pr.multiProcessorCount);
+      printf("device %s, %d SMs, mem clock %d MHz, bus %d bit\n", pr.name, g_sm_count, pr.memoryClockRate / 1000, pr.memoryBusWidth); }
+    cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
+    cudaEvent_t e0, e1; cudaEventCreate(&e0); cudaEventCreate(&e1);
+    const int ms_list[2] = {1, 2};
+    for (int mi = 0; mi < 2; mi++) {
+        const int m = ms_list[mi];
+        double pass_plan = 0, pass_best = 0, bytes_pass = 0;
+        printf("\nm=%d  %-18s %7s %5s | planner: G blocks us GB/s | forced G=1/2/4/8: us (GB/s)\n", m, "exchange", "MB", "count");
+        for (auto &e : ex) {
+            size_t wb = 0; for (int n : e.N) wb += (size_t)e.K * n;
+            /* KB_ROT_MB: how much weight memory is rotated through (default 256 MB);
+             * the real decode pass walks ~12.8 GB per card. */
+            const size_t rot_mb = getenv("KB_ROT_MB") ? (size_t)atol(getenv("KB_ROT_MB")) : 256;
+            const int copies = (int)std::max<size_t>(2, (rot_mb << 20) / wb + 1);
+            std::vector<int8_t *> dW(copies, nullptr);
+            bool ok = true;
+            for (int c = 0; c < copies; c++) if (dmalloc((void **)&dW[c], wb) != cudaSuccess) { ok = false; break; }
+            if (!ok) { printf("  %-18s alloc fail\n", e.name); for (auto p : dW) if (p) dfree(p); continue; }
+            for (int c = 0; c < copies; c++) cudaMemset(dW[c], 3, wb);
+            int8_t *dX; dmalloc((void **)&dX, (size_t)3 * m * e.K); cudaMemset(dX, 1, (size_t)3 * m * e.K);
+            size_t yb = 0; for (int n : e.N) yb += (size_t)m * n * 4;
+            int32_t *hY, *dhY; cudaHostAlloc((void **)&hY, yb, cudaHostAllocMapped); cudaHostGetDevicePointer((void **)&dhY, hY, 0);
+            cudaDeviceSynchronize();
+            const int nn = (int)e.N.size();
+            auto time_plan = [&](int force_g, int *g_out, int *blocks_out) {
+                std::vector<GemmPlan> pls(copies);
+                for (int c = 0; c < copies; c++) {
+                    const int8_t *Ws[GEMM_TAB_NODES]; uint8_t *Ys[GEMM_TAB_NODES]; int Ns[GEMM_TAB_NODES];
+                    size_t woff = 0, yoff = 0;
+                    for (int i = 0; i < nn; i++) { Ws[i] = dW[c] + woff; woff += (size_t)e.K * e.N[i];
+                                                   Ys[i] = (uint8_t *)dhY + yoff; yoff += (size_t)m * e.N[i] * 4; Ns[i] = e.N[i]; }
+                    GemmPlan pl = gemm_plan(Ws, Ys, Ns, nn, m);
+                    if (force_g) { pl.g = force_g; const int rpb = gemm_rows_per_block(m, force_g); int b = 0;
+                                   for (int i = 0; i < nn; i++) { pl.tab.blk0[i] = b; b += (e.N[i] + rpb - 1) / rpb; } pl.blocks = b; }
+                    pls[c] = pl;
+                }
+                if (g_out) *g_out = pls[0].g;
+                if (blocks_out) *blocks_out = pls[0].blocks;
+                for (int c = 0; c < copies; c++) gemm_launch_planned(pls[c], e.K, dX, e.K, (long long)m * e.K, s);
+                cudaStreamSynchronize(s);
+                const int iters = std::max(copies * 4, 40);
+                /* KB_GAP_US: launch one kernel at a time, synchronize, then leave
+                 * the card idle this long before the next, as the decode pass
+                 * does (~130 us between exchanges); kernel time by events. */
+                static const int gap_us = getenv("KB_GAP_US") ? atoi(getenv("KB_GAP_US")) : 0;
+                if (gap_us > 0) {
+                    double tot = 0;
+                    for (int i = 0; i < iters; i++) {
+                        cudaEventRecord(e0, s);
+                        gemm_launch_planned(pls[i % copies], e.K, dX, e.K, (long long)m * e.K, s);
+                        cudaEventRecord(e1, s); cudaEventSynchronize(e1);
+                        float ms = 0; cudaEventElapsedTime(&ms, e0, e1); tot += ms;
+                        const auto t_end = std::chrono::steady_clock::now() + std::chrono::microseconds(gap_us);
+                        while (std::chrono::steady_clock::now() < t_end) {}
+                    }
+                    return tot * 1e3 / iters;
+                }
+                cudaEventRecord(e0, s);
+                for (int i = 0; i < iters; i++) gemm_launch_planned(pls[i % copies], e.K, dX, e.K, (long long)m * e.K, s);
+                cudaEventRecord(e1, s); cudaEventSynchronize(e1);
+                float ms = 0; cudaEventElapsedTime(&ms, e0, e1);
+                return ms * 1e3 / iters;
+            };
+            int g = 0, blocks = 0;
+            /* Warm the clocks first: the first timing after an idle gap ran up
+             * to 20% slow (planner G=8 133.9 us against forced G=8 110.3 on the
+             * same plan). Then the planner's choice is timed first AND last and
+             * the later reading is kept; both are printed. */
+            { const double t_end = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + 0.3;
+              while (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() < t_end) time_plan(0, nullptr, nullptr); }
+            const double up_first = time_plan(0, &g, &blocks);
+            double gs[4]; for (int i = 0, fg = 1; fg <= 8; fg <<= 1, i++) gs[i] = time_plan(fg, nullptr, nullptr);
+            const double up = time_plan(0, nullptr, nullptr);
+            double best = up;
+            printf("m=%d  %-18s %7.1f %5d | G=%d %5d %7.1f/%7.1f %4.0f |", m, e.name, wb / 1e6, e.count, g, blocks, up_first, up, wb / up / 1e3);
+            for (int i = 0; i < 4; i++) { best = std::min(best, gs[i]); printf(" %7.1f(%3.0f)", gs[i], wb / gs[i] / 1e3); }
+            printf("\n");
+            pass_plan += up * e.count; pass_best += best * e.count; bytes_pass += (double)wb * e.count;
+            for (auto p : dW) dfree(p);
+            dfree(dX); cudaFreeHost(hY);
+        }
+        printf("m=%d  PASS (one card): %.2f GB  planner %.2f ms (%.0f GB/s)  best-G %.2f ms (%.0f GB/s)\n",
+               m, bytes_pass / 1e9, pass_plan / 1e3, bytes_pass / pass_plan / 1e3, pass_best / 1e3, bytes_pass / pass_best / 1e3);
+    }
+    return 0;
+}
 #endif
 
 /* ---------------------------------------------------------------------------
@@ -2216,6 +2403,11 @@ struct Conn {
         resp_ptr = nullptr; resp_len = 0; out_in_ring = false;
         ring_serving = true;
         struct ClearServing { bool *f; ~ClearServing() { *f = false; } } clear_serving{ &ring_serving };
+#ifdef SH_XPROF
+        /* ring exchanges record rows too (the socket loop's request/finish
+         * never sees them); `at` is when this thread noticed the request */
+        profile.request(size);
+#endif
         try {
             if (cmd != CMD_FIELD_GEMM) VIOLATE("ring carries command %u; only FIELD_GEMM rides the ring", cmd);
             const uint64_t cap = 8 + 4 * 64 + (uint64_t)3 * 4096 * (uint64_t)kmax;
@@ -2241,6 +2433,9 @@ struct Conn {
         wr_u64(r + RING_OFF_RPH + 1, rl);
         ring_st(r + RING_OFF_REP, seq);
         ring_exchanges++;
+#ifdef SH_XPROF
+        if (!violation) profile.finish(ring_exchanges, rl);
+#endif
         return !violation;
     }
 
@@ -2499,6 +2694,8 @@ int main(int argc, char **argv) {
         }
 #ifdef SH_XPROF
         else if (!strcmp(argv[i], "--kbench")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench(); }
+        else if (!strcmp(argv[i], "--kbench-x")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench_x(); }
+        else if (!strcmp(argv[i], "--kbench27")) { cudaSetDevice(0); cudaSetDeviceFlags(cudaDeviceScheduleSpin | cudaDeviceMapHost); return kbench27(); }
 #endif
         else { fprintf(stderr, "usage: shielded-worker [--host H] [--port P] [--vsock-port P] [--vram-gb G] [--shm FILE] [--public-weight-cache-mib M] [--quiet]\n"); return 2; }
     }
