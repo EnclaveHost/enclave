@@ -53,5 +53,17 @@ test("every plaintext opt-in block is gated on sh_fault_diag_plaintext", () => {
 
 test("the opt-in defaults off and needs an explicit 1", () => {
   const tee = readFileSync("wasm/ggml-shielded/shielded-tee.c", "utf8");
-  assert.match(tee, /getenv\("SHIELDED_FAULT_DIAG_PLAINTEXT"\);\s*v = e && !strcmp\(e, "1"\)/);
+  // even in an allowing build, only an explicit "1" turns it on
+  assert.match(tee, /getenv\("SHIELDED_FAULT_DIAG_PLAINTEXT"\);\s*#ifdef SHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT\s*v = e && !strcmp\(e, "1"\);/);
+});
+
+test("the plaintext opt-in exists only behind a compile-time define no deployment passes", () => {
+  const tee = readFileSync("wasm/ggml-shielded/shielded-tee.c", "utf8");
+  const fn = tee.slice(tee.indexOf("int sh_fault_diag_plaintext(void)"), tee.indexOf("void sh_fv_postmortem("));
+  assert.match(fn, /#ifdef SHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT[\s\S]*#else[\s\S]*v = 0;[\s\S]*#endif/,
+    "without the define the opt-in must be forced off");
+  for (const f of ["metal/build-image.mjs", "shielded/anchor/avf/build.sh", "wasm/ggml-shielded/Makefile"]) {
+    assert.ok(!readFileSync(f, "utf8").includes("SHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT"),
+      `${f} must not enable plaintext fault diagnostics`);
+  }
 });

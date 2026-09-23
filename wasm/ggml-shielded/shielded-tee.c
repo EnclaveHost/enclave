@@ -2064,9 +2064,24 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     return sh_link_gemm_stride(l, nodes, n_nodes, x_field, m, y_out, NULL);
 }
 
+/* The plaintext fault bits exist ONLY in a build compiled with
+ * -DSHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT, which no deployment build passes
+ * (metal/build-image.mjs and the Android anchor builds have fixed flag lists;
+ * test/shielded-fault-logs pins that). An environment variable alone is not a
+ * gate here: a deployment's environment can be set by the host. In any other
+ * build the variable is ignored and one line says so. */
 int sh_fault_diag_plaintext(void) {
     static int v = -1;
-    if (v < 0) { const char *e = getenv("SHIELDED_FAULT_DIAG_PLAINTEXT"); v = e && !strcmp(e, "1"); }
+    if (v < 0) {
+        const char *e = getenv("SHIELDED_FAULT_DIAG_PLAINTEXT");
+#ifdef SHIELDED_ALLOW_FAULT_DIAG_PLAINTEXT
+        v = e && !strcmp(e, "1");
+#else
+        if (e && *e && strcmp(e, "0"))
+            fprintf(stderr, "[shielded] SHIELDED_FAULT_DIAG_PLAINTEXT ignored: this build does not allow activation-dependent fault diagnostics\n");
+        v = 0;
+#endif
+    }
     return v;
 }
 
