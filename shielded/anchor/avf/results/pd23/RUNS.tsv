@@ -1,0 +1,6 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.
+# driver_sha256	3be31241e56c50ec62c9db028b261d1430a7bbb57b20859868b5a90c82b30933
+# label	condition	extra	status	rc	apk_sha256
+p23-01	d1	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 1	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
+p23-02	d2	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --ei verify_threads 4 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei draft_max 2	ok	0	672c2b44ffd0561a39bc55b81c06f657a4891619e34d0a83769498c2493c87d1
