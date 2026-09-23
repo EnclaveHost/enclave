@@ -354,6 +354,12 @@ check "9b each crash was noticed and retired exactly once, and none stayed in th
 [ "$(verdict "$W/s1-AGAIN.client")" = attested ] && [ "$(res "$W/s1-AGAIN.client" app_body)" = '"APP AAAAA path=/hello?from=client"' ] && r=ok || r=no
 check "9c the guest still serves after those cycles: a new domain loads, attests and answers" $r
 
+# RECHECK never entered the live-only block above, so shaP and pid would be unset from here on, and checks
+# 8c and 10c would silently FAIL on a workdir whose live run passed them - a recheck that is quietly wrong is
+# worse than one that refuses to run. Both are recoverable from files the run already saved. Idempotent, so a
+# live run keeps the values it computed.
+[ -n "${shaP:-}" ] || shaP=$(sha256sum "$W/probe-app.bin" 2>/dev/null | cut -c1-64)
+[ -n "${pid:-}" ] || pid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-PROBE.load" 2>/dev/null | head -1)
 echo "evidence: the compromised domain trying to exhaust memory: $(ser s1 | grep -aE 'PROBE[0-9]* (eating|memory_)' | tr '\n' ' ')"
 echo "evidence: how that domain ended: $(ser s1 | grep -aE "DOM${pid:-0} ERROR|domain ${pid:-0} ended" | tr '\n' '; ')"
 uncontained=$(ser s1 | grep -ac 'memory_UNCONTAINED' || true)
@@ -431,4 +437,16 @@ printf '  586 MB for ONE app; the guest reported %s MiB available empty and %s M
   "$(sed -n 's/.*"mem_available_mib":\([0-9]*\).*/\1/p' "$W/s3.state-empty" | head -1)" \
   "$(sed -n 's/.*"mem_available_mib":\([0-9]*\).*/\1/p' "$W/s3.state-loaded" | head -1)"
 echo "workdir $W"
-[ "$fails" -eq 0 ] && echo "M3a: ALL PASS" || { echo "M3a: $fails FAILED"; exit 1; }
+if [ "$fails" -ne 0 ]; then
+  echo "M3a: $fails FAILED"; exit 1
+elif [ -n "$EXPECT_MEAS" ]; then
+  # A pinned measurement must never be able to read as acceptance. The expected digest was handed to the
+  # clients rather than derived from the image's inputs, so the run shows the guests AGREE about their launch
+  # measurement, not that anyone could recognise this image without being told the answer. The marker is
+  # deliberately NOT "ALL PASS", so a checker cannot grep its way to the wrong conclusion.
+  echo "M3a: all checks pass, but NOT ACCEPTANCE: the launch measurement was SUPPLIED via EXPECT_MEAS"
+  echo "  supplied: $EXPECT_MEAS"
+  echo "  Trust-on-first-use. An allowlist built from this would only repeat a value it was given."
+else
+  echo "M3a: ALL PASS"
+fi
