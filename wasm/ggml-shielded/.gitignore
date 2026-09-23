@@ -20,3 +20,4 @@ bank-probe
 prefix-kv-mint
 prefix-kv-selftest
 postmortem-selftest
+shielded-soak

@@ -102,6 +102,9 @@ pads-unbox: pads-unbox.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 bank-probe: bank-probe.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+shielded-soak: shielded-soak.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
 postmortem-selftest: postmortem-selftest.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
