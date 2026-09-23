@@ -3159,3 +3159,13 @@ The item-by-item inventory is in `TRANSFER-27B.md`. The outcomes that change thi
 * **Inapplicable:** the delta-net in-place conv (Gemma 4 E2B has no recurrent layers), equality pad-independence
   (this lane's requantised worker product makes it pad-dependent by construction, as established above), the
   lost-wakeup fence (our pool is mutex + predicate waits).
+
+### Rejected on arithmetic: fusing exchanges through the RMSNorm scalar (2026-09-23)
+
+Each RMSNorm between two projections is a per-row scalar, so `W_gu * norm(x + postnorm(W_o a))` can be computed as
+`(W_gu' x + W_gu'' W_o a / rms(o)) / rms(h)` with every matmul known before the scalars: o-proj + gate/up in ONE
+exchange, and down + the next block's qkv in another, 70 exchanges per pass instead of 140. It is exact in the reals
+and needs no new masking. It does not pay: the fused matrices (`W_gu W_o`, `W_qkv W_down`) raise the TPU's MACs per row
+from 1836 M (matches mac_share.py) to 4384 M, 2.39x, and the TPU run is weight-bound. On the 09-23 split (7.0 ms per
+exchange at 4 rows, 1.78 ms of it the TPU run) the pass goes 980 -> 961 ms: 2.65 -> 2.71 tok/s. A prediction from the
+real bundle geometry, not a measurement, and not worth one.
