@@ -1,0 +1,12 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	d503b51b09da1f8a2e9c95b7c5705d115d6e2e47e5ca8ed8b9e28a568b18790c
+# label	condition	extra	status	rc
+sp2-01	t6		ok	0
+sp2-02	t2	--ei threads 2	ok	0
+sp2-03	t6-poll0	--ei pool_poll 0	ok	0
+sp2-04	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000	ok	0
+sp2-05	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000	ok	0
+sp2-06	t6-poll0	--ei pool_poll 0	ok	0
+sp2-07	t2	--ei threads 2	ok	0
+sp2-08	t6		ok	0
