@@ -9,10 +9,15 @@
 //      in its handshake BEFORE a request is attached to it; one mismatch aborts all application traffic.
 //
 // usage: node client.mjs <https://host:port> --measurement <hex> --app-sha <hex>
-//          [--lab-unsigned | --t0-diagnostic] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
-//   default          trusted: only an AMD-chain-verified T1 report opens the gate
-//   --lab-unsigned   lab-only diagnostic for chips with no VCEK: verdict "unauthenticated", never "attested"
+//          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
+//          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
+//   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
+//   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
+//   --min-tcb        the caller's minimum-TCB policy (relay/snp-verify.mjs checkMinTcb); no default floor exists
+//   --vcek           a VCEK the caller already holds; judged exactly like one in the report's certificate table
+//   --amd-chain      AMD's cert_chain for a product line, held locally; refused unless its ARK is the pinned root
+//   --no-kds         never contact AMD KDS (which answers 429 after a couple of requests)
 //
 // Prints `RESULT k=v` lines for the harness, `evidence:` lines for people, and one VERDICT line.
 // Exit status: 0 served, 3 gate closed (no application traffic), 4 application traffic aborted on a key
@@ -22,6 +27,7 @@ import tls from 'node:tls';
 import fs from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { judge } from './judge.mjs';
+import { seedCertChain } from '../../relay/snp-verify.mjs';
 
 const args = process.argv.slice(2);
 const url = new URL(args[0]);
@@ -29,7 +35,18 @@ const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : un
 const lab = args.includes('--lab-unsigned'), t0diag = args.includes('--t0-diagnostic');
 if (lab && t0diag) { console.error('--lab-unsigned and --t0-diagnostic are exclusive'); process.exit(2); }
 const mode = lab ? 'lab-unsigned' : t0diag ? 't0-diagnostic' : 'trusted';
-const want = { measurement: (opt('--measurement') || '').toLowerCase(), appSha: (opt('--app-sha') || '').toLowerCase(), mode };
+const want = { measurement: (opt('--measurement') || '').toLowerCase(), appSha: (opt('--app-sha') || '').toLowerCase(), mode,
+  kds: !args.includes('--no-kds') };
+if (opt('--min-tcb') !== undefined) {
+  const raw = opt('--min-tcb');
+  const text = raw.startsWith('@') ? fs.readFileSync(raw.slice(1), 'utf8') : raw;
+  try { want.minTcb = JSON.parse(text); } catch { want.minTcb = text; }        // malformed: the verifier refuses it
+}
+if (opt('--vcek')) want.vcek = fs.readFileSync(opt('--vcek'));
+if (opt('--amd-chain')) {
+  const [product, file] = opt('--amd-chain').split('=');
+  seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
+}
 const t0 = Number(opt('--t0') || 0);
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const out = (k, v) => console.log(`RESULT ${k}=${v}`);
@@ -118,6 +135,7 @@ out('doc_key_matches_handshake', a1.doc.transportKey === a1.spki.toString('base6
 const j1 = await judge(a1.doc, a1.spki, n1, want);
 for (const s of j1.reasons) console.log(`evidence: ${s}`);
 if (j1.measurement) { out('measurement', j1.measurement); out('report_data', j1.reportData); }
+if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');
 if (!j1.gateOpen) finish(3);

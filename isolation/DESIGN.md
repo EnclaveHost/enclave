@@ -94,7 +94,8 @@ measured initramfs.
 
 A verifier accepts a domain only if all of these hold:
 1. The report is signed by a VCEK chaining to AMD's ARK: `relay/snp-verify.mjs` implements
-   VCEK -> ASK -> ARK via AMD KDS.
+   VCEK -> ASK -> pinned ARK via AMD KDS, and requires the VCEK's extensions to name the report's chip
+   and exact reported TCB.
 2. The measurement is in the allowlist for (runtime version, app CID, vCPU count), and is reproducible
    from those inputs.
 3. `report_data` binds the report to this app and this challenge. **M1 (implemented):** the 64 bytes are
@@ -103,13 +104,19 @@ A verifier accepts a domain only if all of these hold:
    (implemented, section 10):** `[0:32]` = sha256(TLS key SPKI DER || verifier nonce), the binding
    metal0 serves and `relay/snp-verify.mjs` checks, and `[32:64]` = app sha256 as in M1. The report then
    also vouches for the TLS key traffic terminates on, and the nonce arrives per request, not per boot.
-4. Policy: debug off, VMPL0 for the domain's own report, and an acceptable TCB version.
+4. Policy: debug off, VMPL0 for the domain's own report, and an acceptable TCB version. **What is
+   acceptable is the caller's to say**: `verifyQuote({ minTcb })` takes a floor per product line with every
+   field required (section 10). The code chooses no floor. With none supplied the TCB is reported and
+   left unjudged, and M2's trusted client does not accept the domain.
 
-Known lab limit: this box's chip_id has no VCEK published by AMD KDS (recorded with metal0), so **(1)
-cannot be completed on warden-host**. M1 tests (2) and (3) and reports (1) as not tested here. M2's
-client therefore refuses every report from this box in its trusted default. Its `--lab-unsigned`
-diagnostic checks (2) to (4) and labels the result `unauthenticated`, never `attested` (section 10). T0 has no
-hardware attestation, and the platform must say so rather than present a T0 domain as attested.
+**Correction (2026-09-22).** This page and metal0's notes said warden-host's chip "has no VCEK published
+by AMD KDS". That was wrong, and the cause was our own code. warden-host's EPYC 9115 is a Turin part.
+Turin lays out the TCB bytes differently (FMC, boot loader, TEE, SNP, ..., microcode) and uses the first 8
+bytes of CHIP_ID as its KDS hardware ID. Both verifiers read every report with the Milan layout and sent
+all 64 bytes, so the lookup never matched. With the Turin form, KDS returns this chip's VCEK, and (1)
+holds on warden-host: section 11 has live `attested` domains. M1's results are unaffected: M1 recorded
+(1) as not tested. T0 has no hardware attestation, and the platform must say so rather than present a
+T0 domain as attested.
 
 ## 6. What exists and is reused
 
@@ -229,15 +236,16 @@ both call it, so the rule that is tested is the rule that runs.
 
 | verdict | meaning |
 |---|---|
-| `attested` | a T1 report whose AMD signature chain (VCEK -> ASK -> pinned ARK) verified, and whose policy, VMPL, measurement, key binding and app naming check out |
-| `unauthenticated` | the same field checks pass, but the chain did not verify. Nothing authenticates the fields: a host could have written every one of them |
+| `attested` | a T1 report whose AMD signature chain (VCEK -> ASK -> pinned ARK) verified, whose VCEK names this chip and reported TCB, whose reported TCB meets the caller's minimum-TCB policy, and whose policy, VMPL, measurement, key binding and app naming check out |
+| `no-tcb-policy` | all of that except the TCB: no minimum-TCB policy was supplied, so the firmware level is unjudged. Authenticated, but not accepted |
+| `unauthenticated` | the field checks pass, but the chain did not verify. Nothing authenticates the fields: a host could have written every one of them |
 | `not-attested` | a T0 domain, which has no hardware report |
 | `reject` | anything else |
 
 | client mode | verdicts that open the gate |
 |---|---|
 | trusted (the default) | `attested` only |
-| `--lab-unsigned` | `attested`, `unauthenticated`. The explicit diagnostic for a chip with no VCEK at AMD KDS, like this one |
+| `--lab-unsigned` | `attested`, `no-tcb-policy`, `unauthenticated`. An explicit diagnostic, never a trusted gate |
 | `--t0-diagnostic` | `not-attested` only. The explicit, untrusted T0 path: its pin is trust-on-first-use |
 
 **A closed gate sends no application request at all.** `m2/client.mjs`:
@@ -255,19 +263,31 @@ points. It printed `attested` for a report whose AMD chain was not verified. It 
 only after a response came back, and it sent application requests after a `reject`. Both are fixed as
 above, and each has a test below.
 
-**Found along the way, in shared code.** `relay/snp-verify.mjs` passed the VCEK's public key to
-`createPublicKey()`, which Node refuses for a public key object (`ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE`).
-Every report that arrived with a VCEK therefore failed as a "cert-chain verification error" before its
-signature was checked. That failed closed, but no report could ever verify through this code, the
-relay's attestation-gated attach included. No test covered it: every existing test ran
-`requireVcek: false` with no VCEK. Fixed, with `test/snp-vcek-signature.test.mjs`. Against the old code 2
-of its 3 cases fail. With the fix, a report signed by a host-made "VCEK" gets past the signature and is
-refused at the pinned chain, and a byte changed after signing is refused on the signature.
+**The minimum TCB is the caller's policy.** `--min-tcb` (and `minTcb` in `relay/snp-verify.mjs`,
+`METAL_MIN_TCB` on the relay) is a floor per product line, for example
+`{"Turin":{"fmc":..,"bootloader":..,"tee":..,"snp":..,"microcode":..}}`, with every field required. It
+applies to REPORTED_TCB, the TCB the VCEK signing key is derived from. Nothing picks a floor. A policy
+that is malformed, incomplete, has no floor for the report's product line, or cannot be evaluated
+(the report names no product line) fails the quote. It never becomes a pass for lack of data, including
+when there is no VCEK. An operator's real floor comes from AMD's security bulletins. The harness's floors
+are **test values**: the box's own reported TCB, which must pass, and the same with SNP one higher, which
+must fail.
 
-Still open in the verifier, not introduced by M2: section 5 point 4 asks for an acceptable TCB version,
-and `relay/snp-verify.mjs` enforces no minimum TCB and does not compare the VCEK's TCB and hwID
-extensions with the report. A genuine VCEK signs only its own chip's reports, so this is not a forgery
-path. It is the missing TCB-policy half of point 4.
+**Found along the way, in shared code.**
+- `relay/snp-verify.mjs` passed the VCEK's public key to `createPublicKey()`, which Node refuses for a
+  public key object. Every report that arrived with a VCEK failed before its signature was checked, so
+  nothing could ever verify through this code, the relay's attestation-gated attach included. Fixed in
+  6b086edd, with `test/snp-vcek-signature.test.mjs` (2 of its 3 cases fail against the old code).
+- Both verifiers built the KDS VCEK URL with the Milan TCB layout and the 64-byte chip ID, so every
+  Turin lookup missed (section 5, correction). Fixed in 3d9ba863, with `test/snp-tcb-policy.test.mjs`.
+  `metal/verify.mjs` gets the same lookup, the `createPublicKey` fix, the VCEK cross-check and
+  `--min-tcb`.
+- KDS answers HTTP 429 (`Retry-After: 10`) after a couple of requests. The verifier caches a VCEK once it
+  has chained. A caller can hold AMD's chain (`seedCertChain`, pin-checked) and verify with `kds: false`,
+  which the harness does after fetching the VCEK once (`vcek-prep.mjs`).
+- Not supported by this QEMU: the kernel can hand guests a host-supplied certificate table
+  (`KVM_SEV_SNP_ENABLE_REQ_CERTS`), but QEMU 11.1's `sev-snp-guest` has no option for it. So the front's
+  `auxblob` is empty here, and the VCEK comes from KDS.
 
 ### Code (`isolation/m2/`)
 
@@ -278,7 +298,8 @@ path. It is the missing TCB-policy half of point 4.
 - `front/`, `vsock/`, `domtls/`: the in-domain TLS and attestation front, a minimal AF_VSOCK binding, and
   in-memory key minting.
 - `judge.mjs`, `client.mjs`: the verdict and the client described above.
-- `negative.mjs`: forged and unsigned evidence, judged offline (no VM).
+- `negative.mjs`: forged, unsigned and TCB-policy evidence, judged offline (no VM, no KDS).
+- `vcek-prep.mjs`: fetches the chip's VCEK once per batch and writes the two test floors.
 - `fwd/`: the host side. It relays TCP to the domain's vsock and holds no key. `-tee` records the bytes
   it relays. `-mitm` is the attack: the host terminates TLS with its own key and re-encrypts to the
   domain. `-switch-after N` relays N connections and then MITMs the rest. `-mitm-tee` records the
@@ -293,24 +314,25 @@ against the live domains.
 
 0. Build reproducible: two builds are byte-identical.
 1. Measurement reproducible: the live digest equals the prediction, for both SNP launches.
-2. The trusted default refuses what it cannot authenticate. On this chip a genuine T1 report is
-   `reject` ("no VCEK available"), and a T0 domain is refused. In both cases no application request is
-   sent. 2c is the negative suite (below).
-3. The lab diagnostic: policy, VMPL0, measurement, key and nonce binding, and app naming are all
-   consistent, and the verdict is `unauthenticated`. A second nonce on a new pinned connection gets the
-   same verdict under the same key. A report does not satisfy a different nonce.
-4. TLS ends inside the domain: the pinned key is the one the domain minted. A host terminating TLS
+2. **Attested, live, on s1 and s2**: the chain to the pinned root, the VCEK naming this chip and TCB,
+   the TCB meeting the supplied floor, the key and nonce bound, and the app named. A second nonce on a
+   new pinned connection is attested under the same key. A report does not satisfy a different nonce.
+   And the refusals, each sending no application request: the trusted default holding no VCEK (2d),
+   the chain verified but no TCB policy (2e), and a floor one SNP version above the box (2f). 2g is the
+   negative suite.
+3. The lab diagnostic without the chain says `unauthenticated`.
+4. TLS ends inside the domain: the attested key is the one the domain minted. A host terminating TLS
    itself is rejected on the binding and receives no application request. The bytes the host relays
-   hold no plaintext. **4d:** a reconnect that meets a switched key is refused at the handshake, and
-   the host reads 0 plaintext bytes from it.
+   hold no plaintext. A reconnect that meets a switched key after an attested handshake is refused at
+   the handshake, and the host reads 0 plaintext bytes from it.
 5. The key is minted per launch: s1 and s2 keys differ while their identity does not.
-6. The app serves on the pinned key (lab diagnostic), and 4 x 16 MiB are echoed intact on T1 and T0.
+6. The app serves on the attested key, and 4 x 16 MiB are echoed intact (T1 attested, T0 diagnostic).
 7. Tier parity: the same image serves the same output on T0 (`--t0-diagnostic`), and no mode calls T0
    attested. A host in the middle of a T0 domain cannot be detected.
 8. Cost, measured without pass/fail.
 
-The negative suite (`negative.mjs`, check 2c) builds reports from nothing, the way a host that wants a
-client to trust its key would:
+The negative suite (`negative.mjs`, check 2g) builds reports from nothing, the way a host that wants a
+client to trust its key would, and adds the live s1 report:
 
 | case | trusted | lab-unsigned |
 |---|---|---|
@@ -320,32 +342,32 @@ client to trust its key would:
 | N3-N6 DEBUG policy, measurement off the allowlist, another app, binding to another key, another nonce | reject | reject |
 | N7 a T0 document | gate closed | gate closed (open only in `--t0-diagnostic`) |
 | N8 a T1 document in `--t0-diagnostic` | | reject: the modes do not mix |
-| N9 s1's genuine report | reject (no VCEK on this chip) | `unauthenticated`, never better |
+| T1-T5 a Turin-shaped forgery under TCB policies: met, below, incomplete, no floor for the line | T5: reject (a policy never stands in for the chain) | met: still `unauthenticated`; the others: reject |
+| N9 s1's genuine report with its VCEK: no policy / the box's own floor / one SNP version above / tampered | `no-tcb-policy` (closed) / **`attested`** / reject / reject on the signature | without the chain: `unauthenticated`, never better |
 
 ## 11. M2 results: measured on warden-host, 2026-09-22
 
-Same host and toolchain as section 8, Go 1.27.0, app `cd6f49cb…`. The code changed between two runs, and
-they are kept apart:
+Same host and toolchain as section 8, Go 1.27.0, app `cd6f49cb…`. The code changed between three runs,
+and they are kept apart:
 
 - **Run 1: before the audit fixes, on a quiet machine.** `test-m2.sh` printed ALL PASS, but its check 2
   counted a report with an unverified AMD chain as `attested`. **Its verdicts are superseded.** Its
-  serving measurements stand: the serving path did not change, only the client's rules and the front's
-  auxblob read on the attestation path.
-- **Run 2: after the fixes. ALL PASS, checks 0 to 7 (18 checks, plus the 14 negative cases).** It ran
-  while another session's 45-minute GPU soak (about 20 CPU threads) shared the machine, so its costs
-  are noisy and not used below. Measurement `8fc54dac…` (the front changed, so the identity changed
-  from run 1's `080b1eb2…`).
+  serving measurements stand: the serving path did not change.
+- **Run 2: after the audit fixes, before the Turin lookup fix.** ALL PASS, but its trusted checks could
+  only show refusal, because the broken lookup never found the VCEK. Superseded by run 3.
+- **Run 3: current code. ALL PASS, 21 checks plus the 23 negative cases.** It ran while another
+  session's 45-minute GPU soak (about 20 CPU threads) shared the machine, so its costs are noisy and not
+  used below. Measurement `8fc54dac…`, TCB Turin fmc 1 / bootloader 3 / TEE 2 / SNP 5 / microcode 117.
 
-What run 2 establishes:
-- **The trusted default refuses what it cannot authenticate.** No report from this chip can be
-  `attested`, and the client says so and sends no application request.
-- **Every field a report carries is consistent with the domain**, as far as a check without the AMD
-  chain can go: debug off, VMPL0, the predicted measurement, the key the client's own handshake saw
-  bound with its nonce, and the app named. That is labelled `unauthenticated`, and nothing treats it as
-  more.
-- **TLS ends inside the domain.** The pinned key is the minted key. A host that terminates TLS is caught
-  on the binding and receives nothing but the attestation GET. The host relays only ciphertext. A
-  switched-key reconnect is refused at the handshake, and the host reads 0 bytes from it.
+What run 3 establishes:
+- **Authenticated attestation of a live serving domain, twice.** s1 and s2 are `attested`: report signed
+  by this chip's VCEK, chained to AMD's pinned Turin root, the VCEK naming this chip and TCB, the TCB
+  meeting the supplied test floor, and the report binding the TLS key the client's own handshake saw
+  with its fresh nonce. The app is then served on that key.
+- **Refusal wherever the evidence falls short, with nothing sent:** no VCEK held, no TCB policy, a
+  floor above the box, a host terminating TLS, a switched key on reconnect, and T0 in trusted mode.
+- **TLS ends inside the domain**, the host relays only ciphertext, and it reads 0 bytes from a
+  switched-key reconnect.
 - **A fresh key per launch, the same identity, and the same app output on T0 and T1.**
 
 Cost, run 1 (quiet machine; 1 vCPU, 512 MiB):
@@ -367,8 +389,44 @@ SNP launch, as in M1. The memory gap is SNP backing all of guest RAM, as in M1, 
 `wasmtime serve` and the front.
 
 Not established here:
-- **Authenticated attestation.** This chip has no VCEK at AMD KDS, and the host supplies none, so no
-  report here can be `attested`. The first `attested` verdict needs a chip whose VCEK AMD publishes,
-  fetched by the verifier from KDS or loaded by the host into the report's certificate table.
-- A minimum-TCB policy (above); any confidentiality measurement (the host-memory test); a client that
-  is not this harness; anything on Windows or VBS.
+- **An acceptable firmware floor.** The floors used are test values from the box itself, so they prove
+  the check works, not that this firmware is acceptable.
+- The VCEK arriving from the host rather than from KDS (this QEMU cannot supply the certificate table).
+- Any confidentiality measurement (the host-memory test); a client that is not this harness; anything on
+  Windows or VBS.
+- **Isolation between apps inside one outer TEE.** M1 and M2 give each app a whole SNP guest. Section 12
+  covers the next step.
+
+## 12. Next: app domains inside ONE outer TEE
+
+M1 and M2 give every app a whole SNP guest: 3.4 s and about 586 MB per app (section 11), and the
+outer TEE is the per-app boundary. The goal is many app domains inside one long-lived SNP guest. SNP
+then protects all of them from the host, and something inside separates them from each other.
+
+What this host offers for the hardware version (source-based, from the installed 7.2.3 KVM headers and
+QEMU 11.1's option lists; nothing below was run):
+- **VMPL domains** (a monitor at VMPL0 and apps at lower VMPLs, the SVSM model) need the host to run
+  more than one VMPL per vCPU. Stock KVM 7.2 has no planes or VMPL interface in its uAPI, and QEMU 11.1
+  is built without IGVM, the usual way to load an SVSM. **Building this means running a different host
+  kernel and VMM on warden-host, which is Steven's call, not a step to take unasked.**
+- Nested virtualization inside an SNP guest is refused (section 3).
+
+**The bounded step taken now: the monitor, with the isolation backend left swappable.** Every piece that
+a VMPL design would need, except the VMPL boundary itself, can be built and measured in one stock SNP
+guest:
+- a small **monitor** as PID 1 of one measured SNP guest. It is the only holder of the report interface;
+- **apps loaded at lease start**, sent over a host control channel into the running guest. The monitor
+  hashes each app itself, so the host can send anything but cannot misreport what runs;
+- **per-domain attestation**: a domain's front asks the monitor for a report, and the monitor writes
+  `[32:64]` = the requesting domain's app sha256 from its own table (identified by the socket's kernel
+  credentials, never by the domain's say-so). `[0:32]` stays sha256(domain key SPKI || nonce), so the M2
+  client and verdict rules apply unchanged, with the monitor image's launch measurement on the allowlist;
+- **a per-domain resource share** from cgroup v2 inside the guest, and **one vsock port per domain**.
+
+The interim backend separates domains with the guest kernel: a uid, a network namespace (its own
+loopback), a private directory and a cgroup per domain. That is MMU isolation enforced by the guest
+kernel, so the guest kernel joins the app-vs-app TCB. **It is weaker than VMPL isolation and is labelled
+that way everywhere it appears.** SNP still excludes the host from every domain's memory. The runtime
+stays Wasm-portable and the AOT/JIT choice stays open: each domain runs the same `wasmtime serve` as M2.
+
+Status: in progress (`isolation/m3/`).
