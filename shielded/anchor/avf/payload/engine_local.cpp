@@ -68,7 +68,7 @@ extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank,
 /* Speculative rows (TPU.md, LOCAL.md): an OPTIONAL drafter proposes up to n_max tokens and the target verifies them as extra
  * rows of ONE step; on the Shielded-TPU path those rows ride the same 140 exchanges. The drafter needs no authentication:
  * the target checks every proposal, so a wrong or hostile drafter changes the speed and never the text. */
-static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr;
+static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr, *g_dpool = nullptr;
 extern "C" int engine_local_set_draft(const char *path, int n_max) { if (!path || !*path || n_max < 1 || n_max > 4) return -1; g_draft_path = path; g_draft_max = n_max; return 0; }
 /* exported by the pinned llama fork: every model tensor by name (tied weights may appear twice) */
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
@@ -213,9 +213,19 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
        * spins before sleeping; on the masked TPU lane the pool is idle for most of every exchange, and the VM measured
        * 5.1 cores busy while decoding at 1 tok/s (results/cpuval). */
       int poll = -1; if (const char *e = getenv("ANCHOR_POOL_POLL")) { char *end = nullptr; long v = strtol(e, &end, 10); if (end && !*end && v >= 0 && v <= 100) poll = (int)v; }
-      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); if (poll >= 0) tpp.poll = (uint32_t)poll; g_pool = tp_new(&tpp); if (g_pool) llama_attach_threadpool(ctx, g_pool, g_pool);
-                    if (poll < 0) poll = (int)tpp.poll; }
-      outf("LOCAL context ready: ctx %d, %d threads, persistent pool=%s (poll %d), model loaded in %.1f s", n_ctx, n_threads, tp_new ? "yes" : "no", poll, load_s); }
+      /* ANCHOR_DECODE_THREADS (dthreads=): one-token decode gets its own smaller pool, prompt processing keeps n_threads.
+       * On the masked TPU lane two decode threads measured 10-15 % faster and 60 % less CPU than six, but cost prefill
+       * 2.5x when the one pool shrank (results/spin2). */
+      int dthreads = 0; if (const char *e = getenv("ANCHOR_DECODE_THREADS")) { char *end = nullptr; long v = strtol(e, &end, 10); if (end && !*end && v >= 1 && v <= 16) dthreads = (int)v; }
+      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); if (poll >= 0) tpp.poll = (uint32_t)poll; g_pool = tp_new(&tpp);
+                    if (poll < 0) poll = (int)tpp.poll;
+                    if (g_pool && dthreads > 0 && dthreads != n_threads) {
+                        ggml_threadpool_params dpp = ggml_threadpool_params_default(dthreads); dpp.poll = (uint32_t)poll;
+                        g_dpool = tp_new(&dpp);
+                        if (g_dpool) { llama_attach_threadpool(ctx, g_dpool, g_pool); llama_set_n_threads(ctx, dthreads, n_threads); }
+                    }
+                    if (g_pool && !g_dpool) llama_attach_threadpool(ctx, g_pool, g_pool); }
+      outf("LOCAL context ready: ctx %d, %d threads (decode %d), persistent pool=%s (poll %d), model loaded in %.1f s", n_ctx, n_threads, g_dpool ? dthreads : n_threads, tp_new ? "yes" : "no", poll, load_s); }
     char model_hex[65] = ""; if (g_table->has_whole) for (int i = 0; i < 32; i++) snprintf(model_hex + 2 * i, 3, "%02x", g_table->whole_digest[i]);
     /* Pads last: the model load above is the VM's biggest consumer of memory, and the lane bundle's pages must still be resident
      * when decode walks them (a bundle page that went back to the encrypted store costs a disk read per touched page). */
