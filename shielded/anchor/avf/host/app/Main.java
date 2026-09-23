@@ -113,6 +113,7 @@ public class Main extends Activity {
         int tpuLinks = 0;                    // --ei tpu_links 2..4: extra worker connections for the link-scaling benchmark ONLY (mode local)
         int tpuSpin = 0;                     // --ei tpu_spin 1..20000: us the VM polls the worker link for a reply before sleeping (0 = block)
         int tpuWorkerSpin = 0;               // --ei tpu_worker_spin 1..20000: us the worker polls for the next request before sleeping (0 = block)
+        int poolPoll = -1;                   // --ei pool_poll 0..100: the VM thread pool's polling level (-1 = ggml's default)
         int tpuLayers = 35;                  // --ei tpu_layers: how many L<n>.tflite files the worker loads
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal)
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
@@ -195,6 +196,7 @@ public class Main extends Activity {
             if (i.getStringExtra("draft") != null) p.draft = i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
             p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
+            p.poolPoll = i.getIntExtra("pool_poll", p.poolPoll);
             p.tpuSpin = i.getIntExtra("tpu_spin", p.tpuSpin); p.tpuWorkerSpin = i.getIntExtra("tpu_worker_spin", p.tpuWorkerSpin);
             p.tpuPrio = i.getIntExtra("tpu_prio", p.tpuPrio);
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
@@ -214,6 +216,7 @@ public class Main extends Activity {
                     else if (p.draftMax < 1 || p.draftMax > 4) p.configError = "draft_max must be 1..4";
                     else if (p.tpuLinks != 0 && (p.tpuLinks < 2 || p.tpuLinks > 4)) p.configError = "tpu_links must be 0 (off) or 2..4";
                     else if (p.tpuLinks != 0 && p.tpuGraphs.isEmpty()) p.configError = "tpu_links needs the Shielded-TPU path (tpu_graphs/tpu_bundle)";
+                    else if (p.poolPoll < -1 || p.poolPoll > 100) p.configError = "pool_poll must be -1 (default) or 0..100";
                     else if (p.tpuSpin < 0 || p.tpuSpin > 20000 || p.tpuWorkerSpin < 0 || p.tpuWorkerSpin > 20000) p.configError = "tpu_spin and tpu_worker_spin must be 0..20000 us";
                     else if ((p.tpuSpin != 0 || p.tpuWorkerSpin != 0) && p.tpuGraphs.isEmpty()) p.configError = "tpu_spin/tpu_worker_spin need the Shielded-TPU path (tpu_graphs/tpu_bundle)";
                     else if (p.ctx < 512 || p.ctx > 32768) p.configError = "ctx must be 512..32768";
@@ -561,6 +564,7 @@ public class Main extends Activity {
                 if (!plan.draft.isEmpty()) localLine = LocalChat.withDraft(localLine, new java.io.File(plan.draft).length(), plan.draftMax);
                 if (plan.tpuLinks >= 2) localLine = LocalChat.withLinks(localLine, plan.tpuLinks);
                 if (tpu && plan.tpuSpin > 0) localLine = LocalChat.withSpin(localLine, plan.tpuSpin);
+                if (plan.poolPoll >= 0) localLine = LocalChat.withPoll(localLine, plan.poolPoll);
                 cmd.append(localLine).append('\n');
                 if (!plan.draft.isEmpty() && modelOk) new Thread(() -> streamPublicFile(vm, DRAFT_PORT, plan.draft, "drafter"), "vsock-draft").start();
                 if (tpu && modelOk) { new Thread(() -> streamPublicFile(vm, BUNDLE_PORT, plan.tpuBundle, "TPU bundle"), "vsock-bundle").start(); new Thread(() -> tpuWorker(vm, plan), "tpu-worker").start(); }
