@@ -207,9 +207,11 @@ machine cold-boots - correct, and the reason the restore looked broken too: a re
 livelocks the same way, which is why it sat at `cursor.updates=14` and ignored every `/hid` event
 while reporting `guest_idle=false`.
 
-The real fix is a JIT in VTL1, or a guest clock that is neither pure host time nor pure
-instruction count. Until then a paced workload cannot have both correct pacing and forward
-progress on this box.
+A JIT in VTL1 is NOT the fix and cannot be: VTL1 refuses every executable page with
+ERROR_DYNAMIC_CODE_BLOCKED - measured, see "VTL1 refuses executable pages" at the end of this
+file. What is left is a guest clock that is neither pure host time nor pure instruction count, or
+compiled code that was measured at load. Until then a paced workload cannot have both correct
+pacing and forward progress on this box.
 
 ## The page serves; the machine inside does not run
 
@@ -268,3 +270,100 @@ re-claim is a transaction, so `e64f7cba`, `a77d0c57`, `a69dcbba` and `7ae476a3` 
 once - `renew` reverts "lease expired", the node cannot pay to re-claim, and it loops
 `taking` -> `stopped`. Only `d9798e4c` still holds a lease. Nothing further can be verified on the
 guest until that wallet is funded.
+
+## The terminal: four layers, measured on the live instance
+
+`e64f7cba`'s web terminal is the SERIAL path: xterm.js -> `POST /input` per keystroke (HTTPS
+through the relay) -> the app's UART -> the guest's `ttyS0` root shell -> echo back over the
+`/console` stream. (The desktop keyboard is a different path: `/hid` -> virtio-input -> X.)
+Measured on a copy-on-write fork of the running machine, public hostname vs loopback:
+
+| | public | loopback |
+|---|---|---|
+| `POST /input` returns | 0.8 s warm, ~2 s cold (TLS) | 0.5-0.75 s |
+| key-to-echo | 2.8-3.4 s | 1.4-2.1 s |
+| Enter -> next prompt, no-op command | 3.2-3.3 s | 3.0-3.4 s |
+| sustained typing (passive, restoreExec) | 878 ms/char (two machines busy) | |
+
+1. **The relay** adds little once warm (+50-100 ms); a cold POST pays a TLS handshake (~1.2 s).
+2. **The app's loop turn** is the biggest single-key term: HTTP is served only between emulator
+   batches, and a batch was a fixed 400,000 instructions - "the ~6 ms a batch takes" on the host it
+   was tuned for, ~800 ms at the enclave's 0.5 MIPS. FIX (enclave-apps b07bdb2): turns sized by TIME
+   (40 ms target, capped at the old batch, so a fast host is unchanged).
+3. **The UART** took a typed byte only every 230,400 instructions (upstream "arbitrary... Fix me"),
+   ~0.46 s/char at 0.5 MIPS: it dominates anything longer than one key. FIX (d6d11b9): 1,024;
+   A/B on the same snapshot and command 14M -> 6M instructions typed-to-result.
+4. **The page** fired an un-awaited POST per key, so keys raced each other: against a jittery link
+   the deployed page delivered 20/20 fast-typed lines SCRAMBLED ("uname -a" -> "amuen a-"). FIX
+   (e966242): one request in flight, in order, coalescing the rest (31 keys -> 5 requests).
+
+Beneath all four, the interpreter: 1.5 MIPS stock Pulley on this CPU, 0.9 with the enclave's memory
+setup (no guard pages -> explicit bounds checks), 0.5-0.6 in production.
+
+**Deployed how:** the fixes are in the app, and the app's catalog entry and the deployment both
+belong to the governance hardware wallet (publisher and owner 0x0b2d...eE61), so their permanent form
+is two signatures on that device: `publishVersion` (risc-box 0.6.55) then `setAppRef` on e64f7cba.
+Until then `ENCLAVE_APP_ARTIFACT_PATCH` (host.mjs 0e5983d7) runs the fixed build, pinned by sha256,
+logged on every apply and recorded on the deployment as `artifactOverride`. REMOVE IT once the
+signed version is live.
+
+**The build is plain wasm64 + `aot`, not the deployed wasm64 + SET.** The 0.6.54 artifact's recipe
+was never committed, and it cannot be rebuilt from what is: the SET wasi-libc patch's C side is
+wasm64-aware (32-bit spawn args, a "low start_args pool") but the patch has no wasm64 thread-entry
+assembly (`wasi_set_thread_start.s` is i32-only and fails to assemble for wasm64) and no
+`__enclave_set_low_args_alloc`, which its own comments cite. It makes no difference on this box:
+the enclave runtime has no SET `thread.spawn` yet, so the deployed build's `pthread_create` already
+fails ("no display worker") exactly as a non-SET build's `worker()` returns false. It also drops
+the 22 GiB up-front shared-memory reservation that locked risc-box out of a long-lived enclave.
+
+
+## VTL1 refuses executable pages: measured, not assumed
+
+Everything above rests on "there is no JIT in the enclave". That was inferred from the design
+(`/INTEGRITYCHECK`, page-hash signing, an image hashed by `InitializeEnclave`) rather than tested,
+and it decides something larger than risc-box: whether COMPILED wasm could ever be loaded into a
+running enclave the way Pulley bytecode is today. It is now tested.
+`windows/vbs/enclave/vxprobe.c` asks the secure kernel for one page at each protection, from
+inside a signed, initialized enclave, and records the answer. It writes no instructions and calls
+nothing it allocates - the refusal is the entire result.
+
+```
+  alloc then  result   err
+  RW    -     ALLOWED  0       control
+  R     -     ALLOWED  0       control
+  RWX   -     REFUSED  1655
+  RX    -     REFUSED  1655
+  X     -     REFUSED  1655
+  RW    RX    REFUSED  1655    the JIT pattern
+  RW    RWX   REFUSED  1655
+  RW    R     ALLOWED  0       control: reprotection ITSELF works
+```
+
+1655 is `ERROR_DYNAMIC_CODE_BLOCKED`, "the operation was blocked as the process prohibits dynamic
+code generation". The last row is what makes it conclusive: `VirtualProtect` is not stubbed out in
+VTL1 - it moves RW to R happily. It is the EXECUTE bit alone that the secure kernel refuses, at
+allocation and at reprotection alike.
+
+The rest of the surface agrees by omission:
+
+- the entire host-side API is eight functions (`enclaveapi.h`), and the only one taking a page
+  protection, `LoadEnclaveData`, is documented "loads data into an UNINITIALIZED enclave" and
+  "only supported [for] enclaves that have the `ENCLAVE_TYPE_SGX` and `ENCLAVE_TYPE_SGX2` enclave
+  types" - both pre-init only AND unavailable to VBS.
+- the enclave-side API (`winenclaveapi.h`) is ten functions: attestation, sealing, trustlet
+  encryption, enclave information, and the two memory accessors. Nothing allocates, accepts or
+  commits a page. SGX2's EDMM requires the enclave to ACCEPT a page it was handed; VBS exposes no
+  equivalent.
+- `vertdll.dll` DOES export `VirtualAlloc`/`VirtualProtect`/`VirtualFree`/`VirtualQuery`, which is
+  exactly why this had to be measured rather than argued from the export list.
+
+**What it settles.** Native code runs in VTL1 only if it was part of the image that
+`InitializeEnclave` measured. A compiled app therefore cannot be loaded at runtime into a running
+enclave the way a cwasm is today: it would have to be linked into a signed enclave DLL and present
+before initialization, which costs the dynamic, unsigned, architecture-portable app loading that
+`ee_rt_open` gives us now (8 slots, bytecode in as data, nothing re-measured). Pulley is not a
+workaround for a missing feature - it is the only shape that fits, and the interpreter's penalty
+over a JIT is structural, not a tuning problem.
+
+**What it does NOT settle.** The gap between stock Pulley (1.5 MIPS here) and production
+(0.4-0.6) is ours, not the secure kernel's, and that IS a tuning problem.
