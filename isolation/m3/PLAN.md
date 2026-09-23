@@ -698,3 +698,50 @@ cannot reach VMPL0". A verifier relies on measured monitor code truthfully perfo
 local refusal. What makes that worth relying on is that the code is inside the launch measurement and fails
 closed - not that anyone verified the refusal from outside. DESIGN.md states this at the same length, and
 no document should describe a lower-level report, on its own, as proving confinement.
+
+## 16. M3b results: measured on warden-host after the boot, 2026-09-23
+
+The boot happened (attended, non-default GRUB entry). **The kernel is good and planes work. The boundary
+is blocked upstream, not by planes and not by our code.**
+
+**Stage A, health: ALL PASS.** Booted 7.2.0-gbf5bafed3e6d; all three GPUs on driver 580.178.04, so the
+NVIDIA rebuild held; the USB NIC came back with an address and a default route; DNS and sshd fine.
+- `kvm_amd: SEV-SNP enabled (ASIDs 1 - 99), VMPL Levels 4`
+- an SNP guest is **GRANTED plane 2** (A7), and **plane 9 is REFUSED** (A7b), so the gate discriminates.
+
+**Stage B, regression: ALL PASS.** M1, M2 and M3a all pass unchanged on the planes kernel. It is a
+drop-in; nothing that worked before the boot stopped working.
+
+**Stage C, the boundary: BLOCKED.** The monitor guest never started under the SVSM. Not a plane problem:
+
+    qemu-system-x86_64: SNP_LAUNCH_UPDATE ret=-22 fw_error=0 ''
+
+`fw_error=0` means the KERNEL rejected it, before the PSP. Localised by QEMU's own trace
+(`--trace kvm_sev_snp_launch_update`): every region is accepted - Normal pages, the **Cpuid page**, the
+**Secrets page**, the firmware at `0xffc00000` - and only the **last** one fails:
+
+    gpa 0xfffffffff000 len 0x1000 (VMSA page)
+
+That address is `2^48 - 0x1000`, a sentinel with no memslot behind it, and
+`arch/x86/kvm/svm/sev.c snp_launch_update()` does `gfn_to_memslot()` then
+`if (!kvm_slot_has_gmem(memslot)) return -EINVAL` with **no special case for it**.
+
+**It is a skew between two COCONUT branches that share a name, both at their tips:**
+
+| side | commit | what it does with the VMSA |
+|---|---|---|
+| `coconut-svsm/qemu` `svsm-v7.2` | 1649642 | defines `KVM_VMSA_GPA 0xFFFFFFFFF000` and comments "the invalid VMSA GPA selects the legacy VMSA path", sending it through VM-level `KVM_SEV_SNP_LAUNCH_UPDATE` |
+| `coconut-svsm/linux` `svsm-v7.2` | bf5bafed3 | defines the same `INITIAL_VMSA_GPA` but uses it only in the vCPU-state path; its tip commit is "Test SNP vCPU state and **direct VMSA launch**", adding **vCPU-scoped** SEV ioctls (`KVM_SEV_SNP_GET_VCPU_STATE` is VM-visible; the set is vCPU-scoped) |
+
+Neither repository has a newer branch or commit: both are 0 commits behind their `origin/svsm-v7.2`, and
+`origin` lists only that branch. So the kernel moved VMSA setup to vCPU-scoped ioctls while this QEMU still
+uses the sentinel-GPA convention, and there is no pairing of the two tips that works.
+
+**What this does and does not cost.** It does not cost the boot: planes are proven, and M1/M2/M3a pass, so
+the kernel is worth keeping and is safe for other sessions. It does block the VMPL boundary until one side
+is made to match: either QEMU is taught the vCPU-scoped call, or an older kernel commit that still accepts
+the sentinel is found and rebuilt (another full kernel build, DKMS rebuild and attended reboot). That is a
+decision, not a detail, and it is the one remaining gap between M3a and app-vs-app isolation by hardware.
+
+**The `vmpl0=refused` evidence therefore remains unobserved on hardware**, exactly as section 14 says: the
+probe only acts once the floor is above 0, and nothing has yet run above it.
