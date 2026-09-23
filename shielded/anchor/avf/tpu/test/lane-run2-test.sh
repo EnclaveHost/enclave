@@ -42,10 +42,12 @@ EOF
 cat > "$W/stubs/am" <<'EOF'
 #!/usr/bin/env bash
 [ "$1" = start ] || exit 0
-shift; ask=""; label=""
+shift; ask=""; label=""; printf '%s\n' "$@" > "$FAKE_HOME/received-args"
 while [ $# -gt 0 ]; do case "$1" in --es) [ "$2" = ask ] && ask="$3"; [ "$2" = capture ] && label="$3"; shift 3;; --ei) shift 3;; *) shift;; esac; done
 printf '%s' "$ask" > "$FAKE_HOME/received-ask"
 [ "${FAKE_AM_ERROR:-0}" = 1 ] && { echo "Error: Activity class does not exist."; exit 0; }
+[ "${FAKE_AM_DELIVERED:-0}" = 1 ] && { echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main (has extras) }"; echo "Warning: Activity not started, intent has been delivered to currently running top-most instance."; exit 0; }
+[ "${FAKE_AM_IGNORED:-0}" = 1 ] && { echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main (has extras) }"; exit 0; }
 c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
 [ "${FAKE_MANGLE:-0}" = 1 ] && ask="${ask//\'/}"
 { echo "CAPTURE BEGIN label=$label"
@@ -106,6 +108,13 @@ run pullfail FAKE_ADB_FAIL_ON="cat files/capture"; ck "adb fails pulling the cap
 run probefail FAKE_ADB_FAIL_ON="then echo DONE"; ck "adb fails on the completion probe: refused" "$RC" 1
 run runasfail FAKE_RUNAS_FAIL="cat files/capture/runasfail.log"; ck "the remote cat fails (status carried back): refused" "$RC" 1
 run amerr FAKE_AM_ERROR=1; ck "am start reports an error: refused" "$RC" 1
+run nobank; ck "BANK unset: the launch does not name tpu_bank (the app's default applies)" "$(grep -c '^tpu_bank$' "$W/home/received-args")" 0
+run bank128 BANK=128; ck "BANK=128: the launch names tpu_bank 128" "$(grep -A1 '^tpu_bank$' "$W/home/received-args" | tail -1)" 128
+run delivered FAKE_AM_DELIVERED=1; ck "am start delivered the intent to a running instance: refused" "$RC" 1
+grep -q "did not start the run" <<<"$OUT"; ck "... at the launch, naming it" "$?" 0
+run ignored FAKE_AM_IGNORED=1 LANE_TRIES=50 LANE_START_TRIES=2; ck "the app never opens a capture: refused" "$RC" 1
+grep -q "never started the run" <<<"$OUT"; ck "... after LANE_START_TRIES polls, not the whole wait" "$?" 0
+grep -q "am start -S " "$HERE/lane-run2.sh"; ck "the launch force-stops the app at start (am start -S)" "$?" 0
 run asleep FAKE_WAKE=Asleep; ck "a dozing phone: refused" "$RC" 1
 # a label already on the device: refused BEFORE am start
 rm -rf "$W/home"; mkdir -p "$W/home/files/capture"; : > "$W/home/files/capture/reused.log"

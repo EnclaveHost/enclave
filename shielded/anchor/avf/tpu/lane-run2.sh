@@ -74,13 +74,21 @@ grep -q 'mWakefulness=Awake' <<<"$pw" || die "PHONE NOT AWAKE: refusing to measu
 args="-n $P/.Main --es mode local --es vmname $(q "${VMNAME:-anchorlocal}") --ei mem ${MEM:-8192} --es model $F/model.gguf"
 # GRAPHS=none runs the SAME model on the VM's CPU alone (no TPU, no pads): the reference every masked figure is compared with
 if [ "${GRAPHS:-}" = none ]; then TPU=0; args+=" --ei max_new ${MAXNEW:-48}"
-else TPU=1; args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48}"; fi
+else TPU=1; args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei max_new ${MAXNEW:-48}"
+     # the bank is named only when BANK is set: this driver used to send tpu_bank 64 on EVERY launch, so no run through
+     # it ever measured the app's own default (128 since smp2) -- results/df1 df-01 ran dry at 64 and minted 1680 pads inline
+     [ -z "${BANK:-}" ] || args+=" --ei tpu_bank $BANK"; fi
 args+=" --es capture $LABEL"
 for w in $EXTRA; do args+=" $(q "$w")"; done
 args+=" --es ask $(q "$ASK")"
 cpu_start
-started=$(rsh "am start $args") || exit 1
+# -S force-stops the app again AT the launch: on Android 17 a reinstall (lane-conditions' APK column) makes System UI
+# relaunch the updated app's task a second or two later, after the force-stop above, and the run's intent was then
+# DELIVERED to that bare instance (result code 3) instead of starting it -- the app never began the run and this
+# driver polled for an hour (results/df1, df-02). An intent that did not start the activity is refused outright.
+started=$(rsh "am start -S $args") || exit 1
 grep -qiE '^Error|Exception' <<<"$started" && die "am start: $(tr '\n' ' ' <<<"$started")"
+grep -qiE 'Activity not started|delivered to currently running' <<<"$started" && die "am start did not start the run (the intent went to a running instance): $(tr '\n' ' ' <<<"$started")"
 
 t0=$(date +%s); : > "$OUT/$LABEL.caps" || die "cannot write $OUT/$LABEL.caps"
 done_=0
@@ -89,8 +97,10 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   caps=$(rsh "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq") || exit 1
   caps=$(tr '\n' ' ' <<<"$caps")
   echo "$(( $(date +%s) - t0 )) $caps" >> "$OUT/$LABEL.caps"
-  st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; else echo WAIT; fi'") || exit 1
+  st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; elif [ -e files/capture/$LABEL.log ]; then echo WAIT; else echo NOLOG; fi'") || exit 1
   [ "$st" = DONE ] && { done_=1; break; }
+  # the app opens its capture as it takes the intent; none after LANE_START_TRIES polls means the run never began
+  if [ "$st" = NOLOG ]; then nolog=$(( ${nolog:-0} + 1 )); [ "$nolog" -ge "${LANE_START_TRIES:-24}" ] && die "the app never started the run: no capture after $nolog polls"; st=WAIT; fi
   # a VM that died never completes its capture: stop at once instead of polling out the hour
   dead=$(rsh "run-as $P sh -c 'if grep -qE \"^(VM stopped|VM payload finished exit=[1-9]|HOST FAIL)\" files/capture/$LABEL.log 2>/dev/null; then echo DEAD; else echo ALIVE; fi'") || exit 1
   [ "$dead" = DEAD ] && { rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" 2>/dev/null; die "the VM stopped before the run completed: $(grep -m1 -E '^(VM stopped|VM payload finished|HOST FAIL)' "$OUT/$LABEL.log" 2>/dev/null)"; }

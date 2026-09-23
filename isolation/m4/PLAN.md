@@ -127,9 +127,16 @@ Stated now so it cannot be quietly skipped later:
     adversary report: measurement=<its own>, report_data[32:64]=B's AppID -> REJECTED-ON-MEASUREMENT
     tampered bundle -> "manifest names a different artifact than it carries"
 
-**The load-bearing result is N3b.** The adversary is native code with ROOT in its own SNP guest, and it DID
-mint a PSP-signed report naming B's AppID - it owns its configfs, so nothing stops it. What it cannot forge
-is B's MEASUREMENT. There is no monitor in this shape, so the measurement IS the app-naming authority, and
+**The load-bearing result is N3b, and its proof chain is explicit after an audit.** The first judge only
+PARSED the report and then called it PSP-signed, which asserted more than it proved. It now runs three steps
+that must all hold: (1) the exact report verifies through the real verifier - VCEK to the pinned ARK, the VCEK
+naming this chip and TCB, the reported TCB meeting the caller's floor - against the ADVERSARY's own measured
+image; (2) it names B's AppID AND binds B's transport key, so it is as complete an impersonation as can be
+constructed; (3) judged with B's measurement it is refused, ON the measurement. N3c adds negative fixtures -
+a flipped signature byte, a measurement rewritten to B's, tampered report_data, an all-zero report, a
+truncated report, a lowered TCB - so that "rejected as B" cannot mean "rejected because it was nonsense".
+The adversary is native code with ROOT in its own SNP guest, and it DID mint such a report: it owns its
+configfs, so nothing stops it. What it cannot forge is B's MEASUREMENT. There is no monitor in this shape, so the measurement IS the app-naming authority, and
 the verifier rejects on exactly that. This is why M4a closes requirement 2 while M3b does not.
 
 **The measurement is reproducible across runs**, better than the IGVM path: both runs produced the same
@@ -157,6 +164,5 @@ in-guest to be refused. N4 is an M4b property, where the SVSM holds VMPL0 above 
   missing `--min-tcb`, without which the verdict is `no-tcb-policy` and the trusted gate stays closed by
   design, so three checks failed for want of a policy rather than for want of isolation. The contract module exists and its vectors pass
 (`isolation/contract`, on `windows/custom-vbs-like-hyperv`); the SNP backend imports it there and both the
-M3b and plain M3a suites pass with it (31/31 each, another session's live runs). The next concrete step is
-M4a: drive one guest per app through the contract bundle, then write N1-N7 as a suite in the shape of
-`test-m3.sh` so that a failure is a failure and a refusal is evidence.
+M3b and plain M3a suites pass with it (31/31 each, another session's live runs). The next concrete step is **M4b** (section 3): move the app-naming authority into the SVSM so a
+plane per app can carry per-app identity, within the 2-3 apps-per-guest ceiling of section 2.
