@@ -18,6 +18,7 @@
 // masked activations. An artifact built for a world the enclave cannot serve is refused by name
 // rather than run beside the enclave, which is the thing this box does not sell.
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
@@ -445,8 +446,16 @@ export class Host {
     const floor = chain.nodeFloorOf(v);
     this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
     let art;
-    try { art = await fetchArtifact({ cid: v.cid, dir: path.join(this.cfg.dir, "apps"), python: this.cfg.python, gateway: this.cfg.gateway, log: (m) => this.log(m) }); }
-    catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
+    // An OPERATOR ARTIFACT OVERRIDE, when one is set for this deployment (see #artifactPatch). It
+    // replaces only WHICH BYTES run; the lease, the config, the secrets and the checks below are
+    // the catalog version's, unchanged.
+    const patched = this.#artifactPatch(id, v);
+    if (patched && patched.error) return this.#record(id, { status: "failed", reason: `artifact override: ${patched.error}` });
+    if (patched) art = { path: patched.path };
+    else {
+      try { art = await fetchArtifact({ cid: v.cid, dir: path.join(this.cfg.dir, "apps"), python: this.cfg.python, gateway: this.cfg.gateway, log: (m) => this.log(m) }); }
+      catch (e) { return this.#record(id, { status: "failed", reason: `artifact: ${e.message}` }); }
+    }
     try {
       const layer = wasmLayer(art.path);
       if (layer !== 1) return await this.#giveUp(id, `the artifact is a core wasm module (layer ${layer}), not a wasi:http component`);
@@ -545,7 +554,7 @@ export class Host {
       // the features removes that human step - any change on either side simply misses the cache.
       const abi = Number(this.cfg.enclaveAppAbi || 0);
       const feats = Number(this.cfg.enclaveAppFeatures || 0);
-      const cwasm = path.join(this.cfg.dir, "apps", `ipfs-${v.cid}.rt${abi}f${feats}.cwasm`);
+      const cwasm = path.join(this.cfg.dir, "apps", `${patched ? `local-${patched.sha.slice(0, 16)}` : `ipfs-${v.cid}`}.rt${abi}f${feats}.cwasm`);
       if (!fs.existsSync(cwasm) || fs.statSync(cwasm).size < 64) {
         this.#record(id, { status: "provisioning", reason: "compiling the app to enclave bytecode" });
         try { await precompile({ wasmPath: art.path, outPath: cwasm, exe: this.cfg.precompileExe,
@@ -772,6 +781,39 @@ export class Host {
    * A patch is a WORKAROUND and should name itself as one: it is logged on every apply, and the
    * standing list lives in windows/PARITY.md.
    */
+  /**
+   * An OPERATOR-SET artifact override: ENCLAVE_APP_ARTIFACT_PATCH = {"<deployment id>":
+   * {"file": "<path>", "sha256": "<hex>"}}. The deployment runs that file instead of its catalog
+   * version's CID.
+   *
+   * It exists for one case: a fix whose permanent form needs signatures this box does not hold.
+   * risc-box's catalog app and the deployment both belong to the governance hardware wallet, so a
+   * fixed build can only become the catalog's version, and the deployment's, through two signatures
+   * on that device (publishVersion, then setAppRef). Until then the override is how the fix runs.
+   *
+   * The bytes are pinned by hash - a file that does not match is refused, never run - and the
+   * compiled cache is keyed by that hash, so it cannot be confused with the catalog CID's. Every
+   * apply is logged and recorded on the deployment, and the list lives in windows/PARITY.md. It is a
+   * WORKAROUND and must be removed once the signed version exists.
+   */
+  #artifactPatch(id, v) {
+    const raw = process.env.ENCLAVE_APP_ARTIFACT_PATCH;
+    if (!raw) return null;
+    let all;
+    try { all = JSON.parse(raw); } catch (e) { return { error: `ENCLAVE_APP_ARTIFACT_PATCH is not JSON (${e.message})` }; }
+    const key = String(id).toLowerCase();
+    const p = all[key] || all[key.replace(/^0x/, "")];
+    if (!p) return null;
+    if (!p.file || !/^[0-9a-f]{64}$/i.test(String(p.sha256 || ""))) return { error: "needs {file, sha256}" };
+    let bytes;
+    try { bytes = fs.readFileSync(p.file); } catch (e) { return { error: `cannot read ${p.file}: ${e.message}` }; }
+    const sha = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (sha !== String(p.sha256).toLowerCase()) return { error: `${p.file} is sha256 ${sha.slice(0, 16)}…, not the pinned ${String(p.sha256).slice(0, 16)}… - refusing to run it` };
+    this.log(`ARTIFACT OVERRIDE (operator, NOT the catalog's bytes) for ${key.slice(0, 10)}: running ${path.basename(p.file)} `
+      + `sha256 ${sha.slice(0, 16)}… in place of catalog ${v.version} (${v.cid})`);
+    this.#record(key, { artifactOverride: { file: path.basename(p.file), sha256: sha, replaces: v.cid } });
+    return { path: p.file, sha };
+  }
   #patchConfig(d, text) {
     const raw = process.env.ENCLAVE_APP_CONFIG_PATCH;
     if (!raw) return text;
