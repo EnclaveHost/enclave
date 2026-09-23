@@ -1,0 +1,10 @@
+df1 -- smp2 (anchor-smp2.apk edd595fa...) launched naming only graphs + bundle: the measured profile by DEFAULT.
+
+df-01: LANE-RUN OK (rc 0, installed APK hashed on the device = edd595fa...).
+df-02: NO RESULT. Not a lane failure: the run never started. lane-conditions reinstalled the APK (-r) while df-01's app was
+  still the top activity; Android 17's CorePackageUpdate made System UI relaunch the task at 15:45:36 (no extras), after the
+  driver's force-stop and before its `am start` at 15:45:39, which returned result code 3 (delivered to the running top
+  instance). The app never opened a capture; the driver (no start timeout then) polled for 27 min and the batch was stopped
+  by hand (kill of q3.sh, lane-conditions and the df-02 driver; phone-side sampler killed; no RUNS.tsv row was written for
+  df-02 because lane-conditions was killed mid-row). Fixed in tpu/lane-run2.sh: `am start -S`, a delivered-to-top intent is
+  refused at launch, and no capture after LANE_START_TRIES polls fails the run. df-02 is re-run as results/df1b.
