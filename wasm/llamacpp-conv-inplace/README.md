@@ -32,7 +32,21 @@ any other compiler or flags before trusting the op there.
   `n_seq_max > 1` with or without the op (a pre-existing limitation).
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
-  workflow's CPU-relevant flags, and runs all three harnesses there.
+  workflow's CPU-relevant flags, and runs all three harnesses there, plus the
+  two token-fused GATED_DELTA_NET checks below.
+
+**Token-fused GATED_DELTA_NET** (`../llamacpp-gdn-tokfuse.patch`, switch
+`ENCLAVE_GGML_GDN_TOKFUSE`, default on). `gdn-equiv.cpp` runs 72 op cases
+(the model's S_v=128 / 48 value heads over 16 key heads, n_tokens 1-17
+across and past the fused window, K 1-4 including K > n_tokens, in-place into
+a padded multi-slot cache and the copy form, several sequences, odd shapes,
+threads 1/3/8, signed zeros, and the per-channel gate, which never takes the
+fused path) and dumps every output and the whole state buffer; run once per
+switch value, the dumps must be byte-identical (`run_pair` in
+`harness-check.sh`). A one-ulp mutant planted in the fused loop changes
+exactly the 52 fused cases and no other. `conv-graph-test` is also run with
+the tokfuse switch as the arm (`run_graph ... ENCLAVE_GGML_GDN_TOKFUSE`); its
+spec scenario's 2-token verify batches take the fused path.
 
 Validated on two builds, both bit-identical: GCC 16.2.1 with AVX-512 (the
 vector path), and GCC 11.4 with the production workflow's flags, which are
@@ -46,7 +60,9 @@ requires both arms to finish with the same nonzero step/row/byte counts and
 byte-identical dumps; `prod-toolchain-check.sh` sources it under
 `set -euo pipefail`. `selftest-harness-check.sh` demonstrates that with stub
 harnesses (a pass line with exit 1, no pass line, a signal, an arm exiting
-nonzero, zero steps, a one-byte difference, differing step counts, and a
+nonzero, zero steps, a one-byte difference, differing step counts, the same for `run_pair`
+(an arm exiting nonzero, a one-byte difference, a dump shorter than reported,
+zero cases), and a
 script that must stop at the first failed check). `conv-graph-test` rejects an
 unknown scenario and an unopenable output path before loading a model, and
 checks every write and the final close.

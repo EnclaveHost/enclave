@@ -1,6 +1,7 @@
 #!/bin/bash
 # Inside ubuntu:22.04 (the llamacpp-toolchain runner's OS and stock compiler):
-# the CPU part of the production configuration, then the three conv harnesses.
+# the CPU part of the production configuration, then the conv harnesses and the
+# token-fused GATED_DELTA_NET harness.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >/dev/null && apt-get install -y -qq build-essential cmake git >/dev/null
@@ -14,11 +15,13 @@ cmake --build /work/build -j"$(nproc)" --target llama ggml-cpu > /out/build.log 
 grep -m1 "CXX_FLAGS" /work/build/ggml/src/CMakeFiles/ggml-cpu.dir/flags.make > /out/cpu-flags.txt || true
 ls /work/build/bin/ > /out/libs.txt
 B=/work/build/bin; I="-I/work/llama-src/include -I/work/llama-src/ggml/include"
-for t in conv-equiv conv-equiv2 conv-graph-test; do
+for t in conv-equiv conv-equiv2 conv-graph-test gdn-equiv; do
   g++ -O2 -std=c++17 -DGGML_MAX_NAME=128 $I -o /work/$t /tests/$t.cpp -L$B -lllama -lggml -lggml-cpu -lggml-base -Wl,-rpath,$B
 done
 . /tests/harness-check.sh
 run_equiv conv-equiv  "ALL IDENTICAL" /work/conv-equiv
 run_equiv conv-equiv2 "ALL PASS"      /work/conv-equiv2
 CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out
+run_pair gdn-equiv /work/gdn-equiv ENCLAVE_GGML_GDN_TOKFUSE /out
+mkdir -p /out/tokfuse && CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out/tokfuse ENCLAVE_GGML_GDN_TOKFUSE
 echo "ALL CHECKS PASSED"
