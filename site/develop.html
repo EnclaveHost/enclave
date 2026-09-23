@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
 <title>Developer Guide, CLI & API Reference · Enclave</title>
-<meta name="description" content="Build and ship your first WebAssembly app for Enclave's confidential GPU cloud: the wasi:http developer guide, the enclave CLI, and the full CORS-enabled REST API reference with OpenAPI spec." />
+<meta name="description" content="Build a WebAssembly app once and run it on Enclave's verifiable hosts: the wasi:http developer guide, the enclave CLI, the MCP server for agents, and the full CORS-enabled REST API reference with OpenAPI spec." />
 <link rel="canonical" href="https://enclave.host/develop" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -18,7 +18,7 @@
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Enclave: compute that cannot see your data. WebAssembly on attested GPU enclaves, paid per second." />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://enclave.host/assets/og.png" />
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
@@ -50,7 +50,7 @@
   "@context": "https://schema.org",
   "@type": "WebAPI",
   "name": "Enclave API",
-  "description": "CORS-enabled REST API for deploying WebAssembly apps onto attested confidential GPU enclaves: create and fund deployments, stream logs, fetch attestation, all callable from front-end JavaScript.",
+  "description": "CORS-enabled REST API for deploying WebAssembly apps onto attested enclaves and other verifiable hosts: create and fund deployments, stream logs, fetch attestation, all callable from front-end JavaScript or an agent.",
   "documentation": "https://enclave.host/develop#api",
   "termsOfService": "https://enclave.host/terms",
   "provider": { "@type": "Organization", "name": "Enclave Host, Inc.", "url": "https://enclave.host/" }
@@ -79,7 +79,7 @@
   <div class="wrap">
     <article class="doc doc-lead">
       <h3>Build your first Wasm app.</h3>
-      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, GPU inference, user-held-key encrypted volumes, and attestation your users can check themselves. Everything here runs against the same <a href="#api">public API</a> the <a href="apps/deploy">Deploy console</a> uses.</p>
+      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, GPU inference, user-held-key encrypted volumes, and attestation your users can check themselves. Everything here runs against the same <a href="#api">public API</a> the store's Deploy button uses. The package you build is the same on every backend; the protection level belongs to the host it lands on, and <a href="architecture#protection">the architecture page</a> says what each one guarantees.</p>
     </article>
 
     <div class="docs-layout">
@@ -144,7 +144,7 @@
           </ul>
           <div class="doc-note">
             <span class="nt">The contract</span>
-            <p>If <code>wasmtime serve</code> runs your <code>.wasm</code> locally, the enclave runs it too: the manager launches the identical command per tenant. That's the whole compatibility story, and it's why every chapter here ends with a local command you can verify before spending a cent.</p>
+            <p>If <code>wasmtime serve</code> runs your <code>.wasm</code> locally, the enclave runs it too: the manager launches the identical command per tenant. That's the whole compatibility story, and it's why every chapter here ends with a local command you can verify before spending a cent. The same component also runs, interpreted, inside the Windows host's enclave; a versioned domain contract shared by every backend is in development and described on <a href="architecture#package">the architecture page</a>.</p>
           </div>
         </article>
 
@@ -735,7 +735,7 @@ envelope        = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON
         <article class="doc" id="docs-domains">
           <h3><span class="n">14</span>Custom domains</h3>
           <p>Every deployment answers on its own subdomain, <code>&lt;label&gt;.app.enclave.host</code>. You can also attach <b>a domain you own</b>, and the app serves it under that name - same backend, no redirect, no frame - with a certificate <b>minted inside the enclave</b>. The private key for your domain is generated in the CVM and never leaves it, which is the same guarantee the platform subdomain already gives you.</p>
-          <p>Open <b>Domains</b> on the deployment in the <a href="apps/dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
+          <p>Open <b>Domains</b> on the deployment in the <a href="dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
           <c-code fn="your DNS provider"><pre><code># 1. routing - where the traffic goes
 shop.example.com.                    CNAME  cc1f4f3f.app.enclave.host.
 
@@ -776,7 +776,7 @@ _acme-challenge.shop.example.com.    CNAME  _acme-challenge.cc1f4f3f.app.enclave
         <!-- 15 ------------------------------------------------------------ -->
         <article class="doc" id="docs-attest">
           <h3><span class="n">15</span>Attestation for your users</h3>
-          <p>The platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
+          <p>On a confidential host the platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
           <c-code fn="verify.js · attested client"><pre><code>import { SecureClient } from "tinfoil";
 
 const c = new SecureClient({ baseURL: "https://&lt;enclave-host&gt;" });

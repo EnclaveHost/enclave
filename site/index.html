@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
-<title>Enclave · Confidential GPU Compute That Cannot See Your Data</title>
-<meta name="description" content="Compute that cannot see your data. Deploy a WebAssembly app onto a verifiable, attested enclave equipped with a flagship NVIDIA GPU, straight from your browser: pay per second, only for what you use, and verify the enclave yourself. No sales calls, no gatekeepers. Built and operated by Enclave Host, Inc." />
+<title>Enclave · Compute That Cannot See Your Data</title>
+<meta name="description" content="Compute that cannot see your data. Package an app once and run it on independent hosts: on confidential hardware the host is locked out and proves it in your browser; every other host states its protection level. Pay per second from a wallet, whether you are a person or an agent." />
 <link rel="canonical" href="https://enclave.host/" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -14,11 +14,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://enclave.host/" />
 <meta property="og:title" content="Enclave · Compute That Cannot See Your Data" />
-<meta property="og:description" content="Attested GPU enclaves for everyone, not just the Fortune 500. Deploy a WebAssembly app straight from your browser, pay per second for exactly what you use, and verify the enclave yourself before sending a byte." />
+<meta property="og:description" content="Portable apps, explicit protection levels, verifiable execution, independent infrastructure. Deploy a WebAssembly app from your browser or an agent, pay per second, and verify the host before you send a byte." />
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Enclave: compute that cannot see your data. WebAssembly on attested GPU enclaves, paid per second." />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://enclave.host/assets/og.png" />
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
@@ -80,18 +80,18 @@
       "@id": "https://enclave.host/#website",
       "url": "https://enclave.host/",
       "name": "Enclave",
-      "description": "Compute that cannot see your data: deploy WebAssembly apps onto verifiable, attested confidential enclaves with flagship NVIDIA GPUs, paid per second.",
+      "description": "Compute that cannot see your data: one portable WebAssembly app package, run on independent hosts whose protection level is stated and verifiable, paid per second.",
       "publisher": { "@id": "https://enclave.host/#org" }
     },
     {
       "@type": "Service",
       "@id": "https://enclave.host/#service",
-      "name": "Enclave confidential GPU compute",
-      "serviceType": "Confidential computing (GPU cloud)",
+      "name": "Enclave verifiable compute",
+      "serviceType": "Confidential computing (CPU and GPU), verifiable app hosting",
       "provider": { "@id": "https://enclave.host/#org" },
       "url": "https://enclave.host/",
       "areaServed": "Worldwide",
-      "description": "On-demand attested enclaves with CPU and GPU confidential computing, running WebAssembly apps with GPU shares metered and paid per second.",
+      "description": "On-demand hosting for WebAssembly apps on attested confidential CPUs and GPUs and on hosts that state a lesser protection level, with CPU and GPU shares metered and paid per second.",
       "offers": [
         {
           "@type": "Offer",
@@ -117,18 +117,18 @@
 <section class="hero" data-view="overview" aria-label="Intro">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <span class="eyebrow">Trustless, attested enclaves · API v1</span>
+      <span class="eyebrow">Verifiable compute · API v1</span>
       <h1>Compute that <span class="hl">cannot</span><br>see your&nbsp;data.</h1>
-      <p class="lede">The hardware that used to hide behind enterprise sales calls is now one click away: deploy a <b>WebAssembly app</b> onto a confidential enclave equipped with a <b>flagship NVIDIA GPU</b>, straight from your browser. Pay <b>per second</b>, only while it runs: no subscription, no minimums. Then check the cryptographic attestation <b>yourself</b> before you send a single byte of data.</p>
+      <p class="lede">Package an app <b>once</b> and run it on independent hosts. On confidential hardware the host is <b>locked out</b> of your memory and traffic, and the proof reaches your browser before you send a byte. Everywhere else, the protection level is <b>stated on the listing</b>, never assumed. Pay <b>per second</b> from a wallet, whether you are a person or an agent.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
-        <a href="develop#api" class="btn btn-ghost">Read the API</a>
+        <a href="architecture" class="btn btn-ghost">How it works</a>
       </div>
       <div class="hero-foot">
-        <span>flagship NVIDIA GPUs · confidential CPU&nbsp;+&nbsp;GPU</span>
-        <span>per-tenant Wasm sandbox + process isolation</span>
-        <span>VRAM zeroed before reuse</span>
-        <span>CORS-friendly</span>
+        <span>one app package · many hosts</span>
+        <span>protection level stated per host</span>
+        <span>verify before you connect</span>
+        <span>wallet in, wallet out</span>
       </div>
     </div>
 
@@ -139,102 +139,127 @@
   <!-- facts marquee -->
   <c-ticker></c-ticker>
 </section>
-<!-- ===================== WHY ===================== -->
-<section id="why" data-view="overview" aria-label="Principles">
+<!-- ===================== WHAT YOU GET ===================== -->
+<section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
-    <c-section-head eyebrow="The model" heading="Don't trust the operator. Measure it.">
-      <p>Enclave runs your WebAssembly app inside a hardware-isolated, attested enclave with a confidential GPU wired into it, so the operator can't read your memory, your keys, or your traffic, and you don't have to take our word for it. Every claim on this page is something you can check yourself, in a signed attestation or a public record. We're equally explicit about the part that <i>isn't</i> hardware-enforced: how tenants are kept apart from each other on a shared GPU. <a href="#isolation">See exactly how isolation works ↓</a></p>
+    <c-section-head eyebrow="What you get" heading="Portable apps. Explicit protection. Verifiable execution. Independent infrastructure.">
+      <p>Four things, in the order a careful buyer asks about them. Each one is a fact you can check rather than a promise you have to take, and each has a page behind it that says how far it has gotten. <a href="architecture">The long version, with mechanisms and status ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
-        <span class="tag">verifiable</span>
-        <h3>Trustless</h3>
-        <p>Each enclave produces a CPU attestation report (AMD SEV-SNP on today's fleet) and an NVIDIA GPU attestation report. Verify them client-side against the measurements published on <a href="https://github.com/EnclaveHost/enclave/releases" target="_blank" rel="noopener">EnclaveHost/enclave</a> releases, then connect.</p>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
+        <span class="tag">one package</span>
+        <h3>Portable</h3>
+        <p>Build a WebAssembly component once. The same package runs today on the confidential Linux fleet and on a Windows host, and a versioned execution contract shared by every backend is in development. No per-host builds, no rewrite when the hardware under you changes.</p>
       </div>
       <div class="card iris">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 010 3.6H10a1.8 1.8 0 000 3.6h4.5"/></svg></div>
-        <span class="tag">pay-per-second</span>
-        <h3>Pay-as-you-go</h3>
-        <p>No subscription, no seats, no sales call: sign in with a passkey and add credit, or bring your own keys and pay directly. Either way a payment buys prepaid runtime, burned per second while your deployment runs, and for paid apps the publisher's share is delivered the same instant. Payments are final: unspent time survives a stop but can't be withdrawn, so fund small and top up as you go.</p>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
+        <span class="tag">stated, not assumed</span>
+        <h3>Explicit protection</h3>
+        <p>Every host listing says what it protects against: the machine's owner, other apps, or only other apps. Confidential hardware locks the host out and proves it. A partitioned host keeps apps apart and says the owner can still see in. You choose, knowing. <a href="#protection">The levels →</a></p>
       </div>
       <div class="card jade">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
-        <span class="tag">cors</span>
-        <h3>Browser-native</h3>
-        <p>The whole API is CORS-enabled. Spin up a server, stream logs, and pull attestation from front-end JavaScript. No backend required.</p>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
+        <span class="tag">proof, not promises</span>
+        <h3>Verifiable</h3>
+        <p>The chain from the silicon to the exact app bytes is checkable in your browser before you connect: hardware report, measured runtime, public release, content hash. The same check runs from the CLI and from an agent's tool call. <a href="#attest">Run it now →</a></p>
       </div>
       <div class="card amber">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/><path d="M9 4V2M15 4V2M9 22v-2M15 22v-2M4 9H2M4 15H2M22 9h-2M22 15h-2"/></svg></div>
-        <span class="tag">gpu</span>
-        <h3>Real GPUs</h3>
-        <p>Whole flagship NVIDIA GPUs in confidential-computing mode, wired into your Wasm app through a GPU interface. Deploying is two dials - a GPU share and a CPU share - floored at the minimums the app's declared specs imply. <a href="#isolation">How tenants share a card →</a></p>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></svg></div>
+        <span class="tag">no gatekeeper</span>
+        <h3>Independent</h3>
+        <p>The catalog, the deployment ledger and payment live in public contracts; app bundles are content-addressed; the source is public; hosts are independent machines paid on chain. The goal is a platform that outlives any one company or domain, and the page behind this card says which parts still run on ours. <a href="architecture#independent">What still runs on our servers →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ===================== WHO IT IS FOR ===================== -->
+<section id="who" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Who it is for">
+  <div class="wrap">
+    <c-section-head eyebrow="Who it is for" heading="Anything holding a key is a customer.">
+      <p>Four ways in, one identity: a key you hold. No accounts, no approvals, and no step that assumes a human is at the keyboard.</p>
+    </c-section-head>
+    <div class="cards">
+      <div class="card jade">
+        <span class="tag">deployers</span>
+        <h3>Use an app</h3>
+        <p>Pick an app from the store, fund it, use it: a private chat with a model, an image generator, a game server, a tool you would not hand your data to anywhere else. The protection level is on the listing and the receipt is on chain. <a href="apps">Browse the store →</a></p>
+      </div>
+      <div class="card iris">
+        <span class="tag">publishers</span>
+        <h3>Publish an app</h3>
+        <p>Ship a WebAssembly component to the on-chain catalog, set an hourly fee if you like, and get paid straight to your wallet every time someone funds it. Publishing takes a minute from the browser or the CLI. <a href="develop">The developer guide →</a></p>
+      </div>
+      <div class="card jade">
+        <span class="tag">hosts</span>
+        <h3>Sell your hardware</h3>
+        <p>Register a machine you own, claim funded work, and be paid on chain for every lease you serve. Confidential hardware earns the strongest tier; other machines are listed at exactly the level they can prove. <a href="host">Host an enclave →</a></p>
+      </div>
+      <div class="card amber">
+        <span class="tag">agents</span>
+        <h3>Drive it with a key</h3>
+        <p>Everything a person can do here, an agent can do with a key: browse, deploy, fund, verify, all over REST and MCP. Transactions come back unsigned for the agent's own wallet, and no flow requires a human. <a href="develop#mcp">The MCP server →</a></p>
       </div>
     </div>
   </div>
 </section>
 <!-- ===================== HOW IT WORKS ===================== -->
-<section id="how" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="How it works">
+<section id="how" data-view="overview" aria-label="How it works">
   <div class="wrap">
     <c-section-head eyebrow="Lifecycle" heading="Five calls, start to finish.">
-      <p>The path from zero to a verified GPU endpoint. Click a step to see exactly what crosses the wire.</p>
+      <p>The path from zero to a verified endpoint. Click a step to see exactly what crosses the wire.</p>
     </c-section-head>
     <c-flow></c-flow>
   </div>
 </section>
 
+<!-- ===================== PROTECTION LEVELS ===================== -->
+<section id="protection" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Protection levels">
+  <div class="wrap">
+    <c-section-head eyebrow="Protection levels" heading="What each host protects you from, in plain words.">
+      <p>Two questions hide inside "is it isolated": <b>from other apps</b>, and <b>from the machine's owner</b>. Hosts answer them differently, so each listing carries its answer as a badge. These are the levels that exist today and the one that is planned.</p>
+    </c-section-head>
+
+    <div class="cards iso-cards lvl-cards">
+      <div class="card jade">
+        <span class="tag">confidential · available</span>
+        <h3>The host cannot see in</h3>
+        <p>The machine's operating system and its operator are locked out of the app's memory and traffic, and the processor signs a report you verify before connecting. Where a GPU is inside the boundary, it attests too. This is the hosted fleet and every self-hosted confidential server. Between apps on one such host, separation is a sandbox and a process today; moving it into hardware is in research.</p>
+      </div>
+      <div class="card iris">
+        <span class="tag">partitioned · available on one host</span>
+        <h3>Apps kept apart; the owner can see in</h3>
+        <p>A Windows PC runs apps inside an enclave its own operating system cannot read, but the person who holds the machine ultimately controls it: no memory encryption, traffic carried by the host side, a test-signed build. Its listing says exactly that, it is marked as a development tier, and a deployment lands there only if you choose it.</p>
+      </div>
+      <div class="card">
+        <span class="tag">plain · planned</span>
+        <h3>Apps kept apart; no other claim</h3>
+        <p>An ordinary Linux server without a confidential CPU would give each app its own virtual machine and nothing more: the host can read everything, and the listing would say "no TEE CPU". No such host is listed today, and none will be listed without that label.</p>
+      </div>
+    </div>
+
+    <div class="iso-honest">
+      <h4>What we do <u>not</u> claim</h4>
+      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation has been demonstrated in the lab and is under review, not shipped. <a href="architecture#protection">Every level, with its mechanism and its evidence →</a></p>
+    </div>
+  </div>
+</section>
+
 <section id="attest" data-view="overview" aria-label="Attestation">
   <div class="wrap">
-    <c-section-head eyebrow="Root of trust" heading="What &quot;trustless&quot; actually means here.">
-      <p>"Trustless" isn't a slogan. It's a chain of measurements that ends in your browser. Walk each link to see what gets verified and why the operator can't fake it.</p>
+    <c-section-head eyebrow="Root of trust" heading="The proof, not the promise.">
+      <p>"Verifiable" is a chain of measurements that ends in your browser. Walk each link to see what gets checked and why the operator cannot fake it, then run the check yourself against a live host.</p>
     </c-section-head>
     <c-attest-chain></c-attest-chain>
     <c-live-verify></c-live-verify>
   </div>
 </section>
 
-<!-- ===================== ISOLATION ===================== -->
-<section id="isolation" data-view="overview" style="border-top:1px solid var(--line-soft);" aria-label="How isolation works">
-  <div class="wrap">
-    <c-section-head eyebrow="How isolation is achieved" heading="Two boundaries. One is hardware. One is not. We tell you which.">
-      <p>Most "confidential GPU" pitches blur these together. Enclave keeps them separate because they're enforced by different things and carry different guarantees. Here is precisely what protects you, and from whom.</p>
-    </c-section-head>
-
-    <div class="cards iso-cards">
-      <div class="card jade">
-        <span class="tag">hardware · attested</span>
-        <h3>You vs. the operator</h3>
-        <p>Your enclave runs in a CPU TEE (AMD SEV-SNP on today's fleet) with the GPU in NVIDIA confidential-computing mode. The CPU↔GPU link is encrypted and the GPU is walled off from the host. Enclave, the operator, cannot read your VRAM, RAM, keys, or traffic. This is enforced by hardware and proven by an attestation you verify in your browser <b>before</b> sending data. This is the strong guarantee, and it's the one you can check cryptographically.</p>
-      </div>
-      <div class="card iris">
-        <span class="tag">software · Wasm sandbox + process</span>
-        <h3>You vs. other tenants</h3>
-        <p>CC seals the <i>whole</i> GPU as a single trust domain and disables MIG, so there's no hardware partition between tenants on one card. We isolate tenants with two software layers, and each guards a different side. On the CPU, each tenant's app runs inside a <b>WebAssembly sandbox</b> (memory-safe, no ambient authority, no host filesystem or environment). On the GPU, the sandbox does nothing; kernel execution is separated by the dedicated OS worker <b>process</b> each tenant gets: separate processes get separate GPU address spaces, mediated by the shared NVIDIA driver. Those boundaries, not a hardware slice, are what keep tenants apart, and we don't pretend otherwise.</p>
-      </div>
-    </div>
-
-    <div class="iso-mech">
-      <h4>What the Wasm sandbox and process boundary actually buy you <span class="sub">· every GPU-level point below was measured on our own hardware</span></h4>
-      <ul class="iso-list">
-        <li><b>No host reach.</b> The Wasm app can't open files, read the host environment, spawn processes, or make outbound connections. WASI grants it only the HTTP socket the runtime serves it on. There's no shell and no SSH, anywhere: a Wasm app isn't an OS, so the usual container-escape surface simply isn't there, and the platform ships no SSH channel at all - no sshd runs in the enclave and nothing installs keys. The only ways in are the HTTP data path and the ports an app declares.</li>
-        <li><b>No cross-tenant reads.</b> Separate processes get separate GPU address spaces. A kernel in one tenant's process that tries to read another tenant's memory faults. The address simply isn't mapped. (Verified: the cross-process read attempt raised an illegal-access fault.)</li>
-        <li><b>Blast radius of one.</b> A tenant whose kernel crashes or runs illegal memory access takes down only their own worker. A co-tenant running on the same GPU kept executing without a single error, and the GPU stayed healthy. (Verified under a live fault.)</li>
-        <li><b>Memory zeroed before reuse.</b> The driver hands VRAM pages to a process only zeroed, so one tenant's residue is never observable to the next. Full disclosure about what our test does and doesn't show: zero-on-allocation is stock driver behavior, so "a fresh allocation read back zeroes" wouldn't prove much on its own. What we verified is that the property holds in the case that matters: under CC, after a tenant wrote ~117&nbsp;GB and was killed without cleaning up, another process's fresh allocation came back fully zeroed. Whether the driver scrubs at exit or on allocation is its implementation detail; dirty pages crossing tenants is the failure, and it didn't happen.</li>
-        <li><b>Fair share, not free-for-all.</b> Each worker is capped to its purchased compute share so one tenant can't starve the GPU, and a watchdog kills any worker that exceeds its slice or hangs.</li>
-      </ul>
-    </div>
-
-    <div class="iso-honest">
-      <h4>What we do <u>not</u> claim</h4>
-      <p>Inter-tenant isolation is enforced by the WebAssembly sandbox, the operating system, and the NVIDIA GPU driver, the one component every tenant's app passes through to reach the card. So tenants are isolated from each other <b>at the sandbox-and-process level, modulo the integrity of that shared driver</b>, not by per-tenant hardware partitioning (which this GPU generation does not offer with confidential computing on). If your threat model requires hardware-enforced isolation from <i>other tenants</i> specifically, run a dedicated full-GPU deployment instead of a shared one. Isolation from <i>us</i>, the operator, is hardware-enforced and attested either way.</p>
-    </div>
-  </div>
-</section>
 <!-- ===================== PRICING ===================== -->
 <section id="pricing" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Pricing">
   <div class="wrap">
     <c-section-head eyebrow="Pricing" heading="Metered per second. Pay as you go.">
-      <p>Deploying is <b>two dials</b> - what you rent - and <b>two rates</b> - what you pay. Prepaying buys runtime by the second; the instance runs until that time is used up, and you top up to extend it. Payments convert straight into runtime - for apps that charge a publisher fee, that share goes straight to the publisher - and are final. Unspent time stays on the deployment's public record (stop now, resume later) but isn't withdrawable, so fund in small top-ups.</p>
+      <p>Deploying is <b>two dials</b>, what you rent, and <b>two rates</b>, what you pay. Prepaying buys runtime by the second; the deployment runs until that time is used up, and you top up to extend it. Payments convert straight into runtime, a paid app's publisher share goes straight to the publisher, and payments are final. Unspent time stays on the deployment's public record (stop now, resume later) but is not withdrawable, so fund in small top-ups. The rates below are the ledger's list rates; a host may post its own, and the store shows the rate of the host your deployment would land on.</p>
     </c-section-head>
 
     <div class="price-grid">
@@ -251,18 +276,18 @@
       <div class="price-card aux">
         <span class="pc-t">Floors come from app specs</span>
         <span class="pc-rate">minimums, not suggestions</span>
-        <p>The VRAM, compute, and RAM an app declares in the catalog set each dial's minimum: spec ÷ server spec (<span data-live-spec="card-vram">140.4</span>&nbsp;GB / <span data-live-spec="card-tflops">989</span> TFLOPS per card; <span data-live-spec="node-ram">64</span>&nbsp;GB / ~<span data-live-spec="node-gflops">1000</span> GFLOPS per node), larger axis wins, rounded up to a whole percent. An app declaring <span data-live-spec="tflops-floor" data-gpu="50">494</span> TFLOPS can't deploy below a 50% GPU share even if it needs 2&nbsp;GB of VRAM - <b>you can't occupy an axis without paying for it.</b></p>
+        <p>The VRAM, compute, and RAM an app declares in the catalog set each dial's minimum: spec ÷ server spec (<span data-live-spec="card-vram">140.4</span>&nbsp;GB / <span data-live-spec="card-tflops">989</span> TFLOPS per card; <span data-live-spec="node-ram">64</span>&nbsp;GB / ~<span data-live-spec="node-gflops">1000</span> GFLOPS per node), larger axis wins, rounded up to a whole percent. An app declaring <span data-live-spec="tflops-floor" data-gpu="50">494</span> TFLOPS cannot deploy below a 50% GPU share even if it needs 2&nbsp;GB of VRAM: <b>you cannot occupy an axis without paying for it.</b></p>
       </div>
       <div class="price-card aux">
         <span class="pc-t">Rules of the road</span>
-        <span class="pc-rate">software caps · CC disables MIG</span>
-        <p>A GPU app's GPU share must be at least its CPU share (its CPU slice rides on the card's node) - so a 100%-GPU, 10%-CPU tenant leaves 90% of that node for CPU-only apps. <b>Unsold CPU on a GPU node is never stranded.</b> Shares are runtime-enforced software caps, not hardware MIG partitions.</p>
+        <span class="pc-rate">software caps · two independent dials</span>
+        <p>The two shares are independent: a GPU app may buy more node than card, and a 100%-GPU, 10%-CPU tenant leaves 90% of that node for CPU-only apps. <b>Unsold CPU on a GPU node is never stranded.</b> Shares are runtime-enforced software caps, not hardware partitions.</p>
       </div>
     </div>
     <div class="contract-foot"><a class="contract-link" id="priceAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
 
     <div class="price-formula"><code>price = GPU% × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr &nbsp;+&nbsp; CPU% × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr &nbsp;·&nbsp; metered per second</code></div>
-    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a dollar, rounded up - so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this. Some store apps also charge a small hourly <b>publisher fee</b> - capped by the platform, shown in the rate before you pay, and paid straight to the app's publisher.</p>
+    <p class="mig-note" style="margin-top:10px;">One honest rounding note: the per-second rate is settled in whole millionths of a dollar, rounded up, so the very smallest slices meter a hair above the formula (a 1%-CPU app runs at $<span data-live-price="hr4" data-cpu="1">0.0324</span>/hr rather than $<span data-live-price="lin-hr4" data-cpu="1">0.0300</span>). Every estimate shown on the deploy pages already includes this. Some store apps also charge a small hourly <b>publisher fee</b>: capped by the platform, shown in the rate before you pay, and paid straight to the app's publisher.</p>
 
     <div class="mig-table-wrap">
       <div class="mig-scroll">
@@ -279,22 +304,48 @@
         </tbody>
       </table>
       </div>
-      <p class="mig-note">Example points on a continuous scale, not a fixed menu - the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all: it's the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level (<a href="#isolation">how →</a>) and always isolated from the operator by confidential computing.</p>
+      <p class="mig-note">Example points on a continuous scale, not a fixed menu: the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all; it is the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level, and on a confidential host they are always isolated from the operator by the processor. <a href="architecture#protection">How, exactly →</a></p>
     </div>
   </div>
 </section>
+<!-- ===================== STATUS ===================== -->
+<section id="status" data-view="overview" aria-label="Status">
+  <div class="wrap">
+    <c-section-head eyebrow="Status" heading="Available, experimental, planned. Labeled that way everywhere.">
+      <p>Three words, used the same way on every page: <b>available</b> means a deployment can have it now; <b>experimental</b> means built and measured on a lab machine or one box; <b>planned</b> means designed or intended and not yet run. The short list is here; the full board, with evidence, is on the architecture page.</p>
+    </c-section-head>
+    <div class="cards status-cards">
+      <div class="card jade">
+        <span class="tag">available</span>
+        <h3>In use today</h3>
+        <p>Wasm apps on the confidential Linux fleet · GPU inference inside the confidential VM · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier.</p>
+      </div>
+      <div class="card amber">
+        <span class="tag">experimental</span>
+        <h3>Built, measured, not yet yours to pick</h3>
+        <p>A domain contract shared by every backend · per-app hardware isolation inside the confidential VM, demonstrated in the lab and under review · a Hyper-V partition per app on Windows · shielded inference on GPUs the enclave does not trust, running on one self-hosted server · permissionless host attach behind a published allowlist.</p>
+      </div>
+      <div class="card">
+        <span class="tag">planned</span>
+        <h3>Designed, not run</h3>
+        <p>Ordinary Linux hosts with one VM per app and no confidentiality claim · one hardware plane per app for density · host exclusion on Windows · publisher-owned signatures, local trust policy, mirrors and peer transports, interchangeable coordinators, independent recovery of secrets and state.</p>
+      </div>
+    </div>
+    <p class="mig-note" style="max-width:none;margin-top:18px;"><a href="architecture#status">The full status board, with what each item rests on →</a></p>
+  </div>
+</section>
 <!-- ===================== ABOUT ===================== -->
-<section id="about" data-view="overview" aria-label="About the company">
+<section id="about" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);" aria-label="About the company">
   <div class="wrap">
     <c-section-head eyebrow="The company" heading="Who's behind this.">
-      <p>Enclave is designed so you never have to take the operator's word for anything - but you should still know whose word you're not taking. Enclave is built and operated by <b>Enclave Host,&nbsp;Inc.</b></p>
+      <p>Enclave is designed so you never have to take the operator's word for anything, but you should still know whose word you are not taking. Enclave is built and operated today by <b>Enclave Host,&nbsp;Inc.</b></p>
     </c-section-head>
 
     <div class="cards about-cards">
       <div class="card jade">
         <span class="tag">the operator</span>
         <h3>Enclave Host, Inc.</h3>
-        <p>The company behind Enclave. Payments to it settle in the open on a public record, and its enclaves prove what they're running before you send them a byte - the whole point is that "trust us" never has to enter the conversation.</p>
+        <p>The company behind Enclave. Payments to it settle in the open on a public record, its enclaves prove what they are running before you send them a byte, and the design goal is that a running deployment depends on the company for as little as possible: public contracts, content-addressed bundles, published measurements, independent hosts. <a href="architecture#independent">What still runs on our servers, listed honestly →</a></p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub <span class="arr" aria-hidden="true">↗</span></a>
           <a class="btn btn-ghost" href="mailto:support@enclave.host">support@enclave.host</a>
@@ -309,7 +360,7 @@
             <span class="f-role">Founder &amp; CEO</span>
           </div>
         </div>
-        <p>Steven is a certified application architect focused on serverless architecture, with an extensive consulting background serving large enterprise clients and a passion for decentralized systems. He designs and builds Enclave hands-on: the attested enclave stack, the settlement contracts, and the site you're reading. Based in Arizona.</p>
+        <p>Steven is a certified application architect focused on serverless architecture, with an extensive consulting background serving large enterprise clients and a passion for decentralized systems. He designs and builds Enclave hands-on: the attested enclave stack, the settlement contracts, the isolation research, and the site you are reading. Based in Arizona.</p>
         <div class="about-links">
           <a class="btn btn-ghost" href="https://www.linkedin.com/in/steven-batchelor-50791627/" target="_blank" rel="noopener">LinkedIn <span class="arr" aria-hidden="true">↗</span></a>
         </div>
