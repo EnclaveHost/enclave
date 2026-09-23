@@ -32,6 +32,18 @@ expect fail "graph: one arm exits nonzero"                               run_gra
 expect fail "graph: zero steps and an empty dump"                        run_graph "$T/g_zero" m "$T/g"
 expect fail "graph: dumps differ in one byte"                            run_graph "$T/g_diff" m "$T/g"
 expect fail "graph: the arms report different step counts"              run_graph "$T/g_count" m "$T/g"
+# pair stubs: $1 output file; ENCLAVE_TEST_SW picks the arm
+mk p_ok    'head -c 64 /dev/zero > "$1"; echo "cases=2 bytes=64"'
+mk p_rc    'head -c 64 /dev/zero > "$1"; echo "cases=2 bytes=64"; [ "$ENCLAVE_TEST_SW" = 0 ] && exit 1; exit 0'
+mk p_diff  'head -c 63 /dev/zero > "$1"; [ "$ENCLAVE_TEST_SW" = 1 ] && printf x >> "$1" || printf y >> "$1"; echo "cases=2 bytes=64"'
+mk p_short 'head -c 32 /dev/zero > "$1"; echo "cases=2 bytes=64"'
+mk p_zero  ': > "$1"; echo "cases=0 bytes=0"'
+mkdir -p "$T/p"
+expect ok   "pair: both arms finish with the same bytes"                 run_pair s "$T/p_ok" ENCLAVE_TEST_SW "$T/p"
+expect fail "pair: one arm exits nonzero"                                run_pair s "$T/p_rc" ENCLAVE_TEST_SW "$T/p"
+expect fail "pair: dumps differ in one byte"                             run_pair s "$T/p_diff" ENCLAVE_TEST_SW "$T/p"
+expect fail "pair: dump shorter than the reported bytes"                 run_pair s "$T/p_short" ENCLAVE_TEST_SW "$T/p"
+expect fail "pair: zero cases"                                           run_pair s "$T/p_zero" ENCLAVE_TEST_SW "$T/p"
 # the script level: a failing check under set -euo pipefail stops everything after it
 cat > "$T/script.sh" <<EOS
 set -euo pipefail
