@@ -1,0 +1,66 @@
+kept the previous manifest as BUILD.prev.1
+# binary identity, 2026-09-22T09:17:31-07:00. Every line below is either a FULL digest or a FAILED explanation.
+installed apk path      /data/app/~~-lbdmPEQHycwul-mQOpSPQ==/host.enclave.anchor.avf-kshMPQSrD23FToapQgX1mQ==/base.apk
+installed apk bytes     24331795
+installed apk sha256    ad08cce6a1627ed67d10fc1e77a56943e5430f0a33cfc626b2b8ae1d56d7ae38
+libggml-tpu.so bytes   114984  (matches the zip directory)
+libggml-tpu.so sha256  36e71ba89667cec4f1e3aafc1590eb576f47a875ff02d776d6e3517e83adf950  <- THE BINARY THAT RAN
+local apk sha256        ad08cce6a1627ed67d10fc1e77a56943e5430f0a33cfc626b2b8ae1d56d7ae38  (built here; only matters if it matches above)
+libggml-tpu.so sha256  36e71ba89667cec4f1e3aafc1590eb576f47a875ff02d776d6e3517e83adf950  (from the LOCAL apk)
+compiled switches, read from the source that was current at this moment:
+  324:static constexpr bool kRepairClips = true;
+  362:static constexpr bool kVerifyKernel = true;   /* MEASURING: the deployed backend deviation, not a simulated one */
+  372:static constexpr int kInjectFault = 0;
+(the AUTHORITY on what was compiled is the payload's own "build config" line in each run's log;
+ the source lines above can differ from the binary and that is exactly the trap this guards.)
+graphs: 35 file(s) digested individually
+[01/tpu] What is the capital of France? Reply with only the city name.
+[01/cpu] What is the capital of France? Reply with only the city name.
+[02/tpu] What is 17 times 23? Reply with only the number.
+[02/cpu] What is 17 times 23? Reply with only the number.
+[03/tpu] List the first ten prime numbers. Reply with only the numbers separated by commas.
+[03/cpu] List the first ten prime numbers. Reply with only the numbers separated by commas.
+[04/tpu] Name three countries in South America. Reply with only the three names separated by commas.
+[04/cpu] Name three countries in South America. Reply with only the three names separated by commas.
+[05/tpu] What is the boiling point of water at sea level in Celsius? Reply with only the number.
+[05/cpu] What is the boiling point of water at sea level in Celsius? Reply with only the number.
+[06/tpu] Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+[06/cpu] Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+[07/tpu] Write a haiku about rain.
+[07/cpu] Write a haiku about rain.
+[08/tpu] Explain in two sentences why the sky is blue.
+[08/cpu] Explain in two sentences why the sky is blue.
+[09/tpu] What is 144 divided by 12? Reply with only the number.
+[09/cpu] What is 144 divided by 12? Reply with only the number.
+[10/tpu] What is the chemical symbol for gold? Reply with only the symbol.
+[10/cpu] What is the chemical symbol for gold? Reply with only the symbol.
+[11/tpu] How many sides does a hexagon have? Reply with only the number.
+[11/cpu] How many sides does a hexagon have? Reply with only the number.
+[12/tpu] List the first six Fibonacci numbers starting from 1. Reply with only the numbers separated by commas.
+[12/cpu] List the first six Fibonacci numbers starting from 1. Reply with only the numbers separated by commas.
+[13/tpu] What is the capital of Japan? Reply with only the city name.
+[13/cpu] What is the capital of Japan? Reply with only the city name.
+[14/tpu] Name the four cardinal directions. Reply with only the four words separated by commas.
+[14/cpu] Name the four cardinal directions. Reply with only the four words separated by commas.
+[15/tpu] What is 2 to the power of 10? Reply with only the number.
+[15/cpu] What is 2 to the power of 10? Reply with only the number.
+[16/tpu] How many days are in a leap year? Reply with only the number.
+[16/cpu] How many days are in a leap year? Reply with only the number.
+[17/tpu] What is the largest planet in the solar system? Reply with only the planet name.
+[17/cpu] What is the largest planet in the solar system? Reply with only the planet name.
+[18/tpu] List the squares of the first five positive integers. Reply with only the numbers separated by commas.
+[18/cpu] List the squares of the first five positive integers. Reply with only the numbers separated by commas.
+[19/tpu] What is the freezing point of water in Fahrenheit? Reply with only the number.
+[19/cpu] What is the freezing point of water in Fahrenheit? Reply with only the number.
+[20/tpu] What is 15 percent of 200? Reply with only the number.
+[20/cpu] What is 15 percent of 200? Reply with only the number.
+[21/tpu] What is the smallest prime number? Reply with only the number.
+[21/cpu] What is the smallest prime number? Reply with only the number.
+[22/tpu] Write a Python function called count_vowels that returns how many of the letters a, e, i, o, u appear in its argument. Give only the code.
+[22/cpu] Write a Python function called count_vowels that returns how many of the letters a, e, i, o, u appear in its argument. Give only the code.
+[23/tpu] Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.
+[23/cpu] Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.
+[24/tpu] Name the three states of matter taught in school. Reply with only the three words separated by commas.
+[24/cpu] Name the three states of matter taught in school. Reply with only the three words separated by commas.
+
+runs in /tmp/claude-1000/-home-steven-Projects-enclave/c84cac51-a540-4a07-932b-2d6e08103836/scratchpad/qc6 (0 failed arm(s)); compare with: python3 /home/steven/Projects/enclave/shielded/anchor/avf/host/quality-report.py /tmp/claude-1000/-home-steven-Projects-enclave/c84cac51-a540-4a07-932b-2d6e08103836/scratchpad/qc6

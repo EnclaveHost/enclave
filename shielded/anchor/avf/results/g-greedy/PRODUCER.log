@@ -1,0 +1,2025 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+# google NPU lane, 2026-09-22T11:50:16-07:00
+runner        /data/local/tmp/lm15s  sha256:f592e1e4a5673cc1989a353bd432d8bb
+model         /data/local/tmp/enclave-tensor-npu-1/model.litertlm  sha256:af1082986639ecde7db95d91be6fe54f
+dispatch      /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so  sha256:86f8a5d0ccfa895fd4420a8c7d25ac3c
+litertlm hdr  4c49544552544c4d0100000005000000   (magic then major/minor LE u32)
+settings      sampler=greedy max_new=runner-default backend=npu nocool=0
+[01] What is the capital of France? Reply with only the city name.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007291a64010, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007291a63170, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007291a63c50, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103017.490408   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007251a5f9b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007251a5fbe0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007291a64a90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103018.147829   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103018.154838   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103018.160313   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103018.161259   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103018.161670   20325 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007291a63170, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007291a64010, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007291a64a90, name=CpuAccelerator
+[02] What is 17 times 23? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000079d1655a10, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000079d1654e10, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000079d1654e70, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103019.331354   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000785165b9e0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000785165bc10:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000079d1657030, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103019.934618   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103019.942102   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103019.948187   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103019.949298   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103019.949679   20350 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000079d1654e10, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000079d1655a10, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000079d1657030, name=CpuAccelerator
+[03] List the first ten prime numbers. Reply with only the numbers separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000070259efef0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000070259efa10, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000070259eef90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103021.207860   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400006f959e89c0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400006f959e8bf0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000070259f0c70, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103021.757577   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103021.762380   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103021.766768   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103021.767384   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103021.767535   20365 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000070259efa10, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000070259efef0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000070259f0c70, name=CpuAccelerator
+[04] Name three countries in South America. Reply with only the three names separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000075397b9470, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000075397baa30, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000075397baa90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103024.266258   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000076f97b29c0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000076f97b2bf0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000075397ba670, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103024.851919   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103024.858919   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103024.864724   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103024.865651   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103024.865874   20375 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000075397baa30, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000075397b9470, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000075397ba670, name=CpuAccelerator
+[05] What is the boiling point of water at sea level in Celsius? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b23c5dd70, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b23c5d530, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b23c5cf30, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103026.327282   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007d13c5f9d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007d13c5fc00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b23c5f270, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103026.904221   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103026.911561   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103026.917154   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103026.918095   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103026.918467   20385 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b23c5d530, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b23c5dd70, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b23c5f270, name=CpuAccelerator
+[06] Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000745c19aad0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000745c19b010, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000745c19a410, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103028.173294   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000762c19a9d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000762c19ac00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000745c19bfd0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103028.709801   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103028.714737   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103028.719072   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103028.719648   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103028.719804   20396 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000745c19b010, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000745c19aad0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000745c19bfd0, name=CpuAccelerator
+[07] Write a haiku about rain.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c44799230, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c44799b90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c44798ed0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103032.853529   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007d547959d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007d54795c00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c4479a730, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103033.429226   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103033.435028   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103033.440141   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103033.440965   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103033.441185   20413 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c44799b90, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c44799230, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c4479a730, name=CpuAccelerator
+[08] Explain in two sentences why the sky is blue.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007280178e30, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000072801784d0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007280178a70, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103035.787616   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000714017a9c0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000714017abf0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007280179730, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103036.393621   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103036.400621   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103036.406392   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103036.407071   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103036.407284   20437 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000072801784d0, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007280178e30, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007280179730, name=CpuAccelerator
+[09] What is 144 divided by 12? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007af9218110, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007af9219b50, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007af92193d0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103039.975484   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007a492109c0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007a49210bf0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007af9219cd0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103040.582708   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103040.592235   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103040.600109   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103040.601161   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103040.601626   20452 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007af9219b50, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007af9218110, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007af9219cd0, name=CpuAccelerator
+[10] What is the chemical symbol for gold? Reply with only the symbol.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076dc8e57d0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076dc8e6550, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076dc8e6490, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103041.830998   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000772c8d29b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000772c8d2be0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076dc8e7150, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103042.436139   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103042.443831   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103042.449813   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103042.450739   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103042.451145   20462 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076dc8e6550, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076dc8e57d0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076dc8e7150, name=CpuAccelerator
+[11] How many sides does a hexagon have? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c27a918f0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c27a91830, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c27a91470, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103043.754372   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007c07a8b9b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007c07a8bbe0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007c27a93150, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103044.385391   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103044.392626   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103044.398551   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103044.399451   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103044.399809   20472 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c27a91830, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c27a918f0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007c27a93150, name=CpuAccelerator
+[12] List the first six Fibonacci numbers starting from 1. Reply with only the numbers separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076c4d09470, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076c4d0aa90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076c4d0a430, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103045.614008   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007764d199e0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007764d19c10:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076c4d0b450, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103046.185390   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103046.192726   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103046.198384   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103046.199274   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103046.199641   20482 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076c4d0aa90, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076c4d09470, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076c4d0b450, name=CpuAccelerator
+[13] What is the capital of Japan? Reply with only the city name.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400006fc583ecb0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400006fc583e950, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400006fc583e6b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103047.959213   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000070358439d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007035843c00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400006fc583fd90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103048.491605   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103048.497610   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103048.502999   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103048.503812   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103048.503990   20492 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400006fc583e950, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400006fc583ecb0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400006fc583fd90, name=CpuAccelerator
+[14] Name the four cardinal directions. Reply with only the four words separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b1ba3ef30, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b1ba3f290, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b1ba3fdd0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103049.685101   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007b7ba329b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007b7ba32be0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007b1ba40f10, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103050.221283   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103050.229306   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103050.234940   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103050.235902   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103050.236269   20521 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b1ba3f290, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b1ba3ef30, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007b1ba40f10, name=CpuAccelerator
+[15] What is 2 to the power of 10? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007cda869010, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007cda86a0f0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007cda869850, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103051.651137   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007cfa85f9b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007cfa85fbe0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007cda8695b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103052.197579   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103052.205163   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103052.211400   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103052.212253   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103052.212478   20541 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007cda86a0f0, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007cda869010, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007cda8695b0, name=CpuAccelerator
+[16] How many days are in a leap year? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000079147608f0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007914761310, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007914761250, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103053.676499   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007a147689d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007a14768c00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007914761730, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103054.233024   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103054.240886   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103054.246482   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103054.247195   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103054.247413   20551 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007914761310, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000079147608f0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007914761730, name=CpuAccelerator
+[17] What is the largest planet in the solar system? Reply with only the planet name.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000701cf114d0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000701cf13090, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000701cf13030, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103055.686784   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400006f2cf199e0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400006f2cf19c10:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000701cf132d0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103056.241550   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103056.249340   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103056.255214   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103056.256107   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103056.256490   20561 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000701cf13090, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000701cf114d0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000701cf132d0, name=CpuAccelerator
+[18] List the squares of the first five positive integers. Reply with only the numbers separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076406b5290, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076406b67f0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076406b7210, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103057.678285   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000075506b19b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000075506b1be0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000076406b7270, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103058.461612   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103058.466684   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103058.471335   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103058.471951   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103058.472109   20572 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076406b67f0, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076406b5290, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000076406b7270, name=CpuAccelerator
+[19] What is the freezing point of water in Fahrenheit? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007a85f2cfb0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007a85f2c890, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007a85f2c3b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103060.431065   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007b25f289b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007b25f28be0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007a85f2d430, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103061.042551   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103061.050611   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103061.056557   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103061.057454   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103061.057833   20594 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007a85f2c890, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007a85f2cfb0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007a85f2d430, name=CpuAccelerator
+[20] What is 15 percent of 200? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007d3c789a10, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007d3c78ad90, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007d3c78a5b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103062.417579   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007dbc7859d0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007dbc785c00:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb400007d3c78acd0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103062.940851   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103062.946350   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103062.951307   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103062.951923   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103062.952095   20616 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007d3c78ad90, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007d3c789a10, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb400007d3c78acd0, name=CpuAccelerator
+[21] What is the smallest prime number? Reply with only the number.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000073d1556350, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000073d1555ed0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000073d1556050, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103064.202555   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000731155e9e0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb40000731155ec10:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000073d15579d0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103064.751880   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103064.758652   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103064.764655   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103064.765600   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103064.765961   20637 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000073d1555ed0, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000073d1556350, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000073d15579d0, name=CpuAccelerator
+[22] Write a Python function called count_vowels that returns how many of the letters a, e, i, o, u appear in its argument. Give only the code.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000071f8f24110, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000071f8f25250, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000071f8f25c70, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103065.810698   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007248f259b0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007248f25be0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000071f8f25190, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103066.433471   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103066.440521   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103066.446185   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103066.447037   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103066.447405   20648 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000071f8f25250, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000071f8f24110, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000071f8f25190, name=CpuAccelerator
+[23] Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000078f9e99350, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000078f9e9af10, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000078f9e9a2b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103073.666448   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000078e9e939e0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000078e9e93c10:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4000078f9e9a8b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103074.223954   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103074.231374   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103074.238187   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103074.239181   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103074.239679   20663 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000078f9e9af10, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000078f9e99350, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb4000078f9e9a8b0, name=CpuAccelerator
+[24] Name the three states of matter taught in school. Reply with only the three words separated by commas.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000714108ddd0, name=NpuAccelerator
+INFO: [npu_registry.cc:30] NPU accelerator registered.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000714108df50, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000714108d950, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+INFO: Initialized TensorFlow Lite runtime.
+INFO: [litert_dispatch.cc:152] Loading shared library: /data/local/tmp/enclave-tensor-npu-1/libLiteRtDispatch_GoogleTensor.so
+I0000 00:00:1790103079.244226   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 0 (decode).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb4000071910859c0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+WARNING: [dispatch_delegate_kernel.cc:793] MediaTek dispatch API returned contradictory buffer requirements for Float32 tensor 0xb400007191085bf0:
+  Tensor type: Float32 (element_type=1), dims=[1,1,1,4097], expected size=16388 bytes
+  But dispatch API returned: 16448 bytes (4.0 bytes per element instead of 4)
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 1 (prefill_128).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+VERBOSE: Replacing 1 out of 1 node(s) with delegate (DispatchDelegate) node, yielding 1 partitions for subgraph 2 (verify).
+INFO: [dispatch_delegate_kernel.cc:203] Found async dispatch capabilities
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtClGlAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:101] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:131] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb40000714108f1b0, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103079.857401   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [litert_dispatch_device_context.cc:79] Found GoogleTensorOptions
+VERBOSE: Replacing 2 out of 22 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (decode_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (decode_rope).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 4 (prefill_mask_128).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 5 (prefill_rope_128).
+VERBOSE: Replacing 2 out of 24 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 7 (verify_mask).
+VERBOSE: Replacing 14 out of 16 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 8 (verify_rope).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103079.866101   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103079.871896   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 0 (decode_embedder).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 1 (prefill_embedder_128).
+VERBOSE: Replacing 2 out of 8 node(s) with delegate (TfLiteXNNPackDelegate) node, yielding 2 partitions for subgraph 2 (verify_embedder).
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103079.872677   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoi_embedding with locked address
+INFO: [compiled_model.cc:795] Flatbuffer model initialized directly from incoming litert model.
+I0000 00:00:1790103079.872876   20678 :1748] SouthBound context created.
+INFO: [darwinn_options_utils.cc:51] No Darwinn runtime options found
+INFO: [compiled_model.cc:1658] Tracked constant output tensor eoa_embedding with locked address
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000714108df50, name=CpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000714108ddd0, name=NpuAccelerator
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0xb40000714108f1b0, name=CpuAccelerator
+
+24 usable row(s), 0 failed; results in /tmp/claude-1000/-home-steven-Projects-enclave/c84cac51-a540-4a07-932b-2d6e08103836/scratchpad/g-greedy

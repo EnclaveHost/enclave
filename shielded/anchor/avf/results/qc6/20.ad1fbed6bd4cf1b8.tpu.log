@@ -1,0 +1,16 @@
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU worker: thread priority -19, ADPF hint session held
+TPU worker: 35 compiled blocks loaded in 848 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.90/1.21 L0.qkv+3ms-gap 1.27/2.30 L0.o 0.92/1.59 L0.o+3ms-gap 1.61/1.98 L0.gu 2.83/3.06 L0.gu+3ms-gap 1.93/3.78 L0.down 1.60/2.27 L0.down+3ms-gap 2.36/3.09 L20.qkv 0.95/1.43 L20.qkv+3ms-gap 1.58/2.12 L20.o 0.60/1.19 L20.o+3ms-gap 1.59/2.00 L20.gu 3.87/4.20 L20.gu+3ms-gap 3.90/5.32 L20.down 2.75/3.15 L20.down+3ms-gap 3.11/4.67
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 3.2 s (NOT locked: it can be evicted) | mem available 1935 MiB, page cache 1908 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 2.2 s (29.1 positions per second on 6 threads) | mem available 1710 MiB, page cache 1908 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL tpu turn 1: exchanges=280 (140.0/token) ms per exchange: mask 0.188 link 7.410 (corr 0.392 mint 0.000 wait 6.902) unmask 0.539 | rx/exch 2.17 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 62 | cancel n=1757183 max=0.0007 rms=0.00006 LSB | verify n=820 bad=0 max=0 rms=0.000 (output LSB over 410 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=1/0/0 | outliers kept 13110 saturated 1 (CLIPPED 1 [hi 0 lo 1] REPAIRED, FALSE-RAILS 0, recomp 1, max excess 4271, max err 41.7 LSB) redrawn 0 | mem available 1703 MiB, page cache 1909 MiB, major faults 352
+LOCAL turn 1 A: 30
+LOCAL turn 1 STATS {status=eos, prefill_tokens=27, prefill_tok_s=40.51, decode_tokens=2, decode_tok_s=0.79, ctx_used=29, ctx=4096}
+LOCAL done: 1 scripted turns

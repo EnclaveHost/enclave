@@ -1,0 +1,19 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+TPU worker: thread priority -19, ADPF hint session held
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU worker: 35 compiled blocks loaded in 986 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.60/1.35 L0.qkv+3ms-gap 1.27/2.15 L0.o 0.71/1.62 L0.o+3ms-gap 1.30/2.04 L0.gu 2.09/3.43 L0.gu+3ms-gap 1.97/3.58 L0.down 1.25/2.07 L0.down+3ms-gap 2.34/3.32 L20.qkv 0.77/1.61 L20.qkv+3ms-gap 1.11/1.84 L20.o 0.74/1.53 L20.o+3ms-gap 1.61/2.64 L20.gu 4.04/5.42 L20.gu+3ms-gap 4.28/4.99 L20.down 2.98/3.45 L20.down+3ms-gap 3.09/3.90
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 2.0 s (NOT locked: it can be evicted) | mem available 1806 MiB, page cache 1909 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 1.8 s (35.2 positions per second on 6 threads) | mem available 1708 MiB, page cache 1909 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+LOCAL turn 1 A: 1024
+LOCAL turn 1 STATS {status=eos, prefill_tokens=27, prefill_tok_s=40.64, decode_tokens=4, decode_tok_s=0.96, ctx_used=31, ctx=4096}
+LOCAL done: 1 scripted turns
+VSOCK LOCAL tpu turn 1: exchanges=560 (140.0/token) ms per exchange: mask 0.221 link 5.864 (corr 0.287 mint 0.000 wait 5.440) unmask 0.564 | rx/exch 2.20 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 60 | cancel n=3514359 max=0.0009 rms=0.00006 LSB | verify n=1640 bad=0 max=0 rms=0.000 (output LSB over 820 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=3/0/6 | outliers kept 28385 saturated 9 (CLIPPED 9 [hi 0 lo 9] REPAIRED, FALSE-RAILS 0, recomp 9, max excess 15927, max err 155.5 LSB) redrawn 0 | mem available 1697 MiB, page cache 1909 MiB, major faults 351
+TPU worker: 560 exchanges; per exchange ms: idle-wait 130.616 recv 0.077 input-write 0.078 tpu-run 2.181 output-read 0.291 send 0.083 | direct 0 staged 560
+awake at end: 1  cap: 3052000

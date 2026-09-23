@@ -1,0 +1,17 @@
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU worker: thread priority -19, ADPF hint session held
+TPU worker: 35 compiled blocks loaded in 882 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.86/1.26 L0.qkv+3ms-gap 1.36/2.16 L0.o 0.95/1.44 L0.o+3ms-gap 1.70/2.06 L0.gu 1.56/2.50 L0.gu+3ms-gap 1.84/3.30 L0.down 1.57/2.34 L0.down+3ms-gap 2.29/2.91 L20.qkv 0.98/1.48 L20.qkv+3ms-gap 1.25/1.86 L20.o 0.98/1.46 L20.o+3ms-gap 1.27/2.50 L20.gu 3.73/4.34 L20.gu+3ms-gap 4.17/5.13 L20.down 1.60/2.84 L20.down+3ms-gap 2.68/3.49
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 2.3 s (NOT locked: it can be evicted) | mem available 1931 MiB, page cache 1908 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 2.1 s (30.6 positions per second on 6 threads) | mem available 1708 MiB, page cache 1908 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL tpu turn 1: exchanges=140 (140.0/token) ms per exchange: mask 0.144 link 7.001 (corr 0.948 mint 0.000 wait 5.944) unmask 0.367 | rx/exch 1.23 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 63 | cancel n=878590 max=0.0010 rms=0.00006 LSB | verify n=410 bad=0 max=0 rms=0.000 (output LSB over 205 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=2/0/0 | outliers kept 6986 saturated 2 (CLIPPED 2 [hi 0 lo 2] REPAIRED, FALSE-RAILS 0, recomp 2, max excess 6882, max err 67.2 LSB) redrawn 0 | mem available 1699 MiB, page cache 1909 MiB, major faults 350
+LOCAL turn 1 A: 2
+LOCAL turn 1 STATS {status=eos, prefill_tokens=22, prefill_tok_s=40.37, decode_tokens=1, decode_tok_s=0.85, ctx_used=23, ctx=4096}
+LOCAL done: 1 scripted turns
+TPU worker: 140 exchanges; per exchange ms: idle-wait 502.816 recv 0.077 input-write 0.088 tpu-run 2.834 output-read 0.325 send 0.063 | direct 0 staged 140

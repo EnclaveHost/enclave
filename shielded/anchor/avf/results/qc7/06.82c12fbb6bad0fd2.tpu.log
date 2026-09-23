@@ -1,0 +1,19 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 18 check(s)
+TPU worker: thread priority -19, ADPF hint session held
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU worker: 35 compiled blocks loaded in 981 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.94/1.33 L0.qkv+3ms-gap 1.16/1.75 L0.o 1.08/1.56 L0.o+3ms-gap 1.41/2.19 L0.gu 2.84/3.01 L0.gu+3ms-gap 2.03/3.17 L0.down 1.42/2.23 L0.down+3ms-gap 1.69/2.75 L20.qkv 1.04/1.57 L20.qkv+3ms-gap 1.55/2.23 L20.o 0.96/1.49 L20.o+3ms-gap 1.17/1.82 L20.gu 3.99/4.52 L20.gu+3ms-gap 4.40/5.27 L20.down 2.84/3.05 L20.down+3ms-gap 3.03/4.03
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 3.1 s (NOT locked: it can be evicted) | mem available 1933 MiB, page cache 1910 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 2.2 s (29.4 positions per second on 6 threads) | mem available 1709 MiB, page cache 1910 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL tpu turn 1: exchanges=7980 (140.0/token) ms per exchange: mask 0.211 link 4.998 (corr 0.071 mint 0.000 wait 4.805) unmask 0.583 | rx/exch 1.81 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 7 | cancel n=50079670 max=0.0013 rms=0.00006 LSB | verify n=23370 bad=1 max=1 rms=0.007 (output LSB over 11685 paired samples: max 0.010 rms 0.000) rails(-32768/-32767/+32767)=25/0/49 | outliers kept 374146 saturated 74 (CLIPPED 74 [hi 0 lo 74] REPAIRED, FALSE-RAILS 0, recomp 74, max excess 32427, max err 316.7 LSB) redrawn 0 | mem available 1719 MiB, page cache 1910 MiB, major faults 353
+LOCAL turn 1 A: ```python\ndef reverse_string(s):\n  """\n  Reverses the given string.\n\n  Args:\n    s: The string to be reversed.\n\n  Returns:\n    The reversed string.\n  """\n  return s[::-1]\n```
+LOCAL turn 1 STATS {status=eos, prefill_tokens=28, prefill_tok_s=51.05, decode_tokens=57, decode_tok_s=1.07, ctx_used=85, ctx=4096}
+LOCAL done: 1 scripted turns
+TPU worker: 7980 exchanges; per exchange ms: idle-wait 12.962 recv 0.072 input-write 0.081 tpu-run 1.830 output-read 0.295 send 0.083 | direct 0 staged 7980
+awake at end: 1  cap: 2092000
