@@ -279,6 +279,37 @@ report socket parsed whatever a caller sent before checking who the caller was. 
   request cannot hold the monitor past its deadline; retire is idempotent; and report_data's app half
   comes from the monitor's table even when the request carries an `appSha256` field naming another app.
 
+**Three concurrency defects, found by a second source audit of the same code and fixed (2026-09-23).**
+None of them needed a VM to find, and two of them could have leaked a domain permanently:
+
+- **A destroy racing startup could strand a domain.** The domain was registered before `cmd.Start`, so a
+  concurrent destroy could run the one-shot reclamation *before the process existed* — and the process
+  that then started could never be reclaimed, because its cleanup had already been spent. There is now an
+  explicit lifecycle (`starting -> running -> ending -> ended`): a reclamation arriving while a domain is
+  starting records the request and leaves it to `start()`, which is the only code that knows how far the
+  build got, and which honours it on the way out. `finishStart` only ever moves forward, so it cannot
+  resurrect a domain that already ended — a bug the new test caught immediately. Every failure inside
+  `start()` now reclaims what it took rather than leaving that to a caller that cannot know.
+- **Killing by process-group id could signal unrelated work.** `release` ran a raw
+  `syscall.Kill(-pid, SIGKILL)` even after `cmd.Wait` had reaped the process, and a pid or pgid can be
+  recycled between being read and being signalled. Reclamation now kills by **cgroup** (`cgroup.kill`),
+  which is a stable identity for exactly that domain's processes, keeps a real `*os.Process` handle rather
+  than a number, and never signals a process it knows has been reaped. `stop` no longer hunts for the
+  front's pid in `cgroup.procs` and `/proc` either: it signals the domain's init through the handle the
+  monitor owns, and `domexec` forwards SIGTERM to the front.
+- **One tenant could spend the monitor's whole attention.** Refusals were answered *inside the accept
+  loop* and drained for up to two seconds, so one slow refused peer delayed every other tenant's
+  connection; and a per-domain refusal drained while still holding a global slot, so one domain's flood
+  could occupy the entire global budget despite the per-domain cap. The global slot is now returned
+  before anything slow happens, refusals are closed on their own small budget (and simply closed when
+  that is full), and the drain window is 250 ms. **Measured:** twelve refusals during a full monitor are
+  answered in 578 microseconds rather than serially, a 60-connection flood from one domain comes back as
+  the *per-domain* refusal rather than the global one, and a second domain is served throughout.
+
+`go test ./monitor/` is now 14 cases and passes under `-race`. Two of them drive the lifecycle state
+machine directly, so the result does not depend on winning a race, and 50 start/destroy/crash cycles all
+end with the domain out of both tables and nothing left behind.
+
 `domexec` now fails closed on every setup step (its private `/proc`, `/tmp` and loopback), drops
 supplementary groups before `setgid`/`setuid` — otherwise a domain workload would have kept the
 monitor's groups, root's among them — and confirms the privilege drop held before exec.

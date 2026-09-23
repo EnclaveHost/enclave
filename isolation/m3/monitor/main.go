@@ -62,14 +62,29 @@ import (
 const (
 	maxReportRequest  = 1 << 10 // a request is a 64-hex binding in a small JSON object
 	reportDeadline    = 20 * time.Second
-	drainAfterRefusal = 1 << 10 // read this much of a refused caller's bytes so it sees the refusal, not a reset
-	maxReportsTotal   = 16      // reports in flight across all domains
-	maxReportsPerDom  = 2       // ...and from any one domain, so one cannot crowd out the rest
+	drainAfterRefusal = 1 << 10                // read this much of a refused caller's bytes so it sees the refusal, not a reset
+	maxReportsTotal   = 16                     // reports in flight across all domains
+	maxReportsPerDom  = 2                      // ...and from any one domain, so one cannot crowd out the rest
+	maxRefusals       = 8                      // polite refusals in flight; beyond this, close at once
+	drainWindow       = 250 * time.Millisecond // how long a refused peer's remaining bytes are absorbed
 	maxCommandLine    = 64 << 10
 	maxAppBytes       = 64 << 20
 	maxControlConns   = 4
 	controlDeadline   = 5 * time.Minute
 	exitGrace         = 15 * time.Second // how long to wait for a killed domain's processes to go
+)
+
+// A domain's life has four states, and they exist because startup and reclamation can race: a destroy
+// can arrive while the domain is still being built, and its process can die during startup. Without an
+// explicit state, a reclamation that ran first could consume the one-shot cleanup before the process
+// existed — and the domain that then started would never be reclaimable at all.
+type domainState int
+
+const (
+	domStarting domainState = iota // being built; nothing may reclaim it yet
+	domRunning                     // its process tree is live
+	domEnding                      // reclamation has begun
+	domEnded                       // reclamation finished
 )
 
 type domain struct {
@@ -91,6 +106,52 @@ type domain struct {
 	exited   chan struct{} // closed when the process tree is gone
 	reclaim  sync.Once     // listener, mounts, directory and cgroup are released exactly once
 	inFlight chan struct{} // this domain's share of concurrent report work
+
+	mu        sync.Mutex
+	state     domainState
+	endWanted string      // set while starting: end it as soon as startup finishes, for this reason
+	proc      *os.Process // a STABLE handle, set once Start returned. Never signal by raw pid.
+	reaped    bool        // Wait returned: the pid is gone and must never be signalled again
+}
+
+// requestEnd records that a domain should end. It returns true when the caller should reclaim it now,
+// and false when startup still owns it — in which case startup will reclaim it on the way out.
+func (d *domain) requestEnd(why string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	switch d.state {
+	case domStarting:
+		if d.endWanted == "" {
+			d.endWanted = why
+		}
+		return false
+	case domEnding, domEnded:
+		return false
+	}
+	d.state = domEnding
+	return true
+}
+
+// finishStart publishes the process handle and moves the domain to running. It returns the reason a
+// reclamation asked for while startup held the domain, or "" if none did.
+func (d *domain) finishStart(proc *os.Process) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.proc = proc
+	// Only ever forward, from starting to running. Setting it unconditionally would resurrect a domain
+	// that had already ended, and the reclamation that followed would find its one-shot cleanup spent
+	// and leave the domain stuck half-ended.
+	if d.state == domStarting {
+		d.state = domRunning
+	}
+	return d.endWanted
+}
+
+// failStart takes a domain that never got going straight to ending, so the caller can reclaim it.
+func (d *domain) failStart() {
+	d.mu.Lock()
+	d.state = domEnding
+	d.mu.Unlock()
 }
 
 type reporter func(rd []byte) (report, certs []byte, err error)
@@ -106,9 +167,10 @@ type monitor struct {
 	basePrt uint32
 	baseUID int
 
-	report  reporter      // the hardware path, or a stand-in under test
-	tsmMu   sync.Mutex    // one configfs entry at a time
-	reports chan struct{} // global admission for report work
+	report   reporter      // the hardware path, or a stand-in under test
+	tsmMu    sync.Mutex    // one configfs entry at a time
+	reports  chan struct{} // global admission for report work
+	refusals chan struct{} // separate, small budget for politely closing refused callers
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
@@ -159,7 +221,7 @@ func main() {
 func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *monitor {
 	m := &monitor{doms: map[int]*domain{}, byUID: map[int]*domain{}, next: 1, snp: snp,
 		plat: plat, root: root, basePrt: basePort, baseUID: baseUID,
-		reports: make(chan struct{}, maxReportsTotal)}
+		reports: make(chan struct{}, maxReportsTotal), refusals: make(chan struct{}, maxRefusals)}
 	m.report = m.tsmReport
 	return m
 }
@@ -275,8 +337,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 		d.MemMiB = 256
 	}
 	if err := m.start(d, app); err != nil {
-		m.retire(d, "failed to start: "+err.Error())
-		return nil, err
+		return nil, err // start() has already released whatever it managed to take
 	}
 	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB\n",
 		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.CPU, d.MemMiB)
@@ -287,54 +348,61 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 // table BEFORE its first instruction, so however it ends — including during startup — the reaper can
 // find it and retire it.
 func (m *monitor) start(d *domain, app []byte) error {
+	// Every failure below reclaims what this function took, rather than leaving that to a caller that
+	// cannot know how far it got.
+	fail := func(err error) error {
+		d.failStart()
+		d.release()
+		return err
+	}
 	for _, sub := range []string{"plat", "run", "tmp", "proc"} {
 		if err := os.MkdirAll(filepath.Join(d.dir, sub), 0o755); err != nil {
-			return err
+			return fail(err)
 		}
 	}
 	// The app is read-only to the domain, and so is its hash: the domain may read what it runs but
 	// cannot change what the monitor will name.
 	if err := os.WriteFile(filepath.Join(d.dir, "app.wasm"), app, 0o444); err != nil {
-		return err
+		return fail(err)
 	}
 	if err := os.WriteFile(filepath.Join(d.dir, "app.sha256"), []byte(d.AppSha), 0o444); err != nil {
-		return err
+		return fail(err)
 	}
 	// the platform tree (runtime, front, domexec) read-only, and the monitor's socket, are all the
 	// domain gets from outside itself
 	platAt := filepath.Join(d.dir, "plat")
 	if err := syscall.Mount(m.plat, platAt, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
-		return fmt.Errorf("bind %s: %w", m.plat, err)
+		return fail(fmt.Errorf("bind %s: %w", m.plat, err))
 	}
 	if err := syscall.Mount("", platAt, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
-		return fmt.Errorf("remount ro %s: %w", platAt, err)
+		return fail(fmt.Errorf("remount ro %s: %w", platAt, err))
 	}
 	sockAt := filepath.Join(d.dir, "run", "monitor.sock")
 	if f, err := os.OpenFile(sockAt, os.O_CREATE|os.O_RDONLY, 0o600); err == nil {
 		f.Close()
 	}
 	if err := syscall.Mount("/run/monitor.sock", sockAt, "", syscall.MS_BIND, ""); err != nil {
-		return fmt.Errorf("bind report socket: %w", err)
+		return fail(fmt.Errorf("bind report socket: %w", err))
 	}
 	// the front creates its own socket in /run, so that directory belongs to the domain
 	if err := os.Chown(filepath.Join(d.dir, "run"), d.UID, d.UID); err != nil {
-		return err
+		return fail(err)
 	}
 	if err := m.cgroup(d); err != nil {
-		return err
+		return fail(err)
 	}
 	// CLONE_INTO_CGROUP: the domain is inside its share before its first instruction. Writing
 	// cgroup.procs after starting it would race the workloads domexec forks, and whatever won that race
 	// would run outside the limit.
 	cgFD, err := os.Open(d.cgroup)
 	if err != nil {
-		return fmt.Errorf("opening cgroup: %w", err)
+		return fail(fmt.Errorf("opening cgroup: %w", err))
 	}
 	defer cgFD.Close()
 
 	ln, err := vsock.Listen(d.Port)
 	if err != nil {
-		return fmt.Errorf("vsock port %d: %w", d.Port, err)
+		return fail(fmt.Errorf("vsock port %d: %w", d.Port, err))
 	}
 	d.ln = ln
 
@@ -355,12 +423,18 @@ func (m *monitor) start(d *domain, app []byte) error {
 		CgroupFD:     int(cgFD.Fd()),
 	}
 	d.cmd = cmd
-	m.register(d) // in the table first: a domain that dies during startup must still be reclaimed
+	// In the table before its first instruction, so a domain that dies during startup is still found
+	// and reclaimed. While it is `starting`, a destroy does not tear it down: it records the request and
+	// leaves it to this function, which is the only thing that knows how far the build got.
+	m.register(d)
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("starting domain: %w", err)
+		return fail(fmt.Errorf("starting domain: %w", err))
 	}
 	go func() {
 		err := cmd.Wait()
+		d.mu.Lock()
+		d.reaped = true // the pid is gone from here on and must never be signalled again
+		d.mu.Unlock()
 		close(d.exited)
 		// Whatever ended it — a crashed runtime, a killed front, domexec itself — the domain is over,
 		// and everything it held goes back now rather than at some later destroy that may never come.
@@ -386,6 +460,13 @@ func (m *monitor) start(d *domain, app []byte) error {
 			go relay(c, filepath.Join(d.dir, "run", "front.sock"))
 		}
 	}()
+
+	// Publish the process handle and go live. If a destroy arrived while this was building, honour it
+	// now — in that order, so reclamation always runs against a fully-built domain.
+	if why := d.finishStart(cmd.Process); why != "" {
+		m.retire(d, why)
+		return fmt.Errorf("domain %d was ended during startup: %s", d.ID, why)
+	}
 	return nil
 }
 
@@ -422,6 +503,12 @@ func (m *monitor) retire(d *domain, why string) {
 		delete(m.byUID, d.UID)
 	}
 	m.mu.Unlock()
+	// Leaving the tables always happens: no new report request can find a domain that is ending. Whether
+	// this caller also RECLAIMS it depends on the lifecycle — a domain still starting up belongs to
+	// start(), which will reclaim it once it knows what it built.
+	if !d.requestEnd(why) {
+		return
+	}
 	if listed {
 		fmt.Printf("MON domain %d ended: %s\n", d.ID, why)
 	}
@@ -435,10 +522,18 @@ func (d *domain) release() {
 		if d.ln != nil {
 			d.ln.Close() // the port stops answering at once, ahead of the slower cleanup below
 		}
-		if d.cmd != nil && d.cmd.Process != nil {
-			// the whole group; killing the init of a PID namespace takes its children with it
-			syscall.Kill(-d.cmd.Process.Pid, syscall.SIGKILL)
-			d.cmd.Process.Kill()
+		d.mu.Lock()
+		proc, reaped := d.proc, d.reaped
+		d.mu.Unlock()
+		if proc != nil && !reaped {
+			// Kill by CGROUP, not by pid or process group. The cgroup is a stable identity for exactly
+			// this domain's processes; a pid or a pgid can be recycled between being read and being
+			// signalled, and the signal would then land on unrelated later work. cgroup.kill takes the
+			// whole domain at once, and os.Process is a handle we own rather than a number.
+			if err := os.WriteFile(filepath.Join(d.cgroup, "cgroup.kill"), []byte("1"), 0); err != nil {
+				fmt.Printf("MON WARN domain %d cgroup.kill: %v\n", d.ID, err)
+				proc.Kill() // fall back to the handle, which knows whether the process is already gone
+			}
 			select {
 			case <-d.exited:
 			case <-time.After(exitGrace):
@@ -466,6 +561,9 @@ func (d *domain) release() {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
+		d.mu.Lock()
+		d.state = domEnded
+		d.mu.Unlock()
 	})
 }
 
@@ -510,14 +608,23 @@ func (m *monitor) stop(id int) error {
 	if d == nil {
 		return fmt.Errorf("no domain %d", id)
 	}
-	pid, err := d.pidOf("/plat/front")
-	if err != nil {
-		fmt.Printf("MON domain %d stop: no front found (%v); ending it outright\n", d.ID, err)
+	d.mu.Lock()
+	proc, state := d.proc, d.state
+	d.mu.Unlock()
+	if proc == nil || state != domRunning {
+		fmt.Printf("MON domain %d stop: not running yet; ending it outright\n", d.ID)
 		m.retire(d, "stopped at lease end")
 		return nil
 	}
-	fmt.Printf("MON domain %d stop: signalling its front (pid %d)\n", d.ID, pid)
-	syscall.Kill(pid, syscall.SIGTERM)
+	// Signal the domain's INIT through the handle we hold, and let it pass SIGTERM to the front. Hunting
+	// for the front's pid in cgroup.procs and /proc would mean signalling a number that could have been
+	// recycled between the read and the kill; this uses an identity we own.
+	fmt.Printf("MON domain %d stop: signalling its init to wind down\n", d.ID)
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		fmt.Printf("MON domain %d stop: %v; ending it outright\n", d.ID, err)
+		m.retire(d, "stopped at lease end")
+		return nil
+	}
 	select {
 	case <-d.exited:
 		fmt.Printf("MON domain %d stopped gracefully\n", d.ID)
@@ -526,29 +633,6 @@ func (m *monitor) stop(id int) error {
 	}
 	m.retire(d, "stopped at lease end")
 	return nil
-}
-
-// pidOf finds a process of this domain by the program it is running. The domain's processes are the ones
-// in its cgroup, which the monitor owns; their pids here are the guest's, not the domain's own namespace.
-func (d *domain) pidOf(prog string) (int, error) {
-	b, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
-	if err != nil {
-		return 0, err
-	}
-	for _, line := range strings.Fields(string(b)) {
-		pid, err := strconv.Atoi(line)
-		if err != nil {
-			continue
-		}
-		cl, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
-		if err != nil {
-			continue
-		}
-		if strings.Contains(strings.ReplaceAll(string(cl), "\x00", " "), prog) {
-			return pid, nil
-		}
-	}
-	return 0, fmt.Errorf("no process running %s in domain %d", prog, d.ID)
 }
 
 func (m *monitor) destroy(id int) error {
@@ -651,32 +735,56 @@ func (m *monitor) serveReports(l net.Listener) {
 			return
 		}
 		// Admission BEFORE a goroutine exists: a flood must not make the monitor allocate one stack per
-		// connection. A caller that arrives when the monitor is full is told so and closed.
+		// connection.
 		select {
 		case m.reports <- struct{}{}:
-			go func() { defer func() { <-m.reports }(); m.oneReport(c) }()
+			go func() {
+				refused := m.oneReport(c)
+				// The global slot goes back BEFORE anything slow happens. A refused caller is then
+				// closed politely on a separate, small budget, so one domain's refusals cannot occupy
+				// the budget that every other domain's reports need.
+				<-m.reports
+				if refused {
+					m.closePolitely(c)
+					return
+				}
+				c.Close()
+			}()
 		default:
-			busy(c, "monitor is at its report limit")
+			// NEVER in the accept loop: answering and draining here would stall every other tenant's
+			// connection behind one slow peer.
+			answer(c, "monitor is at its report limit")
+			m.closePolitely(c)
 		}
 	}
 }
 
-func busy(c net.Conn, why string) {
-	c.SetDeadline(time.Now().Add(2 * time.Second))
+func answer(c net.Conn, why string) {
+	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	json.NewEncoder(c).Encode(map[string]string{"error": why})
-	drain(c)
-	c.Close()
 }
 
-// drain reads a bounded amount of whatever the peer was still sending, so that closing the connection
-// delivers the answer instead of resetting it.
-func drain(c net.Conn) {
-	c.SetReadDeadline(time.Now().Add(2 * time.Second))
-	io.Copy(io.Discard, io.LimitReader(c, drainAfterRefusal))
+// closePolitely absorbs a bounded amount of whatever a refused peer was still sending, so that closing
+// the connection delivers the answer instead of resetting it — on its own small budget, and never while
+// holding a report slot. When that budget is full, the connection is simply closed: a refused caller is
+// owed an answer, not an unbounded amount of the monitor's attention.
+func (m *monitor) closePolitely(c net.Conn) {
+	select {
+	case m.refusals <- struct{}{}:
+		go func() {
+			defer func() { <-m.refusals }()
+			c.SetReadDeadline(time.Now().Add(drainWindow))
+			io.Copy(io.Discard, io.LimitReader(c, drainAfterRefusal))
+			c.Close()
+		}()
+	default:
+		c.Close()
+	}
 }
 
-func (m *monitor) oneReport(c net.Conn) {
-	defer c.Close()
+// oneReport answers one request. It returns true when the answer was a refusal, so the caller can give
+// the global slot back and then close the connection on the refusal budget instead of this one.
+func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	c.SetDeadline(time.Now().Add(reportDeadline))
 	enc := json.NewEncoder(c)
 
@@ -685,8 +793,7 @@ func (m *monitor) oneReport(c net.Conn) {
 	uid, err := peerUID(c)
 	if err != nil {
 		enc.Encode(map[string]string{"error": "no peer credentials: " + err.Error()})
-		drain(c)
-		return
+		return true
 	}
 	m.mu.Lock()
 	d := m.byUID[uid]
@@ -696,8 +803,7 @@ func (m *monitor) oneReport(c net.Conn) {
 		// obtain a report without being a domain
 		fmt.Printf("MON refused report request from uid %d (not a domain)\n", uid)
 		enc.Encode(map[string]string{"error": "caller is not a domain"})
-		drain(c)
-		return
+		return true
 	}
 
 	// 2. this domain's own share of concurrent work, so one domain cannot crowd out the others
@@ -706,24 +812,23 @@ func (m *monitor) oneReport(c net.Conn) {
 		defer func() { <-d.inFlight }()
 	default:
 		enc.Encode(map[string]string{"error": "too many concurrent report requests from this domain"})
-		drain(c)
-		return
+		return true
 	}
 
 	// 3. only now, and only a bounded number of bytes
 	var req reportReq
 	if err := json.NewDecoder(io.LimitReader(c, maxReportRequest)).Decode(&req); err != nil {
 		enc.Encode(map[string]string{"error": "bad request: " + err.Error()})
-		return
+		return true
 	}
 	bind, err := hex.DecodeString(req.Bind)
 	if err != nil || len(bind) != 32 {
 		enc.Encode(map[string]string{"error": "bind must be 32 bytes of hex"})
-		return
+		return true
 	}
 	if !m.snp {
 		enc.Encode(map[string]string{"error": errNoHardwareReport.Error()})
-		return
+		return true
 	}
 	rd := make([]byte, 64)
 	copy(rd, bind)              // [0:32] the domain's own key, bound to the verifier's challenge
@@ -731,13 +836,14 @@ func (m *monitor) oneReport(c net.Conn) {
 	rep, certs, err := m.report(rd)
 	if err != nil {
 		enc.Encode(map[string]string{"error": err.Error()})
-		return
+		return true
 	}
 	out := map[string]string{"report": base64.StdEncoding.EncodeToString(rep)}
 	if len(certs) > 0 {
 		out["certs"] = base64.StdEncoding.EncodeToString(certs)
 	}
 	enc.Encode(out)
+	return false
 }
 
 func peerUID(c net.Conn) (int, error) {

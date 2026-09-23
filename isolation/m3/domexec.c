@@ -5,7 +5,10 @@
  *   2. drops to the domain's unprivileged uid and starts the two workloads: the runtime serving the
  *      app, and the front that terminates TLS and asks the monitor for reports;
  *   3. prints what the domain can see, as evidence for the isolation checks;
- *   4. reaps, and exits when either workload exits, which the monitor treats as the domain ending.
+ *   4. reaps, and exits when either workload exits, which the monitor treats as the domain ending;
+ *   5. on SIGTERM, passes it to the front so the domain winds down gracefully. The monitor signals THIS
+ *      process, whose handle it owns, rather than hunting for the front's pid in /proc — a number that
+ *      could be recycled between being read and being signalled.
  *
  * EVERY setup step fails closed. A domain whose /proc, /tmp or loopback could not be set up, or whose
  * privilege drop did not complete, exits instead of running the tenant's app in a half-built world;
@@ -30,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
@@ -40,6 +44,13 @@
 #include <unistd.h>
 
 static const char *dom_id = "?";
+static volatile sig_atomic_t front_pid_g = -1;
+
+/* Graceful stop: the monitor sends SIGTERM here, and the front is what needs to hear it. */
+static void on_term(int sig) {
+    (void)sig;
+    if (front_pid_g > 0) kill(front_pid_g, SIGTERM);
+}
 
 /* Any failure in the domain's setup ends the domain. Running the tenant's app in a partly-built
  * namespace would be failing open: it is exactly the case where the isolation is not what the rest of
@@ -149,6 +160,10 @@ int main(int argc, char **argv) {
     char *front[] = {"/plat/front", "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                      "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", NULL};
     char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
+    struct sigaction sa_term = {0};
+    sa_term.sa_handler = on_term;
+    sigaction(SIGTERM, &sa_term, NULL);
+
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
         rt_pid = spawn(probe_argv, uid);
@@ -157,6 +172,7 @@ int main(int argc, char **argv) {
     } else {
         rt_pid = spawn(rt, uid);
         front_pid = spawn(front, uid);
+        front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d\n", dom_id, rt_pid, front_pid);
     }
     usleep(200000);
@@ -165,6 +181,7 @@ int main(int argc, char **argv) {
     for (;;) {
         int st = 0;
         pid_t w = wait(&st);
+        if (w < 0 && errno == EINTR) continue;   /* the SIGTERM we forwarded, not a child exiting */
         if (w < 0 && errno == ECHILD) break;
         if (w == rt_pid || w == front_pid) {
             printf("DOM%s ERROR %s exited status=%d\n", dom_id, w == rt_pid ? "runtime" : "front",
