@@ -25,7 +25,7 @@ gcc -static -O2 -o "$d/plat/domprobe" "$here/domprobe.c"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/plat/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/plat/rt/"; done
-M=/lib/modules/$(uname -r)/kernel
+M=/lib/modules/$GUEST_KREL/kernel   # the GUEST kernel, not the host's: see domain.env
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
    "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
    "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"

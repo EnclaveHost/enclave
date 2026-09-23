@@ -17,7 +17,7 @@ cp -L "$W" "$d/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/rt/"; done
 cp "$app" "$d/app.wasm"
 sha256sum "$app" | cut -c1-64 > "$d/app.sha256"
-M=/lib/modules/$(uname -r)/kernel
+M=/lib/modules/$GUEST_KREL/kernel   # the GUEST kernel, not the host's: see domain.env
 cp "$M/drivers/firmware/qemu_fw_cfg.ko.zst" "$M/drivers/virt/coco/guest/tsm_report.ko.zst" \
    "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
 find "$d" -exec touch -h -d @0 {} +
