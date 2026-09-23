@@ -4869,3 +4869,67 @@ Nothing about the open findings changes: both production Freivalds rejections
 (sterms-1, b-eq-1) remain open and unexplained, the conv graph-integration
 limits (multi-sequence) stay documented, and the 27B shielded encoding still
 has no model-matched quality evaluation.
+
+### 18.51 A register-resident recurrent row: faster op, no throughput established yet
+
+18.50 left the recurrent op bound by per-row overhead: four out-of-line vector
+calls per state row per token, each dot ending in a serial reduction, the row
+reloaded between them. `wasm/llamacpp-gdn-regrow.patch` (switch
+`ENCLAVE_GGML_GDN_REGROW`, default on in the fork, not deployed) loads each
+128-float row once, takes it through scale, dot(k), the d*k update and dot(q)
+in registers, and stores it once. Each step uses ggml's own `GGML_F32_VEC`
+operations in exactly the order of `ggml_vec_scale_f32` / `ggml_vec_dot_f32`
+/ `ggml_vec_mad_f32` (S_v = 128 is a multiple of every compiled ISA's step, so
+there are no leftovers); other lengths, the per-channel gate, SVE, RISC-V V
+and Accelerate keep the calls.
+
+Correctness (AVX-512 build, before any timing): `gdn-equiv`'s 72 cases
+byte-identical with the switch on and off, and identical to the dump taken
+before the change; a planted one-ulp mutant in the kernel changed exactly the
+52 S_v=128 scalar-gate cases and nothing else; the 0.8B real graph
+(state_size 128, so the path is live there, as on the 27B) byte-identical on
+and off. **Not yet run:** the production-toolchain check (GCC 11.4, AVX2 only,
+where a row is 16 registers); `prod-toolchain-check.sh` now includes the
+regrow checks plus an informational timing that shows whether the path is live.
+
+Timing, all runs valid (same workload, 43,118 exchanges, local 0, verify_fail
+0, text identical); raw artifacts in `shielded/bench-harness/results-2026-09-23/`:
+
+| measure | off | on |
+|---|---|---|
+| `gdn-bench` alone, 2 tokens x 8 threads (us/call) | 62.8 / 63.6 / 65.8 | 37.2 / 38.1 / 38.9 |
+| `gdn-bench` alone, 1 token x 8 threads | 32.7 / 34.5 | 20.0 / 20.5 |
+| `gdn-bench` alone, 2 tokens x 1 thread | 395.2 | 193.0 |
+| 27B op profile, 1 row (plain step) | 70.6 / 68.6 | 61.9 / 58.8 |
+| 27B op profile, 2 rows (verify) | 154.8 / 146.1 | 135.1 / 134.8 |
+| 27B op profile, 17+ rows (prefill) | 373.3 / 387.8 | 283.8 / 278.0 |
+| 27B op profile, MUL_MAT 2 rows (control) | 13.1 / 12.7 | 13.2 / 13.0 |
+
+The op is 10-13% cheaper in the graph (the control op is flat), worth about
+0.7 ms of a verify round and 0.4 ms of a plain step at 48 recurrent layers: an
+estimate from per-call deltas, ~1% of the round. Throughput pairs: three
+complete, mixed signs (+5.3%, -1.5%, +5.4%): **no throughput effect
+established**, as expected for a ~1% effect against the 18-24 tok/s spread.
+The fourth pair is dropped: rg-off-4 was SIGKILLed mid-load at 10:42:06
+together with every process this session had started (the run, its wrapper
+and queue, the samplers and both V100 workers; worker logs stop with no
+shutdown line; no OOM, nothing in either journal). A peer session had started
+a build at about that time believing the queue had exited; what delivered the
+kill was not identified.
+
+**Where the rest of the op's time is.** Alone it costs 38 us at 2 tokens; in
+the graph 135 us. The hypothesis is the cold state: 48 layers x 3 MB exceeds
+the L3, and a 2-row verify also copies the whole state into the rollback slot,
+a second 3 MB written to a cold destination. If a warm state recovered most of
+the ~100 us per layer, that would be ~4-5 ms of a verify round, the largest
+CPU lever identified; the only hook that runs during an exchange wait
+(`sh_link_set_idle_work`) cannot see the recurrent op's state, so any warming
+would have to be arranged from the graph side. `gdn-bench` gained a mode for
+exactly this (rotating per-layer cold states, optional untimed warm-up before
+each timed call), **written but not run**: the machine was released to the
+isolation work before it could be. Everything above is a measurement except
+the per-round estimates and this hypothesis.
+
+Unchanged: both production Freivalds rejections (sterms-1, b-eq-1) open; the
+conv multi-sequence limitation documented; no model-matched quality evaluation
+of the 27B shielded encoding. **No 25.**
