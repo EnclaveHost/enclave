@@ -1125,6 +1125,8 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
     }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine-local.err lives there */
     if (plan->spin > 0) { char sv[16]; snprintf(sv, sizeof sv, "%d", plan->spin); setenv("ANCHOR_TPU_SPIN_US", sv, 1); }   /* read once, lazily, by ggml-tpu.cpp */
+    if (plan->vthreads > 0) { char vv[16]; snprintf(vv, sizeof vv, "%d", plan->vthreads); setenv("ANCHOR_VERIFY_THREADS", vv, 1); }   /* engine_local.cpp: the verification pool */
+    if (plan->corr > 0) { char cv[16]; snprintf(cv, sizeof cv, "%d", plan->corr); setenv("ANCHOR_TPU_CORR_THREADS", cv, 1); }   /* ggml-tpu.cpp: correction helpers */
     if (plan->dthreads > 0) { char dv[16]; snprintf(dv, sizeof dv, "%d", plan->dthreads); setenv("ANCHOR_DECODE_THREADS", dv, 1); }   /* engine_local.cpp: a separate decode pool */
     if (plan->poll >= 0) { char pv[16]; snprintf(pv, sizeof pv, "%d", plan->poll); setenv("ANCHOR_POOL_POLL", pv, 1); }   /* engine_local.cpp: the thread pool's polling level */
     OUT("LOCAL listening on vsock %d for the conversation; model %" PRIu64 " bytes, %d threads, ctx %d", LOCAL_PORT, plan->model_bytes, plan->threads, plan->ctx);

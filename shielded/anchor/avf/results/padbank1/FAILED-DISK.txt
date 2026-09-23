@@ -1,0 +1,4 @@
+None of these 8 runs measured anything. /tmp hit the per-user quota at ~23:42 on 2026-09-22 (shared by several sessions);
+bash could not create the temp file behind a here-string, so lane-run2's wake check read EMPTY input and refused each run
+as "PHONE NOT AWAKE". The phone was awake and the refusal was fail-closed, but the stated reason was wrong. lane-run2 now
+checks that temp files can be created before anything depends on them. The batch was rerun as results/combo1.
