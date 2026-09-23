@@ -44,6 +44,7 @@ run "digit split under UBSan"   "clang++ -std=c++17 -O2 -fsanitize=undefined -fn
 run "worker spin is per handle"  "bash tpu/test/worker-spin-test.sh"
 run "lane driver fails closed"  "bash tpu/test/lane-run2-test.sh"
 run "public file: K only for its bytes" "cc -std=c11 -D_GNU_SOURCE -O1 -Wall -Werror -fsanitize=address,undefined -Ipayload tpu/test/public-file-test.c payload/anchor_pins.c -o /tmp/pft.$$ && /tmp/pft.$$"
+run "cpu window: ownership, exits, gaps" "python3 tpu/test/cpu-window-test.py"
 [ "${1:-}" = "--fast" ] || run "error bound derivation" \
   "timeout 900 python3 tpu/test/error_bound.py ${BUNDLE:-/home/steven/gguf-e2b/tpu/graphs-h4-ds/lanes.etpu} 3 23"
 rm -f /tmp/vr.$$ /tmp/lb.$$ /tmp/ds.$$
