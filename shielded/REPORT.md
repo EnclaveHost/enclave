@@ -4259,3 +4259,31 @@ L2 traffic, because the token loop already sits inside the per-head loop and a
 head's 64 KB state is still in L2 for the second token (~0.15 ms/round). Less
 state traffic would need a narrower state type, which is a precision change
 and out of bounds.
+
+### 18.37 A soak cannot reproduce the rejections, and what that rules out
+
+`shielded-soak` (new, `make shielded-soak`) drives the production link path
+against a live worker for as long as asked: `sh_link_open` -> configure ->
+shm ring -> add weights -> start -> `sh_link_gemm` with verification on, the
+four per-card exchange shapes of one 27B layer (grouped qkv|gate|a|b,
+ssm_out, gate|up, down) cycling like a decode pass at m=1 or 2, fresh
+activations and fresh pads from the link's own refill threads, overlap-verify
+on as in the bench. One exchange in 256 is also compared value by value with
+a local int64 product. A rejection retires the link and the soak reopens and
+counts it, with the link's post-mortem classifying it (18.35).
+
+Both cards at once, 45 minutes: **11.7 M exchanges (5.66 M card 0, 6.05 M
+card 1), zero rejections, 45,764 exact checks all correct**, every exchange
+over the ring with the reply mapped for the device. Production had two
+rejections in about 2.8 M card-0 exchanges, so at that rate this should have
+seen ~4 on card 0; seeing none is strong evidence that the plain
+link/ring/kernel path under steady load is not where the fault is.
+
+What the soak did NOT have, and production did: the worker's yield detector
+never fired (0 activations against ~1 per production connection, and one
+~2.4 s before b-eq-1's rejection); 8 distinct graphs against 274-514; no
+m=17 prefill exchanges or lm_head; no link restarts; no CPU ops contending
+between exchanges. The next soak adds GPU contention on the same card to make
+the detector fire for real. The first attempt at it died at start when the
+per-user /tmp quota filled (another session's 23 GB of scratch, not this
+run's); it is being rerun.
