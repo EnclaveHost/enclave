@@ -31,6 +31,8 @@ typedef struct {
     uint64_t ver_us, free_us, gap_us;                /* of unmask_us: the kernel-verification dots | after it: releasing the exchange's pads | between one exchange's end and the next one's start (the VM's own graph work) */
     uint64_t unmask_hist[5], gap_hist[5];            /* per exchange: < 25 us, < 100 us, < 400 us, < 1600 us, longer -- a constant cost and a sporadic stall look alike in a mean */
     uint64_t corr_join_us;                           /* of wait_us: time blocked joining the out-of-lane correction after the reply arrived */
+    uint64_t unmask_cpu_us, gap_cpu_us;              /* the VM thread's OWN CPU time in the unmask / between exchanges: far below the wall time = it was descheduled */
+    uint64_t unmask_check_n, unmask_check_bad;       /* exchanges where the parallel unmask was re-run serially on the same data, and how many differed */
 } ggml_backend_tpu_stats_t;
 struct ggml_backend_reg;
 struct ggml_backend_reg *ggml_backend_tpu_reg(void);

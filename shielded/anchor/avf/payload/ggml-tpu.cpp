@@ -60,6 +60,7 @@
 #include "ggml-tpu.h"
 #include "bundlemagic.h"
 #include "tpu_corr.h"
+#include "tpu_unmask_span.h"
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
@@ -101,6 +102,7 @@ static std::atomic<uint64_t> g_rx_calls{0}, g_rx_bytes{0};
 bool rd_all(int fd, void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char *)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; g_rx_calls.fetch_add(1, std::memory_order_relaxed); } return true; }
 bool wr_all(int fd, const void *p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char *)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 int64_t now_us() { return ggml_time_us(); }
+static int64_t thread_cpu_us() { struct timespec t; clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t); return (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000; }
 
 /* MEASURED AND OFF BY DEFAULT (2026-09-19). The idea was to skip the cold vCPU wake that collects the reply -- about
  * 360 us in the guest plus 160-200 us on the host, against 21-27 us for a hot hand-off (LOCAL.md trap 4) -- by
@@ -381,12 +383,29 @@ static bool corr_threaded() {
     static const bool v = []{ const char *e = getenv("ANCHOR_TPU_CORR_THREAD"); return !e || atoi(e) != 0; }();
     return v;
 }
+/* the parallel unmask's job: set by unmask_post, read by the helper pool */
+struct unmask_ctx { group *g = nullptr; const std::vector<pad> *pads = nullptr; uint32_t rows = 0; std::vector<const int16_t *> rx_p; std::vector<uint32_t> jv;
+                    std::vector<size_t> first_unit; size_t units = 0; ggml_backend_tpu_stats_t acc{}; uint64_t rail_recomp = 0; };
+static unmask_ctx g_uj;
+static size_t unmask_units() { return g_uj.units; }
+static void unmask_digit_span(group &g, const std::vector<pad> &pads, uint32_t rows, size_t p, const int16_t *rx_p, uint32_t j0, uint32_t j1,
+                              uint32_t jv, ggml_backend_tpu_stats_t &A, uint64_t &A_rail_recomp, bool replay = false);
+static void stats_merge(ggml_backend_tpu_stats_t &D, const ggml_backend_tpu_stats_t &A);
+static std::mutex g_unmask_mu;
+static void unmask_unit(size_t u) {
+    size_t p = 0; while (p + 1 < g_uj.first_unit.size() && u >= g_uj.first_unit[p + 1]) p++;
+    const uint32_t n_out = g_uj.g->projs[p].n_out, j0 = (uint32_t)((u - g_uj.first_unit[p]) * kCorrChunk), j1 = std::min<uint32_t>(n_out, j0 + kCorrChunk);
+    ggml_backend_tpu_stats_t A{}; uint64_t rr = 0;
+    unmask_digit_span(*g_uj.g, *g_uj.pads, g_uj.rows, p, g_uj.rx_p[p], j0, j1, g_uj.jv[p], A, rr);
+    std::lock_guard<std::mutex> lk(g_unmask_mu); stats_merge(g_uj.acc, A); g_uj.rail_recomp += rr;
+}
 struct corr_job {
     std::mutex mu; std::condition_variable cv_go, cv_done;
     group *g = nullptr; const std::vector<std::vector<std::pair<uint32_t, int32_t>>> *outl = nullptr;
     uint32_t rows = 0; bool stop = false, pending = false;
     std::vector<std::thread> pool; size_t nthreads = 0, done = 0;
     std::atomic<size_t> next{0}; uint64_t gen = 0;      /* gen is bumped per post; each worker remembers its OWN last seen */
+    int kind = 0;                                        /* 0: the out-of-lane correction; 1: the digit-split unmask (unmask_post) */
 };
 static corr_job g_cj;
 static int corr_threads() {
@@ -403,11 +422,11 @@ static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t
                 std::unique_lock<std::mutex> lk(g_cj.mu);
                 g_cj.cv_go.wait(lk, [&] { return g_cj.gen != seen || g_cj.stop; });
                 if (g_cj.stop) return;
-                seen = g_cj.gen; group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows;
-                const size_t total = corr_units(*g);
+                seen = g_cj.gen; group *g = g_cj.g; auto *ol = g_cj.outl; const uint32_t rw = g_cj.rows; const int kind = g_cj.kind;
+                const size_t total = kind == 0 ? corr_units(*g) : unmask_units();
                 lk.unlock();
                 for (;;) { const size_t i = g_cj.next.fetch_add(1, std::memory_order_relaxed); if (i >= total) break;
-                           corr_unit(*g, *ol, rw, i); }
+                           if (kind == 0) corr_unit(*g, *ol, rw, i); else unmask_unit(i); }
                 lk.lock();
                 if (++g_cj.done == g_cj.nthreads) { g_cj.pending = false; g_cj.cv_done.notify_all(); }
             } });
@@ -415,7 +434,21 @@ static void corr_post(group &g, const std::vector<std::vector<std::pair<uint32_t
     /* the cache is sized HERE, before the workers are released, so each one only ever writes its own slice */
     g.cache.resize(g.projs.size());
     for (size_t p = 0; p < g.projs.size(); p++) g.cache[p].resize((size_t)rows * g.projs[p].n_out);
-    g_cj.g = &g; g_cj.outl = &outl; g_cj.rows = rows;
+    g_cj.g = &g; g_cj.outl = &outl; g_cj.rows = rows; g_cj.kind = 0;
+    g_cj.next.store(0, std::memory_order_relaxed); g_cj.done = 0; g_cj.pending = true; g_cj.gen++;
+    g_cj.cv_go.notify_all();
+}
+static void unmask_post(group &g, const std::vector<pad> &pads, uint32_t rows) {
+    std::unique_lock<std::mutex> lk(g_cj.mu);
+    g_uj.g = &g; g_uj.pads = &pads; g_uj.rows = rows; g_uj.acc = ggml_backend_tpu_stats_t{}; g_uj.rail_recomp = 0;
+    g_uj.rx_p.assign(g.projs.size(), nullptr); g_uj.jv.assign(g.projs.size(), 0); g_uj.first_unit.assign(g.projs.size(), 0);
+    const int16_t *rx = S().rxbuf.data(); size_t u = 0;
+    for (size_t p = 0; p < g.projs.size(); p++) {
+        g_uj.rx_p[p] = rx; rx += (size_t)2 * rows * g.projs[p].n_out;
+        g_uj.jv[p] = kVerifyKernel ? (uint32_t)(S().st.exchanges % g.projs[p].n_out) : UINT32_MAX;
+        g_uj.first_unit[p] = u; u += (g.projs[p].n_out + kCorrChunk - 1) / kCorrChunk;
+    }
+    g_uj.units = u; g_cj.g = &g; g_cj.rows = rows; g_cj.kind = 1;
     g_cj.next.store(0, std::memory_order_relaxed); g_cj.done = 0; g_cj.pending = true; g_cj.gen++;
     g_cj.cv_go.notify_all();
 }
@@ -453,11 +486,41 @@ static int64_t dot_i8_digit(const int8_t *w, const int16_t *q, uint32_t n, bool 
     return a;
 }
 
+/* The digit-split unmask of outputs [j0, j1) of projection p for every row: tpu_unmask_span.h, with this backend's
+ * rail budget, refusals and clock. replay=false is a REAL unmask: it debits the shared rail budget (under the lock) and
+ * refuses when it is exhausted. replay=true is the self-check's serial replay of an exchange that a real pass has already
+ * unmasked: it re-derives the same outputs and must not spend the worker flood bound a second time. */
+static void unmask_digit_span(group &g, const std::vector<pad> &pads, uint32_t rows, size_t p, const int16_t *rx_p, uint32_t j0, uint32_t j1,
+                              uint32_t jv, ggml_backend_tpu_stats_t &A, uint64_t &A_rail_recomp, bool replay) {
+    state &s = S(); const proj &pr = g.projs[p];
+    std::vector<const int16_t *> P(rows); for (uint32_t r = 0; r < rows; r++) P[r] = pads[r].P[p].data();
+    const tpu_span_ctx c{ pr.Wq, g.n_in, pr.n_out, pr.M.data(), pr.s_out, rows, rx_p, P.data(), s.txbuf.data(), g.cache[p].data(), jv, kVerifyTolLsb, kRepairClips };
+    const int layer = g.layer, kind = g.kind;
+    tpu_unmask_digit_span(c, j0, j1, A, A_rail_recomp,
+        [&]() { if (replay) return true; std::lock_guard<std::mutex> lk(g_unmask_mu); return rail_budget_take(s.st, g); },
+        [&]() { abort(); },                                               /* rail_budget_take has already logged why */
+        [&](uint32_t j, uint64_t da, uint64_t db) {
+            TPU_LOG("REFUSED blk.%d kind %d output %u: the worker's product differs from the VM's by %llu/%llu digit LSB "
+                    "(tolerance %d). The lane's graphs and this bundle disagree, or the worker is lying; not decoding with it\n",
+                    layer, kind, j, (unsigned long long)da, (unsigned long long)db, (int)kVerifyTolLsb);
+            abort(); },
+        []() { return now_us(); });
+}
+static void stats_merge(ggml_backend_tpu_stats_t &D, const ggml_backend_tpu_stats_t &A) {
+    D.ver_us += A.ver_us; D.ver_n += A.ver_n; D.ver_sq += A.ver_sq; D.ver_bad += A.ver_bad; if (A.ver_max > D.ver_max) D.ver_max = A.ver_max;
+    if (A.ver_lsb_max > D.ver_lsb_max) D.ver_lsb_max = A.ver_lsb_max; D.ver_lsb_sq += A.ver_lsb_sq; D.ver_lsb_n += A.ver_lsb_n;
+    D.saturated += A.saturated; D.rail_m32768 += A.rail_m32768; D.rail_m32767 += A.rail_m32767; D.rail_p32767 += A.rail_p32767;
+    D.sat_clipped += A.sat_clipped; D.sat_hi += A.sat_hi; D.sat_lo += A.sat_lo; if (A.sat_max_excess > D.sat_max_excess) D.sat_max_excess = A.sat_max_excess;
+    if (A.sat_max_err_lsb > D.sat_max_err_lsb) D.sat_max_err_lsb = A.sat_max_err_lsb; D.false_rails += A.false_rails; if (A.sat_repaired) D.sat_repaired = A.sat_repaired;
+    if (A.cancel_max_lsb > D.cancel_max_lsb) D.cancel_max_lsb = A.cancel_max_lsb; D.cancel_sq += A.cancel_sq; D.cancel_n += A.cancel_n;
+}
 static int64_t g_last_exchange_end = 0;
 static inline int hist_bin(int64_t us) { return us < 25 ? 0 : us < 100 ? 1 : us < 400 ? 2 : us < 1600 ? 3 : 4; }
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
-    if (g_last_exchange_end) { s.st.gap_us += (uint64_t)(t0 - g_last_exchange_end); s.st.gap_hist[hist_bin(t0 - g_last_exchange_end)]++; }
+    static int64_t g_last_exchange_end_cpu = 0;
+    if (g_last_exchange_end) { s.st.gap_us += (uint64_t)(t0 - g_last_exchange_end); s.st.gap_hist[hist_bin(t0 - g_last_exchange_end)]++;
+                               s.st.gap_cpu_us += (uint64_t)(thread_cpu_us() - g_last_exchange_end_cpu); }
     std::vector<pad> pads; pads.reserve(rows + 3);
     { std::lock_guard<std::mutex> lk(g.bank_mu); while (pads.size() < rows && !g.bank.empty()) { pads.push_back(std::move(g.bank.front())); g.bank.pop_front(); } }
     if (pads.size() < rows) {                                              /* the bank ran dry: mint the rest here, in one batch, and say so */
@@ -542,117 +605,52 @@ void exchange(group &g, const float *x, uint32_t rows) {
     if (ct) { const int64_t j0 = now_us(); corr_join(); s.st.corr_join_us += (uint64_t)(now_us() - j0); }   /* the cache must be complete before the reply is added to it */
     const int64_t t2 = now_us();
     wait_ewma_us += 0.05 * ((double)(t2 - t_corr) - wait_ewma_us);
+    const int64_t c2 = thread_cpu_us();
     /* unmask: the correction is already standing in the cache, so the reply ADDS to it */
+    uint64_t rail_recomp_add = 0;
+    if (s_digit_split) {
+        /* unmask_digit_span holds the per-element body. With helpers for the correction (corr_threads >= 2) the same
+         * helpers unmask in parallel -- each chunk's y lines are the ones it just corrected -- and the counters merge;
+         * with one helper it runs here, in order, as the serial reference (y is bit-identical either way). */
+        if (ct && corr_threads() >= 2) {
+            /* SELF-CHECK on every 16th exchange: the serial reference runs on a copy of the same corrected cache with the
+             * same reply and pads, and the parallel result must match it byte for byte (a digest across runs cannot
+             * prove this: the TPU's rounding depends on the pad, which is fresh per run). */
+            const bool check = (s.st.exchanges % 16) == 0;
+            std::vector<std::vector<float>> before; if (check) before = g.cache;
+            unmask_post(g, pads, rows); corr_join();
+            stats_merge(s.st, g_uj.acc); rail_recomp_add = g_uj.rail_recomp;
+            if (check) {
+                std::vector<std::vector<float>> parallel_y = g.cache; g.cache = before;
+                const int16_t *rxs = s.rxbuf.data(); ggml_backend_tpu_stats_t scratch{}; uint64_t scratch_rr = 0;
+                for (size_t p = 0; p < g.projs.size(); p++) {
+                    const uint32_t jv = kVerifyKernel ? (uint32_t)(s.st.exchanges % g.projs[p].n_out) : UINT32_MAX;
+                    unmask_digit_span(g, pads, rows, p, rxs, 0, g.projs[p].n_out, jv, scratch, scratch_rr, /*replay=*/true);
+                    rxs += (size_t)2 * rows * g.projs[p].n_out;
+                }
+                s.st.unmask_check_n++;
+                if (!tpu_unmask_same(g.cache, parallel_y)) {                /* FAIL CLOSED before the parallel result is used */
+                    s.st.unmask_check_bad++;
+                    TPU_LOG("REFUSED blk.%d kind %d: the parallel unmask differs from the serial one on the same reply; not decoding with it\n", g.layer, g.kind);
+                    abort();
+                }
+                g.cache.swap(parallel_y);
+            }
+        } else {
+            const int16_t *rx = s.rxbuf.data(); ggml_backend_tpu_stats_t A{};
+            for (size_t p = 0; p < g.projs.size(); p++) {
+                const uint32_t jv = kVerifyKernel ? (uint32_t)(s.st.exchanges % g.projs[p].n_out) : UINT32_MAX;
+                unmask_digit_span(g, pads, rows, p, rx, 0, g.projs[p].n_out, jv, A, rail_recomp_add);
+                rx += (size_t)2 * rows * g.projs[p].n_out;
+            }
+            stats_merge(s.st, A);
+        }
+    } else {
     const int16_t *rx = s.rxbuf.data();
     for (size_t p = 0; p < g.projs.size(); p++) {
         const proj &pr = g.projs[p];
-        /* Digit-split replies carry both halves at ONE scale, sized for the larger (the lo product reaches about
-         * 1/128 of a full-range output, hi about 1/256; the rest is headroom for the pad's spread). This MUST equal
-         * make_graphs.py's DIGIT_OUT_DIV - it is deliberately not derived from the lane margin, so that retuning the
-         * margin cannot silently desynchronise graph and payload. */
-        const float s_d = pr.s_out / 102.4f;                               /* DIGIT_OUT_DIV */
         for (uint32_t r = 0; r < rows; r++) {
             float *y = g.cache[p].data() + (size_t)r * pr.n_out; const int16_t *P = pads[r].P[p].data();
-            if (s_digit_split) {
-                /* hi rows come first, so this projection's lo row sits rows*n_out further on. The pad was
-                 * projected in units of s_out, so subtract it as a float rather than mixing the domains. */
-                const int16_t *vh = rx, *vl = rx + (size_t)rows * pr.n_out;
-                for (uint32_t j = 0; j < pr.n_out; j++) {
-                    const int16_t a = vh[j], b2 = vl[j];
-                    /* KERNEL VERIFICATION, independent of any CPU/GGUF path. One element per projection per
-                     * exchange is recomputed with the reference's own expression under the SAME bundle, weights
-                     * and quantisation, and compared to what the TPU returned. This is what validates the
-                     * backend's requantisation and both rails with explicit tolerances; an unmasked CPU engine
-                     * is a different quantisation and cannot settle it. Cost is 2 dots per projection per
-                     * exchange, about 420 per token, against the 2.3 GMAC the token already costs. */
-                    if (kVerifyKernel && j == (uint32_t)(s.st.exchanges % pr.n_out)) {
-                        const int64_t tv0 = now_us();
-                        struct ver_clock { state &s; int64_t t; ~ver_clock() { s.st.ver_us += (uint64_t)(now_us() - t); } } vc{s, tv0};
-                        const int16_t *qv = s.txbuf.data() + (size_t)r * g.n_in;
-                        const int64_t va = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, true) * pr.M[j] * 102.4);
-                        const int64_t vb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qv, g.n_in, false) * pr.M[j] * 102.4);
-                        const int64_t ca = va > 32767 ? 32767 : (va < -32768 ? -32768 : va);   /* what a clamping backend should return */
-                        const int64_t cb = vb > 32767 ? 32767 : (vb < -32768 ? -32768 : vb);
-                        const uint64_t da = (uint64_t)llabs((int64_t)a - ca), db = (uint64_t)llabs((int64_t)b2 - cb);
-                        s.st.ver_n += 2; s.st.ver_sq += (double)(da * da) + (double)(db * db);
-                        if (da > s.st.ver_max) s.st.ver_max = da;
-                        if (db > s.st.ver_max) s.st.ver_max = db;
-                        if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
-                        /* FAIL CLOSED beyond the established tolerance. A 1-LSB disagreement per digit is the requantiser's
-                         * rounding (13 in 141,450 samples over qc7, never more). Anything larger means the worker did not
-                         * multiply by the matrix these pads were minted from -- a stale or wrong lane, or a lying worker --
-                         * and every unmasked product of this exchange is wrong by the pad times the difference. It used
-                         * to be counted and decoded anyway: 104,724 of 104,960 samples wrong and 256 tokens of garbage
-                         * before anyone read the counter (TPU.md, 2026-09-22). Integrity, not confidentiality: what
-                         * crossed the link was still uniformly masked. */
-                        if (da > kVerifyTolLsb || db > kVerifyTolLsb) {
-                            TPU_LOG("REFUSED blk.%d kind %d output %u: the worker's product differs from the VM's by %llu/%llu digit LSB "
-                                    "(tolerance %d). The lane's graphs and this bundle disagree, or the worker is lying; not decoding with it\n",
-                                    g.layer, g.kind, j, (unsigned long long)da, (unsigned long long)db, (int)kVerifyTolLsb);
-                            abort();
-                        }
-                        /* The same disagreement expressed in OUTPUT LSBs, which is the unit the error bound is
-                         * written in. tpu/test/error_bound.py has to ASSUME this term is zero (an ideal
-                         * rounder) and separately quotes a conditional figure for |delta| <= 1; this measures
-                         * it on the deployed kernel instead. The 256 is digit-split's amplification of the hi
-                         * half, so a one-LSB disagreement there is worth 2.5 output LSBs and one in lo is
-                         * worth a hundredth of that. */
-                        { const double e = fabs((double)s_d * (256.0 * (double)((int64_t)a - ca)
-                                                               + (double)((int64_t)b2 - cb))) / (double)pr.s_out;
-                          if (e > s.st.ver_lsb_max) s.st.ver_lsb_max = e;
-                          s.st.ver_lsb_sq += e * e; s.st.ver_lsb_n++; }   /* ONE combined sample, not two */
-                    }
-                    if (a >= 32767 || a <= -32767 || b2 >= 32767 || b2 <= -32767) {
-                        /* A RETURNED RAIL IS NOT EVIDENCE OF ANYTHING. The worker is untrusted, so the rail is
-                         * only a trigger to recompute; the recomputed value is the trusted one and is used
-                         * UNCONDITIONALLY. The previous shape -- recompute, but only substitute when the trusted
-                         * value was itself out of range -- let a worker return 32767 for an ordinary in-range
-                         * product, pay for the recompute, increment no clip counter (so it evaded the flood
-                         * bound), and then FALL THROUGH and consume the false rail. That was worker-injectable
-                         * corruption, and it was mine. Using the exact value in every case closes it: a genuine
-                         * clip is repaired, a legitimate rail is unchanged (exact == returned), and a false rail
-                         * is rejected. */
-                        s.st.saturated++;
-                        if (!rail_budget_take(s.st, g)) abort();          /* budget is taken BEFORE the dots below */
-                        rail_recomp++;
-                        if (a == -32768 || b2 == -32768) s.st.rail_m32768++;
-                        if (a == -32767 || b2 == -32767) s.st.rail_m32767++;
-                        if (a == 32767 || b2 == 32767) s.st.rail_p32767++;
-                        /* Associate EXACTLY as ggml_backend_tpu_reference_worker does -- (acc * M) * mscale, not
-                         * acc * (M * mscale). Floating multiply is not associative and this is meant to be the
-                         * same expression, not merely the same value. */
-                        const int16_t *qr = s.txbuf.data() + (size_t)r * g.n_in;
-                        const int64_t ea = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, true) * pr.M[j] * 102.4);
-                        const int64_t eb = llround((double)dot_i8_digit(pr.Wq + (size_t)j * g.n_in, qr, g.n_in, false) * pr.M[j] * 102.4);
-                        const int64_t xa = ea > 32767 ? ea - 32767 : (ea < -32768 ? -32768 - ea : 0);
-                        const int64_t xb = eb > 32767 ? eb - 32767 : (eb < -32768 ? -32768 - eb : 0);
-                        if (xa || xb) {                                   /* genuine clip: the hardware saturated */
-                            s.st.sat_clipped++; if (xa) s.st.sat_hi++; if (xb) s.st.sat_lo++;
-                            const int64_t ex = xa > xb ? xa : xb; if ((uint64_t)ex > s.st.sat_max_excess) s.st.sat_max_excess = (uint64_t)ex;
-                            const double err = fabs(s_d * (double)(256 * (ea - (int64_t)a) + (eb - (int64_t)b2))) / (double)pr.s_out;
-                            if (err > s.st.sat_max_err_lsb) s.st.sat_max_err_lsb = err;
-                        } else if (ea != (int64_t)a || eb != (int64_t)b2) {
-                            s.st.false_rails++;                           /* in-range product returned as a rail: the worker is lying */
-                        }
-                        s.st.sat_repaired = kRepairClips ? 1 : 0;
-                        if (kRepairClips) { y[j] += (float)((double)s_d * (256.0 * (double)ea + (double)eb) - (double)pr.s_out * (double)P[j]); continue; }
-                    }
-                    /* CANCELLATION. y = s_d*(256a+b) - s_out*P subtracts two LARGE pad-dependent quantities
-                     * whose difference is small: the reply carries the pad, P IS the pad, and only the signal
-                     * survives. In float32 each operand rounds at 2^-24 of ITS OWN magnitude, not of the
-                     * difference, so the residual error is a function of the pad -- exactly the dependence being
-                     * hunted. The plain path never had this (it subtracts v-P in int32 first); the digit path
-                     * cannot, because DIGIT_OUT_DIV is 102.4 rather than a power of two. Doing the cancellation
-                     * in double costs nothing and shrinks the error by about 2^29. The diagnostic records how
-                     * far the float form WOULD have been, in output LSBs, so this is measured not assumed. */
-                    const double yd = (double)s_d * (double)(256 * (int32_t)a + (int32_t)b2) - (double)pr.s_out * (double)P[j];
-                    { const double yf = (double)(s_d * (float)(256 * (int32_t)a + (int32_t)b2) - pr.s_out * (float)P[j]);
-                      const double dd = fabs(yf - yd) / (double)pr.s_out;
-                      if (dd > s.st.cancel_max_lsb) s.st.cancel_max_lsb = dd;
-                      s.st.cancel_sq += dd * dd; s.st.cancel_n++; }
-                    y[j] += (float)yd;
-                }
-            } else
             for (uint32_t j = 0; j < pr.n_out; j++) { const int16_t v = rx[j];
                 if (v >= 32767 || v <= -32767) { s.st.saturated++;
                     /* Same contract as the digit path: the rail is only a TRIGGER, the recomputed value is the
@@ -672,15 +670,16 @@ void exchange(group &g, const float *x, uint32_t rows) {
                 y[j] += pr.s_out * (float)((int32_t)v - (int32_t)P[j]); }
             rx += pr.n_out;
         }
-        if (s_digit_split) rx += (size_t)rows * pr.n_out;                  /* step over this projection's lo block */
     }
-    const int64_t t3 = now_us();
+    }
+    rail_recomp += rail_recomp_add;
+    const int64_t t3 = now_us(); s.st.unmask_cpu_us += (uint64_t)(thread_cpu_us() - c2);
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
     s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2); s.st.unmask_hist[hist_bin(t3 - t2)]++;
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
     s.st.rx_calls = g_rx_calls.load(std::memory_order_relaxed);
     pads.clear(); outl.clear();                                             /* timed: in a protected VM, returning pages is not free */
-    const int64_t t4 = now_us(); s.st.free_us += (uint64_t)(t4 - t3); g_last_exchange_end = t4;
+    const int64_t t4 = now_us(); s.st.free_us += (uint64_t)(t4 - t3); g_last_exchange_end = t4; g_last_exchange_end_cpu = thread_cpu_us();
 }
 
 bool claimable(const ggml_tensor *op) {
