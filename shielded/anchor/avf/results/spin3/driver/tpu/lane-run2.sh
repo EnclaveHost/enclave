@@ -48,7 +48,7 @@ cpu_start() {
   $ADB push -q "$(dirname "$0")/cpu-sampler.sh" "$SMP" >/dev/null 2>&1 || { echo "cpu: sampler not started (push failed)"; return 0; }
   CPU_FILE=/data/local/tmp/lane-cpu.$LABEL
   _cg_read "rm -f $CPU_FILE $CPU_FILE.run; touch $CPU_FILE.run" >/dev/null || { CPU_FILE=; return 0; }
-  $ADB shell "nohup sh $SMP $uid $CPU_FILE ${LANE_CPU_PERIOD:-0.25} ${LANE_CPU_SCAN_S:-2} </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
+  $ADB shell "nohup sh $SMP $uid $CPU_FILE ${LANE_CPU_PERIOD:-0.5} </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
 }
 cpu_stop() {
   [ -n "${CPU_FILE:-}" ] || return 0
@@ -68,9 +68,7 @@ rsh "input keyevent KEYCODE_WAKEUP" >/dev/null || exit 1; rsh "wm dismiss-keygua
 pw=$(rsh "dumpsys power") || exit 1
 grep -q 'mWakefulness=Awake' <<<"$pw" || die "PHONE NOT AWAKE: refusing to measure"
 args="-n $P/.Main --es mode local --es vmname $(q "${VMNAME:-anchorlocal}") --ei mem ${MEM:-8192} --es model $F/model.gguf"
-# GRAPHS=none runs the SAME model on the VM's CPU alone (no TPU, no pads): the reference every masked figure is compared with
-if [ "${GRAPHS:-}" = none ]; then TPU=0; args+=" --ei max_new ${MAXNEW:-48}"
-else TPU=1; args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48}"; fi
+args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48}"
 args+=" --es capture $LABEL"
 for w in $EXTRA; do args+=" $(q "$w")"; done
 args+=" --es ask $(q "$ASK")"
@@ -109,13 +107,11 @@ got=$(sed -n 's/^LOCAL ask sha256=\([0-9a-f]\{64\}\) .*/\1/p' "$L" | tail -1)
 turns=0; IFS='|' read -r -a parts <<<"$ASK"; for p_ in "${parts[@]}"; do [ -n "$(tr -d '[:space:]' <<<"$p_")" ] && turns=$((turns+1)); done
 for n in $(seq 1 $turns); do
   [ "$(grep -c "^LOCAL turn $n STATS " "$L")" = 1 ] || die "turn $n has no single STATS record"
-  if [ "${TPU:-1}" = 1 ]; then [ "$(grep -c "^VSOCK LOCAL tpu turn $n: exchanges=" "$L")" = 1 ] || die "turn $n has no single TPU counter record"
-  else [ "$(grep -c "^VSOCK LOCAL tpu turn" "$L")" = 0 ] || die "a CPU-only run shows TPU counters"; fi
+  [ "$(grep -c "^VSOCK LOCAL tpu turn $n: exchanges=" "$L")" = 1 ] || die "turn $n has no single TPU counter record"
 done
 [ "$(grep -c "^LOCAL turn $((turns+1)) STATS " "$L")" = 0 ] || die "more turns ran than were scripted"
 # which bundle the VM cancelled with: the app's digest of the file it sent, and the VM's own line naming the same digest
 # (reused by its recorded sidecar, or hashed as it streamed). A stale cached bundle is what made the first int4 runs wrong.
-if [ "${TPU:-1}" = 1 ]; then
 bsha=$(sed -n 's/^TPU bundle sha256=\([0-9a-f]\{64\}\) .*/\1/p' "$L" | tail -1)
 [ -n "$bsha" ] || die "the app did not report the bundle's sha256"
 # (both wordings: 2b993ba7's sidecar receiver, and anchor_public_file.h's re-hashing one)
@@ -123,10 +119,8 @@ grep -qE "^VSOCK LOCAL tpu\.bundle: (already in the encrypted store \(.*sha256 $
   || die "the VM did not confirm it holds bundle sha256 ${bsha:0:16}..."
 [ -z "${BUNDLE_SHA256:-}" ] || [ "$bsha" = "$BUNDLE_SHA256" ] || die "the run used bundle $bsha, not the requested $BUNDLE_SHA256"
 echo "bundle sha256 $bsha"
-fi
 [ "$(grep -c "^LOCAL done: $turns scripted turns" "$L")" = 1 ] || die "no 'LOCAL done: $turns scripted turns' record"
-if [ "${TPU:-1}" = 1 ]; then grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started serving"
-else grep -q '^TPU worker' "$L" && die "a CPU-only run started a TPU worker"; fi
+grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started serving"
 # the worker's own summary is printed when the VM closes its link, usually after the capture has closed; when it
 # is inside, it must not carry an error
 grep -E '^TPU worker: [0-9]+ exchanges' "$L" | grep -q 'ERROR' && die "the worker reported an error"

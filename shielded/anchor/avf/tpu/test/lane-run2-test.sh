@@ -60,6 +60,7 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
   [ -n "${FAKE_EXTRA_LINE:-}" ] && echo "$FAKE_EXTRA_LINE"
   echo "LOCAL done: $n scripted turns"
   [ "${FAKE_NO_FOOTER:-0}" = 1 ] || echo "CAPTURE END label=$label lines=9 bytes=99 status=complete"; } > "$L"
+if [ "${FAKE_CPU_ONLY:-0}" = 1 ]; then printf 'CAPTURE BEGIN label=%s\nLOCAL ask sha256=%s bytes=1\nLOCAL turn 1 STATS {status=eos, decode_tokens=5}\nLOCAL done: 1 scripted turns\nCAPTURE END label=%s lines=4 bytes=9 status=complete\n' "$label" "$(printf '%s' "$ask" | sha256sum | cut -d' ' -f1)" "$label" > "$L"; : > "$c/$label.complete"; exit 0; fi
 [ "${FAKE_VM_DIES:-0}" = 1 ] && { printf 'CAPTURE BEGIN label=%s\nVM payload started\nVM payload finished exit=1\nVM stopped reason=3\n' "$label" > "$L"; exit 0; }
 [ "${FAKE_NO_COMPLETE:-0}" = 1 ] || : > "$c/$label.complete"
 echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main }"
@@ -131,4 +132,7 @@ OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_
       bash "$HERE/lane-conditions.sh" "$W/lc" "$W/conds.tsv" 2>&1)
 ck "lane-conditions runs every condition" "$(grep -c $'\tok\t0$' "$W/lc/RUNS.tsv")" 3
 ck "... and freezes the CPU tools beside the driver" "$(ls "$W/lc/driver/tpu" | tr '\n' ' ')" "cpu-sampler.sh cpu-window.py lane-run2.sh "
+ASK_='Say hi.'; run cpuonly GRAPHS=none FAKE_CPU_ONLY=1; ck "GRAPHS=none: a CPU-only run with no TPU records passes" "$RC" 0
+run cpuonly-tpu GRAPHS=none; ck "GRAPHS=none but the capture shows a TPU worker: refused" "$RC" 1
+run tpu-no-counters FAKE_CPU_ONLY=1; ck "a TPU run without TPU records: refused" "$RC" 1
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]
