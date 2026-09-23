@@ -103,3 +103,24 @@ windows/enclave-app-hello/target/
 # test-m3.sh check 0 also asserts for the image as a whole. Narrow on purpose - the .go sources beside it
 # are tracked.
 /isolation/m3/monitor/monitor
+
+# --- shared-checkout cleanup, 2026-09-23 (coordinator: isolation session) ------------------------------
+# Every rule here is narrow and names a class already established above, or a class the repo never tracks:
+# models, dependency wheels, build backups and regenerable outputs. Nothing here hides source.
+
+# The -104k trim variant of the model already ignored above. model.safetensors alone is 6.9 GB.
+/gemma-4-E2B-it-en-code-104k/
+
+# Dependency wheels dropped at the repo root by pip. Third-party, reproducible from the package index.
+/*.whl
+
+# Keepset builds for other feature thresholds, same file classes as /trim/artifacts/* above:
+# build_keepset_f.py regenerates all of them. keepset_summary.json is ~1 KB and IS tracked, because it is
+# the compact record of what a run produced.
+/trim/artifacts-f*/keep_ids.npy
+/trim/artifacts-f*/keep_reasons.tsv
+/trim/artifacts-f*/id_map_old_to_new.json
+
+# A backup of metal's build output. metal/dist itself is untracked build output (0 tracked files), so a
+# dated copy of it is not repo content either; 279 MB of initramfs plus a kernel.
+/metal/dist.backup-*/
