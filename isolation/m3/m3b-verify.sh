@@ -149,6 +149,19 @@ else
   r=no
 fi
 gate "C5 the launch measurement was DERIVED, not supplied: without this an allowlist only repeats a value it was given" $r
+# C6: the evidence this whole run produced has to be re-scorable later without reconstructing the environment
+# by hand. RECHECK=1 used to guess the launch context and reported false failures on a good workdir, so the
+# workdirs are checked for being self-describing and tamper-evident, using the two this run just produced -
+# the IGVM one from stage C and the non-IGVM one from stage B.
+if [ -r "$W/m3b/run-context" ] && [ -r "$W/test-m3/run-context" ]; then
+  if fx=$("$here/recheck-context-fixtures.sh" "$W/m3b" "$W/test-m3" "$W/ctxfix" 2>&1); then r=ok; else r=no; fi
+  echo "    $(printf '%s' "$fx" | tail -1)"
+  [ "$r" = no ] && printf '%s\n' "$fx" | grep -a '^FAIL' | head -4 | sed 's/^/      /'
+else
+  echo "    a workdir did not record its run context, so its evidence cannot be re-scored"
+  r=no
+fi
+gate "C6 both workdirs are self-describing and tamper-evident: a bare RECHECK=1 reproduces the verdict, and every altered or missing context is refused" $r
 
 printf '\n======== result\n'
 if [ "$fails" -eq 0 ]; then
