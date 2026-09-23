@@ -1,0 +1,8 @@
+sp2-01	t6	
+sp2-02	t2	--ei threads 2
+sp2-03	t6-poll0	--ei pool_poll 0
+sp2-04	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp2-05	t2-spin	--ei threads 2 --ei tpu_spin 4000 --ei tpu_worker_spin 4000
+sp2-06	t6-poll0	--ei pool_poll 0
+sp2-07	t2	--ei threads 2
+sp2-08	t6	

@@ -1,0 +1,2 @@
+cpu turn 1 decode window 71.42 s (57 tokens): INCOMPLETE (a lower bound): the app's processes 176.21 core-s = 2.47 cores busy, 3091 core-ms per decoded token (edge interpolation +-2.94 core-s) [crosvm_anchorlocal 141.31, host.enclave.anchor.avf 34.90, virtmgr_lave.anchor.avf 0.00] | 4.98 cores busy device-wide
+  coverage: the samples around the window start are 1.01 s apart (> 1.0)

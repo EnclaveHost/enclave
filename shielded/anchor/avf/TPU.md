@@ -2986,3 +2986,37 @@ both arms from the archived logs).
   not die first. 32 fake-device cases.
 * The worker's link poll was a process global set only for positive values, so it survived into a later
   zero-spin run in the same process; it is per worker handle now and set on every open, zero included.
+
+## What masked decode costs the phone's CPU, and the first lever that cuts it (2026-09-22)
+
+`tpu/cpu-sampler.sh` + `tpu/cpu-window.py` measure the app's whole process tree (the app, its virtmgr, its
+`crosvm_anchorlocal`, bound by parentage and start time) over each turn's own decode window, on the clock the
+app stamps it with. The first figure (`results/cpuval`): **masked int8 decode keeps 5.1 cores busy -- 5,365
+core-ms per decoded token at 0.95 tok/s, 97 % of it inside the VM.** The CPU-only engine spends about 330
+core-ms per token on the whole model. So the masked lane, with every block projection on the TPU, costs the
+phone about sixteen times more CPU per token than not using the TPU at all, and it is why the phone thermal-
+capped itself all day (the big cores' cap fell to 1.8-2.2 GHz during masked runs). The VM's pool of six threads
+waits for the link at ggml's default hybrid polling, spinning through most of every exchange.
+
+`results/spin2`, one prompt (57 tokens, identical text in every run), ABBA order, every run LANE-RUN OK,
+verification at most 3 disagreements of 1 LSB in 23,370 samples:
+
+| condition | tok/s | link ms/exch | unmask | between exch | app cores | core-ms/token | prefill tok/s |
+|---|---|---|---|---|---|---|---|
+| 6 threads (default) | 0.99, 0.99 | 5.32, 5.35 | 0.64 | 0.92 | 5.06, 5.12 | 5,099, 5,184 | 53, 52 |
+| **2 threads** | **1.16, 1.07** | 5.25, 5.46 | 0.26-0.31 | 0.50-0.73 | **2.20, 2.21** | **1,902, 2,075** | 22, 20 |
+| 6 threads, pool poll 0 | 0.82, 0.85 | 6.35, 6.15 | 0.39-0.45 | 1.69-1.70 | 2.15, 2.19 | 2,639, 2,587 | 51, 50 |
+| 2 threads + link poll 4 ms both ends | 0.80, 0.74 | 8.06, 8.42 | 0.20 | 0.55-0.89 | 2.47, 2.41 | 3,091, 3,257 | 22, 19 |
+
+* **Two decode threads: 10-15 % faster and 60 % less CPU.** The VM's own work between and around exchanges
+  shrinks (unmask 0.64 -> 0.3 ms, gap 0.92 -> 0.6 ms) because fewer threads spin against the one that is
+  working, and the phone stays uncapped. It still costs about 2,000 core-ms per token, six times the CPU engine.
+* **Pool poll 0** saves as much CPU but makes the token slower: idle threads sleep, and waking them per graph
+  split costs 1 ms per exchange.
+* **Polling the link, now with cores to spare, is still worse:** the link itself takes 8.1-8.4 ms instead of
+  5.3. The guest spinning on the vsock delays the delivery it is waiting for. Closed, this time with free cores.
+* **Two threads cost prefill 2.5x** (it runs on the VM's CPU). The fix is separate pools -- six for prefill,
+  two for decode -- which llama.cpp supports; next.
+
+The device-wide column of the batch's own `.cpu` files double-counted guest time (fixed in 3488f186); the
+table's figures are from re-running the fixed analyser on the saved samples.
