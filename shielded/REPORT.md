@@ -4536,3 +4536,53 @@ recommendation, not a measured throughput gain on a fresh worker. (2) What makes
 a run fast is still not identified. Remaining candidates, none tested here: CPU
 placement of the OpenMP team relative to the two card threads (CCD and SMT
 siblings), and memory placement.
+
+### 18.44 Placement and huge pages: unsupported by the samples, and huge pages are not obtainable here
+
+**Wording, per audit.** What 18.43's decomposition shows is a timing
+ASSOCIATION: over 15 valid identical runs every CPU-side term moves with
+throughput (outside-the-link CPU ops r=-0.77, unmask -0.73, post -0.61) while
+the GPU waits do not (wire -0.12, idle +0.04). That is not an identified root
+cause, and low correlations do not rule causes out; they leave them unsupported
+by these samples.
+
+**Thread placement** (8 valid runs, 18.91-21.73 tok/s, median 20.55; a passive
+2 Hz sample of every thread's CPU and CPU-time from /proc): the main thread's
+CCD (r=-0.08) and a hot thread on its SMT sibling (r=-0.14) are unsupported as
+explanations in this sample; the hot-thread count (r=-0.61) is as likely an
+effect (slower rounds leave the OpenMP team spinning longer) as a cause.
+**Memory placement across NUMA nodes cannot vary**: one socket, one node
+(`numactl --hardware`: 32 CPUs, 128 GB); the only topology boundary is the two
+32 MB L3s, one per CCD.
+
+**Huge pages as the source of the spread: unsupported.** 8 valid runs,
+18.85-20.72 tok/s: the process's AnonHugePages was 1.96-2.05 GB in every run
+(r=-0.01).
+
+**Huge pages as a mean lever: not obtainable on this box, and costly to try.**
+Mid-decode smaps: of ~25 GB of anonymous memory (one 16.4 GB region, an 8.4 GB
+heap) about 5% is on huge pages; the model file (17.1 GB) is page cache. The
+kernel is `enabled=always, defrag=madvise`; per the kernel's own documentation
+(docs.kernel.org, transhuge) a non-madvised fault tries for a huge page without
+reclaim or compaction and falls back, and an `MADV_HUGEPAGE` region enters direct
+reclaim and compaction -- which raises the chance and can stall the allocation,
+and guarantees nothing. System-wide, 61.0 M THP faults had fallen back against
+17.4 M allocated.
+
+A preload shim that advised every allocation of >= 64 MB (39.0 GB in 402 calls,
+all returning 0) got **2.02-2.10 GB of huge pages against 1.94 unadvised**: every
+direct compaction it triggered failed (`compact_stall` +4,213, `compact_fail`
++4,213, `compact_success` +0), and those failures doubled the load (wall 225-227 s
+against 115 s). Decode in the two advised runs was 17.00 and 17.88 tok/s against
+19.44 in the one plain run -- 1.5 pairs, provisional, not a measurement.
+
+The shim itself is **UNACCEPTED** and quarantined (audit): its calloc bootstrap
+could hand static-buffer pointers to libc free/realloc, its bootstrap arithmetic
+and alignment were unchecked, and its lazy resolution was racy. The A/B was
+stopped after its first 1.5 pairs; no preloaded process remained. Advising
+narrowly owned buffers would meet the same failing compaction; on this box the
+lever would need an administrative action (compaction or boot-time huge-page
+reservation), which this work does not take.
+
+Both production Freivalds rejections and the conv op's graph/scheduler
+integration audit remain open.
