@@ -4586,3 +4586,21 @@ reservation), which this work does not take.
 
 Both production Freivalds rejections and the conv op's graph/scheduler
 integration audit remain open.
+
+### 18.45 Frequency and power: unsupported too; the spread's cause is not identified
+
+8 valid identical runs, 18.35-21.44 tok/s, sampling every core's current
+frequency, the socket's power (amd_hsmp hwmon) and Tctl at 1 Hz (`run7.sh`,
+scratch): mean all-core frequency during decode 2.68-2.82 GHz (r=+0.16 with
+throughput), minimum core 2.00-2.09 GHz (r=+0.15), socket power 67-70 W (r=+0.19)
+with peaks of 93-102 W against a 125 W cap, Tctl 42.6-43.2 C (r=-0.17). A power
+or thermal limit is not supported as the explanation by this sample.
+
+Where that leaves the run-to-run spread: a CPU-side timing association (18.43)
+with no identified cause. Unsupported by the samples so far: GPU clocks and
+throttling, the owner-yield detector on fresh workers, thread placement (CCD,
+SMT sibling), huge-page footprint, and core frequency, power and temperature.
+One candidate left that this user cannot measure: physical page placement of
+the large 4 KiB-page buffers (L2 set conflicts, DRAM channel spread vary with
+which physical pages a run gets). Reading physical frame numbers from
+/proc/PID/pagemap needs CAP_SYS_ADMIN.
