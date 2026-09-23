@@ -1542,7 +1542,10 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
                 int64_t *sp = scratch.data();
                 const int lrc = sh_link_gemm_local(card->link, &nid, 1, x, m, &sp);
                 const bool ok = lrc == SH_OK && sh_link_verify(card->link, nid, x, scratch.data(), m);
-                if (!ok) {
+                /* The peak and the local-check bit depend on the activations:
+                 * printed only under the plaintext opt-in. No value, ever. */
+                const bool plain = sh_fault_diag_plaintext() != 0;
+                if (!ok && plain) {
                     /* Exact integer product, unreduced: a peak above M/2 is a
                      * field wrap (which the integer check is meant to catch),
                      * anything else means the check vectors disagree with the
@@ -1555,12 +1558,15 @@ static int sh_split_exchange(sh_pool &p, std::vector<sh_state::entry *> &xents,
                         for (int64_t k2 = 0; k2 < K_; k2++) acc += (long double)x[k2] * W[j * K_ + k2];
                         if (acc < 0 ? -acc > peak : acc > peak) { peak = acc < 0 ? -acc : acc; peak_j = j; }
                     }
-                    fprintf(stderr, "[shielded] probe: %s card %zu exact peak |y| = %.0Lf at col %lld (field M/2 = %lld)\n",
+                    fprintf(stderr, "[shielded] probe: %s card %zu [plaintext opt-in: exact peak |y| = %.0Lf at col %lld (field M/2 = %lld)]\n",
                             xents[t]->name.c_str(), c, peak, (long long)peak_j, (long long)(SH_M_MOD / 2));
                 }
-                fprintf(stderr, "[shielded] probe: %s card %zu node %d cols %lld+%lld local rc=%d verify=%d y0=%lld\n",
-                        xents[t]->name.c_str(), c, nid, (long long)pcol0[c][t], (long long)nc, lrc, (int)ok,
-                        (long long)scratch[0]);
+                if (plain)
+                    fprintf(stderr, "[shielded] probe: %s card %zu node %d cols %lld+%lld local rc=%d [plaintext opt-in: verify=%d]\n",
+                            xents[t]->name.c_str(), c, nid, (long long)pcol0[c][t], (long long)nc, lrc, (int)ok);
+                else
+                    fprintf(stderr, "[shielded] probe: %s card %zu node %d cols %lld+%lld local rc=%d\n",
+                            xents[t]->name.c_str(), c, nid, (long long)pcol0[c][t], (long long)nc, lrc);
             }
         }
     }
@@ -2491,10 +2497,19 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                     std::vector<int64_t> scratch((size_t)m * nc, 0);
                     int64_t *sp = scratch.data();
                     const int lrc = sh_link_gemm_local(card->link, &nid, 1, x_gpu.data(), m, &sp);
-                    const bool ok = lrc == SH_OK && sh_link_verify(card->link, nid, x_gpu.data(), scratch.data(), m);
-                    fprintf(stderr, "[shielded] split probe: card %zu node %d cols %lld..%lld local rc=%d verify=%d first=%lld,%lld\n",
-                            c, nid, (long long)xents[0]->part_col0[c], (long long)(xents[0]->part_col0[c] + nc), lrc, (int)ok,
-                            (long long)scratch[0], (long long)(nc > 1 ? scratch[1] : 0));
+                    /* The log is host-visible and a worker can reach this path
+                     * at will: NO product value is printed, ever. Whether the
+                     * LOCAL product passes the check depends on the activations
+                     * (it fails only when the true product leaves the field), so
+                     * that bit is printed only under the development opt-in. */
+                    if (sh_fault_diag_plaintext()) {
+                        const bool ok = lrc == SH_OK && sh_link_verify(card->link, nid, x_gpu.data(), scratch.data(), m);
+                        fprintf(stderr, "[shielded] split probe: card %zu node %d cols %lld..%lld local rc=%d [plaintext opt-in: local verify=%d]\n",
+                                c, nid, (long long)xents[0]->part_col0[c], (long long)(xents[0]->part_col0[c] + nc), lrc, (int)ok);
+                    } else {
+                        fprintf(stderr, "[shielded] split probe: card %zu node %d cols %lld..%lld local rc=%d\n",
+                                c, nid, (long long)xents[0]->part_col0[c], (long long)(xents[0]->part_col0[c] + nc), lrc);
+                    }
                 }
                 fprintf(stderr, "[shielded] split verify: group %s m=%d members=%zu xents=%zu K=%lld\n",
                         e0.group.c_str(), (int)m, members.size(), xents.size(), (long long)K);

@@ -4187,3 +4187,42 @@ pad, a trailing range is a short or stale reply, and a reply that MATCHES the
 local product means the check side (the overlapped RHS) is at fault.
 `postmortem-selftest` checks each of those signatures on synthetic data. It
 runs only after a rejection and changes no decision.
+
+### 18.35 Audit repair: the fault logs were printing secrets
+
+18.34's post-mortem printed three `got=/want=` samples: unmasked products and
+their local recomputation, both functions of the activations, on a path any
+worker can trigger by sending one wrong byte, into a host-visible log. That is
+an activation leak, and it was mine. The review found three more of the same
+class, older, in the column-split probes: the failure-path probe printed the
+first two locally recomputed products (`first=45332,-199646` appears in both
+rejection logs of 18.34), and the `SHIELDED_SPLIT_PROBE` debug knob printed
+`y0=` and the exact peak |y|.
+
+**What a fault line may say, and why.** With exact field arithmetic the
+unmasked reply is balanced(W.x + d), where d is the worker's error, so whether
+a value differs from balanced(W.x) depends on d alone. Counts, rows, 32-column
+blocks and the column range are therefore functions of what the worker sent,
+not of the activations, and they stay. Channel metadata (card, node, m, ring
+or socket, exchange index) stays. Removed, with no way to turn them back on:
+every product and activation value. Behind an explicit development opt-in,
+`SHIELDED_FAULT_DIAG_PLAINTEXT=1` (default off; it leaks by design): the two
+activation-dependent bits -- how many true products lie outside the field, and
+whether a slice's local recompute passes its own check, since that fails only
+when the true product wraps.
+
+**Checked, not asserted.** `postmortem-selftest` now proves the property: for
+the same worker error, the default line is byte-identical across three
+activation sets, including one where every true product leaves the field, and
+carries no number larger than a count. Two mutants -- one printing a value, one
+leaving the wrap count ungated -- both fail it. `test/shielded-fault-logs`
+guards the C++ probe sites textually (no value field in any log format string
+outside a marked opt-in block, every opt-in block gated), and it flags all
+four leaks in the f3b33031 sources. The rejection itself is unchanged: the link
+retires with `SH_ERR_VERIFY` before and regardless of the post-mortem.
+
+One residual, recorded rather than fixed here: a Freivalds rejection caused
+by a genuine field wrap is itself activation-dependent (it happens only when
+the product leaves the field), so the FACT of a rejection can carry that one
+bit. That is a property of the integer check's design, predates this work, and
+applies to any fail-closed check of this kind.

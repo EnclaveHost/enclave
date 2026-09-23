@@ -2064,16 +2064,24 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
     return sh_link_gemm_stride(l, nodes, n_nodes, x_field, m, y_out, NULL);
 }
 
+int sh_fault_diag_plaintext(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("SHIELDED_FAULT_DIAG_PLAINTEXT"); v = e && !strcmp(e, "1"); }
+    return v;
+}
+
 void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, int m,
-                      const int64_t *y, int64_t ystr, char *out, size_t cap) {
+                      const int64_t *y, int64_t ystr, int plaintext_bits, char *out, size_t cap) {
     if (!out || !cap) return;
     out[0] = 0;
     if (!w || !x || !y || K <= 0 || N <= 0 || m <= 0) { snprintf(out, cap, "no local weights; no recompute"); return; }
+    /* Everything accumulated here except `wraps` is a function of which values
+     * differ, i.e. of the worker's error alone (see the header). */
     uint64_t bad = 0, wraps = 0, blocks = 0, rows_bad = 0;
-    int64_t first = -1, last = -1, prev_block = -1;
-    char sample[160]; size_t sl = 0; int ns = 0; sample[0] = 0;
+    int64_t first = -1, last = -1;
     for (int r = 0; r < m; r++) {
         uint64_t row_bad = 0;
+        int64_t prev_block = -1;
         for (int64_t j = 0; j < N; j++) {
             const int8_t *wr = w + (size_t)j * (size_t)K;
             const int64_t *xr = x + (size_t)r * (size_t)K;
@@ -2081,27 +2089,22 @@ void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, i
             for (int64_t k = 0; k < K; k++) sacc += (int64_t)wr[k] * xr[k];
             const int64_t truth = sh_balanced(sacc);
             if (truth != sacc) wraps++;
-            const int64_t got = y[(size_t)r * (size_t)ystr + (size_t)j];
-            if (got != truth) {
+            if (y[(size_t)r * (size_t)ystr + (size_t)j] != truth) {
                 bad++; row_bad++;
                 if (first < 0 || j < first) first = j;
                 if (j > last) last = j;
                 const int64_t blk = j / 32;
                 if (blk != prev_block) { blocks++; prev_block = blk; }
-                if (ns < 3 && sl < sizeof sample - 48) {
-                    sl += (size_t)snprintf(sample + sl, sizeof sample - sl, " r%d c%lld got=%lld want=%lld",
-                                           r, (long long)j, (long long)got, (long long)truth);
-                    ns++;
-                }
             }
         }
         if (row_bad) rows_bad++;
-        prev_block = -1;
     }
-    snprintf(out, cap, "recomputed %d x %lld: %llu of %llu values wrong in %llu row(s), %llu 32-col block run(s), cols %lld..%lld; %llu true value(s) outside the field (wraps);%s",
+    char wrapped[64] = "";
+    if (plaintext_bits) snprintf(wrapped, sizeof wrapped, " [plaintext opt-in: %llu true value(s) outside the field]", (unsigned long long)wraps);
+    snprintf(out, cap, "recomputed %d x %lld: %llu of %llu values differ, in %llu row(s), %llu 32-col block run(s), cols %lld..%lld%s%s",
              m, (long long)N, (unsigned long long)bad, (unsigned long long)((uint64_t)m * (uint64_t)N),
              (unsigned long long)rows_bad, (unsigned long long)blocks, (long long)first, (long long)last,
-             (unsigned long long)wraps, bad ? sample : " (the reply matches the local product: the CHECK side is suspect)");
+             bad ? "" : " (the reply matches the local product: the CHECK side is suspect)", wrapped);
 }
 
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
@@ -2348,7 +2351,7 @@ int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
                 {   /* Evidence for the log: the exchange is already rejected and
                      * the link retires below either way. */
                     char pm[512];
-                    sh_fv_postmortem(nd->w, K, nd->N, x_field, m, y, ystr, pm, sizeof pm);
+                    sh_fv_postmortem(nd->w, K, nd->N, x_field, m, y, ystr, sh_fault_diag_plaintext(), pm, sizeof pm);
                     fprintf(stderr, "[shielded] verify post-mortem: %s m=%d served=%s width=%zu exchange=%llu overlap=%d: %s\n",
                             nd->name, (int)m, served_ring ? "ring" : "socket", yw,
                             (unsigned long long)l->exchanges, (int)overlap, pm);
