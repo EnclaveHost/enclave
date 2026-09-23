@@ -1,0 +1,15 @@
+smp1 -- old (anchor-punmask2.apk, b7465363...) vs new (anchor-smp1.apk, 672c2b44...: stratified VM-secret samplers,
+tpu_sample.h), ABBA x2, each APK installed and hashed ON THE DEVICE per run (RUNS.tsv column 6). Same prompt as combo4
+(reverse_string), config v4: decode_threads 2, draft 4, corr_threads 3, bank 128, verify_threads 4. MAXNEW 256.
+
+All 8 rc=0, CPU windows COMPLETE, one answer sha (14a7bd04, same as the 25 earlier runs), self-check 0 differed,
+verification worst 1 digit unit (2.5 output LSB when on hi, twice: sm-03 new, sm-04 old -- both builds).
+
+self-check coverage: old 175-184 replays per turn, all kind 0 by construction; new 560 = 140 groups x the 4 row counts the
+turn used, every one a FIRST visit (20 visits per group per turn never reach a 16th visit within one (group, rows) cell).
+
+rate: raw tok/s is confounded by the drafter's timing-adaptive depth (steps 20-23). Per decode step:
+  old mean 1121 ms/step, 4192 core-ms/step (n=4)
+  new mean 1145 ms/step, 4242 core-ms/step (n=4)
+i.e. +2.1 % time and +1.2 % CPU per step for the coverage on a 57-token turn (the ~385 extra serial replays are first
+visits: a longer turn amortises them). Ranges overlap at the ends (old 1105-1131, new 1121-1163).
