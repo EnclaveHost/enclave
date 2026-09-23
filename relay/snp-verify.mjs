@@ -3,8 +3,8 @@
 // no third party: AMD KDS direct for the VCEK→ARK chain, a measurement allowlist
 // of published Metal releases, and a per-attach freshness challenge.
 //
-// verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, requireVcek, minTcb })
-//   -> { ok, measurement, reasons: [...], vcekVerified, tcb: { product, reported, checked } }
+// verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, requireVcek, minTcb, expectedVmpl })
+//   -> { ok, measurement, reasons: [...], vcekVerified, vmpl, tcb: { product, reported, checked } }
 // minTcb is the CALLER's minimum-TCB policy (see checkMinTcb). Nothing here chooses a firmware floor:
 // omitted, the TCB is reported and left unjudged (tcb.checked false); supplied, it must be well formed
 // and evaluable, or the quote fails.
@@ -271,14 +271,31 @@ export function checkMinTcb(minTcb, product, p) {
 
 // kds: false never contacts AMD KDS: the VCEK must arrive in the auxblob and the chain must already be
 // held (seedCertChain). For callers that fetch once and verify many times; KDS answers 429 quickly.
-export async function verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, auxblob = null, requireVcek = true, minTcb, kds = true } = {}) {
+export async function verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, auxblob = null, requireVcek = true, minTcb, kds = true, expectedVmpl = 0 } = {}) {
   const reasons = [];
   const fail = (m) => { reasons.push(m); return { ok: false, measurement: null, reasons }; };
   let p;
   try { p = parseSnpReport(report); } catch (e) { return fail(`unparseable report: ${e.message}`); }
 
   if (p.version < 2) return fail(`report version ${p.version} < 2`);
-  if (p.vmpl !== 0) return fail(`VMPL ${p.vmpl} != 0`);
+
+  // VMPL. The report records which privilege level ASKED for it (Linux writes it through configfs-tsm
+  // `privlevel`, whose floor is the guest's own VMPL). The launch measurement is the same at every level,
+  // because it covers the CVM's initial memory as a whole, so this field is the ONLY thing that
+  // distinguishes a report fetched by a VMPL0 component from one fetched by a lower-privilege plane in
+  // the same guest. It therefore has to be pinned rather than merely recorded.
+  //
+  // The default is 0: full privilege inside the CVM, which is what every enclave the platform runs today
+  // reports, and what metal0's attach path has always required. A caller that expects a lower plane
+  // (isolation/DESIGN.md section 12: a monitor at VMPL0 with app domains beneath it) must say which level
+  // it expects. Accepting a lower level silently would be the real hazard: a report from VMPL3 proves the
+  // launch image, but whatever runs at VMPL0..2 of that guest is more privileged than the reporter and
+  // is inside its TCB, so the verifier must not treat the two as interchangeable.
+  if (!Number.isInteger(expectedVmpl) || expectedVmpl < 0 || expectedVmpl > 3)
+    return fail(`expectedVmpl must be an integer 0-3 (got ${JSON.stringify(expectedVmpl)})`);
+  if (p.vmpl !== expectedVmpl) return fail(`VMPL ${p.vmpl} != expected ${expectedVmpl}`);
+  reasons.push(expectedVmpl === 0 ? "report is from VMPL0 (full privilege inside the CVM)"
+    : `report is from VMPL${expectedVmpl}, as the caller expected (VMPL0-${expectedVmpl - 1} of this guest are more privileged and in its TCB)`);
 
   // 0. GUEST POLICY. The launch measurement covers the guest's initial memory —
   //    it does NOT cover the policy the hypervisor launched it under, which is
@@ -326,7 +343,7 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
     const t = checkMinTcb(minTcb, hint, p);
     if (!t.ok) return fail(t.reason);
     reasons.push(t.checked ? `${t.reason} (unauthenticated: no VCEK)` : t.reason);
-    return { ok: true, measurement, reasons, vcekVerified: false, tcb: { product: hint, reported: t.reported, checked: t.checked } };
+    return { ok: true, measurement, reasons, vcekVerified: false, vmpl: p.vmpl, tcb: { product: hint, reported: t.reported, checked: t.checked } };
   }
   try {
     const vcekCert = new X509Certificate(vcek);
@@ -370,6 +387,6 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
     const t = checkMinTcb(minTcb, chained, p);
     if (!t.ok) return fail(t.reason);
     reasons.push(t.reason);
-    return { ok: true, measurement, reasons, vcekVerified: true, tcb: { product: chained, reported: t.reported, checked: t.checked } };
+    return { ok: true, measurement, reasons, vcekVerified: true, vmpl: p.vmpl, tcb: { product: chained, reported: t.reported, checked: t.checked } };
   } catch (e) { return fail(`cert-chain verification error: ${e.message}`); }
 }
