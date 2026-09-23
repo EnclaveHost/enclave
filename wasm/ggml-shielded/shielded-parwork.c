@@ -8,6 +8,7 @@
 #include "shielded-parwork.h"
 
 #include <pthread.h>
+#include <sched.h>
 #include <time.h>
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -150,7 +151,7 @@ static int sh_par_ensure(int helpers) {
         pthread_condattr_destroy(&ca);
         atomic_store(&w->gen, 0); atomic_store(&w->done, 0); atomic_store(&w->stop, 0);
         atomic_store(&w->parked, 0);
-        if (pthread_create(&w->th, NULL, sh_par_main, w) != 0) {
+        if (sh_thread_create(&w->th, sh_par_main, w) != 0) {
             pthread_cond_destroy(&w->cv); pthread_mutex_destroy(&w->mu); free(w);
             break;                       /* fewer helpers than asked: still correct */
         }
@@ -200,4 +201,26 @@ void sh_par_for(int64_t n, int64_t min_chunk, sh_par_fn fn, void *ctx) {
         sh_par_worker *w = g_pool.w[i];
         while (atomic_load_explicit(&w->done, memory_order_acquire) < want[i]) SH_PAR_RELAX();
     }
+}
+
+/* Spawn mask: written once by the backend before the threads it governs are
+ * started (and again only if the placement changes), read at each create. */
+static cpu_set_t g_spawn_set;
+static _Atomic int g_spawn_on = 0;
+void sh_thread_spawn_cpus(const void *set, size_t size) {
+    if (!set || size != sizeof(cpu_set_t)) { atomic_store(&g_spawn_on, 0); return; }
+    memcpy(&g_spawn_set, set, sizeof g_spawn_set);
+    atomic_store(&g_spawn_on, 1);
+}
+int sh_thread_create(pthread_t *th, void *(*fn)(void *), void *arg) {
+    if (atomic_load(&g_spawn_on)) {
+        pthread_attr_t a;
+        if (pthread_attr_init(&a) == 0) {
+            int rc = pthread_attr_setaffinity_np(&a, sizeof g_spawn_set, &g_spawn_set) == 0
+                         ? pthread_create(th, &a, fn, arg) : -1;
+            pthread_attr_destroy(&a);
+            if (rc == 0) return 0;
+        }
+    }
+    return pthread_create(th, NULL, fn, arg);
 }

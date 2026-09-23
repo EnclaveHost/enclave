@@ -2,6 +2,7 @@
 #include "shielded-bank.h"
 #include "shielded-http.h"
 #include "shielded-tee.h"
+#include "shielded-parwork.h"
 #include <dirent.h>
 #include <errno.h>
 #include <pthread.h>
@@ -163,7 +164,7 @@ sh_bank *sh_bank_open(const char *url, const char *seed_id_hex, const char *dir,
     b->cache_max = cache_max;
     atomic_init(&b->stop, false);
     pthread_mutex_init(&b->mu, NULL); pthread_cond_init(&b->cv, NULL);
-    if (pthread_create(&b->th, NULL, bank_main, b) != 0) {
+    if (sh_thread_create(&b->th, bank_main, b) != 0) {
         pthread_mutex_destroy(&b->mu); pthread_cond_destroy(&b->cv); free(b);
         if (err) *err = SH_ERR_IO; return NULL;
     }

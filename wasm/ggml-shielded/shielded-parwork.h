@@ -54,4 +54,17 @@ int  sh_par_width(void);
  * helper cannot be started -- so a caller never needs a fallback path. */
 void sh_par_for(int64_t n, int64_t min_chunk, sh_par_fn fn, void *ctx);
 
+/* Thread creation for every helper the link starts (refill, mint, Freivalds
+ * prepare, weight prefetch, parwork, bank). Identical to pthread_create
+ * unless the backend's opt-in placement has set a spawn mask: then the new
+ * thread starts on that mask instead of INHERITING its creator's. Without
+ * this, a helper started by a thread pinned to one core ran on that one core
+ * (spec prefill 29 s -> 48 s, the draft 2x slower). Placement only: it never
+ * changes what a thread computes, and a failed attr call falls back to the
+ * plain create. `set`/`size` are a cpu_set_t and its size; NULL clears it. */
+#include <pthread.h>
+#include <stddef.h>
+void sh_thread_spawn_cpus(const void *set, size_t size);
+int  sh_thread_create(pthread_t *th, void *(*fn)(void *), void *arg);
+
 #endif
