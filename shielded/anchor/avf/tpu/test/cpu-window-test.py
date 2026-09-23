@@ -17,7 +17,8 @@ def run(procs_at, times, win, toks=10, hz=100, ps_line=lambda t: 'PS ok 400'):
     d = tempfile.mkdtemp(); sp = os.path.join(d, 's'); cp = os.path.join(d, 'c')
     with open(sp, 'w') as f:
         for t in times:
-            f.write(f'T {t:.2f} 0\n'); f.write(f'cpu  {int(t * 800)} 0 0 {int(t * 400)} 0 0 0 0 0 0\n')
+            # user 400/s (of which guest 300/s, which the kernel ALSO lists in the guest column), idle 400/s: 4 of 8 cores busy
+            f.write(f'T {t:.2f} 0\n'); f.write(f'cpu  {int(t * 400)} 0 0 {int(t * 400)} 0 0 0 0 {int(t * 300)} 0\n')
             for p in procs_at(t):
                 if p[3] == 'GONE': f.write(f'P {p[0]} {p[1]} {p[2]} | GONE\n')
                 else: f.write(f'P {p[0]} {p[1]} {p[2]} | {stat(p[0], p[3], p[1], p[4], p[5])}\n')
@@ -43,6 +44,7 @@ expect(rc == 0 and 'COMPLETE' in out and 'INCOMPLETE' not in out, 'a steady run 
 expect('41.50 core-s' in out and '4.15 cores busy' in out and '4150 core-ms per decoded token' in out, 'the whole chain, the VM included: ' + out)
 expect('crosvm_anchorlocal 40.00' in out, 'the VM process is counted under its real name: ' + out)
 
+expect('4.00 cores busy device-wide' in out, 'device-wide busy does not count guest time twice: ' + out)
 rc, out = run(lambda t: chain(t) + [(900, 1, 'crosvm_other', 'crosvm_other', int(1000 * t), 100)], T, (5.0, 15.0))
 expect('41.50 core-s' in out, 'a crosvm that is NOT a descendant of the app is not counted: ' + out)
 expect(rc == 1 and 'ownership unresolved' in out, '... and a VM-type process of the uid outside the tree makes it INCOMPLETE: ' + out)

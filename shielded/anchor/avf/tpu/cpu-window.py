@@ -33,7 +33,9 @@ def parse_samples(path):
             cur = dict(t=float(line.split()[1]), cpu=None, procs={}, gone=[], ps=None); samples.append(cur)
         elif line.startswith('cpu ') and cur is not None:
             f = [int(x) for x in line.split()[1:]]
-            cur['cpu'] = (sum(f), f[3] + (f[4] if len(f) > 4 else 0))     # total, idle + iowait
+            # user nice system idle iowait irq softirq steal [guest guest_nice]: guest time is ALREADY inside user/nice,
+            # so it is not added again (summing all ten counted the VM's vCPUs twice: "10.31 cores busy" on 8 cores)
+            cur['cpu'] = (sum(f[:8]), f[3] + (f[4] if len(f) > 4 else 0))     # total, idle + iowait
         elif line.startswith('PS ') and cur is not None:
             f = line.split(); cur['ps'] = 'ok' if f[1] == 'ok' and len(f) > 2 and f[2].isdigit() and int(f[2]) > 1 else 'failed'
         elif line.startswith('P ') and cur is not None:
