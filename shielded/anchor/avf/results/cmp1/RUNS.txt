@@ -1,0 +1,6 @@
+cm-01 cpu rc=0
+cm-02 masked-d2 rc=0
+cm-03 masked-t6 rc=0
+cm-04 masked-t6 rc=0
+cm-05 masked-d2 rc=0
+cm-06 cpu rc=0
