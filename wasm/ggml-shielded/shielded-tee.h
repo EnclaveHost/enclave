@@ -176,12 +176,25 @@ int sh_link_gemm(sh_link *l, const int *nodes, size_t n_nodes,
  * exact product W.x recomputed locally in int64 and reduced to the balanced
  * field, compared column by column with the unmasked reply. The pattern names
  * the mechanism -- a few kernel blocks (transfer or kernel), every column (the
- * pad's u), a trailing range (a short or stale reply), wraps (the calibration).
- * w is (N,K) int8, x is m rows of K, y is m rows at stride ystr. Writes one
- * summary line into out. Runs only after a check has already failed and the
- * link is being retired; it changes no decision. */
+ * pad's u), a trailing range (a short or stale reply), no difference at all
+ * (the check side). w is (N,K) int8, x is m rows of K, y is m rows at stride
+ * ystr. Writes one summary line into out. Runs only after a check has already
+ * failed and the link is being retired; it changes no decision.
+ *
+ * WHAT IT MAY SAY. The log is host-visible, and a worker can trigger this path
+ * at will, so the line must not depend on the activations. The unmasked reply
+ * is balanced(W.x + d) where d is the worker's error, so "which values differ
+ * from balanced(W.x)" depends on d alone: counts, rows, blocks and the column
+ * range are functions of what the worker sent, never of x. No product or
+ * activation VALUE is ever printed. The one x-dependent quantity -- how many
+ * true values lie outside the field -- is included only when plaintext_bits is
+ * nonzero (SHIELDED_FAULT_DIAG_PLAINTEXT=1, a development opt-in, off by
+ * default, which leaks those bits by design). */
 void sh_fv_postmortem(const int8_t *w, int64_t K, int64_t N, const int64_t *x, int m,
-                      const int64_t *y, int64_t ystr, char *out, size_t cap);
+                      const int64_t *y, int64_t ystr, int plaintext_bits, char *out, size_t cap);
+/* SHIELDED_FAULT_DIAG_PLAINTEXT=1: fault diagnostics may include bits that
+ * depend on the activations (never values). Read once; default 0. */
+int sh_fault_diag_plaintext(void);
 
 int sh_link_gemm_stride(sh_link *l, const int *nodes, size_t n_nodes,
                         const int64_t *x_field, int32_t m, int64_t **y_out,
