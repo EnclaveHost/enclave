@@ -399,34 +399,45 @@ Not established here:
 
 ## 12. Next: app domains inside ONE outer TEE
 
-M1 and M2 give every app a whole SNP guest: 3.4 s and about 586 MB per app (section 11), and the
-outer TEE is the per-app boundary. The goal is many app domains inside one long-lived SNP guest. SNP
-then protects all of them from the host, and something inside separates them from each other.
+M1 and M2 give every app a whole SNP guest: 3.4 s and about 586 MB each (section 11), and the outer TEE
+is the per-app boundary. M3 asks whether several app domains can share one outer TEE and still be
+separated by hardware. The feasibility research, the sourced plan, the trust boundaries, the isolation
+tests and the milestones are in **`isolation/m3/PLAN.md`** (2026-09-23). The three findings that change
+the design:
 
-What this host offers for the hardware version (source-based, from the installed 7.2.3 KVM headers and
-QEMU 11.1's option lists; nothing below was run):
-- **VMPL domains** (a monitor at VMPL0 and apps at lower VMPLs, the SVSM model) need the host to run
-  more than one VMPL per vCPU. Stock KVM 7.2 has no planes or VMPL interface in its uAPI, and QEMU 11.1
-  is built without IGVM, the usual way to load an SVSM. **Building this means running a different host
-  kernel and VMM on warden-host, which is Steven's call, not a step to take unasked.**
-- Nested virtualization inside an SNP guest is refused (section 3).
+- **Four privilege levels, so at most three domains.** Measured here with CPUID `Fn8000_001F`:
+  SEV-SNP present, VMPL feature present, `vmpl_count=4`. A monitor at VMPL0 leaves VMPL1-3. So VMPL is
+  **not** a route to many app domains in one CVM. It is the right boundary for a **privilege split** —
+  platform monitor above, app runtime below, the shape VBS uses on Windows — and for at most three
+  hardware-separated domains per guest. Scale keeps coming from M2's one CVM per app.
+- **The out-of-tree software now targets the versions this box already runs.** KVM planes
+  (`KVM_CREATE_PLANE`, `KVM_CAP_PLANES`) is a formal v1 series, not merged; COCONUT-SVSM publishes
+  `svsm-v7.2` Linux and QEMU branches (2026-08-27) with planes rebased to 7.2 and QEMU rewritten on
+  v11.1.0, against our 7.2.3 and 11.1.1. Our stock kernel has no planes uAPI and our QEMU has no IGVM;
+  the **guest** half is already satisfied (this kernel image exports `svsm_issue_call`, `snp_vmpl`).
+  Installing a host kernel and rebooting warden-host is Steven's call and is not part of the research step.
+- **Identity moves from the launch digest to the monitor.** Under IGVM the launch measurement covers the
+  SVSM and firmware, not our initramfs, so the M1/M2 property "the app is in the measurement" does not
+  survive. Per-app identity has to come from VMPL0 code — itself in the launch digest — hashing the app
+  and naming it in `report_data`. That is the largest design change, and it can be built and proved with
+  no host change, which is why it is the smallest useful milestone.
 
-**The bounded step taken now: the monitor, with the isolation backend left swappable.** Every piece that
-a VMPL design would need, except the VMPL boundary itself, can be built and measured in one stock SNP
-guest:
-- a small **monitor** as PID 1 of one measured SNP guest. It is the only holder of the report interface;
-- **apps loaded at lease start**, sent over a host control channel into the running guest. The monitor
-  hashes each app itself, so the host can send anything but cannot misreport what runs;
-- **per-domain attestation**: a domain's front asks the monitor for a report, and the monitor writes
-  `[32:64]` = the requesting domain's app sha256 from its own table (identified by the socket's kernel
-  credentials, never by the domain's say-so). `[0:32]` stays sha256(domain key SPKI || nonce), so the M2
-  client and verdict rules apply unchanged, with the monitor image's launch measurement on the allowlist;
-- **a per-domain resource share** from cgroup v2 inside the guest, and **one vsock port per domain**.
+**Smallest useful milestone (M3a-1, no host change):** one stock SNP guest, a monitor as PID 1 holding the
+only report interface, apps loaded at lease start and hashed by the monitor, and per-domain reports whose
+`[0:32]` = sha256(domain TLS key SPKI || nonce) and `[32:64]` = the requesting domain's app hash taken
+from the monitor's own table, keyed by the socket's kernel credentials rather than anything the domain
+says. The M2 client and verdict rules apply unchanged.
 
-The interim backend separates domains with the guest kernel: a uid, a network namespace (its own
-loopback), a private directory and a cgroup per domain. That is MMU isolation enforced by the guest
-kernel, so the guest kernel joins the app-vs-app TCB. **It is weaker than VMPL isolation and is labelled
-that way everywhere it appears.** SNP still excludes the host from every domain's memory. The runtime
-stays Wasm-portable and the AOT/JIT choice stays open: each domain runs the same `wasmtime serve` as M2.
+At that stage domains are separated by the **guest kernel** — a uid, a network namespace, a private
+directory and a cgroup each. That is MMU isolation enforced by the guest kernel, which therefore joins
+the app-vs-app TCB: **weaker than VMPL isolation, never equivalent, and labelled so wherever it appears.**
+SNP still excludes the host from every domain's memory. The app stays a Wasm component and runs natively
+under `wasmtime serve`; the AOT/JIT choice stays open.
 
-Status: in progress (`isolation/m3/`).
+**Done already (2026-09-23, offline):** a report carries the VMPL that asked for it, and the launch
+measurement is identical at every level, so that field is the only thing separating a monitor's report
+from a domain's. `verifyQuote({ expectedVmpl })` and `metal/verify.mjs --vmpl N` now pin it, default 0,
+with `test/snp-vmpl-policy.test.mjs` covering the default, each explicit level, malformed expectations and
+the fact that the gate replaces none of the other checks. Production behaviour is unchanged.
+
+Status: research and the verifier prerequisite done; M3a-1 next (`isolation/m3/`).

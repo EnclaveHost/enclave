@@ -94,8 +94,14 @@ async function verifyReport(doc, { manifest, vcpus }) {
   console.log(`\nSEV-SNP report — version ${p.version}, VMPL ${p.vmpl}, ${report.length} bytes`);
 
   // 1. shape
-  if (p.vmpl === 0) OK("guest runs at VMPL 0 (full privilege inside the CVM)");
-  else BAD(`unexpected VMPL ${p.vmpl}`);
+  // Which privilege level asked for this report. The launch measurement is identical at every level, so
+  // this field is the only thing separating a VMPL0 component from a lower plane of the same guest; a
+  // buyer who expects a lower plane says so with --vmpl, and anything else is refused.
+  const wantVmpl = parseInt(arg("vmpl", "0"), 10);
+  if (!Number.isInteger(wantVmpl) || wantVmpl < 0 || wantVmpl > 3) BAD(`--vmpl must be 0-3 (got ${arg("vmpl")})`);
+  else if (p.vmpl === wantVmpl) OK(wantVmpl === 0 ? "guest runs at VMPL 0 (full privilege inside the CVM)"
+    : `report is from VMPL ${wantVmpl} as requested (VMPL 0-${wantVmpl - 1} of this guest are more privileged and in its TCB)`);
+  else BAD(`report is from VMPL ${p.vmpl}, not the expected ${wantVmpl}`);
 
   // 1b. GUEST POLICY — the launch measurement does NOT cover it. The same
   // image, byte-for-byte the same measurement, launched with DEBUG set is a
