@@ -141,10 +141,21 @@ EOF
   # whether the three things this machine needs to REACH a login are in there: unlock the LUKS root,
   # see the NVMe it is on, and accept a typed passphrase. The GPUs are deliberately not checked here -
   # nvidia loads later from the module tree, and stage A of m3b-verify.sh is what proves it.
-  for want in 'dm-crypt|dm_crypt' 'nvme' 'hid'; do
-    n=$(lsinitcpio "$DEST/initramfs.img" | grep -cE "($want)" || true)
-    [ "$n" -gt 0 ] && printf '  initramfs contains %-16s (%s matches)\n' "$want" "$n" \
-      || { echo "  the initramfs has nothing matching '$want'; refusing to install it"; exit 1; }
+  # A capability can be provided as a MODULE, which must then be inside the initramfs, or built into the
+  # kernel image, in which case no .ko exists and demanding one is asking for the impossible. HID here is
+  # exactly that case (CONFIG_HID/HID_GENERIC/USB_HID are all =y, as they are on the running kernel), so
+  # checking only the initramfs failed a perfectly good image on the first run.
+  img=$(lsinitcpio "$DEST/initramfs.img")
+  for want in 'dm-crypt|dm_crypt' 'nvme' 'usbhid|hid-generic'; do
+    n=$(printf '%s\n' "$img" | grep -cE "/($want)\.ko" || true)
+    if [ "$n" -gt 0 ]; then
+      printf '  %-22s in the initramfs (%s)\n' "$want" "$n module(s)"
+    elif grep -qE "/($want)\.ko\$" "$MODS/modules.builtin"; then
+      printf '  %-22s built into the kernel, so not a module in the initramfs\n' "$want"
+    else
+      echo "  '$want' is neither in the initramfs nor built into the kernel; refusing to install it"
+      exit 1
+    fi
   done
   [ "$(df -Pk /boot | awk 'NR==2{print $4}')" -gt 20480 ] || { echo "/boot is nearly full after this"; exit 1; }
 
