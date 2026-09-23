@@ -81,6 +81,7 @@ paths = [
   '''^contracts/foundry/lib/''',
   '''^\.githooks/bip39-english\.txt$''',
   '''^\.githooks/known-addresses\.txt$''',
+  '''^\.githooks/scan-crypto-keys\.py$''',
   '''^\.gitleaks\.toml$''',
 ]
 
