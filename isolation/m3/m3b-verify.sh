@@ -18,6 +18,8 @@
 # usage: m3b-verify.sh <workdir> [expected-kernel-release]
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
+# OVMF, for the SNP plane probe in stage A: the same firmware the real launches use
+. "$here/../m1/domain.env"
 W=${1:?usage: m3b-verify.sh <workdir> [expected-kernel-release]}
 WANT_KERNEL=${2:-}
 mkdir -p "$W"; W=$(cd "$W" && pwd)
@@ -49,20 +51,50 @@ getent hosts github.com > /dev/null 2>&1 && r=ok || r=no
 gate "A4 DNS resolves" $r
 systemctl is-active --quiet sshd && r=ok || r=no
 gate "A5 management access is up (sshd active)" $r
-# The capability the whole boot is for. On the old kernel this says "KVM plane 2 is not supported".
-# A QEMU that accepts the plane starts, stays paused on -S and is killed by timeout, printing NOTHING.
-# Any output at all is a refusal or another error, and either way the boundary cannot be tested: on the
-# old kernel this prints "KVM plane 2 is not supported".
-probe=$(timeout 20 "$QEMU" -machine q35,accel=kvm,device-plane="$PLANE",kernel-irqchip=split \
-          -display none -nodefaults -no-user-config -S 2>&1 | head -3 || true)
-echo "    plane probe: ${probe:-(silent: QEMU started paused and was killed, so the plane was accepted)}"
-[ -z "$probe" ] && r=ok || r=no
-gate "A6 the running kernel ACCEPTS a plane (this is what the boot was for)" $r
-stop_if_failed "STOP. This kernel is not healthy or does not provide planes. ROLL BACK NOW: reboot and pick
-the previous GRUB entry. Do not continue, and do not leave the machine on this kernel for other sessions."
+# The capability the whole boot is for. Two independent readings, because the first version of this gate
+# got it wrong in a way that produced a false ROLL BACK on a perfectly good kernel.
+#
+# A PLAIN KVM VM CAN NEVER HAVE PLANES ON AMD. arch/x86/kvm/svm/svm.c svm_max_planes() returns
+# sev_snp_max_planes() only for ____sev_snp_guest(kvm), and kvm_x86_default_max_planes() = 1 otherwise; on
+# top of that kvm_arch_max_planes() requires an in-kernel LAPIC. So probing with a plain VM prints
+# "KVM plane 2 is not supported" whether or not the kernel supports planes at all. The probe has to create
+# an SNP guest, exactly as run-domain.sh does.
+healthA=$fails
+lvls=$(journalctl -k -b 2>/dev/null | sed -n 's/.*SEV-SNP enabled .*VMPL Levels \([0-9]*\).*/\1/p' | tail -1)
+echo "    the kernel itself reports: VMPL Levels ${lvls:-none reported}"
+[ -n "$lvls" ] && [ "$lvls" -gt "$PLANE" ] && r=ok || r=no
+gate "A6 the kernel reports more VMPL levels than plane $PLANE needs" $r
+# Judged on EXIT STATUS, not on output. A QEMU that was granted the plane keeps running until the deadline,
+# so `timeout` kills it and returns 124 - and QEMU prints "terminating on signal 15 ... (timeout)" on its way
+# out. Reading "any output means failure" scored that success as a failure, which is the second false verdict
+# this gate produced. A refused plane makes QEMU exit by itself, so the status is its own (1), promptly.
+snp_plane_probe() { # $1 = plane id; returns 0 if that plane was granted
+  timeout 20 "$QEMU" -machine "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1,kernel-irqchip=split,device-plane=$1" \
+    -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1 \
+    -object memory-backend-memfd,id=ram1,size=512M,share=true \
+    -bios "$OVMF" -m 512M -smp 2 -cpu host -display none -nodefaults -no-user-config -S \
+    > "$W/a-plane$1.txt" 2>&1
+  [ "$?" -eq 124 ]     # 124 = still running at the deadline = the plane was accepted
+}
+if snp_plane_probe "$PLANE"; then r=ok; else r=no; fi
+echo "    plane $PLANE: $(sed -n 1p "$W/a-plane$PLANE.txt" 2>/dev/null || true)"
+gate "A7 an SNP guest is actually GRANTED plane $PLANE (this is what the boot was for)" $r
+# The negative control, in the gate itself: a plane beyond the reported VMPL levels MUST be refused. Without
+# it, a probe that accepted everything would look like a pass.
+if snp_plane_probe 9; then r=no; else r=ok; fi
+echo "    plane 9: $(sed -n 1p "$W/a-plane9.txt" 2>/dev/null || true)"
+gate "A7b plane 9 is REFUSED, so A7 is a real test and not one that passes anything" $r
+if [ "$healthA" -eq 0 ] && [ "$fails" -gt 0 ]; then
+  stop_if_failed "STOP, but the machine is FINE. A1-A5 passed, so this kernel boots, drives the GPUs and
+keeps the network: it is safe to leave running and safe for other sessions. What failed is only the plane
+capability, so the boundary test cannot proceed. Investigate that rather than rolling back in a hurry -
+and note a plain-VM probe can never show planes on AMD, only an SNP guest can."
+fi
+stop_if_failed "STOP. This kernel is not healthy. ROLL BACK NOW: reboot, or pick the previous GRUB entry.
+Do not continue, and do not leave the machine on this kernel for other sessions."
 
 stage "B  regression: does everything that worked still work?"
-for t in ../m1/test-m1.sh ../m2/test-m2.sh test-m3.sh; do
+for t in ../m1/test-m1.sh ../m2/test-m2.sh ./test-m3.sh; do
   name=$(basename "$t" .sh)
   echo "--- $name (on the new kernel)"
   if (cd "$here" && "$t" "$W/$name") > "$W/b-$name.log" 2>&1; then r=ok; else r=no; fi
