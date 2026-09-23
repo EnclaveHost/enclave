@@ -4324,3 +4324,61 @@ a yielding worker do not by themselves reproduce the fault under soak
 conditions. That leaves, of the production-only conditions 18.37 listed: many
 distinct graphs, m=17 prefill exchanges and lm_head, link restarts, and CPU
 contention between exchanges.
+
+### 18.39 The expanded soak, its actual exact-check scope, and the second aliasing
+
+The full-geometry soak (both cards, 45 minutes): 64 layers of distinct random
+weights per card plus the lm_head slice (12.9 GB per card, 257 exchanges per
+pass as in production), m=17 prefill passes every 50th pass, and the link
+closed and reopened every 5 minutes. **11.4 M exchanges (5.75 M card 0, 5.67 M card
+1), 228,000 of them at m=17, 16 link restarts, 25 yield activations, the
+worker's graph cache at 771 distinct graphs (production's count), zero
+rejections**; 44,583 exact checks all correct, within the scope below.
+
+**What its exact checks covered.** A second audit found that the per-(shape,
+m) counters of 18.38 alias again once there are layers: each counter advances
+once per layer per pass, and 256 is a multiple of 64, so every exact check of
+A, B, C and D landed on layer 63 (zero-based), never on layers 0-62, except
+where a failure-induced reopen shifted the phase (none did). Its exact
+evidence is therefore: layer 63 of each shape at each m, and the lm_head.
+Freivalds covered every instance of every exchange, as before.
+
+**Fixed by stratifying per instance.** Each (instance, m) pair -- one layer's
+weight at one row count -- now keeps its own counter, so every layer is
+sampled at the same rate whatever the period. The soak prints, per (shape, m),
+checked of total and how many of the shape's layers were covered.
+`--schedule-selftest` fails unless every (instance, m) pair the configuration
+produces is checked: 771 pairs in the full configuration, all covered, 64 of
+64 layers for each shape at m=1, 2 and 17. A mutant that reinstates the
+per-(shape, m) counter fails it with "1 of 64 layers" and 756 of 771 pairs
+unchecked. `test/shielded-soak-schedule` runs the full configuration and
+periods of 64, 128, 256 and 512 (multiples of the layer count, the case that
+broke this version).
+
+The lesson is the same one twice: a deterministic sampler over a periodic
+schedule samples a fixed phase unless it is stratified by the finest unit it
+means to cover, and a test that counts only coarse cells cannot see it.
+
+**The arithmetic, exhaustively or at production size.** With the soaks clean,
+the kernels whose inputs are random per run -- the pads -- were checked
+directly, on the production-built objects:
+
+| kernel | domain | result |
+|---|---|---|
+| `mask_planes` (AVX-512 and generic) | every w = x + r the link can present: 148,675,075 values | exact |
+| `pad_planes` (both) | every pad r in [0, M): 14,457,349 values | exact |
+| `refill` u = W.r (default AVX-512, vector-CRT, generic) | K = 5120/6144/17408, N = 32 to 124,160, batches 1-64 incl. the blocked kernel; uniform and edge pads; 309,056 values against int64 | exact |
+| Freivalds `fv_dots_x` / `unmask_fv` | accumulation bounds, by reading | fold every 32 terms (< 2^62) / 262,144 terms (< 2^61): no int64 wrap |
+
+And the one structural difference left between the soaks and production:
+the soaks ran each card's link in its own process, production runs both in
+one process on two threads. The link, wire and SIMD code have no mutable
+process-wide state on the exchange path (thread-local parwork pools,
+read-only tables, per-link pads, Freivalds vectors and scratch), and the two
+threads share `x_field` read-only while both exchanges are in flight.
+
+Both rejections remain open and unexplained. Everything a synthetic test can
+reach has been ruled out except a two-links-in-one-process soak and the real
+model's activation magnitudes (the soak's |x| <= 3 against real activations
+near the 2^26 bound -- though the arithmetic above is exact over that whole
+range). Those are the next soaks.
