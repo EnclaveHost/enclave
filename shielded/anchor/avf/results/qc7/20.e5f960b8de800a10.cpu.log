@@ -1,0 +1,11 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+MODEL already in the VM's encrypted storage (3204 MiB), not streamed
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (unpinned: hashed only)
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (staged already, unchanged)
+VSOCK LOCAL verified loader: 602 tensors (3504.4 MiB) hashed against the staged table before use: 316 repacked from verified bytes, 286 plain CPU
+VSOCK LOCAL context ready: ctx 4096, 6 threads, persistent pool=yes, model loaded in 63.6 s
+LOCAL ready: {ctx=4096, threads=6, vocab=262144, model=5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48, load_s=63.6}
+LOCAL turn 1 A: 30
+LOCAL turn 1 STATS {status=eos, prefill_tokens=27, prefill_tok_s=102.86, decode_tokens=2, decode_tok_s=15.45, ctx_used=29, ctx=4096}
+LOCAL done: 1 scripted turns
+awake at end: 1  cap: 3052000

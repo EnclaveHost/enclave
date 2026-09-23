@@ -1,0 +1,19 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+TPU worker: thread priority -19, ADPF hint session held
+TPU worker: 35 compiled blocks loaded in 738 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.64/1.32 L0.qkv+3ms-gap 0.91/1.94 L0.o 0.86/1.76 L0.o+3ms-gap 1.27/2.05 L0.gu 2.73/3.32 L0.gu+3ms-gap 2.22/3.39 L0.down 1.31/2.25 L0.down+3ms-gap 2.18/2.83 L20.qkv 0.68/1.70 L20.qkv+3ms-gap 1.27/1.97 L20.o 0.83/1.62 L20.o+3ms-gap 1.19/1.85 L20.gu 3.16/4.09 L20.gu+3ms-gap 3.85/4.48 L20.down 2.02/3.26 L20.down+3ms-gap 2.70/3.27
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 1.9 s (NOT locked: it can be evicted) | mem available 1937 MiB, page cache 1910 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 1.8 s (34.7 positions per second on 6 threads) | mem available 1713 MiB, page cache 1910 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL tpu turn 1: exchanges=700 (140.0/token) ms per exchange: mask 0.174 link 5.172 (corr 0.182 mint 0.000 wait 4.869) unmask 0.471 | rx/exch 1.50 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 59 | cancel n=4392956 max=0.0009 rms=0.00006 LSB | verify n=2050 bad=0 max=0 rms=0.000 (output LSB over 1025 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=3/0/1 | outliers kept 30733 saturated 4 (CLIPPED 4 [hi 0 lo 4] REPAIRED, FALSE-RAILS 0, recomp 4, max excess 10383, max err 101.4 LSB) redrawn 0 | mem available 1700 MiB, page cache 1910 MiB, major faults 346
+LOCAL turn 1 A: Brazil, Argentina, Peru
+LOCAL turn 1 STATS {status=eos, prefill_tokens=26, prefill_tok_s=40.44, decode_tokens=5, decode_tok_s=1.09, ctx_used=31, ctx=4096}
+LOCAL done: 1 scripted turns
+TPU worker: 700 exchanges; per exchange ms: idle-wait 105.168 recv 0.066 input-write 0.070 tpu-run 1.944 output-read 0.268 send 0.070 | direct 0 staged 700
+awake at end: 1  cap: 2937000

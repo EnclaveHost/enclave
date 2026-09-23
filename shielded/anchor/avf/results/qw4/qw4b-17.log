@@ -1,0 +1,88 @@
+CAPTURE BEGIN label=qw4b-17 path=/data/user/0/host.enclave.anchor.avf/files/capture/qw4b-17.log cap_bytes=16777216
+HOST start payload=libanchor.so debug=0 mem=8192MiB worker=127.0.0.1:9500 mode=local host=Main
+GATE device=Pixel 10 Pro XL sdk=37 vendor_api_level=202504 board_api_level=202604
+GATE capabilities=3 protected_vm=true remote_attestation=true updatable_vm=true
+GATE SUPPORTED
+HOST VirtualMachineConfig.Builder ALL: setApkPath setConnectVmConsole setConsoleInputDevice setCpuTopology setCustomImageConfig setDebugLevel setDisableUpdatability setEncryptedStorageBytes setMemoryBytes setOs setPayloadBinaryName setPayloadConfigPath setProtectedVm setShouldBoostUclamp setShouldRamdump setShouldUseHugepages setVendorDiskImage setVmConsoleInputSupported setVmOutputCaptured 
+HOST VirtualMachine ALL: $r8$lambda$jE9hC_Yw8T-C1lFix_Seicfe55E addDisplay binderFromPreconnectedClient clearCallback close connectToVsockServer connectVsock enableTestAttestation equals getActualMemoryBalloonBytes getCid getClass getConfig getConsoleInput getConsoleOutput getDisplays getGuestAgent getLogOutput getName getRootDir getStatus hashCode notify notifyAll removeDisplay resume run sendKeyEvent sendLidEvent sendMouseEvent sendMultiTouchEvent sendTabletModeEvent sendTrackpadEvent setCallback setConfig setMemoryBalloon setMemoryBalloonByPercent setTouchScale stop suspend toDescriptor toString wait wait wait 
+HOST AVF feature com.android.kvm.NETWORK: true
+HOST vCPU uclamp boost: requested
+HOST encrypted storage 6144 MiB: set
+HOST config protected=true debug=0
+HOST VM instance 'anchorlocal' mem=8192 MiB storage=6144 MiB
+HOST VM instance 'anchorlocal' EFFECTIVE mem=7168 MiB storage=6144 MiB (requested mem=8192 storage=6144)
+HOST vm.run() returned, status=1
+VM cb onGuestAgentRegistered
+VM payload started
+VM payload ready
+PADS send cap: guest=0 cache=0
+PADS direct fill: enabled=0
+CONTROL connected
+VSOCK SPKI 302a300506032b65700321000b0a5bae6087ae095795be5b67710b00a0359d97d6aae66e10e6f01d55cd1d75
+VSOCK PADKEY c84efed0b3a33c66bd910a4bc204b0a09a8229225a3c908c97b69751a44b9f1a
+CONTROL challenge=917b42f0a6acb62b46fccb864610627e252edb49920ac55ed288fef948bac9a0
+VSOCK PINS mode=dev ledger=app model=unpinned prefix=app sha256=arm_sha2
+VSOCK STORAGE /mnt/encryptedstore fstype=0xef53 total=5983 MiB avail=781 MiB fs-verity=refused: Permission denied userfaultfd=Operation not permitted ram=7011 MiB vm-…(190)
+VSOCK STORAGE2 selinux=u:r:microdroid_app:s0 measure=Permission denied enable-after-chmod=Permission denied authfs=0 authfs_service=0 /dev/fuse=1(Permission denied)
+VSOCK STORAGE2 mount=[/dev/block/mapper/crypt /mnt/encryptedstore ext4 rw,fscontext=u:object_r:encryptedstore_fs:s0,context=u:object_r:encryptedstore_file:s0,nosuid,n…(193)
+VSOCK STORAGE3 userfaultfd(USER_MODE_ONLY)=open: Permission denied
+VSOCK ANCHOR start in pVM apk=/mnt/apk control=owner-connected
+VSOCK ANCHOR cpu nproc=8 features= fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 s…(308)
+VSOCK ATTEST no BOUND: certificate only, nothing signed
+VSOCK ATTEST status=The remote attestation completes successfully. code=0
+VSOCK ATTEST certs=5
+VSOCK CERT0 bytes=566 chunks=2
+VSOCK CERT0[0] 30820232308201d8a003020102021059bdc4622d74e4c2a9209a6fb5f86912300a06082a8648ce3d0403023039310c300a060355040a1303415646312930270603550403132037366266613…(1033)
+VSOCK CERT0[1] 14c4754d22295aed4ec984dac15c3ce65c3f9c6002205bc4bedd16227ce20dabaaf73dc3d95452cec51fb01fe044d453b43baf867b12
+VSOCK CERT1 bytes=501 chunks=1
+VSOCK CERT1[0] 308201f130820197a003020102021076bfa19ea075cbc0eeffa67fd2075e6f300a06082a8648ce3d040302302931133011060355040a130a476f6f676c65204c4c433112301006035504031…(1011)
+VSOCK CERT2 bytes=754 chunks=2
+VSOCK CERT2[0] 308202ee30820275a0030201020213380c9a70b7517476eb7163f9efd6f188702ce8300a06082a8648ce3d040303302931133011060355040a130a476f6f676c65204c4c433112301006035…(1033)
+VSOCK CERT2[1] 047b30793077a075a0738671687474703a2f2f7072697661746563612d636f6e74656e742d36393865313061392d303030302d323237362d626431302d3838336432346632653637632e737…(493)
+VSOCK CERT3 bytes=618 chunks=2
+VSOCK CERT3[0] 30820266308201eba003020102021100924250191903e3ba65320efd6a2085fb300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e2043413…(1033)
+VSOCK CERT3[1] 69003066023100f4dbc058fab59924fd523ff5373c4939c04d5a3de504a052d30c350ac748c75ecc3d6255f7e2ec6e3792cfa41873548e023100b017cd6a2d3d15a1bd4a07d10829375034f…(221)
+VSOCK CERT4 bytes=550 chunks=2
+VSOCK CERT4[0] 30820222308201a8a00302010202110084a9d0297b0eb58ae7ff0e80de760605300a06082a8648ce3d0403033052311c301a06035504030c134b6579204174746573746174696f6e2043413…(1033)
+VSOCK CERT4[1] 46445889b5010e393a7ffacd46731798b91db387ff34950caef6f0050a3e84e005dcfa8b2646
+VSOCK ATTEST end
+MODEL already in the VM's encrypted storage (3204 MiB), not streamed
+VSOCK ENGINE model 3204 MiB already in the VM's encrypted storage
+VSOCK MODEL table: 601 tensors, header 15819080 bytes retained, data at 15819104, digests from the pin's own read (arm_sha2)
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (unpinned: hashed only)
+LOCAL plan: /data/user/0/host.enclave.anchor.avf/files/model.gguf (3204 MiB), 6 threads, ctx 4096, scripted turns
+LOCAL loading: the VM is staging and loading the model
+VSOCK ANCHOR local mode: the whole model runs in this VM
+VSOCK MODEL ok 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 (staged already, unchanged)
+TPU worker: thread priority -19, ADPF hint session held
+TPU worker: 35 compiled blocks loaded in 501 ms
+TPU bundle sha256=cd56ee8722f9cf1ba5af2c69ca595c878f9fea42bbe9bf3f1a03d4dfe7648535 (hashed in 1849 ms)
+TPU bench (ms per Run, min/mean): L0.qkv 0.66/1.14 L0.qkv+3ms-gap 0.89/1.17 L0.o 0.43/0.92 L0.o+3ms-gap 0.89/1.34 L0.gu 1.22/1.63 L0.gu+3ms-gap 1.34/1.95 L0.down 0.94/1.28 L0.down+3ms-gap 1.21/1.47 L20.qkv 0.77/1.00 L20.qkv+3ms-gap 1.06/1.45 L20.o 0.40/0.95 L20.o+3ms-gap 0.80/1.41 L20.gu 1.61/2.52 L20.gu+3ms-gap 2.13/2.73 L20.down 1.26/1.89 L20.down+3ms-gap 1.48/2.17
+TPU worker: link poll before sleeping 0 us
+TPU worker: serving masked rows
+TPU bundle already in the VM's encrypted storage (1757 MiB, same sha256), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB, sha256 cd56ee8722f9cf1b..., re-hashed in 17.3 s)
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL listening on vsock 7781 for the conversation; model 3360161216 bytes, 6 threads, ctx 4096
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL verified loader: 602 tensors (3504.4 MiB) hashed against the staged table before use: 71 repacked from verified bytes, 531 plain CPU
+VSOCK LOCAL context ready: ctx 4096, 6 threads, persistent pool=yes, model loaded in 61.4 s
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 0.7 s (NOT locked: it can be evicted) | mem available 1934 MiB, page cache 1903 MiB, major faults 88
+LOCAL ready: {ctx=4096, threads=6, vocab=262144, model=5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48, load_s=61.4}
+VSOCK LOCAL tpu: minted 64 pad positions per group in 0.9 s (73.7 positions per second on 6 threads) | mem available 1710 MiB, page cache 1904 MiB, major faults 88
+LOCAL ask sha256=183045fa5b01968e873c25872bb64e5b25950e1e5845dc214b776cf85d325587 bytes=80
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 18:15:51)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL turn 1: status=eos prefill_tokens=26 prefill_tok_s=36.79 decode_tokens=1 decode_tok_s=1.08 ctx_used=27 ctx=4096
+LOCAL turn 1 Q: What is the largest planet in the solar system? Reply with only the planet name.
+VSOCK LOCAL tpu turn 1: exchanges=140 (140.0/token) ms per exchange: mask 0.122 link 5.460 (corr 0.112 mint 0.000 wait 5.288) unmask 0.248 | rx/exch 1.23 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 63 | cancel n=878585 max=0.0009 rms=0.00006 LSB | verify n=410 bad=0 max=0 rms=0.000 (output LSB over 205 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=4/0/3 | outliers kept 8219 saturated 7 (CLIPPED 7 [hi 0 lo 7] REPAIRED, FALSE-RAILS 0, recomp 7, max excess 39677, max err 387.5 LSB) redrawn 0 | mem available 1702 MiB, page cache 1904 MiB, major faults 103
+VSOCK LOCAL tpu turn 1: ms per exchange, split: of unmask, verification dots 0.030 | after it, releasing the pads 0.030 | between exchanges (the VM's own graph work) 0.394
+VSOCK LOCAL tpu turn 1: exchanges by duration (<25us <100us <400us <1.6ms longer): unmask 16 41 67 11 5 | between exchanges 11 48 49 26 5
+LOCAL turn 1 A: Jupiter
+LOCAL turn 1 STATS {status=eos, prefill_tokens=26, prefill_tok_s=36.79, decode_tokens=1, decode_tok_s=1.08, ctx_used=27, ctx=4096}
+LOCAL done: 1 scripted turns
+VSOCK LOCAL engine ending after 1 turns
+VSOCK LOCAL exit 0
+VSOCK END
+CONTROL closed after 19 lines
+CAPTURE END label=qw4b-17 lines=86 bytes=8891 status=complete

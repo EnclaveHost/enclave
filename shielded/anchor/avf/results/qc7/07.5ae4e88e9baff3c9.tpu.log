@@ -1,0 +1,19 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+TPU bundle already in the VM's encrypted storage (1757 MiB), not streamed
+VSOCK LOCAL tpu.bundle: already in the encrypted store (1757 MiB)
+TPU worker: thread priority -19, ADPF hint session held
+TPU worker: 35 compiled blocks loaded in 987 ms
+TPU bench (ms per Run, min/mean): L0.qkv 0.85/1.27 L0.qkv+3ms-gap 1.26/2.17 L0.o 1.03/1.54 L0.o+3ms-gap 0.97/1.82 L0.gu 1.77/3.15 L0.gu+3ms-gap 2.10/4.27 L0.down 1.33/2.13 L0.down+3ms-gap 2.32/2.91 L20.qkv 0.64/1.39 L20.qkv+3ms-gap 1.24/1.83 L20.o 1.03/1.54 L20.o+3ms-gap 1.61/2.12 L20.gu 3.88/4.13 L20.gu+3ms-gap 3.09/4.73 L20.down 2.76/2.97 L20.down+3ms-gap 2.92/3.46
+TPU worker: serving masked rows
+VSOCK LOCAL tpu: worker connected; masked rows only cross this link
+VSOCK LOCAL tpu: backend loaded, bundle open, worker link set (5 rows per exchange)
+VSOCK LOCAL tpu: lane bundle paged in from the encrypted store in 1.9 s (NOT locked: it can be evicted) | mem available 1932 MiB, page cache 1909 MiB, major faults 337
+VSOCK LOCAL tpu: minted 64 pad positions per group in 2.0 s (32.3 positions per second on 6 threads) | mem available 1707 MiB, page cache 1909 MiB, major faults 337
+VSOCK LOCAL tpu: build config repair=1 verify=1 inject=0 corr_threads=1 spin_us=0 (built Sep 22 2026 06:09:39)
+VSOCK LOCAL tpu: vsock credit window 262144 -> 1048576 bytes
+VSOCK LOCAL tpu turn 1: exchanges=3080 (140.0/token) ms per exchange: mask 0.214 link 4.930 (corr 0.094 mint 0.000 wait 4.699) unmask 0.561 | rx/exch 2.01 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 42 | cancel n=19328996 max=0.0009 rms=0.00006 LSB | verify n=9020 bad=0 max=0 rms=0.000 (output LSB over 4510 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=15/0/13 | outliers kept 146903 saturated 28 (CLIPPED 28 [hi 0 lo 28] REPAIRED, FALSE-RAILS 0, recomp 28, max excess 17293, max err 168.9 LSB) redrawn 0 | mem available 1670 MiB, page cache 1910 MiB, major faults 349
+LOCAL turn 1 A: Soft drops touch the leaves,\nWashing the dusty green world,\nEarth drinks cool, fresh tears.
+LOCAL turn 1 STATS {status=eos, prefill_tokens=16, prefill_tok_s=49.03, decode_tokens=22, decode_tok_s=1.09, ctx_used=38, ctx=4096}
+LOCAL done: 1 scripted turns
+TPU worker: 3080 exchanges; per exchange ms: idle-wait 26.675 recv 0.069 input-write 0.073 tpu-run 1.805 output-read 0.296 send 0.083 | direct 0 staged 3080
+awake at end: 1  cap: 2688000

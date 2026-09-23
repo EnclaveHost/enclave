@@ -1,0 +1,72 @@
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:153] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0x564f4b821890, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+INFO: [outstream.h:51] Setup file stream
+
+INFO: [outstream.h:41] Setup cerr stream
+
+CMD: apply
+MODEL: /home/steven/pixel10-platform/a8w4/probe_a8w8.tflite
+SOC_MANUFACTURER: Google
+SOC_MODEL: Tensor_G5
+
+    __    _ __       ____  __
+   / /   (_/ /____  / __ \/ /_
+  / /   / / __/ _ \/ /_/ / __/
+ / /___/ / /_/  __/ _, _/ /_
+/_____/_/\__/\___/_/ |_|\__/
+
+[LITERT_TOOLS:APPLY] Starting Load Model...
+[LITERT_TOOLS:APPLY] Loading model from: /home/steven/pixel10-platform/a8w4/probe_a8w8.tflite
+INFO: [environment.cc:36] Creating LiteRT environment with options
+WARNING: [npu_registry.cc:34] NPU accelerator could not be loaded and registered: kLiteRtStatusErrorInvalidArgument.
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtGpuAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtWebGpuAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtOpenClAccelerator.so).
+INFO: [gpu_registry.cc:123] Attempting to load GPU accelerator(libLiteRtVulkanAccelerator.so).
+WARNING: [gpu_registry.cc:153] GPU accelerator could not be loaded and registered.
+INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0x564f4b825a50, name=CpuAccelerator
+INFO: [cpu_registry.cc:75] XNNPACK CPU accelerator registered.
+[LITERT_TOOLS:APPLY] LiteRtModel : [ #subgraphs=1 ]
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Load Plugins...
+[LITERT_TOOLS:APPLY] Loading plugins from: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler
+INFO: [compiler_plugin.cc:308] Attempting to load plugin at: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler/libLiteRtCompilerPlugin_google_tensor.so
+INFO: [compiler_plugin.cc:250] Loading plugin at: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler/libLiteRtCompilerPlugin_google_tensor.so
+INFO: [compiler_plugin.cc:260] Loaded plugin at: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler/libLiteRtCompilerPlugin_google_tensor.so
+INFO: [compiler_plugin.cc:263] Resolved plugin api at: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler/libLiteRtCompilerPlugin_google_tensor.so
+INFO: [compiler_plugin.cc:450] Loading Google Tensor Compiler Adapter
+INFO: [adapter_aot.cc:130] Tensor TPU compiler API symbols loaded
+INFO: [compiler_plugin.cc:268] Initialize plugin at: /home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk/venv/lib/python3.11/site-packages/ai_edge_litert/vendors/google_tensor/compiler/libLiteRtCompilerPlugin_google_tensor.so
+[LITERT_TOOLS:APPLY] Found plugins
+[LITERT_TOOLS:APPLY] Loaded 1 plugins
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Select Plugin...
+[LITERT_TOOLS:APPLY] Trying plugin: Google
+[LITERT_TOOLS:APPLY] Selected plugin for: Google
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Applying plugin...
+WARNING: [compiler_plugin.cc:955] Applying plugin with unknown SDK version, because the targeted SoC Manufacturer does not report its SDK version. If you are seeing this message, please be aware that on-device compilation caching won't be updated if using a different version of the SDK.
+INFO: [compiler_plugin.cc:929] Registered 0 transformations.
+INFO: [compiler_plugin.cc:936] Applied transformations.
+INFO: [compiler_plugin.cc:524] Partition strategy: 0
+INFO: [compiler_plugin.cc:742] Partitioned subgraph<0>, selected 1 ops, from a total of 1 ops. resulted in 1 partitions.
+INFO: [compiler_plugin.cc:1069] Starting GoogleTensor Compilation for 1 subgraphs, soc_model=Tensor_G5
+INFO: [compiler_plugin.cc:1078] Serializing model
+INFO: [compiler_plugin.cc:1103] Compiling model...
+W0000 00:00:1790118302.019995 3540458 :1643] RAW: Calling SubProcess::ForkAndExec before InitGoogle. Will use 'clone' method. If that isn't what you want, set GOOGLE_SUBPROCESS_FORK_METHOD in the environment or move InitGoogle earlier, so flags can be processed.
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Serializing model...
+[LITERT_TOOLS:APPLY] Serialized a model of size 17008384 bytes
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Verifying flatbuffer...
+[LITERT_TOOLS:APPLY] 	 Done!
+[LITERT_TOOLS:APPLY] Starting Writing to out...
+[LITERT_TOOLS:APPLY] 	 Done!
+INFO: [accelerator_registry.cc:43] DestroyAccelerator: ptr=0x564f4b821890, name=CpuAccelerator
