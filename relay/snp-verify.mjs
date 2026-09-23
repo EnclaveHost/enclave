@@ -5,7 +5,7 @@
 //
 // verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, requireVcek })
 //   -> { ok, measurement, reasons: [...] }
-import { createHash, X509Certificate, createPublicKey, createVerify } from "node:crypto";
+import { createHash, X509Certificate, createVerify } from "node:crypto";
 
 const KDS = "https://kdsintf.amd.com";
 const VCEK_GUID = "63da758de6644564adc5f4b93be8accd";
@@ -177,7 +177,10 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
   try {
     const vcekCert = new X509Certificate(vcek);
     const v = createVerify("sha384"); v.update(p.signedRegion); v.end();
-    if (!v.verify({ key: createPublicKey(vcekCert.publicKey), dsaEncoding: "der" }, rawSigToDer(p.signature)))
+    // vcekCert.publicKey is already a public KeyObject. createPublicKey() refuses one
+    // (ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE), which used to fail EVERY VCEK-bearing report here as a
+    // "cert-chain verification error" before its signature was ever checked.
+    if (!v.verify({ key: vcekCert.publicKey, dsaEncoding: "der" }, rawSigToDer(p.signature)))
       return fail("VCEK signature over the report is invalid");
     // Which product line's ARK/ASK to chain to. A KDS-fetched VCEK already
     // named it; one supplied in the auxblob does not, so read the product out
