@@ -133,6 +133,16 @@ else r=ok; fi
 gate "C3b no guest reported a boundary fault (the monitor refuses to serve reports at all when its own tuple is incoherent)" $r
 grep -aq 'PASS 10 ' "$W/c-m3b.log" && grep -aq 'PASS 10c' "$W/c-m3b.log" && r=ok || r=no
 gate "C4 the compromised-domain adversary is still contained, now beneath the SVSM" $r
+# C5 exists because stage C can be made to pass by HANDING the suite its expected measurement. Under IGVM the
+# digest is not derivable from the image's inputs: phys-bits=46 selects the legacy, kernel-synthesised VMSA,
+# while igvmmeasure measures the IGVM's VP-context VMSA, so the two differ by construction. A run that was
+# told the answer shows the guests agree, not that a verifier could recognise the image - so it is not
+# acceptance, and this gate refuses to let it count as one.
+if grep -aqE 'NOT ACCEPTANCE|digest was SUPPLIED' "$W/c-m3b.log"; then
+  echo "    the suite was handed its expected measurement, so the launch identity is UNVERIFIED"
+  r=no
+else r=ok; fi
+gate "C5 the launch measurement was DERIVED, not supplied: without this an allowlist only repeats a value it was given" $r
 
 printf '\n======== result\n'
 if [ "$fails" -eq 0 ]; then
