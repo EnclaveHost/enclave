@@ -46,6 +46,8 @@ public final class LocalChat {
     public static String withSpin(String plan, int spinUs) { return plan + " spin=" + Math.max(1, Math.min(20000, spinUs)); }
     /** The VM's CPU thread pool polling level, 0 (idle threads sleep at once) .. 100 (they spin). Last on the line. */
     public static String withPoll(String plan, int poll) { return plan + " poll=" + Math.max(0, Math.min(100, poll)); }
+    /** A separate, smaller thread pool for one-token decode; prompt processing keeps the line's threads. Last on the line. */
+    public static String withDecodeThreads(String plan, int n) { return plan + " dthreads=" + Math.max(1, Math.min(16, n)); }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;

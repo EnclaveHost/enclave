@@ -41,6 +41,12 @@ int main(int argc, char **argv) {
     const char *pbad[] = { "LOCAL model_bytes=5 threads=6 ctx=4096 poll=101", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=05",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 poll=5 spin=10", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=5 " };
     for (size_t i = 0; i < sizeof pbad / sizeof *pbad; i++) expect(!anchor_local_parse(pbad[i], &lp), pbad[i]);
+    /* the dthreads tail: last, 1..16; absent = 0 (one pool) */
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 dthreads=2", &lp) && lp.dthreads == 2, "LOCAL dthreads alone");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 poll=50 dthreads=16", &lp) && lp.poll == 50 && lp.dthreads == 16, "LOCAL poll then dthreads");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096", &lp) && lp.dthreads == 0, "LOCAL without dthreads is one pool");
+    const char *dbad[] = { "LOCAL model_bytes=5 threads=6 ctx=4096 dthreads=0", "LOCAL model_bytes=5 threads=6 ctx=4096 dthreads=17", "LOCAL model_bytes=5 threads=6 ctx=4096 dthreads=2 poll=5" };
+    for (size_t i = 0; i < sizeof dbad / sizeof *dbad; i++) expect(!anchor_local_parse(dbad[i], &lp), dbad[i]);
     const char *lbad[] = { "LOCAL", "LOCAL ", "LOCAL model_bytes=0 threads=6 ctx=4096", "LOCAL model_bytes=5 threads=0 ctx=4096", "LOCAL model_bytes=5 threads=17 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=511",
                            "LOCAL model_bytes=5 threads=6 ctx=32769", "LOCAL threads=6 model_bytes=5 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=4096 ", "LOCAL model_bytes=5  threads=6 ctx=4096", "LOCAL model_bytes=05 threads=6 ctx=4096",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 env=00", "LOCAL model_bytes=1099511627777 threads=6 ctx=4096", "LOCAL model_bytes=99999999999999999999 threads=6 ctx=4096", "LOCALmodel_bytes=5 threads=6 ctx=4096",
