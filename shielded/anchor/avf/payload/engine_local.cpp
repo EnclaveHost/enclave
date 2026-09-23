@@ -209,8 +209,13 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
       /* ggml's default pool. What decides the rate in this guest is the HOST's placement of the vCPU threads (the owner requests
        * the uclamp boost for it, Main.java); poll=100 and high-capacity pinning were tried once on a heat-soaked phone and the
        * measurement was confounded (LOCAL.md), so neither is adopted. */
-      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); g_pool = tp_new(&tpp); if (g_pool) llama_attach_threadpool(ctx, g_pool, g_pool); }
-      outf("LOCAL context ready: ctx %d, %d threads, persistent pool=%s, model loaded in %.1f s", n_ctx, n_threads, tp_new ? "yes" : "no", load_s); }
+      /* ANCHOR_POOL_POLL (the LOCAL line's poll= tail, 0..100): how the pool's idle threads wait. ggml's default 50
+       * spins before sleeping; on the masked TPU lane the pool is idle for most of every exchange, and the VM measured
+       * 5.1 cores busy while decoding at 1 tok/s (results/cpuval). */
+      int poll = -1; if (const char *e = getenv("ANCHOR_POOL_POLL")) { char *end = nullptr; long v = strtol(e, &end, 10); if (end && !*end && v >= 0 && v <= 100) poll = (int)v; }
+      if (tp_new) { ggml_threadpool_params tpp = ggml_threadpool_params_default(n_threads); if (poll >= 0) tpp.poll = (uint32_t)poll; g_pool = tp_new(&tpp); if (g_pool) llama_attach_threadpool(ctx, g_pool, g_pool);
+                    if (poll < 0) poll = (int)tpp.poll; }
+      outf("LOCAL context ready: ctx %d, %d threads, persistent pool=%s (poll %d), model loaded in %.1f s", n_ctx, n_threads, tp_new ? "yes" : "no", poll, load_s); }
     char model_hex[65] = ""; if (g_table->has_whole) for (int i = 0; i < 32; i++) snprintf(model_hex + 2 * i, 3, "%02x", g_table->whole_digest[i]);
     /* Pads last: the model load above is the VM's biggest consumer of memory, and the lane bundle's pages must still be resident
      * when decode walks them (a bundle page that went back to the encrypted store costs a disk read per touched page). */

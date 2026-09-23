@@ -34,6 +34,13 @@ int main(int argc, char **argv) {
                            "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=20001", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=3000 links=2",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=03000", "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=3000 " };
     for (size_t i = 0; i < sizeof sbad / sizeof *sbad; i++) expect(!anchor_local_parse(sbad[i], &lp), sbad[i]);
+    /* the poll tail: last, 0..100, with or without the TPU tail; absent = -1 (ggml's default kept) */
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 poll=0", &lp) && lp.poll == 0, "LOCAL poll 0 alone");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 spin=10 poll=100", &lp) && lp.spin == 10 && lp.poll == 100, "LOCAL spin then poll");
+    expect(anchor_local_parse("LOCAL model_bytes=5 threads=6 ctx=4096", &lp) && lp.poll == -1, "LOCAL without poll keeps the default");
+    const char *pbad[] = { "LOCAL model_bytes=5 threads=6 ctx=4096 poll=101", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=05",
+                           "LOCAL model_bytes=5 threads=6 ctx=4096 tpu_bundle_bytes=9 bank=0 refill=0 poll=5 spin=10", "LOCAL model_bytes=5 threads=6 ctx=4096 poll=5 " };
+    for (size_t i = 0; i < sizeof pbad / sizeof *pbad; i++) expect(!anchor_local_parse(pbad[i], &lp), pbad[i]);
     const char *lbad[] = { "LOCAL", "LOCAL ", "LOCAL model_bytes=0 threads=6 ctx=4096", "LOCAL model_bytes=5 threads=0 ctx=4096", "LOCAL model_bytes=5 threads=17 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=511",
                            "LOCAL model_bytes=5 threads=6 ctx=32769", "LOCAL threads=6 model_bytes=5 ctx=4096", "LOCAL model_bytes=5 threads=6 ctx=4096 ", "LOCAL model_bytes=5  threads=6 ctx=4096", "LOCAL model_bytes=05 threads=6 ctx=4096",
                            "LOCAL model_bytes=5 threads=6 ctx=4096 env=00", "LOCAL model_bytes=1099511627777 threads=6 ctx=4096", "LOCAL model_bytes=99999999999999999999 threads=6 ctx=4096", "LOCALmodel_bytes=5 threads=6 ctx=4096",

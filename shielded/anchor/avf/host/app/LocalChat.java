@@ -44,6 +44,8 @@ public final class LocalChat {
     public static String withLinks(String plan, int links) { return plan + " links=" + Math.max(2, Math.min(4, links)); }
     /** How long (us) the VM polls the worker link for a reply before sleeping on it. Only with the TPU tail. */
     public static String withSpin(String plan, int spinUs) { return plan + " spin=" + Math.max(1, Math.min(20000, spinUs)); }
+    /** The VM's CPU thread pool polling level, 0 (idle threads sleep at once) .. 100 (they spin). Last on the line. */
+    public static String withPoll(String plan, int poll) { return plan + " poll=" + Math.max(0, Math.min(100, poll)); }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;
