@@ -19,7 +19,8 @@ m = pb.ModelProto()
 for i in range(len(inv)):
     p = inv[i]; sp = m.pieces.add(); sp.piece = p
     if p == "<unk>": sp.type = pb.ModelProto.SentencePiece.UNKNOWN; sp.score = 0.0
-    elif p in added or p.startswith("<unused"): sp.type = pb.ModelProto.SentencePiece.CONTROL; sp.score = 0.0
+    elif p in ("<bos>", "<eos>", "<pad>"): sp.type = pb.ModelProto.SentencePiece.CONTROL; sp.score = 0.0
+    elif p in added or p.startswith("<unused"): sp.type = pb.ModelProto.SentencePiece.USER_DEFINED; sp.score = 0.0   # matched from text, like Google's .spiece
     elif re.fullmatch(r"<0x[0-9A-F]{2}>", p): sp.type = pb.ModelProto.SentencePiece.BYTE; sp.score = 0.0
     else:
         sp.type = pb.ModelProto.SentencePiece.NORMAL
@@ -30,7 +31,7 @@ m.trainer_spec.unk_id = vocab["<unk>"]; m.trainer_spec.bos_id = vocab["<bos>"]; 
 m.trainer_spec.unk_piece = "<unk>"; m.trainer_spec.bos_piece = "<bos>"; m.trainer_spec.eos_piece = "<eos>"; m.trainer_spec.pad_piece = "<pad>"
 m.normalizer_spec.name = "identity"; m.normalizer_spec.add_dummy_prefix = False
 m.normalizer_spec.remove_extra_whitespaces = False; m.normalizer_spec.escape_whitespaces = True
-tmp = os.path.join(HERE, "artifacts", "tokenizer.model.candidate")
+tmp = os.path.join(HERE, os.environ.get("TRIM_ART", "artifacts"), "tokenizer.model.candidate")
 open(tmp, "wb").write(m.SerializeToString())
 sp = spm.SentencePieceProcessor(model_file=tmp)
 hf = Tokenizer.from_file(os.path.join(OUT, "tokenizer.json"))

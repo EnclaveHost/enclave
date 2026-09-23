@@ -4,9 +4,9 @@ import os, glob, json, re, sys, time, shutil, numpy as np, torch
 from torch import nn
 from transformers import Gemma4ForConditionalGeneration, AutoProcessor
 HERE = os.path.dirname(os.path.abspath(__file__))
-SNAP = glob.glob(os.path.expanduser("~/.cache/huggingface/hub/models--google--gemma-4-E2B-it/snapshots/*/"))[0]
+SNAP = os.environ.get("TRIM_SNAP") or glob.glob(os.path.expanduser("~/.cache/huggingface/hub/models--google--gemma-4-E2B-it/snapshots/*/"))[0]
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "gemma-4-E2B-it-en-code")
-keep = torch.from_numpy(np.load(os.path.join(HERE, "artifacts", "keep_ids.npy")))
+keep = torch.from_numpy(np.load(os.path.join(HERE, os.environ.get("TRIM_ART", "artifacts"), "keep_ids.npy")))
 id_map = {int(o): n for n, o in enumerate(keep.tolist())}
 t0 = time.time()
 model = Gemma4ForConditionalGeneration.from_pretrained(SNAP, dtype=torch.bfloat16, device_map={"": 0})
