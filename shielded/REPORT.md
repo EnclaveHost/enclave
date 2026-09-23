@@ -4420,3 +4420,32 @@ full-configuration aliasing mutant fails both (744 of 771 pairs never checked,
 756 of 771 past the period with no periodic check); the fixed sampler passes
 at 64, 256 and 512, and at 512 reports honestly that only 514 of the 771
 pairs are past the period, with the m=17 pairs resting on their first visit.
+
+### 18.41 The split soak: both links in one process, full exact coverage, clean -- and a correction to 18.40
+
+soak4 ran both cards' links in ONE process, card 1's exchange on a spinning
+helper thread concurrently with card 0's on the main thread, on the same
+activations -- the column split's structure, the last structural difference
+between the earlier soaks and production. 64 layers + lm_head per card, m=17
+prefill every 50th pass, link restarts every 5 minutes, 45 minutes:
+
+| | card 0 | card 1 |
+|---|---|---|
+| exchanges (paired, one per card) | 3,709,024 | 3,709,024 |
+| of which m=17 | 74,016 | 74,016 |
+| rejections | 0 | 0 |
+| exact checks, all correct | 14,135 | 14,135 |
+| exact coverage | all 64 layers of every shape at m=1, 2 and 17; lm_head at all three | same |
+| link restarts / yield activations | 7 / 10 | 7 / 12 |
+
+**Correction.** 18.40 predicted that this run would get no m=17 exact checks
+because an m=17 pair needs 12,800 passes before its first periodic sample. The
+arithmetic was right and the conclusion wrong: this run reached 256 prefill
+visits per instance at 2,407 s, so every m=17 pair was checked (64 per shape on
+each card, the lm_head once). My estimate of the pass rate was too low. The
+first-visit sampling of 18.40 stays: it is what guarantees coverage for a
+shorter run or a rarer cell, which this run happened not to need.
+
+The two production rejections remain open. What separates every soak so far
+from production is the real model's activations and the CPU backend's ops
+interleaved between exchanges.
