@@ -1,0 +1,28 @@
+[package]
+name = "vbslike-host"
+version = "0.1.0"
+edition = "2021"
+description = "Our own VBS-like isolation control plane on Windows: one Hyper-V child partition per app (HCS), hv_sock as the domain's only channel, monitor-derived identity and signed reports"
+
+[dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_HostComputeSystem",
+  "Win32_System_Hypervisor",
+  "Win32_Networking_WinSock",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Pipes",
+  "Win32_Security",
+  "Win32_System_Threading",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+base64 = "0.22"
+hex = "0.4"
+
+[profile.release]
+opt-level = 2
+debug = 1
