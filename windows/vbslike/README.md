@@ -130,8 +130,13 @@ Remote paths: `C:\Users\claude\vbs-like\{host,verify,apps,out}`, `wsl-kernel` (a
   guest firmware): the one Hyper-V construct that would exclude the root partition from a domain's
   memory on this hardware. It needs the OpenHCL image and, on a client SKU, `AllowFirmwareLoadFromFile`
   (a host-wide registry value) — a deployment change, deliberately not made in this pass.
-- **The Linux live suite after the monitor change**: `go test ./monitor/` and the contract tests pass;
-  `test-m3.sh` was not re-run because a peer's M3b guest was live on warden-host during this work.
+- **The Linux live suite after the monitor change: re-run and passing** (2026-09-23, in a window the
+  M3b owner handed over): `test-m3.sh` on the M3b path (COCONUT-SVSM at VMPL0, monitor at VMPL2, digest
+  derived from the IGVM `62b4a946…` equal to the live report) 31/31, and on the plain M3a path 31/31 with
+  the predicted digest moving with the image as it must (`evidence/linux-m3{a,b}-live-2026-09-23.txt`).
+  One caveat from that owner: under IGVM the launch measurement covers the SVSM, firmware and VMSA
+  only, not the monitor image, so on that path check 1 does not cover a monitor change; on the plain
+  path it does.
 - **cwasm**: the bundle carries a Wasm component and the in-guest runtime compiles it; a cached cwasm
   would be a per-host optimisation behind the same bundle ID, not an artifact.
 - **The boot cost** is the WSL kernel: a minimal kernel config would cut the 5.3 s, and the same image
