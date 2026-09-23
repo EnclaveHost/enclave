@@ -687,3 +687,21 @@ test("vbs: a Windows node attaches as mode vbs through the vbs-keys/vbs-credenti
       assert.equal(h.hub.info(n) || hSnp.hub.info(n), null, `${n} did not bind`);
   } finally { await h.close(); await hDev.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ---------- the operator's minimum-TCB policy reaches the attach gate -----------
+// relay/snp-verify.mjs judges the reported TCB against a floor only the caller supplies
+// (METAL_MIN_TCB on the relay). Unset, attaches behave as before; set, a quote whose TCB cannot be
+// judged (this file's version-2 reports name no product line) or a policy that is not well formed
+// refuses the attach instead of passing it.
+test("tunnel: a minimum-TCB policy it cannot evaluate, or cannot parse, refuses the attach", async () => {
+  const floor = { Turin: { fmc: 0, bootloader: 0, tee: 0, snp: 0, microcode: 0 } };
+  for (const [minTcb, why] of [[floor, /product line is unknown/], ["not json", /malformed/]]) {
+    const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false, minTcb }, operatorFor: async () => null });
+    try {
+      const r = await attestAttach(h, "seller9");
+      assert.equal(r.ok, false, `minTcb ${JSON.stringify(minTcb)} must refuse`);
+      assert.match(r.reason, why);
+      assert.equal(h.hub.count(), 0);
+    } finally { await h.close(); }
+  }
+});

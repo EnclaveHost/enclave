@@ -18,11 +18,12 @@
 //      into the hardware quote.
 import fs from "node:fs";
 import path from "node:path";
-import { createHash, X509Certificate, createPublicKey, createVerify } from "node:crypto";
+import { createHash, X509Certificate, createVerify } from "node:crypto";
 // ONE pin table for both verifiers (the relay's attach gate and this buyer
 // tool). A second copy is a second thing to update when AMD adds a product
 // line, and the copy that gets forgotten is the one that fails open.
-import { isPinnedArk, AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
+import { isPinnedArk, AMD_ARK_SHA256, parseSnpReport, snpProductHint, kdsVcekUrl, vcekMatchesReport, checkMinTcb }
+  from "../relay/snp-verify.mjs";
 
 function arg(name, dflt) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : dflt; }
 const OK = (m) => console.log(`  \x1b[32m✓\x1b[0m ${m}`);
@@ -77,12 +78,6 @@ async function fetchBuf(url) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-// VCEK URL: /vcek/v1/<product>/<chipId hex>?blSPL=..&teeSPL=..&snpSPL=..&ucodeSPL=..
-function vcekUrl(product, chipId, tcb) {
-  const bl = tcb[0], tee = tcb[1], snp = tcb[6], ucode = tcb[7];
-  const q = `blSPL=${bl}&teeSPL=${tee}&snpSPL=${snp}&ucodeSPL=${ucode}`;
-  return `${KDS}/vcek/v1/${product}/${chipId.toString("hex")}?${q}`;
-}
 
 // AMD signatures are little-endian raw r||s; convert to DER ECDSA for node.
 function rawSigToDer(sig) {
@@ -118,30 +113,34 @@ async function verifyReport(doc, { manifest, vcpus }) {
 
   // 2. AMD cert chain + report signature. Preferred source is the VCEK carried
   // in the report's own extended-report auxblob (self-contained, no network);
-  // otherwise AMD KDS by chip id + TCB. A masked/unprovisioned chip id (common
-  // on engineering samples / non-datacenter parts) has no KDS VCEK — that makes
-  // the signature chain INCONCLUSIVE, not failed: the measurement and key
-  // binding below still hold, and a datacenter EPYC resolves its VCEK fine.
+  // otherwise AMD KDS by chip id + TCB, in the product line's own form (Turin:
+  // 8-byte hardware ID and an FMC SPL; see relay/snp-verify.mjs). Reading every
+  // report as Milan used to miss every Turin VCEK, and this tool then called the
+  // part "masked or unprovisioned". No VCEK leaves the chain INCONCLUSIVE, not
+  // failed, and nothing below it is then authenticated.
+  const sp = parseSnpReport(report);
+  const hint = snpProductHint(sp);
   const product = arg("product", "");
-  const products = [product, "Turin", "Genoa", "Milan"].filter(Boolean);
+  const products = [...new Set([product, ...(hint ? [hint] : ["Turin", "Genoa", "Milan"])].filter(Boolean))];
   let vcek = doc.certs ? vcekFromAuxblob(Buffer.from(doc.certs, "base64")) : null;
   let usedProduct = vcek ? "extended-report auxblob" : null;
-  if (!vcek) for (const prod of products) { try { vcek = await fetchBuf(vcekUrl(prod, p.chipId, p.reportedTcb)); usedProduct = `AMD KDS (${prod})`; break; } catch {} }
+  if (!vcek) for (const prod of products) { try { vcek = await fetchBuf(kdsVcekUrl(prod, sp)); usedProduct = `AMD KDS (${prod})`; break; } catch {} }
   if (!vcek) {
     sigInconclusive = true;
     WARN(`hardware-signature chain INCONCLUSIVE: no VCEK available (not in the report's ` +
-      `auxblob, and AMD KDS has none for this chip id / TCB — masked or unprovisioned part). ` +
-      `On a datacenter EPYC the VCEK resolves and this becomes a hard check.`);
+      `auxblob, and AMD KDS returned none for ${products.join("/")} at this chip id / TCB; KDS also ` +
+      `answers 429 when asked too often). Nothing in this report is authenticated until it resolves.`);
   } else {
     try {
       const vcekCert = new X509Certificate(vcek);
       OK(`VCEK obtained (${usedProduct}) — ${vcekCert.subject.split("\n")[0]}`);
-      const pub = createPublicKey(vcekCert.publicKey);
+      const pub = vcekCert.publicKey;   // already a public KeyObject: createPublicKey() refuses one
       const v = createVerify("sha384"); v.update(p.signedRegion); v.end();
       if (v.verify({ key: pub, dsaEncoding: "der" }, rawSigToDer(p.signature))) OK("VCEK signature over the report is VALID");
       else BAD("VCEK signature over the report is INVALID");
       // chain VCEK → ASK → ARK (cert_chain is published for every product line)
-      const which = usedProduct.startsWith("AMD KDS") ? usedProduct.match(/\((\w+)\)/)[1] : (product || "Milan");
+      const which = usedProduct.startsWith("AMD KDS") ? usedProduct.match(/\((\w+)\)/)[1]
+        : (product || hint || (/SEV-([A-Za-z0-9]+)/.exec(vcekCert.issuer || "") || [])[1] || "Milan");
       const pem = (await fetchBuf(`${KDS}/vcek/v1/${which}/cert_chain`)).toString("utf8");
       const certs = pem.split(/(?=-----BEGIN CERTIFICATE-----)/).filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s));
       const [ask, ark] = certs;
@@ -159,6 +158,14 @@ async function verifyReport(doc, { manifest, vcpus }) {
       if (ark && isPinnedArk(ark, which)) OK(`ARK is AMD's pinned ${which} root (sha256 matches)`);
       else BAD(`ARK is NOT AMD's pinned ${which} root — the served chain is not AMD's`
              + (AMD_ARK_SHA256.has(which) ? "" : ` (no pin on file for product "${which}")`));
+      // the VCEK is THIS report's key: same chip, same reported TCB
+      const mismatch = vcekMatchesReport(vcekCert.raw, which, sp);
+      if (mismatch) BAD(mismatch); else OK("VCEK chip ID and TCB extensions match the report");
+      // the buyer's own minimum TCB (--min-tcb '{"Turin":{...}}'); this tool picks no floor
+      let minTcb;
+      try { minTcb = arg("min-tcb", undefined) === undefined ? undefined : JSON.parse(arg("min-tcb")); } catch { minTcb = arg("min-tcb"); }
+      const t = checkMinTcb(minTcb, which, sp);
+      if (!t.ok) BAD(t.reason); else if (t.checked) OK(t.reason); else WARN(`${t.reason} (pass --min-tcb to judge it)`);
     } catch (e) { BAD(`AMD cert-chain verification failed: ${e.message}`); }
   }
 

@@ -126,6 +126,15 @@ const ENV_METAL_ALLOW = (process.env.METAL_TUNNEL_TOKENS || "").split(",").map((
 // lab box whose part has no KDS-published VCEK).
 const METAL_ALLOWED_MEASUREMENTS = (process.env.METAL_ALLOWED_MEASUREMENTS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const METAL_REQUIRE_VCEK = process.env.METAL_REQUIRE_VCEK !== "0";
+// Minimum TCB for SNP attaches (relay/snp-verify.mjs checkMinTcb), as JSON:
+//   {"Turin":{"fmc":..,"bootloader":..,"tee":..,"snp":..,"microcode":..},"Genoa":{"bootloader":..,"tee":..,"snp":..,"microcode":..}}
+// No floor is built in: unset, attaches are judged without one (as before) and the verifier says so.
+// Set but unparseable, it is passed through as-is and every SNP attach fails closed on it.
+const METAL_MIN_TCB = (() => {
+  const raw = process.env.METAL_MIN_TCB;
+  if (!raw) return undefined;
+  try { return JSON.parse(raw); } catch { console.error("[relay] METAL_MIN_TCB is not JSON: SNP attaches will be refused"); return raw; }
+})();
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
 // may sign them (authorityHash = sha512 of the certificate). Routing builds
@@ -187,7 +196,7 @@ function padsRoutes() {
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
     : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
