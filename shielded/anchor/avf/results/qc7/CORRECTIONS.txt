@@ -17,3 +17,8 @@ produced and still match their digests.
 
 Unchanged: the mixed-harness caveat in PROVENANCE-NOTE-mixed-harness.txt, and that a 24-prompt quality
 result does not bear on the 15 tok/s requirement.
+
+(2026-09-22, later) The verification denominator above is wrong. Summing the `verify n=` field over all 24
+archived *.tpu.log files gives 173,430 comparisons, not 141,450, and no subset of the logs reproduces 141,450.
+The disagreements are unchanged: 13, each at most 1 digit LSB. The rate is 0.0075 %, not 0.009 %. Recomputed by
+tpu/lane-score.py (which also reproduces 22/24 on both arms and the 0.98 / 15.05 tok/s medians from these logs).

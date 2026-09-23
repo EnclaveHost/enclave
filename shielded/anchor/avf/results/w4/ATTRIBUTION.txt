@@ -15,5 +15,14 @@ i8-a.log/.caps, i8-b.log/.caps -- valid int8 controls (int8 graphs, int8 bundle 
     (i8-b) similar tok/s; verification 2 and 1 disagreements of 1 LSB. Run on a warm, charging phone whose big-core
     cap fell to 2.09-2.19 GHz mid-run (the .caps files), so the absolute rates are not comparable with cool runs.
 
-i8-c, w4-c, i8-d, w4-d -- the digest-bound rerun (lane-run2.sh with BUNDLE_SHA256); each log names the bundle the
-    VM confirmed. These are the only runs here that can speak for int4.
+i8-c.caps -- a launch that never ran: the APK built at 2b993ba7 on top of another session's uncommitted
+    wasm/ggml-shielded edits (later 349d5d0d) had an undefined sh_thread_create in libanchor.so, so the payload
+    exited 1 at load. No log; the driver was stopped. Fixed upstream in 0a7fd9fa.
+
+i8-e, w4-e, i8-f, w4-f -- the digest-bound rerun (lane-run2.sh, BUNDLE_SHA256, all four LANE-RUN OK); each log
+    names the bundle the VM confirmed and re-hashed. These are the only runs here that speak for int4:
+      int8  i8-e 1.13 tok/s, i8-f 1.03 (57 tokens each, identical text), link 4.67 / 5.16 ms per exchange, verify 3 / 0 of 23,370
+      int4  w4-e 1.21 tok/s, w4-f 1.24 (16 tokens each, identical text), link 4.16 / 3.95 ms per exchange, verify 0 / 0 of 6,560
+    The int4 answer is correct code without the docstring and without the closing fence; one prompt is not a quality
+    verdict (results/qw4 is the 24-prompt one). The rates are not directly comparable (16 vs 57 tokens); the
+    per-exchange link time is.
