@@ -82,15 +82,29 @@ if [ "${RECHECK:-0}" != 1 ]; then
   # shellcheck disable=SC2086
   {
     cl "$W/A.client" "$W/A.fwd" --measurement "$measA" --app-sha "$idA" $TR
-    cl "$W/B.client" "$W/B.fwd" --measurement "$measB" --app-sha "$idB" $TR
+    cl "$W/B.client" "$W/B.fwd" --measurement "$measB" --app-sha "$idB" $TR --save "$W/B.doc.json"
     # a client holding A's expectations pointed at B, and the reverse: each must refuse
     cl "$W/A-expect-at-B" "$W/B.fwd" --measurement "$measA" --app-sha "$idA" $TR
     cl "$W/B-expect-at-A" "$W/A.fwd" --measurement "$measB" --app-sha "$idB" $TR
   }
 
+  # The adversary gets a WELL-FORMED binding over B's own transport key and a fresh nonce, so its minted report
+  # is complete B evidence in every respect a verifier checks except the measurement. A report that merely
+  # parsed would make N3b a claim about bytes we invented.
+  node -e '
+    const fs=require("fs"),c=require("crypto");
+    const doc=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+    const spki=Buffer.from(doc.spki,"base64");
+    const nonce=c.randomBytes(32);
+    fs.writeFileSync(process.argv[2],doc.spki);
+    fs.writeFileSync(process.argv[3],nonce.toString("hex"));
+    fs.writeFileSync(process.argv[4],c.createHash("sha256").update(Buffer.concat([spki,nonce])).digest("hex"));
+  ' "$W/B.doc.json" "$W/B.spki.b64" "$W/adv.nonce" "$W/adv.bind"
+  advbind=$(cat "$W/adv.bind")
+
   # --- the adversary guest: built NOW, because its target's vsock CID is only assigned at launch ---------
   # Native code with root in its own SNP guest, aimed at B. Its image, and so its measurement, is its own.
-  "$here/build-adversary-guest.sh" "$W/ADV.cpio.gz" "$VCPUS" "$cidB" 443 "$idB" > "$W/ADV.build"
+  "$here/build-adversary-guest.sh" "$W/ADV.cpio.gz" "$VCPUS" "$cidB" 443 "$idB" "$advbind" > "$W/ADV.build"
   measADV=$(sed -n 's/^predicted measurement: //p' "$W/ADV.build")
   "$m2/run-domain.sh" start "$W/ADV.cpio.gz" snp ADV "$W" "$VCPUS" "$MEM" 100 > "$W/ADV.host" || true
   # it powers off when done; wait for its verdict lines
@@ -100,7 +114,11 @@ if [ "${RECHECK:-0}" != 1 ]; then
   advrep=$(ser ADV | sed -n 's/^ADV report_b64=//p' | head -1)
   if [ -n "$advrep" ]; then
     printf '%s' "$advrep" > "$W/adv.report.b64"
-    node "$here/judge-adv.mjs" "$W/adv.report.b64" "$measB" "$idB" "$measADV" > "$W/adv.judged" 2>&1 || true
+    node "$here/judge-adv.mjs" "$W/adv.report.b64" "$measB" "$idB" "$measADV" \
+      "$W/vcek.der" "$W/min-tcb.json" "$W/B.spki.b64" "$W/adv.nonce" \
+      "$here/../../test/fixtures/amd/$product-cert_chain.pem" "$product" > "$W/adv.judged" 2>&1 || true
+    # negative fixtures: a fabricated or modified report must not satisfy the same check
+    "$here/adv-report-fixtures.sh" "$W" "$measB" "$idB" "$measADV" "$product" > "$W/adv.fixtures" 2>&1 || true
   fi
 
   # --- crash independence and lifecycle: kill the adversary, then re-attest A and B ---------------------
@@ -127,6 +145,10 @@ PY
     echo "CTX_VERSION=1"; echo "CTX_KIND=m4a"; echo "CTX_WHEN=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "CTX_ID_A=$idA"; echo "CTX_ID_B=$idB"
     echo "CTX_MEAS_A=$measA"; echo "CTX_MEAS_B=$measB"; echo "CTX_MEAS_ADV=$measADV"
+    echo "CTX_PRODUCT=$product"
+    echo "CTX_SHA_A=$(sha256sum "$W/A.cpio.gz" | cut -c1-64)"
+    echo "CTX_SHA_B=$(sha256sum "$W/B.cpio.gz" | cut -c1-64)"
+    echo "CTX_SHA_ADV=$(sha256sum "$W/ADV.cpio.gz" | cut -c1-64)"
   } > "$W/run-context"
 fi
 
@@ -136,6 +158,42 @@ fi
 [ -r "$W/run-context" ] || { echo "no run-context in $W; refusing to score a workdir that cannot say what produced it"; exit 2; }
 # shellcheck disable=SC1090
 . "$W/run-context"
+# run-context is an editable text file, so on a recheck it is a CLAIM, not evidence. Re-derive everything it
+# asserts from the artefacts the run actually saved, and refuse on any disagreement. Without this, a recheck
+# "passes" by reading back numbers someone could have typed - which is the same class of defect as the m3
+# recheck guessing its launch context.
+if [ "${RECHECK:-0}" = 1 ]; then
+  echo "RECHECK: re-deriving the run context from the saved artefacts rather than trusting it"
+  bad=""
+  for pair in "A:$CTX_ID_A" "B:$CTX_ID_B"; do
+    t=${pair%%:*}; want=${pair#*:}
+    [ -r "$W/$t.bundle" ] || { echo "  MISSING $t.bundle"; bad="$bad $t.bundle"; continue; }
+    got=$("$BUNDLETOOL" id "$W/$t.bundle")
+    [ "$got" = "$want" ] && printf '  %s AppID re-derived from %s.bundle: ok\n' "$t" "$t" \
+      || { echo "  MISMATCH $t AppID: bundle gives $got, context claims $want"; bad="$bad $t-id"; }
+  done
+  . "$here/../m1/domain.env"
+  for pair in "A:$CTX_MEAS_A" "B:$CTX_MEAS_B" "ADV:$CTX_MEAS_ADV"; do
+    t=${pair%%:*}; want=${pair#*:}
+    [ -r "$W/$t.cpio.gz" ] || { echo "  MISSING $t.cpio.gz"; bad="$bad $t.cpio.gz"; continue; }
+    vc=$VCPUS
+    got=$(~/.local/bin/sev-snp-measure --mode snp --vcpus "$vc" --vcpu-family 26 --vcpu-model 2 \
+      --vcpu-stepping 1 --vmm-type QEMU --ovmf "$OVMF" --kernel "$KERNEL" --initrd "$W/$t.cpio.gz" \
+      --append "$APPEND" 2>/dev/null)
+    [ "$got" = "$want" ] && printf '  %s measurement re-derived from %s.cpio.gz: ok\n' "$t" "$t" \
+      || { echo "  MISMATCH $t measurement: image gives ${got:-none}, context claims $want"; bad="$bad $t-meas"; }
+  done
+  # and the adversary verdict is recomputed from the saved report, not read back as text
+  if [ -r "$W/adv.report.b64" ]; then
+    node "$here/judge-adv.mjs" "$W/adv.report.b64" "$CTX_MEAS_B" "$CTX_ID_B" "$CTX_MEAS_ADV" \
+      "$W/vcek.der" "$W/min-tcb.json" "$W/B.spki.b64" "$W/adv.nonce" \
+      "$here/../../test/fixtures/amd/$CTX_PRODUCT-cert_chain.pem" "$CTX_PRODUCT" > "$W/adv.judged" 2>&1 || true
+    echo "  adversary report re-judged through the real verifier"
+  else
+    echo "  MISSING adv.report.b64"; bad="$bad adv-report"
+  fi
+  [ -n "$bad" ] && { echo "RECHECK refusing: the saved artefacts do not match the recorded context:$bad"; exit 2; }
+fi
 idA=$CTX_ID_A; idB=$CTX_ID_B; measA=$CTX_MEAS_A; measB=$CTX_MEAS_B; measADV=$CTX_MEAS_ADV
 
 echo "evidence: app A id $idA  measurement $measA"
@@ -182,8 +240,12 @@ check "N1 it finds no interface to the other guest's memory: separate SNP guests
 
 # N3 (second half) the adversary CAN mint a report naming B, and the verifier rejects it on measurement
 echo "evidence: $(sed -n '1,3p' "$W/adv.judged" 2>/dev/null | tr '\n' ' ')"
-grep -aq 'REJECTED-ON-MEASUREMENT' "$W/adv.judged" 2>/dev/null && r=ok || r=no
-check "N3b the adversary CAN put B's AppID in its own report_data - it owns its configfs - and the verifier REJECTS it because the measurement is the adversary's, not B's: in this shape the measurement is the app-naming authority, not a monitor" $r
+grep -aq 'AUTHENTICATED-AND-REJECTED-AS-B' "$W/adv.judged" 2>/dev/null && r=ok || r=no
+check "N3b the adversary's report is AUTHENTIC through the real verifier (VCEK to the pinned ARK, this chip's TCB meeting the floor), it names B AND binds B's transport key, and a verifier pinning B's measurement still REFUSES it on the measurement: the measurement is the app-naming authority, not a monitor" $r
+echo "evidence: $(grep -aE '^(ok|FAIL) step' "$W/adv.judged" 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+grep -aq 'adv report fixtures: ALL' "$W/adv.fixtures" 2>/dev/null && r=ok || r=no
+echo "evidence: $(tail -1 "$W/adv.fixtures" 2>/dev/null)"
+check "N3c a fabricated or modified report does NOT satisfy that check: the proof chain refuses it, so N3b's pass is not vacuous" $r
 
 # N5 availability: B kept serving and attesting while the adversary ran and after it died
 [ "$(verdict "$W/B.after")" = "$(verdict "$W/B.client")" ] && [ "$(res "$W/B.after" app_status)" = 200 ] && r=ok || r=no

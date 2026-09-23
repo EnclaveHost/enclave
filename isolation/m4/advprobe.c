@@ -13,7 +13,14 @@
  *
  * Every line is `ADV <what>=<result>`. Silence is never a result: a probe that cannot run says so.
  *
- * target file /adv.target, written into the image at build time: "<cid> <port> <other_app_id_hex>"
+ * target file /adv.target, written into the image at build time:
+ *     "<cid> <port> <other_app_id_hex> <bind_hex>"
+ *
+ * bind_hex is sha256(the victim's transport key SPKI || a fresh nonce), handed to us by the harness. Using it
+ * rather than filler makes the minted report WELL FORMED in every respect a verifier checks except one: it
+ * binds the victim's key, names the victim's app, chains to AMD's root and meets the TCB floor. The only thing
+ * that gives it away is the measurement. That is the strongest form of this attack, and the weakest form of
+ * the defence, which is the pairing worth testing.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -101,7 +108,7 @@ static void probe_memory(void) {
 
 /* Mint a report whose report_data[32:64] names the OTHER app. There is no monitor here, so nothing stops
  * this: the point is that the report still carries OUR measurement, and a verifier pins that. */
-static void mint_report_naming(const char *other_id_hex) {
+static void mint_report_naming(const char *other_id_hex, const char *bind_hex) {
     if (mkdir("/sys/kernel/config", 0755) != 0 && errno != EEXIST) { /* configfs may already be mounted */ }
     system("mount -t configfs none /sys/kernel/config 2>/dev/null");
     if (mkdir("/sys/kernel/config/tsm/report/adv", 0755) != 0 && errno != EEXIST) {
@@ -109,7 +116,12 @@ static void mint_report_naming(const char *other_id_hex) {
         return;
     }
     unsigned char rd[64] = {0};
-    for (int i = 0; i < 32; i++) rd[i] = 0x11; /* our own "bind" half: not a real key binding */
+    /* the victim's key binding, so the report is well formed and not merely parseable */
+    for (int i = 0; i < 32; i++) {
+        unsigned v = 0;
+        sscanf(bind_hex + 2 * i, "%2x", &v);
+        rd[i] = (unsigned char)v;
+    }
     /* the other app's id in the app half, byte for byte */
     for (int i = 0; i < 32; i++) {
         unsigned v = 0;
@@ -143,9 +155,9 @@ static void mint_report_naming(const char *other_id_hex) {
 
 int main(void) {
     unsigned cid = 0, port = 0;
-    char other[80] = {0};
+    char other[80] = {0}, bind[80] = {0};
     FILE *f = fopen("/adv.target", "r");
-    if (!f || fscanf(f, "%u %u %79s", &cid, &port, other) != 3) {
+    if (!f || fscanf(f, "%u %u %79s %79s", &cid, &port, other, bind) != 4) {
         say("target", "missing /adv.target");
         say("done", "no-target");
         return 0;
@@ -158,7 +170,7 @@ int main(void) {
     try_vsock("vsock_target", cid, port);   /* the other app's serving port */
     try_vsock("vsock_host", 2, 443);        /* the host, CID 2 */
     try_vsock("vsock_target_ctl", cid, 9000);
-    mint_report_naming(other);
+    mint_report_naming(other, bind);
     say("done", "ok");
     return 0;
 }
