@@ -4503,3 +4503,36 @@ faster in 2 of 4 (+4.39, -2.05, +0.44, -0.11 tok/s). Mixed signs, **no effect
 established** -- an expected ~1 ms/token is below this box's run-to-run noise
 (18.5-22.9 tok/s within one arm). The wider graph/scheduler integration audit
 of the op remains open.
+
+### 18.43 The run-to-run spread: not the GPUs, and yield only on long-lived workers
+
+Identical configurations have ranged 18.5-22.9 tok/s all session, and the
+fast runs have ~70 ms verify rounds against ~80-87. Making every run a fast run
+would be worth more than any lever measured, so the runner now records per-run
+evidence (`run5.sh`, scratch: each worker's log slice, and a 1 Hz sample of both
+V100s' SM and memory clocks, power, temperature and throttle reasons).
+
+**Eight identical runs on long-lived workers** (7 valid; one had a peer's clang
+build): 17.11-21.73 tok/s. SM clocks were fixed at 1260/1230 MHz in every sample,
+temperatures 34-35 C, no throttle reason set: the GPUs are not the spread. What
+tracked throughput was the workers' owner-yield detector: 1-4 activations per
+run and 130-305 ms spent yielding; on the spec connection the three fastest runs
+had card 1 at 0 ms yielded and the slower ones 67-167 ms on one card or the
+other. Under the column split either card yielding stalls every exchange that
+waits on it.
+
+**A/B, yield on against SHIELDED_YIELD=0, workers restarted per arm (checked
+from their startup lines), same binary: null.** 4 valid pairs, yield-off faster
+in 1 of 4, mean +0.01 tok/s. After a fresh restart the detector barely fires even
+when on (0-2 activations, at most 37 ms yielded), so there was nothing to remove.
+The spread persists without it: 19.80-22.33 tok/s, verify 72-81 ms.
+
+So two separate findings. (1) The detector's false activations grow with worker
+uptime: the long-lived workers had run through hours of soaks and deliberate GPU
+contention, and a floor learned under different conditions makes ordinary turns
+look slow. On a dedicated card with no owner that is a pure stall source, and
+`SHIELDED_YIELD=0` is the right deployment setting for one; that is a config
+recommendation, not a measured throughput gain on a fresh worker. (2) What makes
+a run fast is still not identified. Remaining candidates, none tested here: CPU
+placement of the OpenMP team relative to the two card threads (CCD and SMT
+siblings), and memory placement.
