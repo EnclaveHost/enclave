@@ -1,0 +1,13 @@
+results/qspec2 -- the drafter lane with the PARALLEL UNMASK build (8db1e4c9: fail-closed 1-in-16 serial self-check, replay
+that spends no rail budget, no output digest) and decode_threads 2, draft_max 4, corr_threads 3, tpu_bank 128, on the
+24-prompt contract set (lane-quality.sh, frozen driver, one fresh VM per row, MAXNEW=256). All 24 LANE-RUN OK.
+
+QUALITY: 22/22 automatic contracts PASS, identical verdicts to qc7's int8 TPU and CPU arms. REVIEW rows graded by reading:
+  07 "Soft drops touch the leaves, / Washing the thirsty green world, / Earth drinks cool, fresh tears." -- 5-7-5, rain: PASS
+  08 names Rayleigh scattering of shorter wavelengths: PASS
+  => 24/24, as int8 and CPU.
+SELF-CHECK: the parallel unmask was replayed serially on 1,848 exchanges across the set; 0 differed (a difference refuses).
+INTEGRITY: sampled verification 21 of 278,390 digit comparisons disagree, none beyond 1 digit unit; 16 rows none, 6 lo-digit
+  only (0.010 output LSB), 2 with a hi-digit case (2.5 output LSB), inside the CONDITIONAL error bound.
+NO unmasked-output digest in any log.
+SPEED: token-weighted 1.92 tok/s over 412 tokens (qc7 int8 0.96); median 1.15 (short answers). Not time-matched. 15: not met.

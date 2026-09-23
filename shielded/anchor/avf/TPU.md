@@ -3126,3 +3126,18 @@ CONDITIONAL on |delta| <= 1 holding for every output. A hi-digit 1-unit disagree
 case, so these samples are inside the conditional bound -- and the only evidence for |delta| <= 1 is still SAMPLED
 (one element per projection per exchange), with the turn refused beyond it. Task quality has to be measured on the
 configuration in use, not inferred from this.
+
+### Where the masked lane stands after the audit (2026-09-23)
+
+Same model, same masking and verification, every run fail-closed-driven:
+
+| | tok/s (one 57-token prompt) | contract set | CPU (COMPLETE windows) |
+|---|---|---|---|
+| start of the audit (int8, one row per exchange) | 1.10-1.23 | 24/24 (qc7) | ~2,000 core-ms/token |
+| MTP drafter + row-major correction + corr_threads 3 + bank 128 | 2.38-2.55 | 24/24 (results/qspec1) | ~2,000 |
+| + parallel unmask on the helpers (fail-closed self-check) | 2.55-2.61 | 24/24 (results/qspec2), self-check 1,848/1,848 | ~2,030 |
+
+A ~4-row exchange now costs ~7 ms: masking 0.29, the worker ~2.5 (TPU run 1.78, output read 0.45), crossing ~2.2 (the bare
+transport's median under this load), unmask 0.71, the VM's graph work between exchanges 0.88. None of those is a single
+code-level walk like the correction was; what remains is incremental unless a verification pass accepts many more tokens
+(~5 per pass would be needed with every term at its floor). 15 tok/s is not met.
