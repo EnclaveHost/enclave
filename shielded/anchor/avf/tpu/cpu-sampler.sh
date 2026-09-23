@@ -30,7 +30,7 @@ discover() {   # $1: a tag unique to the caller, so two discoveries never share 
 ( while [ -e "$O.run" ]; do discover bg; sleep "$S"; done; discover bg ) &
 DPID=$!
 discover fg   # the first timing sample must already know the pids
-while [ -e "$O.run" ]; do
+timing() {
   read up idle < /proc/uptime; echo "T $up" >> "$O"; head -1 /proc/stat >> "$O"
   n=0
   while read pid ppid name; do
@@ -38,7 +38,8 @@ while [ -e "$O.run" ]; do
     echo "P $pid $ppid $name | $s" >> "$O"; n=$((n + 1))
   done < "$O.pids"
   echo "PS known $n" >> "$O"
-  sleep "$P"
-done
+}
+while [ -e "$O.run" ]; do timing; sleep "$P"; done
+timing   # one more AFTER the stop: the driver stops us just after the window ends, so this sample is what brackets its end
 wait $DPID
 cat "$O.d" >> "$O"; rm -f "$O.d" "$O.pids" "$O.pids.fg" "$O.pids.bg"; echo END >> "$O"
