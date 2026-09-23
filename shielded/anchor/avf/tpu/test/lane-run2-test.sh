@@ -77,7 +77,7 @@ run() {   # run <label> [VAR=value ...] -> sets RC and OUT
   local label="$1"; shift
   rm -rf "$W/home"; mkdir -p "$W/home/files/capture" "$W/out"
   OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" \
-        COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 OUT="$W/out" ASK="${ASK_:-Say hi.}" "$@" \
+        COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 OUT="$W/out" ASK="${ASK_:-Say hi.}" "$@" \
         bash "$HERE/lane-run2.sh" "$label" 2>&1); RC=$?
 }
 echo "lane-run2 against a fake device"
@@ -104,7 +104,7 @@ run amerr FAKE_AM_ERROR=1; ck "am start reports an error: refused" "$RC" 1
 run asleep FAKE_WAKE=Asleep; ck "a dozing phone: refused" "$RC" 1
 # a label already on the device: refused BEFORE am start
 rm -rf "$W/home"; mkdir -p "$W/home/files/capture"; : > "$W/home/files/capture/reused.log"
-OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 OUT="$W/out" ASK="x" bash "$HERE/lane-run2.sh" reused 2>&1); RC=$?
+OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 OUT="$W/out" ASK="x" bash "$HERE/lane-run2.sh" reused 2>&1); RC=$?
 ck "a used label: refused" "$RC" 1; ck "... before the app was started" "$([ -e "$W/home/received-ask" ] && echo started || echo not-started)" not-started
 ASK_=$'two\nlines'; run newline; ck "a multi-line ASK: refused" "$RC" 1
 ASK_='Say hi.'
@@ -123,9 +123,4 @@ sed -i '$d' "$W/keep.log"
 OUT=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" ASK="Say hi." LANE_CHECK_ONLY="$W/keep.log" bash "$HERE/lane-run2.sh" keep 2>&1); ck "LANE_CHECK_ONLY without the footer: refused" "$?" 1
 run vmdies FAKE_VM_DIES=1 LANE_TRIES=1000; ck "a VM that dies at load: refused" "$RC" 1
 grep -q "VM stopped before the run completed" <<<"$OUT"; ck "... at once, naming it" "$?" 0
-ASK_='Say hi.'; run cpu; cpuline=$(grep '^cpu from ready' <<<"$OUT")
-# 2 processes present in both samples (101, 202), 150 ticks each between samples = 3.0 core-s; 5 decode tokens
-ck "cpu: only processes in both samples, the storage VM excluded" "$(sed -n 's/.*(\([0-9]*\) processes).*/\1/p' <<<"$cpuline")" 2
-ck "cpu: 3.0 core-s over the window" "$(sed -n 's/.*: \([0-9.]*\) core-s.*/\1/p' <<<"$cpuline")" 3.0
-ck "cpu: 600 core-ms per decoded token" "$(sed -n 's/.* \([0-9]*\) core-ms per decoded token.*/\1/p' <<<"$cpuline")" 600
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

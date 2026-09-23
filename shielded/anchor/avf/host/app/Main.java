@@ -726,7 +726,13 @@ public class Main extends Activity {
                 for (String q : plan.ask.split("\\|")) {
                     if (q.trim().isEmpty()) continue; k++;
                     final StringBuilder reply = new StringBuilder();
-                    java.util.Map<String, String> st = s.turn(q.trim(), plan.maxNew, plan.temperatureMilli, reply::append);
+                    /* The turn's window on CLOCK_BOOTTIME (elapsedRealtime), the clock /proc/uptime reads, so a device-side
+                     * CPU sampler can cut its samples to exactly this turn (tpu/cpu-window.py): start = request sent,
+                     * first = first streamed piece (prefill done), end = STATS received. */
+                    final long[] first = { -1 }; final long tStart = android.os.SystemClock.elapsedRealtime();
+                    java.util.Map<String, String> st = s.turn(q.trim(), plan.maxNew, plan.temperatureMilli,
+                        piece -> { if (first[0] < 0) first[0] = android.os.SystemClock.elapsedRealtime(); reply.append(piece); });
+                    say("LOCAL turn " + k + " window boottime_ms start=" + tStart + " first=" + first[0] + " end=" + android.os.SystemClock.elapsedRealtime());
                     say("LOCAL turn " + k + " Q: " + q.trim());
                     say("LOCAL turn " + k + " A: " + reply.toString().replace("\n", "\\n"));
                     say("LOCAL turn " + k + " STATS " + st);

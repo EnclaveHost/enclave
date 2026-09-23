@@ -35,15 +35,26 @@ EXTRA="${EXTRA:-}"; case "$EXTRA" in *\'*|*\"*|*\\*) die "EXTRA must not contain
 # single-quote a word for the device's sh: ' -> '\''
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 rsh() { _cg_read "$1" || die "remote command failed or adb failed: $1"; }
-# CPU ticks (utime+stime, USER_HZ) of this app, its virtmgr and its crosvm, summed over pids present in BOTH samples
-# (a1 = "pid ticks" lines). Best effort: a failed sample makes the CPU figure "unmeasured", never a guess.
-cpu_snap() {
-  local ps pids out
-  ps=$(_cg_read "ps -A -o PID,NAME") || return 1
-  pids=$(awk '$2 == "host.enclave.anchor.avf" || $2 == "crosvm" || $2 ~ /^virtmgr/ { print $1 }' <<<"$ps" | tr '\n' ' ')
-  [ -n "$pids" ] || return 1
-  out=$(_cg_read "for p in $pids; do echo PID \$p; cat /proc/\$p/stat 2>/dev/null; done") || return 1
-  awk '/^PID /{ pid = $2; next } { i = index($0, ") "); if (!i) next; n = split(substr($0, i + 2), a, " "); if (n >= 13) print pid, a[12] + a[13] }' <<<"$out"
+# CPU: a device-side sampler (tpu/cpu-sampler.sh) records every process of the app's uid every LANE_CPU_PERIOD seconds on
+# CLOCK_BOOTTIME; tpu/cpu-window.py cuts it to the app's own turn windows and binds ownership (parentage) and identity
+# (start time). It replaces a two-sample figure (45b96836) that counted only processes alive at both samples and matched
+# the VM's process by a name it does not have. The CPU verdict is printed and saved; it never decides the run. LANE_CPU=0
+# turns it off.
+SMP=/data/local/tmp/lane-cpu-sampler.sh
+cpu_start() {
+  [ "${LANE_CPU:-1}" = 1 ] || return 0
+  local uid; uid=$(_cg_read "pm list packages -U $P" | sed -n 's/.*uid:\([0-9][0-9]*\).*/\1/p' | head -1)
+  [ -n "$uid" ] || { echo "cpu: sampler not started (no uid for $P)"; return 0; }
+  $ADB push -q "$(dirname "$0")/cpu-sampler.sh" "$SMP" >/dev/null 2>&1 || { echo "cpu: sampler not started (push failed)"; return 0; }
+  CPU_FILE=/data/local/tmp/lane-cpu.$LABEL
+  _cg_read "rm -f $CPU_FILE $CPU_FILE.run; touch $CPU_FILE.run" >/dev/null || { CPU_FILE=; return 0; }
+  $ADB shell "nohup sh $SMP $uid $CPU_FILE ${LANE_CPU_PERIOD:-0.5} </dev/null >/dev/null 2>&1 &" >/dev/null 2>&1
+}
+cpu_stop() {
+  [ -n "${CPU_FILE:-}" ] || return 0
+  _cg_read "rm -f $CPU_FILE.run" >/dev/null
+  for _ in $(seq 1 20); do _cg_read "tail -1 $CPU_FILE" 2>/dev/null | grep -q '^END$' && break; sleep 0.5; done
+  $ADB pull -q "$CPU_FILE" "$OUT/$LABEL.cpusamples" >/dev/null 2>&1 && _cg_read "rm -f $CPU_FILE" >/dev/null
 }
 
 if [ -n "${LANE_CHECK_ONLY:-}" ]; then   # re-validate a captured log offline: the same checks, no device
@@ -61,6 +72,7 @@ args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BU
 args+=" --es capture $LABEL"
 for w in $EXTRA; do args+=" $(q "$w")"; done
 args+=" --es ask $(q "$ASK")"
+cpu_start
 started=$(rsh "am start $args") || exit 1
 grep -qiE '^Error|Exception' <<<"$started" && die "am start: $(tr '\n' ' ' <<<"$started")"
 
@@ -71,9 +83,6 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   caps=$(rsh "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq") || exit 1
   caps=$(tr '\n' ' ' <<<"$caps")
   echo "$(( $(date +%s) - t0 )) $caps" >> "$OUT/$LABEL.caps"
-  if [ -z "${cpu0:-}" ] && [ "$(rsh "run-as $P sh -c 'if grep -q \"^LOCAL ready\" files/capture/$LABEL.log 2>/dev/null; then echo READY; else echo NO; fi'")" = READY ]; then
-    cpu0=$(cpu_snap) || cpu0=FAILED; tcpu0=$(date +%s.%N)
-  fi
   st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; else echo WAIT; fi'") || exit 1
   [ "$st" = DONE ] && { done_=1; break; }
   # a VM that died never completes its capture: stop at once instead of polling out the hour
@@ -82,7 +91,7 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   [ "$st" = WAIT ] || die "unexpected completion probe answer: '$st'"
 done
 [ $done_ = 1 ] || die "the capture never completed within ${LANE_TRIES:-720} polls"
-cpu1=$(cpu_snap) || cpu1=FAILED; tcpu1=$(date +%s.%N)
+cpu_stop
 rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" || exit 1
 L="$OUT/$LABEL.log"
 fi
@@ -117,12 +126,8 @@ grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started
 grep -E '^TPU worker: [0-9]+ exchanges' "$L" | grep -q 'ERROR' && die "the worker reported an error"
 grep -E "LOCAL turn [0-9]+ STATS|tpu turn|TPU worker: [0-9]+ exchanges" "$L" | cut -c1-${WIDTH:-400}
 [ -z "${LANE_CHECK_ONLY:-}" ] && awk '{ if (min2 == "" || $2 < min2) min2 = $2; if (min7 == "" || $3 < min7) min7 = $3 } END { print "big-core cap through the run: cpu2 min " min2 ", cpu7 min " min7 " (" NR " samples)" }' "$OUT/$LABEL.caps"
-if [ -z "${LANE_CHECK_ONLY:-}" ]; then
-  toks=$(grep -oE 'decode_tokens=[0-9]+' "$L" | cut -d= -f2 | paste -sd+ | bc)
-  if [ -n "${cpu0:-}" ] && [ "$cpu0" != FAILED ] && [ "$cpu1" != FAILED ] && [ "${toks:-0}" -gt 0 ]; then
-    awk -v t0="$tcpu0" -v t1="$tcpu1" -v toks="$toks" 'NR == FNR { a[$1] = $2; next } ($1 in a) { d += $2 - a[$1]; n++ }
-      END { s = d / 100.0; w = t1 - t0; printf "cpu from ready to done (%d processes): %.1f core-s over %.1f s = %.2f cores busy, %.0f core-ms per decoded token (prefill and teardown included)\n", n, s, w, s / w, 1000 * s / toks }' \
-      <(printf '%s\n' "$cpu0") <(printf '%s\n' "$cpu1") | tee "$OUT/$LABEL.cpu"
-  else echo "cpu: unmeasured (a sample failed or the ready line was never seen)" | tee "$OUT/$LABEL.cpu"; fi
+if [ -z "${LANE_CHECK_ONLY:-}" ] && [ "${LANE_CPU:-1}" = 1 ]; then
+  if [ -s "$OUT/$LABEL.cpusamples" ]; then python3 "$(dirname "$0")/cpu-window.py" "$OUT/$LABEL.cpusamples" "$L" | tee "$OUT/$LABEL.cpu"
+  else echo "cpu: UNMEASURED (no sampler file)" | tee "$OUT/$LABEL.cpu"; fi
 fi
 echo "LANE-RUN OK $LABEL"
