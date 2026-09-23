@@ -1,0 +1,25 @@
+results/qw4 -- the per-row int4 lane on the 24-prompt contract set (lane-quality.sh, frozen driver, one fresh VM per row,
+MAXNEW=256, bundle cd56ee87... confirmed and re-hashed by the VM in every row). All 24 rows LANE-RUN OK.
+
+QUALITY (tpu/lane-score.py, the same checker as qc7):
+    automatic contracts: 22/22 PASS, the same verdict as qc7's int8 TPU arm and in-VM CPU arm on every row.
+    the two REVIEW rows, graded by reading them (a judgment, recorded so it can be disputed):
+      07 "three lines, roughly 5-7-5, about rain": int4 scans 7-11-7 -- FAIL. int8 and CPU scan 5-7-5 -- PASS.
+      08 "must ASSERT Rayleigh scattering of shorter wavelengths": int4 says shorter wavelengths are scattered and
+         "more prominent" but never names Rayleigh -- FAIL as the contract is written. int8 and CPU name it -- PASS.
+    So on this set: int4 22/24, int8 24/24, CPU 24/24. int4 is NOT at parity; its losses are on the free-form rows.
+    It also answers more briefly: 243 decoded tokens over the set against int8's 423.
+
+INTEGRITY: kernel verification 13 disagreements in 99,630 samples, each at most 1 digit LSB (the established
+    requantiser rounding; the turn refuses beyond it since 2b993ba7). No false rails.
+
+SPEED: decode median 1.09 tok/s, token-weighted 1.11. NOT time-matched with qc7 (different session, different
+    answer lengths); the matched per-exchange comparison is results/w4 (i8-e/f vs w4-e/f: link 0.5-1.2 ms shorter).
+
+CPU -- the "cpu from ready to done" lines in these logs are PARTIAL sampled host-process CPU and support NOTHING
+    about where the compute runs. They came from lane-run2's first CPU sampler (45b96836), which (a) counted only
+    processes alive at both of two samples, (b) took its first sample whenever a 5 s poll first saw READY, so a short
+    decode could be missed entirely, (c) chose processes by name and matched only "crosvm" -- this VM's process is
+    "crosvm_anchorlocal", so the VM itself was never counted -- and (d) could omit a pid whose read failed. Their
+    0.01-0.11 "cores busy" is essentially the app process alone. Replaced by cpu-sampler.sh + cpu-window.py
+    (5eee38c7, 2e480803), not yet validated on the device. MAC shares (mac_share.py) are arithmetic, reported apart.

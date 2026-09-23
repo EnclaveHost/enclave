@@ -1,0 +1,9 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+bundle sha256 cd56ee8722f9cf1ba5af2c69ca595c878f9fea42bbe9bf3f1a03d4dfe7648535
+LOCAL turn 1 STATS {status=eos, prefill_tokens=23, prefill_tok_s=40.43, decode_tokens=1, decode_tok_s=0.76, ctx_used=24, ctx=4096}
+VSOCK LOCAL tpu turn 1: exchanges=140 (140.0/token) ms per exchange: mask 0.176 link 7.731 (corr 1.386 mint 0.000 wait 6.204) unmask 0.510 | rx/exch 1.25 | KB/token out 1039 in 3432 | pads inline 0 (0.0 ms each) bank_min 63 | cancel n=878584 max=0.0008 rms=0.00006 LSB | verify n=410 bad=0 max=0 rms=0.000 (output LSB over 205 paired samples: max 0.000 rms 0.000) rails(-32768/-32767/+32767)=4/0/4 | 
+VSOCK LOCAL tpu turn 1: ms per exchange, split: of unmask, verification dots 0.034 | after it, releasing the pads 0.037 | between exchanges (the VM's own graph work) 0.585
+VSOCK LOCAL tpu turn 1: exchanges by duration (<25us <100us <400us <1.6ms longer): unmask 21 37 51 16 15 | between exchanges 12 28 42 44 13
+big-core cap through the run: cpu2 min 3052000, cpu7 min 3398000 (20 samples)
+cpu from ready to done (7 processes): 0.3 core-s over 6.1 s = 0.06 cores busy, 170 core-ms per decoded token (prefill and teardown included)
+LANE-RUN OK qw4b-01
