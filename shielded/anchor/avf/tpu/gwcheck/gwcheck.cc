@@ -6,7 +6,8 @@
 //                1 PowerSaver, 2 Balanced -- the documented default, 3 HighPerformance, 4 Sustained, 5 Burst)
 //     gap_us:    idle time between timed Runs (negative = spin that long instead of sleeping). The real exchange is always Run, gap, Run, and a Run after a
 //                3 ms gap measured 30-50 % slower than back to back, so back-to-back timing alone hides it.
-// writes <out_prefix>.in<k> (int8, one per input, in signature order) and <out_prefix>.out (int16).
+// writes <out_prefix>.in<k> (int8, one per input, in signature order) and <out_prefix>.out (int16), or .out<k> per output
+// when the signature has several. GWCHECK_SIG=<index> picks the signature (default 0): a layer graph carries four.
 #include <cerrno>
 #include <chrono>
 #include <algorithm>
@@ -64,8 +65,9 @@ int main(int argc, char** argv) {
   }
   auto cm = litert::CompiledModel::Create(*env, path, *copts);
   if (!cm) { fprintf(stderr, "FAIL compile/load: %s\n", cm.Error().Message().c_str()); return 4; }
-  auto in = cm->CreateInputBuffers(size_t(0)); auto out = cm->CreateOutputBuffers(size_t(0));
-  if (!in || !out || out->size() != 1) { fprintf(stderr, "FAIL buffers\n"); return 5; }
+  const size_t sig = getenv("GWCHECK_SIG") ? (size_t)strtoul(getenv("GWCHECK_SIG"), nullptr, 10) : 0;
+  auto in = cm->CreateInputBuffers(sig); auto out = cm->CreateOutputBuffers(sig);
+  if (!in || !out || out->empty()) { fprintf(stderr, "FAIL buffers\n"); return 5; }
   for (size_t i = 0; i < in->size(); i++) {
     auto z = (*in)[i].PackedSize(); if (!z) { fprintf(stderr, "FAIL input size\n"); return 6; }
     std::vector<int8_t> v(*z);
@@ -74,14 +76,18 @@ int main(int argc, char** argv) {
       fprintf(stderr, "FAIL input write\n"); return 7; }
     if (!dump(pre + ".in" + std::to_string(i), v.data(), v.size())) { fprintf(stderr, "FAIL dump in\n"); return 8; }
   }
-  if (auto r = cm->Run(size_t(0), *in, *out); !r) { fprintf(stderr, "FAIL run: %s\n", r.Error().Message().c_str()); return 9; }
-  auto oz = (*out)[0].PackedSize(); if (!oz) { fprintf(stderr, "FAIL output size\n"); return 10; }
-  std::vector<int16_t> y(*oz / 2);
-  if (auto r = (*out)[0].Read<int16_t>(litert::Span<int16_t>(y.data(), y.size())); !r) {
-    fprintf(stderr, "FAIL output read\n"); return 11; }
-  if (!dump(pre + ".out", y.data(), y.size() * 2)) { fprintf(stderr, "FAIL dump out\n"); return 12; }
-  long nz = 0; for (auto v : y) nz += v != 0;
-  printf("\nOK inputs=%zu out_elems=%zu nonzero=%ld\n", in->size(), y.size(), nz);
+  if (auto r = cm->Run(sig, *in, *out); !r) { fprintf(stderr, "FAIL run: %s\n", r.Error().Message().c_str()); return 9; }
+  size_t total = 0; long nz = 0;
+  for (size_t k = 0; k < out->size(); k++) {
+    auto oz = (*out)[k].PackedSize(); if (!oz) { fprintf(stderr, "FAIL output size\n"); return 10; }
+    std::vector<int16_t> y(*oz / 2);
+    if (auto r = (*out)[k].Read<int16_t>(litert::Span<int16_t>(y.data(), y.size())); !r) {
+      fprintf(stderr, "FAIL output read\n"); return 11; }
+    const std::string name = out->size() == 1 ? pre + ".out" : pre + ".out" + std::to_string(k);
+    if (!dump(name, y.data(), y.size() * 2)) { fprintf(stderr, "FAIL dump out\n"); return 12; }
+    total += y.size(); for (auto v : y) nz += v != 0;
+  }
+  printf("\nOK sig=%zu inputs=%zu outputs=%zu out_elems=%zu nonzero=%ld\n", sig, in->size(), out->size(), total, nz);
   // optional 5th arg: time N back-to-back Runs on the same resident model (min and median, ms)
   if (argc > 5) {
     const int N = atoi(argv[5]); std::vector<double> t;
@@ -97,7 +103,7 @@ int main(int argc, char** argv) {
       else if (gap_us < 0) { auto e = std::chrono::steady_clock::now() + std::chrono::microseconds(-gap_us);
                              while (std::chrono::steady_clock::now() < e) { } }
       auto a = std::chrono::steady_clock::now();
-      if (auto r = cm->Run(size_t(0), *in, *out); !r) { fprintf(stderr, "FAIL timed run\n"); return 13; }
+      if (auto r = cm->Run(sig, *in, *out); !r) { fprintf(stderr, "FAIL timed run\n"); return 13; }
       double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count();
       if (i >= 0) t.push_back(ms);
     }

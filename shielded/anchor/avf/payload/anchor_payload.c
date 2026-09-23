@@ -1126,6 +1126,7 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
         if (!settpu || settpu(bundle, worker_fd, plan->bank, plan->refill) != 0) { OUT("LOCAL refused: this engine cannot take the Shielded-TPU link"); close(worker_fd); close(ls_chat); return; }
     }
     if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);   /* engine-local.err lives there */
+    if (plan->spin > 0) { char sv[16]; snprintf(sv, sizeof sv, "%d", plan->spin); setenv("ANCHOR_TPU_SPIN_US", sv, 1); }   /* read once, lazily, by ggml-tpu.cpp */
     OUT("LOCAL listening on vsock %d for the conversation; model %" PRIu64 " bytes, %d threads, ctx %d", LOCAL_PORT, plan->model_bytes, plan->threads, plan->ctx);
     int chat = vs_accept(ls_chat, 120000); close(ls_chat);
     if (chat < 0) { OUT("LOCAL no chat connection from the owner within 120 s"); return; }

@@ -51,7 +51,15 @@ ap.add_argument('--digit-split', action='store_true', help='send each masked row
                 'Rows are free on this TPU, so one FULLY_CONNECTED still does it. The VM recombines 256*hi + lo, which doubles the '
                 'reply; recombining on the TPU instead needs two FCs and MEASURED 71.9 MB - the second FC emits the weights again and '
                 'cancels the saving (but see --digit-combine: the "weights emitted twice" measurement behind that claim does NOT hold -- the compiler deduplicates by content). Bundle magic ETPUB002 so a payload that does not digit-split refuses it loudly.')
+ap.add_argument('--wbits', type=int, default=8, choices=(4, 8), help='weight precision on the TPU. 8 (default) is '
+                'the shipped a8w8 and stays BYTE-IDENTICAL to it. 4 quantises each row to [-7, 7] with a per-row clip '
+                'search (the fair comparison measured 12.8x the int8 weight RMS error, not the 18.1x recorded without '
+                'one), emits the TPU weight tensors as packed INT4, and -- the security constraint -- keeps storing the '
+                'SAME integers in the bundle as int8, so the VM cancels each pad with exactly the matrix the TPU '
+                'multiplies by. Compile with --google_tensor_enable_4bit_compilation=true.')
 A = ap.parse_args()
+if A.wbits == 4 and A.digit_combine:
+    sys.exit("--wbits 4 with --digit-combine is not supported: that path writes its weight tensors separately")
 if A.digit_combine:
     A.digit_split = True          # combining is a variant of digit-split, not an alternative to it
 os.makedirs(A.outdir, exist_ok=True)
@@ -96,8 +104,27 @@ def group(layer, names):
     for nm in names:
         full = f'blk.{layer}.{nm}.weight'
         if full not in T or (full + '|out') not in LANES.files: continue    # KV-shared layers never run attn_k / attn_v (the GGUF may still carry them): no calibration, no graph
-        Wp = weight(full) * s[None, :]; sw = np.maximum(np.abs(Wp).max(1), 1e-12) / 127.0
-        Wq = np.clip(np.round(Wp / sw[:, None]), -127, 127).astype(np.int8)
+        Wp = weight(full) * s[None, :]
+        if A.wbits == 8:                                   # the shipped path, unchanged byte for byte
+            sw = np.maximum(np.abs(Wp).max(1), 1e-12) / 127.0
+            Wq = np.clip(np.round(Wp / sw[:, None]), -127, 127).astype(np.int8)
+        else:                                              # int4: best of a per-row clip search, by row RMS error
+            amax = np.maximum(np.abs(Wp).max(1), 1e-12)
+            best_err = None
+            # (the loop variable is NOT `c`: Python leaks it into this scope, and this function uses its own
+            # `c` afterwards for len(c) -- the first int4 build died on exactly that)
+            for clip_q in (1.0, 0.9999, 0.999, 0.99, 0.98, 0.95):
+                lim_c = (np.quantile(np.abs(Wp), clip_q, axis=1) if clip_q < 1.0 else amax)
+                sw_c = np.maximum(lim_c, 1e-12) / 7.0
+                Wq_c = np.clip(np.round(Wp / sw_c[:, None]), -7, 7)
+                err = ((Wq_c * sw_c[:, None] - Wp) ** 2).mean(1)
+                if best_err is None:
+                    best_err, sw, Wq = err, sw_c, Wq_c
+                else:
+                    pick = err < best_err
+                    best_err = np.where(pick, err, best_err); sw = np.where(pick, sw_c, sw)
+                    Wq = np.where(pick[:, None], Wq_c, Wq)
+            Wq = Wq.astype(np.int8)                        # stored as int8 in the bundle: same integers as the TPU
         sig = np.sqrt((((s_in * pad_span / 12 ** .5)[None, :] * Wq * sw[:, None]) ** 2).sum(1)).max()
         signal = float(LANES[full + '|out']) * A.margin; s_out = (signal + A.sigmas * sig) / 32767.0
         projs.append(dict(name=full, Wq=Wq, sw=sw.astype(np.float32), s_out=np.float32(s_out), budget=int(np.floor(A.sigmas * sig / s_out))))
@@ -148,7 +175,13 @@ class Builder:
             sg.tensors = [self._tensor(key + '_x', S.TensorType.INT16, [rows, g['n_in']], g['s_in'])]
             sg.inputs = np.array([0], np.int32)
         for p in g['projs']:
-            b = S.BufferT(); b.data = np.frombuffer(p['Wq'].tobytes(), np.uint8); self.m.buffers.append(b)
+            if A.wbits == 4:
+                f4 = p['Wq'].reshape(-1).astype(np.int8) & 0x0F
+                if f4.size % 2: f4 = np.concatenate([f4, np.zeros(1, np.int8)])
+                raw = (f4[0::2] | (f4[1::2] << 4)).astype(np.uint8).tobytes()
+            else:
+                raw = p['Wq'].tobytes()
+            b = S.BufferT(); b.data = np.frombuffer(raw, np.uint8); self.m.buffers.append(b)
             buf = len(self.m.buffers) - 1
             if A.digit_combine:
                 # TWO weight tensors, ONE buffer, scales differing by 256. The 256 has to live in the weights:
@@ -166,7 +199,7 @@ class Builder:
                 op = S.OperatorT(); op.opcodeIndex = self._add_op(S.BuiltinOperator.ADD); op.inputs = np.array([yhi, ylo], np.int32); op.outputs = np.array([oi], np.int32)
                 op.builtinOptionsType = S.BuiltinOptions.AddOptions; op.builtinOptions = S.AddOptionsT(); sg.operators.append(op)
                 continue
-            wi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_w' + str(len(outs)), S.TensorType.INT8, p['Wq'].shape, p['sw'], buf))
+            wi = len(sg.tensors); sg.tensors.append(self._tensor(key + '_w' + str(len(outs)), S.TensorType.INT4 if A.wbits == 4 else S.TensorType.INT8, p['Wq'].shape, p['sw'], buf))
             # Digit-split doubles the rows, and the reply carries both halves at ONE scale. The bigger of the two
             # is the lo product: lo spans +-128 against the masked value's +-16384, so it reaches about 1/128 of a
             # full-range output, while the hi product reaches 1/256. Scaling the reply for the larger keeps both

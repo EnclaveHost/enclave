@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# lane-run2.sh <label> -- one gated Shielded-TPU decode, FAIL-CLOSED: exit 0 means the run is complete evidence.
+#
+# lane-run.sh (its predecessor, kept as the driver of the batch it started) moved the results out of logcat
+# into the app's capture file, but it could still return 0 on a run that proved nothing: it printed
+# "CAPTURE INCOMPLETE" and carried on, its adb calls were unchecked, a final `awk` decided its status, and
+# it put ASK inside single quotes, so a prompt with an apostrophe reached the app as something else.
+#
+# Exit 0 here requires ALL of:
+#   * every adb call succeeded, and every remote command's own status was 0 (coolgate.sh's _cg_read: the
+#     status is carried back in a marker, nothing is piped on the device)
+#   * the label was unused on the device before the launch, and `am start` reported no error
+#   * the app's .complete marker exists AND the capture's last line is its footer with status=complete,
+#     and no CAPTURE INVALID line
+#   * the prompt ARRIVED intact: the app's "LOCAL ask sha256=" equals the digest of ASK as sent
+#   * one "LOCAL turn N STATS" and one "VSOCK LOCAL tpu turn N:" record for every scripted turn, "LOCAL done: N
+#     scripted turns", a worker that started serving, and no worker ERROR, HOST FAIL, VM error/stop or LOCAL failed
+# Anything else exits non-zero and says why. The last line of a good run is "LANE-RUN OK <label>".
+#
+#   GRAPHS=tpu/g5-h4ds BUNDLE=tpu/lanes-h4ds.etpu MAXNEW=256 ASK='...' EXTRA='--ei tpu_spin 3000' OUT=dir ./lane-run2.sh L
+# EXTRA is split on whitespace and each word is quoted for the device; it must not contain quotes itself.
+set -uo pipefail
+die() { echo "LANE-RUN FAIL ${LABEL:-?}: $*" >&2; exit 1; }
+LABEL="${1:-}"; [[ "$LABEL" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || die "bad label"
+ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; OUT="${OUT:-.}"; mkdir -p "$OUT" || die "cannot create $OUT"
+P=host.enclave.anchor.avf; F=/data/user/0/$P/files
+ASK="${ASK:-}"; [ -n "$ASK" ] || die "ASK is required"
+case "$ASK" in *$'\n'*|*$'\r'*) die "ASK must be one line";; esac
+EXTRA="${EXTRA:-}"; case "$EXTRA" in *\'*|*\"*|*\\*) die "EXTRA must not contain quotes or backslashes";; esac
+. "$(cd "$(dirname "$0")/../host" && pwd)/coolgate.sh" || die "cannot source coolgate.sh"
+
+# single-quote a word for the device's sh: ' -> '\''
+q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+rsh() { _cg_read "$1" || die "remote command failed or adb failed: $1"; }
+
+cool_gate || exit 4
+free=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.log ] || [ -e files/capture/$LABEL.complete ]; then echo USED; else echo FREE; fi'") || exit 1
+[ "$free" = FREE ] || die "label $LABEL is already used on the device (or the check failed)"
+rsh "am force-stop $P" >/dev/null || exit 1; sleep 1
+rsh "input keyevent KEYCODE_WAKEUP" >/dev/null || exit 1; rsh "wm dismiss-keyguard" >/dev/null || exit 1; sleep 2
+pw=$(rsh "dumpsys power") || exit 1
+grep -q 'mWakefulness=Awake' <<<"$pw" || die "PHONE NOT AWAKE: refusing to measure"
+args="-n $P/.Main --es mode local --es vmname $(q "${VMNAME:-anchorlocal}") --ei mem ${MEM:-8192} --es model $F/model.gguf"
+args+=" --es tpu_graphs $(q "$F/${GRAPHS:-tpu/g5}") --es tpu_bundle $(q "$F/${BUNDLE:-tpu/lanes.etpu}") --ei tpu_bank ${BANK:-64} --ei max_new ${MAXNEW:-48}"
+args+=" --es capture $LABEL"
+for w in $EXTRA; do args+=" $(q "$w")"; done
+args+=" --es ask $(q "$ASK")"
+started=$(rsh "am start $args") || exit 1
+grep -qiE '^Error|Exception' <<<"$started" && die "am start: $(tr '\n' ' ' <<<"$started")"
+
+t0=$(date +%s); : > "$OUT/$LABEL.caps" || die "cannot write $OUT/$LABEL.caps"
+done_=0
+for _ in $(seq 1 "${LANE_TRIES:-720}"); do
+  sleep "${LANE_SLEEP:-5}"
+  caps=$(rsh "cat /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq") || exit 1
+  caps=$(tr '\n' ' ' <<<"$caps")
+  echo "$(( $(date +%s) - t0 )) $caps" >> "$OUT/$LABEL.caps"
+  st=$(rsh "run-as $P sh -c 'if [ -e files/capture/$LABEL.complete ]; then echo DONE; else echo WAIT; fi'") || exit 1
+  [ "$st" = DONE ] && { done_=1; break; }
+  [ "$st" = WAIT ] || die "unexpected completion probe answer: '$st'"
+done
+[ $done_ = 1 ] || die "the capture never completed within ${LANE_TRIES:-720} polls"
+rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" || exit 1
+L="$OUT/$LABEL.log"
+
+# --- the evidence, checked; nothing here is advisory
+[ "$(tail -1 "$L" | grep -c "^CAPTURE END label=$LABEL .*status=complete")" = 1 ] || die "the capture's last line is not its complete footer"
+grep -q '^CAPTURE INVALID' "$L" && die "the capture reports itself INVALID"
+grep -qE '^HOST FAIL|VM (error|stopped)|LOCAL failed|LOCAL refused' "$L" && die "the run failed: $(grep -m1 -E '^HOST FAIL|VM (error|stopped)|LOCAL failed|LOCAL refused' "$L")"
+want=$(printf '%s' "$ASK" | sha256sum | cut -d' ' -f1)
+got=$(sed -n 's/^LOCAL ask sha256=\([0-9a-f]\{64\}\) .*/\1/p' "$L" | tail -1)
+[ -n "$got" ] || die "the app did not report the prompt it received (no 'LOCAL ask sha256=' line: an APK older than this driver?)"
+[ "$got" = "$want" ] || die "the prompt was altered in transport: sent sha256 $want, the app received $got"
+turns=0; IFS='|' read -r -a parts <<<"$ASK"; for p_ in "${parts[@]}"; do [ -n "$(tr -d '[:space:]' <<<"$p_")" ] && turns=$((turns+1)); done
+for n in $(seq 1 $turns); do
+  [ "$(grep -c "^LOCAL turn $n STATS " "$L")" = 1 ] || die "turn $n has no single STATS record"
+  [ "$(grep -c "^VSOCK LOCAL tpu turn $n: exchanges=" "$L")" = 1 ] || die "turn $n has no single TPU counter record"
+done
+[ "$(grep -c "^LOCAL turn $((turns+1)) STATS " "$L")" = 0 ] || die "more turns ran than were scripted"
+[ "$(grep -c "^LOCAL done: $turns scripted turns" "$L")" = 1 ] || die "no 'LOCAL done: $turns scripted turns' record"
+grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started serving"
+# the worker's own summary is printed when the VM closes its link, usually after the capture has closed; when it
+# is inside, it must not carry an error
+grep -E '^TPU worker: [0-9]+ exchanges' "$L" | grep -q 'ERROR' && die "the worker reported an error"
+grep -E "LOCAL turn [0-9]+ STATS|tpu turn|TPU worker: [0-9]+ exchanges" "$L" | cut -c1-${WIDTH:-400}
+awk '{ if (min2 == "" || $2 < min2) min2 = $2; if (min7 == "" || $3 < min7) min7 = $3 } END { print "big-core cap through the run: cpu2 min " min2 ", cpu7 min " min7 " (" NR " samples)" }' "$OUT/$LABEL.caps"
+echo "LANE-RUN OK $LABEL"

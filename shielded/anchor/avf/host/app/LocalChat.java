@@ -42,6 +42,8 @@ public final class LocalChat {
     /** Extra worker connections for the link-scaling benchmark only: they carry benchmark bytes, never
      *  masked rows, and the VM closes them before decode begins. */
     public static String withLinks(String plan, int links) { return plan + " links=" + Math.max(2, Math.min(4, links)); }
+    /** How long (us) the VM polls the worker link for a reply before sleeping on it. Only with the TPU tail. */
+    public static String withSpin(String plan, int spinUs) { return plan + " spin=" + Math.max(1, Math.min(20000, spinUs)); }
     /** One turn's request line, or null when the message is empty or over the VM's bound. */
     public static String request(String message, int maxNew, int temperatureMilli) {
         if (message == null) return null;

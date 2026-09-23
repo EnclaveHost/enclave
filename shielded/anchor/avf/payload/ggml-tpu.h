@@ -28,6 +28,7 @@ typedef struct {
     uint64_t rx_calls;                               /* read()s to collect the replies: >1 per exchange means the reply is arriving in chunks */
     uint64_t window_mint_us;                         /* pad minting done inside the link window, off the critical path */
     uint64_t corr_us, wait_us;                       /* of link_us: the out-of-lane correction run while the request is in flight, and what was left of the window */
+    uint64_t ver_us, free_us, gap_us;                /* of unmask_us: the kernel-verification dots | after it: releasing the exchange's pads | between one exchange's end and the next one's start (the VM's own graph work) */
 } ggml_backend_tpu_stats_t;
 struct ggml_backend_reg;
 struct ggml_backend_reg *ggml_backend_tpu_reg(void);

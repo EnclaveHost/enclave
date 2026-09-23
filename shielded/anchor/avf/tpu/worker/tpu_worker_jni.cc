@@ -10,12 +10,14 @@
 #include <android/log.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <sys/socket.h>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
+#include "worker_spin.h"
 #include "litert/cc/litert_common.h"
 #include "litert/cc/litert_compiled_model.h"
 #include "litert/cc/litert_environment.h"
@@ -28,7 +30,7 @@ using Clock = std::chrono::steady_clock;
 double us_since(Clock::time_point t) { return std::chrono::duration<double, std::micro>(Clock::now() - t).count(); }
 struct Sig { size_t index = 0; bool present = false; std::vector<litert::TensorBuffer> in, out; size_t in_bytes = 0; std::vector<size_t> out_bytes; };
 struct Layer { litert::Model model; litert::CompiledModel compiled; Sig sig[4]; Layer(litert::Model m, litert::CompiledModel c) : model(std::move(m)), compiled(std::move(c)) {} };
-struct Worker { litert::Environment env; std::vector<Layer> layers; int rows = 5; std::string err; explicit Worker(litert::Environment e) : env(std::move(e)) {} };
+struct Worker { litert::Environment env; std::vector<Layer> layers; int rows = 5; int spin_us = 0; std::string err; explicit Worker(litert::Environment e) : env(std::move(e)) {} };
 const char* kKinds[4] = {"qkv", "o", "gu", "down"};
 bool rd_all(int fd, void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t r = read(fd, (char*)p + o, n - o); if (r < 0 && errno == EINTR) continue; if (r <= 0) return false; o += (size_t)r; } return true; }
 size_t packed(litert::TensorBuffer& b) { auto z = b.PackedSize(); return z ? *z : 0; }
@@ -45,6 +47,11 @@ bool wr_all_v(int fd, iovec* v, size_t n) {
 }
 bool wr_all(int fd, const void* p, size_t n) { size_t o = 0; while (o < n) { ssize_t w = write(fd, (const char*)p + o, n - o); if (w < 0 && errno == EINTR) continue; if (w <= 0) return false; o += (size_t)w; } return true; }
 }  // namespace
+
+// Per handle, and set on every open (0 included): see worker_spin.h for why it is not a global.
+extern "C" JNIEXPORT void JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeSetSpin(JNIEnv*, jclass, jlong handle, jint us) {
+  if (auto* w = (Worker*)(intptr_t)handle) w->spin_us = worker_spin::clamp_us(us);
+}
 
 extern "C" JNIEXPORT jlong JNICALL Java_host_enclave_anchor_avf_TpuWorker_nativeOpen(JNIEnv* env, jclass, jstring jdispatch, jstring jdir, jint n_layers, jint rows) {
   const char* d = env->GetStringUTFChars(jdispatch, nullptr); const char* g = env->GetStringUTFChars(jdir, nullptr); std::string dispatch = d, dir = g;
@@ -84,7 +91,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_host_enclave_anchor_avf_TpuWorker_nati
   uint64_t n = 0, direct = 0, staged = 0; double wait_us = 0, recv_us = 0, write_us = 0, run_us = 0, read_us = 0, send_us = 0; std::string err;
   std::vector<int16_t> rx, tx; std::vector<int8_t> rx8; uint8_t hdr[4];
   for (;;) {
-    auto t0 = Clock::now(); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
+    auto t0 = Clock::now(); worker_spin::poll_for_data(fd, w->spin_us); if (!rd_all(fd, hdr, 4)) break; auto t1 = Clock::now();
     // 0xE7: rows of int16.  0xE8: DIGIT-SPLIT, 2*rows of int8 (hi rows then lo rows) against a graph whose weights
     // the compiler therefore keeps at one byte instead of two. The reply carries both halves; the VM recombines.
 const bool ds = hdr[0] == 0xE8;
@@ -150,8 +157,8 @@ const bool ds = hdr[0] == 0xE8;
     read_us += std::chrono::duration<double, std::micro>(t5 - t4).count(); send_us += std::chrono::duration<double, std::micro>(t6 - t5).count();
   }
   char buf[512]; const double d = n ? (double)n : 1.0;
-  snprintf(buf, sizeof buf, "TPU worker: %llu exchanges; per exchange ms: idle-wait %.3f recv %.3f input-write %.3f tpu-run %.3f output-read %.3f send %.3f | direct %llu staged %llu%s%s",
-           (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, (unsigned long long)direct, (unsigned long long)staged, err.empty() ? "" : " ERROR: ", err.c_str());
+  snprintf(buf, sizeof buf, "TPU worker: %llu exchanges; per exchange ms: idle-wait %.3f recv %.3f input-write %.3f tpu-run %.3f output-read %.3f send %.3f | direct %llu staged %llu spin_us %d%s%s",
+           (unsigned long long)n, wait_us / d / 1e3, recv_us / d / 1e3, write_us / d / 1e3, run_us / d / 1e3, read_us / d / 1e3, send_us / d / 1e3, (unsigned long long)direct, (unsigned long long)staged, w->spin_us, err.empty() ? "" : " ERROR: ", err.c_str());
   LOGI("%s", buf); return env->NewStringUTF(buf);
 }
 // What one invocation costs by itself: each signature of two blocks, back to back and then with an idle gap between calls
