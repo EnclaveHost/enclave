@@ -3067,3 +3067,40 @@ nothing net. Every knob measured today (int4, threads, pools, polling, link spin
 the rate by tens of percent at most. The only structure that escapes the per-exchange floor is one invocation per
 token, which needs the whole graph inside the trust boundary -- the TPU assigned to the pVM, which the AVF app API
 does not offer (see "The platform gate is a missing API").
+
+## Auditing "only TPU assignment can reach 15": what is proven, and what was this implementation (2026-09-22/23)
+
+An audit asked for the necessity claim to be separated into measured constraints and assumptions of the 140-exchange
+implementation, and for the weakest untested link to be measured rather than argued.
+
+**Proven (measured on this phone, independent of how the lane is written):** an exchange cannot cross a nonlinearity
+with additive masking, so a block needs four round trips (the 3-exchange composition exists and was measured worse);
+the TPU invocation floor is ~0.52 ms and the per-MB streaming slope 0.0848 ms; the vsock round-trip floor is ~0.42-0.9
+ms (exbench below); a pad costs the VM the MACs of the projection it protects, though it can be prepared ahead.
+
+**Assumptions that turned out to be the implementation:** that each extra token row per exchange costs ~2.2 ms of
+"transport", so speculation cannot pay. Measured directly:
+
+* `payload/exbench.h` (results/exbench1) times request/reply round trips over the real VM<->app vsock in the lane's
+  exact per-row shape, with no TPU and no mask: **1 row 0.87-0.89 ms median, 16 rows 3.1-6.5 ms -- 0.12-0.37 ms per
+  extra row.** The boundary is not what makes rows expensive.
+* A drafter run with the worker's own counters kept (results/speccross, results/corrjoin): at ~4 rows the VM's wait
+  was 11.2 ms, the worker busy 3.5-3.7 ms, and **4.97 ms of the wait was the VM joining its out-of-lane correction**
+  (0.55 ms at one row) -- a column walk through the weights, one cache miss per output per entry, repeated per row.
+  Subtracting it, the crossing is 2.6 ms, the bare transport. Changing the VM's thread pools did not move it (refuted).
+* Rewritten row-major (`payload/tpu_corr.h`: each weight row read once for every row's entries; the same int64 sums
+  and the same association, bit-identical by `tpu/test/corr-order-test.cpp`), results/rowmajor, same prompt and text,
+  sampled verification <= 1 LSB, CPU windows COMPLETE:
+
+  | | correction join | link / exchange | tok/s |
+  |---|---|---|---|
+  | one row, before -> after | 0.55 -> 0.03 ms | 5.5 -> 4.74 ms | 1.10 -> 1.23 |
+  | MTP drafter (2.85 tokens/step), before -> after | 4.97 -> 2.15 ms | 11.8 -> 7.2 ms | **1.10 -> 1.94** |
+
+**What remains, as budgets.** 15 tok/s at ~2.85 accepted tokens per step allows ~190 ms per step, ~1.36 ms per
+exchange; the drafter lane now spends ~10.5 ms per exchange (pad bank drained: masking 1.26 ms; correction join 2.15;
+TPU run ~2.0; output read 0.46; crossing ~2.3; VM work between exchanges 1.17). With every implementation term at its
+measured floor the int8 lane would still cost ~3 ms per exchange (~6.8 tok/s at this acceptance; ~8.5 with int4-sized
+weights). So the necessity claim is sharper than before but not a proof: reaching 15 through masking needs BOTH the
+per-exchange cost near its floor AND roughly five accepted tokens per verification pass -- a better drafter or a tree
+of candidates over rows that are, it now turns out, nearly free to carry. Those are the open levers.
