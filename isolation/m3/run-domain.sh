@@ -15,6 +15,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 # at a lower VMPL with the SVSM above it. Unset, everything behaves exactly as it does today.
 QEMU=${QEMU:-qemu-system-x86_64}
 IGVM=${IGVM:-}
+CPUOPT=""   # extra -cpu options; the IGVM path adds phys-bits (see below)
 PLANE=${PLANE:-2}
 cmd=$1; shift
 case "$cmd" in
@@ -25,11 +26,27 @@ start)
       if [ -n "$IGVM" ]; then
         # The IGVM carries the SVSM and the firmware, so it replaces -bios; the guest lands on plane
         # $PLANE with the SVSM at VMPL0 above it. kernel-irqchip=split is required by the planes series.
+        #
+        # PHYS_BITS is not a tuning knob, it is what makes the launch work at all. COCONUT's IGVM marks its
+        # VP context with the sentinel GPA 0xFFFFFFFFF000, which backends/igvm.c documents as "the invalid
+        # VMSA GPA selects the legacy VMSA path". But target/i386/sev.c gates the DIRECT path on
+        # sev_vmsa_gpa_valid(), which only asks whether the GPA fits in the vCPU's phys_bits - and QEMU
+        # computes 52 bits here, so the sentinel looks like a real address, the direct path is taken, and the
+        # VMSA page is sent to KVM_SEV_SNP_LAUNCH_UPDATE at a GPA with no memslot behind it. The kernel
+        # refuses that at `if (!kvm_slot_has_gmem(memslot)) return -EINVAL`, and the guest dies before any
+        # console output with SNP_LAUNCH_UPDATE ret=-22 fw_error=0.
+        #
+        # Pinning phys-bits to the host's real 46 (see /proc/cpuinfo "address sizes") puts the sentinel out
+        # of range, so QEMU takes the legacy path it intended: it sets the vCPU's register state and the
+        # kernel synthesises and encrypts the VMSA itself at LAUNCH_FINISH (snp_launch_update_vmsa, which
+        # uses INITIAL_VMSA_GPA purely as an internal RMP address, never as a userspace ABI).
+        PHYS_BITS=${PHYS_BITS:-46}
         MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1,igvm-cfg=igvm0,kernel-irqchip=split,device-plane=$PLANE
               -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1
               -object igvm-cfg,id=igvm0,file=$IGVM
               -object memory-backend-memfd,id=ram1,size=${mem}M,share=true"
         BIOS=""
+        CPUOPT=",host-phys-bits=off,phys-bits=$PHYS_BITS"
       else
         MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
               -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on
@@ -45,7 +62,7 @@ start)
   # shellcheck disable=SC2086
   systemd-run --user --unit="$unit" --collect -q \
     -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=512 \
-    "$QEMU" $MACH -cpu host -smp "$vcpus" -m "${mem}M" $BIOS \
+    "$QEMU" $MACH -cpu "host${CPUOPT}" -smp "$vcpus" -m "${mem}M" $BIOS \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
       -nodefaults -display none -serial "file:$W/$tag.serial" -no-reboot
