@@ -106,7 +106,13 @@ int main(int argc, char **argv) {
     int n = llama_tokenize(vocab, prompt, (int)strlen(prompt), toks.data(), (int)toks.size(), true, false);
     if (n < 0) { fprintf(stderr, "tokenize failed\n"); return 2; }
     toks.resize(n);
-    auto argmax = [&](const float *lg) { int b = 0; for (int t = 1; t < nv; t++) if (lg[t] > lg[b]) b = t; return b; };
+    /* greedy pick: the first index of the maximum. The running maximum lives in
+     * a register (m == lg[b] always holds, so every comparison is the one the
+     * original lg[t] > lg[b] form made, and the result is identical); the old
+     * form re-loaded lg[b] through a data-dependent address and cost ~1.7 ms
+     * per two-row verify, far more than the engine's own one-branch host
+     * top-k scan (wasmtime-nn-ggml.patch topk_rows). */
+    auto argmax = [&](const float *lg) { int b = 0; float m = lg[0]; for (int t = 1; t < nv; t++) if (lg[t] > m) { m = lg[t]; b = t; } return b; };
     auto piece = [&](int t) { char buf[256]; int L = llama_token_to_piece(vocab, t, buf, sizeof buf, 0, false); return L > 0 ? std::string(buf, L) : std::string(); };
 
     std::vector<float> logits((size_t)(K + 1) * nv);
@@ -184,6 +190,10 @@ int main(int argc, char **argv) {
     std::vector<int32_t> spec; std::string text;
     int rounds = 0, drafted = 0, accepted = 0, obs_fail = 0;
     double draft_ms = 0, verify_ms = 0, spec_ms = 0, spec_prefill_ms = 0;
+    /* per-round phases of the spec loop (stderr only): llama_graph_perf2 over the
+     * verify decode [0 build, 1 alloc, 2 inputs, 4 memory init, 5 graph compute,
+     * 6 output reserve+extract, 7 logits fetch], and the bench's own steps */
+    int64_t ph_us[8] = {0}, ph_decode_us = 0, ph_harvest_us = 0, ph_argmax_us = 0, ph_rewind_us = 0; int ph_rewinds = 0;
     {
         const int64_t a = ggml_time_us();
         // MTP needs every hidden row during prefill, but only the final
@@ -218,19 +228,27 @@ int main(int argc, char **argv) {
             }
             ids.assign(1, id_last);
             ids.insert(ids.end(), drafts.begin(), drafts.begin() + k);
+            { int64_t z[8]; llama_graph_perf2((llama_context *) ctx, z); }   /* reset: count the verify decode alone */
             const int64_t v0 = ggml_time_us();
             if (ell_decode_seq_full(ctx, model, seq, n_past, ids.data(), (int)ids.size(), logits.data())) {
                 fprintf(stderr, "verify decode failed at round %d\n", rounds); return 2;
             }
+            const int64_t v1 = ggml_time_us();
+            { int64_t z[8]; llama_graph_perf2((llama_context *) ctx, z); for (int i = 0; i < 8; i++) if (i != 3) ph_us[i] += z[i]; }
             ell_mtp_harvest(mtp, ctx, seq, (int)ids.size());
-            verify_ms += (ggml_time_us() - v0) / 1e3;
+            const int64_t v2 = ggml_time_us();
+            verify_ms += (v2 - v0) / 1e3;
+            ph_decode_us += v1 - v0; ph_harvest_us += v2 - v1;
             int acc = 0;
             for (; acc < k; acc++) if (argmax(logits.data() + (size_t)acc * nv) != drafts[acc]) break;
             const int t_new = argmax(logits.data() + (size_t)acc * nv);
+            const int64_t v3 = ggml_time_us();
+            ph_argmax_us += v3 - v2;
             /* drop the rejected tail; the next decode continues at n_past+acc+1 */
             if (acc < k && ell_seq_rewind(ctx, seq, n_past + acc + 1) != 0) {
                 fprintf(stderr, "rewind refused at round %d (acc %d of %d)\n", rounds, acc, k); return 2;
             }
+            if (acc < k) { ph_rewind_us += ggml_time_us() - v3; ph_rewinds++; }
             obs.assign(ids.begin(), ids.begin() + acc + 1);
             obs_pos0 = n_past;
             rounds++; drafted += k; accepted += acc;
@@ -242,6 +260,14 @@ int main(int argc, char **argv) {
             if (acc < k) { bool eog = false; for (int i = 0; i < acc; i++) if (llama_vocab_is_eog(vocab, drafts[i])) eog = true; if (eog) break; }
         }
         spec_ms = (ggml_time_us() - b) / 1e3;
+        if (rounds) {
+            const double r = rounds;
+            fprintf(stderr, "[bench] round phases (ms/round over %d rounds): decode %.3f = build %.3f alloc %.3f inputs %.3f mem %.3f compute %.3f out %.3f get %.3f; "
+                            "harvest %.3f argmax %.3f rewind %.3f (%d rewinds, %.3f ms each); spec wall %.3f vs draft+verify %.3f\n",
+                    rounds, ph_decode_us / 1e3 / r, ph_us[0] / 1e3 / r, ph_us[1] / 1e3 / r, ph_us[2] / 1e3 / r, ph_us[4] / 1e3 / r,
+                    ph_us[5] / 1e3 / r, ph_us[6] / 1e3 / r, ph_us[7] / 1e3 / r, ph_harvest_us / 1e3 / r, ph_argmax_us / 1e3 / r,
+                    ph_rewind_us / 1e3 / r, ph_rewinds, ph_rewinds ? ph_rewind_us / 1e3 / ph_rewinds : 0.0, spec_ms / r, (draft_ms + verify_ms) / r);
+        }
     }
     /* the plain reference stops AT the eog token; make the spec stream match */
     for (size_t i = 0; i < spec.size(); i++) {

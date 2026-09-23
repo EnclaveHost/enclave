@@ -1,0 +1,72 @@
+diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
+index 3a3be24..818ec2c 100644
+--- a/kernel/src/protocols/attest.rs
++++ b/kernel/src/protocols/attest.rs
+@@ -359,6 +359,17 @@ const _: () = assert!(
+         && core::mem::size_of::<AttestSingleServiceOp>() == 0x58
+ );
+ 
++/// Enclave M4b: a report for the app-naming authority in protocols::appid.
++///
++/// The 64 bytes are assembled by the SVSM - the caller's bind in the low half, the calling plane's measured
++/// app ID in the high half - so this deliberately takes the whole report_data rather than a "nonce" a guest
++/// could shape. Kept next to the standard path so there is one PSP call site, not two.
++pub fn get_attestation_report_for_app(
++    report_data: &[u8; 64],
++) -> Result<Box<SnpReportResponse>, SvsmReqError> {
++    get_attestation_report_standard(report_data)
++}
++
+ fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse>, SvsmReqError> {
+     let mut resp = SnpReportResponse::new_box_zeroed()
+         .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+diff --git a/kernel/src/protocols/mod.rs b/kernel/src/protocols/mod.rs
+index 2c9a15c..64c0cf9 100644
+--- a/kernel/src/protocols/mod.rs
++++ b/kernel/src/protocols/mod.rs
+@@ -5,6 +5,7 @@
+ // Author: Dov Murik <dovmurik@linux.ibm.com>
+ 
+ pub mod apic;
++pub mod appid;
+ pub mod attest;
+ pub mod core;
+ pub mod errors;
+@@ -18,6 +19,8 @@ use cpuarch::vmsa::VMSA;
+ // SVSM protocols
+ pub const SVSM_CORE_PROTOCOL: u32 = 0;
+ pub const SVSM_ATTEST_PROTOCOL: u32 = 1;
++/// Enclave M4b app-naming authority (protocols::appid)
++pub const SVSM_APPID_PROTOCOL: u32 = 6;
+ pub const SVSM_VTPM_PROTOCOL: u32 = 2;
+ pub const SVSM_APIC_PROTOCOL: u32 = 3;
+ pub const SVSM_UEFI_MM_PROTOCOL: u32 = 4;
+diff --git a/kernel/src/requests.rs b/kernel/src/requests.rs
+index f2d2cfe..b1abc8f 100644
+--- a/kernel/src/requests.rs
++++ b/kernel/src/requests.rs
+@@ -11,9 +11,12 @@ use crate::protocols::errors::{SvsmReqError, SvsmResultCode};
+ use crate::task::{KernelThreadStartInfo, go_idle, set_affinity, start_kernel_thread};
+ use crate::vmm::{GuestExitMessage, enter_guest};
+ 
++use crate::protocols::appid::appid_protocol_request;
+ use crate::protocols::attest::attest_protocol_request;
++use crate::types::GUEST_VMPL;
+ use crate::protocols::{
+-    RequestOutput, RequestParams, SVSM_APIC_PROTOCOL, SVSM_ATTEST_PROTOCOL, SVSM_CORE_PROTOCOL,
++    RequestOutput, RequestParams, SVSM_APIC_PROTOCOL, SVSM_APPID_PROTOCOL, SVSM_ATTEST_PROTOCOL,
++    SVSM_CORE_PROTOCOL,
+ };
+ #[cfg(feature = "uefivars")]
+ use crate::protocols::{SVSM_UEFI_MM_PROTOCOL, uefivars::uefi_mm_protocol_request};
+@@ -79,6 +82,10 @@ fn request_loop_once(
+     match protocol {
+         SVSM_CORE_PROTOCOL => core_protocol_request(request, params),
+         SVSM_ATTEST_PROTOCOL => attest_protocol_request(request, params),
++        // Enclave M4b: the app-naming authority. GUEST_VMPL is the plane a request can arrive from while the
++        // SVSM runs a single guest plane; when it runs one app per plane this passes the caller's own level,
++        // which is the whole point - the app half of report_data comes from the PLANE, never from the caller.
++        SVSM_APPID_PROTOCOL => appid_protocol_request(request, GUEST_VMPL, params),
+         #[cfg(feature = "vtpm")]
+         SVSM_VTPM_PROTOCOL => vtpm_protocol_request(request, params),
+         SVSM_APIC_PROTOCOL => apic_protocol_request(request, params),

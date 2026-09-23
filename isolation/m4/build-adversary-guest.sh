@@ -11,15 +11,15 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 m2=$here/../m2
-out=$1; vcpus=${2:-1}; tcid=$3; tport=$4; oid=$5
-[ -n "$out" ] && [ -n "$tcid" ] && [ -n "$tport" ] && [ ${#oid} = 64 ] \
-  || { echo "usage: build-adversary-guest.sh <out.cpio.gz> <vcpus> <target-cid> <target-port> <other-app-id-hex>"; exit 2; }
+out=$1; vcpus=${2:-1}; tcid=$3; tport=$4; oid=$5; bind=$6
+[ -n "$out" ] && [ -n "$tcid" ] && [ -n "$tport" ] && [ ${#oid} = 64 ] && [ ${#bind} = 64 ] \
+  || { echo "usage: build-adversary-guest.sh <out.cpio.gz> <vcpus> <target-cid> <target-port> <other-app-id-hex> <bind-hex>"; exit 2; }
 d=$(mktemp -d)
 trap 'rm -rf "$d"' EXIT
 gcc -static -O2 -o "$d/init" "$here/advinit.c"
 gcc -static -O2 -o "$d/advprobe" "$here/advprobe.c"
 mkdir -p "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
-printf '%s %s %s\n' "$tcid" "$tport" "$oid" > "$d/adv.target"
+printf '%s %s %s %s\n' "$tcid" "$tport" "$oid" "$bind" > "$d/adv.target"
 . "$here/../m1/domain.env"
 M=/lib/modules/$GUEST_KREL/kernel
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \

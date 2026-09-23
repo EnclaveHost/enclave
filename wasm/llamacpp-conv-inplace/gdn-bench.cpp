@@ -2,8 +2,10 @@
 // cache (default 2), S_v 128, 48 value heads over 16 key heads, N tokens
 // (default 2), one sequence, scalar gate, THREADS threads (default 8). Prints
 // the mean microseconds per op call. Run once per value of the switch under
-// test (ENCLAVE_GGML_GDN_REGROW, or ENCLAVE_GGML_GDN_TOKFUSE on a tree with that
-// unapplied patch; each is read once per process), interleaved.
+// test (ENCLAVE_GGML_GDN_REGROW, ENCLAVE_GGML_GDN_NTSNAP, or ENCLAVE_GGML_GDN_TOKFUSE
+// on a tree with that unapplied patch; each is read once per process). Separate
+// processes differ by up to ~20% here, so compare arms in ABBA order and run a
+// control the switch cannot affect (K = 1 has no snapshot) alongside.
 //
 //   gdn-bench [N_TOKENS] [THREADS] [ITERS] [K] [NSTATES]
 //
@@ -11,14 +13,16 @@
 // in turn, as the graph does (48 recurrent layers x 3 MB on the 27B is more than
 // the L3), so the state arrives cold; K = 1 drops the rollback snapshot.
 // GDN_BENCH_WARM=1 reads each layer's state cache (untimed, on WARM_THREADS
-// threads, default 8) just before its call, as a prefetch during the exchange
-// wait would; only the op calls are timed.
+// threads, default 8) just before its call; only the op calls are timed. That
+// mode is CONFOUNDED as written: the warm-up lets ggml's pool threads sleep, and
+// the timed call then pays their wake-up (it measured slower, not faster).
 #include "ggml.h"
 #include "ggml-cpu.h"
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <random>
 #include <thread>
 #include <vector>
@@ -89,6 +93,17 @@ int main(int argc, char ** argv) {
     const char * e2 = getenv("ENCLAVE_GGML_GDN_TOKFUSE");
     printf("regrow=%s tokfuse=%s n_t=%lld threads=%d K=%lld states=%d warm=%d calls=%d  %.1f us/call\n", e1 ? e1 : "(default)",
            e2 ? e2 : "(default)", (long long) n_t, threads, (long long) K, nst, (int) warmup_each, it * nst, us);
+    {   // how much of this process's memory is on transparent huge pages: it
+        // changes TLB cost for streaming state access, so report it per run
+        FILE * f = fopen("/proc/self/smaps_rollup", "r");
+        char line[256]; long anon_kb = -1, thp_kb = -1;
+        while (f && fgets(line, sizeof line, f)) {
+            if (!strncmp(line, "Anonymous:", 10)) anon_kb = atol(line + 10);
+            if (!strncmp(line, "AnonHugePages:", 14)) thp_kb = atol(line + 14);
+        }
+        if (f) fclose(f);
+        printf("  anon=%ld MB thp=%ld MB\n", anon_kb / 1024, thp_kb / 1024);
+    }
     ggml_free(ctx);
     return 0;
 }

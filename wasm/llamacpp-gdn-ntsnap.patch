@@ -1,0 +1,84 @@
+# GATED_DELTA_NET rollback snapshots with streaming stores (ENCLAVE_GGML_GDN_NTSNAP,
+# default on while under test; =0 restores memcpy). A verify batch copies every
+# head's whole state into an older snapshot slot that is read again only if the
+# draft is rejected; ordinary stores first read each destination line for
+# ownership and then pollute the cache. Non-temporal stores write the same bytes
+# straight to memory (512-bit when the destination is 64-byte aligned, 256-bit
+# when 32-byte aligned, memcpy otherwise), and each thread's chunk ends with one
+# store fence so the snapshot is visible across the barrier. Bit-identical by
+# construction (same bytes); checked by wasm/llamacpp-conv-inplace/gdn-equiv.cpp
+# (whole cache dumped), a mutant per streaming branch, and the real-graph test's
+# rollback scenario. Applies AFTER llamacpp-gdn-regrow.patch.
+--- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 15:59:14.294829428 -0700
++++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 15:59:14.295879089 -0700
+@@ -11062,6 +11062,45 @@
+ #define GDN_HAVE_REGROW 1
+ #endif
+
++// Rollback snapshots with streaming stores (ENCLAVE_GGML_GDN_NTSNAP=0 restores
++// memcpy). A verify batch copies every head's whole state into an older slot
++// that nothing reads again unless the draft is rejected; with ordinary stores
++// each destination line is first READ for ownership and then pollutes the
++// cache, doubling the copy's memory traffic. Non-temporal stores write the same
++// bytes straight to memory. The caller issues one store fence before the op
++// returns, so the snapshot is visible to any later reader across the barrier.
++static bool gdn_ntsnap() {
++    static const bool on = []{
++        const char * e = getenv("ENCLAVE_GGML_GDN_NTSNAP");
++        return !(e && e[0] == '0');
++    }();
++    return on;
++}
++// returns true when streaming stores were used (the caller must fence)
++static inline bool gdn_copy_snapshot(float * GGML_RESTRICT dst, const float * GGML_RESTRICT src, size_t n) {
++#if defined(__AVX512F__)
++    if (gdn_ntsnap() && ((uintptr_t) dst & 63) == 0 && n % 16 == 0) {
++        for (size_t i = 0; i < n; i += 16) _mm512_stream_ps(dst + i, _mm512_loadu_ps(src + i));
++        return true;
++    }
++#endif
++#if defined(__AVX__)
++    if (gdn_ntsnap() && ((uintptr_t) dst & 31) == 0 && n % 8 == 0) {
++        for (size_t i = 0; i < n; i += 8) _mm256_stream_ps(dst + i, _mm256_loadu_ps(src + i));
++        return true;
++    }
++#endif
++    memcpy(dst, src, n * sizeof(float));
++    return false;
++}
++static inline void gdn_snapshot_fence(bool used_nt) {
++#if defined(__AVX__)
++    if (used_nt) _mm_sfence();
++#else
++    (void) used_nt;
++#endif
++}
++
+ static void ggml_compute_forward_gated_delta_net_one_chunk(
+     const ggml_compute_params * params,
+     ggml_tensor * dst,
+@@ -11141,6 +11180,7 @@
+     const int64_t rk3 = nev3 / nek3;
+
+     const float scale = 1.0f / sqrtf((float) S_v);
++    bool used_nt = false;   // streaming-store snapshots written: fence before returning
+
+     for (int64_t ir = ir0; ir < ir1; ++ir) {
+         const int64_t iv1 = ir % H; // head_index
+@@ -11267,13 +11307,14 @@
+                     if (!inplace) {
+                         float * curr_state_o = state_out_base + target_slot * state_size_per_snap +
+                                          (iv3 * H + iv1) * S_v * S_v;
+-                        memcpy(curr_state_o, s_out, S_v * S_v * sizeof(float));
++                        used_nt |= gdn_copy_snapshot(curr_state_o, s_out, (size_t) (S_v * S_v));
+                     } else if (target_slot > 0) {
+                         float * curr_state_o = (float *)((char *)state_in_base + target_slot * snap_stride) + s_off;
+-                        memcpy(curr_state_o, s_out, S_v * S_v * sizeof(float));
++                        used_nt |= gdn_copy_snapshot(curr_state_o, s_out, (size_t) (S_v * S_v));
+                     }
+                 }
+             }
+         }
+     }
++    gdn_snapshot_fence(used_nt);
+ }
