@@ -1,0 +1,1 @@
+cpu from ready to done (7 processes): 3.0 core-s over 17.0 s = 0.18 cores busy, 60 core-ms per decoded token (prefill and teardown included)
