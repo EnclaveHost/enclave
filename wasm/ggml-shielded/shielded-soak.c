@@ -59,6 +59,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 static uint64_t rng = 0x9e3779b97f4a7c15ull;
 static uint64_t nxt(void) { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; return rng; }
@@ -91,30 +93,34 @@ static int pass_m(const sched_t *s, uint64_t pass) {
  * instance i at m-class c; the exchange is checked when that count (after
  * incrementing) is a multiple of every. The (shape, m) totals below are sums
  * over instances, for the report only. */
-static uint64_t (*inst_n)[MCLS], (*inst_checked)[MCLS];
-static int exact_due(int i, int m, int every) {
+typedef uint64_t cnt_t[MCLS];
+static cnt_t *inst_n, *inst_checked;           /* card 0's link (and the only link without --split) */
+static cnt_t *inst1_n, *inst1_checked;         /* card 1's link under --split */
+static int exact_due_in(cnt_t *cn, cnt_t *cc, int i, int m, int every) {
     const int c = mcls(m);
-    const uint64_t n = ++inst_n[i][c];
+    const uint64_t n = ++cn[i][c];
     const int due = every > 0 && n % (uint64_t)every == 0;
-    if (due) inst_checked[i][c]++;
+    if (due) cc[i][c]++;
     return due;
 }
+static int exact_due(int i, int m, int every) { return exact_due_in(inst_n, inst_checked, i, m, every); }
 /* Per (shape, m): checked of total exchanges, and how many of the shape's
  * instances (layers) got at least one exact check at that m. */
-static void print_cells(FILE *f) {
-    fprintf(f, "soak: exact checks per (shape x m), with layers covered:");
+static void print_cells_in(FILE *f, const char *label, cnt_t *cn, cnt_t *cc) {
+    fprintf(f, "soak: %sexact checks per (shape x m), with layers covered:", label);
     for (int k = 0; k < KINDS; k++) for (int c = 0; c < MCLS; c++) {
         uint64_t n = 0, chk = 0; int have = 0, covered = 0;
         for (int i = 0; i < n_inst; i++) {
-            if (inst[i].kind != k || !inst_n[i][c]) continue;
-            have++; n += inst_n[i][c]; chk += inst_checked[i][c];
-            if (inst_checked[i][c]) covered++;
+            if (inst[i].kind != k || !cn[i][c]) continue;
+            have++; n += cn[i][c]; chk += cc[i][c];
+            if (cc[i][c]) covered++;
         }
         if (have) fprintf(f, " %s/%s=%llu of %llu [%d of %d layers]", kinds[k].name, mname[c],
                           (unsigned long long)chk, (unsigned long long)n, covered, have);
     }
     fprintf(f, "\n");
 }
+static void print_cells(FILE *f) { print_cells_in(f, "", inst_n, inst_checked); }
 
 /* The soak's scheduling with no worker: same pass generator, same selection.
  * Fails unless every cell the configuration produces is checked. */
@@ -133,21 +139,21 @@ static int schedule_selftest(const sched_t *s, int every, uint64_t passes) {
     return ok ? 0 : 1;
 }
 
-static sh_link *open_link(const char *host, int port, const char *shm, uint64_t reserve, int refill, int max_m) {
+static sh_link *open_link(const char *host, int port, const char *shm, uint64_t reserve, int refill, int max_m, inst_t *arr) {
     int err = SH_OK;
     sh_link *l = sh_link_open(host, port, true, &err);
     if (!l) { fprintf(stderr, "soak: open failed (%d)\n", err); return NULL; }
     sh_link_configure(l, 0, reserve, refill);
     sh_link_configure_shm(l, shm ? shm : "", shm ? 67108864u : 0);
     for (int i = 0; i < n_inst; i++) {
-        const kind_t *k = &kinds[inst[i].kind];
+        const kind_t *k = &kinds[arr[i].kind];
         int first = -1;
         for (int j = 0; j < k->n; j++) {
-            char nm[64]; snprintf(nm, sizeof nm, "soak.L%d.%d.%d", inst[i].layer, inst[i].kind, j);
-            const int nd = sh_link_add_weight(l, nm, inst[i].w[j], k->K, k->N[j], max_m, first);
+            char nm[64]; snprintf(nm, sizeof nm, "soak.L%d.%d.%d", arr[i].layer, arr[i].kind, j);
+            const int nd = sh_link_add_weight(l, nm, arr[i].w[j], k->K, k->N[j], max_m, first);
             if (nd < 0) { fprintf(stderr, "soak: add_weight %s: %s\n", nm, sh_link_last_error(l)); sh_link_close(l); return NULL; }
             if (first < 0) first = nd;
-            inst[i].node[j] = nd;
+            arr[i].node[j] = nd;
         }
     }
     const double t0 = now_s();
@@ -173,8 +179,29 @@ static int exact_check(const inst_t *in, const int64_t *x, int m, int64_t *const
     return 1;
 }
 
+/* --split: card 1's exchange runs on a helper thread that SPINS for work, as
+ * the backend's split worker does, concurrently with card 0's on the main
+ * thread, on the same activations. Both links live in this one process. */
+typedef struct {
+    atomic_ulong gen, done; atomic_int quit;
+    sh_link *l; const int *nodes; size_t n; const int64_t *x; int m; int64_t **y; int rc;
+} helper_t;
+static void *helper_main(void *arg) {
+    helper_t *h = (helper_t *)arg;
+    unsigned long seen = 0;
+    for (;;) {
+        unsigned long g;
+        while ((g = atomic_load_explicit(&h->gen, memory_order_acquire)) == seen)
+            if (atomic_load_explicit(&h->quit, memory_order_relaxed)) return NULL;
+        seen = g;
+        h->rc = sh_link_gemm(h->l, h->nodes, h->n, h->x, h->m, h->y);
+        atomic_store_explicit(&h->done, g, memory_order_release);
+    }
+}
+
 int main(int argc, char **argv) {
-    const char *host = "127.0.0.1", *shm = NULL;
+    const char *host = "127.0.0.1", *shm = NULL, *shm1 = NULL;
+    int port1 = 0;
     int port = 9601, refill = 8, exact_every = 256, layers = 1, lm_head = 0, selftest = 0;
     double seconds = 600, restart_every = 0;
     uint64_t reserve = 2000000000ull;
@@ -193,6 +220,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--restart-every") && more) restart_every = atof(argv[++i]);
         else if (!strcmp(argv[i], "--reserve") && more) reserve = strtoull(argv[++i], NULL, 0);
         else if (!strcmp(argv[i], "--lm-head")) lm_head = 1;
+        else if (!strcmp(argv[i], "--split") && i + 2 < argc) { port1 = atoi(argv[++i]); shm1 = argv[++i]; }
         else if (!strcmp(argv[i], "--schedule-selftest")) selftest = 1;
         else { fprintf(stderr, "soak: unknown or incomplete argument %s\n", argv[i]); return 2; }
     }
@@ -203,6 +231,8 @@ int main(int argc, char **argv) {
     if (lm_head) { inst[n_inst - 1].kind = 4; inst[n_inst - 1].layer = -1; }
     inst_n = calloc((size_t)n_inst, sizeof *inst_n);
     inst_checked = calloc((size_t)n_inst, sizeof *inst_checked);
+    inst1_n = calloc((size_t)n_inst, sizeof *inst1_n);
+    inst1_checked = calloc((size_t)n_inst, sizeof *inst1_checked);
     if (selftest) return schedule_selftest(&sc, exact_every, 20000);
 
     const int max_m = sc.prefill_every > 0 ? PREFILL_M : 2;
@@ -220,13 +250,36 @@ int main(int argc, char **argv) {
             wbytes += (double)n;
         }
     }
-    fprintf(stderr, "soak: %d exchanges per pass, %.2f GB of weights, max m %d, prefill every %d, restart every %.0f s\n",
-            n_inst, wbytes / 1e9, max_m, sc.prefill_every, restart_every);
+    inst_t *inst1 = NULL;
+    if (port1) {   /* card 1: the same shapes, its own random weights */
+        inst1 = calloc((size_t)n_inst, sizeof *inst1);
+        for (int i = 0; i < n_inst; i++) {
+            inst1[i].kind = inst[i].kind; inst1[i].layer = inst[i].layer;
+            const kind_t *k = &kinds[inst1[i].kind];
+            for (int j = 0; j < k->n; j++) {
+                const size_t n = (size_t)k->N[j] * k->K;
+                inst1[i].w[j] = malloc(n);
+                if (!inst1[i].w[j]) { fprintf(stderr, "oom\n"); return 2; }
+                for (size_t q = 0; q < n; q++) inst1[i].w[j][q] = (int8_t)((int)(nxt() % 239) - 119);
+            }
+        }
+    }
+    fprintf(stderr, "soak: %s, %d exchanges per pass, %.2f GB of weights, max m %d, prefill every %d, restart every %.0f s\n",
+            port1 ? "two links in one process (--split)" : "one link", n_inst, wbytes / 1e9 * (port1 ? 2 : 1), max_m, sc.prefill_every, restart_every);
     int64_t *x = malloc(sizeof(int64_t) * (size_t)max_m * Kmax);
     int64_t *y[MAXN]; for (int i = 0; i < MAXN; i++) y[i] = malloc(sizeof(int64_t) * (size_t)max_m * Nmax);
+    int64_t *y1[MAXN]; for (int i = 0; i < MAXN; i++) y1[i] = malloc(sizeof(int64_t) * (size_t)max_m * Nmax);
 
-    sh_link *l = open_link(host, port, shm, reserve, refill, max_m);
+    sh_link *l = open_link(host, port, shm, reserve, refill, max_m, inst);
     if (!l) return 2;
+    helper_t hp; memset(&hp, 0, sizeof hp);
+    pthread_t hth;
+    uint64_t n_rej1 = 0, n_other1 = 0, n_exact1 = 0, n_exact_bad1 = 0;
+    if (port1) {
+        hp.l = open_link(host, port1, shm1, reserve, refill, max_m, inst1);
+        if (!hp.l) return 2;
+        if (pthread_create(&hth, NULL, helper_main, &hp) != 0) { fprintf(stderr, "soak: helper thread\n"); return 2; }
+    }
     double t_open = now_s();
     uint64_t n_ex = 0, n_exact = 0, n_exact_bad = 0, n_rej = 0, n_other = 0, n_restart = 0, n_by_m[MCLS] = {0, 0, 0};
     const double t_start = now_s();
@@ -234,8 +287,9 @@ int main(int argc, char **argv) {
     for (uint64_t pass = 0; now_s() - t_start < seconds; pass++) {
         if (restart_every > 0 && now_s() - t_open >= restart_every) {
             sh_link_close(l);
-            l = open_link(host, port, shm, reserve, refill, max_m);
+            l = open_link(host, port, shm, reserve, refill, max_m, inst);
             if (!l) return 3;
+            if (port1) { sh_link_close(hp.l); hp.l = open_link(host, port1, shm1, reserve, refill, max_m, inst1); if (!hp.l) return 3; }
             t_open = now_s(); n_restart++;
         }
         const int m = pass_m(&sc, pass);
@@ -243,7 +297,28 @@ int main(int argc, char **argv) {
             const inst_t *in = &inst[i];
             const kind_t *k = &kinds[in->kind];
             for (int q = 0; q < m * k->K; q++) x[q] = (int64_t)(nxt() % 7) - 3;   /* |y| far inside the field */
+            unsigned long g = 0;
+            if (port1) {
+                hp.nodes = inst1[i].node; hp.n = (size_t)k->n; hp.x = x; hp.m = m; hp.y = y1;
+                g = atomic_load_explicit(&hp.gen, memory_order_relaxed) + 1;
+                atomic_store_explicit(&hp.gen, g, memory_order_release);
+            }
             const int rc = sh_link_gemm(l, in->node, (size_t)k->n, x, m, y);
+            if (port1) {
+                while (atomic_load_explicit(&hp.done, memory_order_acquire) != g) ;
+                if (hp.rc != SH_OK) {
+                    if (hp.rc == SH_ERR_VERIFY) n_rej1++; else n_other1++;
+                    fprintf(stderr, "soak: CARD 1 REJECTION #%llu at exchange %llu (pass %llu, layer %d %s, m=%d, %.1f s after link open) rc=%d: %s\n",
+                            (unsigned long long)(n_rej1 + n_other1), (unsigned long long)n_ex + 1, (unsigned long long)pass,
+                            in->layer, k->name, m, now_s() - t_open, hp.rc, sh_link_last_error(hp.l));
+                    sh_link_close(hp.l);
+                    hp.l = open_link(host, port1, shm1, reserve, refill, max_m, inst1);
+                    if (!hp.l) return 3;
+                } else if (exact_due_in(inst1_n, inst1_checked, i, m, exact_every)) {
+                    n_exact1++;
+                    if (!exact_check(&inst1[i], x, m, y1, n_ex + 1)) n_exact_bad1++;
+                }
+            }
             n_ex++; n_by_m[mcls(m)]++;
             if (rc != SH_OK) {
                 if (rc == SH_ERR_VERIFY) n_rej++; else n_other++;
@@ -251,7 +326,7 @@ int main(int argc, char **argv) {
                         (unsigned long long)(n_rej + n_other), (unsigned long long)n_ex, (unsigned long long)pass,
                         in->layer, k->name, m, now_s() - t_open, rc, sh_link_last_error(l));
                 sh_link_close(l);
-                l = open_link(host, port, shm, reserve, refill, max_m);
+                l = open_link(host, port, shm, reserve, refill, max_m, inst);
                 if (!l) return 3;
                 t_open = now_s();
                 continue;
@@ -270,15 +345,26 @@ int main(int argc, char **argv) {
                     (unsigned long long)n_rej, (unsigned long long)n_other,
                     (unsigned long long)n_exact, (unsigned long long)n_exact_bad);
             print_cells(stderr);
+            if (port1) {
+                fprintf(stderr, "soak: card 1: rejections %llu other %llu exact checks %llu bad %llu\n",
+                        (unsigned long long)n_rej1, (unsigned long long)n_other1, (unsigned long long)n_exact1, (unsigned long long)n_exact_bad1);
+                print_cells_in(stderr, "card 1 ", inst1_n, inst1_checked);
+            }
         }
     }
     print_cells(stderr);
+    if (port1) {
+        print_cells_in(stderr, "card 1 ", inst1_n, inst1_checked);
+        atomic_store(&hp.quit, 1); pthread_join(hth, NULL); sh_link_close(hp.l);
+    }
     const double dt = now_s() - t_start;
     printf("{\"seconds\":%.0f,\"exchanges\":%llu,\"m1\":%llu,\"m2\":%llu,\"m17\":%llu,\"restarts\":%llu,\"rejections\":%llu,"
-           "\"other_errors\":%llu,\"exact_checks\":%llu,\"exact_bad\":%llu,\"layers\":%d,\"lm_head\":%d,\"port\":%d}\n",
+           "\"other_errors\":%llu,\"exact_checks\":%llu,\"exact_bad\":%llu,\"layers\":%d,\"lm_head\":%d,\"port\":%d,"
+           "\"split_port\":%d,\"card1_rejections\":%llu,\"card1_other\":%llu,\"card1_exact_checks\":%llu,\"card1_exact_bad\":%llu}\n",
            dt, (unsigned long long)n_ex, (unsigned long long)n_by_m[0], (unsigned long long)n_by_m[1],
            (unsigned long long)n_by_m[2], (unsigned long long)n_restart, (unsigned long long)n_rej,
-           (unsigned long long)n_other, (unsigned long long)n_exact, (unsigned long long)n_exact_bad, layers, lm_head, port);
+           (unsigned long long)n_other, (unsigned long long)n_exact, (unsigned long long)n_exact_bad, layers, lm_head, port,
+           port1, (unsigned long long)n_rej1, (unsigned long long)n_other1, (unsigned long long)n_exact1, (unsigned long long)n_exact_bad1);
     sh_link_close(l);
-    return (n_rej || n_other || n_exact_bad) ? 1 : 0;
+    return (n_rej || n_other || n_exact_bad || n_rej1 || n_other1 || n_exact_bad1) ? 1 : 0;
 }
