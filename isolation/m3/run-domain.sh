@@ -11,15 +11,32 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/../m1/domain.env"
+# M3b: point these at the built planes QEMU and an IGVM carrying COCONUT-SVSM, and the same guest runs
+# at a lower VMPL with the SVSM above it. Unset, everything behaves exactly as it does today.
+QEMU=${QEMU:-qemu-system-x86_64}
+IGVM=${IGVM:-}
+PLANE=${PLANE:-2}
 cmd=$1; shift
 case "$cmd" in
 start)
   img=$1; mode=$2; tag=$3; W=$4; vcpus=${5:-2}; mem=${6:-1024}; quota=${7:-200}
   case "$mode" in
-    snp)   MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
-                  -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on
-                  -object memory-backend-memfd,id=ram1,size=${mem}M,share=true" ;;
-    plain) MACH="-machine q35,accel=kvm" ;;
+    snp)
+      if [ -n "$IGVM" ]; then
+        # The IGVM carries the SVSM and the firmware, so it replaces -bios; the guest lands on plane
+        # $PLANE with the SVSM at VMPL0 above it. kernel-irqchip=split is required by the planes series.
+        MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1,igvm-cfg=igvm0,kernel-irqchip=split,device-plane=$PLANE
+              -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1
+              -object igvm-cfg,id=igvm0,file=$IGVM
+              -object memory-backend-memfd,id=ram1,size=${mem}M,share=true"
+        BIOS=""
+      else
+        MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
+              -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on
+              -object memory-backend-memfd,id=ram1,size=${mem}M,share=true"
+        BIOS="-bios $OVMF"
+      fi ;;
+    plain) MACH="-machine q35,accel=kvm"; BIOS="-bios $OVMF" ;;
     *) echo "mode must be snp or plain"; exit 2 ;;
   esac
   cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))
@@ -28,11 +45,11 @@ start)
   # shellcheck disable=SC2086
   systemd-run --user --unit="$unit" --collect -q \
     -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=512 \
-    qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
+    "$QEMU" $MACH -cpu host -smp "$vcpus" -m "${mem}M" $BIOS \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
       -nodefaults -display none -serial "file:$W/$tag.serial" -no-reboot
-  echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0"
+  echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0${IGVM:+ igvm=$IGVM plane=$PLANE}"
   ;;
 stop)
   tag=$1; W=$2

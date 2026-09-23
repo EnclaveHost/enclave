@@ -306,7 +306,28 @@ None of them needed a VM to find, and two of them could have leaked a domain per
   answered in 578 microseconds rather than serially, a 60-connection flood from one domain comes back as
   the *per-domain* refusal rather than the global one, and a second domain is served throughout.
 
-`go test ./monitor/` is now 14 cases and passes under `-race`. Two of them drive the lifecycle state
+**A fourth defect, from a further audit pass of the same code: a failed launch stayed registered.** A
+domain is put in the tables *before* its first instruction, deliberately, so one that dies during startup
+is still found and reclaimed. That leaves one window where a domain is registered but has no process, and
+the failure path closed it only halfway: it released the files, the cgroup and the listener but never
+removed the domain from `doms` or `byUID`. So a launch that failed left a phantom: `list` reported it, its
+uid still authenticated for reports, and a later destroy could not remove it (the state machine correctly
+refused to reclaim it twice). Failure cleanup now goes through `abandon`, which deregisters from both
+tables and then reclaims, deliberately bypassing the starting-state deferral because it *is* the code that
+deferral hands work to. The post-registration window is its own method (`launch`), which also means a test
+can drive it directly: `TestAFailedLaunchLeavesNothingBehind` gives it a binary that does not exist, so
+`cmd.Start` fails deterministically, and then asserts both tables, the directory, the cgroup and the
+state, and that the uid can no longer obtain a report. Writing it exposed a second, smaller thing:
+`launch` took the listener but relied on its caller to have stored it, so an abandoned domain could leave
+a port bound. `launch` now owns both.
+
+**On `os.Process`:** an earlier comment implied it is a pidfd-backed stable identity. That is a runtime
+detail this code does not verify and should not lean on, and the comment now says what is actually true.
+The cgroup is the strong identity — it names exactly this domain's processes, however many — and the
+`os.Process` fallback is safe for a narrower reason: we are the parent, so until we reap the child its pid
+is held by a zombie and cannot be reused, and `reaped` is set by the one goroutine that reaps it.
+
+`go test ./monitor/` is now 16 cases and passes under `-race`. Two of them drive the lifecycle state
 machine directly, so the result does not depend on winning a race, and 50 start/destroy/crash cycles all
 end with the domain out of both tables and nothing left behind.
 
