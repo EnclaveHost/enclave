@@ -360,6 +360,7 @@ static inline bool rail_budget_take(ggml_backend_tpu_stats_t &st, group &g) {
  * not free: off by default, on for audits. (The rail test itself IS free -- a predicate on values the
  * unmask has already loaded, with no second pass to fuse.) */
 static constexpr bool kVerifyKernel = true;   /* MEASURING: the deployed backend deviation, not a simulated one */
+static constexpr uint64_t kVerifyTolLsb = 1;   /* per digit; the established requantiser rounding (TPU.md, qc7 corrections) */
 /* FAULT INJECTION on the real backend path: rewrite the reply the worker sent, before the unmask sees
  * it, exactly as a malicious or broken worker could. This is how the integrity claims are tested rather
  * than argued -- a bound that is never driven is a bound nobody has checked.
@@ -579,6 +580,19 @@ void exchange(group &g, const float *x, uint32_t rows) {
                         if (da > s.st.ver_max) s.st.ver_max = da;
                         if (db > s.st.ver_max) s.st.ver_max = db;
                         if (da) s.st.ver_bad++; if (db) s.st.ver_bad++;
+                        /* FAIL CLOSED beyond the established tolerance. A 1-LSB disagreement per digit is the requantiser's
+                         * rounding (13 in 141,450 samples over qc7, never more). Anything larger means the worker did not
+                         * multiply by the matrix these pads were minted from -- a stale or wrong lane, or a lying worker --
+                         * and every unmasked product of this exchange is wrong by the pad times the difference. It used
+                         * to be counted and decoded anyway: 104,724 of 104,960 samples wrong and 256 tokens of garbage
+                         * before anyone read the counter (TPU.md, 2026-09-22). Integrity, not confidentiality: what
+                         * crossed the link was still uniformly masked. */
+                        if (da > kVerifyTolLsb || db > kVerifyTolLsb) {
+                            TPU_LOG("REFUSED blk.%d kind %d output %u: the worker's product differs from the VM's by %llu/%llu digit LSB "
+                                    "(tolerance %d). The lane's graphs and this bundle disagree, or the worker is lying; not decoding with it\n",
+                                    g.layer, g.kind, j, (unsigned long long)da, (unsigned long long)db, (int)kVerifyTolLsb);
+                            abort();
+                        }
                         /* The same disagreement expressed in OUTPUT LSBs, which is the unit the error bound is
                          * written in. tpu/test/error_bound.py has to ASSUME this term is zero (an ideal
                          * rounder) and separately quotes a conditional figure for |delta| <= 1; this measures

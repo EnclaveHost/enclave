@@ -13,6 +13,8 @@
 #   * the app's .complete marker exists AND the capture's last line is its footer with status=complete,
 #     and no CAPTURE INVALID line
 #   * the prompt ARRIVED intact: the app's "LOCAL ask sha256=" equals the digest of ASK as sent
+#   * the bundle: the app's sha256 of the file it sent, the VM confirming it holds exactly that file, and (BUNDLE_SHA256=)
+#     the one the caller meant
 #   * one "LOCAL turn N STATS" and one "VSOCK LOCAL tpu turn N:" record for every scripted turn, "LOCAL done: N
 #     scripted turns", a worker that started serving, and no worker ERROR, HOST FAIL, VM error/stop or LOCAL failed
 # Anything else exits non-zero and says why. The last line of a good run is "LANE-RUN OK <label>".
@@ -77,6 +79,14 @@ for n in $(seq 1 $turns); do
   [ "$(grep -c "^VSOCK LOCAL tpu turn $n: exchanges=" "$L")" = 1 ] || die "turn $n has no single TPU counter record"
 done
 [ "$(grep -c "^LOCAL turn $((turns+1)) STATS " "$L")" = 0 ] || die "more turns ran than were scripted"
+# which bundle the VM cancelled with: the app's digest of the file it sent, and the VM's own line naming the same digest
+# (reused by its recorded sidecar, or hashed as it streamed). A stale cached bundle is what made the first int4 runs wrong.
+bsha=$(sed -n 's/^TPU bundle sha256=\([0-9a-f]\{64\}\) .*/\1/p' "$L" | tail -1)
+[ -n "$bsha" ] || die "the app did not report the bundle's sha256"
+grep -qE "^VSOCK LOCAL tpu\.bundle: (already in the encrypted store \(.*sha256 ${bsha:0:16}\.\.\.\)|.* received in .*sha256 ${bsha:0:16}\.\.\. verified)" "$L" \
+  || die "the VM did not confirm it holds bundle sha256 ${bsha:0:16}..."
+[ -z "${BUNDLE_SHA256:-}" ] || [ "$bsha" = "$BUNDLE_SHA256" ] || die "the run used bundle $bsha, not the requested $BUNDLE_SHA256"
+echo "bundle sha256 $bsha"
 [ "$(grep -c "^LOCAL done: $turns scripted turns" "$L")" = 1 ] || die "no 'LOCAL done: $turns scripted turns' record"
 grep -q '^TPU worker: serving masked rows' "$L" || die "the worker never started serving"
 # the worker's own summary is printed when the VM closes its link, usually after the capture has closed; when it
