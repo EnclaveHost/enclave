@@ -5,8 +5,9 @@ domains together at VMPL2, with `vmpl0=refused` and a launch digest a verifier c
 goal. Inside our plane, one app is still separated from another by the **guest kernel**. M4 is the milestone
 where app-vs-app separation stops resting on it.
 
-Nothing here is measured yet. This document is the design, the honest scaling limit, and the negative tests
-that would have to pass before anyone calls the isolation goal complete.
+**M4a is now implemented and passing on hardware (13/13, twice) - see section 6 for the evidence. M4b is
+still design.** This document is the design, the honest scaling limit, and the negative tests, which were
+written before the code so they could not be softened to fit a result.
 
 ## 1. What has to be true
 
@@ -112,7 +113,49 @@ Stated now so it cannot be quietly skipped later:
 
 ## 6. Status
 
-Design only. Nothing in section 4 has been attempted. The contract module exists and its vectors pass
+**M4a is IMPLEMENTED and PASSES on hardware: 13 of 13 checks, twice, on the planes kernel (2026-09-23).**
+`test-m4.sh`, with `build-app-guest.sh`, `build-adversary-guest.sh`, `advinit.c`, `advprobe.c` and
+`judge-adv.mjs`. Evidence from the two runs:
+
+    app A  id 8773d334...  measurement a04e011e...
+    app B  id ce52712f...  measurement 1f2b30d8...      two apps, two DIFFERENT measurements
+    A verdict attested, B verdict attested
+    A's expectations against B's guest -> reject;  B's against A's -> reject
+    adversary vsock_target=timeout, vsock_host=Connection refused
+    adversary mem_devmem=Operation not permitted, mem_iomem=own-map-only,
+              mem_shared_window=none -> mem_other_guest=unreachable
+    adversary report: measurement=<its own>, report_data[32:64]=B's AppID -> REJECTED-ON-MEASUREMENT
+    tampered bundle -> "manifest names a different artifact than it carries"
+
+**The load-bearing result is N3b.** The adversary is native code with ROOT in its own SNP guest, and it DID
+mint a PSP-signed report naming B's AppID - it owns its configfs, so nothing stops it. What it cannot forge
+is B's MEASUREMENT. There is no monitor in this shape, so the measurement IS the app-naming authority, and
+the verifier rejects on exactly that. This is why M4a closes requirement 2 while M3b does not.
+
+**The measurement is reproducible across runs**, better than the IGVM path: both runs produced the same
+AppID *and* the same launch measurement for the same inputs, so an expected value can be derived from the
+shipped bundle rather than observed once.
+
+Mapping to section 4: N1 (memory), N2 (IPC), N3 (report identity, both halves: cross-expectation rejection
+and the minted-report rejection), N5 (availability under a compromised neighbour), N6/N6b (crash
+independence and reclamation), N7/N7b (bundle tamper) all pass. **N4 does not apply to M4a** and is stated
+as such rather than quietly dropped: a plain SNP guest runs at VMPL0, so there is no more privileged level
+in-guest to be refused. N4 is an M4b property, where the SVSM holds VMPL0 above the app.
+
+### What M4a does NOT establish
+
+* **Density.** One guest per app costs a guest per app: M2 measured 3.4 s to start and ~586 MB of host
+  memory each. The shape that makes per-app isolation cheap is M4b, capped at 2-3 apps per guest by
+  `vmpl_count=4`.
+* **The M3b trust statement is still half-open.** M4a avoids the unmeasured-monitor problem by having no
+  monitor. M4b re-introduces one - the SVSM - and its authority is only as good as the IGVM digest that
+  measures it, which is derivable today. Moving app naming into the SVSM is the unfinished half of the
+  correction in commit 00f8c2b4.
+* Four rounds of failures during implementation were all in the harness, not the isolation: `fwd -vsock`
+  instead of `-cid`; N2 scoring a `timeout` as a failure when a timeout IS containment working, which would
+  have reported success as a breach; N6b expecting a stop record from a guest that powers itself off; and a
+  missing `--min-tcb`, without which the verdict is `no-tcb-policy` and the trusted gate stays closed by
+  design, so three checks failed for want of a policy rather than for want of isolation. The contract module exists and its vectors pass
 (`isolation/contract`, on `windows/custom-vbs-like-hyperv`); the SNP backend imports it there and both the
 M3b and plain M3a suites pass with it (31/31 each, another session's live runs). The next concrete step is
 M4a: drive one guest per app through the contract bundle, then write N1-N7 as a suite in the shape of
