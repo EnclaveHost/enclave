@@ -1,0 +1,1 @@
+09-23 04:47:33.883 12638 13172 I anchor-host: TPU worker: 3080 exchanges; per exchange ms: idle-wait 31.515 recv 0.085 input-write 0.046 tpu-run 1.666 output-read 0.335 send 0.078 | direct 0 staged 3080 spin_us 0
