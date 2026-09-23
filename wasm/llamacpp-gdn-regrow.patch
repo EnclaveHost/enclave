@@ -12,7 +12,7 @@
 @@ -11003,6 +11003,65 @@
      return on;
  }
- 
+
 +// One state row through all four steps of a scalar-gate token WITHOUT leaving
 +// registers (ENCLAVE_GGML_GDN_REGROW=0 restores the four vector calls). The row
 +// is loaded once, scaled, dotted with k, updated by d*k, dotted with q, and
@@ -78,7 +78,7 @@
 @@ -11142,6 +11201,13 @@
              }
              const float expg = kda ? 0.0f : expf(g_d[0]);
- 
+
 +#ifdef GDN_HAVE_REGROW
 +            if (fused_rows && !kda && S_v == GDN_REGROW_SV && gdn_regrow()) {
 +                for (int64_t j = 0; j < S_v; ++j) {
