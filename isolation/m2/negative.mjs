@@ -3,20 +3,30 @@
 // the same judge() the client runs. No VM is needed: a host that wants a client to trust ITS key writes
 // the report itself, so the forgeries here are built from nothing, field by field.
 //
-// usage: node negative.mjs --measurement <hex> --app-sha <hex> [--genuine <doc.json saved by client --save>]
+// Fully offline: AMD KDS is never contacted (kds:false), and AMD's chains come from the repo's fixtures
+// (test/fixtures/amd), refused unless their ARK is the pinned root.
+//
+// usage: node negative.mjs --measurement <hex> --app-sha <hex>
+//          [--genuine <doc.json saved by client --save> --vcek <that chip's VCEK, DER>]
 // Prints PASS/FAIL per case; exits 1 on any FAIL.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { judge } from './judge.mjs';
+import { seedCertChain, parseSnpReport, snpProductHint, decodeTcb } from '../../relay/snp-verify.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+for (const product of ['Milan', 'Genoa', 'Turin'])
+  seedCertChain(product, fs.readFileSync(path.join(HERE, '../../test/fixtures/amd', `${product}-cert_chain.pem`), 'utf8'));
 
 const args = process.argv.slice(2);
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const measurement = opt('--measurement'), appSha = opt('--app-sha');
 if (!measurement || !appSha) { console.error('usage: negative.mjs --measurement <hex> --app-sha <hex> [--genuine <doc.json>]'); process.exit(2); }
-const want = (mode) => ({ measurement, appSha, mode });
+const want = (mode, extra = {}) => ({ measurement, appSha, mode, kds: false, ...extra });
 let fails = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? `  [${detail}]` : ''}`); if (!ok) fails++; };
 const spkiOf = (pub) => pub.export({ type: 'spki', format: 'der' });
@@ -29,13 +39,15 @@ const bind = (spki, n = nonce, app = appSha) =>
   Buffer.concat([createHash('sha256').update(Buffer.concat([spki, n])).digest(), Buffer.from(app, 'hex')]);
 
 // a v5 SNP report with every field a verifier reads set to a value it accepts
-function forge({ reportData, policy = 0x30000n, vmpl = 0, meas = measurement }) {
+// (turin: the CPUID fields name a Turin part and the TCB is Turin fmc 1, bl 3, tee 2, snp 5, ucode 117)
+function forge({ reportData, policy = 0x30000n, vmpl = 0, meas = measurement, turin = false }) {
   const r = Buffer.alloc(0x4a0);
   r.writeUInt32LE(5, 0x00);
   r.writeBigUInt64LE(policy, 0x08);
   r.writeUInt32LE(vmpl, 0x30);
   reportData.copy(r, 0x50);
   Buffer.from(meas, 'hex').copy(r, 0x90);
+  if (turin) { Buffer.from('0103020500000075', 'hex').copy(r, 0x180); r[0x188] = 0x1a; r[0x189] = 0x02; }
   randomBytes(64).copy(r, 0x1a0);                                   // a chip id AMD never issued
   return r;
 }
@@ -65,7 +77,7 @@ function auxblob(vcekDer) {       // the GUID table configfs-tsm returns: {guid,
   return Buffer.concat([hdr, vcekDer]);
 }
 
-const J = (doc, spki, mode, n = nonce) => judge(doc, spki, n, want(mode));
+const J = (doc, spki, mode, n = nonce, extra = {}) => judge(doc, spki, n, want(mode, extra));
 const unsignedForHost = t1doc(forge({ reportData: bind(hostSpki) }));
 
 // N1: every field forged to vouch for the HOST's key, and no signature at all
@@ -108,18 +120,45 @@ check('N7 a T0 domain: gate closed in trusted and lab-unsigned, open only in t0-
 t = await J(unsignedForHost, hostSpki, 't0-diagnostic');
 check('N8 a T1 document in t0-diagnostic mode: REJECTED (the modes do not mix)', t.verdict === 'reject' && !t.gateOpen, t.reasons.at(-1));
 
-// N9: the genuine report from a live SNP domain (client --save), when there is one
-if (opt('--genuine')) {
+// T1-T5: the caller's minimum-TCB policy (relay/snp-verify.mjs checkMinTcb). Nothing here picks a floor:
+// FLOOR is the forged report's own TCB, a test value that makes "equal passes, one above fails" visible.
+const FLOOR = { fmc: 1, bootloader: 3, tee: 2, snp: 5, microcode: 117 };
+const turinForged = t1doc(forge({ reportData: bind(hostSpki), turin: true }));
+l = await J(turinForged, hostSpki, 'lab-unsigned', nonce, { minTcb: { Turin: FLOOR } });
+check('T1 lab, policy met: still only "unauthenticated" (a TCB field without the chain is the host\'s word)',
+  l.verdict === 'unauthenticated' && l.reasons.some((x) => /unauthenticated: no VCEK/.test(x)), l.verdict);
+l = await J(turinForged, hostSpki, 'lab-unsigned', nonce, { minTcb: { Turin: { ...FLOOR, snp: 6 } } });
+check('T2 lab, reported TCB below the policy: REJECTED', l.verdict === 'reject' && /below policy: Turin snp 5 < 6/.test(l.reasons.at(-1)), l.reasons.at(-1));
+l = await J(turinForged, hostSpki, 'lab-unsigned', nonce, { minTcb: { Turin: { bootloader: 3, tee: 2, snp: 5, microcode: 117 } } });
+check('T3 an incomplete policy (no fmc) is malformed, not defaulted: REJECTED', l.verdict === 'reject' && /malformed/.test(l.reasons.at(-1)), l.reasons.at(-1));
+l = await J(turinForged, hostSpki, 'lab-unsigned', nonce, { minTcb: { Genoa: { bootloader: 0, tee: 0, snp: 0, microcode: 0 } } });
+check('T4 a policy with no floor for this product line: REJECTED', l.verdict === 'reject' && /no floor for Turin/.test(l.reasons.at(-1)), l.reasons.at(-1));
+t = await J(turinForged, hostSpki, 'trusted', nonce, { minTcb: { Turin: FLOOR } });
+check('T5 trusted, policy met, but no VCEK: REJECTED (a policy never stands in for the chain)', t.verdict === 'reject' && /no VCEK/.test(t.reasons.at(-1)), t.reasons.at(-1));
+
+// N9: the genuine report from a live SNP domain (client --save) and that chip's VCEK, when there are some
+if (opt('--genuine') && opt('--vcek')) {
   const g = JSON.parse(fs.readFileSync(opt('--genuine'), 'utf8'));
-  const gs = Buffer.from(g.spki, 'base64'), gn = Buffer.from(g.nonce, 'hex');
-  t = await judge(g.doc, gs, gn, want('trusted'));
-  l = await judge(g.doc, gs, gn, want('lab-unsigned'));
-  console.log(`evidence: genuine report, trusted: ${t.verdict} (${t.reasons.at(-1)})`);
-  console.log(`evidence: genuine report, lab-unsigned: ${l.verdict}`);
-  check('N9 the genuine report: "attested" only with the AMD chain verified; otherwise trusted mode refuses it',
-    t.verdict === 'attested' ? t.reasons.some((s) => s.startsWith('AMD signature chain verified')) : (t.verdict === 'reject' && !t.gateOpen));
-  check('N9b the genuine report in lab-unsigned is never better than "unauthenticated" without the chain',
-    t.verdict === 'attested' || l.verdict === 'unauthenticated', l.verdict);
+  const gs = Buffer.from(g.spki, 'base64'), gn = Buffer.from(g.nonce, 'hex'), vcek = fs.readFileSync(opt('--vcek'));
+  const gp = parseSnpReport(Buffer.from(g.doc.report, 'base64')), product = snpProductHint(gp);
+  const own = { [product]: decodeTcb(product, gp.reportedTcb) };                 // the box's own TCB, as a TEST floor
+  const above = { [product]: { ...own[product], snp: own[product].snp + 1 } };
+  console.log(`evidence: genuine report: ${product}, reported TCB ${JSON.stringify(own[product])}`);
+  const run = (mode, extra) => judge(g.doc, gs, gn, want(mode, extra));
+  t = await run('trusted', { vcek });
+  check('N9 genuine report + VCEK, no policy: "no-tcb-policy", gate CLOSED', t.verdict === 'no-tcb-policy' && !t.gateOpen, t.verdict);
+  t = await run('trusted', { vcek, minTcb: own });
+  check('N9b genuine report + VCEK + a floor it meets: "attested" (the AMD chain verified)',
+    t.verdict === 'attested' && t.gateOpen && t.reasons.some((x) => x.startsWith('AMD signature chain verified')), t.verdict);
+  t = await run('trusted', { vcek, minTcb: above });
+  check('N9c the same, floor one SNP version above: REJECTED', t.verdict === 'reject' && /below policy/.test(t.reasons.at(-1)), t.reasons.at(-1));
+  t = await run('trusted', {});
+  check('N9d genuine report, no VCEK held and KDS not consulted: trusted REJECTS', t.verdict === 'reject' && !t.gateOpen, t.reasons.at(-1));
+  l = await run('lab-unsigned', {});
+  check('N9e the same in lab-unsigned: never better than "unauthenticated" without the chain', l.verdict === 'unauthenticated', l.verdict);
+  const tampered = { ...g.doc, report: (() => { const r = Buffer.from(g.doc.report, 'base64'); r[0x10] ^= 1; return r.toString('base64'); })() };
+  t = await judge(tampered, gs, gn, want('trusted', { vcek, minTcb: own }));
+  check('N9f the genuine report with one signed byte changed: REJECTED on the signature', t.verdict === 'reject' && /signature over the report is invalid/.test(t.reasons.at(-1)), t.reasons.at(-1));
 }
 console.log(fails ? `NEGATIVE: ${fails} FAILED` : 'NEGATIVE: ALL PASS');
 process.exit(fails ? 1 : 0);
