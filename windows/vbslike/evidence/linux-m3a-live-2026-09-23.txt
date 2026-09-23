@@ -1,0 +1,104 @@
+evidence: app A e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc
+evidence: app B 43fafb68a7f6499413c0598844196465de58caea6de350f73c5c66cd79042655
+evidence: predicted (monitor image, no app inside) af898e784615cde9fca6e7c7a2ce531d9ec13800b34c80848421ff91a314ad4e1b05924587458f7503f1751a4d612a40
+evidence: s1 domains: {"id":1,"label":"AAAAA","appSha256":"e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc","port":40001,"uid":5001,"cpuPercent":100,"memMiB":256}{"id":2,"label":"BBBBB","appSha256":"43fafb68a7f6499413c0598844196465de58caea6de350f73c5c66cd79042655","port":40002,"uid":5002,"cpuPercent":25,"memMiB":256}
+PASS 0 build reproducible: two builds of the monitor image are byte-identical
+evidence: boundary gate fixtures: ALL 26 PASS (workdir /home/steven/enclave-bench/vbslike-m3a-145839/bgate)
+PASS 0b the boundary gate rejects every crafted bad log: GRANTED, a probe that never ran, mismatched levels, the downward-claim shape, missing and repeated fields, and zero or duplicate records
+evidence: measurement seen by domain A af898e784615cde9fca6e7c7a2ce531d9ec13800b34c80848421ff91a314ad4e1b05924587458f7503f1751a4d612a40
+evidence: measurement seen by domain B af898e784615cde9fca6e7c7a2ce531d9ec13800b34c80848421ff91a314ad4e1b05924587458f7503f1751a4d612a40
+evidence: measurement of the second launch (app B only) af898e784615cde9fca6e7c7a2ce531d9ec13800b34c80848421ff91a314ad4e1b05924587458f7503f1751a4d612a40
+PASS 1 measurement reproducible: live == predicted, both launches
+PASS 2 the app is NOT in the measurement: two different apps in one guest, and a different mix in another launch, all report the SAME digest (M1 gave different digests per app)
+evidence: A report_data[32:64] e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc (want e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc)
+evidence: B report_data[32:64] 43fafb68a7f6499413c0598844196465de58caea6de350f73c5c66cd79042655 (want 43fafb68a7f6499413c0598844196465de58caea6de350f73c5c66cd79042655)
+PASS 3 the MONITOR names each app: every domain's report carries the hash the monitor took when it loaded that domain
+PASS 3b both domains and the second launch are ATTESTED: AMD chain to the pinned root, VCEK names this chip and TCB, TCB meets the supplied floor, key+nonce bound
+evidence: boundary(s1): OK at VMPL0: no confinement above the guest is claimed, and none is checked (tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a)
+evidence: boundary(s2): OK at VMPL0: no confinement above the guest is claimed, and none is checked (tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a)
+evidence: boundary(s3): OK at VMPL0: no confinement above the guest is claimed, and none is checked (tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a)
+evidence: boundary(s1-A): signed report_vmpl=0, demanded=0, document tuple="tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a"
+evidence: boundary(s1-B): signed report_vmpl=0, demanded=0, document tuple="tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a"
+evidence: boundary(s2-B): signed report_vmpl=0, demanded=0, document tuple="tier=t1 vmpl=0 vmpl_floor=0 vmpl0=n/a"
+PASS 3e the VMPL0-REFUSAL gate at level 0: exactly one coherent boundary record on the console, the same tuple delivered to every client over attested TLS, and the signed report agreeing - a lower-level report alone is NOT accepted as confinement
+PASS 3c a client expecting app B is REJECTED by the domain running app A, and sends it nothing
+evidence: credential gate: report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused report_as_root=refused (9 refusals logged by the monitor)
+PASS 3d the monitor refuses a report to a caller that is not a domain, even as root in the guest (kernel credentials, not the request)
+evidence: domain A serves "APP AAAAA path=/hello?from=client" / domain B serves "APP BBBBB path=/hello?from=client"
+PASS 4 two domains serve their own apps on their own ports, each on its own attested key
+PASS 4b one TLS key per domain per launch: A, B and the second launch's B all differ
+PASS 4c 4 x 16 MiB echoed intact through a domain in a shared guest
+evidence: the host relayed 134664721 bytes for domain A; plaintext markers: 0
+PASS 4d the host relays ciphertext only, and so does the monitor: TLS ends inside each domain
+evidence: domain probes: DOM1 probe workload_uid=5001 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM2 probe workload_uid=5002 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM3 probe workload_uid=5003 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM4 probe workload_uid=5004 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM5 probe workload_uid=5005 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM6 probe workload_uid=5006 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM7 probe workload_uid=5007 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM8 probe workload_uid=5008 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3 DOM9 probe workload_uid=5009 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=2 
+PASS 5 each domain runs unprivileged and sees no /sys, no configfs and no other domain's tree (guest-kernel separation, WEAKER than VMPL)
+evidence: most processes any domain could see: 3 (its own domexec, runtime and front; the guest as a whole runs far more)
+PASS 5b a domain sees only its own processes (its own PID namespace)
+PASS 5c both domains serve on the same internal address 127.0.0.1:8080 at once, without colliding or reaching each other (one network namespace each)
+evidence: the same 1.5G rounds took 2209ms in domain A (cpu.max 100%) and 8712ms in domain B (25%), ratio 3.94
+PASS 6 each domain gets its own CPU share: 25% is about 4x slower for the same work
+evidence: destroy: {"destroyed":2} / after: {"domains":[{"id":1,"label":"AAAAA","appSha256":"e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc","port":40001,"uid":5001,"cpuPercent":100,"memMiB":256}]}
+PASS 7 lease end: destroying a domain stops its port answering and removes it from the monitor's table
+evidence: T0 domain A serves "APP AAAAA path=/hello?from=client", verdict not-attested (trusted default: not-attested)
+PASS 8 tier parity: the same monitor image runs on plain KVM and serves the same apps, saying it is not attested
+PASS 8b the trusted default refuses a T0 domain and sends it no application request
+evidence: before the crashes: {"cgroups":2,"dirs":["1","2"],"domains":2,"mem_available_mib":617,"mem_total_mib":882,"mounts":4,"userspace_procs":7}
+evidence: after 5 crashed domains: {"cgroups":2,"dirs":["1","2"],"domains":2,"mem_available_mib":624,"mem_total_mib":882,"mounts":4,"userspace_procs":7}
+evidence: the monitor logged: domain 3 ended: its process tree exited;domain 4 ended: its process tree exited;domain 5 ended: its process tree exited;domain 6 ended: its process tree exited;domain 7 ended: its process tree exited;domain 9 ended: its process tree exited;domain 8 ended: its process tree exited;domain 2 ended: destroyed at lease end;
+PASS 9 a crashed domain leaves nothing behind: after 5 create-and-crash cycles the guest is byte-for-byte at its previous state -- same domains, directories, cgroups, mounts and processes
+PASS 9b each crash was noticed and retired exactly once, and none stayed in the monitor's table
+PASS 9c the guest still serves after those cycles: a new domain loads, attests and answers
+evidence: the compromised domain trying to exhaust memory: PROBE9 eating memory: cap 64 MiB, will try 256 MiB PROBE9 memory_touched=16 MiB PROBE9 memory_touched=32 MiB PROBE9 memory_touched=48 MiB 
+evidence: how that domain ended: DOM9 ERROR runtime exited status=137;MON domain 9 ended: its process tree exited;
+PASS 8c a compromised domain cannot exhaust the guest: touching past its own memory share ends THAT domain and nothing else
+PASS 8c2 the other domains were serving and attesting after it was contained
+evidence: right-sized guest (512 MiB): {"cgroups":0,"dirs":[],"domains":0,"mem_available_mib":263,"mem_total_mib":378,"mounts":0,"userspace_procs":1}
+evidence:   with two domains loaded: {"cgroups":2,"dirs":["1","2"],"domains":2,"mem_available_mib":252,"mem_total_mib":378,"mounts":4,"userspace_procs":7}
+PASS 8d two domains attest and serve in a 512 MiB guest, so the density claim is priced at a guest size someone would actually run
+evidence: the compromised domain tried:
+    PROBE9 uid=5009 euid=5009
+    PROBE9 other_app_absolute=No such file or directory
+    PROBE9 other_app_relative=No such file or directory
+    PROBE9 other_app_escape=No such file or directory
+    PROBE9 other_front_socket=No such file or directory
+    PROBE9 own_app=READABLE (16 bytes)
+    PROBE9 configfs_tsm=No such file or directory
+    PROBE9 sysfs=No such file or directory
+    PROBE9 create_tsm_entry=No such file or directory
+    PROBE9 visible_pids=2
+    PROBE9 signalable_pids=1
+    PROBE9 report=granted-for-this-domain
+    PROBE9 report_b64=BQAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAABAwIFAAAAdWUAAAAAAAAAAAAAAAAAAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIlg0nV+iKJtZQbkvpqWG3rSxY8x74ItSTPdybdRg7Ef8r4mOeEYVzen8pufHos5THZ7BOACzTICEhCH/kaMUrU4bBZJFh0WPdQPxdRpNYSpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABD/Nwu2gEZKcC4LwPvib2bw6WrLjiD2F6oDM/3ify/kf//////////////////////////////////////////AQMCBQAAAHUaAgEAAAAAAAAAAAAAAAAAAAAAAAAAAAD6Ea/PVK6cUwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMCBQAAAHUDOgEAAzoBAAEDAgUAAAB1PwAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsBermoMIGBJNcirmhSitfQ1HFQs2SfWL9V5jKbS15iPKxWmjMdGLQoku0m1SaJdiAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1GcE9vAUO4RhAC7ygpDarNqURvKZkAjgRgjK4ZNgHLGVvxwKHBTzofW5XV5UeoF6AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    PROBE9 vsock_local_domain1=timed out (no answer)
+    PROBE9 vsock_local_domain2=timed out (no answer)
+    PROBE9 vsock_own_control=timed out (no answer)
+    PROBE9 vsock_host_control=Connection reset by peer
+    PROBE9 own_loopback_8080=Connection refused
+    PROBE9 host_gateway=Network is unreachable
+    PROBE9 done
+    PROBE9 eating memory: cap 64 MiB, will try 256 MiB
+    PROBE9 memory_touched=16 MiB
+    PROBE9 memory_touched=32 MiB
+    PROBE9 memory_touched=48 MiB
+PASS 10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs or the report interface, cannot open another domain's vsock port or the host's, and cannot reach the host network
+evidence: it could see 2 processes and signal 1 of the first 400 pids
+PASS 10b it can see and signal only its own processes, not the monitor's and not another domain's
+evidence: the app named in its report: 58349d5fa2289b5941b92fa6a586deb4b163cc7be08b524cf7726dd460ec47fc (its own 58349d5fa2289b5941b92fa6a586deb4b163cc7be08b524cf7726dd460ec47fc; the other domains run e4be9b5e248b3abfcf221a7f79ab29abcd606cccb4dd5c6ebe495f8e0fd815bc / 43fafb68a7f6499413c0598844196465de58caea6de350f73c5c66cd79042655)
+PASS 10c the report it obtained names ITS OWN app, although its request also carried another app hash: naming is the monitor's, not the caller's
+evidence: stop: {"stopped":8} / MON domain 8 stop: signalling its init to wind down;MON domain 8 stopped gracefully;
+evidence: after stop: {"cgroups":2,"dirs":["1","2"],"domains":2,"mem_available_mib":632,"mem_total_mib":882,"mounts":4,"userspace_procs":7}
+PASS 11 a graceful stop signals the domain's FRONT, the domain's init notices that child is gone, and the domain winds down (the front-exit path, distinct from a crashed runtime)
+PASS 11b it wound down within the grace period rather than being killed
+--- 10 cost (measured, no pass/fail) ---
+s1  kernel->monitor 773ms, host CPU 7.5s, memory peak 1126 MB, domains 9
+s2  kernel->monitor 792ms, host CPU 2.0s, memory peak 1125 MB, domains 1
+s3  kernel->monitor 787ms, host CPU 1.9s, memory peak 586 MB, domains 2
+t1  kernel->monitor 623ms, host CPU 1.3s, memory peak 307 MB, domains 2
+domain A latency p50 0.37ms p99 0.77ms, echo 1015.9 MB/s (through the monitor relay, in a shared guest)
+lease start (load -> serving): load_ms=6 load_ms=7 load_ms=6 load_ms=6 load_ms=13 load_ms=11 load_ms=11 load_ms=10 load_ms=7 
+host memory for the guest: 1126 MB with two domains, 1125 MB with one -- SNP pins the guest RAM at launch,
+  so a second domain costs no extra host memory, where M2 needs another whole guest per app (586 MB each).
+right-sized: 586 MB of host memory for a 512 MiB guest serving TWO attested domains, against M2 needing
+  586 MB for ONE app; the guest reported 263 MiB available empty and 252 MiB with both domains loaded.
+workdir /home/steven/enclave-bench/vbslike-m3a-145839
+M3a: ALL PASS

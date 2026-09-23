@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/vsock"
 )
 
@@ -32,6 +33,7 @@ func main() {
 	mem := flag.Int("mem", 256, "the domain's memory cap, in MiB")
 	id := flag.Int("id", 0, "the domain to stop or destroy")
 	probe := flag.Bool("probe", false, "run the measured adversary probe as this domain's workload")
+	bundle := flag.Bool("bundle", false, "wrap the artifact in a contract bundle (label + policy in the manifest) before loading, so its ID covers the manifest")
 	flag.Parse()
 	args := flag.Args()
 	if *cid == 0 || len(args) == 0 {
@@ -52,6 +54,11 @@ func main() {
 		}
 		app, err := os.ReadFile(args[1])
 		die(err)
+		if *bundle {
+			app, err = contract.Build(contract.Manifest{ABI: contract.ABI, Label: *label, World: "wasi:http",
+				Artifact: contract.Artifact{Kind: "wasm-component"}, Policy: contract.Policy{CPUPercent: *cpu, MemMiB: *mem, Vcpus: 1}}, app)
+			die(err)
+		}
 		die(enc.Encode(map[string]any{"cmd": "load", "label": *label, "size": len(app), "cpu": *cpu,
 			"mem": *mem, "probe": *probe}))
 		_, err = c.Write(app)

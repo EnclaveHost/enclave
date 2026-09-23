@@ -1,0 +1,162 @@
+// Package contract is the backend-neutral part of an app domain: what an app IS (the bundle and its
+// identity), what a report BINDS (key, nonce, app), what a domain may ASK (a report request has one
+// field), and how a domain's life PROCEEDS (starting, running, ending, ended -- exactly one reclamation
+// however it ends). Every isolation backend -- the Linux monitor inside an SEV-SNP guest
+// (isolation/m3), the Windows launcher driving Hyper-V partitions (windows/vbslike) -- imports or
+// mirrors this package and passes vectors.json, so the app-facing ABI is one thing and the hardware
+// mechanism behind it is the backend's business.
+//
+// ABI version: enclave-domain-abi/1. Anything here that changes meaning bumps it.
+package contract
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
+const ABI = "enclave-domain-abi/1"
+
+// The bundle: ONE portable artifact, the same bytes on every host, whose identity is the sha256 of
+// exactly these bytes.
+//
+//	magic         "ENCLAVE-BUNDLE/1\n"                       17 bytes
+//	u32le         manifest length
+//	manifest      canonical JSON (keys sorted, no whitespace) -- see Canonical
+//	u32le         artifact length
+//	artifact      the app bytes (a Wasm component today)
+//
+// A bundle whose manifest is not in canonical form, or whose manifest names a different artifact
+// hash than the artifact carried, is malformed and has no identity: Parse refuses it. That is what
+// keeps "same app, same manifest" a single byte string with a single ID.
+const BundleMagic = "ENCLAVE-BUNDLE/1\n"
+
+const MaxManifestBytes = 64 << 10
+
+type Manifest struct {
+	ABI      string   `json:"abi"`
+	Label    string   `json:"label,omitempty"`
+	World    string   `json:"world,omitempty"` // e.g. "wasi:http"
+	Artifact Artifact `json:"artifact"`
+	Policy   Policy   `json:"policy"`
+}
+
+type Artifact struct {
+	Kind   string `json:"kind"`   // "wasm-component" | "cwasm" (host-specific, discouraged) | "raw"
+	Sha256 string `json:"sha256"` // hex sha256 of the artifact bytes carried in the bundle
+}
+
+// Policy is the share a domain gets. It is part of the identity because it is part of the bundle.
+type Policy struct {
+	CPUPercent int `json:"cpuPercent"`
+	MemMiB     int `json:"memMiB"`
+	Vcpus      int `json:"vcpus"`
+}
+
+// Canonical returns v as compact JSON with keys sorted at every level: the one byte form a
+// manifest (or a report document) has, whatever encoder produced it.
+func Canonical(v any) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var generic any
+	if err := json.Unmarshal(b, &generic); err != nil {
+		return nil, err
+	}
+	// encoding/json sorts map keys and emits no whitespace; HTML escaping is turned off so that the
+	// bytes are what any standard JSON encoder produces (serde_json, JSON.stringify), not Go's \u003c.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(generic); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+}
+
+// Build assembles a bundle from a manifest and the artifact it describes. The manifest's artifact
+// hash is set from the bytes, so a caller cannot build a bundle that lies about its artifact.
+func Build(m Manifest, artifact []byte) ([]byte, error) {
+	sum := sha256.Sum256(artifact)
+	m.Artifact.Sha256 = hex.EncodeToString(sum[:])
+	if m.ABI == "" {
+		m.ABI = ABI
+	}
+	mb, err := Canonical(m)
+	if err != nil {
+		return nil, err
+	}
+	if len(mb) > MaxManifestBytes {
+		return nil, fmt.Errorf("manifest exceeds %d bytes", MaxManifestBytes)
+	}
+	out := make([]byte, 0, len(BundleMagic)+8+len(mb)+len(artifact))
+	out = append(out, BundleMagic...)
+	out = binary.LittleEndian.AppendUint32(out, uint32(len(mb)))
+	out = append(out, mb...)
+	out = binary.LittleEndian.AppendUint32(out, uint32(len(artifact)))
+	out = append(out, artifact...)
+	return out, nil
+}
+
+// IsBundle reports whether bytes carry the bundle magic. Bytes that do not are a BARE artifact: a
+// backend may accept one (isolation/m3 did before bundles existed) and its identity is then simply
+// sha256(bytes), with the manifest taken as absent.
+func IsBundle(b []byte) bool { return bytes.HasPrefix(b, []byte(BundleMagic)) }
+
+// AppID is the identity of whatever bytes a domain was loaded with: the sha256 of ALL of them. For a
+// bundle that covers the manifest and the artifact; for a bare artifact, the artifact.
+func AppID(b []byte) [32]byte { return sha256.Sum256(b) }
+
+var ErrNotBundle = errors.New("not a bundle")
+
+// Parse checks a bundle and returns its manifest and artifact. It refuses a non-canonical manifest
+// and an artifact hash that does not match the bytes, so anything Parse accepts has exactly one
+// byte form and one ID.
+func Parse(b []byte) (Manifest, []byte, error) {
+	var m Manifest
+	if !IsBundle(b) {
+		return m, nil, ErrNotBundle
+	}
+	p := b[len(BundleMagic):]
+	if len(p) < 4 {
+		return m, nil, errors.New("bundle truncated at manifest length")
+	}
+	ml := binary.LittleEndian.Uint32(p)
+	p = p[4:]
+	if ml > MaxManifestBytes || uint64(ml) > uint64(len(p)) {
+		return m, nil, errors.New("bundle manifest length out of range")
+	}
+	mb := p[:ml]
+	p = p[ml:]
+	if len(p) < 4 {
+		return m, nil, errors.New("bundle truncated at artifact length")
+	}
+	al := binary.LittleEndian.Uint32(p)
+	p = p[4:]
+	if uint64(al) != uint64(len(p)) {
+		return m, nil, fmt.Errorf("bundle artifact length %d does not match %d bytes present", al, len(p))
+	}
+	if err := json.Unmarshal(mb, &m); err != nil {
+		return m, nil, fmt.Errorf("bundle manifest: %w", err)
+	}
+	canon, err := Canonical(m)
+	if err != nil {
+		return m, nil, err
+	}
+	if !bytes.Equal(canon, mb) {
+		return m, nil, errors.New("bundle manifest is not in canonical form")
+	}
+	if m.ABI != ABI {
+		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	sum := sha256.Sum256(p)
+	if m.Artifact.Sha256 != hex.EncodeToString(sum[:]) {
+		return m, nil, errors.New("bundle manifest names a different artifact than it carries")
+	}
+	return m, p, nil
+}

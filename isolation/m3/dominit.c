@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <net/if.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
@@ -89,7 +90,18 @@ int main(void) {
 
     char snpflag[16];
     snprintf(snpflag, sizeof snpflag, "-snp=%d", snp);   /* one argv element: Go bool flags need = */
-    char *argv[] = {"/monitor", snpflag, NULL};
+    /* A Hyper-V child partition (windows/vbslike) has no hardware signer: its launcher names, on the
+     * kernel command line, the host vsock port that signs report_data. Absent on QEMU, so nothing
+     * changes there. The image is the same either way; only the launcher differs. */
+    char hostflag[48] = "";
+    {
+        FILE *f = fopen("/proc/cmdline", "r");
+        char line[1024] = "";
+        if (f) { if (!fgets(line, sizeof line, f)) line[0] = 0; fclose(f); }
+        char *p = strstr(line, "report_host=");
+        if (p) snprintf(hostflag, sizeof hostflag, "-report-host=%d", atoi(p + 12));
+    }
+    char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, NULL};
     char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
     execve(argv[0], argv, envp);
     printf("MON ERROR exec /monitor: %s\n", strerror(errno));
