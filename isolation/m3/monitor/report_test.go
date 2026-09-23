@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -53,7 +54,7 @@ func testMonitor(t *testing.T, report reporter) (*monitor, string) {
 
 // the caller of these tests runs as one uid, so that uid is the "domain" the monitor knows
 func registerSelf(m *monitor, id int) *domain {
-	d := &domain{ID: id, UID: os.Getuid(), Port: uint32(40000 + id),
+	d := &domain{ID: id, UID: os.Getuid(), Port: uint32(40000 + id), state: domRunning,
 		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(d.appHash[:], []byte(fmt.Sprintf("app-%d", id)))
 	m.register(d)
@@ -208,7 +209,7 @@ func TestOneDomainCannotCrowdOutAnother(t *testing.T) {
 
 	// a DIFFERENT domain is still served while the noisy one is at its limit. (Same uid here, so the
 	// second domain is simulated by giving the noisy domain's slots back to a fresh domain record.)
-	quiet := &domain{ID: 2, UID: os.Getuid(), exited: make(chan struct{}),
+	quiet := &domain{ID: 2, UID: os.Getuid(), state: domRunning, exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(quiet.appHash[:], []byte("app-2"))
 	m.mu.Lock()
@@ -245,7 +246,7 @@ func TestFloodIsRefusedRatherThanQueuedUnbounded(t *testing.T) {
 	// first and the global one would never be reached. Give this domain a large allowance: what is
 	// under test here is the GLOBAL limit, which is what stops a flood from spawning a goroutine per
 	// connection however many domains it is spread across.
-	d := &domain{ID: 1, UID: os.Getuid(), exited: make(chan struct{}),
+	d := &domain{ID: 1, UID: os.Getuid(), state: domRunning, exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsTotal+8)}
 	m.mu.Lock()
 	m.byUID[d.UID] = d
@@ -460,5 +461,267 @@ func TestCrashAndDestroyRacingLeaveOneCleanEnd(t *testing.T) {
 		if _, err := os.Stat(d.dir); !os.IsNotExist(err) {
 			t.Fatalf("cycle %d: directory survived", i)
 		}
+	}
+}
+
+// --- the lifecycle, deterministically ------------------------------------------------------------
+// Startup and reclamation race in both directions: a destroy can arrive while a domain is still being
+// built, and the domain's process can die during startup. The hazard is not a leaked file: it is that a
+// reclamation running FIRST would consume the one-shot cleanup before the process existed, after which
+// the domain that then started could never be reclaimed at all. These tests drive the state machine
+// directly, so the result does not depend on winning a race.
+
+func endedCleanly(t *testing.T, m *monitor, d *domain) {
+	t.Helper()
+	m.mu.Lock()
+	_, byID := m.doms[d.ID]
+	_, byUID := m.byUID[d.UID]
+	m.mu.Unlock()
+	if byID || byUID {
+		t.Fatal("the domain is still registered")
+	}
+	if _, err := os.Stat(d.dir); !os.IsNotExist(err) {
+		t.Fatalf("its directory survived: %v", err)
+	}
+	if _, err := os.Stat(d.cgroup); !os.IsNotExist(err) {
+		t.Fatalf("its cgroup survived: %v", err)
+	}
+	d.mu.Lock()
+	st := d.state
+	d.mu.Unlock()
+	if st != domEnded {
+		t.Fatalf("state is %v, want domEnded", st)
+	}
+}
+
+func startingDomain(t *testing.T, m *monitor, id int) *domain {
+	t.Helper()
+	d := &domain{ID: id, UID: os.Getuid() + id, state: domStarting,
+		dir: filepath.Join(t.TempDir(), "d"), cgroup: filepath.Join(t.TempDir(), "cg"),
+		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+	os.MkdirAll(d.dir, 0o755)
+	os.MkdirAll(d.cgroup, 0o755)
+	close(d.exited) // no process in a unit test
+	m.register(d)
+	return d
+}
+
+func TestDestroyDuringStartupIsHonouredByStartupItself(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	d := startingDomain(t, m, 1)
+
+	// the destroy arrives while the domain is still being built
+	if err := m.destroy(d.ID); err != nil {
+		t.Fatalf("destroy: %v", err)
+	}
+	// it must NOT have been reclaimed yet: start() still owns it and knows what it built
+	if _, err := os.Stat(d.dir); err != nil {
+		t.Fatal("a domain still starting up must not be reclaimed from under startup")
+	}
+	// it must already be out of the tables, so nothing new can find it
+	m.mu.Lock()
+	_, listed := m.doms[d.ID]
+	m.mu.Unlock()
+	if listed {
+		t.Fatal("a domain being ended must leave the tables at once")
+	}
+
+	// now startup finishes and finds the request waiting for it
+	why := d.finishStart(nil)
+	if why == "" {
+		t.Fatal("startup must be told that the domain was destroyed while it was building")
+	}
+	m.retire(d, why)
+	endedCleanly(t, m, d)
+}
+
+func TestManyStartsAndDestroysRacingEndCleanlyEveryTime(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	for i := 0; i < 50; i++ {
+		d := startingDomain(t, m, i+1)
+		var wg sync.WaitGroup
+		// three reclaimers and one startup, all at once, in every interleaving the scheduler picks
+		for _, fn := range []func(){
+			func() { m.destroy(d.ID) },
+			func() { m.retire(d, "crashed") },
+			func() { m.retire(d, "crashed again") },
+			func() {
+				if why := d.finishStart(nil); why != "" {
+					m.retire(d, why)
+				}
+			},
+		} {
+			wg.Add(1)
+			go func(f func()) { defer wg.Done(); f() }(fn)
+		}
+		wg.Wait()
+		// whoever got there first, the domain ends exactly once and leaves nothing
+		if why := d.finishStart(nil); why != "" {
+			m.retire(d, why) // startup may have lost the race; it still has to be safe
+		}
+		m.retire(d, "belt and braces")
+		endedCleanly(t, m, d)
+	}
+}
+
+func TestAReapedDomainIsNeverSignalledByNumber(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	d := registerSelf(m, 1)
+	d.dir = filepath.Join(t.TempDir(), "d")
+	d.cgroup = filepath.Join(t.TempDir(), "cg")
+	os.MkdirAll(d.dir, 0o755)
+	os.MkdirAll(d.cgroup, 0o755)
+
+	// a process that has already been reaped: its pid may belong to something else by now
+	sleep := exec.Command("/bin/sh", "-c", "exit 0")
+	if err := sleep.Start(); err != nil {
+		t.Fatal(err)
+	}
+	sleep.Wait()
+	d.mu.Lock()
+	d.proc, d.reaped = sleep.Process, true
+	d.mu.Unlock()
+	close(d.exited)
+
+	m.retire(d, "already reaped")
+	endedCleanly(t, m, d)
+	// nothing was written to cgroup.kill, because the domain was known to be gone
+	if _, err := os.Stat(filepath.Join(d.cgroup, "cgroup.kill")); err == nil {
+		t.Fatal("a reaped domain must not be killed again")
+	}
+}
+
+// --- one tenant must not be able to spend the monitor's attention ---------------------------------
+// The per-domain cap alone does not achieve this. A refusal that answers and then absorbs the peer's
+// remaining bytes takes time, and if that happens while holding a global slot — or worse, inside the
+// accept loop — then a single domain opening many connections it is not entitled to can occupy the whole
+// global budget, or stall every other tenant's connection behind it. The distinction this test turns on:
+// a flood must come back as the PER-DOMAIN refusal, never as the GLOBAL one, and another domain must
+// still be served while it is going on.
+func TestOneDomainsFloodNeitherSpendsTheGlobalBudgetNorBlocksAnother(t *testing.T) {
+	hold := make(chan struct{})
+	m, sock := testMonitor(t, func(rd []byte) ([]byte, []byte, error) {
+		if strings.HasPrefix(string(rd[32:]), "app-1") {
+			<-hold // this domain's admitted requests stay in the hardware call
+		}
+		return okReport(rd)
+	})
+	noisy := registerSelf(m, 1)
+	t.Cleanup(func() { close(hold) })
+
+	// fill this domain's own allowance with requests that will not finish
+	var stuck []net.Conn
+	for i := 0; i < maxReportsPerDom; i++ {
+		c, err := net.Dial("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Write([]byte(goodBind))
+		stuck = append(stuck, c)
+	}
+	// then flood: connections that open, send a request, and are SLOW to go away afterwards
+	var flood []net.Conn
+	for i := 0; i < 60; i++ {
+		c, err := net.Dial("unix", sock)
+		if err != nil {
+			break
+		}
+		c.Write([]byte(goodBind))
+		flood = append(flood, c)
+	}
+	t.Cleanup(func() {
+		for _, c := range append(stuck, flood...) {
+			c.Close()
+		}
+	})
+	time.Sleep(300 * time.Millisecond) // let the monitor work through them
+
+	// A new request from the same domain must be refused for the RIGHT reason: its own allowance is
+	// full. Seeing the global limit here would mean the flood's refusals were holding global slots.
+	got, err := ask(sock, goodBind)
+	if err != nil {
+		t.Fatalf("the monitor stopped answering during a flood: %v", err)
+	}
+	if strings.Contains(got["error"], "report limit") {
+		t.Fatalf("one domain's flood consumed the GLOBAL budget: %v", got)
+	}
+	if !strings.Contains(got["error"], "too many concurrent report requests") {
+		t.Fatalf("want the per-domain refusal, got %v", got)
+	}
+
+	// ...and a different domain is served throughout. (Every connection here authenticates as the same
+	// uid, so a second domain is simulated by swapping the record that uid resolves to.)
+	quiet := &domain{ID: 2, UID: os.Getuid(), state: domRunning, exited: make(chan struct{}),
+		inFlight: make(chan struct{}, maxReportsPerDom)}
+	copy(quiet.appHash[:], []byte("app-2"))
+	m.mu.Lock()
+	m.byUID[quiet.UID] = quiet
+	m.mu.Unlock()
+
+	done := make(chan map[string]string, 1)
+	go func() {
+		r, err := ask(sock, goodBind)
+		if err != nil {
+			r = map[string]string{"error": err.Error()}
+		}
+		done <- r
+	}()
+	select {
+	case r := <-done:
+		if r["report"] == "" {
+			t.Fatalf("the other domain must be served during the flood, got %v", r)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the other domain was not served while one domain flooded the monitor")
+	}
+	_ = noisy
+}
+
+// A refusal must not be answered from inside the accept loop, or one slow peer delays every connection
+// behind it. With the answer and the drain moved off that path, a burst of refused connections is
+// answered promptly rather than serially.
+func TestRefusalsDoNotStallTheAcceptLoop(t *testing.T) {
+	hold := make(chan struct{})
+	m, sock := testMonitor(t, func(rd []byte) ([]byte, []byte, error) { <-hold; return okReport(rd) })
+	// built with a large per-domain allowance so the GLOBAL limit is the one under test. It is set at
+	// construction, never assigned afterwards: mutating a field of a domain the monitor is already
+	// serving is a data race, and a racy test cannot be trusted to find real ones.
+	d := &domain{ID: 1, UID: os.Getuid(), state: domRunning, exited: make(chan struct{}),
+		inFlight: make(chan struct{}, maxReportsTotal+8)}
+	copy(d.appHash[:], []byte("app-1"))
+	m.register(d)
+	t.Cleanup(func() { close(hold) })
+
+	var held []net.Conn
+	for i := 0; i < maxReportsTotal; i++ { // occupy every global slot with requests that never finish
+		c, err := net.Dial("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Write([]byte(goodBind))
+		held = append(held, c)
+	}
+	t.Cleanup(func() {
+		for _, c := range held {
+			c.Close()
+		}
+	})
+	time.Sleep(200 * time.Millisecond)
+
+	// now 12 more, each of which must be told the monitor is full — quickly, and not one after another
+	start := time.Now()
+	for i := 0; i < 12; i++ {
+		got, err := ask(sock, goodBind)
+		if err != nil {
+			t.Fatalf("connection %d got no answer: %v", i, err)
+		}
+		if !strings.Contains(got["error"], "report limit") {
+			t.Fatalf("connection %d: want the global refusal, got %v", i, got)
+		}
+	}
+	if d := time.Since(start); d > 4*time.Second {
+		t.Fatalf("12 refusals took %s: they are queueing behind each other", d)
+	} else {
+		t.Logf("12 refusals answered in %s", d)
 	}
 }
