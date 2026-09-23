@@ -4933,3 +4933,76 @@ the per-round estimates and this hypothesis.
 Unchanged: both production Freivalds rejections (sterms-1, b-eq-1) open; the
 conv multi-sequence limitation documented; no model-matched quality evaluation
 of the 27B shielded encoding. **No 25.**
+
+### 18.52 Where a verify round goes now, the rollback snapshot, and a bench argmax that was 3.5% of the round
+
+Checkpoint from the session after the M3b kernel boot (7.2.0-gbf5bafed3e6d,
+NVIDIA 580.178.04; same worker binary 9039023a, same model and calibration).
+Raw artifacts in `shielded/bench-harness/results-2026-09-23/`.
+
+**The rollback snapshot is half of the recurrent op.** `gdn-bench` with 48
+rotating per-layer states (so the state arrives cold, as in the graph), 2 tokens,
+8 threads: 164.9 / 164.3 us per call with the K=2 rollback snapshot, 80.1 / 82.7
+without it (K=1), 73.8 / 59.1 for one token (no snapshot copy). The copy writes
+3 MB per layer into a slot nothing reads unless the draft is rejected, and with
+ordinary stores each destination line is first read for ownership.
+`wasm/llamacpp-gdn-ntsnap.patch` (switch `ENCLAVE_GGML_GDN_NTSNAP`, default on
+in the fork, not deployed) writes the snapshot with streaming stores and one
+fence per thread chunk: the same bytes, so bit-identical by construction, and
+checked (gdn-equiv on/off and against the pre-change dump with every slot
+dumped; a mutant per streaming branch caught in 4 and 16 cases; the 0.8B real
+graph's rollback scenario identical). Cold-state timing, ABBA x3: 120.7-137.9
+us on against 151.1-168.0 off (every on run below every off run, ~-18%); the
+no-snapshot control (K=1), which the switch cannot affect, varied 54.7-79.5 us
+between processes, so process-to-process noise is ~+-15 us and this effect is
+outside it. Not yet measured in the 27B graph; worth ~1 ms of a verify round
+if it carries over. Separate processes of this microbenchmark differ by up to
+~20% (not huge pages: every run had 298 of 299 MB on THP), so single A/B
+readings of it are not evidence. Its warm-up mode is confounded (the warm-up
+lets the pool threads sleep) and is not evidence either.
+
+**Where a verify round goes** (`ENCLAVE_SCHED_PROF=1`,
+`wasm/llamacpp-sched-prof.patch`, instrumentation only, and a per-round phase
+line in the bench; run sp-1, medians):
+
+| part of a round | ms |
+|---|---|
+| shielded splits (321 per pass) | 49.0 |
+| CPU splits (321 per pass), op work ~13.6 of it | 14.7 |
+| scheduler loop + input copies | 0.2 |
+| llama graph build + alloc (graph reused) | ~1.3 |
+| MTP draft | ~4.8 |
+| the bench's greedy argmax (2 rows x 248,320) | ~2.7 |
+| rewind (22% of rounds) | 0.003 |
+
+The phase trace of the same configuration (pt-1) splits the shielded part: card
+0's exchanges 33.0 ms and card 1's 36.6 ms per round run concurrently, the join
+waits 4.7, wire 21.5, mask 4.2, unmask 2.7, rhs 3.6, check 0.25. One more
+finding: **the CPU splits are where runs differ.** The same op work took 14.7
+ms per verify round in sp-1 and 21.7 in ph-1 (a slow run): the per-split
+dispatch cost went from ~3 us to ~25 us across 321 splits. That is a concrete
+place for the run-to-run spread, not yet a cause; the OpenMP wait policy was
+already measured optimal twice (sections 16 and 18.7) and is not re-tried.
+
+**The bench's argmax.** It compared `lg[t] > lg[b]`, reloading `lg[b]` through
+a data-dependent address: 1.69 ms per two-row round alone, 2.7 ms in the run.
+The engine selects with a one-branch host top-k scan (`topk_rows` in
+wasmtime-nn-ggml.patch), so this was a harness artifact that under-reported the
+engine. The register-max form keeps `m == lg[b]` as an invariant, so every
+comparison and every pick are the ones the old form made (and the plain-token
+hash stayed 0a1570d184a4 in every run); alone it costs 0.30 ms. One valid pair
+so far: 21.24 old against 21.91 new; the second pair was invalidated by a
+peer's compile (the validator's intruder check), the third not run. Whatever
+its size, it is a harness change and is reported as one.
+
+**pt-1 reached 24.51 tok/s** (valid, identical text), the highest valid
+reading so far, with the old argmax and both kernel changes. It is one run in
+a 20-24.5 spread, not the milestone: **no verified 25**.
+
+The session then yielded the box to a peer's CPU-heavy isolation build (queue
+stopped between runs, workers down). Next, when the box is free: the argmax
+pairs to completion, the ntsnap 27B op profile, and baseline runs with
+`ENCLAVE_SCHED_PROF=1` to see whether the slow runs are the CPU-split runs.
+Unchanged: both Freivalds rejections open; the conv multi-sequence limitation;
+no model-matched quality evaluation of the 27B encoding; the production-toolchain
+run of the regrow/ntsnap checks not yet executed.

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Inside ubuntu:22.04 (the llamacpp-toolchain runner's OS and stock compiler):
 # the CPU part of the production configuration, then the conv harnesses and the
-# register-row GATED_DELTA_NET checks (llamacpp-gdn-regrow.patch).
+# register-row and streaming-snapshot GATED_DELTA_NET checks
+# (llamacpp-gdn-regrow.patch, llamacpp-gdn-ntsnap.patch).
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >/dev/null && apt-get install -y -qq build-essential cmake git >/dev/null
@@ -24,6 +25,8 @@ run_equiv conv-equiv2 "ALL PASS"      /work/conv-equiv2
 CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out
 run_pair gdn-equiv /work/gdn-equiv ENCLAVE_GGML_GDN_REGROW /out
 mkdir -p /out/regrow && CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out/regrow ENCLAVE_GGML_GDN_REGROW
+mkdir -p /out/ntsnap && run_pair gdn-equiv /work/gdn-equiv ENCLAVE_GGML_GDN_NTSNAP /out/ntsnap
+mkdir -p /out/ntsnap-graph && CONV_TEST_CPU_BACKEND=$B/libggml-cpu.so run_graph /work/conv-graph-test /model/m.gguf /out/ntsnap-graph ENCLAVE_GGML_GDN_NTSNAP
 # informational, not a gate: the register row must be LIVE on this ISA, which
 # the equality checks cannot show (both arms equal if the path compiled out)
 for v in 1 0 1 0; do ENCLAVE_GGML_GDN_REGROW=$v /work/gdn-bench 2 8 2000; done | tee /out/gdn-bench.txt

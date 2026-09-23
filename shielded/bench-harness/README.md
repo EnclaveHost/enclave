@@ -16,7 +16,10 @@ under `~/enclave-bench/` (the scripts' absolute paths point there).
 | `workers-shm2.sh start\|stop` | the two V100 workers on `/dev/shm` rings (`W=` overrides the binary) |
 | `abtok.sh` / `abtokprof.sh` | the token-fused GATED_DELTA_NET A/B and its op-profiled pairs (REPORT 18.50) |
 | `abrg.sh` / `abrgprof.sh` | the register-row GATED_DELTA_NET A/B and its op-profiled pairs (REPORT 18.51) |
-| `bench-spec2.cpp` | `wasm/ggml-shielded/bench-spec.cpp` + WARM/PREFILL_REPS, PLAIN_ONLY, and the plain-token dump |
+| `bench-spec2.cpp` | `wasm/ggml-shielded/bench-spec.cpp` + WARM/PREFILL_REPS, PLAIN_ONLY, the plain-token dump, the register-max greedy argmax (REPORT 18.52; identical picks) and a per-round phase line on stderr |
+| `abam.sh` | the bench argmax A/B (old lg[b]-reload form vs register max, same engine) |
+| `phround.py LABEL` | per-round phase budget of the spec decode window from a `SHIELDED_PHASE_TRACE=1` run |
+| `phase.py LABEL` | the earlier per-segment phase attribution (recovered) |
 | `recover.py` | replays a transcript's Write/Edit/heredoc writes into a directory (how this copy was rebuilt) |
 
 **Provenance of the rebuild.** `validate.py`, `pairs.py`, the gates and samplers
