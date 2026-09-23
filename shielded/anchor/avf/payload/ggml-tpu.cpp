@@ -457,9 +457,10 @@ static int64_t dot_i8_digit(const int8_t *w, const int16_t *q, uint32_t n, bool 
 }
 
 static int64_t g_last_exchange_end = 0;
+static inline int hist_bin(int64_t us) { return us < 25 ? 0 : us < 100 ? 1 : us < 400 ? 2 : us < 1600 ? 3 : 4; }
 void exchange(group &g, const float *x, uint32_t rows) {
     state &s = S(); const int64_t t0 = now_us();
-    if (g_last_exchange_end) s.st.gap_us += (uint64_t)(t0 - g_last_exchange_end);
+    if (g_last_exchange_end) { s.st.gap_us += (uint64_t)(t0 - g_last_exchange_end); s.st.gap_hist[hist_bin(t0 - g_last_exchange_end)]++; }
     std::vector<pad> pads; pads.reserve(rows + 3);
     { std::lock_guard<std::mutex> lk(g.bank_mu); while (pads.size() < rows && !g.bank.empty()) { pads.push_back(std::move(g.bank.front())); g.bank.pop_front(); } }
     if (pads.size() < rows) {                                              /* the bank ran dry: mint the rest here, in one batch, and say so */
@@ -678,7 +679,7 @@ void exchange(group &g, const float *x, uint32_t rows) {
     }
     const int64_t t3 = now_us();
     s.st.exchanges++; s.st.rows += rows; s.st.bytes_out += s.frame.size(); s.st.bytes_in += s.rxbuf.size() * 2;
-    s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2);
+    s.st.mask_us += (uint64_t)(t1 - t0); s.st.link_us += (uint64_t)(t2 - t1); s.st.unmask_us += (uint64_t)(t3 - t2); s.st.unmask_hist[hist_bin(t3 - t2)]++;
     s.st.corr_us += (uint64_t)(t_corr - t_pub); s.st.wait_us += (uint64_t)(t2 - t_mint);
     s.st.rx_calls = g_rx_calls.load(std::memory_order_relaxed);
     pads.clear(); outl.clear();                                             /* timed: in a protected VM, returning pages is not free */
