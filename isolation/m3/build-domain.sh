@@ -17,6 +17,8 @@ trap 'rm -rf "$d"' EXIT
 gcc -static -O2 -o "$d/init" "$here/dominit.c"
 mkdir -p "$d/plat/rt" "$d/domains" "$d/run" "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
 gcc -static -O2 -o "$d/plat/domexec" "$here/domexec.c"
+# the adversary probe: measured, so it is auditable, and selectable only BETWEEN measured binaries
+gcc -static -O2 -o "$d/plat/domprobe" "$here/domprobe.c"
 # static and byte-reproducible for a given Go toolchain; the front is the same binary M2 uses
 (cd "$here" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/monitor" ./monitor)
 (cd "$here/../m2" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/plat/front" ./front)

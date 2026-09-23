@@ -87,6 +87,7 @@ type domain struct {
 	ln      *vsock.Listener
 	appHash [32]byte
 
+	probe    bool          // run the measured adversary probe instead of the app, for the isolation tests
 	exited   chan struct{} // closed when the process tree is gone
 	reclaim  sync.Once     // listener, mounts, directory and cgroup are released exactly once
 	inFlight chan struct{} // this domain's share of concurrent report work
@@ -142,6 +143,10 @@ func main() {
 			fmt.Printf("MON ERROR control accept: %v\n", err)
 			return
 		}
+		if !fromHost(c) {
+			c.Close()
+			continue
+		}
 		select {
 		case slots <- struct{}{}:
 			go func() { defer func() { <-slots }(); m.serveControl(c) }()
@@ -170,6 +175,11 @@ type request struct {
 	CPU    int    `json:"cpu"`
 	MemMiB int    `json:"mem"`
 	ID     int    `json:"id"`
+	// Probe runs the measured adversary probe (/plat/domprobe) as this domain's workload instead of the
+	// runtime and front. It stands in for a tenant whose runtime has been compromised: native code with
+	// the domain's uid and namespaces, trying to reach other domains and the monitor. The host can only
+	// choose BETWEEN measured binaries, never supply one, and the probe only reports what it could reach.
+	Probe bool `json:"probe"`
 }
 
 func (m *monitor) serveControl(c net.Conn) {
@@ -200,6 +210,12 @@ func (m *monitor) serveControl(c net.Conn) {
 			enc.Encode(map[string]any{"domains": m.snapshot()})
 		case "state":
 			enc.Encode(m.state())
+		case "stop":
+			if err := m.stop(req.ID); err != nil {
+				enc.Encode(map[string]string{"error": err.Error()})
+				continue
+			}
+			enc.Encode(map[string]any{"stopped": req.ID})
 		case "destroy":
 			if err := m.destroy(req.ID); err != nil {
 				enc.Encode(map[string]string{"error": err.Error()})
@@ -251,7 +267,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: req.CPU, MemMiB: req.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
-		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	if d.CPU <= 0 {
 		d.CPU = 100
 	}
@@ -322,7 +338,11 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	d.ln = ln
 
-	cmd := exec.Command("/plat/domexec", strconv.Itoa(d.ID), strconv.Itoa(d.UID))
+	mode := "app"
+	if d.probe {
+		mode = "probe"
+	}
+	cmd := exec.Command("/plat/domexec", strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,
@@ -355,10 +375,24 @@ func (m *monitor) start(d *domain, app []byte) error {
 			if err != nil {
 				return // the listener is closed when the domain is retired
 			}
+			// Only the HOST may open a domain's port. vsock is not fully namespaced, so without this a
+			// process inside one domain could connect to another domain's port and be relayed straight
+			// to that domain's front — a cross-domain channel through the monitor itself.
+			if !fromHost(c) {
+				fmt.Printf("MON refused a connection to domain %d's port from inside the guest (%s)\n", d.ID, c.RemoteAddr())
+				c.Close()
+				continue
+			}
 			go relay(c, filepath.Join(d.dir, "run", "front.sock"))
 		}
 	}()
 	return nil
+}
+
+// fromHost reports whether a vsock peer is the hypervisor rather than something inside this guest.
+func fromHost(c net.Conn) bool {
+	a, ok := c.RemoteAddr().(vsock.Addr)
+	return ok && a.CID == vsock.CIDHost
 }
 
 func exitReason(err error) string {
@@ -466,6 +500,57 @@ func (m *monitor) cgroup(d *domain) error {
 	return nil
 }
 
+// stop ends a domain the gentle way: signal its FRONT, which stops accepting, and let the domain's init
+// notice its child is gone and wind the rest down. If it does not go within the grace period, retire
+// kills it anyway — a lease that has ended has ended.
+func (m *monitor) stop(id int) error {
+	m.mu.Lock()
+	d := m.doms[id]
+	m.mu.Unlock()
+	if d == nil {
+		return fmt.Errorf("no domain %d", id)
+	}
+	pid, err := d.pidOf("/plat/front")
+	if err != nil {
+		fmt.Printf("MON domain %d stop: no front found (%v); ending it outright\n", d.ID, err)
+		m.retire(d, "stopped at lease end")
+		return nil
+	}
+	fmt.Printf("MON domain %d stop: signalling its front (pid %d)\n", d.ID, pid)
+	syscall.Kill(pid, syscall.SIGTERM)
+	select {
+	case <-d.exited:
+		fmt.Printf("MON domain %d stopped gracefully\n", d.ID)
+	case <-time.After(10 * time.Second):
+		fmt.Printf("MON domain %d did not wind down in 10s; ending it outright\n", d.ID)
+	}
+	m.retire(d, "stopped at lease end")
+	return nil
+}
+
+// pidOf finds a process of this domain by the program it is running. The domain's processes are the ones
+// in its cgroup, which the monitor owns; their pids here are the guest's, not the domain's own namespace.
+func (d *domain) pidOf(prog string) (int, error) {
+	b, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Fields(string(b)) {
+		pid, err := strconv.Atoi(line)
+		if err != nil {
+			continue
+		}
+		cl, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		if err != nil {
+			continue
+		}
+		if strings.Contains(strings.ReplaceAll(string(cl), "\x00", " "), prog) {
+			return pid, nil
+		}
+	}
+	return 0, fmt.Errorf("no process running %s in domain %d", prog, d.ID)
+}
+
 func (m *monitor) destroy(id int) error {
 	m.mu.Lock()
 	d := m.doms[id]
@@ -524,10 +609,31 @@ func (m *monitor) state() map[string]any {
 			}
 		}
 	}
+	memTotal, memAvail := 0, 0
+	if mi, err := os.ReadFile("/proc/meminfo"); err == nil {
+		for _, line := range strings.Split(string(mi), "\n") {
+			var into *int
+			switch {
+			case strings.HasPrefix(line, "MemTotal:"):
+				into = &memTotal
+			case strings.HasPrefix(line, "MemAvailable:"):
+				into = &memAvail
+			default:
+				continue
+			}
+			f := strings.Fields(line)
+			if len(f) >= 2 {
+				if kb, err := strconv.Atoi(f[1]); err == nil {
+					*into = kb / 1024
+				}
+			}
+		}
+	}
 	m.mu.Lock()
 	n := len(m.doms)
 	m.mu.Unlock()
-	return map[string]any{"domains": n, "dirs": names, "cgroups": cgroups, "mounts": mounts, "userspace_procs": procs}
+	return map[string]any{"domains": n, "dirs": names, "cgroups": cgroups, "mounts": mounts,
+		"userspace_procs": procs, "mem_total_mib": memTotal, "mem_available_mib": memAvail}
 }
 
 // --- reports ------------------------------------------------------------------------------------

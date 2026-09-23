@@ -295,3 +295,165 @@ monitor's groups, root's among them — and confirms the privilege drop held bef
 **Not established here:** hardware separation between domains (that is M3b, and it is capped at three
 domains per guest by `vmpl_count=4`); anything about VMPL; a right-sized guest (1 GiB was chosen for
 headroom, not measured as a minimum).
+
+## 11. What wiring M3a into the platform would take (design; not implemented)
+
+M3a lives under `isolation/` and nothing in the product starts a domain. Worth saying first, because it
+reframes the work: **production already runs many apps in one CVM with the app outside the launch
+measurement.** metal0 boots one SNP guest whose supervisor hands each app to an app manager
+(`PROVISION_BACKEND=vm`, `VMMGR_URL`, default `127.0.0.1:8091`) which runs it as a `wasmtime serve`
+process; `cpuShare` is the admission unit and sets the memory cap. The measurement covers the Metal
+release, not the tenant's app, and the RAD serves **one** report for the whole enclave, binding the
+enclave's transport key. So today a buyer of app X gets evidence about the enclave image, and nothing in
+the hardware evidence names X.
+
+That makes M3a a replacement for that app manager rather than a new concept, and it closes a gap that
+exists now:
+
+| | production today | with M3a domains |
+|---|---|---|
+| one app per | `wasmtime serve` process in the shared guest | domain: uid, mount/PID/network/IPC/UTS namespaces, cgroup, own port |
+| app named in the hardware evidence | **no** | yes: `report_data[32:64]` is the hash the monitor took when it loaded that app |
+| report per | enclave | domain, each binding that domain's own TLS key |
+| app-vs-app boundary | the runtime's in-process sandbox and the guest kernel | the guest kernel (M3a) or VMPL (M3b), with the runtime sandbox no longer load-bearing |
+| share enforcement | `cpuShare` -> manager policy | `cpu.max`, `memory.max`, `pids.max` per domain |
+
+### Touchpoints
+
+1. **Control plane.** The supervisor speaks HTTP to `VMMGR_URL` on guest loopback. The monitor speaks
+   line-JSON over vsock because M3a's harness drives it from outside the guest. Inside a CVM the
+   supervisor is in the guest, so the monitor should serve the same HTTP shape on loopback and keep
+   vsock for the out-of-guest case. Either a third `PROVISION_BACKEND=domain`, or the monitor answers
+   the existing manager's routes.
+2. **Routing.** Today the manager exposes an app on `appPort` and the relay forwards `/x/:id`. A domain's
+   front listens on a unix socket that the monitor relays; the monitor would instead relay to the
+   loopback port the supervisor expects per deployment.
+3. **Attestation, the product-visible part.** A per-deployment attestation endpoint, so a client of app X
+   fetches evidence naming X. The verdict rules already exist (`isolation/m2/judge.mjs`), the binding is
+   what `relay/snp-verify.mjs` already checks, and the app half is the monitor's to write. This is the
+   piece worth shipping first, because it is a capability the platform does not have at all today.
+4. **Secrets and config.** Deployment secrets and per-version app config are delivered at container
+   creation today; the monitor would write them into the domain's private directory, which is the
+   natural place, and they would then be outside every other domain's namespace.
+5. **Allowlist.** Unchanged in kind: the measurement names the release. The app hash moves into the
+   evidence, which is what section 3 describes.
+
+### Decisions needed before any of that is written
+
+- **Does a deployment get a domain, or does a tenant?** One app with several deployments could share a
+  domain or get one each; the share ledger assumes per-deployment accounting.
+- **What happens when a domain dies?** M3a reclaims it and the port stops answering. The platform's
+  lease machinery must decide whether that is a restart, a refund, or a claim released.
+- **Three-domain ceiling under VMPL (section 1).** If per-app hardware isolation matters more than
+  density, the answer is M2's one CVM per app, and the monitor becomes the thing that manages *those*
+  rather than domains inside one guest. That is a product call, not a technical one.
+- **Whether the runtime sandbox stays load-bearing during the transition.** Running both boundaries is
+  strictly safer and costs nothing; saying so publicly is what must not get ahead of the code.
+
+**Not started, and it needs a go-ahead:** every touchpoint above is on the live serving path for real
+deployments. The right order is (3) first, behind a flag and with no change to how apps run, then (1) and
+(2) on a single self-hosted node before the fleet.
+
+## 12. M3a-3 results: the blocked pieces, built (2026-09-23)
+
+`isolation/m3/build-svsm-toolchain.sh` and `build-planes-host.sh`. Both **build only**: nothing installed
+system-wide, no kernel installed, no reboot, the running host untouched. Work directories and a private
+`CARGO_HOME` under the scratchpad.
+
+**Built here:**
+- the `x86_64-unknown-none` Rust target, `cargo-c` and `cbindgen`
+- **libigvm** from microsoft/igvm — what QEMU needs before `--enable-igvm` means anything
+- **COCONUT-SVSM** at `d37095e1` through its own Makefile (`make RELEASE=1 FEATURES=vtpm igvm`), which
+  produces the SVSM ELF, `igvmbuilder`, `igvmmeasure`, and IGVM files for QEMU, Hyper-V and Vanadium.
+  `FW_FILE` defaults to none, so this needs no edk2 build; M3b supplies a real OVMF.
+- **the planes host kernel** (coconut-svsm/linux `svsm-v7.2` at `bf5bafed3`) and the **patched QEMU**
+  (coconut-svsm/qemu `svsm-v7.2`), configured from this machine's own running kernel config so what was
+  built is a kernel this machine could actually boot.
+
+**Two corrections to earlier sections of this page, found by building it:**
+1. `igvmmeasure` is part of **COCONUT-SVSM**, not microsoft/igvm. Section 2 implied the latter.
+2. `igvmmeasure`'s interface is `igvmmeasure [OPTIONS] <INPUT> <COMMAND>` — the file comes *before*
+   `measure`.
+
+**The finding that matters, and it is a blocker for the attestation story:** an SVSM launch measurement is
+**not reproducible across build paths**. Two checkouts of the **same commit** `d37095e1`, differing only
+in directory name, produced different IGVM digests:
+
+```
+checkout .../svsm     E46A5A58B57CAE906E0950DA59FE5ED76B97DA6CB233CE2C81FC24B53E4987AE67DB2525D622A90FE484885D07945222
+checkout .../svsm-b   6287D87E9343CBF1639C051CD179B01D3B751596FA1B07945DDAA4374CF6C27D1F2BB10797AB2B51DE7DC72162EF53C3
+```
+
+The cause is mechanical: absolute source paths are embedded in the SVSM binary (`strings` finds each
+checkout's own path, e.g. `…/svsm/kernel/src/cpu/control`), and the two ELFs differ in about 224,000
+bytes. DESIGN.md section 5 point 2 requires a measurement that is **reproducible from its inputs**, and an
+allowlist entry nobody else can reproduce is not an allowlist entry. So this must be fixed before an
+SVSM-based CVM can be attested the way the platform attests M1 and M2 domains. The remedy under test in
+step 7 of the script is Cargo's `trim-paths`, set through `CARGO_PROFILE_RELEASE_TRIM_PATHS` rather than
+`RUSTFLAGS` — `RUSTFLAGS` would *replace* the rustflags the SVSM's own `.cargo/config.toml` sets
+(`force-frame-pointers`, soft AES), silently changing the thing being measured.
+
+**A process note, since it cost a run:** editing a shell script while it is executing corrupts the
+interpreter's file offset. The first toolchain run died at its last line for that reason, after all its
+steps had completed.
+
+## 13. The boot that needs a decision, and how to undo it
+
+Everything above is built and validated without touching the running host. The VMPL boundary itself
+cannot be: `KVM_CREATE_PLANE` has to exist in the kernel that is running. This section is here so that
+decision is concrete rather than open-ended.
+
+**What the boot would cost on warden-host, measured from the machine as it is now:**
+- **The GPUs go away while booted into it.** `nvidia`, `nvidia_uvm`, `nvidia_modeset` and `nvidia_drm`
+  are loaded now, with 893 references, and the driver is `nvidia-580xx-dkms`. A new kernel needs that
+  module rebuilt by DKMS against it, or there is no CUDA — which is exactly what the 27B benchmark
+  session uses. **This alone makes the boot a coordinated event, not an afternoon's step.**
+- ZFS is loaded but has **no pools**, so it is not a constraint. Root is ext4 on `/dev/mapper/cryptroot`,
+  `/boot` is a vfat ESP, and the bootloader is **GRUB 2.14** — so a new kernel is an added entry, not a
+  replacement, and nothing existing is overwritten.
+
+**The plan, in order:**
+1. Finish `build-planes-host.sh` green, and rebuild with the machine's FULL module config (this run used
+   `localmodconfig` to fit the disk and the time).
+2. `dkms build` the NVIDIA 580 module against the new kernel **before** installing anything. If it does
+   not build, stop: the cost is no longer just a reboot.
+3. Install as a SEPARATE GRUB entry (`vmlinuz-linux-planes` + its own initramfs). Do not touch
+   `vmlinuz-linux`, its initramfs, or the default entry. Verify `grub-mkconfig` output lists both.
+4. Confirm out-of-band access exists before the reboot. If the only way in is SSH, a kernel that does not
+   bring up the network is an on-site visit.
+5. Announce, wait for every session to park work, and take the window.
+6. Boot the new entry **once**, non-default. First checks, in order: SSH answers; `uname -r`;
+   `nvidia-smi`; `grep -c PLANES /usr/include/linux/kvm.h` is irrelevant — instead confirm
+   `KVM_CAP_PLANES` is advertised by the running kernel via a two-line ioctl probe; then the M1 and M2
+   harnesses, which must still pass exactly as they do today.
+7. Only then the new work: COCONUT-SVSM at VMPL0 with our domain image at VMPL2, and the isolation tests
+   in section 7.
+
+**Rollback:** reboot and pick the original GRUB entry; nothing was replaced. If the new kernel does not
+boot at all, GRUB's menu is the rollback, which is why step 3 must not touch the default entry. If the
+machine does not come back, step 4 is what saves it.
+
+**Remaining hardware test after the boot, stated now so it is not invented later:** the section 7 checks,
+of which 1 to 5 and 7 have no equivalent today and are the whole point — that a domain at VMPL2 cannot
+read the monitor's or another plane's memory, cannot obtain a report below its own privilege level, and
+that its report verifies with `expectedVmpl` set to its plane and is refused without it.
+
+## 14. Measured on real TEE hardware, versus simulated
+
+Kept separate deliberately, because the difference is the whole value of the claim.
+
+| claim | status |
+|---|---|
+| SNP guest boots unprivileged, returns a v5 report at VMPL0, reproducible launch measurement | **measured on warden-host** (M1, M2, M3a) |
+| the app is in the launch measurement (one app per guest) | **measured** (M1, M2) |
+| the app is NOT in the measurement, and a monitor names it instead | **measured** (M3a, 21 checks) |
+| authenticated attestation: VCEK -> ASK -> pinned ARK, VCEK matching chip and TCB, caller's TCB floor | **measured** (M2 run 3, M3a) |
+| TLS terminating inside a domain, host relaying ciphertext only, switched-key reconnect refused | **measured** |
+| per-domain resource share, lifecycle reclamation, bounded monitor work | **measured** in-guest (M3a) plus offline Go tests |
+| a compromised domain (native code as the domain's uid) cannot reach another domain or the report authority | **measured in-guest with the `domprobe` adversary** — but against the GUEST-KERNEL boundary, not VMPL |
+| **app-vs-app isolation by hardware (VMPL)** | **NOT measured. Not simulated either.** The kernel that can do it is built but not booted (section 13) |
+| the SVSM launch measurement is reproducible | **measured, and it FAILS today** (section 12) |
+| VBS enclaves inside SNP | source-based only, and negative (DESIGN.md section 3, `windows/vbs/snp/README.md`) |
+
+The honest summary: every layer of the design **except the VMPL boundary itself** is now measured on real
+SEV-SNP hardware. The VMPL boundary is blocked on one reviewed reboot, and its prerequisites are built.

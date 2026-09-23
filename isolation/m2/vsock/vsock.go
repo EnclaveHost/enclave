@@ -16,6 +16,7 @@ const (
 	afVsock  = 40
 	CIDAny   = 0xFFFFFFFF // listen on every CID this side has
 	CIDLocal = 1          // vsock_loopback: host-to-host, for testing without a guest
+	CIDHost  = 2          // the hypervisor side, from a guest's point of view
 )
 
 type sockaddrVM struct {

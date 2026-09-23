@@ -80,6 +80,28 @@ activation, all of it yours:
   the relay box set `METAL_ALLOWED_MEASUREMENTS=<hex,hex,…>` (and keep
   `METAL_REQUIRE_VCEK=1`). Until then, attach stays token-only. The allowlist is
   auditable: anyone can rebuild the release and reproduce each measurement.
+- **Decide the minimum firmware level, and set it.** `relay/snp-verify.mjs` will
+  judge a quote's REPORTED_TCB against a floor, but only one the operator
+  supplies: `METAL_MIN_TCB` on the relay box, as JSON per AMD product line, with
+  every field of that line required. Nothing in the code picks a floor, because
+  "acceptable firmware" is a judgement about AMD's published security bulletins,
+  not something a verifier can infer. Two consequences to be deliberate about:
+  **unset** (today) means attaches are judged without a firmware floor, exactly
+  as before this existed, and the verifier says so in its reasons; **set but
+  unparseable** fails every SNP attach closed. The shape, and the field names per
+  line, are in `relay/snp-verify.mjs` (`TCB_FIELDS`, `checkMinTcb`):
+
+  ```
+  METAL_MIN_TCB='{"Turin":{"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117},
+                  "Genoa":{"bootloader":..,"tee":..,"snp":..,"microcode":..}}'
+  ```
+
+  To see what a given box currently reports before choosing a floor, run
+  `node metal/verify.mjs --rad <saved RAD>` — it prints the decoded TCB — or
+  `isolation/m3/../m2/vcek-prep.mjs <doc.json> <dir>`, which writes that box's own
+  TCB as JSON. **Do not** paste a box's own values in as the policy and call it a
+  floor: that admits whatever that box happens to be running, including after a
+  downgrade. It is a starting point for a decision, not the decision.
 - **Anti-sybil.** Decide whether to turn the claim bond on
   (`setClaimBond(bond6, exitDelaySec)`; a bond ≥ one lease quantum's runner
   share makes claim-without-serving unprofitable) and the per-IP attach rate

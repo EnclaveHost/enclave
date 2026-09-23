@@ -23,6 +23,8 @@ res() { tr -d '\r' < "$1" 2>/dev/null | grep -a "^RESULT $2=" | head -1 | sed "s
 verdict() { tr -d '\r' < "$1" 2>/dev/null | grep -a '^VERDICT ' | head -1 | cut -d' ' -f2; }
 ser() { tr -d '\r' < "$W/$1.serial" 2>/dev/null; }
 VCPUS=2                      # the guest's vCPU count is part of its identity: predict and boot with the same
+BIGMEM=${BIGMEM:-1024}       # the guest size earlier runs used, kept for comparable cost figures
+SMALLMEM=${SMALLMEM:-512}    # a right-sized guest: how little does one need for two domains?
 fails=0
 check() { if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
 
@@ -39,15 +41,15 @@ client() {   # client <out> <fwd log> [args]: one M2 client run against a domain
   timeout 300 node "$m2/client.mjs" "https://127.0.0.1:$(fwdport "$f")" --measurement "$pred" "$@" > "$o" 2>&1 || rc=$?
   echo "RESULT exit=$rc" >> "$o"
 }
-boot() {     # boot <tag> <snp|plain>: start the guest and wait for the monitor
-  "$here/run-domain.sh" start "$W/mon.cpio.gz" "$2" "$1" "$W" "$VCPUS" > "$W/$1.host"
+boot() {     # boot <tag> <snp|plain> [memMiB]: start the guest and wait for the monitor
+  "$here/run-domain.sh" start "$W/mon.cpio.gz" "$2" "$1" "$W" "$VCPUS" "${3:-$BIGMEM}" > "$W/$1.host"
   cid=$(sed -n 's/.* cid=\([0-9]*\).*/\1/p' "$W/$1.host")
   for _ in $(seq 600); do grep -aq 'MON ready' "$W/$1.serial" 2>/dev/null && return 0; sleep 0.1; done
   echo "FAIL $1: the monitor never came up"; fails=$((fails + 1)); return 1
 }
-load() {     # load <tag> <app> <label> <cpu%> -> writes <tag>-<label>.load with the monitor's answer
+load() {     # load <tag> <app> <label> <cpu%> [memMiB] -> writes <tag>-<label>.load with the answer
   t=$(date +%s%3N)
-  "$W/m3ctl" -cid "$cid" -label "$3" -cpu "$4" load "$2" > "$W/$1-$3.load" 2>&1 || true
+  "$W/m3ctl" -cid "$cid" -label "$3" -cpu "$4" -mem "${5:-256}" load "$2" > "$W/$1-$3.load" 2>&1 || true
   echo "load_ms=$(( $(date +%s%3N) - t ))" > "$W/$1-$3.load_ms"
 }
 dport() { sed -n 's/.*"port":\([0-9]*\).*/\1/p' "$W/$1-$2.load"; }
@@ -105,6 +107,13 @@ if [ "${RECHECK:-0}" != 1 ]; then
     curl -sk --max-time 300 "https://127.0.0.1:$p/burn?n=1500" > "$W/s1-$tag.burn" 2>&1 || true
     echo "ms=$(( $(date +%s%3N) - s ))" >> "$W/s1-$tag.burn"
   done
+  # A domain given less memory than its workloads need dies under its own cap: a real unexpected
+  # death, from the resource share rather than from a bad app, and the guest must absorb it.
+  load s1 "$W/app-AAAAA.wasm" TINY 100 16
+  sleep 3
+  "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-oom" 2>&1 || true
+  client "$W/s1-A.after-oom" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
+
   # --- lifecycle: a domain whose workload dies must leave NOTHING behind -------------------------
   # A deliberately invalid app is a real crash path with no test-only hook in the guest: the runtime
   # fails to start it, domexec exits, and the monitor has to reclaim the whole domain.
@@ -119,6 +128,24 @@ if [ "${RECHECK:-0}" != 1 ]; then
   fwd s1 AGAIN
   # shellcheck disable=SC2086
   client "$W/s1-AGAIN.client" "$W/s1-AGAIN.fwd" --app-sha "$shaA" $TR
+
+  # --- the adversary: a domain whose runtime is compromised ---------------------------------------
+  # /plat/domprobe is measured and runs as the domain's uid in its namespaces. It gets its own distinct
+  # app bytes so the report it obtains can be checked against ITS OWN hash and no other domain's.
+  head -c 4096 /dev/urandom > "$W/probe-app.bin"
+  shaP=$(sha256sum "$W/probe-app.bin" | cut -c1-64)
+  "$W/m3ctl" -cid "$cid" -label PROBE -cpu 50 -probe load "$W/probe-app.bin" > "$W/s1-PROBE.load" 2>&1 || true
+  sleep 4
+  # ...and the real domains must be untouched by any of it
+  client "$W/s1-A.after-probe" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
+  pid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-PROBE.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${pid:-0}" destroy > "$W/s1.probe-destroy" 2>&1 || true
+
+  # --- graceful stop: signal the front and let the domain wind down -------------------------------
+  agid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-AGAIN.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${agid:-0}" stop > "$W/s1.stop" 2>&1 || true
+  sleep 2
+  "$W/m3ctl" -cid "$cid" state > "$W/s1.state-after-stop" 2>&1 || true
 
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-before" 2>&1 || true
   idB=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-BBBBB.load" | head -1)
@@ -141,6 +168,23 @@ if [ "${RECHECK:-0}" != 1 ]; then
   client "$W/s2-B.client" "$W/s2-BBBBB.fwd" --app-sha "$shaB" $TR
   xargs -r kill < "$W/s2.pids" 2>/dev/null || true
   "$here/run-domain.sh" stop s2 "$W" >> "$W/s2.host"
+
+  # --- s3: the same image in a RIGHT-SIZED guest, to price the density claim --------------------
+  : > "$W/s3.pids"
+  boot s3 snp "$SMALLMEM"
+  "$W/m3ctl" -cid "$cid" state > "$W/s3.state-empty" 2>&1 || true
+  load s3 "$W/app-AAAAA.wasm" AAAAA 100
+  load s3 "$W/app-BBBBB.wasm" BBBBB 100
+  fwd s3 AAAAA
+  fwd s3 BBBBB
+  # shellcheck disable=SC2086
+  {
+    client "$W/s3-A.client" "$W/s3-AAAAA.fwd" --app-sha "$shaA" $TR
+    client "$W/s3-B.client" "$W/s3-BBBBB.fwd" --app-sha "$shaB" $TR
+  }
+  "$W/m3ctl" -cid "$cid" state > "$W/s3.state-loaded" 2>&1 || true
+  xargs -r kill < "$W/s3.pids" 2>/dev/null || true
+  "$here/run-domain.sh" stop s3 "$W" >> "$W/s3.host"
 
   # --- t1: the same image as a plain KVM guest -------------------------------------------------
   : > "$W/t1.pids"
@@ -253,8 +297,63 @@ check "9b each crash was noticed and retired exactly once, and none stayed in th
 [ "$(verdict "$W/s1-AGAIN.client")" = attested ] && [ "$(res "$W/s1-AGAIN.client" app_body)" = '"APP AAAAA path=/hello?from=client"' ] && r=ok || r=no
 check "9c the guest still serves after those cycles: a new domain loads, attests and answers" $r
 
+echo "evidence: memory-capped domain: $(ser s1 | grep -a 'DOM3 ' | tr '\n' ' ')"
+oomstat=$(ser s1 | sed -n 's/.*DOM3 ERROR \([a-z]*\) exited status=\([0-9]*\).*/\1 status \2/p' | head -1)
+echo "evidence: which workload died, and how: ${oomstat:-none recorded}"
+[ -n "$oomstat" ] && ! grep -aq 'TINY' "$W/s1.list-after-oom" \
+  && [ "$(verdict "$W/s1-A.after-oom")" = attested ] && r=ok || r=no
+check "8c a domain that exceeds its own memory cap dies, is reclaimed, and the other domains keep serving" $r
+
+echo "evidence: right-sized guest ($SMALLMEM MiB): $(cat "$W/s3.state-empty" 2>/dev/null | tr -d '\n')"
+echo "evidence:   with two domains loaded: $(cat "$W/s3.state-loaded" 2>/dev/null | tr -d '\n')"
+[ "$(verdict "$W/s3-A.client")" = attested ] && [ "$(verdict "$W/s3-B.client")" = attested ] \
+  && [ "$(res "$W/s3-A.client" app_body)" = '"APP AAAAA path=/hello?from=client"' ] && r=ok || r=no
+check "8d two domains attest and serve in a ${SMALLMEM} MiB guest, so the density claim is priced at a guest size someone would actually run" $r
+
+# --- the adversary's results ---------------------------------------------------------------------
+echo "evidence: the compromised domain tried:"
+ser s1 | grep -a '^PROBE' | sed 's/^/    /' || true
+probe_lines=$(ser s1 | grep -ac '^PROBE' || true)
+bad=0
+# every one of these must have FAILED. A line that says READABLE or CONNECTED is a broken boundary.
+for k in other_app_absolute other_app_relative other_app_escape other_front_socket configfs_tsm sysfs \
+         vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control host_gateway; do
+  v=$(ser s1 | sed -n "s/^PROBE[0-9]* $k=//p" | head -1)
+  case "$v" in
+    *READABLE*|*CONNECTED*) echo "    BROKEN: $k=$v"; bad=$((bad + 1)) ;;
+    "") echo "    MISSING: $k never reported"; bad=$((bad + 1)) ;;
+  esac
+done
+[ "$(ser s1 | sed -n 's/^PROBE[0-9]* create_tsm_entry=//p' | head -1)" = "CREATED" ] && bad=$((bad + 1))
+[ "${probe_lines:-0}" -ge 15 ] && [ "$bad" = 0 ] && r=ok || r=no
+check "10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs or the report interface, cannot open another domain's vsock port or the host's, and cannot reach the host network" $r
+sig=$(ser s1 | sed -n 's/^PROBE[0-9]* signalable_pids=//p' | head -1)
+vis=$(ser s1 | sed -n 's/^PROBE[0-9]* visible_pids=//p' | head -1)
+echo "evidence: it could see $vis processes and signal $sig of the first 400 pids"
+[ -n "$sig" ] && [ "$sig" -le 2 ] && [ -n "$vis" ] && [ "$vis" -le 3 ] && r=ok || r=no
+check "10b it can see and signal only its own processes, not the monitor's and not another domain's" $r
+# the report it DID get must name its own app: a compromised domain can only ever speak for itself
+prep=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
+named=$(python3 -c "
+import base64,sys
+b=base64.b64decode(sys.argv[1]) if sys.argv[1] else b''
+print(b[0x50+32:0x50+64].hex() if len(b)>=0x90 else '')" "$prep" 2>/dev/null)
+echo "evidence: the app named in its report: ${named:-none} (its own $shaP; the other domains run $shaA / $shaB)"
+[ -n "$named" ] && [ "$named" = "$shaP" ] && r=ok || r=no
+check "10c the report it obtained names ITS OWN app, although its request also carried another app hash: naming is the monitor's, not the caller's" $r
+[ "$(verdict "$W/s1-A.after-probe")" = attested ] && r=ok || r=no
+check "10d the other domains kept serving and attesting throughout" $r
+
+# --- graceful stop ------------------------------------------------------------------------------
+echo "evidence: stop: $(cat "$W/s1.stop" 2>/dev/null | tr -d '\n') / $(ser s1 | grep -aE 'stop:|stopped' | tr '\n' '; ')"
+echo "evidence: after stop: $(cat "$W/s1.state-after-stop" 2>/dev/null | tr -d '\n')"
+ser s1 | grep -aq "ERROR front exited" && grep -aq '"stopped"' "$W/s1.stop" && r=ok || r=no
+check "11 a graceful stop signals the domain's FRONT, the domain's init notices that child is gone, and the domain winds down (the front-exit path, distinct from a crashed runtime)" $r
+ser s1 | grep -aq "stopped gracefully" && r=ok || r=no
+check "11b it wound down within the grace period rather than being killed" $r
+
 echo "--- 10 cost (measured, no pass/fail) ---"
-for t in s1 s2 t1; do
+for t in s1 s2 s3 t1; do
   printf '%-3s kernel->monitor %sms, host CPU %ss, memory peak %s MB, domains %s\n' "$t" \
     "$(ser "$t" | grep -aoE 'boot_ms=[0-9]+' | head -1 | cut -d= -f2)" \
     "$(awk -v n="$(sed -n 's/^HOST CPUUsageNSec=//p' "$W/$t.host")" 'BEGIN { if (n != "") printf "%.1f", n / 1e9 }')" \
@@ -268,5 +367,10 @@ printf 'host memory for the guest: %s MB with two domains, %s MB with one -- SNP
   "$(awk -v n="$(sed -n 's/^HOST MemoryPeak=//p' "$W/s1.host")" 'BEGIN { if (n != "") printf "%.0f", n / 1e6 }')" \
   "$(awk -v n="$(sed -n 's/^HOST MemoryPeak=//p' "$W/s2.host")" 'BEGIN { if (n != "") printf "%.0f", n / 1e6 }')"
 printf '  so a second domain costs no extra host memory, where M2 needs another whole guest per app (586 MB each).\n'
+printf 'right-sized: %s MB of host memory for a %s MiB guest serving TWO attested domains, against M2 needing\n' \
+  "$(awk -v n="$(sed -n 's/^HOST MemoryPeak=//p' "$W/s3.host")" 'BEGIN { if (n != "") printf "%.0f", n / 1e6 }')" "$SMALLMEM"
+printf '  586 MB for ONE app; the guest reported %s MiB available empty and %s MiB with both domains loaded.\n' \
+  "$(sed -n 's/.*"mem_available_mib":\([0-9]*\).*/\1/p' "$W/s3.state-empty" | head -1)" \
+  "$(sed -n 's/.*"mem_available_mib":\([0-9]*\).*/\1/p' "$W/s3.state-loaded" | head -1)"
 echo "workdir $W"
 [ "$fails" -eq 0 ] && echo "M3a: ALL PASS" || { echo "M3a: $fails FAILED"; exit 1; }
