@@ -1,0 +1,29 @@
+;; M1 test app. A WASI command that burns a fixed amount of CPU (xorshift64, N rounds) and prints
+;; its label and the final state, so two apps differ in bytes (and so in identity) while doing the
+;; same work. @LABEL@ must be exactly 5 bytes; @ROUNDS@ sets the work.
+(module
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (data (i32.const 64) "APP @LABEL@ state=")
+  (func (export "_start")
+    (local $x i64) (local $i i64) (local $k i32) (local $nib i32)
+    (local.set $x (i64.const 0x9e3779b97f4a7c15))
+    (loop $work
+      (local.set $x (i64.xor (local.get $x) (i64.shl (local.get $x) (i64.const 13))))
+      (local.set $x (i64.xor (local.get $x) (i64.shr_u (local.get $x) (i64.const 7))))
+      (local.set $x (i64.xor (local.get $x) (i64.shl (local.get $x) (i64.const 17))))
+      (local.set $i (i64.add (local.get $i) (i64.const 1)))
+      (br_if $work (i64.lt_u (local.get $i) (i64.const @ROUNDS@))))
+    ;; 16 hex digits of the state right after "APP xxxxx state=" (16 bytes at offset 64)
+    (loop $hex
+      (local.set $nib (i32.wrap_i64 (i64.and
+        (i64.shr_u (local.get $x) (i64.extend_i32_u (i32.sub (i32.const 60) (i32.mul (local.get $k) (i32.const 4)))))
+        (i64.const 15))))
+      (i32.store8 (i32.add (i32.const 80) (local.get $k))
+        (i32.add (local.get $nib) (select (i32.const 48) (i32.const 87) (i32.lt_u (local.get $nib) (i32.const 10)))))
+      (local.set $k (i32.add (local.get $k) (i32.const 1)))
+      (br_if $hex (i32.lt_u (local.get $k) (i32.const 16))))
+    (i32.store8 (i32.const 96) (i32.const 10))
+    (i32.store (i32.const 0) (i32.const 64))
+    (i32.store (i32.const 4) (i32.const 33))
+    (drop (call $fd_write (i32.const 1) (i32.const 0) (i32.const 1) (i32.const 32)))))
