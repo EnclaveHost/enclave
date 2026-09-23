@@ -107,13 +107,6 @@ if [ "${RECHECK:-0}" != 1 ]; then
     curl -sk --max-time 300 "https://127.0.0.1:$p/burn?n=1500" > "$W/s1-$tag.burn" 2>&1 || true
     echo "ms=$(( $(date +%s%3N) - s ))" >> "$W/s1-$tag.burn"
   done
-  # A domain given less memory than its workloads need dies under its own cap: a real unexpected
-  # death, from the resource share rather than from a bad app, and the guest must absorb it.
-  load s1 "$W/app-AAAAA.wasm" TINY 100 16
-  sleep 3
-  "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-oom" 2>&1 || true
-  client "$W/s1-A.after-oom" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
-
   # --- lifecycle: a domain whose workload dies must leave NOTHING behind -------------------------
   # A deliberately invalid app is a real crash path with no test-only hook in the guest: the runtime
   # fails to start it, domexec exits, and the monitor has to reclaim the whole domain.
@@ -134,11 +127,13 @@ if [ "${RECHECK:-0}" != 1 ]; then
   # app bytes so the report it obtains can be checked against ITS OWN hash and no other domain's.
   head -c 4096 /dev/urandom > "$W/probe-app.bin"
   shaP=$(sha256sum "$W/probe-app.bin" | cut -c1-64)
-  "$W/m3ctl" -cid "$cid" -label PROBE -cpu 50 -probe load "$W/probe-app.bin" > "$W/s1-PROBE.load" 2>&1 || true
-  sleep 4
+  # a 64 MiB share, which its last probe then deliberately tries to exceed
+  "$W/m3ctl" -cid "$cid" -label PROBE -cpu 50 -mem 64 -probe load "$W/probe-app.bin" > "$W/s1-PROBE.load" 2>&1 || true
+  sleep 25
   # ...and the real domains must be untouched by any of it
   client "$W/s1-A.after-probe" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
   pid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-PROBE.load" | head -1)
+  "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-probe" 2>&1 || true
   "$W/m3ctl" -cid "$cid" -id "${pid:-0}" destroy > "$W/s1.probe-destroy" 2>&1 || true
 
   # --- graceful stop: signal the front and let the domain wind down -------------------------------
@@ -297,12 +292,15 @@ check "9b each crash was noticed and retired exactly once, and none stayed in th
 [ "$(verdict "$W/s1-AGAIN.client")" = attested ] && [ "$(res "$W/s1-AGAIN.client" app_body)" = '"APP AAAAA path=/hello?from=client"' ] && r=ok || r=no
 check "9c the guest still serves after those cycles: a new domain loads, attests and answers" $r
 
-echo "evidence: memory-capped domain: $(ser s1 | grep -a 'DOM3 ' | tr '\n' ' ')"
-oomstat=$(ser s1 | sed -n 's/.*DOM3 ERROR \([a-z]*\) exited status=\([0-9]*\).*/\1 status \2/p' | head -1)
-echo "evidence: which workload died, and how: ${oomstat:-none recorded}"
-[ -n "$oomstat" ] && ! grep -aq 'TINY' "$W/s1.list-after-oom" \
-  && [ "$(verdict "$W/s1-A.after-oom")" = attested ] && r=ok || r=no
-check "8c a domain that exceeds its own memory cap dies, is reclaimed, and the other domains keep serving" $r
+echo "evidence: the compromised domain trying to exhaust memory: $(ser s1 | grep -aE 'PROBE[0-9]* (eating|memory_)' | tr '\n' ' ')"
+echo "evidence: how that domain ended: $(ser s1 | grep -aE "DOM${pid:-0} ERROR|domain ${pid:-0} ended" | tr '\n' '; ')"
+uncontained=$(ser s1 | grep -ac 'memory_UNCONTAINED' || true)
+capped=$(ser s1 | grep -acE 'PROBE[0-9]* (memory_refused_at|memory_touched)' || true)
+ended=$(ser s1 | grep -ac "domain ${pid:-0} ended" || true)
+[ "${uncontained:-1}" = 0 ] && [ "${capped:-0}" -ge 1 ] && [ "${ended:-0}" -ge 1 ] && r=ok || r=no
+check "8c a compromised domain cannot exhaust the guest: touching past its own memory share ends THAT domain and nothing else" $r
+[ "$(verdict "$W/s1-A.after-probe")" = attested ] && r=ok || r=no
+check "8c2 the other domains were serving and attesting after it was contained" $r
 
 echo "evidence: right-sized guest ($SMALLMEM MiB): $(cat "$W/s3.state-empty" 2>/dev/null | tr -d '\n')"
 echo "evidence:   with two domains loaded: $(cat "$W/s3.state-loaded" 2>/dev/null | tr -d '\n')"
@@ -341,8 +339,6 @@ print(b[0x50+32:0x50+64].hex() if len(b)>=0x90 else '')" "$prep" 2>/dev/null)
 echo "evidence: the app named in its report: ${named:-none} (its own $shaP; the other domains run $shaA / $shaB)"
 [ -n "$named" ] && [ "$named" = "$shaP" ] && r=ok || r=no
 check "10c the report it obtained names ITS OWN app, although its request also carried another app hash: naming is the monitor's, not the caller's" $r
-[ "$(verdict "$W/s1-A.after-probe")" = attested ] && r=ok || r=no
-check "10d the other domains kept serving and attesting throughout" $r
 
 # --- graceful stop ------------------------------------------------------------------------------
 echo "evidence: stop: $(cat "$W/s1.stop" 2>/dev/null | tr -d '\n') / $(ser s1 | grep -aE 'stop:|stopped' | tr '\n' '; ')"
