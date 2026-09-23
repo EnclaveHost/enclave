@@ -105,6 +105,21 @@ if [ "${RECHECK:-0}" != 1 ]; then
     curl -sk --max-time 300 "https://127.0.0.1:$p/burn?n=1500" > "$W/s1-$tag.burn" 2>&1 || true
     echo "ms=$(( $(date +%s%3N) - s ))" >> "$W/s1-$tag.burn"
   done
+  # --- lifecycle: a domain whose workload dies must leave NOTHING behind -------------------------
+  # A deliberately invalid app is a real crash path with no test-only hook in the guest: the runtime
+  # fails to start it, domexec exits, and the monitor has to reclaim the whole domain.
+  "$W/m3ctl" -cid "$cid" state > "$W/s1.state-before" 2>&1 || true
+  printf 'this is not a wasm module' > "$W/bad.wasm"
+  for i in 1 2 3 4 5; do load s1 "$W/bad.wasm" "BAD$i" 100; done
+  sleep 3
+  "$W/m3ctl" -cid "$cid" state > "$W/s1.state-after-crashes" 2>&1 || true
+  "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-crashes" 2>&1 || true
+  # ...and the guest still works afterwards: a good app loads and serves
+  load s1 "$W/app-AAAAA.wasm" AGAIN 100
+  fwd s1 AGAIN
+  # shellcheck disable=SC2086
+  client "$W/s1-AGAIN.client" "$W/s1-AGAIN.fwd" --app-sha "$shaA" $TR
+
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-before" 2>&1 || true
   idB=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-BBBBB.load" | head -1)
   "$W/m3ctl" -cid "$cid" -id "${idB:-2}" destroy > "$W/s1.destroy" 2>&1 || true
@@ -220,7 +235,25 @@ check "8 tier parity: the same monitor image runs on plain KVM and serves the sa
   && [ "$(res "$W/t1-A.trusted" app_requests_sent)" = 0 ] && r=ok || r=no
 check "8b the trusted default refuses a T0 domain and sends it no application request" $r
 
-echo "--- 9 cost (measured, no pass/fail) ---"
+field() { sed -n "s/.*\"$2\":\([0-9]*\).*/\\1/p" "$1" | head -1; }
+dirs_of() { sed -n 's/.*"dirs":\[\([^]]*\)\].*/\1/p' "$1" | head -1; }
+echo "evidence: before the crashes: $(cat "$W/s1.state-before" 2>/dev/null | tr -d '\n')"
+echo "evidence: after 5 crashed domains: $(cat "$W/s1.state-after-crashes" 2>/dev/null | tr -d '\n')"
+echo "evidence: the monitor logged: $(ser s1 | grep -a 'MON domain .* ended' | sed 's/MON //' | tr '\n' '; ')"
+same=yes
+for f in domains cgroups mounts userspace_procs; do
+  [ -n "$(field "$W/s1.state-before" $f)" ] && [ "$(field "$W/s1.state-before" $f)" = "$(field "$W/s1.state-after-crashes" $f)" ] || same=no
+done
+[ "$(dirs_of "$W/s1.state-before")" = "$(dirs_of "$W/s1.state-after-crashes")" ] || same=no
+[ "$same" = yes ] && r=ok || r=no
+check "9 a crashed domain leaves nothing behind: after 5 create-and-crash cycles the guest is byte-for-byte at its previous state -- same domains, directories, cgroups, mounts and processes" $r
+crashed=$(ser s1 | grep -ac 'MON domain .* ended: its process tree exited' || true)
+[ "${crashed:-0}" -ge 5 ] && ! grep -aq 'BAD' "$W/s1.list-after-crashes" && r=ok || r=no
+check "9b each crash was noticed and retired exactly once, and none stayed in the monitor's table" $r
+[ "$(verdict "$W/s1-AGAIN.client")" = attested ] && [ "$(res "$W/s1-AGAIN.client" app_body)" = '"APP AAAAA path=/hello?from=client"' ] && r=ok || r=no
+check "9c the guest still serves after those cycles: a new domain loads, attests and answers" $r
+
+echo "--- 10 cost (measured, no pass/fail) ---"
 for t in s1 s2 t1; do
   printf '%-3s kernel->monitor %sms, host CPU %ss, memory peak %s MB, domains %s\n' "$t" \
     "$(ser "$t" | grep -aoE 'boot_ms=[0-9]+' | head -1 | cut -d= -f2)" \
