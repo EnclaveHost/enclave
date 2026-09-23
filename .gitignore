@@ -96,3 +96,10 @@ windows/enclave-rt/*.lib
 windows/enclave-rt/*.exe
 windows/enclave-rt/*.cwasm
 windows/enclave-app-hello/target/
+
+# isolation: the monitor is built by isolation/m3/build-domain.sh into a temporary tree, and a bare
+# `go build` in monitor/ leaves this behind. It is reproducible output: two builds with the flags the
+# build script uses (-trimpath -buildvcs=false -ldflags='-s -w -buildid=') are byte-identical, which
+# test-m3.sh check 0 also asserts for the image as a whole. Narrow on purpose - the .go sources beside it
+# are tracked.
+/isolation/m3/monitor/monitor

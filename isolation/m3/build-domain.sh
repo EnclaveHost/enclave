@@ -25,6 +25,9 @@ gcc -static -O2 -o "$d/plat/domprobe" "$here/domprobe.c"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/plat/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/plat/rt/"; done
+# The guest kernel's module tree is named after the GUEST kernel, so domain.env has to be read
+# before M= below, not only before the measurement prediction further down.
+. "$here/../m1/domain.env"
 M=/lib/modules/$GUEST_KREL/kernel   # the GUEST kernel, not the host's: see domain.env
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
    "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
