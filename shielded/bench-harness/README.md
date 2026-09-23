@@ -14,7 +14,8 @@ under `~/enclave-bench/` (the scripts' absolute paths point there).
 | `waitquiet.sh` / `waitfree.sh` / `cpubusy.sh` | gates: no foreign process > 50% CPU / no bench running / foreign busy cores |
 | `tsample.py` / `cpusample.py` | passive thread-placement and CPU frequency/power/Tctl samplers |
 | `workers-shm2.sh start\|stop` | the two V100 workers on `/dev/shm` rings (`W=` overrides the binary) |
-| `abtok.sh` | the token-fused GATED_DELTA_NET A/B (tokfuse 0 vs 1, interleaved) |
+| `abtok.sh` / `abtokprof.sh` | the token-fused GATED_DELTA_NET A/B and its op-profiled pairs (REPORT 18.50) |
+| `abrg.sh` / `abrgprof.sh` | the register-row GATED_DELTA_NET A/B and its op-profiled pairs (REPORT 18.51) |
 | `bench-spec2.cpp` | `wasm/ggml-shielded/bench-spec.cpp` + WARM/PREFILL_REPS, PLAIN_ONLY, and the plain-token dump |
 | `recover.py` | replays a transcript's Write/Edit/heredoc writes into a directory (how this copy was rebuilt) |
 

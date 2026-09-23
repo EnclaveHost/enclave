@@ -32,7 +32,9 @@ any other compiler or flags before trusting the op there.
   `n_seq_max > 1` with or without the op (a pre-existing limitation).
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
-  workflow's CPU-relevant flags, and runs all three harnesses there.
+  workflow's CPU-relevant flags, and runs all three harnesses there, plus the
+  register-row GATED_DELTA_NET checks below. (The regrow additions to this
+  script have NOT been executed yet; the last executed run predates them.)
 
 **Token-fused GATED_DELTA_NET: measured negative, not applied**
 (`../llamacpp-gdn-tokfuse.patch`, REPORT 18.50). `gdn-equiv.cpp` is its
@@ -45,7 +47,22 @@ in `harness-check.sh`, the dumps were byte-identical, and a planted one-ulp
 mutant changed exactly the 52 fused cases. `gdn-bench.cpp` times the op at the
 27B's verify shape; it showed the fused path slower (+20% at 1 thread, +22% at
 4 tokens), and the 27B's op profile showed no change, so the patch is kept as
-a record only. Both files apply only to a tree with the patch applied.
+a record only. The tokfuse switch only exists on a tree with that patch.
+
+**Register-row GATED_DELTA_NET** (`../llamacpp-gdn-regrow.patch`, switch
+`ENCLAVE_GGML_GDN_REGROW`, default on; REPORT 18.51). For the scalar gate and
+S_v = 128, each state row is loaded once, taken through scale, dot(k), the d*k
+update and dot(q) in registers with ggml's own `GGML_F32_VEC` operations in
+the vector routines' exact order, and stored once. Evidence on the AVX-512
+build: `gdn-equiv` byte-identical with the switch on and off AND identical to
+the dump from before the change; a planted one-ulp mutant in the kernel
+changed exactly the 52 S_v=128 scalar-gate cases and no other; the 0.8B real
+graph (state_size 128, so the path is live) byte-identical on and off.
+`gdn-bench` alone at the 27B's shape: ~40% faster at 8 threads for 1 and 2
+tokens, ~2x at 1 thread. `gdn-bench [N_TOKENS] [THREADS] [ITERS] [K] [NSTATES]`
+with NSTATES > 1 rotates per-layer states so they arrive cold, and
+`GDN_BENCH_WARM=1` warms each before its (timed) call; that mode is written
+but has not been run.
 
 Validated on two builds, both bit-identical: GCC 16.2.1 with AVX-512 (the
 vector path), and GCC 11.4 with the production workflow's flags, which are

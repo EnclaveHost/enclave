@@ -1,0 +1,91 @@
+# GATED_DELTA_NET, register-resident row kernel (ENCLAVE_GGML_GDN_REGROW, default
+# on while under test; =0 restores the four vector calls). For the scalar gate
+# and S_v = 128 (both qwen35 models here), each state row is loaded once, taken
+# through scale, dot(k), d*k update and dot(q) in registers, and stored once,
+# using ggml's own GGML_F32_VEC operations in exactly the order of
+# ggml_vec_scale_f32 / ggml_vec_dot_f32 / ggml_vec_mad_f32 -- bit-identical by
+# construction, checked by wasm/llamacpp-conv-inplace/gdn-equiv.cpp and the
+# real-graph test. Applies AFTER llamacpp-conv-inplace.patch (and NOT with the
+# unapplied llamacpp-gdn-tokfuse.patch).
+--- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 10:07:49.544494100 -0700
++++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 10:07:49.545143076 -0700
+@@ -11003,6 +11003,65 @@
+     return on;
+ }
+ 
++// One state row through all four steps of a scalar-gate token WITHOUT leaving
++// registers (ENCLAVE_GGML_GDN_REGROW=0 restores the four vector calls). The row
++// is loaded once, scaled, dotted with k, updated by d*k, dotted with q, and
++// stored once, where the calls load and store it around every step. Each step
++// uses ggml's own GGML_F32_VEC operations in exactly the order of
++// ggml_vec_scale_f32 / ggml_vec_dot_f32 / ggml_vec_mad_f32 for a length that is
++// a multiple of GGML_F32_STEP (no leftovers): the same multiplies and fused
++// multiply-adds on the same values, the dot products over the same
++// GGML_F32_ARR accumulators reduced by the same GGML_F32_VEC_REDUCE. So the
++// row, the output and every snapshot are bit-identical to the calls on every
++// ISA this path compiles for; any other length or ISA keeps the calls.
++static bool gdn_regrow() {
++    static const bool on = []{
++        const char * e = getenv("ENCLAVE_GGML_GDN_REGROW");
++        return !(e && e[0] == '0');
++    }();
++    return on;
++}
++
++#if defined(GGML_SIMD) && !defined(__ARM_FEATURE_SVE) && !defined(__riscv_v_intrinsic) && !defined(GGML_USE_ACCELERATE)
++#define GDN_REGROW_SV 128
++static_assert(GDN_REGROW_SV % GGML_F32_STEP == 0, "the register row must have no dot/mad leftovers");
++// returns dot(row after the update, q); updates the row in place
++static inline float gdn_regrow_row(float * GGML_RESTRICT rowp, const float * GGML_RESTRICT k, const float * GGML_RESTRICT q,
++                                   float expg, float v_j, float beta) {
++    constexpr int NV = GDN_REGROW_SV / GGML_F32_EPR;
++    GGML_F32_VEC r[NV];
++    for (int i = 0; i < NV; i++) r[i] = GGML_F32_VEC_LOAD(rowp + i*GGML_F32_EPR);
++    // ggml_vec_scale_f32: ay = MUL(ay, vx)
++    const GGML_F32_VEC vg = GGML_F32_VEC_SET1(expg);
++    for (int i = 0; i < NV; i++) r[i] = GGML_F32_VEC_MUL(r[i], vg);
++    // ggml_vec_dot_f32(row, k): sum[j] = FMA(sum[j], x, y) over STEP-blocks, then REDUCE
++    float sk;
++    {
++        GGML_F32_VEC sum[GGML_F32_ARR] = { GGML_F32_VEC_ZERO };
++        for (int b = 0; b < NV; b += GGML_F32_ARR)
++            for (int j = 0; j < GGML_F32_ARR; j++)
++                sum[j] = GGML_F32_VEC_FMA(sum[j], r[b + j], GGML_F32_VEC_LOAD(k + (b + j)*GGML_F32_EPR));
++        GGML_F32_VEC_REDUCE(sk, sum);
++    }
++    const float d = (v_j - sk) * beta;
++    // ggml_vec_mad_f32(row, k, d): ay = FMA(ay, ax, vx)
++    const GGML_F32_VEC vd = GGML_F32_VEC_SET1(d);
++    for (int i = 0; i < NV; i++) r[i] = GGML_F32_VEC_FMA(r[i], GGML_F32_VEC_LOAD(k + i*GGML_F32_EPR), vd);
++    for (int i = 0; i < NV; i++) GGML_F32_VEC_STORE(rowp + i*GGML_F32_EPR, r[i]);
++    // ggml_vec_dot_f32(row, q)
++    float sq;
++    {
++        GGML_F32_VEC sum[GGML_F32_ARR] = { GGML_F32_VEC_ZERO };
++        for (int b = 0; b < NV; b += GGML_F32_ARR)
++            for (int j = 0; j < GGML_F32_ARR; j++)
++                sum[j] = GGML_F32_VEC_FMA(sum[j], r[b + j], GGML_F32_VEC_LOAD(q + (b + j)*GGML_F32_EPR));
++        GGML_F32_VEC_REDUCE(sq, sum);
++    }
++    return sq;
++}
++#define GDN_HAVE_REGROW 1
++#endif
++
+ static void ggml_compute_forward_gated_delta_net_one_chunk(
+     const ggml_compute_params * params,
+     ggml_tensor * dst,
+@@ -11142,6 +11201,13 @@
+             }
+             const float expg = kda ? 0.0f : expf(g_d[0]);
+ 
++#ifdef GDN_HAVE_REGROW
++            if (fused_rows && !kda && S_v == GDN_REGROW_SV && gdn_regrow()) {
++                for (int64_t j = 0; j < S_v; ++j) {
++                    attn_data[j] = gdn_regrow_row(&s_out[j * S_v], k_d, q_d, expg, v_d[j], beta_val) * scale;
++                }
++            } else
++#endif
+             if (fused_rows) {
+                 for (int64_t j = 0; j < S_v; ++j) {
+                     float * rowp = &s_out[j * S_v];

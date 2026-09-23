@@ -2,3 +2,6 @@ shielded-worker
 *.o
 libcudart.so.12
 worker.conf
+# local backups of the worker binary before a rebuild (keep out of git; the
+# already-tracked shielded-worker.prev-v1.2 predates this rule)
+shielded-worker.prev-*
