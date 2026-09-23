@@ -4633,3 +4633,39 @@ harnesses there: `conv-equiv` 21/21 identical, `conv-equiv2` 32/32 pass, the
 real-graph test byte-identical on/off. The op is therefore validated on both
 builds that matter; deploying it would still be a separate, reviewed change to
 the toolchain workflow, and its throughput effect is not established (18.42).
+
+### 18.47 The real-model reproduction campaign: no rejection in 8.4 M exchanges, and a divergence the 64-token check hid
+
+**Campaign.** The soaks could not carry the real model's activations (random
+weights with real activations would wrap the field legitimately), so the
+reproducer is the benchmark itself, scaled: the real 27B, weights, activations
+and CPU interleaving, 20 runs at N=512 on a longer prompt, every run keeping its
+post-mortem (activation-independent fields only), worker log slices, GPU samples
+and trace. Per run, card 0 served 210,846 exchanges (132,869 plain + 77,977
+spec) and card 1 the same: **~4.2 M exchanges per card, 8.4 M in all, zero
+rejections** (`verify_fail=0`, no "verification FAILED", in all 20). At the
+rate the two production events suggest (~1 per 1.4 M card-0 exchanges) about 3
+were expected; none has ~5% probability at that rate. Either the true rate is
+lower than two events implied, or the trigger is something these runs lacked.
+Both production rejections remain open.
+
+**The divergence.** Every run's plain output was identical (one token hash
+across all 20), and every run's speculative output diverged from it at exactly
+token 320 -- which is why every run exited rc=3 ("text differs"), a result the
+bench's usual 64-token check never reaches. The same benchmark with NO shielded
+backend (unmasked, CPU only, same prompt, N=512) diverges too, earlier, at token
+72 (acceptance 0.829). So "speculative == plain" holds only up to
+floating-point batch-shape effects in llama.cpp's own CPU ops (a 2-row verify
+batch and a 1-row plain step do not round identically), not because of
+anything the shielding does: the shielded products are exact integers and
+cannot depend on batch shape. The unmasked plain text also differs from the
+shielded plain text from token 72 -- expected, since the shielded tier computes
+the matmuls in its own exact integer encoding of the weights rather than in
+llama.cpp's quantized float dot products (task quality was measured at parity
+in the TPU comparison). The 64-token identity check stays a valid regression
+test of the shielded path against itself; it is not evidence of token-level
+equivalence at length.
+
+Also closed: the conv graph test's two deferred checks. The positive run passes
+the fail-closed checker (fused on == off, 71 steps, 142 rows, 141,045,760
+bytes), and a dump to /dev/full is rejected on its write check (rc=4).
