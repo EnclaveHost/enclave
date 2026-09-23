@@ -3029,3 +3029,24 @@ the window edges were 1.0-1.4 s apart, over the analyser's 1.0 s limit. No crite
 
 The device-wide column of the batch's own `.cpu` files double-counted guest time (fixed in 3488f186); the
 table's figures are from re-running the fixed analyser on the saved samples.
+
+### Complete-window CPU, matched against the CPU-only lane (2026-09-22)
+
+Sampler v3 (`tpu/cpu-sampler.sh`: discovery in a background loop, the discovered pids' stat every 0.25 s) gives
+windows the analyser accepts as COMPLETE under unchanged rules (edge samples <= 1.0 s apart, scans <= 3.0 s apart).
+`results/cmp1`, one prompt, ABBA order, every run LANE-RUN OK and every CPU window COMPLETE:
+
+| lane | tok/s | cores busy | core-ms per decoded token (edge bound) | sampled verification |
+|---|---|---|---|---|
+| CPU-only, same model in the same VM | 13.96, 11.77 | 5.77, 5.93 | 413, 504 (+-23 %: the windows are 4-5 s) | -- |
+| masked int8, 6 prefill + 2 decode threads | 1.16, 1.01 | 2.23, 2.14 | 1,926, 2,122 (+-1-2 %) | 4, 2 of 23,370 (<= 1 LSB) |
+| masked int8, one pool of 6 | 0.96, 0.99 | 5.02, 5.08 | 5,235, 5,141 (+-1 %) | 1, 1 of 23,370 (<= 1 LSB) |
+
+With the separate decode pool (f99f3b3e) the masked lane occupies fewer cores than the CPU lane (2.2 against 5.9),
+and still spends **four to five times more CPU per decoded token** (about 2,000 core-ms against 410-500), at a
+twelfth of the speed. By arithmetic the TPU does 79.8 % of the online multiply-accumulates (mac_share.py); by
+measured CPU the phone does more work per token with the TPU than without it. What the VM's two decode threads spend
+their time on is the per-exchange work around 140 exchanges per token -- masking, the out-of-lane correction,
+unmasking, the graph splits between exchanges, and waiting at ggml's default hybrid polling -- not arithmetic the
+TPU could take. These are CPU measurements of the app's process tree over the decode window; the pads' minting
+(before decode, into the bank) is outside that window and is additional.
