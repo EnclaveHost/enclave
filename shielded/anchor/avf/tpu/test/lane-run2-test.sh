@@ -123,4 +123,12 @@ sed -i '$d' "$W/keep.log"
 OUT=$(env -i HOME="$HOME" PATH="/usr/bin:/bin" ASK="Say hi." LANE_CHECK_ONLY="$W/keep.log" bash "$HERE/lane-run2.sh" keep 2>&1); ck "LANE_CHECK_ONLY without the footer: refused" "$?" 1
 run vmdies FAKE_VM_DIES=1 LANE_TRIES=1000; ck "a VM that dies at load: refused" "$RC" 1
 grep -q "VM stopped before the run completed" <<<"$OUT"; ck "... at once, naming it" "$?" 0
+# lane-conditions.sh over three conditions on the same fake device: every one must run and be recorded (the first
+# version ran one, because the driver's adb calls consumed the conditions list from the shared stdin)
+rm -rf "$W/home" "$W/lc"; mkdir -p "$W/home/files/capture"
+printf 'lc-1\ta\t\nlc-2\tb\t--ei threads 2\nlc-3\tc\t\n' > "$W/conds.tsv"
+OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 ASK="Say hi." \
+      bash "$HERE/lane-conditions.sh" "$W/lc" "$W/conds.tsv" 2>&1)
+ck "lane-conditions runs every condition" "$(grep -c $'\tok\t0$' "$W/lc/RUNS.tsv")" 3
+ck "... and freezes the CPU tools beside the driver" "$(ls "$W/lc/driver/tpu" | tr '\n' ' ')" "cpu-sampler.sh cpu-window.py lane-run2.sh "
 echo "lane-run2: $pass passed, $fail failed"; [ $fail = 0 ]

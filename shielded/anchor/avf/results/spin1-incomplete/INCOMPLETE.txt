@@ -1,0 +1,4 @@
+Ran 1 of 8 conditions (sp1-01, t6: 57 tokens, 1.03 tok/s, verification 0 of 23,370), then stopped: lane-conditions.sh read its
+conditions from stdin and the driver's adb calls consumed the rest of it. The CPU line is UNMEASURED because the frozen driver
+directory lacked cpu-sampler.sh (the sampler's absence was reported, not read as zero). Both fixed in the runner; the
+experiment was rerun as results/spin2. Nothing here compares conditions.
