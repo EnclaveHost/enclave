@@ -145,7 +145,11 @@ FINDINGS
       answered 204 to /x/<id> for ids it does not run (reported; fixed by the Windows owner at 78b3eb9f, to deploy in
       their reboot window). Now the row carries 0xf7a1256d... and https://api.enclave.host/x/<id>/ answers metal-iso0's
       421 "This deployment is served only over TLS that ends in its own guest: https://<label>.app.enclave.host/".
-      Node restart adopted both guests (keys and certificates unchanged).
+      Node restart adopted both guests (keys and certificates unchanged). Independently re-verified by the Windows
+      owner (enclave-d1). RESIDUAL on nucbox's side until its fix deploys: deployments with NO live runner still reach
+      the fan-out, and two real ones (0x9eb4e600..., 0x2b84a098..., model-volume apps nucbox refused by name) get a
+      503 from nucbox instead of a 404 - live and user-visible, correctness and clarity, not exposure (nucbox serves
+      and terminates nothing for them).
   F4  The node CVM itself boots from a measured image whose supervisor comes from a branch overlay, not a main release.
   F5  The operator key is metal0's (shared between two nodes that do not run together).
 
