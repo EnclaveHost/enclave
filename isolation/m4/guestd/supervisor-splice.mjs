@@ -28,7 +28,12 @@
 // direction closes both sides. Bytes move with stream backpressure (pipe), so a reader that stops reading
 // stops the writer instead of filling this process's memory.
 import net from "node:net";
-import { createWebSocketStream } from "ws";
+
+// `ws` is needed only by handleIsolationHttps, the supervisor's WebSocket half. routeFor and openSplice need
+// node:net alone, so the client half also runs where npm packages are not carried (the NucBox package, whose
+// datapath tests join this client to the Windows data plane). Loaded once, on first use.
+let _ws = null;
+const wsLib = async () => (_ws ||= await import("ws"));
 
 export const HELLO_MAX = 16384 + 5;   // one TLS record: 2^14 bytes of handshake, plus its 5-byte header
 export const HELLO_MS = 10_000;
@@ -223,35 +228,50 @@ export function pipeBoth(client, guest, { idleMs = IDLE_MS } = {}) {
   });
 }
 
+// spliceStream is one app-zone connection AFTER its WebSocket is unwrapped: the client's raw TLS bytes, which are
+// never opened here. The ClientHello must name this deployment's app-zone name; the route is the manager's verified
+// identity for the instance (routeFor); the manager's data plane admits it (openSplice); then bytes are piped both
+// ways until either side ends. It is the ONE implementation of that step: the Linux supervisor's /x/<id>/https
+// (handleIsolationHttps below) and the NucBox node's app zone (windows/vbslike/datapath/node-bridge.mjs) both call
+// it. Resolves with what happened and never throws; on a refusal it ends `stream` and calls `close` (the caller's
+// own transport, e.g. its WebSocket).
+export async function spliceStream({ stream, close = () => {}, expectName, instanceId, expectAppId, transport, dataAddr,
+                                     limits = {} }) {
+  const refuse = (kind, why) => {
+    try { stream.destroy(); } catch {}
+    try { close(); } catch {}
+    return { outcome: "refused", kind, why };
+  };
+  stream.on("error", () => {});
+  let hello;
+  try { hello = await readClientHello(stream, { timeoutMs: limits.helloMs ?? HELLO_MS }); }
+  catch (e) { return refuse(e.kind || "closed", e.message); }
+  if (hello.sni !== expectName)
+    return refuse("wrong-name", `the ClientHello names ${hello.sni}, not this deployment's ${expectName}`);
+  let guest;
+  try {
+    const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs: limits.openMs ?? OPEN_MS });
+    guest = await openSplice(dataAddr, route, { timeoutMs: limits.openMs ?? OPEN_MS });
+  } catch (e) {
+    return refuse(e instanceof SpliceRefused ? e.kind : "no-route", e.message);
+  }
+  guest.write(hello.head);
+  const r = await pipeBoth(stream, guest, { idleMs: limits.idleMs ?? IDLE_MS });
+  return { outcome: "spliced", ...r };
+}
+
 // handleIsolationHttps is the whole of /x/<id>/https for a deployment on this backend. It resolves when the
 // connection is over, with what happened; it never throws. `expectName` is the deployment's app-zone name.
 export function handleIsolationHttps({ wss, req, socket, head, expectName, instanceId, expectAppId, transport,
                                        dataAddr, limits = {}, onOutcome = () => {} }) {
   return new Promise((resolve) => {
     wss.handleUpgrade(req, socket, head, async (ws) => {
-      const stream = createWebSocketStream(ws);
       const report = (o) => { onOutcome(o); resolve(o); };
-      const refuse = (kind, why) => {
-        try { stream.destroy(); } catch {}
-        try { ws.terminate(); } catch {}
-        report({ outcome: "refused", kind, why });
-      };
-      stream.on("error", () => {});
-      let hello;
-      try { hello = await readClientHello(stream, { timeoutMs: limits.helloMs ?? HELLO_MS }); }
-      catch (e) { return refuse(e.kind || "closed", e.message); }
-      if (hello.sni !== expectName)
-        return refuse("wrong-name", `the ClientHello names ${hello.sni}, not this deployment's ${expectName}`);
-      let guest;
-      try {
-        const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs: limits.openMs ?? OPEN_MS });
-        guest = await openSplice(dataAddr, route, { timeoutMs: limits.openMs ?? OPEN_MS });
-      } catch (e) {
-        return refuse(e instanceof SpliceRefused ? e.kind : "no-route", e.message);
-      }
-      guest.write(hello.head);
-      const r = await pipeBoth(stream, guest, { idleMs: limits.idleMs ?? IDLE_MS });
-      report({ outcome: "spliced", ...r });
+      let stream;
+      try { stream = (await wsLib()).createWebSocketStream(ws); }
+      catch (e) { try { ws.terminate(); } catch {} return report({ outcome: "refused", kind: "internal", why: `ws: ${e.message}` }); }
+      report(await spliceStream({ stream, close: () => ws.terminate(), expectName, instanceId, expectAppId, transport,
+                                  dataAddr, limits }));
     });
   });
 }

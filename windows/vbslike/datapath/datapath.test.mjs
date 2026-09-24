@@ -4,7 +4,11 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import { once } from "node:events";
 import { parsePreamble, createDataPlane } from "./datapath.mjs";
-import { routeFor, openSplice } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
+// The supervisor's splice client (the interop case) needs the npm `ws` package; a tree that carries only this
+// directory (the NucBox package) runs the plane's own cases and reports the interop case as skipped, never passed.
+let client = null, clientWhy = "";
+try { client = await import("../../../isolation/m4/guestd/supervisor-splice.mjs"); }
+catch (e) { clientWhy = `the supervisor's splice client is not importable here (${e.code || e.message})`; }
 
 const H = (c, n = 32) => c.repeat(2 * n);
 const ID = "hv0a1b2c3d";
@@ -133,7 +137,9 @@ test("busy, reclaim, idle and an unreachable domain", T, async () => {
   dp.server.close(); r.server.close();
 });
 
-test("interop: the supervisor's own routeFor + openSplice reach a partition through this plane", T, async () => {
+test("interop: the supervisor's own routeFor + openSplice reach a partition through this plane",
+     { ...T, skip: client ? false : clientWhy }, async () => {
+  const { routeFor, openSplice } = client;
   const r = await relay();
   const dp = await plane({ [ID]: rec(r) });
   const view = { id: ID, status: "running", tier: "T0-hv", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key };
