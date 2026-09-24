@@ -98,7 +98,7 @@
  "linux-domain-contract": {
   "purpose": "the isolation owner's runtime contract (RuntimeID, Bind2, the identity's fail-closed rules) and the catalog bundle derivation reference (DERIVE.md, derive_reference.py, its vectors), imported by the verifier's domain-format path and never copied",
   "branch": "isolation/portable-runtime-jit",
-  "commit": "368a3aa9c8f47afe54cc81db19a8b6359ccf50fa",
+  "commit": "2db69f32894be7d64d24719e79a61b7193c60b26",
   "entry": "isolation/contract/runtime.mjs",
   "env": "ENCLAVE_DOMAIN_CONTRACT",
   "files": {

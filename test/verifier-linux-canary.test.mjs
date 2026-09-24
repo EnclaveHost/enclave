@@ -101,6 +101,29 @@ test("deployment binding (F11 fix, HOST_DATA = deployment id): the capture's HOS
   assert.equal((await run(doc)).checks["host data"], undefined, "without an expectation the check is not made (the verdict carries no such check)");
 });
 
+test("HOST_DATA live (owner's bc07f899, captures in host-data/): A and E verify under their own deployment ids with the host-data check true, E under A's is refused at that check naming E's id, and each served certificate's key is the bound key; measurement and AppID equal the first capture's", { skip }, async () => {
+  const H = new URL("host-data/", F), DEP_A = Buffer.from("4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", "hex"), DEP_E = Buffer.from("395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595", "hex");
+  const NOW_HD = "2026-09-24T20:10:00Z";   // after the relaunch at 20:06:08Z, inside the new certificates' windows
+  const load = (x) => { const saved = json(new URL(`doc-${x}.json`, H)), d = saved.doc, pem = text(new URL(`served-cert-${x}.pem`, H)), { spki: k } = spkiOfCert(pem);
+    assert.ok(k.equals(Buffer.from(d.transportKey, "base64")) && k.equals(Buffer.from(saved.spki, "base64")), `${x}: the served key is the bound key and the client's handshake key`);
+    return { d, k, n: Buffer.from(saved.nonce, "hex"), r: Buffer.from(d.report, "base64") }; };
+  const A = load("A"), E = load("E");
+  assert.ok(A.r.subarray(0xc0, 0xe0).equals(DEP_A) && E.r.subarray(0xc0, 0xe0).equals(DEP_E), "HOST_DATA is the raw deployment id in both reports");
+  assert.ok(!A.k.equals(spki) && !A.k.equals(E.k), "new keys after the relaunch, one per guest");
+  const runHd = (x, dep, extra = {}) => run(x.d, { context: { transportKeySpki: x.k, nonce: x.n, expectedBinding: bind2(x.n, x.k), expectedHostData: dep, now: NOW_HD, ...extra } });
+  for (const [x, dep, name] of [[A, DEP_A, "A"], [E, DEP_E, "E"]]) {
+    const v = await runHd(x, dep);
+    assert.equal(v.status, "verified", `${name}: ${v.reasons.join("\n")}`); assert.equal(v.checks["host data"], true); assert.equal(v.claims.hostData, dep.toString("hex"));
+    assert.equal(v.claims.measurement, OWNER_MEASUREMENT); assert.equal(v.claims.appId, OWNER_APP_ID);
+  }
+  const cross = await runHd(E, DEP_A);
+  rejectedAt(cross, "host data", /names 395bed3e2e24efa0\.\.\., not the expected deployment 4e62e60da567ca6c/);
+  assert.equal(cross.checks.binding, true, "everything before the host-data check passed: the misroute is caught by HOST_DATA alone");
+  const w = await verifyEvidenceWeb(E.d, { policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: E.k, nonce: E.n, expectedBinding: bind2(E.n, E.k), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), expectedHostData: DEP_A, now: NOW_HD }, collateral: col() });
+  assert.equal(w.status, "rejected"); assert.equal(w.checks["host data"], false);
+  const client = text(new URL("client-EasA.txt", H)); assert.match(client, /is not the expected deployment 0x4e62e60da567ca6c/, "the owner's client refused the same way");
+});
+
 test("the browser build gives the same verdict on the capture and on a forgery", { skip }, async () => {
   const norm = (v) => JSON.parse(JSON.stringify(v));
   const inputs = (context = {}) => ({ policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind2(), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), now: NOW, ...context }, collateral: col() });

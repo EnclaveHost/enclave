@@ -69,16 +69,67 @@ exists for private keys. At 12:24:58 a node restart (deploying the F1 fix) REAPE
 loop resumed its lease, and the lease relaunched it as gda9c2b39a (key 08c88f1e...), which verifies attested
 the same way. So the live endpoint now presents a different key than this capture: expected, see F6.
 
+SECOND ROUND (12:36-12:46 local, 2026-09-24), all on production, transactions in test-deployment-txs.json
+  lifecycle  A's rate-0 lease RENEWED on schedule (12:36:00, to 20:05:59Z); proof-of-time checkpoints landed every
+             5 min (steady).
+  admission  C = a PRIVATE tier deployment: refused by the node ("the deployment is private, and its owner gate needs
+             the request's plaintext, which exists only inside the guest on this backend").
+             D = a public deployment WITHOUT the isolation envelope: refused ("this runner serves only deployments
+             that require per-app isolation").
+  cross-deployment  B = a second public tier deployment of the same app (0x9ee69e3d...): its OWN guest gd3305b8e4,
+             the same AppID and measurement by design, a different transport key (6c27f29a... vs A's 08c88f1e...).
+             A's SNI on B's route and B's SNI on A's route: both refused (wrong-name) before any guest.
+             There is NO second approved wasi:http app in the catalog, so a cross-APP (distinct AppID) test in
+             production was not possible: every small catalog app (hookbin, ballot, pixelboard, ...) declares
+             http:8000 and is a wasi:cli SOCKET server, which the tier's wasi:http guest cannot run (tested on the
+             host: hookbin's guest exits "no exported instance named wasi:http/incoming-handler@0.2.12"); the claim
+             gate refuses them (ports declared), correctly.
+  restart    F6 fix deployed (node image e498c404, 12:43:09): BOTH guests were ADOPTED, not reaped; the public keys
+             were unchanged afterwards (A 08c88f1e..., B 6c27f29a...).
+  stop       B stopped by its owner on chain (setActive false, 12:45:4x): node "stopped by owner on-chain ->
+             teardown + release" at 12:46:22, guestd instance gone at 12:46:25, B's hostname fails closed at TLS,
+             A unaffected (200). C and D retired the same way.
+
 FINDINGS
   F1  FIXED (39d2d138, live 12:25): /availability on the tier advertised capability flags the tier refuses
       (secrets, customDomains, config overrides, waf...). With the tier box the only serving box, the relay's
       aggregate offered them to every customer (confirmed live), and such deployments would queue forever. The tier
       now reports them false, and the live aggregate shows secrets/customDomains/configOverride/waf/devDeploy/
       shareResize false.
-  F6  OPEN: a node restart REAPS the app's guest instead of adopting it. The orphan reaper runs before the claim
+  F6  FIXED (e498c404, verified live 12:44): a node restart REAPED the app's guest instead of adopting it. The orphan reaper runs before the claim
       loop has resumed the lease, sees an instance no record owns, and ends it; the resumed lease then launches a
       fresh guest (about a minute of downtime and a new transport key). The adoption path added in 39d2d138 never
       got to run. Fix: on the tier, no reaping before the claim loop's first pass.
+  F7  OPEN: restarting guestd ends every guest (its boot sweep stops guests a previous guestd left); guests do not
+      survive a manager restart, unlike a node restart. guestd's own upgrades therefore cost every app a relaunch.
+  F8  OPEN: the public edge (us-west) failed TLS (EOF) for one or both hostnames for 1-2 minutes after a change: A
+      failed 6/6 at ~12:40 after B was claimed (cause not established; us-west is not reachable from this host), and
+      both failed for ~2 min after the 12:43 restart (explained: the node restores its records only when its claim
+      loop resumes the leases, ~70 s after boot). 0/28 failures in the 3 steady minutes measured.
+  F9  OPEN: a failed guest start scrubs its workdir, serial log included, so the reason is lost (hookbin had to be
+      reproduced by hand to find it).
+  F10 OPEN: socket-server catalog apps (wasi:cli, http:N) cannot run on the tier; only wasi:http proxy components.
+  F11 OPEN (raised with the enclave-99 verifier lane): the attestation evidence names the app (AppID), the image
+      (measurement), the runtime and the TLS key, but NOT the deployment. Two live instances of one version, such
+      as A (4e62e60d) and E (395bed3e, created 19:52Z for the verifier's test; guest gd6ee1b5cd, key 26db975c...),
+      are indistinguishable by their evidence. So a relay that misroutes one to the other is detectable only by a
+      client that pinned a key earlier (trust on first use), not by verification. The host-side SNI check and
+      guestd's per-instance admission are routing hygiene, not client evidence. Closing this needs an
+      instance/deployment binding a client can check (the pVM tier is building one: INSTANCE-BINDING.md); it
+      must not come from an unauthenticated host input.
+      CONFIRMED from the public side by enclave-99 at 19:53Z: A and E, verified under A's expectations, are identical
+      in every claim the verdict carries (product, report version, VMPL, measurement, AppID, chip fa11afcf54ae9c53,
+      TCB, policy, firmware, runtime binding, ARK/VCEK); only the served key, the report id (A ad130511ef9a8b49...,
+      E bb731bfeac83d5b1...) and the nonce/key-derived report_data differ.
+      PROPOSED FIX: launch each guest with SNP HOST_DATA = its 32-byte deployment id (QEMU sev-snp-guest host-data=).
+      HOST_DATA is signed into every report and fixed at launch, but not in the launch measurement, so the expected
+      measurement stays one per version; the judge gains an expected-deployment check (report.host_data == the
+      deployment id the client is visiting, which it knows from the hostname / chain). A host could still start a
+      second genuine instance labelled A, but it could no longer answer A's users from E's guest undetected. Any
+      per-deployment secret release must then bind to HOST_DATA as well.
+      BUILT AND LIVE (bc07f899, 20:06Z): see host-data/README.txt. The A/E misroute is now refused from the public
+      side; the copied-label case and owner/instance authorisation remain OPEN by design (F11 is narrowed, not
+      closed).
   F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.

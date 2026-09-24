@@ -836,18 +836,26 @@
     }
   },
   "linux-canary-2026-09-24": {
-    "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record; reviewed by test/verifier-linux-canary.test.mjs",
+    "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record, and (host-data/) the first captures with HOST_DATA = the deployment id after the owner's F11 fix (A and E, and E under A's expectation refused); reviewed by test/verifier-linux-canary.test.mjs",
     "branch": "isolation/portable-runtime-jit",
-    "commit": "368a3aa9c8f47afe54cc81db19a8b6359ccf50fa",
+    "commit": "2db69f32894be7d64d24719e79a61b7193c60b26",
     "path": "isolation/m4/evidence/production-canary-2026-09-24",
     "dir": "test/fixtures/verifier/linux-canary-2026-09-24",
     "files": {
-      "README.txt": "fb3b32226718cef0c1f45cb608b4fc9aecd97c8dd9fb27cfb166df8f291ac9f7",
+      "README.txt": "e2b920b68446a8d85ad3877fe5ec2b4bce34258f27ee5b985e34162fd13bafe0",
       "deployment-txs.json": "dd00baec247af18ee93d033433236af596db23df439a6990c884b5872dfe29b2",
       "domain-release.json": "ec0f713cebf03d601c6fab3a21394b6cf1447818a919b28bd47c527613689c6e",
       "expected-measurement.txt": "1436104ced39a74904d09934a27bcfaf1d0c73cc8dac319e0e56feb40e8a103c",
       "expected-runtime.json": "8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6",
       "guestd-instance.json": "63dc625ed09da60548141bc8e55512bc5480c0a95112e7ebed881643db8ced86",
+      "host-data/README.txt": "f101065a7270562d3097f296455f6e3bdab77d87c7193af9463df4b5c573cbf7",
+      "host-data/client-A.txt": "424b45066b003d6756e16c7e646bed1c91a886601123d4f12539fa7c2e8df94e",
+      "host-data/client-E.txt": "7b9cc10a0a313d09c062217918b6d4e96d8ba4b0f396b062c42ca9e6407de5f3",
+      "host-data/client-EasA.txt": "ba48818e36c0f8fd013fc74f14433216966289c8fbc6e6e5fee46bef20c85de1",
+      "host-data/doc-A.json": "5d1fbf0e80b83341a90d5599e03ffd2f5663bc69da0b0459508f0f2fbfee9dec",
+      "host-data/doc-E.json": "ddfeffea76dd25f24e0580b98766eef58cf2fdcc864a3468c03697e5ca8f25b2",
+      "host-data/served-cert-A.pem": "8cb7640c9781112b48b8229e4555b94b0cf46e0d7df4dcefa16b853944b86406",
+      "host-data/served-cert-E.pem": "c895ea157fabd9de181b13dc507b2b3b1baa9abd22e7cb42826671094a63cc2b",
       "min-tcb.json": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
       "node-availability.json": "78f218e757f740b4c42c3a54a09b93beedc3f11f527a46d354c38c0e1f82c178",
       "node-image-manifest.json": "1f676cec2f4e690fe968f40f184e83d8cbaf114942e28c1af8ec63ee3994250b",
@@ -855,6 +863,7 @@
       "prod-doc.json": "fc96aa2dfcf45926f422e9b46f646a0b9c187cfd3218c35b2f62864148304c52",
       "record.json": "a0cd6b43359e9328338caf7ebff75004bc1466dd4d00f7d325cf6546adcb7cf6",
       "served-cert.pem": "b4df3c1f2b55abd18f40729e9da2af7090dca9d204ecd2801047274d7718ffce",
+      "test-deployment-txs.json": "4b1b3dc593327024890edd88c66e15fe54fef49dd0ce415c0d6c6cf89917b0aa",
       "vcek.der": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835"
     }
   }
