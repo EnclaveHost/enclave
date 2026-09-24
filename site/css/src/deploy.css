@@ -20,6 +20,6 @@
 .seg button{flex:1;font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);background:var(--well);border:1px solid var(--line);border-radius:8px;padding:.55em;cursor:pointer;transition:border-color .15s var(--ease),color .15s var(--ease);position:relative;}
 .seg button:hover{border-color:var(--line-hover);color:var(--text);}
 /* on-state: jade tint + a 1px inner ring so the lit segment reads crisp, not fuzzy */
-.seg button.on{border-color:rgba(47,230,168,.5);color:var(--jade);background:linear-gradient(180deg,rgba(47,230,168,.12),transparent);box-shadow:inset 0 0 0 1px var(--jade-glow);}
+.seg button.on{border-color:rgba(47,230,168,.5);color:var(--jade);background:linear-gradient(180deg,rgba(47,230,168,.12),transparent),var(--surface);box-shadow:inset 0 0 0 1px var(--jade-glow);}
 .seg button.soon{opacity:.55;cursor:not-allowed;}
 .seg button .badge{position:absolute;top:-7px;right:-6px;font-size:.6rem;background:var(--amber-deep);color:var(--amber);border:1px solid var(--amber-dim);padding:.1em .35em;border-radius:5px;letter-spacing:.05em;}
