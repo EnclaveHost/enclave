@@ -54,7 +54,20 @@ custom firmware image by path, and it fits the evidence exactly: the pin is acce
 settings and reads back, and the image is never loaded, so the VM falls through to firmware that
 finds no boot device. A control VM with no pin starts and fails the same way, which is consistent.
 
-It is **not proven**, because nothing yet shows which firmware the worker actually loaded.
+**Evidence added since, read-only, no host change** (enclave-5d suggested the test).
+`Microsoft-Windows-Hyper-V-Worker-Operational` logs a line per VM that loads one:
+`[Virtual machine <id>] Loading IGVM file from default location.` Every such line on this box
+belongs to an **HCS** lab partition. There is **no firmware or IGVM load line at all** for
+`enclave-boot-cmp-0001` (`4D05C87C-…`) at 15:12:07.
+
+So the WMI-created VM never attempted to load an IGVM. The pin was accepted into the settings and
+read back, and the worker then started the VM on stock firmware, which found no boot device and
+logged 18603. That is now established.
+
+What is still NOT established is *why* the worker ignored it — `AllowFirmwareLoadFromFile` is the
+leading candidate and is unset, but nothing yet proves that key is the gate rather than some other
+missing setting (the IGVM is an `openhcl-x64-test-linux-DIRECT` image, which expects the host to
+hand VTL0 a kernel and initrd through LinuxKernelDirect, and this VM supplied neither).
 
 **Why it is not set already.** Setting it permits Hyper-V to load firmware from an arbitrary file
 on this host. That is a host security change, it was not part of the approved HYPERV-ROLE plan, and
