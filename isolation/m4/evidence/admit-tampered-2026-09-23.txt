@@ -1,14 +1,15 @@
-ADMIT tsm_report=LOADED - this guest holds a message key, so it can mint its own reports
-ADMIT sev_guest_no_vmpck=No such device
+ADMIT tsm_report_core=loaded (the generic report core holds no key; this says nothing about VMPCKs)
+ADMIT sev_guest_vmpck0=refused, no VMPCK0: No such device
+ADMIT sev_guest_vmpck2=refused, no VMPCK2: No such device
 ADMIT tsm_report_dir=No such file or directory
 ADMIT insmod=ok
-ADMIT slot0=slot=0 len=0 cap=4194304 pages=0 split=1 list_gpa=0x6200000
+ADMIT slot0=slot=0 len=0 cap=4194304 pages=0 split=1 list_gpa=0x5e00000
 ADMIT status_before=admitted=0x00 required=0x03 kinds=2 vmpl=2
 ADMIT whoami_before=error=-22 rax_out=0x80001003
 ADMIT report_before=refused
 ADMIT select_bundle_slot=ok
 ADMIT stage_bundle=ok
-ADMIT bundle_staged=slot=0 len=59829 cap=4194304 pages=15 split=1 list_gpa=0x6200000
+ADMIT bundle_staged=slot=0 len=59829 cap=4194304 pages=15 split=1 list_gpa=0x5e00000
 ADMIT admit_bundle=Permission denied
 ADMIT admit_bundle_result=ret=-22 rax_out=0x80001004
 ADMIT status_after_bundle=admitted=0x00 required=0x03 kinds=2 vmpl=2

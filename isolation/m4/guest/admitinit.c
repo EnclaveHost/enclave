@@ -58,15 +58,20 @@ static void say(const char *k, const char *v) {
     fflush(stdout);
 }
 
-/* Load a module that MUST fail, and say which way it went. tsm_report itself may well load - it is the
- * report plumbing, not the key holder - so its result is recorded rather than required; sev-guest is the one
- * that must refuse for want of a VMPCK. */
-static void insmod_expect_failure(const char *p, const char *key) {
+/* Load a module with arguments and report the outcome in the caller's own words.
+ *
+ * The first version printed "LOADED - this guest holds a message key" for WHICHEVER module loaded, including
+ * tsm_report - which is the generic report core and loads with no key at all. That put a false sentence into a
+ * committed evidence file, which is worse than a bug in code: a reviewer reading the evidence would have drawn
+ * the opposite conclusion. Each step now says only what its own result means. */
+static void insmod_args(const char *p, const char *args, const char *key,
+                        const char *on_load, const char *on_fail_prefix) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
+    char msg[256];
     if (fd < 0) { say(key, "absent from the image"); return; }
-    long r = syscall(SYS_finit_module, fd, "", 4 /* MODULE_INIT_COMPRESSED_FILE */);
-    if (r == 0) say(key, "LOADED - this guest holds a message key, so it can mint its own reports");
-    else say(key, strerror(errno));
+    long r = syscall(SYS_finit_module, fd, args, 4 /* MODULE_INIT_COMPRESSED_FILE */);
+    if (r == 0) say(key, on_load);
+    else { snprintf(msg, sizeof msg, "%s%s", on_fail_prefix, strerror(errno)); say(key, msg); }
     close(fd);
 }
 
@@ -165,8 +170,20 @@ int main(void) {
      * So this must FAIL. If it succeeds, this guest can mint its own reports, admission proves nothing, and
      * the run should be read as a failure however well the rest of it goes. It is also the key-absence test
      * that the forgeable vmpl0=refused tuple could never perform (isolation/DESIGN.md section 12). */
-    insmod_expect_failure("/tsm_report.ko.zst", "tsm_report");
-    insmod_expect_failure("/sev-guest.ko.zst", "sev_guest_no_vmpck");
+    /* the report core holds no key and is expected to load; it is the plumbing, not the authority */
+    insmod_args("/tsm_report.ko.zst", "", "tsm_report_core",
+                "loaded (the generic report core holds no key; this says nothing about VMPCKs)",
+                "did not load: ");
+    /* vmpck_id=0 EXPLICITLY. This is the DESIGN.md replacement for the forgeable vmpl0=refused tuple: a guest
+     * that can load sev-guest with vmpck_id=0 demonstrably holds VMPCK0 and is therefore NOT beneath a VMPL0
+     * monitor. An unparameterised load would default to this guest's own level and test the wrong key. */
+    insmod_args("/sev-guest.ko.zst", "vmpck_id=0", "sev_guest_vmpck0",
+                "LOADED - this guest HOLDS VMPCK0, so it is not confined beneath a VMPL0 monitor",
+                "refused, no VMPCK0: ");
+    /* and its own level's key, which is what it would use by default */
+    insmod_args("/sev-guest.ko.zst", "vmpck_id=2", "sev_guest_vmpck2",
+                "LOADED - this guest holds VMPCK2, so it can mint its own reports",
+                "refused, no VMPCK2: ");
     show_path("tsm_report_dir", "/sys/kernel/config/tsm");
 
     /* the module splits both staging buffers to 4 KiB RMP entries at load time and checks a canary; a failure
