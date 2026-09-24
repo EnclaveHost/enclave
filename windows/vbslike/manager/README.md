@@ -7,7 +7,8 @@ same derivation, same AppID, same policy rule, same refusals, same backend-name 
 | | |
 |---|---|
 | backend | `hyperv-partition-per-app` |
-| derivations | `enclave-catalog-bundle/1` **and** `/2` - both derived here, byte for byte against the shared vectors |
+| derivations (the gate) | `enclave-catalog-bundle/1` only - what this backend can SERVE |
+| derives (information) | `/1` **and** `/2`, both byte for byte against the shared vectors |
 | policy | `enclave-isolation-policy/1`: vcpus 1, memMiB = the version's on-chain memMb (floor 128), cpuPercent 100 |
 | supports | `gpu`, `secrets`, `egress`, `config`, `ports`, `configCid` all false |
 | attestation format (reserved) | `hyperv-vbs-partition-v1`, a sibling branch in the judge, agreed with the SNP lane and **not yet defined** because no report exists to define it against |
@@ -34,9 +35,16 @@ with the shared vectors, so an AppID computed here equals the one the Linux tier
 the whole reason to implement it before it can run.
 
 Serving one is a different thing, and this backend cannot: it needs `wasi:sockets` inside the
-partition and an in-guest TLS front proxying to `127.0.0.1:N`. So `/health` lists the derivation and
-says `runtime.v2SocketServer: false`, and a `/2` spawn is REFUSED with that reason rather than
-approximated into something else.
+partition and an in-guest TLS front proxying to `127.0.0.1:N`.
+
+**So `/2` is absent from `catalog.derivations`, and that absence is the point.** The supervisor
+reads that list as "can derive AND run" and acts on it before this process is ever consulted: a
+listed rule passes the claim gate, the node takes the lease ON CHAIN, and only then would the spawn
+refuse - leaving the deployment to churn through claim, fail and release, possibly sitting Queued
+while a Linux box that can serve it is free. Silence in the list is the refusal the gate
+understands. The capability is still reported, as `catalog.derives` and
+`runtime.v2SocketServer: false`, so nobody has to guess whether the identity would match; and a `/2`
+spawn that arrives anyway is refused with its reason.
 
 **One header rule, taken from the Linux tier's open finding F13 and adopted deliberately.** Their
 front appends the transport peer as `X-Forwarded-For`, which names the hypervisor rather than any
