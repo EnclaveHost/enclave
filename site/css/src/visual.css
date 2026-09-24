@@ -43,7 +43,7 @@
 @media(max-width:640px){.hero-detail{color:#c6d1d4;}.hero .cinema-shade{background:linear-gradient(90deg,rgba(5,8,10,.78),rgba(5,8,10,.46)),linear-gradient(0deg,#070a0f,transparent 65%);}}
 
 /* Protection: a shared contract, two balanced paths, one GPU rule. */
-#protection{background:var(--wash-tint),linear-gradient(180deg,rgba(15,23,30,.86),var(--wash-deep));backdrop-filter:var(--wash-blur);border-block:1px solid var(--line-soft);}
+#protection{background:var(--wash-tint),linear-gradient(180deg,rgba(15,23,30,.8),var(--wash-deep));backdrop-filter:var(--wash-blur);border-block:1px solid var(--line-soft);}
 .protection-intro{display:grid;grid-template-columns:1.2fr 1fr;align-items:end;gap:60px;margin-bottom:38px;}
 .protection-intro h2{font:600 clamp(2.2rem,3.6vw,3.35rem)/1.08 var(--font-sans);letter-spacing:-.04em;margin:15px 0 0;}
 .protection-intro>p{font-size:1rem;line-height:1.8;color:#aebbc5;max-width:47ch;margin:0 0 3px;}
@@ -89,7 +89,7 @@
 @media(max-width:640px){.protection-intro{gap:22px;margin-bottom:28px;}.protection-intro>p{font-size:.9rem;}.protection-paths,.protection-gpu{grid-template-columns:1fr;}.protection-paths{gap:16px;}.protection-gpu{gap:16px;margin-top:16px;}.protection-path h3{font-size:1.7rem;}.protection-description{min-height:0;}.protection-features{margin-block:22px;}.protection-gpu-intro>p{max-width:none;}.protection-details summary{font-size:.73rem;}}
 @media(prefers-reduced-motion:reduce){.protection-details summary>span{transition:none;}}
 
-/* Section glass: the honeycomb glimmers through a tinted, frosted, ~88% dark layer. Only the section layer is
+/* Section glass: the honeycomb glimmers through a tinted, frosted, ~82-85% dark layer. Only the section layer is
    translucent; every component inside it (cards, panels, tables, inputs, buttons) is an opaque surface. */
 .section-wash{background:var(--wash-tint),var(--wash);backdrop-filter:var(--wash-blur);border-block:1px solid var(--line-soft);}
 section[data-view="overview"] .card,section[data-view="overview"] .price-card{background:linear-gradient(180deg,var(--surface),var(--surface-deep));}
