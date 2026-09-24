@@ -157,10 +157,14 @@ jit, target and host x86_64, CPU features host-detected, W^X enforced, cache non
 sha256 `44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf`, byte-identical on both
 machines and across two builds. `verify/lab.mjs` against it: **34/34** (`evidence/lab-abi2-2026-09-23.json`).
 
-What the extra checks establish: every attestation document states `enclave-domain-abi/2` with that
-identity and a self-test of `exec_pages=allowed wx=clean` taken inside the partition; the verdict
-(`judge-hv.mjs`, using `isolation/contract/runtime.mjs`) recomputes `Bind2` from the handshake key, its
-nonce and the stated identity; restating the report under another runtime version fails on the binding
+What the extra checks establish: every attestation document states `enclave-domain-abi/2` with exactly
+that identity and a self-test of `exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1` taken inside
+the partition; the verdict (`judge-hv.mjs`) judges the ABI, the identity, the self-test and the binding
+through the Linux judge's own `checkRuntime` (`isolation/m2/judge.mjs`, with the closed scope
+vocabulary), so the two verifiers cannot disagree about what a clean scan means; restating the report under another runtime version fails on the binding
 itself, a claimed unauthenticated cache is refused before any binding is computed, and a document that
 dropped to ABI/1 is rejected when ABI/2 is expected. The self-test remains the front's own word relayed
 over the attested connection, as on Linux; on this tier the launcher's signature is what vouches for it.
+The evidence file also records why the compiled cache is absent: not a flag this lab passes, but the
+shared image's own launcher starting every domain's runtime with `-C cache=n`, without which wasmtime's
+default module cache would have been live under the domains' `HOME=/tmp` in a partition too.

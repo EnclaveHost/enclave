@@ -15,9 +15,11 @@
 //   unsigned        the field checks pass but the signature does not verify with the trusted key
 //   reject          anything else
 import { createHash, createPublicKey, timingSafeEqual, verify as cryptoVerify } from "node:crypto";
-// the contract's JavaScript mirror (driven by isolation/contract/vectors.json): the ABI/2 binding folds
-// the runtime identity the domain states into report_data[0:32]
-import { ABI1, ABI2, EXEC_JIT, bind2, runtimeId, validateRuntimeIdentity } from "../../../isolation/contract/runtime.mjs";
+// The runtime half of the verdict is the Linux judge's own checkRuntime (isolation/m2/judge.mjs), which
+// validates the stated identity through the contract mirror, judges the self-test (closed scope
+// vocabulary) and computes the ABI/2 binding. One implementation for both verifiers: a Windows judge and
+// a Linux judge that disagreed about what a clean scan means is the failure neither lab would catch.
+import { checkRuntime } from "../../../isolation/m2/judge.mjs";
 
 export const FORMAT = "hyperv-partition-domain/v1";
 export const TIER = "T0-hv";
@@ -49,29 +51,15 @@ export function signedReportOf(doc) {
   try { return JSON.parse(Buffer.from(doc.report, "base64").toString("utf8")); } catch { return null; }
 }
 
-// The front's runtime self-test line, "exec_pages=allowed wx=clean maps=7 scope=cgroup:/dom1": what the
-// domain checked about itself before stating its identity (isolation/m2/front/runtime.go; the reference
-// check is isolation/m2/judge.mjs checkRuntimeSelfTest). A JIT identity needs exec_pages=allowed; every
-// identity needs wx=clean over at least one mapping.
-export function checkRuntimeSelfTest(selfTest, identity) {
-  if (typeof selfTest !== "string" || !selfTest) return "no runtime self-test in the document";
-  const kv = Object.fromEntries(selfTest.split(/\s+/).map((t) => { const i = t.indexOf("="); return i < 0 ? [t, ""] : [t.slice(0, i), t.slice(i + 1)]; }));
-  if (identity.execution === EXEC_JIT && kv.exec_pages !== "allowed") return `execution=jit but exec_pages=${kv.exec_pages}: no JIT can run where no executable page is obtainable`;
-  if (kv.wx !== "clean") return `wx=${kv.wx}: a writable and executable mapping was found`;
-  if (!(Number(kv.maps) >= 1)) return `maps=${kv.maps}: the W^X scan covered no mapping`;
-  if (!kv.scope) return "the self-test names no scope";
-  return null;
-}
-
 /**
  * judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId?, expectedImageSha256?, expectAbi?, expectRuntime? })
  *   doc:   the attestation document the domain returned (the m2 front's shape)
  *   spki:  the SPKI DER the caller's OWN TLS handshake saw (never doc.transportKey)
  *   nonce: the 32 bytes the caller chose
- *   expectAbi: ABI1 (default) or ABI2; a document stating another ABI is rejected, never downgraded
- *   expectRuntime: fields the stated runtime identity must have (e.g. { execution: "jit", cache: "none" })
+ *   expectRuntime: the exact runtime identity the domain must state (ABI/2); given, a document that states
+ *                  ABI/1 or another identity is rejected, never downgraded. Absent, ABI/1 is judged as before.
  */
-export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId, expectedImageSha256, expectAbi = ABI1, expectRuntime }) {
+export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId, expectedImageSha256, expectRuntime }) {
   const checks = {}, reasons = [];
   const c = (name, ok, why) => { checks[name] = !!ok; if (!ok) reasons.push(why || name); return !!ok; };
   if (!doc || typeof doc !== "object") return { verdict: "reject", reasons: ["no document"], checks };
@@ -85,22 +73,11 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   const rd = Buffer.from(String(d.reportData || ""), "hex");
   c("report_data is 64 bytes", rd.length === 64);
   // the binding: ABI/1 is key || nonce; ABI/2 folds in the runtime identity the document states, so a
-  // document naming another runtime, version, execution mode, ISA or feature policy does not verify
-  const abi = doc.abi ?? ABI1;
-  c(`document states the expected ABI (${expectAbi})`, abi === expectAbi, `document states ${abi}`);
-  let bind = null;
-  if (abi === ABI2) {
-    const why = validateRuntimeIdentity(doc.runtime);
-    c("runtime identity is admissible", why === null, why || "");
-    if (why === null) {
-      bind = bind2(spki, nonce, runtimeId(doc.runtime));
-      const st = checkRuntimeSelfTest(doc.runtimeSelfTest, doc.runtime);
-      c("runtime self-test coherent with the identity", st === null, st || "");
-      for (const [k, v] of Object.entries(expectRuntime || {})) c(`runtime.${k} == ${v}`, doc.runtime[k] === v, `runtime.${k} is ${doc.runtime[k]}`);
-    }
-  } else if (abi === ABI1) {
-    bind = sha256(spki, nonce);
-  }
+  // document naming another runtime, version, execution mode, ISA or feature policy does not verify.
+  // checkRuntime (shared) decides the ABI, the identity, the self-test and the binding; null means ABI/1.
+  const rt = checkRuntime(doc, spki, nonce, expectRuntime !== undefined ? { runtime: expectRuntime } : {});
+  c("ABI, runtime identity and self-test admissible (shared checkRuntime)", rt.ok, rt.reasons.filter((r) => r.startsWith("REJECT")).join("; "));
+  const bind = rt.ok ? (rt.binding ?? sha256(spki, nonce)) : null;
   c("report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime", bind !== null && rd.length === 64 && eq(rd.subarray(0, 32), bind), "binding does not match the handshake");
   const expApp = Buffer.from(expectedAppSha256, "hex");
   c("report_data[32:64] == expected app", rd.length === 64 && eq(rd.subarray(32, 64), expApp), "the report names a different app");
@@ -112,8 +89,9 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   c("platform states host_excluded=false", d.platform && d.platform.hostExcluded === false, "a T0-hv report must not claim host exclusion");
   c("boundary tuple says t0-hv and host_excluded=no", typeof d.boundary === "string" && d.boundary.includes("tier=T0-hv") && d.boundary.includes("host_excluded=no"), d.boundary);
   const sigOk = c("launcher signature verifies", verifyLauncherSignature(launcherKey, rep), "signature does not verify");
-  checks.abi = abi;
-  const structural = Object.entries(checks).every(([k, v]) => k === "abi" || v || k === "launcher signature verifies");
+  checks.abi = doc.abi ?? "enclave-domain-abi/1";
+  checks.runtimeReasons = rt.reasons;
+  const structural = Object.entries(checks).every(([k, v]) => k === "abi" || k === "runtimeReasons" || v || k === "launcher signature verifies");
   const verdict = structural && sigOk ? "monitor-signed" : structural ? "unsigned" : "reject";
   return { verdict, reasons, checks };
 }

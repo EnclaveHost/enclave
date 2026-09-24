@@ -13,15 +13,16 @@ import readline from "node:readline";
 import tls from "node:tls";
 import { judge, signedReportOf } from "./judge-hv.mjs";
 import { ABI2 } from "../../../isolation/contract/runtime.mjs";
-// the guest image carries a runtime identity (isolation/contract/runtime-identity.sh), so every document
-// must state ABI/2 with a JIT identity for this partition tier, W^X enforced and no compiled cache
-const RT = { name: "wasmtime", execution: "jit", targetIsa: "x86_64", hostIsa: "x86_64", wx: "enforced", cache: "none" };
-const J = (o) => judge({ expectAbi: ABI2, expectRuntime: RT, ...o });
+
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith("--") ? [a.slice(2), arr[i + 1]] : []).filter((x) => x.length));
 const need = (k) => { if (!args[k]) { console.error(`--${k} required`); process.exit(2); } return args[k]; };
 const HOST = need("host"), KERNEL = need("kernel"), INITRD = need("initrd"), APPS = need("apps"), OUT = need("out");
 fs.mkdirSync(OUT, { recursive: true });
+// the guest image carries a runtime identity (isolation/contract/runtime-identity.sh, plat/rt/runtime.json,
+// extracted beside the apps by sync.sh); every document must state ABI/2 with EXACTLY that identity
+const RT = JSON.parse(fs.readFileSync(path.join(APPS, "runtime.json"), "utf8"));
+const J = (o) => judge({ expectRuntime: RT, ...o });
 const sha256hex = (b) => createHash("sha256").update(b).digest("hex");
 // a bundle's identity is the sha256 of ALL its bytes; its label is in the manifest (isolation/contract)
 function bundleInfo(file) {
@@ -35,7 +36,13 @@ function bundleInfo(file) {
   return { file, appId: sha256hex(b), label, bytes: b.length };
 }
 const appA = bundleInfo(path.join(APPS, "appA.bundle")), appB = bundleInfo(path.join(APPS, "appB.bundle"));
-const results = [], evidence = { started: new Date().toISOString(), apps: { A: appA, B: appB }, timings: [], memory: {}, verdicts: {}, events: {}, guest: {} };
+const results = [], evidence = { started: new Date().toISOString(), apps: { A: appA, B: appB }, timings: [], memory: {}, verdicts: {}, events: {}, guest: {},
+  expectedRuntime: RT,
+  // why "cache none" holds inside a partition: not a flag this lab passes, but the shared guest image's own
+  // launcher (isolation/m3/domexec.c) starting every domain's runtime with -C cache=n. wasmtime's module
+  // cache is ON by default and the domains run with HOME=/tmp, so without that flag each partition domain
+  // would keep an unauthenticated compiled cache, which RUNTIME.md rule 5 refuses.
+  cachePolicy: "absent by construction: the shared guest image starts every domain's runtime with `wasmtime serve -C cache=n` (isolation/m3/domexec.c); wasmtime caches compiled modules by default under HOME, and the domains' HOME is /tmp" };
 let failures = 0;
 function check(name, ok, detail) {
   results.push({ name, ok: !!ok, detail });
@@ -148,7 +155,8 @@ if (A && B) {
   check("2c the two domains minted different keys, inside their partitions", !aA.spki.equals(aB.spki));
   const aA2 = await attest(A.tcpPort, aA.spki);
   check("2d a second nonce on a new pinned connection is answered under the same key", J({ doc: aA2.doc, spki: aA2.spki, nonce: aA2.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "monitor-signed");
-  check("2f the document states ABI/2 with the image's runtime identity (wasmtime, jit to x86_64, W^X enforced, cache none) and a coherent self-test", aA.doc.abi === ABI2 && aA.doc.runtime && aA.doc.runtime.execution === "jit" && aA.doc.runtime.cache === "none" && /exec_pages=allowed/.test(aA.doc.runtimeSelfTest || "") && /wx=clean/.test(aA.doc.runtimeSelfTest || ""), `${aA.doc.abi} ${JSON.stringify(aA.doc.runtime)} ${aA.doc.runtimeSelfTest}`);
+  check("2f the document states ABI/2 with exactly the image's runtime identity and a coherent self-test", aA.doc.abi === ABI2 && JSON.stringify(aA.doc.runtime) === JSON.stringify(RT) && /exec_pages=allowed/.test(aA.doc.runtimeSelfTest || "") && /wx=clean/.test(aA.doc.runtimeSelfTest || ""), `${aA.doc.abi} ${JSON.stringify(aA.doc.runtime)} ${aA.doc.runtimeSelfTest}`);
+  evidence.runtimeReasons = jA.checks.runtimeReasons;
   const rtTamper = { ...aA.doc, runtime: { ...aA.doc.runtime, version: "0.0.0" } };
   check("2g restating the report under another runtime version is rejected on the binding itself", J({ doc: rtTamper, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
   const rtCache = { ...aA.doc, runtime: { ...aA.doc.runtime, cache: "unauthenticated" } };
