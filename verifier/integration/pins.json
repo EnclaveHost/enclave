@@ -98,19 +98,19 @@
  "linux-domain-contract": {
   "purpose": "the isolation owner's runtime contract (RuntimeID, Bind2, the identity's fail-closed rules) and the catalog bundle derivation reference (DERIVE.md, derive_reference.py, its vectors), imported by the verifier's domain-format path and never copied",
   "branch": "isolation/portable-runtime-jit",
-  "commit": "2db69f32894be7d64d24719e79a61b7193c60b26",
+  "commit": "cf8b22bdd6cd78b9c7bbef563c99838e9275589b",
   "entry": "isolation/contract/runtime.mjs",
   "env": "ENCLAVE_DOMAIN_CONTRACT",
   "files": {
    "isolation/contract/runtime.mjs": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
    "isolation/contract/catalog/DERIVE.md": "1e0fdb8d5a6171b51b8c5dda7d1f98c294600bae4af98f040793344922492ced",
-   "isolation/contract/catalog/derive_reference.py": "00feb57b819d50745436fff13fe87f662993d9af3ffb3843018a0a6ddcdeda5f",
-   "isolation/contract/catalog/derive_vectors.json": "859acb2e01417d906bda1206378283943cb5f1a7ed93d34482301396fee3c756",
+   "isolation/contract/catalog/derive_reference.py": "d1909576c9f075116860766bcf81bb99026efe5bd1a8389f4e3326c8fa074d23",
+   "isolation/contract/catalog/derive_vectors.json": "765b21388fa0952862fddc4908e3442da29a902e9fdf8f18eaee9944762498c1",
    "isolation/contract/RUNTIME.md": "12816672c8f359dd3f88bdf553bb925118bd911a7dabbf113da600ece1458a24"
   },
   "mustMatchWorktree": [],
   "pinnedAt": "2026-09-24",
-  "note": "the commit of the corrected canary capture (expected-measurement.txt, KDS correction, DERIVE.md naming the gateway); the front that produced the document is isolation/m2/front/main.go at f5053f62 per the owner"
+  "note": "cf8b22bd adds enclave-catalog-bundle/2 (world wasi:cli + one http port; v1 vectors byte-identical, checked by regenerating the vectors with both scripts) and a firmware TCB floor for issuance; runtime.mjs, RUNTIME.md and DERIVE.md are the same blobs as at 2db69f32 (DERIVE.md does not yet describe v2). The canary capture stays at 2db69f32 (corrected README, KDS correction, DERIVE.md naming the gateway); the front that produced the document is isolation/m2/front/main.go at f5053f62 per the owner"
  },
  "pvm-client-src-v3": {
   "purpose": "the 0.5.0 client SOURCES (trust.js type-2 policies with instances, gate.js instance rule), run as the DIFFERENTIAL reference beside verifier/pvm-policy.mjs and verifier/admission.mjs on the owner's v3 fixtures; the 0.4.1 source pin stays for the supersede suite",
