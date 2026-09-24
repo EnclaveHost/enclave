@@ -4664,6 +4664,8 @@ app.post("/v1/claim-hint", async (req, res) => {
     return fail(res, 422, "invalid_spec", "id must be the bytes32 deployment id (0x + 64 hex chars).");
   if (!CLAIM_READY || !_enclaveId)
     return fail(res, 503, "not_claiming", "This enclave is not claiming on-chain deployments right now.");
+  if (!teeOk())
+    return fail(res, 503, "not_claiming", "This enclave's attestation document presents no confidential CPU; it does not take tenant work.");
   const ex = deployments.get(id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return res.json({ accepted: true, status: ex.status });
   if (_hintBusy.has(id)) return res.json({ accepted: true, status: "evaluating" });
@@ -5064,7 +5066,7 @@ app.get("/availability", async (_req, res) => {
     // is no card to sell.
     askCpuPricePerSec6: SELL_CPU_PRICE6,
     ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}),
-    claimEnabled: CLAIM_READY && !!_enclaveId,   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
+    claimEnabled: CLAIM_READY && !!_enclaveId && teeOk(),   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it, registered, AND its own RAD presents a confidential CPU (teeOk; a dev launch answers false here): configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -7850,6 +7852,18 @@ const CLAIM_MAX_PER_SWEEP = parseInt(process.env.CLAIM_MAX_PER_SWEEP || "3", 10)
 const CPU_CLAIM_GRACE_SEC = parseInt(process.env.CPU_CLAIM_GRACE_SEC || "120", 10);
 const CLAIM_PAGE = 100;
 const CLAIM_READY = CLAIM_ENABLED && !!(DEPLOYMENTS_ADDRESS && REGISTRY_READY && PROVISION_BACKEND === "vm");
+// The runner-side half of the eligibility rule the relay enforces from its side
+// (relay/api-relay.js computeEligible): this box claims tenant work only when
+// its OWN attestation document presents a confidential CPU. A dev launch
+// (metal MODE=dev, RAD format dev-unattested-metal-v1) or a box whose RAD has
+// not been read yet answers false, and false means no claim, no claim-hint
+// acceptance and claimEnabled:false in /availability. The relay never sees a
+// hand-configured runner that skipped it, and the chain accepts any registered
+// operator's claim, so this gate is the last one on the path from "funded" to
+// "running on a machine that cannot prove what it is". Not a config flag on
+// purpose: vmTech() is DETECTED, never asserted.
+const CONFIDENTIAL_CPU_TECH = new Set(["amd-sev-snp", "intel-tdx"]);
+const teeOk = () => CONFIDENTIAL_CPU_TECH.has(vmTech() || "");
 
 // ---- reachability watchdog — impure half ------------------------------------
 // (verdict logic + rationale sit with the REACH_SELFTEST seam up top.) Runs as
@@ -9151,6 +9165,8 @@ async function volumeGate(d, g, health){
 }
 
 async function considerClaim(d, { hinted = false, forced = false, background = false } = {}) {
+  // No confidential CPU in our own attestation document, no tenant work - hinted, forced or swept.
+  if (!teeOk()) return "this enclave's attestation document presents no confidential CPU (" + (vmTech() || "unread") + "); not claiming";
   const ex = deployments.get(d.id);
   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
   // Unreachable enclaves take no work — resumes included: re-provisioning an

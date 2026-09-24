@@ -531,6 +531,7 @@ function connect() {
           send(frame); log('sent evidence (report, quote, credential, log)');
         } else if (f.t === 'attest-result') {
           if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
                       attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });

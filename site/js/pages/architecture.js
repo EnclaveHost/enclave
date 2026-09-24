@@ -1,11 +1,11 @@
 /* ============================================================
-   Architecture page - how the platform is built, what each
-   protection level defends against, and which parts are
-   available, experimental, or planned. Static prose over the
-   shared chrome; the one live wire is the fleet panel, which
-   shows the protection badges the copy describes on the boxes
-   that are actually serving (the same public /enclaves read the
-   Host page makes, polled only while this page is mounted).
+   Architecture tab (Develop > Architecture) - the architecture
+   Enclave is building and the isolation contract behind it.
+   Static prose over the shared chrome; the one live wire is the
+   fleet panel, which shows the evidence badges the copy
+   describes on the boxes that are actually attached (the same
+   public /enclaves read the Host page makes, polled only while
+   the tab's section is mounted).
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
@@ -28,20 +28,6 @@ async function refreshFleet(){
   } catch(e){ fl.rows = []; }   // the component's empty state reads "no live enclaves"
 }
 
-/* the status board's links land on a section head; mark it for a moment so
-   a reader who jumped from "experimental" sees which heading they reached -
-   a focus aid only, nothing here changes state */
-function wireStatusJumps(){
-  for (const a of document.querySelectorAll(".arch-status a[href^='#']")) {
-    a.addEventListener("click", () => {
-      const t = document.getElementById(a.getAttribute("href").slice(1));
-      if (!t) return;
-      t.classList.add("arch-hit");
-      setTimeout(() => t.classList.remove("arch-hit"), 1800);
-    });
-  }
-}
-
 export function boot(){
   refreshFleet();
   const fl = document.querySelector(".arch-fleet c-fleet-list");
@@ -53,5 +39,4 @@ export function boot(){
     if (!document.getElementById("architecture")) return;
     refreshFleet();
   }, 30000);
-  wireStatusJumps();
 }
