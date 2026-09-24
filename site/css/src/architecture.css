@@ -1,0 +1,65 @@
+/* ============================================================
+   Architecture page - the long version of the front page's
+   promise. Docs rhythm (it composes .hostdoc for prose), plus:
+   status chips (available / experimental / planned), the tier
+   table, the milestone list, the three-column status board,
+   and the live fleet panel. Jade means available and proven;
+   amber means built but not something a deployment can pick;
+   a dashed chip means planned (dashed = provisional or absent,
+   per the design system).
+   ============================================================ */
+.arch{max-width:62rem;}
+.arch .lede-note{margin:-6px 0 26px;font-size:.95rem;line-height:1.65;color:var(--text-muted);max-width:78ch;}
+/* legend: the three words, each in the chip that means it */
+.arch-legend{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:0 0 30px;padding:14px 16px;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);}
+.arch-legend span.k{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);}
+.arch-legend .lg{display:inline-flex;align-items:center;gap:8px;font-size:.86rem;color:var(--text-muted);}
+/* the planned chip: dashed hairline, dim ink - nothing here is lit */
+.ap-badge.plan{color:var(--text-dim);border-style:dashed;border-color:var(--line-strong);background:transparent;}
+/* an h2 carries its status chip inline, after the rule */
+.arch h2 .ap-badge{margin-left:10px;vertical-align:2px;font-weight:400;}
+.arch h3{font-family:var(--font-mono);font-size:.92rem;font-weight:600;color:var(--text);letter-spacing:.01em;margin:22px 0 8px;}
+.arch h3 .ap-badge{margin-left:8px;vertical-align:1px;font-weight:400;}
+/* tier / milestone tables: the params idiom, first column a row header */
+.arch .tbl{overflow-x:auto;margin:14px 0 18px;border:1px solid var(--line-soft);border-radius:var(--radius-sm);}
+.arch table.params{min-width:640px;}
+.arch table.params th[scope=row]{white-space:normal;width:22%;}
+.arch table.params td{color:var(--text-muted);font-size:.86rem;line-height:1.55;}
+.arch table.params td b{color:var(--text);font-weight:500;}
+.arch table.params td .ap-badge{white-space:nowrap;}
+/* the milestone list: a numbered rail, each item a shape and its verdict */
+.ms-list{list-style:none;margin:10px 0 18px;padding:0;display:grid;gap:10px;max-width:78ch;}
+.ms-list li{position:relative;padding:12px 14px 12px 76px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:linear-gradient(180deg,var(--surface),var(--surface-deep));font-size:.9rem;line-height:1.6;color:var(--text-muted);}
+/* the rail label: fixed column, never wraps into the title */
+.ms-list li .n{position:absolute;left:14px;top:13px;width:54px;white-space:nowrap;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.04em;color:var(--text-dim);}
+/* the title is the one block-level bold; emphasis inside the body stays inline */
+.ms-list li b.t{display:block;font-family:var(--font-mono);font-size:.84rem;font-weight:600;color:var(--text);margin-bottom:3px;}
+.ms-list li b:not(.t){color:var(--text);font-weight:600;}
+.ms-list li b.t .ap-badge{margin-left:8px;vertical-align:1px;font-weight:400;font-family:var(--font-mono);}
+@media (max-width:640px){.ms-list li{padding:44px 14px 12px 14px;}.ms-list li .n{top:14px;left:14px;}}
+/* the caveat callout keeps the shared amber grammar */
+.arch .doc-note{max-width:78ch;}
+/* status board: three columns, one per word */
+.arch-status{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:18px 0 8px;}
+.arch-status > div{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,var(--surface),var(--surface-deep));padding:18px 20px;}
+.arch-status h3{margin:0 0 10px;display:flex;align-items:center;gap:10px;}
+.arch-status ul{list-style:none;margin:0;padding:0;}
+.arch-status li{font-size:.88rem;line-height:1.5;color:var(--text-muted);padding:6px 0;border-top:1px solid var(--line-soft);}
+.arch-status li:first-child{border-top:0;padding-top:0;}
+.arch-status li a{color:var(--text);text-decoration:underline;text-underline-offset:3px;}
+.arch-status li a:hover,.arch-status li a:focus-visible{color:var(--jade);}
+.arch-status li small{display:block;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.04em;color:var(--text-dim);margin-top:2px;}
+/* jump highlight: a brief jade rule on the targeted section head */
+.arch-hit{box-shadow:inset 3px 0 0 var(--jade);padding-left:12px;transition:box-shadow .2s var(--ease),padding-left .2s var(--ease);}
+.arch-fleet{margin:14px 0 6px;}
+/* two-column "already independent / still ours" split */
+.arch-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0 18px;}
+.arch-split > div{border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;background:linear-gradient(180deg,var(--surface),var(--surface-deep));}
+.arch-split h3{margin:0 0 10px;}
+.arch-split ul{margin:0;padding-left:1.2em;list-style:disc;}
+.arch-split li{font-size:.88rem;line-height:1.55;color:var(--text-muted);margin:5px 0;}
+.arch-split li b{color:var(--text);font-weight:500;}
+@media (max-width:1000px){.arch-status{grid-template-columns:1fr;}}
+@media (max-width:760px){.arch-split{grid-template-columns:1fr;}}

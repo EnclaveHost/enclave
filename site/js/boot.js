@@ -31,6 +31,7 @@ const PAGES = {
   link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
   authorize: () => import("./pages/authorize.js"), // wallet hand-off for a PRIVATE app - the enclave bounces navigations here
   host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
+  architecture: () => import("./pages/architecture.js"), // how it works, protection levels, what is proven vs planned
   "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/publish
@@ -210,7 +211,7 @@ addEventListener("popstate", (e) => {
    trees, and table scrollers overflow horizontally; keyboard users need focus
    to scroll them. Only regions that actually overflow get a tab stop, and
    only ones this added (data-a11y-scroll) ever get it removed again. */
-const SCROLLABLE_SEL = ".code,.mig-scroll,.schema,.tbl";
+const SCROLLABLE_SEL = ".code,.mig-scroll,.schema,.tbl,.hostdoc-code";
 let _scrollScan;
 function syncScrollFocus() {
   clearTimeout(_scrollScan);

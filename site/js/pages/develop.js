@@ -15,6 +15,7 @@ import { $, $$ } from "../core/util.js";
 import { downloadSpec } from "../../components/footer/footer.js";
 import { hydrateLivePrices } from "../core/live-prices.js";
 import { hydrateLiveSpecs } from "../core/live-specs.js";
+import { boot as bootArchitecture } from "./architecture.js";
 
 /* ============================================================
    Guide chapter scroll-spy
@@ -44,14 +45,15 @@ function initDocs(){
    Sub-tabs: Guide | CLI | API reference (all on this page; the
    tab bar switches which pane section is visible)
    ============================================================ */
-let devTab = "guide";                                        // develop sub-tab: guide | cli | mcp | api
-const DEV_PANES = { guide: "docs", cli: "cli", mcp: "mcp", api: "api" }; // tab -> pane section id
+let devTab = "guide";                                        // develop sub-tab: guide | cli | mcp | api | architecture
+const DEV_PANES = { guide: "docs", cli: "cli", mcp: "mcp", api: "api", architecture: "architecture" }; // tab -> pane section id
 function devTabOf(id){                                       // which sub-tab holds this element?
   const el = id && document.getElementById(id); if (!el || !el.closest) return null;
   if (el.closest("#api")) return "api";
   if (el.closest("#mcp")) return "mcp";
   if (el.closest("#cli")) return "cli";
   if (el.closest("#docs")) return "guide";
+  if (el.closest("#architecture")) return "architecture";
   return null;
 }
 function setDevTab(tab){
@@ -111,6 +113,7 @@ document.addEventListener("enclave:api-rendered", () => {
 export function boot() {
   run(initDocs);
   run(() => gotoAnchor((location.hash || "").slice(1) || "docs"));   // pane visibility before the spec arrives
+  run(bootArchitecture);
   run(hydrateLivePrices);   // the docs quote real $/hr rates - refresh them from the contract
   run(hydrateLiveSpecs);    // …and real fleet hardware - refresh it from /availability
   // #dlSpec is a real <a href="openapi.json" download> (no-JS fallback); JS serves the freshly loaded spec instead

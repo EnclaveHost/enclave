@@ -15,6 +15,7 @@
 # keys it as "sso-authorize" from the parent segment
 /sso/authorize /sso/authorize.html 200
 /host       /host.html       200
+/architecture /develop 301
 /admin      /admin.html      200
 /terms      /terms.html      200
 /privacy    /privacy.html    200

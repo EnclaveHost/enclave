@@ -69,3 +69,14 @@ header.nav .brand svg.nm{width:auto;height:20px;}
      inside a 44px target the bottom edge floats too far from the text */
   .nav-links a.active::after{left:.6em;right:.6em;bottom:6px;}
 }
+
+/* ---------- five tabs: long label wide, short label narrow ----------
+   "Architecture" does not fit a fifth of a 360px tab row; the same link
+   reads "Platform" there. display:none keeps the hidden label out of the
+   accessibility tree, so assistive tech announces exactly one name. */
+.nav-links a .nl-short{display:none;}
+@media (max-width:640px){
+  .nav-links a{font-size:.74rem;padding:.4em .15em;}
+  .nav-links a .nl-long{display:none;}
+  .nav-links a .nl-short{display:inline;}
+}
