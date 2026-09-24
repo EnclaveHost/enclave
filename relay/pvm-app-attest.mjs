@@ -131,6 +131,53 @@ export function verifyPvmAppAbi2(evidence = {}, opts = {}) {
   return { ok: true, reasons, runtimeId: rid.toString("hex"), bind2: b.toString("hex"), measurement: avf.measurement };
 }
 
+export const PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
+
+/**
+ * A CLIENT's verification of a pVM app's evidence envelope (LAB, PVM-CPU.md "client-verified channel"): the VM answered
+ * the client's own nonce with a fresh AVF certificate over Bind2(transport SPKI, THAT nonce, RuntimeID) || AppID. The
+ * envelope is untrusted input from whoever carried it (the relay, the phone's Android app): its `nonce` and `app` fields
+ * are compared, never used -- the challenge is recomputed from the CALLER's nonce and the CALLER's expected app, so a
+ * replayed, re-labelled or re-keyed envelope does not verify. Every pin is the caller's (roots, code hash, authority,
+ * runtime IDs). Returns { ok, reasons, transportSpki (hex, the key to pin for TLS), runtimeId, measurement }.
+ *   envelope: { format, nonce, app, spki, identity, selftest, chain: [b64 DER] }
+ *   expect:   { nonce (32 bytes), appId (hex), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now? }
+ */
+export function verifyPvmAppEvidence(envelope, expect = {}) {
+  const no = (m) => ({ ok: false, reasons: [m], transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null });
+  const e = envelope;
+  // a closed shape: exactly these fields, each at its exact form (an unknown field is refused, never ignored)
+  const KEYS = ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
+  if (!e || typeof e !== "object" || Array.isArray(e)) return no("the evidence is not an object");
+  if (Object.keys(e).sort().join() !== KEYS.join()) return no(`the evidence fields must be exactly ${KEYS.join(",")} (got ${Object.keys(e).sort().join(",")})`);
+  if (e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}`);
+  for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes"])
+    if (!Array.isArray(expect[k]) || !expect[k].length) return no(`no ${k}: refusing (fail closed)`);
+  if (expect.rootPins !== undefined && (!Array.isArray(expect.rootPins) || !expect.rootPins.length)) return no("an empty rootPins: refusing (fail closed)");
+  let nonce, appId;
+  try { nonce = hex32(expect.nonce, "the caller's nonce"); appId = hex32(expect.appId, "the caller's expected app"); } catch (x) { return no(x.message); }
+  if (typeof e.nonce !== "string" || !/^[0-9a-f]{64}$/.test(e.nonce)) return no("the evidence nonce is not 64 lowercase hex");
+  if (e.nonce !== nonce.toString("hex")) return no("the evidence answers another nonce (stale or replayed)");
+  if (typeof e.app !== "string" || !/^[0-9a-f]{64}$/.test(e.app)) return no("the evidence app is not 64 lowercase hex");
+  if (e.app !== appId.toString("hex")) return no("the evidence names another app");
+  if (typeof e.spki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(e.spki)) return no("the evidence's transport key is not a 44-byte Ed25519 SPKI");
+  if (typeof e.identity !== "string" || e.identity.length > 1024) return no("the evidence identity is not a string of at most 1024 bytes");
+  if (typeof e.selftest !== "string" || e.selftest.length > 300) return no("the evidence self-test is not a string of at most 300 bytes");
+  if (!Array.isArray(e.chain) || e.chain.length < 2 || e.chain.length > 8) return no("the evidence chain is not 2..8 certificates");
+  const chain = [];
+  for (const c of e.chain) {
+    if (typeof c !== "string" || c.length > 87384 || !/^[A-Za-z0-9+/]+={0,2}$/.test(c) || c.length % 4) return no("a chain entry is not canonical base64");
+    const der = Buffer.from(c, "base64");
+    if (!der.length || der.length > 65536 || der.toString("base64") !== c) return no("a chain entry is not 1..65536 bytes of canonical base64 DER");
+    chain.push(der);
+  }
+  const v = verifyPvmAppAbi2({ chain, identity: e.identity, selftest: e.selftest, spki: Buffer.from(e.spki, "hex"), nonce, appId },
+    { allowedRuntimeIds: expect.allowedRuntimeIds, allowedCodeHashes: expect.allowedCodeHashes, allowedAuthorityHashes: expect.allowedAuthorityHashes,
+      ...(expect.rootPins ? { rootPins: expect.rootPins } : {}), ...(expect.now ? { now: expect.now } : {}) });
+  if (!v.ok) return { ok: false, reasons: v.reasons, transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: appId.toString("hex") };
+  return { ok: true, reasons: v.reasons, transportSpki: e.spki, runtimeId: v.runtimeId, measurement: v.measurement, freshness: "client-nonce", appId: appId.toString("hex") };
+}
+
 /** The app attestation's pieces from a captured pVM log (ABI2_LINK<i>[k], ABI2 runtime, ABI2 selftest, ABI2 binding). */
 export function abi2FromLog(text) {
   const certs = new Map();

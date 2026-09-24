@@ -741,7 +741,7 @@ public class Main extends Activity {
                 if (line.startsWith("APP serving https") && plan.appTls == 1 && relay != null) {
                     // LAB: from now the relay may open raw streams; this app splices each to the VM's TLS port and never
                     // sees plaintext (TLS terminates in the VM with the attested transport key); STOP after app_serve_s
-                    relay.vmConnect = () -> connect(vm, APP_HTTP_PORT, 50);
+                    relay.vmConnect = (port) -> connect(vm, port, 50);   // RelayAttach.portOf: the TLS app port or the evidence endpoint
                     final OutputStream o = out; final int secs = plan.appServeS;
                     say("APP https: relay streams are forwarded to the VM as ciphertext; the lab run STOPs in " + secs + " s");
                     new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }

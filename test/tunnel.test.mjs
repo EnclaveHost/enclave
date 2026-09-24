@@ -887,13 +887,20 @@ test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay,
   const result = async (c, n) => { for (let i = 0; i < 60 && c.frames.filter((x) => x.t === "abi2-result").length < n; i++) await settle(); return c.frames.filter((x) => x.t === "abi2-result")[n - 1]; };
   const row = (name) => h.hub.origins().find((o) => o.name === name);
   const rawOpens = (c) => c.frames.filter((x) => x.t === "s+" && x.kind === "pvm-app-tls").length;
-  const splice = async (name) => { const [a, b] = await new Promise((res) => { const srv = net.createServer((s) => { res([s, cl]); srv.close(); }); let cl; srv.listen(0, "127.0.0.1", () => { cl = net.connect(srv.address().port, "127.0.0.1"); }); }); return { ok: h.hub.spliceRaw(name, a), client: b }; };
+  const splice = async (name, kind) => { const [a, b] = await new Promise((res) => { const srv = net.createServer((s) => { res([s, cl]); srv.close(); }); let cl; srv.listen(0, "127.0.0.1", () => { cl = net.connect(srv.address().port, "127.0.0.1"); }); }); return { ok: h.hub.spliceRaw(name, a, kind), client: b }; };
   try {
     const kp = generateKeyPairSync("ed25519");
     const c1 = await attach("pixel-app", kp);
     // no verified app yet: no raw stream
     const s0 = await splice("pixel-app");
     assert.equal(s0.ok, false, "no stream before the app is verified"); s0.client.destroy();
+    // the evidence endpoint is reachable on any attested attach: a client verifies the VM itself, not through this hub
+    const se = await splice("pixel-app", "pvm-evidence");
+    assert.equal(se.ok, true, "evidence streams need only an attested attach");
+    for (let i = 0; i < 40 && !c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence"); i++) await settle();
+    assert.ok(c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence")); se.client.destroy();
+    const sx = await splice("pixel-app", "something-else");
+    assert.equal(sx.ok, false, "no other kind"); sx.client.destroy();
     // evidence over ANOTHER transport key (a substituted server key): refused, and the nonce is spent
     const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
     c1.ws.send(JSON.stringify(evidence({ transport: other, nonce: c1.appNonce })));

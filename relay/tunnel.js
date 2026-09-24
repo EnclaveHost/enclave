@@ -609,11 +609,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (!sendF({ t: "s+", sid })) return finish("tunnel send failed");
   }
 
-  // LAB: a raw byte stream to a VERIFIED pVM app (t.pvmApp), no request head replayed: the client's TLS goes straight to
-  // the VM, where it terminates (httpd.rs with_tls). The hub and the phone carry opaque {t:"sd"} chunks and log sizes only.
-  function spliceRaw(name, socket) {
+  // LAB: a raw byte stream to a pVM, no request head replayed. kind "pvm-app-tls": the client's TLS goes straight to the
+  // VM, where it terminates (httpd.rs with_tls) -- only to an app THIS hub verified (t.pvmApp; its own policy, which can
+  // only deny). kind "pvm-evidence": the VM's evidence endpoint, which answers a CLIENT's nonce so the client verifies the
+  // VM itself -- any AVF-attested attach. The hub and the phone carry opaque {t:"sd"} chunks and log sizes only.
+  function spliceRaw(name, socket, kind = "pvm-app-tls") {
     const t = tunnels.get(name);
-    if (!t || !t.pvmApp || t.streams.size >= MAX_STREAMS) { socket.destroy(); return false; }
+    const allowed = t && t.pvm && (kind === "pvm-evidence" || (kind === "pvm-app-tls" && t.pvmApp));
+    if (!allowed || t.streams.size >= MAX_STREAMS) { socket.destroy(); return false; }
     const sid = seq++;
     const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };
     let open = false, idleTimer = null, bytesIn = 0, bytesOut = 0;
@@ -621,7 +624,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const idle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish("idle"), STREAM_IDLE_MS); };
     function finish(why) {
       clearTimeout(openTimer); clearTimeout(idleTimer);
-      if (t.streams.delete(sid)) { sendF({ t: "sx", sid }); console.log(`[tunnel] ${name} raw stream ${sid} closed (${why}): ${bytesIn} bytes in, ${bytesOut} out`); }
+      if (t.streams.delete(sid)) { sendF({ t: "sx", sid }); console.log(`[tunnel] ${name} raw ${kind} stream ${sid} closed (${why}): ${bytesIn} bytes in, ${bytesOut} out`); }
       socket.destroy();
     }
     t.streams.set(sid, (f) => {
@@ -643,7 +646,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     socket.on("error", () => finish("client error"));
     socket.on("close", () => finish("client closed"));
     idle();
-    if (!sendF({ t: "s+", sid, kind: "pvm-app-tls" })) { finish("tunnel send failed"); return false; }
+    if (!sendF({ t: "s+", sid, kind })) { finish("tunnel send failed"); return false; }
     return true;
   }
 

@@ -339,6 +339,42 @@ client sends nothing; a reconnect brings a new nonce and a new key, and the old 
 requests that got a 200; neither the Android captures nor the relay's log hold the request or the response. Host tests:
 pvm-rt tests/httpd_tls.rs (5), tunnel.test.mjs "pvm-app (lab)" (nonce, replay, reconnect, substitution, splice, detach).
 
+### Client-verified channel (LAB, 2026-09-24): the client verifies the VM, the relay carries bytes
+
+results/pvm-cpu-client-verified (PASS, 22 checks, two boots). The serving prototype's client pinned whatever key the relay
+published, so it trusted the relay's verdict. Here the client trusts no key or verdict from the relay:
+- **Evidence on demand.** While the app is served over https, the VM answers on vsock 7787 (`EVIDENCE <64 hex>`, one line
+  in, one JSON line out; at most one answer every 2 s and 120 per session). Each answer is a fresh AVF certificate over
+  `Bind2(transport SPKI, the CLIENT's nonce, RuntimeID) || AppID`, in the closed envelope `enclave-pvm-app-evidence/v1`
+  `{format, nonce, app, spki, identity, selftest, chain}`. The relay reaches it as a raw `pvm-evidence` stream: before the
+  app is verified, only while an attested attach is up, refused after a detach. The phone's Android app maps the kind to
+  the port (RelayAttach.portOf).
+- **The client's verifier.** `relay/pvm-app-attest.mjs` `verifyPvmAppEvidence(envelope, { nonce, appId,
+  allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now? })` is a pure function that fails closed:
+  - the shape is closed: an unknown field is refused, every field is held to its exact form, and every pin list must be
+    non-empty;
+  - the envelope's `nonce` and `app` are compared with the caller's and never used; the challenge is recomputed from the
+    caller's nonce and expected app;
+  - it returns the transport SPKI to pin only on success.
+
+  The Enclave verifier session consumes this interface as it stands (its adapter on research/independent-verifier). Its
+  gate keeps a used nonce refused and releases a native client only when that client's own TLS peer key equals the
+  returned SPKI.
+- **Then TLS.** `cpu/app-verify-client.mjs` writes the request only after the TLS 1.3 peer key equals the verified SPKI.
+- **Attacks.** A malicious relay (`cpu/evil-relay.mjs`) was refused before any request was sent in every mode but the
+  control:
+  - replayed evidence and launch 1's evidence after a reconnect: another nonce;
+  - its own key swapped into genuine evidence: the challenge does not match;
+  - a well-formed envelope from its own CA over its own key, with the pinned code hash and app: an unpinned root;
+  - its own TLS behind genuine evidence: the peer key is not the attested one.
+
+  A client expecting another app, or pinning another runtime, refuses. After STOP there is no evidence and nothing is sent.
+  A reconnect verifies with the new boot's key. The malicious relay's TLS never received a request, each app counted only
+  the requests that got a 200, and no log holds plaintext.
+- Host tests: test/pvm-app-attest.test.mjs "client-verified evidence" (key swap, other build, stale and stale-relabelled,
+  wrong or relabelled app, restated or other runtime, expiry, closed shape, fail-closed pins); tunnel.test.mjs
+  (`pvm-evidence` before app verification, unknown kinds refused).
+
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
 The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
@@ -355,7 +391,7 @@ produce binds it. Per claim:
 | model identity, rates (CAPS report) | signed by the attested transport key; the model pin is an APK asset (in the codeHash) | signature fails |
 | `APP ran`, `APPOUT`, `nn digest`, `serve=http` bodies | nothing: that output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
 | `serve=https` requests and responses (LAB) | TLS 1.3 terminating in the VM under the attested transport key; the client pins the key and checks the handshake signature before writing | sees ciphertext only (results/pvm-cpu-tls-serving: nothing in the Android or relay logs); a flipped byte is refused, a replay cannot complete a handshake |
-| the key a client pins (LAB) | published by the relay after it verified the ABI/2 evidence over its own nonce | a host cannot change it (the relay reads it from the verified attach, not from the phone's frames); the client trusts the relay for it (re-verifying the evidence client-side is not built) |
+| the key a client pins (LAB) | the client's own verification: a fresh AVF certificate over Bind2(spki, the CLIENT's nonce, RuntimeID) \|\| AppID, checked with the client's own pins (`verifyPvmAppEvidence`); the relay-published key is no longer an input | a host or relay that swaps the key, replays evidence, forges a chain or terminates TLS itself is refused before a request is sent (results/pvm-cpu-client-verified) |
 | the orange label (Tier.java, assets/tier) | display only; the relay admits from the chain + report, never the label or the device name | cannot change the relay's verdict |
 
 Two host-side attestation surfaces remain and are acceptable as stated: the attach path certifies any 32-byte challenge the
@@ -371,10 +407,11 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
    yet cover, exactly:
    - production: api-relay.js neither sets `attest.pvmApp` nor routes client traffic to `spliceRaw` (the lab hub's raw TCP
      port stands in); relay deployment, the main merge and release-key custody are separate review items;
-   - clients trust the relay's verification: they pin the key the relay published; a client that re-verifies the ABI/2
-     evidence itself (the relay's nonce transcript included) is not built;
-   - browsers: the TLS key is the Ed25519 transport key, which mainstream browsers do not accept for servers; a browser
-     endpoint needs a P-256 key made in the VM and bound into the evidence, or a platform (web PKI) certificate for it;
+   - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
+     verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
+   - browsers: browser JS cannot see a TLS peer's certificate, and a self-signed certificate (Ed25519 or P-256) is not
+     trusted by a browser, so the native client's step 4 does not exist in a page; the browser channel is the next
+     increment;
    - one connection at a time in the VM (the payload accepts and serves serially); one app and one ABI/2 nonce per attach;
    - no client identity: the app sees an anonymous TLS client (app-level authorisation is the app's own, inside TLS).
 3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).

@@ -1,0 +1,25 @@
+{"t":"2026-09-24T06:52:09.270Z","evil":"replay","relaySpkiTail":"6fa785a54cc6aab7"}
+{"t":"2026-09-24T06:52:09.277Z","evil":"replay","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:52:09.277Z","evil":"replay","listening":"app","port":18455,"mitm":false}
+{"t":"2026-09-24T06:52:11.257Z","evil":"replay","evidence":"answered with a RECORDED envelope","forNonce":"6f64467de276b774"}
+{"t":"2026-09-24T06:52:14.315Z","evil":"swap-key","relaySpkiTail":"bf1d846e06321b9c"}
+{"t":"2026-09-24T06:52:14.322Z","evil":"swap-key","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:52:14.322Z","evil":"swap-key","listening":"app","port":18455,"mitm":true}
+{"t":"2026-09-24T06:52:16.985Z","evil":"swap-key","evidence":"forwarded the GENUINE envelope with ITS OWN key swapped in"}
+{"t":"2026-09-24T06:52:20.070Z","evil":"own-ca","relaySpkiTail":"bdfe09ea0e923967"}
+{"t":"2026-09-24T06:52:20.077Z","evil":"own-ca","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:52:20.077Z","evil":"own-ca","listening":"app","port":18455,"mitm":true}
+{"t":"2026-09-24T06:52:22.049Z","evil":"own-ca","evidence":"answered with a FORGED envelope from its own CA over its own key","forNonce":"3a9428df16a1a7cf"}
+{"t":"2026-09-24T06:52:25.139Z","evil":"mitm-tls","relaySpkiTail":"4b1a44c10054fc9a"}
+{"t":"2026-09-24T06:52:25.148Z","evil":"mitm-tls","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:52:25.148Z","evil":"mitm-tls","listening":"app","port":18455,"mitm":true}
+{"t":"2026-09-24T06:52:27.814Z","evil":"mitm-tls","evidence":"forwarded untouched"}
+{"t":"2026-09-24T06:52:27.823Z","evil":"mitm-tls","app":"terminating TLS with the relay's own key"}
+{"t":"2026-09-24T06:52:30.885Z","evil":"pass","relaySpkiTail":"cf988fbfde1146d1"}
+{"t":"2026-09-24T06:52:30.893Z","evil":"pass","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:52:30.893Z","evil":"pass","listening":"app","port":18455,"mitm":false}
+{"t":"2026-09-24T06:52:33.518Z","evil":"pass","evidence":"forwarded untouched"}
+{"t":"2026-09-24T06:57:17.232Z","evil":"replay","relaySpkiTail":"54e3a1cb206c949b"}
+{"t":"2026-09-24T06:57:17.238Z","evil":"replay","listening":"evidence","port":18456}
+{"t":"2026-09-24T06:57:17.238Z","evil":"replay","listening":"app","port":18455,"mitm":false}
+{"t":"2026-09-24T06:57:19.223Z","evil":"replay","evidence":"answered with a RECORDED envelope","forNonce":"07de4076941b5cec"}
