@@ -108,8 +108,11 @@ of that image.
 > `142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9` pinned, *the kernel, initrd and command line
 > that boot are the ones whose hashes the launch digest commits to* - enforced by the measured firmware,
 > demonstrated by the substitution refusal - *and the app's bytes are inside that initrd*. The firmware is itself
-> an input to the measurement (`sev-snp-measure --ovmf`), so a verifier pinning the digest pins the firmware that
-> did the enforcing.
+> an input to the measurement (`sev-snp-measure --ovmf`), so **a verifier pinning a digest derived against this
+> firmware pins this firmware**. That condition travels with the sentence: a digest derived against `OVMF.4m.fd`
+> pins the NON-verifying firmware just as faithfully. The digest-to-firmware link is what is self-certifying;
+> WHICH firmware an allowlist entry was derived against remains an **operator statement**, and keeping that
+> statement true is allowlist-provenance work rather than a property of the mechanism.
 >
 > **"The measured app is the one running" is still not written without these beside it:**
 >
