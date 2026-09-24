@@ -508,7 +508,10 @@ Exact remaining integration gaps (nothing below is verified today):
    every count, the counts must add up and match the entries; the exit status must agree with the report and a
    signal death fails; only an open finding recorded against the exact pinned revision can account for an exact
    case-level `testCodeFailure` it names, never a file or path, giving NOT ACCEPTED (exit 3); a clean, complete,
-   consistent run with exit 0 is the only PASS. Nothing disappears by name.
+   consistent run with exit 0 is the only PASS. Nothing disappears by name. Independently verified: Codex reviewed the classifier
+   and its negative checks and completed the strict command at 7ae1ab36 with exit 0, 140 of 140, zero cancelled,
+   skipped or todo, every pin, next build and device fixture reproduced or matched (review section 14). The lab
+   review rests at that boundary; failed runs and evidence limits are preserved as recorded.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
