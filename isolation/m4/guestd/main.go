@@ -180,9 +180,9 @@ func (l *realLauncher) Stop(tag, workdir string) error {
 	return err
 }
 
-// Sweep stops the guests a previous guestd left: every user unit run-domain.sh named for a guestd tag. Guests do
-// not outlive the manager that launched them, the same rule the wasm-manager keeps for its processes - the
-// supervisor re-provisions what it still holds a lease for.
+// Sweep stops the guest units a previous guestd left that were NOT adopted (keep): since F7 a guestd restart adopts
+// every guest that verifies again as itself (persist.go), and only the rest end here. The supervisor re-provisions
+// what it still holds a lease for.
 func (l *realLauncher) Sweep(keep map[string]bool) ([]string, error) {
 	out, err := exec.Command("systemctl", "--user", "list-units", "--plain", "--no-legend", "--all", "m2-gd*").Output()
 	if err != nil {
