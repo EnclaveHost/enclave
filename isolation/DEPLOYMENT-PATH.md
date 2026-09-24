@@ -48,7 +48,9 @@ None of these is waived by the tests in this branch.
    key binding. The production verifier checks none of the per-app parts. Without it, "isolated per app" is a claim
    no user can check.
 2. **Measurement publication.** The domain release must be pinned and reproducible, and it must be documented how a
-   verifier obtains the expected measurement. *Progress:* the image was NOT reproducible from its bundle. It carried
+   verifier obtains the expected measurement. *Built (2026-09-24):* `domain-release.sh`, `expected-measurement.sh`.
+   Reconstruction from a pinned release reproduces live SNP measurements. The release still has to be PUBLISHED
+   (for example, content-addressed and signed) before a remote user can use it. *Progress:* the image was NOT reproducible from its bundle. It carried
    the bundle file's mode, the builder's uid/gid and the host's library modes, so guestd's first hardware run failed
    the independent check. That is fixed (`e280abf3`). The measurement is now a function of the bundle and this host's
    kernel, firmware, front, init and runtime. Those template inputs are not yet published as a release, so a remote
@@ -104,6 +106,6 @@ Each is tested and disabled by default.
 | C3 | supervisor, behind `ISOLATION_BACKEND=snp-guest-per-app` (default off): the `isolation` envelope namespace (parsed ONLY on a tier box), a `considerClaim` gate (the deployment must ask; the manager's `/health` must say it IS guestd; GPU, config, secrets, ports and volumes are refused), a surfaced `error` when a running deployment's requirement changes, and `/availability` stating the tier and `fullService:false` | **gate built**: `test/isolation-claim-gate.test.mjs` 9/9; all 43 supervisor-driving test files 452/454 (the 2 skips pre-exist). **Still missing:** pointing VMMGR_URL at guestd across the CVM boundary (C7), and a per-deployment attestation endpoint returning the GUEST's own document |
 | C4 | data path: a ciphertext splice from the relay SNI route to the guest forwarder for this backend; guest-front certificates | not started |
 | C5 | relay: a per-app policy module (null unless configured), a new hub mode, per-box tier eligibility outside `TENANT_COMPUTE_MODES`, the `relay/deploy.sh` module list, tests | not started |
-| C6 | clients: the envelope namespace in site/CLI/MCP; a CLI verifier lifting the judge's checks, with measurement recomputation from the pinned domain release | not started |
+| C6 | clients: the envelope namespace in site/CLI/MCP; a CLI verifier lifting the judge's checks, with measurement recomputation from the pinned domain release | **verifier half built**: `m4/domain-release.sh` pins every image input under one release id; `m4/expected-measurement.sh` reconstructs a guest's measurement from the release and a bundle, and reproduced BOTH live measurements of the guestd hardware run (`test-domain-release.sh` 6/6). **Missing:** publishing a release, the envelope flag in site/CLI/MCP, and a browser verifier |
 | C7 | an authenticated node-CVM-to-host bridge for guestd (vsock) | not started |
 | C8 | the staging acceptance run above, with its evidence file | blocked on C2-C7 |
