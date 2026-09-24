@@ -25,10 +25,11 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 |---|---|---|---|---|
 | 1 | `6cdaf629…` `manifests/nucbox-ownguest-1.json` | IGVM `2d735376…` around monitor `44abb52b…` (isolation/m3 at `3c077840`), WSL kernel `7fe3edb5…`, manager `8327498e` | hello-world 1.0.4 (`/1`, AppID `9c3d10f1…`), hookbin 0.1.4 (`/2`, not servable) | empty |
 | 2 | `197a9e3d…` `manifests/nucbox-ownguest-2.json` | IGVM `7caf7408…` around monitor `4610d594…` (isolation/m3 at `aef54ff7`: `/2` run mode, readiness, a launcher-named certificate name), WSL kernel `7fe3edb5…`, manager + judge-hv at `261e5f03` | the same two; hello-world's answer pinned to the byte (`"Hello World!\n"`, `03ba204e…`) | `datapath.mjs` `d0a57f6a…` at `67354f3b` (nothing on the box imports it yet) |
+| 3 | `f0f516e4…` `manifests/nucbox-ownguest-3.json` | as v2; the launcher's provenance recorded (built from `ef1b2077`, one untracked uncompiled `monitor.rs` present; BEHIND `c5eb2f4a`, so `/2` bundles fail at its `load`); the image a judge expects is the initrd on hcs-dev and the IGVM on igvm | as v2 | `datapath.mjs` `b187da9e…` at `09b67414` (ids are any safe token) |
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
-**v1 is defective. Use v2.** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
+**v1 is defective. Use the latest (v3).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
 copied from a client that trims. The app answers `"Hello World!\n"`, so v1's serve checks would fail on a correct
 answer. The current verifier refuses v1 at that pin. `--serve`, which serves the component under the pinned runtime and
 compares the exact bytes, is the check that would have caught it. The rest of v1's pins stand for the old guest.
@@ -36,7 +37,7 @@ compares the exact bytes, is the check that would have caught it. The rest of v1
 ## Reproduce and verify (warden-host)
 
 ```
-node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-2.json --rebuild --fetch https://ipfs.enclave.host --serve
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-3.json --rebuild --fetch https://ipfs.enclave.host --serve
 node --test windows/vbslike/pkg/pkg.test.mjs
 ```
 
@@ -70,7 +71,7 @@ reproduced here.
 ## Put it on the box (read `win/*.ps1` first: they state what they write)
 
 ```
-node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-2.json ~/enclave-bench/ownguest-pkg/out
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-3.json ~/enclave-bench/ownguest-pkg/out
 windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
 ```
 
@@ -90,7 +91,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\pkg
 - it verifies everything and writes `staged.json`.
 
 **`check.ps1`** re-verifies the package and runs the self-test, which requires 9 cases to give their expected result.
-It reports each profile's host checks as ok or `BLOCKED`, never as a package failure. It then prints the manager's
+It reports each profile's host checks as ok or `BLOCKED`, never as a package failure. `HOST CHECKS PASS` is only what
+those read-only checks see: whether a profile BOOTS is shown by running it. A setting someone suspects matters, but
+whose role is not established (v3: `AllowFirmwareLoadFromFile` for the igvm profile), is printed as `info` and never
+gates anything. It then prints the manager's
 environment for `igvm` and the smoke command for `hcs-dev`. `-Require igvm` exits 3 when that profile is blocked.
 
 **Limits.** None of these scripts enables a feature, changes a host setting, reboots, or writes outside the package
