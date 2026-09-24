@@ -59,4 +59,11 @@ HVLAB_NAME_A="$NAME_A" HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime
   "$(python3 "$here/hvlab.py" pubkey "$S")" "$PA" "$appA" "$PB" "$appB" > "$W/check.txt" 2>&1 || rc=$?
 cat "$W/check.txt"
 [ "$rc" = 0 ] && [ "$(tail -1 "$W/check.txt")" = "HVLAB-CHECK ALL PASS" ] || { echo "TEST-HV-LOCAL FAILED (checker rc=$rc)"; exit 1; }
+# the checker's one-domain mode (a first run on the box may have one app up): passes, and lists what it skipped
+rc=0
+HVLAB_NAME_A="$NAME_A" HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-check.mjs" \
+  "$(python3 "$here/hvlab.py" pubkey "$S")" "$PA" "$appA" > "$W/check-one.txt" 2>&1 || rc=$?
+cat "$W/check-one.txt"
+[ "$rc" = 0 ] && tail -1 "$W/check-one.txt" | grep -q "^HVLAB-CHECK PASS WITH [0-9]* SKIPPED (one domain)$" \
+  || { echo "TEST-HV-LOCAL FAILED (one-domain checker rc=$rc)"; exit 1; }
 echo "TEST-HV-LOCAL PASS"
