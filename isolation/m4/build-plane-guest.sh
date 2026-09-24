@@ -44,10 +44,14 @@ cp "$bundle" "$d/app.bundle"
 printf '%s\n' "$app_id" > "$d/app.sha256"
 . "$here/../m1/domain.env"
 M=/lib/modules/$GUEST_KREL/kernel
-# NO report interface. This plane holds no VMPCK, so sev-guest could not serve a report even if present, and
-# the SVSM is the only path to one - which is the property, not an omission.
+# The report modules ARE carried, deliberately. Leaving them out would make "this plane has no report interface"
+# a property of the PACKAGING, which a verifier cannot check; carrying them and having sev-guest REFUSE to load
+# for want of a VMPCK is evidence, and it is the non-forgeable form of the boundary self-test - there is no key to
+# configure around, unlike tsm-report's privlevel_floor which a command line alone can set. planeinit probes both
+# vmpck_id=0 and its own level and POWERS OFF if either loads.
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
-   "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" "$d/"
+   "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
+   "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
 find "$d" -exec touch -h -d @0 {} +
 (cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
 

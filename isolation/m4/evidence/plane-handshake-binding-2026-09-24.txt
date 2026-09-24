@@ -1,0 +1,87 @@
+The real handshake key, bound by the measured SVSM: a serving plane domain, attested end to end
+warden-host, 2026-09-24. Run /home/steven/enclave-bench/m4b-plane-023056. Quoted lines are cut from that run's own files.
+
+WHAT WAS MISSING UNTIL NOW. Step 2 closed the artifact binding but the key in report_data was a synthetic
+91-byte value admitinit made up, and the front still computed its own binding on every other path. So the
+sentence "the report binds this domain's transport key" was true of a test vector, not of a handshake anybody
+could perform. This closes that: the key in the report is the key the TLS handshake uses, and the domain did not
+compute the binding over it.
+
+THE SHAPE. The front mints its key, REGISTERS it with the SVSM once, and afterwards sends only a nonce. The SVSM
+computes report_data[0:32] = Bind2(that key, the nonce, the RuntimeID compiled into its own measured image) and
+fills report_data[32:64] from APP_TABLE indexed by the CALLING PLANE. Neither half is a field of the request.
+
+THE PLANE ADMITS, PROVES IT IS CONFINED, AND ONLY THEN SERVES
+  PLANE boot=snp=1 vcpus=2 memMiB=1808 boot_ms=802
+  PLANE status_before=admitted=0x00 required=0x03 kinds=2 vmpl=2 key=0 runtime_id=1
+  PLANE bundle=admitted
+  PLANE runtime=admitted
+  PLANE status_after=admitted=0x03 required=0x03 kinds=2 vmpl=2 key=0 runtime_id=1
+  PLANE whoami=3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
+
+whoami is the SVSM naming the plane from its own compiled table. planeinit powers the domain OFF instead of
+serving if either admission is refused: a domain that served after a refusal would answer /attest with a T0
+document, substituting a weaker claim for a stronger one, which a client cannot detect unless it pins the tier.
+
+CONFINEMENT PROVEN BY TRYING, not by omitting the modules:
+  PLANE tsm_report_core=loaded (the generic report core holds no key; this says nothing about VMPCKs)
+  PLANE vmpck0=No such device
+  PLANE vmpck2=No such device
+  PLANE boundary=tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused
+
+The image CARRIES tsm_report and sev-guest deliberately. Leaving them out would make "no report interface" a
+property of the packaging, which a verifier cannot check. sev-guest refuses to load at all - ENODEV, "No such
+device" - because this plane holds no VMPCK, and planeinit powers off if either load succeeds.
+
+THE FRONT REGISTERS THE KEY IT WILL USE
+  DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+  DOM plane /sys/kernel/appid registered spki_sha256=43809568760dfc0906acb8a77efbd0191e4f504e2179b478b942f162a4251bd4
+  DOM serving vsock=443 spki_sha256=43809568760dfc0906acb8a77efbd0191e4f504e2179b478b942f162a4251bd4 ready_ms=1379
+
+The spki_sha256 on the "plane registered" line and on the "serving" line are the same key, and the client below
+confirms it is the key of the handshake it performed.
+
+THE VERDICT, from m2/client.mjs against the launch digest in /home/steven/enclave-bench/m4b-plane-023056/plane.manifest.json:
+
+  VERDICT attested
+  RESULT gate=open
+  RESULT app_requests_sent=1
+  RESULT doc_key_matches_handshake=1
+  RESULT report_vmpl=2  expected_vmpl=2
+  RESULT abi=enclave-domain-abi/2
+  RESULT boundary="tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused"
+  RESULT measurement=739b4d2c7f05f2f675e5b8fe9e6616b3be3098065e463e31df39ca2ee6fb070d688a3aae0fff7da17d7069ae0af1c7a5
+
+and the verifier's own evidence lines included: "report_data binds the caller's expected binding (transport key +
+fresh challenge + runtime identity)", "AMD signature chain verified (VCEK auxblob -> ASK -> ARK, Turin)",
+"report is from VMPL2, as the caller expected", "report_data[32:64] names the expected app", and the runtime
+identity pinned. The gate opened and one real application request was served over that connection.
+
+FOUR VERIFIER-SIDE NEGATIVES, same live domain, same document:
+  expecting VMPL0            reject  "VMPL 2 != expected 0"
+  a different app id         reject  "report_data[32:64] does not name the expected app"
+  a different runtime        reject  on the runtime identity, before the chain is even consulted
+  a different measurement    reject  "measurement ... not on the Metal release allowlist"
+
+AND THE FORMAT IS REFUSED UNLESS EXPLICITLY KNOWN. The first run of this fixture was rejected with "unknown
+attestation format sev-snp-svsm-plane-v1", which is the allowlist working: m2/judge.mjs now carries a table
+naming each format and what it IMPLIES, so admitting one states its constraints rather than widening a
+condition. sev-snp-svsm-plane-v1 requires ABI/2 and a NON-ZERO VMPL, because at VMPL0 nothing is above the
+guest and under ABI/1 the binding folds in no runtime identity - in either case the document would claim an
+authority it does not have.
+
+WHAT THIS DOES NOT ESTABLISH
+
+  The boundary tuple cannot say HOW vmpl0=refused was established, and the judge says so in its own evidence:
+  on the M3 path that tuple comes from tsm-report's privlevel_floor, which a command line alone can set, so a
+  VMPL0 guest reproduces it by configuration. This plane's refusal is stronger - sev-guest would not load for
+  want of a key, with no parameter to change - but the THREE-FIELD TUPLE cannot express that difference, so a
+  verifier reading the document still relies on the measurement, exactly as judge.mjs states. The tuple
+  vocabulary would need a field distinguishing "the floor refused" from "there is no key" for the document to
+  carry this plane's actual evidence. It does not have one.
+
+  The runtime image admitted is the wasmtime ELF only; its interpreter and shared libraries are not admitted, so
+  the executing bytes include unadmitted code.
+
+  ONE app on ONE plane. Nothing here demonstrates isolation BETWEEN two apps on two planes, which is the
+  requirement. No second plane has been brought up; the preconditions are in svsm/README.md.

@@ -259,7 +259,25 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
     return out('not-attested', reasons);
   }
   if (mode === 't0-diagnostic') return out('reject', [`t0-diagnostic mode expects a T0 domain, got format ${doc.format}`]);
-  if (doc.format !== 'sev-snp-guest-domain-v1' || !doc.report) return out('reject', [`unknown attestation format ${doc.format}`]);
+  // The formats this verifier knows, and what each one IMPLIES. A new format is admitted by adding a row here
+  // with its constraints, never by widening a condition: the whole value of an allowlist is that an unrecognised
+  // format is refused rather than judged by whichever rules happen to run next.
+  //
+  //   sev-snp-guest-domain-v1  the domain fetched its own report and composed report_data itself.
+  //   sev-snp-svsm-plane-v1    the measured SVSM composed report_data. The domain supplied only a nonce, so
+  //                            report_data[0:32] is the SVSM's Bind2 over a key registered at plane start and a
+  //                            RuntimeID compiled into the SVSM's measured image, and report_data[32:64] comes
+  //                            from its APP_TABLE indexed by the calling plane. That is only stronger than the
+  //                            self-composed shape if the report really comes from a plane BENEATH the composer,
+  //                            so this format requires a non-zero VMPL and ABI/2 - at VMPL0 there is nothing
+  //                            above the guest, and under ABI/1 the binding folds in no runtime identity, so in
+  //                            either case the document would claim an authority it does not have.
+  const FORMATS = {
+    'sev-snp-guest-domain-v1': { requireNonZeroVmpl: false, requireAbi2: false },
+    'sev-snp-svsm-plane-v1': { requireNonZeroVmpl: true, requireAbi2: true },
+  };
+  const fmt = FORMATS[doc.format];
+  if (!fmt || !doc.report) return out('reject', [`unknown attestation format ${doc.format}`]);
 
   const report = Buffer.from(doc.report, 'base64');
   let p;
@@ -275,6 +293,14 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   if (doc.runtime !== undefined) extra.runtime = doc.runtime;
   if (doc.runtimeSelfTest !== undefined) extra.runtimeSelfTest = doc.runtimeSelfTest;
   if (!rt.ok) return out('reject', rt.reasons, extra);
+  if (fmt.requireAbi2 && extra.abi !== ABI2) {
+    return out('reject', [`format ${doc.format} states the SVSM computed the binding, which folds in a runtime `
+      + `identity, so it requires ${ABI2}; this document says ${extra.abi}`], extra);
+  }
+  if (fmt.requireNonZeroVmpl && p.vmpl === 0) {
+    return out('reject', [`format ${doc.format} claims a measured monitor above this guest composed report_data, `
+      + 'but the signed report names VMPL0, where nothing is above it'], extra);
+  }
   const v = await verifyQuote(report, {
     challenge: nonce, transportKeySpki: handshakeSpki, allowedMeasurements: [measurement], auxblob, kds,
     requireVcek: mode === 'trusted',      // lab-unsigned alone may continue without the chain

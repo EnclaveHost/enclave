@@ -93,6 +93,7 @@ type front struct {
 	snp          bool
 	monitor      string      // M3: the monitor's socket, and then this process never opens configfs at all
 	plane        *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
+	boundary     string      // the self-test init produced; relayed verbatim, never composed here
 	app          http.Handler
 	tsmMu        sync.Mutex
 }
@@ -104,6 +105,8 @@ func main() {
 	upstream := flag.String("upstream", "127.0.0.1:8080", "the app on the guest loopback")
 	appShaPath := flag.String("app-sha", "/app.sha256", "hex sha256 of the app, written at build time")
 	snp := flag.Bool("snp", false, "this domain is an SEV-SNP guest: serve hardware reports")
+	boundaryPath := flag.String("boundary", "", "a file holding the boundary self-test this domain relays (M4b); "+
+		"written by init after it probes for VMPCK absence, because the front cannot probe for it itself")
 	appid := flag.String("appid", "", "ask the measured SVSM for reports through this plane sysfs dir (M4b): "+
 		"the SVSM computes the binding from a key registered here, so this domain cannot choose either half of report_data")
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
@@ -157,6 +160,19 @@ func main() {
 		// reports bound to no key - or to a key some earlier admission registered and the reclaim forgot -
 		// would hand a verifier a document whose transport key it cannot match to this handshake. There is no
 		// retry: the plane is admitted once, by init, before this process starts.
+		// The boundary self-test is init's to produce, not the front's: it records that sev-guest REFUSED to
+		// load for want of a VMPCK, which only a process that tried can say. Relayed verbatim - a front that
+		// composed this string could state confinement it never tested.
+		if *boundaryPath == "" {
+			die("-appid needs -boundary: a document claiming VMPL2 with no boundary self-test is consistent " +
+				"with a VMPL0 guest naming a lower level, and a verifier rejects it")
+		}
+		b, err := os.ReadFile(*boundaryPath)
+		must(err)
+		f.boundary = strings.TrimSpace(string(b))
+		if f.boundary == "" {
+			die("%s is empty: init did not state a boundary self-test", *boundaryPath)
+		}
 		f.plane = &appidPlane{dir: *appid}
 		must(f.plane.registerKey(spki))
 		fmt.Printf("DOM plane %s registered spki_sha256=%x\n", *appid, sha256.Sum256(spki))
@@ -230,7 +246,7 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 		rep, err = f.plane.report(nonce)
 		if err == nil {
 			tier, format = "T1", "sev-snp-svsm-plane-v1"
-			boundary = "the measured SVSM at VMPL0 named this plane; this domain supplied only a nonce"
+			boundary = f.boundary
 			// Fail closed on disagreement. The SVSM's binding must equal the one this domain would have
 			// computed from its own key, this nonce and its own runtime identity; if it does not, either the
 			// SVSM holds a different key or its compiled RuntimeID is not the identity this image states,
