@@ -5,10 +5,12 @@
    runner, the WMI launcher with the guest image pinned BY HASH, and a CID-verified component
    fetcher. The manager then asks the host what it can actually do (probe) before it answers
    /health, so "canStart" is the host's answer rather than a configuration detail. */
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager, createServer } from "./server.mjs";
 import { judgeRunning } from "./ready.mjs";
+import { runtimeId as runtimeIdOf } from "../../../isolation/contract/runtime.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
 import { WmiHyperVLauncher } from "./wmi-launcher.mjs";
 import { powershellRunner } from "./psrun.mjs";
@@ -35,7 +37,49 @@ const fetchComponent = cidFetcher({
 const launcher = imagePath && imageSha256
   ? new WmiHyperVLauncher({ run: powershellRunner(), imagePath, imageSha256 })
   : null;
+// THE RUNTIME IDENTITY, read from the image's own runtime.json rather than configured as a hash.
+//
+// enclave-53 found that the defect-11 fix was not REACHED from here: this entry point passed only
+// runtimeId, so this.runtime was null, #judgeReadiness passed expectRuntime: undefined, and
+// checkRuntime pinned nothing. Two consequences, and the second is worse than the first: any
+// admissible runtime a domain stated was accepted, AND an ABI/1 document was not refused as a
+// downgrade, because judge.mjs refuses that only when want.runtime is given. So a manager started
+// the normal way silently accepted exactly what the ABI/2 binding exists to prevent - while the
+// record-to-route case was green, because it constructs the Manager directly.
+//
+// A path, not a hash: the hash is derived from the identity so the two cannot disagree.
+const runtimeIdentityPath = env("ENCLAVE_RUNTIME_IDENTITY");
+let runtime = null;
+if (runtimeIdentityPath) {
+  runtime = JSON.parse(fs.readFileSync(runtimeIdentityPath, "utf8"));
+  const derived = Buffer.from(runtimeIdOf(runtime)).toString("hex");
+  // If a RuntimeID was ALSO configured, they must agree. Two independently supplied values that
+  // must match are two values that will eventually not, and the one that silently wins decides
+  // what every domain is judged against.
+  // A stale ENCLAVE_RUNTIME_ID must not take the manager down, and it must not silently win either.
+  // The identity is the input; the hash is derived from it, and DERIVED WINS - but a disagreement
+  // is said loudly, because an operator who set that variable believed they were pinning something
+  // and a silent no-op is the failure family this whole lane has been about. (enclave-99's spec:
+  // ENCLAVE_RUNTIME_ID stops being an input. Agreed - with the warning, not without it.)
+  if (runtimeId && runtimeId.toLowerCase() !== derived) {
+    console.error(`[winmgr] WARNING: ENCLAVE_RUNTIME_ID is ${runtimeId}, which is NOT what the identity at `
+      + `${runtimeIdentityPath} derives (${derived}). The identity wins and that variable is ignored; `
+      + "remove it, because it pins nothing.");
+  }
+  console.log(`[winmgr] runtime identity ${runtime.name}/${runtime.version} ${runtime.execution} `
+    + `${runtime.targetIsa} -> RuntimeID ${derived}`);
+} else if (runtimeId) {
+  // A hash alone cannot pin an identity: checkRuntime diffs the identity field by field, so a hash
+  // here would reject every real document. Refusing beats judging nothing while looking configured.
+  console.error("[winmgr] REFUSING TO START: ENCLAVE_RUNTIME_ID is set but ENCLAVE_RUNTIME_IDENTITY is not. "
+    + "A RuntimeID hash cannot pin a runtime - the verifier compares the identity field by field - so this "
+    + "manager would accept any admissible runtime and would not refuse an ABI/1 downgrade. "
+    + "Set ENCLAVE_RUNTIME_IDENTITY to the image's runtime.json.");
+  process.exit(2);
+}
+
 const manager = new Manager({ judgeReady: judgeRunning,
+  runtime,
   runtimeId,
   fetchComponent,
   backend: new HyperVPartitionBackend({ launcher }),
