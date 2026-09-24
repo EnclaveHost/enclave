@@ -1,0 +1,40 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260923223608
+Username: NUCBOX_K11\claude
+RunAs User: NUCBOX_K11\claude
+Configuration Name: 
+Machine: NUCBOX_K11 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\ops\isolated-probe.ps1 -Image C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin -ImageSha256 d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864
+Process ID: 5040
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+=== preflight (nothing is changed in this phase)
+  elevated: yes
+  setting before: ABSENT
+  live node: task Running, processes ee-host node shielded-worker
+  no lab partitions exist
+  image sha256 verified: d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864
+  image readable by the VM worker account
+=== preflight complete, and NOTHING was changed.
+    Without -Approve this script stops here. With it, it would:
+      1. set AllowFirmwareLoadFromFile = 1 (REG_DWORD) under HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization  [HOST-WIDE, permits UNSIGNED guest firmware]
+      2. run: vbslike-host isoprobe --only vbs-igvmpath --igvm C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin
+      3. restore the setting to 'absent' and verify the restoration
+    Evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-223607
+=== restore
+  setting restored to ABSENT
+  lab partitions left: 0
+  live node unchanged: task Running, processes ee-host node shielded-worker
+  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-223607
+**********************
+Windows PowerShell transcript end
+End time: 20260923223610
+**********************
