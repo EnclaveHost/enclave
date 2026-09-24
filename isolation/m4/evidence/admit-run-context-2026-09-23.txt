@@ -32,3 +32,8 @@ between a dedicated and a shared plane only by the VMPL field, so the shape has 
 
 Plane 1 is named in ENCLAVE_APP_IDS but unreachable: require_owning_plane serves only GUEST_VMPL.
 A verifier demanding hardware app-vs-app isolation must accept dedicated planes only.
+
+"shape": "dedicated" IS A STATEMENT ABOUT NAMING, NOT EXECUTION. While A4 is open it means the SVSM will only
+ever name this plane as ONE admitted app; it does NOT mean only that app's code runs here. The plane's kernel
+is unmeasured and could run anything. This report establishes the naming authority's word about the admitted
+bytes, the level and the freeze - nothing about what executed.
