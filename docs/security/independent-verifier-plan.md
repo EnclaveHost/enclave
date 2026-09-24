@@ -149,6 +149,16 @@ runs our own image (metal, M4b).
 - Agreed with both owners on 2026-09-24: the verifier **imports** `runtime.mjs`, `verifyPvmAppAbi2` and
   `abi2FromLog`, never copies them; ABI/2 bindings enter the SNP verifier as caller-supplied bytes; the
   contract vectors are reused as data with the commit hash noted.
+- Proposed by the pVM owner on 2026-09-24 (not yet pushed): a client-verified evidence interface. A client
+  sends `EVIDENCE <nonce>` over a relay-spliced stream and the pVM answers one JSON line (format
+  `enclave-pvm-app-evidence/v1`: echoed nonce, AppID, Ed25519 transport SPKI, canonical runtime identity,
+  self-test, certificate chain) whose AVF challenge is `Bind2(spki, nonce, RuntimeID) || AppID` over the
+  CLIENT's nonce; `verifyPvmAppEvidence` checks the envelope and delegates to `verifyPvmAppAbi2` with the
+  caller's nonce, app id and pins, never the envelope's. The harness will import it and register the
+  format as a delegated AVF class. Changes requested: a closed envelope shape with exact lengths, the
+  client nonce inside any delegated-key signature, an application-layer (HPKE) key for the browser path
+  because browser JavaScript cannot read the peer TLS certificate, and a pure result that is `ok` only
+  when every pin list is non-empty.
 
 ## 3. Gap analysis of the first-party implementation
 
