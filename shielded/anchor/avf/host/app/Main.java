@@ -299,7 +299,7 @@ public class Main extends Activity {
         ScrollView sv = new ScrollView(this); sv.addView(t); col.addView(sv); setContentView(col); sScreen = t;
         final Plan plan = Plan.from(getIntent());
         final String tierWhy = Tier.refusal(tier, plan.mode, getIntent());
-        if (tierWhy != null && plan.configError.isEmpty()) plan.configError = "tier " + tier + ": " + tierWhy;
+        if (tierWhy != null) plan.configError = "tier " + tier + ": " + tierWhy;   /* the tier's refusal is named first, whatever else is wrong */
         /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
         if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
