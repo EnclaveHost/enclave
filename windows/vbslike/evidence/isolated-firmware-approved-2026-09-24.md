@@ -1,5 +1,17 @@
 # The approved firmware runs, 2026-09-24
 
+> **CORRECTION, recorded after the fact.** An earlier version of this file, and the commit message
+> at `f3c3bb7d`, said our paravisor "starts". That was wrong in substance and is withdrawn.
+> `HcsStartComputeSystem` returns success and then the VM worker process crashes, so no isolated
+> partition has actually run on this host. See "What start ok really means" below.
+>
+> **Also corrected: which image.** Runs 1-4 used the UPSTREAM test payload
+> `openhcl-x64-test-linux-direct.bin` (92,924,756 bytes, sha256 `d240f40c...`), not our monitor
+> image. PHASE2.md names our own-guest build, and runs 5 and 6 used it:
+> `openhcl-ownguest.bin`, 124,962,164 bytes, sha256
+> `2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3`. The wrapper now prints the
+> image path and hash into every run's transcript so this cannot go unrecorded again.
+
 Two bounded runs of `ops/isolated-probe.ps1 -Approve` on nucbox-k11. Steven authorised the
 host-wide setting as part of bringing the new isolation backend into the hosting path. The setting
 was applied for the length of each probe and restored to ABSENT afterwards, status, value and type
@@ -92,3 +104,48 @@ Make our paravisor START in an isolated partition. In order of cost:
 No app runs on this backend. The node still serves its five apps on the existing path, whose
 isolation contract this box does not meet. Nothing here is verified protection and nothing here is
 advertised as eligible tenant capacity.
+
+
+## What `start ok` really means (runs 5 and 6)
+
+Our own-guest image behaves exactly like the upstream one: create ok, start ok, 1094 and 1103 ms at
+4096 MB, both COM ports empty. The emptiness is not the guest being quiet.
+
+```
+Faulting application name: vmwp.exe,      version 10.0.26100.9278
+Faulting module name:      vmchipset.dll, version 10.0.26100.9278
+Exception code: 0xc0000005    Fault offset: 0x000000000006e31c
+```
+
+Eleven of these in the log, one fault bucket (1868582954261880381), the oldest at 2026-09-23 16:05
+alongside the first VMGS experiments. **The in-box paravisor crashes the same way.** So
+`HcsStartComputeSystem` returning success means the call was accepted, not that anything ran: the
+worker process faults immediately inside Microsoft's own chipset module and dies, which is why the
+console is empty and why the exit is `UnexpectedExit` with `0xC0000005`.
+
+Nothing has executed inside an isolated partition on this box.
+
+## The chipset is not optional either
+
+The faulting module describes the chipset, and an isolated partition takes its firmware from its
+IGVM, so the obvious move was to send no `Chipset` node. Both shapes are refused at Construct with
+`0x8037010d`, "the virtual machine or container JSON document is invalid" - with our IGVM and
+without it. A Chipset node is mandatory, so the crashing path cannot be avoided from the document.
+
+## The actual blocker
+
+A reproducible access violation in `vmchipset.dll` on Windows 10.0.26100.9278 when starting any
+VBS-isolated partition with a guest-state file, ours or the host's own. It is not our image and it
+is not our document shape - both were varied and the crash did not move.
+
+Two ways forward, and the first is not mine to take:
+
+1. **Servicing.** The host is at 10.0.26100.9278. A cumulative update is the obvious candidate for
+   a null dereference in a shipped module, and it needs an update and a reboot - both outside what
+   this work is permitted to do.
+2. **A supported reference.** Create an isolated VM through Hyper-V's own tooling and capture the
+   configuration it produces. If Microsoft's own path also crashes, the build is the answer and
+   point 1 is the only route. If it starts, the difference is in our document and is findable by
+   diffing the two.
+
+Point 2 is the next thing to run and needs no new approval; point 1 needs Steven.

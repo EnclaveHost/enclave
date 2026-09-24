@@ -177,7 +177,7 @@ pub struct DomainSpec<'a> {
 }
 
 pub fn domain_document(s: &DomainSpec) -> String {
-    isolated_document(&IsoSpec { base: s, isolation: None, igvm_path: None, hcl_enabled: None, vmgs_path: None, uefi: false, firmware_params: None, extra_com_ports: 0, enable_tpm: false, overcommit: true, transient_guest_state: false })
+    isolated_document(&IsoSpec { base: s, isolation: None, igvm_path: None, hcl_enabled: None, vmgs_path: None, no_chipset: false, uefi: false, firmware_params: None, extra_com_ports: 0, enable_tpm: false, overcommit: true, transient_guest_state: false })
 }
 
 /// The phase-2 document: the same partition, plus what an isolated (paravisor-backed) partition
@@ -188,6 +188,7 @@ pub struct IsoSpec<'a> {
     pub igvm_path: Option<&'a str>,     // SecuritySettings.Isolation.IgvmFilePath ("custom location": registry-gated)
     pub hcl_enabled: Option<bool>,      // SecuritySettings.Isolation.HclEnabled
     pub vmgs_path: Option<&'a str>,     // GuestState.GuestStateFilePath (FileMode, transient): an IGVM in file id 8 is "from VMGS file"
+    pub no_chipset: bool,               // omit Chipset entirely: the IGVM *is* the firmware, and vmchipset.dll is what faults
     pub uefi: bool,                     // Chipset.Uefi instead of LinuxKernelDirect
     pub firmware_params: Option<&'a str>, // Chipset.FirmwareFile.Parameters (the paravisor command line), base64 of UTF-8
     pub extra_com_ports: u32,           // ComPorts 1..=n on sibling pipes (<pipe>-com2 ...); HCS knows COM1 and COM2 only
@@ -199,19 +200,25 @@ pub struct IsoSpec<'a> {
 pub fn isolated_document(x: &IsoSpec) -> String {
     let s = x.base;
     let js = crate::util::json_str;
-    let chipset = if x.uefi {
+    let chipset = if x.no_chipset {
+        // NO CHIPSET AT ALL. Every start of an isolated partition with a guest-state file on this
+        // host crashes vmwp.exe inside vmchipset.dll at the same offset, the in-box paravisor
+        // included, so the chipset is the code that faults. An isolated partition's firmware comes
+        // from the IGVM, which makes "describe a chipset as well" a thing worth not doing.
+        String::new()
+    } else if x.uefi {
         let fw = match x.firmware_params {
             Some(p) => format!(r#", "FirmwareFile": {{ "Parameters": {} }}"#, js(&base64_of(p))),
             None => String::new(),
         };
-        format!(r#""Chipset": {{ "Uefi": {{ "Console": "ComPort1" }}{fw} }}"#)
+        format!(r#""Chipset": {{ "Uefi": {{ "Console": "ComPort1" }}{fw} }},"#)
     } else {
         let fw = match x.firmware_params {
             Some(p) => format!(r#", "FirmwareFile": {{ "Parameters": {} }}"#, js(&base64_of(p))),
             None => String::new(),
         };
         format!(
-            r#""Chipset": {{ "LinuxKernelDirect": {{ "KernelFilePath": {}, "InitRdPath": {}, "KernelCmdLine": {} }}{fw} }}"#,
+            r#""Chipset": {{ "LinuxKernelDirect": {{ "KernelFilePath": {}, "InitRdPath": {}, "KernelCmdLine": {} }}{fw} }},"#,
             js(s.kernel), js(s.initrd), js(s.cmdline)
         )
     };
@@ -247,7 +254,7 @@ pub fn isolated_document(x: &IsoSpec) -> String {
   "ShouldTerminateOnLastHandleClosed": true,
   "VirtualMachine": {{
     "StopOnReset": true,
-    {chipset},
+    {chipset}
     "ComputeTopology": {{
       "Memory": {{ "SizeInMB": {mem}, "AllowOvercommit": {overcommit} }},
       "Processor": {{ "Count": {cpus} }}
@@ -302,7 +309,7 @@ mod tests {
     #[test]
     fn isolated_document_carries_every_requested_knob() {
         let s = base_spec(r"\\.\pipe\t-com1");
-        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("VirtualizationBasedSecurity"), igvm_path: Some(r"C:\f\ours.bin"), hcl_enabled: Some(true), vmgs_path: Some(r"C:\v\a.vmgs"), uefi: true, firmware_params: Some("OPENHCL_BOOT_LOG=com3"), extra_com_ports: 1, enable_tpm: true, overcommit: false, transient_guest_state: false });
+        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("VirtualizationBasedSecurity"), igvm_path: Some(r"C:\f\ours.bin"), hcl_enabled: Some(true), vmgs_path: Some(r"C:\v\a.vmgs"), no_chipset: false, uefi: true, firmware_params: Some("OPENHCL_BOOT_LOG=com3"), extra_com_ports: 1, enable_tpm: true, overcommit: false, transient_guest_state: false });
         let v: serde_json::Value = serde_json::from_str(&doc).expect("valid JSON");
         let vm = &v["VirtualMachine"];
         assert_eq!(vm["SecuritySettings"]["Isolation"]["IsolationType"], "VirtualizationBasedSecurity");
@@ -325,7 +332,7 @@ mod tests {
     #[test]
     fn transient_guest_state_without_a_file_is_expressible_and_com_ports_are_clamped() {
         let s = base_spec(r"\\.\pipe\t-com1");
-        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("GuestStateOnly"), igvm_path: None, hcl_enabled: None, vmgs_path: None, uefi: true, firmware_params: None, extra_com_ports: 3, enable_tpm: false, overcommit: false, transient_guest_state: true });
+        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("GuestStateOnly"), igvm_path: None, hcl_enabled: None, vmgs_path: None, no_chipset: false, uefi: true, firmware_params: None, extra_com_ports: 3, enable_tpm: false, overcommit: false, transient_guest_state: true });
         let v: serde_json::Value = serde_json::from_str(&doc).expect("valid JSON");
         let vm = &v["VirtualMachine"];
         assert!(vm["GuestState"].get("GuestStateFilePath").is_none());
