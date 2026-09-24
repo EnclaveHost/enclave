@@ -76,8 +76,12 @@ each needs its own review.
   - the app is the one the signed table expects for the chosen deployment;
   - the request is readable only by that app's attested key;
   - the answer stream is authentic, complete or honestly aborted, bound to its request.
-- **Not given (the limit stays):**
-  - the evidence names no deployment and no instance, so a hostile relay can route D's traffic to ANOTHER genuine
+- **Given since client 0.5.0, for a deployment the signed policy binds to instances** (INSTANCE-BINDING.md, evidence
+  v3): the answer comes from one of THOSE instances. A relay that routes D to another genuine instance of the same app,
+  or to another deployment's instance, is refused by the client before anything is sealed. It is tested, including one
+  instance routed as two deployments.
+- **Not given, for an UNBOUND deployment (the v2 limit stays there):**
+  - v2 evidence names no deployment and no instance, so a hostile relay can route D's traffic to ANOTHER genuine
     instance of the SAME app. The on-chain runner rule makes an honest relay route correctly; it does not make a
     hostile relay unable to lie;
   - binding an instance would need an instance identity inside the attested ABI/2 challenge. That changes the evidence
@@ -265,6 +269,81 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
   5. **The extension.** Its `host_permissions` for the relay origin: a change to the installed artifact.
   6. **Cold start** (targets 3 and 5) for a runner.
   7. **Review.** The verifier session's review of this exact wiring.
+
+## Runner registration and production configuration: what is done, and exactly what remains (2026-09-24)
+
+Inspected read-only: relay/api-relay.js (`runnerEndpointOf`, `endpointId`, `readRegistry`), relay/tunnel.js
+(`selfRoutedUrl`, the `hello` frame), supervisor.js (`register`, `claim`, checkpoints), metal/PROTOCOL.md,
+relay/deploy.sh and relay/systemd/enclave-api-relay.service.
+- **Not read:** /etc/nan-relay/*.env on the relay host. Those files hold live keys.
+- **Nothing sent or changed:** no transaction, registry entry, lease or env change.
+
+**How a deployment reaches a phone.**
+- `/x/<id>` routes to the ledger row's `runner` while its lease is live.
+- A runner id is `keccak256(endpoint)`, the registry's own derivation.
+- A tunnel row takes that id only from a SELF-ROUTED `publicUrl`, `https://<relay>/t/<name>`, stated in its `hello`
+  (tunnel.js `selfRoutedUrl`: any other URL is ignored, so no box can claim another's identity).
+
+**Done in this slice.**
+- **The phone's `hello`** now states `publicUrl = https://<relay host>/t/<name>`, derived from its relay URL
+  (host/app/RelayAttach.java). Before this, a phone's row never took an on-chain id, so no lease could ever route to
+  it.
+  - Stating it registers nothing. It matches a ledger row only after the steps below.
+  - Compile-checked; not yet run on the device.
+- **The client's carriers.**
+  - `--relay-base https://api.enclave.host` derives `<base>/x/<id>/pvm`.
+  - The extension's manifest grants exactly `https://api.enclave.host/*`, beside the lab's loopback (client/DESIGN.md
+    "Carriers").
+- **The relay's hub** checks an instance-bound ABI/2 frame at attach and publishes the InstanceID in the row.
+
+**What remains, exactly. Each is the owner's, and none is done here.**
+1. **Register the phone as a runner.** From an operator EOA the owner controls, one transaction:
+   ```
+   EnclaveRegistry.register(endpoint = "https://api.enclave.host/t/<name>", repo, measurement (bytes32),
+                            cpuPricePerSec6, gpuPricePerSec6 = 0, proofKey)
+   ```
+   - The phone's runner id is then `keccak256(endpoint)`.
+   - Registration also needs a `heartbeat(id)` loop from the same EOA. The supervisor does this for metal boxes; for a
+     phone it must be a small owner-side agent, not the phone's untrusted Android app.
+   - The EOA is a seller key, not a TEE key.
+2. **Take a lease.** `EnclaveDeployments.claim(<deployment id>, <runner id>)`, then `renew` and `release`, from the same
+   EOA.
+   - With the lease live and the phone attached with its `publicUrl`, `runnerEndpointOf(<deployment id>)` returns
+     `tunnel://<name>`, and the pVM carrier routes to it.
+3. **Proven time (ledger rev 9).**
+   - A rev-9 ledger pays only for time the runner PROVES it served. The proof is checkpoints signed by the
+     registry's `proofKey`, and metal boxes mint that key inside the CVM.
+   - For a phone, the proof key belongs inside the pVM: the VM would mint a secp256k1 key and sign "this app was running
+     here through T". That payload code does not exist.
+   - It is a precondition, not a refinement. supervisor.js records that a rev-9 ledger refuses to sell work to a runner
+     that published no proof key, so without it the phone cannot take a lease at all.
+   - It is the next VM-side piece to build, and a design choice for this tier (the same pattern as the transport and
+     instance keys).
+4. **The relay's env.** Add these to `/etc/nan-relay/api-relay.env` (the unit's EnvironmentFile), then restart the relay:
+   ```
+   PVM_SERVING=1
+   METAL_AVF_CODE_HASHES=<the production anchor build's code hash>    METAL_AVF_AUTHORITY_HASHES=<its signing authority>
+   PVM_CPU_CODE_HASHES=<the same build>                               PVM_CPU_MODELS=<the admitted model table>
+   PVM_APP_IDS=<the app ids>                                          PVM_APP_RUNTIME_IDS=<the pvm-rt runtime id(s)>
+   ```
+   Every value comes from a PRODUCTION build and signing key (item 6). The lab's values must not be used.
+5. **The buyer's policy.**
+   - A type-2 policy whose entry for the deployment lists the phone instance's InstanceID. The InstanceID comes from
+     `pvm-client instance` against the live runner, under the signer's own nonce.
+   - It is signed by the policy key the buyers' clients anchor.
+   - Buyers then run `--relay-base https://api.enclave.host --deployment <id>`.
+6. **A production anchor build.** It needs a release signing key and a non-debuggable manifest (PVM-CPU.md "What
+   remains" 3), and the instance-binding device campaign (INSTANCE-BINDING.md) must run on it first.
+
+**Inputs only the owner has.**
+- The operator EOA for the phone runner, and its Base gas.
+- The runner's price.
+- The production APK signing key, and where the policy signing key lives.
+- Which deployment id this is for.
+- The decision to set `PVM_SERVING` in production.
+
+The rest is implementation and is not blocked on anyone: the in-VM proof key (item 3, which a lease requires), the
+device campaign, and the owner-side runner agent's code (items 1 and 2) once there is a key to sign with.
 
 ## Review questions
 

@@ -112,17 +112,17 @@ targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
 
 [[allowlists]]
-description = "the installed pVM client's own result lines carry a VERIFIED SUMMARY of public attestation values: the app, runtime and code hashes, and 16-hex prefixes of the attested transport key, app key and nonce (web/pvm-client.js); a prefix of a public key trips the entropy rule on some boots"
+description = "the installed pVM client's own result lines carry a VERIFIED SUMMARY of public attestation values: the app, runtime and code hashes, and 16-hex prefixes of the attested transport key, app key and nonce, and since 0.5.0 the attested InstanceID, a SHA-256 of a public key (web/pvm-client.js); a prefix of a public key trips the entropy rule on some boots"
 targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9-]+\.jsonl$''']
 regexTarget = "line"
-regexes = ['''"verified":\{"format":"enclave-pvm-app-evidence/v[12]","app":"[0-9a-f]{64}","runtime":"[0-9a-f]{64}","codeHash":"[0-9a-f]{64}","key":"[0-9a-f]{16}","appKey":"[0-9a-f]{16}","nonce":"[0-9a-f]{16}"\}''']
+regexes = ['''"verified":\{"format":"enclave-pvm-app-evidence/v[123]","app":"[0-9a-f]{64}","runtime":"[0-9a-f]{64}","codeHash":"[0-9a-f]{64}","key":"[0-9a-f]{16}","appKey":"[0-9a-f]{16}","nonce":"[0-9a-f]{16}"(?:,"instance":(?:null|"[0-9a-f]{64}"))?\}''']
 
 [[allowlists]]
-description = "pVM app evidence envelopes (enclave-pvm-app-evidence/v1, /v2) hold PUBLIC material only: certificates, the transport key's SPKI, the X25519 app key and the transport key's signature over it (appKeySig); the private halves never leave the pVM (shielded/anchor/avf/PVM-CPU.md)"
+description = "pVM app evidence envelopes (enclave-pvm-app-evidence/v1, /v2, /v3) hold PUBLIC material only: certificates, the transport key's SPKI, the X25519 app key and the transport key's signature over it (appKeySig), and in v3 the INSTANCE key's SPKI and its signature (instanceSig, INSTANCE-BINDING.md); the private halves never leave the pVM (shielded/anchor/avf/PVM-CPU.md)"
 targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/evidence/evidence-[0-9]{3}\.json$''']   # the relay carrier's lab capture (cpu/web-carrier.mjs recordEvidence)
 regexTarget = "line"
-regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[12]",''']
+regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[123]",''']

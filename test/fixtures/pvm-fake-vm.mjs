@@ -1,10 +1,11 @@
 // A FAKE pVM for host tests of the browser channel: the real wire protocol on two TCP ports -- the evidence endpoint
-// (`EVIDENCE <hex>` -> an enclave-pvm-app-evidence/v2 envelope over a SYNTHETIC chain, test/fixtures/avf-synthetic.mjs) and
+// (`EVIDENCE <hex>` -> an enclave-pvm-app-evidence/v2 envelope over a SYNTHETIC chain, test/fixtures/avf-synthetic.mjs;
+// `EVIDENCE3 <hex>` -> v3, bound to this VM's INSTANCE key, INSTANCE-BINDING.md) and
 // the sealed endpoint (u32 length || nonce || hdr || enc || ct -> a sealed canned response) -- with the VM's rules: a request
 // only under an answered nonce, each (nonce, enc) once. Nothing here is a real attestation; the device run is the evidence.
 import net from "node:net";
 import { createHash, createPrivateKey, createPublicKey, diffieHellman, generateKeyPairSync, randomBytes, sign as edSign } from "node:crypto";
-import { bind2, appKeyMessage, PVM_APP_EVIDENCE_FORMAT_V2 } from "../../relay/pvm-app-attest.mjs";
+import { bind2, bind3, instanceIdOf, instanceSigMessage, appKeyMessage, appKeyMessageV3, PVM_APP_EVIDENCE_FORMAT_V2, PVM_APP_EVIDENCE_FORMAT_V3 } from "../../relay/pvm-app-attest.mjs";
 import { issueLeaf, extension } from "./avf-synthetic.mjs";
 import * as S from "../../shielded/anchor/avf/web/pvm-sealed.js";
 
@@ -12,8 +13,16 @@ export const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"inte
 const te = new TextEncoder();
 const listen = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv.address().port)));
 
-export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, response = '{"tokens":[1,2,3],"fake":true}' }) {
+/** A VM INSTANCE's key (on the device: derived from AVmPayload_getVmInstanceSecret, the same across restarts). */
+export const newInstance = () => generateKeyPairSync("ed25519");
+// instance: the instance key pair (a "restart" is a new fake VM with the SAME instance and a fresh transport key); forge
+// (tests only) makes v3 answers WRONG in one named way: "bind2" (the certificate over Bind2 -- the instance not attested),
+// "sig-by-transport" (instanceSig made by the transport key), "instance-is-transport" (instanceKey = the transport SPKI),
+// "appkey-v2" (appKeySig under the v2 message, without the instance); and for EVIDENCE3 as a whole: "no-v3" (an OLD build that
+// does not know the request) and "downgrade" (answers a v2 envelope to it)
+export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, response = '{"tokens":[1,2,3],"fake":true}', instance = newInstance(), forge = null }) {
   const vm = generateKeyPairSync("ed25519"), app = generateKeyPairSync("x25519");
+  const ispki = instance.publicKey.export({ type: "spki", format: "der" }), iid = instanceIdOf(ispki);
   const spki = vm.publicKey.export({ type: "spki", format: "der" });
   const appKey = app.publicKey.export({ type: "spki", format: "der" }).subarray(12);
   const rid = createHash("sha256").update(identity).digest();
@@ -22,14 +31,20 @@ export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, resp
     let buf = "";
     c.on("data", (d) => {
       buf += d; const i = buf.indexOf("\n"); if (i < 0) return;
-      const m = /^EVIDENCE ([0-9a-f]{64})$/.exec(buf.slice(0, i));
+      const m = /^(EVIDENCE3?) ([0-9a-f]{64})$/.exec(buf.slice(0, i));
       if (!m) return c.end('{"error":"request is EVIDENCE <64 lowercase hex>"}\n');
-      const nonce = Buffer.from(m[1], "hex");
-      const leaf = issueLeaf(dir, { ext: extension({ challenge: Buffer.concat([bind2(spki, nonce, rid), Buffer.from(appId, "hex")]), code }) });
-      const env = { format: PVM_APP_EVIDENCE_FORMAT_V2, nonce: m[1], app: appId, spki: spki.toString("hex"), appKey: appKey.toString("hex"),
-                    appKeySig: edSign(null, appKeyMessage(nonce, appId, appKey.toString("hex")), vm.privateKey).toString("hex"),
-                    identity, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", chain: [leaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")) };
-      nonces.set(m[1], new Set()); log.push({ evidence: m[1].slice(0, 16) });
+      if (m[1] === "EVIDENCE3" && forge === "no-v3") return c.end('{"error":"request is EVIDENCE <64 lowercase hex>"}\n');
+      const v3 = m[1] === "EVIDENCE3" && forge !== "downgrade", hex = m[2], nonce = Buffer.from(hex, "hex");
+      const bind = v3 && forge !== "bind2" ? bind3(spki, nonce, rid, iid) : bind2(spki, nonce, rid), challenge = Buffer.concat([bind, Buffer.from(appId, "hex")]);
+      const leaf = issueLeaf(dir, { ext: extension({ challenge, code }) });
+      const common = { nonce: hex, app: appId, spki: spki.toString("hex"), appKey: appKey.toString("hex"), identity, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self",
+                       chain: [leaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")) };
+      const env = !v3 ? { format: PVM_APP_EVIDENCE_FORMAT_V2, ...common, appKeySig: edSign(null, appKeyMessage(nonce, appId, appKey.toString("hex")), vm.privateKey).toString("hex") }
+        : { format: PVM_APP_EVIDENCE_FORMAT_V3, ...common,
+            instanceKey: (forge === "instance-is-transport" ? spki : ispki).toString("hex"),
+            instanceSig: edSign(null, instanceSigMessage(challenge), forge === "sig-by-transport" ? vm.privateKey : instance.privateKey).toString("hex"),
+            appKeySig: edSign(null, forge === "appkey-v2" ? appKeyMessage(nonce, appId, appKey.toString("hex")) : appKeyMessageV3(nonce, appId, iid, appKey.toString("hex")), vm.privateKey).toString("hex") };
+      nonces.set(hex, new Set()); log.push({ evidence: hex.slice(0, 16), format: env.format });
       c.end(JSON.stringify(env) + "\n");
     });
     c.on("error", () => {});
@@ -67,5 +82,5 @@ export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, resp
     });
   });
   const evidencePort = await listen(ev), sealedPort = await listen(sealed);
-  return { evidencePort, sealedPort, log, rid: rid.toString("hex"), close: () => { ev.close(); sealed.close(); } };
+  return { evidencePort, sealedPort, log, rid: rid.toString("hex"), instanceId: iid.toString("hex"), transportSpki: spki.toString("hex"), close: () => { ev.close(); sealed.close(); } };
 }

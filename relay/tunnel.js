@@ -275,12 +275,20 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           return reply(false, ["the app is not one this relay admits"]);
         }
         const chain = Array.isArray(f.chain) && f.chain.length <= 8 ? f.chain.map((c) => Buffer.from(String(c), "base64")) : [];
-        const v = verifyPvmAppAbi2({ chain, identity: f.identity, selftest: f.selftest, spki: t.pvm.spki, nonce: t.abi2.nonce, appId: app },
+        // v3 (INSTANCE-BINDING.md): the frame may also carry the VM INSTANCE's key and its signature over the challenge; the
+        // challenge is then Bind3, and the row publishes the attested InstanceID -- a HINT for a policy signer, never trust
+        let inst = {};
+        if (f.instanceKey !== undefined || f.instanceSig !== undefined) {
+          if (!/^302a300506032b6570032100[0-9a-f]{64}$/.test(String(f.instanceKey)) || !/^[0-9a-f]{128}$/.test(String(f.instanceSig)))
+            return reply(false, ["the instance key or signature is malformed (an Ed25519 SPKI and a 64-byte signature, lowercase hex)"]);
+          inst = { instanceKey: Buffer.from(f.instanceKey, "hex"), instanceSig: Buffer.from(f.instanceSig, "hex") };
+        }
+        const v = verifyPvmAppAbi2({ chain, identity: f.identity, selftest: f.selftest, spki: t.pvm.spki, nonce: t.abi2.nonce, appId: app, ...inst },
           { allowedRuntimeIds: policy.runtimeIds, allowedCodeHashes: [...(attest.pvmCpu ? attest.pvmCpu.codeHashes : [])],
             allowedAuthorityHashes: (attest.avf && attest.avf.authorityHashes) || [], ...(attest.avf && attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
         if (!v.ok) { console.log(`[tunnel] ${name} abi2 REFUSED: ${v.reasons[v.reasons.length - 1]}`); return reply(false, v.reasons); }
-        t.pvmApp = { appId: app, runtimeId: v.runtimeId, transportSpki: t.pvm.spki.toString("hex"), verifiedAt: Date.now() };
-        console.log(`[tunnel] ${name} abi2 VERIFIED: app ${app.slice(0, 16)}… runtime ${v.runtimeId.slice(0, 16)}…`);
+        t.pvmApp = { appId: app, runtimeId: v.runtimeId, transportSpki: t.pvm.spki.toString("hex"), verifiedAt: Date.now(), ...(v.instanceId ? { instanceId: v.instanceId } : {}) };
+        console.log(`[tunnel] ${name} abi2 VERIFIED: app ${app.slice(0, 16)}… runtime ${v.runtimeId.slice(0, 16)}…${v.instanceId ? ` instance ${v.instanceId.slice(0, 16)}…` : ""}`);
         try { onChange("abi2", name); } catch {}
         return reply(true, v.reasons);
       }

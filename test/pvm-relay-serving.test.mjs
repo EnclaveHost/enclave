@@ -80,7 +80,7 @@ test("the relay module routes a deployment by its ledger runner to that runner's
     assert.equal((await cli(["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp])).code, 0);
     // D1: its runner's tunnel -- the VM's evidence is fetched (the fake VM's chain is not Google's: refused there)
     const r1 = (await run(D1)).result;
-    assert.equal(r1.step, "verify", JSON.stringify(r1)); assert.deepEqual(r1.deployment, { id: D1, app: APP }); assert.equal(ev(vm1), 1);
+    assert.equal(r1.step, "verify", JSON.stringify(r1)); assert.deepEqual(r1.deployment, { id: D1, app: APP, instance: null, bound: false }); assert.equal(ev(vm1), 1);
     // D2: a runner that is not a tunnel; D3: no live runner -- a plain 404, reported as "no evidence", nothing reached a VM
     for (const d of [D2, D3]) {
       const r = (await run(d)).result;
@@ -211,7 +211,7 @@ async function realHub(pvmApp) {
   const { createTunnelHub } = await import("../relay/tunnel.js");
   const { pvmCpuPolicy } = await import("../relay/pvm-cpu-tier.mjs");
   const { AVF_PAD_FORMAT, avfPadBinding } = await import("../relay/avf-binding.mjs");
-  const { bind2 } = await import("../relay/pvm-app-attest.mjs");
+  const { bind2, bind3, instanceIdOf, instanceSigMessage } = await import("../relay/pvm-app-attest.mjs");
   const { issueLeaf, extension, AUTH } = await import("./fixtures/avf-synthetic.mjs");
   const dir = tmpdir("pvm-rs3-"), ca = makeCa(dir);
   const vm = await startFakeVm({ dir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
@@ -224,8 +224,11 @@ async function realHub(pvmApp) {
   const hubUrl = `ws://127.0.0.1:${hubSrv.address().port}/v1/fleet-tunnel`, phones = [];
   const wait = async (frames, pred, ms = 8000) => { const until = Date.now() + ms; while (Date.now() < until) { const f = frames.find(pred); if (f) return f; await new Promise((r) => setTimeout(r, 25)); } return null; };
   // a phone: AVF attach (v2 pad transcript), then -- when asked -- the ABI/2 evidence for `app` under the runtime `identity`;
-  // every spliced stream is carried to the fake VM (or to the ports given). Returns the hub's abi2-result (null: not sent)
-  const phone = async (name, { app = null, identity = PIXEL_ID, evidencePort = vm.evidencePort, sealedPort = vm.sealedPort } = {}) => {
+  // every spliced stream is carried to the fake VM (or to the ports given). Returns the hub's abi2-result (null: not sent).
+  // instance (v3, INSTANCE-BINDING.md): the VM instance's key pair -- the challenge becomes Bind3 and the frame carries the
+  // instance key and its signature; instanceForge: "bind2" (the certificate over Bind2) or "other-signer" (instanceSig by
+  // another key)
+  const phone = async (name, { app = null, identity = PIXEL_ID, evidencePort = vm.evidencePort, sealedPort = vm.sealedPort, instance = null, instanceForge = null } = {}) => {
     const frames = [], ws = new WebSocket(hubUrl, { headers: { "x-metal-name": name, "x-metal-attest": "1" } }), streams = new Map();
     phones.push(ws);
     ws.on("message", (d) => {
@@ -244,9 +247,14 @@ async function realHub(pvmApp) {
     assert.equal((await wait(frames, (x) => x.t === "attest-result"))?.ok, true);
     if (!app) return null;
     const ch = await wait(frames, (x) => x.t === "abi2-challenge");
-    const rid = createHash("sha256").update(identity).digest();
-    const appLeaf = issueLeaf(dir, { ext: extension({ challenge: Buffer.concat([bind2(transport, Buffer.from(ch.nonce, "base64"), rid), Buffer.from(app, "hex")]), code: PVMCODE }) });
-    ws.send(JSON.stringify({ t: "abi2", chain: [appLeaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), identity, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", app }));
+    const rid = createHash("sha256").update(identity).digest(), hubNonce = Buffer.from(ch.nonce, "base64");
+    const ispki = instance && instance.publicKey.export({ type: "spki", format: "der" });
+    const bind = instance && instanceForge !== "bind2" ? bind3(transport, hubNonce, rid, instanceIdOf(ispki)) : bind2(transport, hubNonce, rid);
+    const challenge = Buffer.concat([bind, Buffer.from(app, "hex")]);
+    const appLeaf = issueLeaf(dir, { ext: extension({ challenge, code: PVMCODE }) });
+    const inst = instance ? { instanceKey: ispki.toString("hex"),
+      instanceSig: edSign(null, instanceSigMessage(challenge), (instanceForge === "other-signer" ? generateKeyPairSync("ed25519") : instance).privateKey).toString("hex") } : {};
+    ws.send(JSON.stringify({ t: "abi2", chain: [appLeaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), identity, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", app, ...inst }));
     return await wait(frames, (x) => x.t === "abi2-result");
   };
   return { hub, vm, phone, close: () => { for (const ws of phones) ws.close(); hubSrv.close(); vm.close(); } };
@@ -355,4 +363,24 @@ test("the relay's wiring on the REAL hub: the env's app policy admits the CROSS 
     }
     assert.equal(vm.log.length, n0, "nothing reached the VM");
   } finally { srv.close(); slow.close(); flood.close(); rig.close(); }
+});
+
+// ---- v3 at attach (INSTANCE-BINDING.md): the hub checks the INSTANCE the phone's VM attests over the hub's own nonce, and
+// publishes the InstanceID in the tunnel row -- a HINT for a policy signer's enrollment, never the client's trust ----
+test("on the REAL hub, v3 at attach: an instance-bound ABI/2 frame is verified over the hub's nonce and its InstanceID published; a forged instance signature or a Bind2 certificate is refused; v2 frames still verify", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+  const { instanceIdOf } = await import("../relay/pvm-app-attest.mjs");
+  const rig = await realHub({ appIds: [APP], runtimeIds: [sha(PIXEL_ID)] });
+  try {
+    const I = generateKeyPairSync("ed25519"), iid = instanceIdOf(I.publicKey.export({ type: "spki", format: "der" })).toString("hex");
+    assert.equal((await rig.phone("p-v3", { app: APP, instance: I }))?.ok, true);
+    const row = rig.hub.origins().find((o) => o.name === "p-v3");
+    assert.equal(row?.pvmApp?.instanceId, iid, "the row publishes the attested InstanceID");
+    const forged = await rig.phone("p-v3-forged", { app: APP, instance: I, instanceForge: "other-signer" });
+    assert.equal(forged?.ok, false); assert.match(forged.reasons.join(" "), /instanceSig is not the instance key's signature/);
+    const old = await rig.phone("p-v3-bind2", { app: APP, instance: I, instanceForge: "bind2" });
+    assert.equal(old?.ok, false); assert.match(old.reasons.join(" "), /attestation/, "instance fields over a Bind2 certificate: the instance was not attested");
+    for (const n of ["p-v3-forged", "p-v3-bind2"]) assert.equal(rig.hub.origins().find((o) => o.name === n)?.pvmApp, undefined, `${n}: no app admitted`);
+    assert.equal((await rig.phone("p-v2", { app: APP }))?.ok, true);
+    assert.equal(rig.hub.origins().find((o) => o.name === "p-v2")?.pvmApp?.instanceId, undefined, "a v2 frame names no instance");
+  } finally { rig.close(); }
 });

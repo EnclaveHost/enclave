@@ -5,7 +5,7 @@
 import { initialState } from "../src/trust.js";
 import { ExtStore } from "../src/store-ext.js";
 const $ = (id) => document.getElementById(id);
-const fields = ["policyKeyFp", "serialFloor", "releaseKeyFp", "policyUrl", "relayUrl", "appId"];
+const fields = ["policyKeyFp", "serialFloor", "releaseKeyFp", "policyUrl", "relayUrl", "relayBase", "appId"];
 async function install(v) {
   const store = new ExtStore();
   const state = { ...initialState({ policyKeyFp: v.policyKeyFp, serialFloor: Number(v.serialFloor), releaseKeyFp: v.releaseKeyFp }), staged: null };
@@ -15,7 +15,10 @@ async function install(v) {
     if (v.resultUrl) await fetch(v.resultUrl, { method: "POST", body: JSON.stringify({ installed: false, reason: r.reason }), credentials: "omit" }).catch(() => {});
     return false;
   }
-  await chrome.storage.local.set({ config: { policyUrl: v.policyUrl, relayUrl: v.relayUrl, appId: v.appId, resultUrl: v.resultUrl || null } });
+  // the carrier: a fixed carrier URL (the lab's), or a platform relay base this client knows (src/carrier.js, which the
+  // manifest's host permissions match) -- one of the two, never both
+  if (!!v.relayUrl === !!v.relayBase) { $("out").textContent = "give exactly one of a relay URL (a carrier) or a platform relay base"; return false; }
+  await chrome.storage.local.set({ config: { policyUrl: v.policyUrl, relayUrl: v.relayUrl || null, relayBase: v.relayBase || null, appId: v.appId, resultUrl: v.resultUrl || null } });
   $("out").textContent = `Installed: ${JSON.stringify(state)}`;
   if (v.resultUrl) await fetch(v.resultUrl, { method: "POST", body: JSON.stringify({ installed: true, anchor: { policyKeyFp: state.policyFp, serialFloor: state.serial, releaseKeyFp: state.releaseFp } }), credentials: "omit" }).catch(() => {});
   return true;

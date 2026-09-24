@@ -59,8 +59,8 @@ test("the policy's deployment table: optional, closed, unique, admitted apps onl
     [{ deploymentz: [] }, /fields must be exactly/],
   ]) { const r = await verifyPolicy(policy(P, over), { state }); assert.equal(r.ok, false, JSON.stringify(over)); assert.match(r.reasons[0], why); }
   const p = ok.policy;
-  assert.deepEqual(selectDeployment(p, { deployment: D1 }), { ok: true, app: APP, deployment: D1 });
-  assert.deepEqual(selectDeployment(p, { deployment: D1, app: APP }), { ok: true, app: APP, deployment: D1 });
+  assert.deepEqual(selectDeployment(p, { deployment: D1 }), { ok: true, app: APP, deployment: D1, instances: null });
+  assert.deepEqual(selectDeployment(p, { deployment: D1, app: APP }), { ok: true, app: APP, deployment: D1, instances: null });
   assert.match(selectDeployment(p, { deployment: D1, app: OTHER }).reason, /is not the app the policy expects/);
   assert.match(selectDeployment(p, { deployment: D3 }).reason, /does not name deployment/);
   assert.match(selectDeployment(p, { deployment: D1.toUpperCase() }).reason, /not normalized/);
@@ -90,13 +90,13 @@ test("the built CLI: a deployment's app comes from the signed table; unknown, mi
     let e0 = evidence();
     const good = await run(pol({ serial: 5 }), ["--deployment", D1]);
     assert.equal(good.result.step, "verify", JSON.stringify(good.result)); assert.match(good.result.refused, /not a pinned Google attestation root/);
-    assert.deepEqual(good.result.deployment, { id: D1, app: APP }); assert.equal(good.result.clientVersion, CLIENT_VERSION);
+    assert.deepEqual(good.result.deployment, { id: D1, app: APP, instance: null, bound: false }); assert.equal(good.result.clientVersion, CLIENT_VERSION);
     assert.equal(evidence(), e0 + 1, "it asked the VM for evidence, for the table's app");
     // a relay URL that names ANOTHER deployment never feeds selection: --deployment decides, and the result names it (the
     // carrier path does not exist on the lab carrier, so the exchange ends at evidence -- the selection is what is asserted)
     const viaUrl = await cli(["run", "--state", st, "--policy", write(pol({ serial: 5 })), "--relay", `${relay}/x/${D2}/pvm`, "--deployment", D1]);
     const vr = viaUrl.lines.at(-1).result;
-    assert.deepEqual(vr.deployment, { id: D1, app: APP }, JSON.stringify(vr)); assert.equal(vr.sent, false);
+    assert.deepEqual(vr.deployment, { id: D1, app: APP, instance: null, bound: false }, JSON.stringify(vr)); assert.equal(vr.sent, false);
     // refused at "select", after the policy was verified and committed, before ANY evidence request
     e0 = evidence();
     // a table present (the committed serial 5, the same bytes), and neither --deployment nor --app: no default entry
@@ -132,7 +132,7 @@ test("the built CLI: a deployment's app comes from the signed table; unknown, mi
     assert.equal(catalog.result.step, "policy"); assert.match(catalog.result.refused, /exactly \{ policy, sig \}/);
     // rollback: serial 8 moves D1 to the other app; an older serial re-pointing it back is refused
     const moved = await run(pol({ serial: 8, deployments: [{ id: D1, app: OTHER }] }), ["--deployment", D1]);
-    assert.equal(moved.result.step, "verify"); assert.deepEqual(moved.result.deployment, { id: D1, app: OTHER });
+    assert.equal(moved.result.step, "verify"); assert.deepEqual(moved.result.deployment, { id: D1, app: OTHER, instance: null, bound: false });
     const back = await run(pol({ serial: 7, deployments: [{ id: D1, app: APP }] }), ["--deployment", D1]);
     assert.equal(back.result.step, "policy"); assert.match(back.result.refused, /rollback/);
     // equivocation: the same serial 8, the table changed
@@ -162,10 +162,10 @@ test("in process, on the Pixel's REAL v2 evidence: the table's app for the deplo
     // the relay (or a catalog) cannot make D1 mean another app: a table that says so is followed, and the real VM is refused
     const wrong = await connect({ relay, policyEnv: pol(2, OTHER), store, deployment: D1, path: "/", usedNonces: new Set(), now: at });
     assert.equal(wrong.result.step, "verify", JSON.stringify(wrong.result)); assert.equal(wrong.result.sent, false); assert.equal(sealedSeen, 0);
-    assert.deepEqual(wrong.result.deployment, { id: D1, app: OTHER });
+    assert.deepEqual(wrong.result.deployment, { id: D1, app: OTHER, instance: null, bound: false });
     const right = await connect({ relay, policyEnv: pol(3, env.app), store, deployment: D1, path: "/?graph=g&steps=3", usedNonces: new Set(), now: at });
     assert.equal(right.result.step, "sealed", JSON.stringify(right.result)); assert.equal(right.result.sent, true); assert.equal(sealedSeen, 1, "released: sealed and sent once");
-    assert.deepEqual(right.result.deployment, { id: D1, app: env.app }); assert.equal(right.result.verified.app, env.app);
+    assert.deepEqual(right.result.deployment, { id: D1, app: env.app, instance: null, bound: false }); assert.equal(right.result.verified.app, env.app);
   } finally { crypto.getRandomValues = orig; srv.close(); }
 });
 
