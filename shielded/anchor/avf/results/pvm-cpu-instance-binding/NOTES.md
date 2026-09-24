@@ -36,6 +36,27 @@ gate, and the checker was run after that.
 - **The relay's hub** verified all 3 attach frames over its OWN nonce, each naming instance `ccd79db1…`.
 - **No leaks.** No private key in the results, and no request or token in the clear in the VM, hub or carrier logs.
 
+## The checker, revised after an independent audit
+
+- **The finding.** Codex's audit of 7e88dc76 found that the first checker still PASSED a copy of this capture with every
+  v3 envelope deleted. Its checks ran over whatever envelopes remained ("EVIDENCE3 0/0"), so a smaller green count went
+  unnoticed. The original full capture had re-verified. The finding invalidated only the checker's acceptance of an
+  incomplete capture.
+- **The fix: coverage comes from the campaign's own records.**
+  - Each of the six client calls must appear in `exchanges.jsonl` exactly once, with exactly one carrier exchange.
+  - Every recorded exchange must belong to exactly one call.
+  - Each exchange's request kind and nonce must link to that call's own output, and it must fall inside the call's time
+    window. Each call must fall inside its phase.
+  - Each linked envelope is re-verified and must prove that phase's InstanceID.
+  - The enrollment record's own envelope is re-verified over its own nonce, and must be byte-for-byte the envelope the
+    carrier recorded for the enrollment call.
+- **The tests.** test/pvm-instance-binding-checker.test.mjs mutates a copy of this capture 13 ways, and each must FAIL at
+  the check that covers it: the audit's repro; a deleted, truncated, duplicated or swapped envelope; a shared or
+  duplicated call record; a call moved into another phase; a re-labelled request; an enrollment record with an edited
+  instance, another call's envelope or no envelope; the per-call capture missing. The unmutated copy must PASS.
+- **`check.txt` is the revised checker's output** on this capture: PASS, 63 checks. The three stopped attempts FAIL
+  under it.
+
 ## Measured: the instance secret on this device
 
 | event | InstanceID |
