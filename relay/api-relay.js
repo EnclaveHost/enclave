@@ -92,6 +92,7 @@ import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp, useMcpChainClient } from "./mcp.js";
 import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
 import { vaultAddressFor } from "./vaultsvc.js";
+import { hostStatus, ineligibleReason as publishedIneligibleReason, claimBlockReason } from "./fleet-status.mjs";
 import { handleSso, initSso } from "./sso.js";
 import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep, hasStagedSecrets } from "./secrets.js";
@@ -1664,7 +1665,7 @@ function ineligibleReason(e) {
     const m = String(e.mode || "");
     if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded"
       + (isOwnerOnlyRow(e) ? `; it serves only deployments that require ${HVNODE_BACKEND}, of its own operator and of owners who delegated to it` : "");
-    if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
+    if (m === "vbs") return publishedIneligibleReason(e);
     if (m === "avf") return pvmCpuLaneOf(e) ? (!pvmMarket.enabled ? "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; this relay's pVM market is off"
                                               : "pVM CPU tier: CPU-only Wasm workloads on its owner's phone; its name is not registered on chain, or its attach was not signed by that operator")
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
@@ -2972,14 +2973,18 @@ function handleRequest(req, res) {
     // the relay holds, and `ineligible` says why not, in the words the fleet
     // panel prints. Derived from verified evidence, never from the row's own
     // teeCpu / tier / claimEnabled strings.
-    const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
+    const rows = live.map((e) => {
+      const eligible = computeEligible(e), serving = servingSet.has(e), notClaiming = claimBlockReason(e);
+      return { ...e, serving, eligible,
+        status: hostStatus(e, { serving, staleAfterSec: STALE_AFTER_SEC }),
+        ...(notClaiming ? { notClaiming } : {}),
                                     ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
                                     // (B) the deployments an owner-only hv-node row carries now: the data-plane daemons splice
                                     // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
                                     ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
                                     ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
                                     ...(pvmMarket.eligible(e) ? { appEvidenceRequired: true, protection: "pkvm-protected-vm", servesDeployments: pvmMarket.served(e, _ledger.rows || []) } : {}),
-                                    ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }));
+                                    ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }; });
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
