@@ -351,8 +351,15 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
 1. ~~A live relay attach~~ done (results/pvm-cpu-live-attach). Next on the admission path: the relay verifies an app's
    ABI/2 evidence itself (`verifyPvmAppAbi2` on a `{t:"abi2"}` frame over the attached tunnel, with its own nonce), and
    the relay fix (relay/tunnel.js attestOn) reaches main -- the owner's merge (a push to main restarts the workers).
-2. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
-3. TLS for app traffic terminating in the VM (today the owner app sees requests and answers, as it sees the chat).
+2. **The serving path -- the next blocker.** An admitted phone serves nothing yet: RelayAttach answers `/availability` and
+   `/v1/health` only, and the relay's `inferenceLaneOf` labels the row without routing to it. Serving must be confidential
+   from the phone's own Android host, which relays every byte. Recommended: TLS terminating IN the VM (the SNP fleet's
+   app-zone pattern) -- a key generated in the VM, its certificate from the platform certificate service, the key bound
+   into the ABI/2 evidence -- with the tunnel's stream frames (`s+`, today refused by the phone) forwarded byte for byte
+   to a VM port the Android app never parses; pvm-rt's wasi:http server (M4) behind it. The alternative, requests sealed
+   to an attested X25519 key, avoids certificates but is a new protocol for every client. A protocol decision across the
+   relay, the phone app and the VM: the owner's.
+3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
 4. Cold start and recovery (targets 3, 5): keep the stage's page cache so the load's second read comes from memory
    (results/pvm-cpu-single-read: the anonymous-memory attempt refused itself on a tied weight and slowed the stage), then
    one engine across conversations.
