@@ -18,7 +18,7 @@ import { verifySnp } from "./snp.mjs";
 import { sha256 } from "./tls-binding.mjs";
 
 export { parseEnvelope, FORMATS, TECH } from "./envelope.mjs";
-export { verifySnp, parseReportStrict, checkChain, parseAmdChain, checkCrl, checkCrlAuthentic, verdictStatus, DEFAULT_SNP_POLICY, JUDGED_MAX_REPORT_VERSION } from "./snp.mjs";
+export { verifySnp, parseReportStrict, checkChain, parseAmdChain, checkCrl, checkCrlAuthentic, crlPolicyPrelude, judgeCrl, NODE_CRYPTO, verdictStatus, DEFAULT_SNP_POLICY, JUDGED_MAX_REPORT_VERSION } from "./snp.mjs";
 export { cachedCollateral } from "./collateral-cache.mjs";
 export { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 export { checkHostedCertificate, spkiOfCert, hashAttestationDocument } from "./tls-binding.mjs";

@@ -59,15 +59,19 @@ export const MAX_BODY_B64 = 64 * 1024, MAX_BODY_BYTES = 64 * 1024, MAX_GUNZIP_BY
 export class EnvelopeError extends Error { constructor(code, msg) { super(msg); this.code = code; } }   // code: malformed | unsupported | rejected
 
 const B64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-export function strictBase64(s, max, what) {
+// the syntax checks alone (no bytes): the browser build decodes with its own primitives after these
+export function checkBase64(s, max, what) {
   if (typeof s !== "string" || !s.length) throw new EnvelopeError("malformed", `${what}: missing`);
   if (s.length > max) throw new EnvelopeError("malformed", `${what}: ${s.length} chars exceeds the ${max}-char cap`);
   if (!B64.test(s)) throw new EnvelopeError("malformed", `${what}: not strict base64`);
-  return Buffer.from(s, "base64");
+  return s;
 }
+export function strictBase64(s, max, what) { return Buffer.from(checkBase64(s, max, what), "base64"); }
+const utf8Length = (s) => (typeof Buffer !== "undefined" ? Buffer.byteLength(s) : new TextEncoder().encode(s).length);
 
-// parseEnvelope(doc) -> { format, spec, body: Buffer, doc }
-export function parseEnvelope(doc) {
+// validateEnvelope(doc) -> { format, spec, shape, bodyB64 }: every rule of the envelope that needs no byte decoding, in the
+// order parseEnvelope applies them. parseEnvelope (Node) and the browser build both start here and only then decode.
+export function validateEnvelope(doc) {
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) throw new EnvelopeError("malformed", "evidence is not an object");
   if (typeof doc.format !== "string" || !doc.format || doc.format.length > 200) throw new EnvelopeError("malformed", "evidence.format is not a short string");
   const spec = FORMATS[doc.format];
@@ -78,7 +82,7 @@ export function parseEnvelope(doc) {
   // the whole document, bounded: a verifier that parses an unbounded JSON object has already lost
   const keys = Object.keys(doc);
   if (keys.length > MAX_DOC_KEYS) throw new EnvelopeError("malformed", `${doc.format}: ${keys.length} top-level fields exceeds the cap of ${MAX_DOC_KEYS}`);
-  let size = 0; try { size = Buffer.byteLength(JSON.stringify(doc)); } catch { throw new EnvelopeError("malformed", `${doc.format}: the document is not serialisable`); }
+  let size = 0; try { size = utf8Length(JSON.stringify(doc)); } catch { throw new EnvelopeError("malformed", `${doc.format}: the document is not serialisable`); }
   if (size > MAX_DOC_BYTES) throw new EnvelopeError("malformed", `${doc.format}: ${size} bytes exceeds the document cap of ${MAX_DOC_BYTES}`);
   // the body field is the one this format names, exactly: a document carrying the other name is another format's shape
   const other = shape.body === "body" ? "report" : "body";
@@ -97,7 +101,14 @@ export function parseEnvelope(doc) {
     else if (f.kind === "obj") { if (!v || typeof v !== "object" || Array.isArray(v)) bad("must be a JSON object"); }
     else if (f.kind === "oneOf") { if (!f.values.includes(v)) bad(`must be one of ${f.values.join(", ")}`); }
   }
-  let body = strictBase64(doc[shape.body], MAX_BODY_B64, `${doc.format} ${shape.body}`);
+  const bodyB64 = checkBase64(doc[shape.body], MAX_BODY_B64, `${doc.format} ${shape.body}`);
+  return { format: doc.format, spec, shape, bodyB64 };
+}
+
+// parseEnvelope(doc) -> { format, spec, body: Buffer, doc, shape }
+export function parseEnvelope(doc) {
+  const { spec, shape, bodyB64 } = validateEnvelope(doc);
+  let body = Buffer.from(bodyB64, "base64");
   if (body.length > MAX_BODY_BYTES) throw new EnvelopeError("malformed", "body exceeds the byte cap");
   const gz = body.length >= 2 && body[0] === 0x1f && body[1] === 0x8b;
   if (spec.gzip) {

@@ -221,7 +221,9 @@ Libraries to keep (versions verified in `node_modules` on 2026-09-24): `@freedom
 0.1.14 (LICENSE file Apache-2.0, package.json says MIT) for Sigstore bundle verification in both browser and Node (it is what the site already ships);
 `sigstore-js` (`sigstore`, `@sigstore/verify`, Apache-2.0) as a second, official implementation for Node
 differential runs; `@noble/hashes`/`@noble/curves` (MIT, already dependencies) only if WebCrypto lacks an
-algorithm; for X.509 in the browser `@peculiar/x509` (MIT) or the ASN.1 already inside `crypto-browser`.
+algorithm; for X.509 in the browser: DECIDED 2026-09-24 (`browser-x509-parser-decision.md`): `@freedomofpress/sigstore-browser`'s
+`X509Certificate` for structured access, `verifier/der.mjs` for the compared and signed bytes, WebCrypto for every signature,
+with AMD's PSS profile checked from the certificate's own AlgorithmIdentifier bytes; `@peculiar/x509` and `pkijs` measured and declined.
 AMD report parsing stays ours: fixed offsets from the ABI specification, cross-checked against
 go-sev-guest's layout, tested on authentic v3 and v5 reports.
 
@@ -595,7 +597,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 |---|---|---|
 | M0 (done on this branch) | map, fixtures, harness for SNP + provenance + hosted binding, differential run, CLI | done |
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
-| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library, same-origin bundle, site shadow line | 8 |
+| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider, 6 + 3 (81 documents) + 2 cases incl. real Chrome 151, strict 224/224; see `browser-x509-parser-decision.md`), same-origin bundle and the site shadow line (not done) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows | 5 |
 | M4 | signed release index in the release workflow, mirror at `enclave.host`, TUF refresh job, minimum-release policy | 5 |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
@@ -636,7 +638,8 @@ on the fixtures with the installed reference.
   workflow-path identity is only as strong as tag/branch protection on the repository.
 - **KDS rate limiting** (429 after a few requests) makes a cache or the auxblob mandatory for anything
   interactive.
-- **Browser X.509** needs a reviewed parser; Node's `X509Certificate` does not exist there.
+- **Browser X.509**: decided and prototyped 2026-09-24 (`browser-x509-parser-decision.md`). The browser build is stricter than
+  Node in three measured places (non-canonical DER, the PSS profile, the host rule), each a refusal; it judges SNP only.
 - **Clock**: certificate windows and CRL `nextUpdate` need a trustworthy clock in the browser; a wrong clock
   can only reject, never accept, if `notBefore` and `nextUpdate` are both enforced.
 - **TDX and GPU** are `unsupported` in the verifier; the site must not imply otherwise.

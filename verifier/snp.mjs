@@ -26,6 +26,12 @@ import { sha256, checkHostedCertificate } from "./tls-binding.mjs";
 export const REPORT_SIZE = 0x4a0, SIG_OFFSET = 0x2a0, MAX_REPORT_VERSION = 6, JUDGED_MAX_REPORT_VERSION = 5;
 // The status a run ends with when every check passed: admission-safe only when nothing was omitted.
 export const verdictStatus = (omissions) => omissions.length ? "limited" : "verified";
+// The certificate and signature work behind one interface, so the SAME verdict code runs in Node (node:crypto, below) and
+// in a browser (verifier/web/provider.mjs: WebCrypto and a reviewed X.509 reader). context.crypto selects it; the default
+// is Node's. Nothing about policy, order or wording lives in a provider: it answers what a certificate, a CRL or a
+// signature IS, and this file decides what that means.
+//   checkChain, checkCrl, verifyReportSignature: as the functions of the same name below, possibly async
+//   certRaw(cert) -> DER bytes, certFp(cert) -> sha256 hex, sha256(...parts) -> bytes, checkHostedCertificate: tls-binding
 const P384_N = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973");
 const VCEK_GUID = "63da758de6644564adc5f4b93be8accd";
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -160,22 +166,35 @@ export function checkCrlAuthentic({ crlDer, ark, now }) {
 
 // The ARK-signed CRL: issuer, signature (RSASSA-PSS SHA-384, salt 48), window, and the ASK's serial.
 export function checkCrl({ crlDer, ark, ask, now, mode = "required", maxStaleDays = 0 }) {
+  const pre = crlPolicyPrelude({ crlDer, mode }); if (pre) return pre;
+  const a = checkCrlAuthentic({ crlDer, ark, now }); if (!a.ok) return { ok: false, checked: false, reasons: [a.why] };
+  return judgeCrl({ crl: a.crl, askSerialHex: ask.serialNumber, now, mode, maxStaleDays });
+}
+// The policy's answer before any bytes are read (mode none, or nothing supplied), else null. Shared with the browser provider.
+export function crlPolicyPrelude({ crlDer, mode = "required" }) {
   if (mode === "none") return { ok: true, checked: false, reasons: ["CRL: policy 'none': revocation of the ASK was NOT checked"] };
   if (!crlDer) return mode === "required" ? { ok: false, checked: false, reasons: ["CRL: required by policy but none was supplied"] } : { ok: true, checked: false, reasons: ["CRL: none supplied; policy stale-ok continues WITHOUT a revocation check (say so to the user)"] };
-  const a = checkCrlAuthentic({ crlDer, ark, now }); if (!a.ok) return { ok: false, checked: false, reasons: [a.why] };
-  const crl = a.crl, reasons = [];
+  return null;
+}
+// Staleness and the ASK's serial, on an ALREADY AUTHENTICATED parsed CRL (verifier/der.mjs parseCrl shape). Pure: no
+// crypto, no environment; the Node path and the browser provider both end here so the wording and the rule are one.
+export function judgeCrl({ crl, askSerialHex, now, mode = "required", maxStaleDays = 0 }) {
+  const reasons = []; let stale = false;
   if (crl.nextUpdate && now > crl.nextUpdate) {
     const staleDays = (now - crl.nextUpdate) / 86400000;
     if (mode === "required" || staleDays > maxStaleDays) return { ok: false, checked: true, reasons: [`CRL is stale: nextUpdate ${crl.nextUpdate.toISOString()} is ${staleDays.toFixed(1)} days past (policy ${mode}${mode === "stale-ok" ? `, max ${maxStaleDays}` : ""})`] };
     reasons.push(`CRL is ${staleDays.toFixed(1)} days past nextUpdate; accepted under policy stale-ok (${maxStaleDays} days)`);
-    var stale = true;
+    stale = true;
   }
-  const askSerial = String(ask.serialNumber).toLowerCase().replace(/^0+(?=.)/, "");
+  const askSerial = String(askSerialHex).toLowerCase().replace(/^0+(?=.)/, "");
   const hit = crl.revoked.find((e) => e.serial.replace(/^0+(?=.)/, "") === askSerial);
-  if (hit) return { ok: false, checked: true, reasons: [`the ASK (serial ${ask.serialNumber}) is REVOKED since ${hit.date.toISOString()}`] };
-  reasons.push(`CRL verified (ARK-signed, ${crl.revoked.length} revoked serial(s), valid ${crl.thisUpdate.toISOString().slice(0, 10)} .. ${crl.nextUpdate ? crl.nextUpdate.toISOString().slice(0, 10) : "?"}); ASK serial ${ask.serialNumber} not revoked`);
-  return { ok: true, checked: true, stale: !!stale, reasons, nextUpdate: crl.nextUpdate };
+  if (hit) return { ok: false, checked: true, reasons: [`the ASK (serial ${askSerialHex}) is REVOKED since ${hit.date.toISOString()}`] };
+  reasons.push(`CRL verified (ARK-signed, ${crl.revoked.length} revoked serial(s), valid ${crl.thisUpdate.toISOString().slice(0, 10)} .. ${crl.nextUpdate ? crl.nextUpdate.toISOString().slice(0, 10) : "?"}); ASK serial ${askSerialHex} not revoked`);
+  return { ok: true, checked: true, stale, reasons, nextUpdate: crl.nextUpdate };
 }
+
+// Node's provider: the functions above, as they are.
+export const NODE_CRYPTO = Object.freeze({ checkChain, checkCrl, verifyReportSignature, sha256, checkHostedCertificate, certRaw: (c) => c.raw, certFp: fpHex });
 
 const tcbHex = (b) => hex(b);
 const fw = (maj, min, build) => `${maj}.${min} build ${build}`;
@@ -186,6 +205,7 @@ const fw = (maj, min, build) => `${maj}.${min} build ${build}`;
 //   collateral: an adapter from verifier/collateral.mjs (chain, vcek, crl); the auxblob wins for the VCEK
 export async function verifySnp(env, policy = {}, context = {}, collateral = null) {
   const pol = { ...DEFAULT_SNP_POLICY, ...policy, guestPolicy: { ...DEFAULT_SNP_POLICY.guestPolicy, ...(policy.guestPolicy || {}) } };
+  const X = context.crypto || NODE_CRYPTO;   // the certificate and signature provider (see the note above P384_N)
   const now = context.now ? new Date(context.now) : new Date();
   const reasons = [], checks = {}, omissions = [], claims = { technology: "amd-sev-snp", format: env.format, family: env.spec.family };
   const out = (status) => ({ status, admissionSafe: status === "verified", omissions, reasons, checks, claims });
@@ -236,20 +256,20 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   if (!vcekDer) return fail("vcek", "no VCEK: not in the certificate table and no collateral source answered (the chain cannot be verified; nothing below is authenticated)");
   let chainPem; try { const c = await collateral?.chain(product); chainPem = c?.pem; claims.collateral.chain = prov(c); } catch (e) { return fail("chain", `AMD chain unavailable: ${e.message}`); }
   if (!chainPem) return fail("chain", `no AMD ASK/ARK chain for ${product} available`);
-  const ch = checkChain({ vcekDer, chainPem, product, now, roots: pol.roots });
+  const ch = await X.checkChain({ vcekDer, chainPem, product, now, roots: pol.roots });
   if (!ch.ok) return fail("chain", ch.why);
-  checks.chain = true; reasons.push(...ch.reasons); claims.vcekSource = vcekSource; claims.vcekFingerprint = fpHex(ch.vcek); claims.arkFingerprint = fpHex(ch.ark);
+  checks.chain = true; reasons.push(...ch.reasons); claims.vcekSource = vcekSource; claims.vcekFingerprint = X.certFp(ch.vcek); claims.arkFingerprint = X.certFp(ch.ark);
   let crlDer = null; try { const c = await collateral?.crl?.(product); crlDer = c?.der ?? null; claims.collateral.crl = prov(c); } catch (e) { crlDer = null; claims.collateral.crl = { source: null, fetchedAt: null, cached: false, error: e.message }; }
-  const crl = checkCrl({ crlDer, ark: ch.ark, ask: ch.ask, now, mode: pol.crl, maxStaleDays: pol.crlMaxStaleDays });
+  const crl = await X.checkCrl({ crlDer, ark: ch.ark, ask: ch.ask, now, mode: pol.crl, maxStaleDays: pol.crlMaxStaleDays });
   reasons.push(...crl.reasons); if (!crl.ok) { checks.crl = false; return out("rejected"); }
   checks.crl = crl.checked ? true : null; claims.crlChecked = crl.checked; if (crl.nextUpdate) claims.crlNextUpdate = crl.nextUpdate.toISOString();
   if (!crl.checked) omit("crl-revocation-unchecked", `ASK revocation was not checked (policy crl: ${pol.crl}${crlDer ? "" : ", no CRL supplied"})`);
   else if (crl.stale) omit("crl-stale-accepted", `the CRL is past nextUpdate and was accepted under policy stale-ok (${pol.crlMaxStaleDays} days)`);
 
   // 5. signature, VCEK identity, TCB
-  const sig = verifyReportSignature(p, ch.vcek); if (!sig.ok) return fail("signature", sig.why);
+  const sig = await X.verifyReportSignature(p, ch.vcek); if (!sig.ok) return fail("signature", sig.why);
   pass("signature", "PSP signature over bytes 0..0x2a0 verifies with the VCEK (r, s in range)");
-  const mm = vcekMatchesReport(ch.vcek.raw, product, p); if (mm) return fail("vcek identity", mm);
+  const mm = vcekMatchesReport(X.certRaw(ch.vcek), product, p); if (mm) return fail("vcek identity", mm);
   pass("vcek identity", `VCEK extensions name this chip (${chipHex.slice(0, 16)}...) and the reported TCB (${TCB_FIELDS[product].map((k) => `${k} ${tcb[k]}`).join(", ")})`);
   claims.tcb = { reported: tcb, current: decodeTcb(product, p.currentTcb), committed: decodeTcb(product, p.committedTcb), launch: decodeTcb(product, p.launchTcb) };
   const t = checkMinTcb(pol.minTcb, product, p); if (!t.ok) return fail("tcb policy", t.reason);
@@ -272,21 +292,22 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   const rd0 = p.reportData.subarray(0, 32), rd1 = p.reportData.subarray(32, 64);
   const spki = context.transportKeySpki;
   if (!Buffer.isBuffer(spki) || spki.length < 44 || spki.length > 2048) return fail("binding", "no transport key SPKI from the verifier's own handshake: the binding cannot be checked (never skipped)");
-  claims.transportSpkiSha256 = hex(sha256(spki));   // the key THIS verifier bound; a consumer compares its own peer key to it (verifier/admission.mjs)
+  const spkiHash = Buffer.from(await X.sha256(spki));
+  claims.transportSpkiSha256 = hex(spkiHash);   // the key THIS verifier bound; a consumer compares its own peer key to it (verifier/admission.mjs)
   if (env.spec.binding === "hosted-tinfoil") {
-    if (!sha256(spki).equals(rd0)) return fail("binding", "report_data[0:32] != sha256(the TLS key this connection presented): the report belongs to another key");
-    claims.hpkePublicKey = hex(rd1); claims.tlsSpkiSha256 = hex(sha256(spki));
+    if (!spkiHash.equals(rd0)) return fail("binding", "report_data[0:32] != sha256(the TLS key this connection presented): the report belongs to another key");
+    claims.hpkePublicKey = hex(rd1); claims.tlsSpkiSha256 = hex(spkiHash);
     pass("binding", "report_data[0:32] binds the served TLS key (hosted format: no nonce in the report; freshness rests on the served certificate)");
     if (context.certPem) {
-      const c = checkHostedCertificate({ certPem: context.certPem, host: context.host, doc: env.doc, hpkeKeyHex: claims.hpkePublicKey, now });
+      const c = await X.checkHostedCertificate({ certPem: context.certPem, host: context.host, doc: env.doc, hpkeKeyHex: claims.hpkePublicKey, now });
       reasons.push(...c.reasons); if (!c.ok) { checks["certificate binding"] = false; return out("rejected"); }
       if (c.claims.tlsSpkiSha256 !== claims.tlsSpkiSha256) return fail("certificate binding", "the served certificate's key is not the key the report binds");
       checks["certificate binding"] = true; claims.certificate = c.claims;
     } else if (pol.requireCertificateBinding) return fail("certificate binding", "hosted format requires the served certificate (hatt SAN binds the document; without it a replayed document over a fresh key is not excluded)");
     else { checks["certificate binding"] = null; omit("certificate-binding-unchecked", "the served certificate was not checked (policy.requireCertificateBinding=false): document freshness is not established"); }
   } else if (env.spec.binding === "spki") {
-    const want = context.nonce ? sha256(spki, context.nonce) : sha256(spki);
     if (context.nonce && context.nonce.length !== 32) return fail("binding", "nonce must be 32 bytes");
+    const want = Buffer.from(context.nonce ? await X.sha256(spki, context.nonce) : spkiHash);
     if (!want.equals(rd0)) return fail("binding", context.nonce ? "report_data[0:32] != sha256(SPKI || nonce): stale, replayed, or another key" : "report_data[0:32] != sha256(SPKI): another key");
     if (!rd1.equals(Buffer.alloc(32))) return fail("binding", "report_data[32:64] is not zero for the metal format");
     if (context.nonce) pass("binding", "report_data[0:32] binds the transport key and this verifier's fresh nonce");
@@ -294,7 +315,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   } else if (env.spec.binding === "domain") {
     let want, abi;
     if (context.expectedBinding) { if (!Buffer.isBuffer(context.expectedBinding) || context.expectedBinding.length !== 32) return fail("binding", "expectedBinding must be 32 bytes"); want = context.expectedBinding; abi = "ABI/2 (caller-derived Bind2 over key, nonce and runtime identity)"; }
-    else if (context.nonce) { if (context.nonce.length !== 32) return fail("binding", "nonce must be 32 bytes"); want = sha256(spki, context.nonce); abi = "ABI/1 sha256(SPKI || nonce)"; }
+    else if (context.nonce) { if (context.nonce.length !== 32) return fail("binding", "nonce must be 32 bytes"); want = Buffer.from(await X.sha256(spki, context.nonce)); abi = "ABI/1 sha256(SPKI || nonce)"; }
     else return fail("binding", "domain format needs a nonce (ABI/1) or an expectedBinding (ABI/2)");
     if ((env.doc.abi === "enclave-domain-abi/2") !== !!context.expectedBinding) return fail("binding", `the document states abi ${env.doc.abi ?? "enclave-domain-abi/1"} but the verifier expected ${context.expectedBinding ? "ABI/2" : "ABI/1"}: no silent downgrade`);
     if (!want.equals(rd0)) return fail("binding", `report_data[0:32] does not equal the ${abi} binding`);

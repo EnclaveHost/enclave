@@ -50,6 +50,7 @@
   "devDependencies": {
     "@playwright/cli": "^0.1.17",
     "@tailwindcss/cli": "^4.3.2",
+    "buffer": "6.0.3",
     "esbuild": "^0.28.1",
     "solc": "^0.8.35",
     "tailwindcss": "^4.3.2"
