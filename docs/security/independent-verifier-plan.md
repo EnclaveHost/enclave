@@ -270,7 +270,7 @@ nothing but silicon vendors and Sigstore can, because every mirror's content is 
 ## 8. Proof of concept (deliverable 2)
 
 Location: `verifier/` and `test/verifier-*.test.mjs` on this branch; fixtures `test/fixtures/verifier/` (sources,
-capture times and hashes in `SOURCES.json`). Commit: see the end of this section. Not in scope: a browser bundle,
+capture times and hashes in `SOURCES.json`). Commit: 6db627e4 (fixtures 7d70de94) on `research/independent-verifier`. Not in scope: a browser bundle,
 TDX, GPU, live relay wiring, any change to production code (nothing outside `verifier/`, `test/`, `docs/security/`
 is touched).
 
