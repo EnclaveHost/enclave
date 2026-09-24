@@ -22,7 +22,7 @@ lands in the SVSM binary, in the IGVM, in the measurement. **Changing which app 
 the measurement.** That is what makes the naming trustworthy rather than merely convenient, and it needs no
 new derivation path.
 
-Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 5 tests):
+Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 31 tests):
 VMPL0 is never an app; a plane at or beyond `VMPL_MAX` is refused; an unassigned plane is refused rather than
 named with zeros, because a null identity that verified would be worse than no service.
 
@@ -80,6 +80,43 @@ What closes it, and it is the next increment:
 Step 2 is not a side effect to paper over: it breaks how every M3a and M3b domain gets its report today, so
 the monitor has to move to protocol 6 in the same change. That is the work, and until it lands no document may
 describe admission as enforcing anything.
+
+### What a second plane requires, agreed with the reviewer
+
+Stated jointly so neither of us discovers it later. Once app planes hold no VMPCK and protocol 6 is the only
+report path, `require_owning_plane(GUEST_VMPL)` means exactly ONE plane can ever obtain a report. A second
+plane cannot exist until ALL of these land together:
+
+1. the per-plane secrets-page copy with **every** VMPCK cleared, not `0..vmpl`;
+2. `requests.rs` deriving the calling VMPL from the VMSA that exited, rather than passing `GUEST_VMPL`;
+3. an ownership oracle for guest GPAs - with no RMPQUERY in COCONUT, a per-plane validated-page map recorded
+   in `core_pvalidate_one` keyed by the calling plane is the practical one;
+4. the AP_CREATE restriction on the hypervisor side, or the SVSM as sole VMSA issuer with the kernel
+   enforcing it: the planes kernel's `sev_snp_ap_creation` checks only `vmpl < VMPL_MAX` and that VMPL0 is
+   replaced only by a VMPL0 vCPU, so an AP_CREATE from plane 1 targeting plane 2's APIC id is honoured and the
+   SVSM is not in that path;
+5. per-plane calling areas and the request-loop multiplexing that implies.
+
+Also settled, and fixed here: the SVSM **attestation protocol (protocol 1)** stays callable by an app plane
+and used to return reports signed as VMPL0. That is not a forgery of the contract's `report_data` layout, but
+it breaks "every report carrying this measurement and `vmpl=N` was issued for plane N" through a door beside
+the admission gate. Both of its report builders now stamp the plane the SVSM serves.
+
+### Two costs worth naming
+
+* Holding the PVALIDATE write lock across freeze, the second hash and the record **stalls other vCPUs'
+  PVALIDATE and CREATE_VCPU for the duration of that hash** - tens of milliseconds for a 45 MiB artifact.
+  Acceptable for a one-shot admission at plane start, and it is the price of closing the re-validation race.
+* The staging buffers are never freed. Once frozen they are read-only to the plane for the life of the guest,
+  and returning them to the allocator would hand the kernel memory it cannot write.
+
+### Scoring the run, so a pass cannot be vacuous
+
+* the GOOD path prints no `poke_result` at all; a scorer that looks for one will wrongly fail it;
+* the TAMPERED path must show `poke_result=WROTE` **and** `admit_bundle_result` carrying the SVSM's refusal,
+  after a staging that really happened - a refusal over a zeroed buffer would pass for the wrong reason;
+* `thaw_admitted` refused **and** `thaw_unadmitted` allowed: without the second, "refused" only shows the probe
+  does not work.
 
 ## Still open, and not to be written up as done
 
