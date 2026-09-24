@@ -1,14 +1,17 @@
 /* ============================================================
-   Featured slot - read side of EnclaveFeatured (per-view bids)
+   Featured apps - read side of EnclaveFeatured (per-view bids)
    + the editorial fallback while no contract is configured.
 
    The RANKING rule lives here by design (the contract escrows and
-   settles; it does not rank): the winning campaign is the highest
-   bidPerView6 that is active, still funded for at least one view,
-   and whose app is currently approved + listed in the catalog -
-   ties break to the older campaign. No standing campaign (or no
+   settles; it does not rank): a standing campaign is one that is
+   active, still funded for at least one view, and whose app is
+   currently approved + listed in the catalog; they are ordered by
+   bidPerView6, ties breaking to the older campaign. ALL of them
+   show, at the head of the store's default tab - this was one
+   box in the page header once, which is why the older wording
+   here spoke of a single winner. No standing campaign (or no
    contract in the address book) falls back to an editorial pick:
-   the newest owner-endorsed app, so the slot is never dark.
+   the newest owner-endorsed app, so the head is never empty.
 
    Views are metered by a beacon to the API gateway (deduped
    server-side per client per day); the catalog owner settles the
@@ -42,19 +45,42 @@ export async function loadCampaigns(force){
 const appDeployable = (a) => !!a && a.versions.length && a.active
   && a.versions.some(v => !v.yanked && v.approval === APPROVAL.approved);
 
-/* the current occupant: { app, campaign } for a paid winner,
-   { app, campaign:null } for the editorial pick, null when nothing shows */
-export function pickFeatured(){
-  if (!STORE.loaded || !STORE.apps.length) return null;
+/* EVERY current occupant, best first: one entry per app as
+   { app, campaign } for a paid winner, { app, campaign:null } for the
+   editorial pick. Empty when nothing qualifies.
+
+   The slot used to hold exactly one app because it was one box in the page
+   header. It is now the head of the store's default tab, which can show as
+   many as are standing - so the same ranking runs over all of them rather than
+   stopping at the winner, and an app that holds two campaigns appears once.
+   The rules are unchanged: active, a real bid, funded for at least one view,
+   and an app that is approved and listed right now; ties to the older
+   campaign; and no standing campaign at all still falls back to the single
+   editorial pick, so the head of the list is never empty while the catalog
+   has an owner-endorsed app in it. */
+export function featuredList(){
+  if (!STORE.loaded || !STORE.apps.length) return [];
   if (FEATURED.loaded && FEATURED.campaigns.length){
     const standing = FEATURED.campaigns
       .filter(c => c.active && c.bidPerView6 > 0 && c.balance6 >= c.bidPerView6 && appDeployable(STORE.byId[c.appId]))
       .sort((x, y) => (y.bidPerView6 - x.bidPerView6) || (x.createdAt - y.createdAt));
-    if (standing.length) return { app: STORE.byId[standing[0].appId], campaign: standing[0] };
+    const seen = new Set(), out = [];
+    for (const c of standing){
+      if (seen.has(c.appId)) continue;          // two campaigns, one app, one card
+      seen.add(c.appId);
+      out.push({ app: STORE.byId[c.appId], campaign: c });
+    }
+    if (out.length) return out;
   }
   const editorial = STORE.apps.filter(a => appDeployable(a) && appVerified(a))
     .sort((x, y) => y.updatedAt - x.updatedAt);
-  return editorial.length ? { app: editorial[0], campaign: null } : null;
+  return editorial.length ? [{ app: editorial[0], campaign: null }] : [];
+}
+
+/* the single best occupant, for callers that want one: the head of the list */
+export function pickFeatured(){
+  const all = featuredList();
+  return all.length ? all[0] : null;
 }
 
 /* one metered view per app per page load; the gateway dedupes per client per
