@@ -988,8 +988,14 @@ func (m *monitor) tsmReportAt(level int, rd []byte) ([]byte, []byte, error) {
 //	vmpl        the level the PSP wrote into our own signed report. Signed, so a verifier can pin it - but
 //	            a guest at VMPL0 holds every VMPCK and can request a report naming a LOWER level, so on its
 //	            own this shows nothing about confinement.
-//	vmpl0       whether we can obtain a report at level 0 AT ALL. Our secrets page holds no VMPCK0 unless
-//	            we really are at VMPL0, so a refusal here is the one part that cannot be faked downwards.
+//	vmpl0       whether we can obtain a report at level 0 AT ALL. This was documented here as "the one part
+//	            that cannot be faked downwards, because our secrets page holds no VMPCK0 unless we really are
+//	            at VMPL0". That is WRONG, measured 2026-09-23: tsm-report refuses a privlevel below its floor
+//	            in its own check, and the floor is set by sev-guest's vmpck_id module parameter, so no VMPCK
+//	            is consulted. A plain SNP guest at VMPL0 with vmpck_id=2 produces this exact tuple. The
+//	            refusal is still worth PRINTING - an incoherent tuple is a fault in measured code, and this
+//	            monitor still refuses to serve on one - but it does not establish confinement. The SVSM is
+//	            identified by the launch measurement; see isolation/DESIGN.md and judge.mjs checkBoundary.
 //
 // Note what this monitor does NOT do: it only ever requests reports at its own floor (tsmReport passes
 // m.vmplFloor). The measured code therefore cannot mint a downward-claiming report even if asked to.

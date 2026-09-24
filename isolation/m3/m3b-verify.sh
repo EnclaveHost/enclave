@@ -121,7 +121,7 @@ gate "C1 the M3a suite passes with the guest on plane $PLANE under the SVSM" $r
 # holds every VMPCK and may request a report naming a lower level. Only a REFUSAL at level 0 separates them.
 if g=$("$here/boundary-gate.sh" "$W/m3b/s1.serial" "$PLANE" 2>&1); then r=ok; else r=no; fi
 echo "    $g"
-gate "C2 the monitor was REFUSED a report at VMPL0 while running at VMPL$PLANE, in exactly one coherent record: the only part of this that cannot be faked by a VMPL0 guest" $r
+gate "C2 the monitor was REFUSED a report at VMPL0 while running at VMPL$PLANE, in exactly one coherent record: coherence of measured code, NOT proof of confinement: the refusal comes from tsm-report's floor check and the floor from sev-guest vmpck_id, so a VMPL0 guest reproduces this tuple (measured, DESIGN.md section 12); the SVSM is identified by the launch digest in C5" $r
 grep -aq 'PASS 3e' "$W/c-m3b.log" && r=ok || r=no
 gate "C3 check 3e passed: the same tuple reached every trusted client inside the attestation document over the domain's attested TLS, and the signed report agreed with it" $r
 # The monitor refuses to serve any report at all on an incoherent tuple, so a FAULT line means it died
@@ -174,19 +174,24 @@ What this establishes, stated as precisely as the evidence allows:
     expected IGVM digest learns that the measured SVSM is the occupant.
   * our monitor and its domains run on a lower plane, the signed report says so, and a verifier that
     demands that level accepts it while one that does not refuses it.
-  * the monitor was REFUSED a report at VMPL0, in exactly one coherent record, and it would have refused
-    to serve any report at all had that not held.
+  * the monitor produced exactly one coherent boundary record and would have refused to serve any report at
+    all had it not. That is a self-consistency property of measured code, NOT evidence of confinement: see
+    below.
   * M1, M2 and M3a still pass.
 
 What it does NOT establish, and must not be written up as if it did:
   * A REPORT NAMING A LOWER LEVEL IS NOT PROOF OF CONFINEMENT. A guest at VMPL0 holds every VMPCK and can
     request a signed report naming VMPL1-3. The level field alone therefore never distinguishes "confined
     beneath a VMPL0 monitor" from "at VMPL0 and saying otherwise".
-  * The refusal that does distinguish them is NOT hardware-attested. The PSP does not attest "this guest
-    cannot reach VMPL0". A verifier relies on measured monitor code truthfully performing and reporting its
-    own local refusal - the code is covered by the measurement and fails closed, which is why the claim is
-    worth making, but the reliance is an assumption and not a checked fact. Say so wherever this is written
-    up; see isolation/m2/judge.mjs checkBoundary and isolation/DESIGN.md.
+  * THE REFUSAL DOES NOT DISTINGUISH THEM EITHER. Corrected 2026-09-23 after an independent review and two
+    runs of our own: tsm-report refuses a privlevel below its floor in its OWN check, and the floor comes
+    from sev-guest's vmpck_id module parameter, so no VMPCK is consulted. One image, plain SNP guest, no
+    SVSM, therefore at VMPL0: with vmpck_id=0 it got a signed report naming vmpl=0 and level 0 was GRANTED
+    (the control proving it is unconfined); with vmpck_id=2 the same guest showed privlevel_floor=2 and
+    level 0 REFUSED with EINVAL - byte for byte the tuple above. So the tuple is reproducible by
+    configuration and proves nothing on its own. What establishes who holds VMPL0 is the FIRST bullet above,
+    the IGVM measurement. A probe that would test key absence - load sev-guest with vmpck_id=0 and require
+    it to FAIL - is the replacement and is not yet wired. See isolation/DESIGN.md section 12.
   * APP-VS-APP ISOLATION BY HARDWARE. Inside our plane, one domain is still separated from another by the
     guest kernel. Per-app hardware separation needs one plane per app, and vmpl_count=4 caps that at three
     domains per guest.

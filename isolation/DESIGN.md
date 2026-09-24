@@ -469,9 +469,39 @@ Three facts get gathered, and they are worth three different amounts:
 |---|---|---|
 | `vmpl_floor` | configfs-tsm | **nothing.** `sev-guest` sets it from `vmpck_id`, a module parameter, so it is the guest's own command line talking |
 | `vmpl` | the VMPL field of our own signed report (offset 0x30) | signed, so a verifier can pin it — but see above: it can name a level below the one we hold |
-| `vmpl0` | asking for a report at level 0 and **being refused** | the only part that cannot be faked downwards: our secrets page holds no VMPCK0 unless we really are at VMPL0 |
+| `vmpl0` | asking for a report at level 0 and **being refused** | **less than this table claimed until 2026-09-23, and on an unmeasured command line, nothing.** See below |
 
-So the boundary claim rests on the refusal, and the enforcement is layered:
+**The refusal does not test key absence. Measured, and it corrects what this section used to assert.** The
+row above read "the only part that cannot be faked downwards: our secrets page holds no VMPCK0 unless we
+really are at VMPL0". That is false. The refusal is produced by tsm-report's own floor check, and the floor
+comes from `sev-guest`'s `vmpck_id` module parameter - the guest's own command line - so it is reached before
+any VMPCK is consulted. Two runs of ONE image on a plain SNP guest with no SVSM above it, which is therefore
+at VMPL0 (`~/enclave-bench/a3-check-214719`, `a3-vmpck0-215158`):
+
+| `sev-guest` loaded with | `privlevel_floor` | report | level-0 probe |
+|---|---|---|---|
+| `vmpck_id=0` | 0 | 1184 bytes, signed, **`vmpl=0`** | **GRANTED** |
+| `vmpck_id=2` | 2 | request failed here | **REFUSED (EINVAL)** |
+
+The first row is the control that proves the guest is unconfined at VMPL0. The second is the same guest
+presenting `vmpl_floor=2` and a refused level-0 probe: byte for byte the tuple this design treats as
+confinement, from a parameter. A parallel session additionally obtained a *signed report naming VMPL2* from
+such a guest (`~/.cache/enclave-isolation/parallel-review-m4b/evidence/vmpl0-forged-tuple`), which completes
+the forgery; on our own run the report request failed at that level, so we cite that half as theirs.
+
+Where the tuple still means something: on the **kernel-hashes path** (M1, M2, M3a) the command line and the
+initrd are inside the launch measurement, so `vmpck_id` cannot be changed without changing the measurement a
+verifier pins. On the **IGVM path** nothing measures the guest's command line, and there the tuple
+distinguishes nothing at all - what identifies the SVSM there is the IGVM digest, which covers the SVSM and
+is derived with `igvmmeasure`. So the confinement claim on M3b rests on the MEASUREMENT, and the tuple is
+corroboration by measured code rather than proof.
+
+A probe that WOULD test key absence, and the replacement: load `sev-guest` with `vmpck_id=0` and require it
+to FAIL, because a guest beneath a VMPL0 SVSM has no VMPCK0 in its secrets page. The control above shows the
+positive half - a guest that holds VMPCK0 loads it and is granted level 0 - and the negative half is to be
+measured on the IGVM path.
+
+With that correction, the enforcement is layered as:
 
 1. The monitor runs the probe **before it serves anything**, and `os.Exit(1)`s on an incoherent tuple
    (`boundaryFault`, 16 mutants in `monitor/report_test.go`). It also only ever requests reports at its own

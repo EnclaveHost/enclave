@@ -594,8 +594,11 @@ decision is concrete rather than open-ended.
       described** (see section 15). A report's VMPL field alone does
       not prove confinement: a guest at VMPL0 holds every VMPCK, so it can request a report naming a
       LOWER level than it has. Downward claims are cheap, and that is precisely the direction a plain
-      VMPL0 guest would fake. What cannot be faked is being refused at level 0, because our secrets page
-      holds no VMPCK0 unless we really are at VMPL0. `privlevel_floor` is worth less still: it comes from
+      VMPL0 guest would fake. Being refused at level 0 was described here as unfakeable, "because our secrets
+      page holds no VMPCK0 unless we really are at VMPL0". **That is measured false (2026-09-23): the refusal
+      comes from tsm-report's floor check and the floor from sev-guest's `vmpck_id` parameter, so a plain SNP
+      guest at VMPL0 produces the same tuple by configuration. See isolation/DESIGN.md section 12.**
+      `privlevel_floor` is worth less still: it comes from
       the `sev_guest.vmpck_id` module parameter, so it is the guest's own command line talking.
 
       The guest side is built and committed, and prints the three separately: `vmpl_floor` (the kernel's
@@ -648,7 +651,7 @@ Kept separate deliberately, because the difference is the whole value of the cla
 | a domain's port cannot be opened from inside the guest, only by the host | **measured** (the probe's vsock attempts; the monitor's host-CID gate) |
 | a report names the privilege level it came from, and a verifier pins it | **built and tested offline** against forged reports (levels 0 and 2, demanded and not); on hardware it has only ever seen VMPL0, where it is trivially true |
 | a report naming a LOWER level proves the guest is confined | **FALSE, and no longer claimed anywhere.** A guest at VMPL0 holds every VMPCK and can request a report naming VMPL1-3 |
-| the guest was REFUSED a report at VMPL0 (the part that cannot be faked) | **enforced in three places offline**: the monitor fails closed before serving (16 mutants), `judge.mjs checkBoundary` rejects a document that cannot show it (10 cases), `boundary-gate.sh` demands exactly one coherent console record (26 fixtures). **Not yet observed on hardware:** the probe only does anything once the floor is above 0, which needs the boot |
+| the guest was REFUSED a report at VMPL0 (**not** unfakeable: see DESIGN.md section 12 -- coherence of measured code, not proof of confinement) | **enforced in three places offline**: the monitor fails closed before serving (16 mutants), `judge.mjs checkBoundary` rejects a document that cannot show it (10 cases), `boundary-gate.sh` demands exactly one coherent console record (26 fixtures). **Not yet observed on hardware:** the probe only does anything once the floor is above 0, which needs the boot |
 | that refusal is attested BY THE HARDWARE | **No, and it cannot be.** The PSP signs the level a request came from, not the absence of a capability. A verifier relies on measured monitor code truthfully reporting its own local refusal; the code is in the launch measurement and fails closed, which is what makes that reliance worth anything |
 | **app-vs-app isolation by hardware (VMPL)** | **NOT measured. Not simulated either.** The kernel that can do it is built but not booted (section 13) |
 | the SVSM launch measurement is reproducible | **measured, and it FAILS today** (section 12) |
