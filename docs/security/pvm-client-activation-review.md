@@ -236,3 +236,66 @@ refusals with the expected record and what was found. 5. No fallback confirmed, 
 - A `data:` URL import: the same guarantee as stdin with a very long command line; no advantage.
 - In-process `import()` of the active file by the installed client: reopens by path and mixes two versions in one
   process.
+
+## 11. Independent review of the Pixel 10 activation run (owner's a7d624c2, `results/pvm-cpu-client-activation`)
+
+The results were copied verbatim (`git archive`) into `test/fixtures/verifier/pvm-client-activation-device/` with a
+per-file hash record, and `test/verifier-pvm-client-device-activation.test.mjs` (in the strict command) reviews them
+with this session's own code, never the owner's checker. The run's own checker output is kept as produced: it FAILED
+once, and the reason is confirmed here from the raw files rather than from the corrected output.
+
+What was verified independently, all passing:
+
+- **The fixture** is the owner's results (137 files hash to the record; the five hashes the owner reported match).
+- **Artifact identity.** The activated 0.3.1 (`ed82869d…`, 137343 bytes) is this branch's own reproduction of the
+  owner's derivation from the pinned 0.3.0 dist (`next-builds.json`, tied to a source rebuild beyond line 1). Both
+  manifests name exactly it (version, digest, size, source commit 0f4c79fd, no release-key rotation); their release
+  signature verifies under the lab release key and each countersignature under the key it claims (the original, then
+  the successor) and fails under the other; the fingerprints are sha256 of the raw keys and are the install anchors.
+- **The generation log** (7 generations): the serial never decreases; the digest at each accepting generation equals
+  the sha256 of that policy's exact bytes (policy 1, policy 2, the rotation, the successor's); the release key never
+  changes; `staged` appears at generation 3 equal to the signed record, `active` at generation 4 equal to `staged`, and
+  both are kept by every later commit made by the delegated client; the rotation is recorded (successor named at
+  generation 6, anchor moved at 7). No generation 8 exists: no refusal, repair or rollback attempt committed anything,
+  and every snapshot from the rotation on (tamper, the two refused repairs, both repairs, missing, rollback, final) is
+  generation 7 with the same state.
+- **The six policies replayed** with `verifier/pvm-policy.mjs` under the anchor the state names and its rollback memory
+  reach the device's outcomes: 1, 2 and the rotation accepted in order; the successor's policy accepted only because
+  the rotation admits it (under the original anchor alone it is a stranger); the retired key refused; serial 3 under
+  the successor refused as a rollback.
+- **Running identity and order.** Before activation the launcher answers with 0.3.0 and commits itself; after it, all
+  ten answered runs carry 0.3.1 and none 0.3.0. The owner's first checker expected nine because it had not counted the
+  two policy refusals, which also answer with a result line; the miscount is confirmed from the jsonl files, and the
+  original output line (`FAIL ... (10 results)`) and the corrected one (`want 10`, PASS) are both matched. Every
+  delegated run printed its `committed` line before its result, streamed 24 tokens to a verified FIN with status 200,
+  and its verified summary names exactly the policy's pins (format v2, app, runtime, code hash 433dd3df…).
+- **Refusals and repairs.** The tamper was in place (same inode, the tampered size); `run` printed exactly one line,
+  the launch refusal with the expected record and the tampered digest as `found`, exit 2, no client result; `staged`
+  exited 1 with both records mismatching; the same artifact could not overwrite the wrong file; the manifest
+  countersigned by the retired key could not repair; the successor's manifest re-published (idempotent, a new inode,
+  read-only, generation unchanged), twice; the missing file gave `found: missing`; the launcher's own file kept its
+  inode and size throughout.
+- **The VM capture, decoded here** from its hex notes: 9 streams served to FIN and 1 whole answer, equal to the client
+  side's 9 complete streams and 1 whole; and one to one by nonce: each of the nine distinct stream nonces the client
+  reported is a stream the VM served to FIN, the whole answer's nonce is the one the VM served, and the VM served
+  nothing the client did not report. No request or token appears in the clear in the capture, the hub or either
+  carrier log; no private key anywhere in the results.
+
+**Evidence classes, stated apart.** What rests on the device: the 0.3.0 launcher handed the activated 0.3.1 bytes over
+from memory, and that client, under policies it committed first, reported verified real evidence (format v2, the
+policy's app, runtime and code hash) and complete HPKE-sealed streams that the VM's own capture confirms one to one by
+nonce; it committed a key rotation; the refusals and repairs happened against that setup. What does not: the raw
+evidence envelopes are not in the results, so this session did not re-verify the attestation chains offline for this
+run (the earlier device envelopes l1/l2 were re-verified with the owner's verifier through this branch's adapter; here
+the claim rests on the activated client's own result lines plus the served-count and nonce cross-check); stream
+authenticity rests on the client's FIN verification plus that cross-check, since the installed CLI writes no session
+secrets and no trace can be re-opened offline; the start check's environment, the swap races and one hop across a
+concurrent activation are host evidence only (sections 7 and 10). This is not called a successful end-to-end
+attestation by this session beyond what those two sources show.
+
+**Findings sent to the owner.** (1) The miscount, confirmed and correctly fixed. (2) After a policy-key rotation, a
+repair with the original manifest is refused because the retired key countersigns it; correct as a rule, but a repair
+then needs a freshly countersigned manifest for bytes the state already names by digest; a manifest-free repair path
+that re-publishes only bytes hashing to the committed record is suggested, not required. (3) Future device runs should
+save the raw evidence envelopes (they are not secret) so the chains can be re-verified offline here. (4) The notes'
+times are local while the documents carry UTC; the review clock is derived from the policies' validity.

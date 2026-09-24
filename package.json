@@ -20,7 +20,8 @@
     "test:client-supersede": "node --test test/verifier-pvm-client-supersede.test.mjs",
     "test:client-update": "node --test test/verifier-pvm-client-update.test.mjs",
     "test:client-activation": "node --test test/verifier-pvm-client-activation.test.mjs",
-    "test:client-next": "node --test test/verifier-pvm-client-next.test.mjs"
+    "test:client-next": "node --test test/verifier-pvm-client-next.test.mjs",
+    "test:client-device-activation": "node --test test/verifier-pvm-client-device-activation.test.mjs"
   },
   "engines": {
     "node": ">=20"

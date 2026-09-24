@@ -484,7 +484,12 @@ Exact remaining integration gaps (nothing below is verified today):
    `next-builds.json`) and the owner's derived device artifact reproduced byte for byte and tied to the source rebuild;
    7 more cases (rotations and one hop by the delegated real client) pass, strict 93 of 93. Host evidence only: the
    delegated real client reaches "policy committed, evidence requested, refused: no evidence"; the real attestation and
-   sealed streams are the owner's device run, under independent review when it lands (review section 10).
+   sealed streams are the owner's device run: reviewed independently in review section 11 (owner's a7d624c2, results
+   copied as a fixture, 9 checks with this session's code in the strict command: artifact identity against this
+   branch's reproduction, manifest signatures, the generation log, every snapshot, the six policies replayed, running
+   identity with the checker's miscount confirmed from the raw files, refusals and repairs, the VM capture decoded and
+   matched one to one by nonce). Device evidence is the activated client's own verified summaries plus the VM's
+   served count; the raw envelopes were not saved, so no chain was re-verified offline here. Strict 102 of 102.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
