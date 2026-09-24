@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +29,8 @@ type fake struct {
 	startGate chan struct{} // when set, Start blocks until it is closed
 	startArgs [3]int
 	fwdPort   func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
+	hostData  []string                 // the HOST_DATA each Start was given, in order
+	verifyHD  []string                 // the host data each Verify was asked to require
 }
 
 func newFake() *fake { return &fake{stops: map[string]int{}, alive: map[string]bool{}} }
@@ -40,13 +44,14 @@ func (f *fake) Build(ctx context.Context, bundle, workdir string, vcpus int) (st
 	}
 	return filepath.Join(workdir, "guest.cpio.gz"), "ab" + hex.EncodeToString(make([]byte, 47)), nil
 }
-func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int) (string, uint32, error) {
+func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string) (string, uint32, error) {
 	if f.startGate != nil {
 		<-f.startGate
 	}
 	f.mu.Lock()
 	f.alive["unit-"+tag] = true
 	f.startArgs = [3]int{vcpus, mem, cpu}
+	f.hostData = append(f.hostData, hostData)
 	f.mu.Unlock()
 	return "unit-" + tag, 99, nil
 }
@@ -56,7 +61,10 @@ func (f *fake) Forward(ctx context.Context, cid uint32, workdir string) (int, fu
 	}
 	return 4443, func() {}, nil
 }
-func (f *fake) Verify(ctx context.Context, port int, m, id, workdir string) (string, string, error) {
+func (f *fake) Verify(ctx context.Context, port int, m, id, hostData, workdir string) (string, string, error) {
+	f.mu.Lock()
+	f.verifyHD = append(f.verifyHD, hostData)
+	f.mu.Unlock()
 	if f.verifyErr != nil {
 		return "", "", f.verifyErr
 	}
@@ -367,6 +375,54 @@ func TestHealthStatesWhatATenantDoesNotGet(t *testing.T) {
 	for _, k := range []string{"gpu", "secrets", "egress", "config", "ports", "configCid"} {
 		if sup[k] != false {
 			t.Errorf("health must state %s=false so a claim gate can refuse such deployments", k)
+		}
+	}
+}
+
+// A deployment-named instance is launched with its deployment id as HOST_DATA and verified against it; a lab name
+// gets none. The raw 32 bytes (as hex), not a hash, so a verifier compares bytes it already holds.
+func TestHostDataIsTheDeploymentID(t *testing.T) {
+	r := newRig(t)
+	p, _ := r.bundle("A", contract.Policy{})
+	dep := "0x" + strings.Repeat("Ab", 32)
+	code, body := r.create(dep, p)
+	if code != 201 {
+		t.Fatalf("create: %d %v", code, body)
+	}
+	lab := "0xa"
+	if code, body := r.create(lab, p); code != 201 {
+		t.Fatalf("create lab: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	want := strings.Repeat("ab", 32)
+	r.f.mu.Lock()
+	starts, verifies := append([]string{}, r.f.hostData...), append([]string{}, r.f.verifyHD...)
+	r.f.mu.Unlock()
+	got := map[string]bool{}
+	for _, h := range starts {
+		got[h] = true
+	}
+	if !got[want] || !got[""] || len(starts) != 2 {
+		t.Fatalf("Start was given %q; want the deployment's id once and nothing for the lab name", starts)
+	}
+	if fmt.Sprint(verifies) != fmt.Sprint(starts) {
+		t.Fatalf("Verify must require what Start launched with: starts %q, verifies %q", starts, verifies)
+	}
+	_, v := r.do("GET", "/vms/"+body["id"].(string), nil)
+	if v["hostData"] != want {
+		t.Fatalf("the instance view: %v", v["hostData"])
+	}
+	// the REAL launcher's judge command line carries the requirement exactly when there is one
+	rl := &realLauncher{m2: "/m2"}
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", want, "/w"), " "); !strings.HasSuffix(a, " --host-data "+want) {
+		t.Errorf("the real verifier does not require HOST_DATA: %s", a)
+	}
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w"), " "); strings.Contains(a, "--host-data") {
+		t.Errorf("a lab launch must not demand HOST_DATA: %s", a)
+	}
+	for name, hd := range map[string]string{dep: want, "0x" + strings.Repeat("ab", 31): "", "smoke": "", strings.Repeat("ab", 32): ""} {
+		if got := hostDataFor(name); got != hd {
+			t.Errorf("hostDataFor(%q) = %q, want %q", name, got, hd)
 		}
 	}
 }

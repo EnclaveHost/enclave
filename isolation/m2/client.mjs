@@ -11,7 +11,7 @@
 // usage: node client.mjs <https://host:port> --measurement <hex> --app-sha <hex>
 //          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
 //          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
-//          [--runtime <runtime.json>] [--servername <name>] [--answer-within <ms>]
+//          [--runtime <runtime.json>] [--servername <name>] [--answer-within <ms>] [--host-data <deployment id>]
 //   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
 //   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
@@ -34,6 +34,8 @@
 //   --servername     the name to put in the ClientHello when the URL names an address rather than the domain -
 //                    a relay or splice in front of the domain that routes on SNI. It changes nothing about trust:
 //                    the key is still taken from this handshake and judged against the report
+//   --host-data      the full 32-byte deployment id this client means to reach; the report's SEV-SNP HOST_DATA must
+//                    equal it (judge.mjs). Without it, another instance of the same app version verifies identically
 //   --answer-within  how long to keep retrying for the first attestation document (default 180000 ms, for a
 //                    domain that is still booting); a route that refuses the connection fails after this
 //
@@ -63,6 +65,7 @@ if (opt('--min-tcb') !== undefined) {
 }
 if (opt('--vcek')) want.vcek = fs.readFileSync(opt('--vcek'));
 if (opt('--runtime')) want.runtime = JSON.parse(fs.readFileSync(opt('--runtime'), 'utf8'));
+if (opt('--host-data') !== undefined) want.hostData = opt('--host-data');
 if (opt('--amd-chain')) {
   const [product, file] = opt('--amd-chain').split('=');
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
@@ -159,6 +162,8 @@ const j1 = await judge(a1.doc, a1.spki, n1, want);
 for (const s of j1.reasons) console.log(`evidence: ${s}`);
 if (j1.measurement) { out('measurement', j1.measurement); out('report_data', j1.reportData); }
 out('expected_vmpl', want.expectedVmpl ?? 0);
+if (j1.hostData !== undefined) out('host_data', j1.hostData);
+out('host_data_checked', want.hostData !== undefined ? 1 : 0);
 if (j1.vmpl !== undefined) out('report_vmpl', j1.vmpl);
 // The monitor's boundary self-test, as it arrived over THIS attested connection rather than on the host's
 // serial console. A report naming a lower level proves nothing on its own; the refusal at level 0 is the

@@ -36,9 +36,13 @@ type realLauncher struct {
 }
 
 func (l *realLauncher) run(ctx context.Context, dir, logName string, name string, args ...string) (string, error) {
+	return l.runEnv(ctx, dir, logName, nil, name, args...)
+}
+
+func (l *realLauncher) runEnv(ctx context.Context, dir, logName string, extra []string, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	cmd.Env = l.env
+	cmd.Env = append(append([]string{}, l.env...), extra...)
 	out, err := cmd.CombinedOutput()
 	_ = os.WriteFile(filepath.Join(dir, logName), out, 0o600)
 	return string(out), err
@@ -62,9 +66,9 @@ func (l *realLauncher) Build(ctx context.Context, bundle, workdir string, vcpus 
 
 var hostLine = regexp.MustCompile(`unit=(\S+) cid=(\d+)`)
 
-func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int) (string, uint32, error) {
-	out, err := l.run(ctx, workdir, tag+".host", "sh", filepath.Join(l.m2, "run-domain.sh"), "start", image, "snp",
-		tag, workdir, strconv.Itoa(vcpus), strconv.Itoa(memMiB), strconv.Itoa(cpuPct))
+func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string) (string, uint32, error) {
+	out, err := l.runEnv(ctx, workdir, tag+".host", []string{"HOST_DATA=" + hostData}, "sh", filepath.Join(l.m2, "run-domain.sh"),
+		"start", image, "snp", tag, workdir, strconv.Itoa(vcpus), strconv.Itoa(memMiB), strconv.Itoa(cpuPct))
 	m := hostLine.FindStringSubmatch(out)
 	if err != nil || m == nil {
 		return "", 0, fmt.Errorf("run-domain.sh start: %v %s", err, strings.TrimSpace(out))
@@ -133,11 +137,21 @@ func (l *realLauncher) Forward(ctx context.Context, cid uint32, workdir string) 
 	}
 }
 
-func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, workdir string) (string, string, error) {
-	out, _ := l.run(ctx, workdir, "verify.txt", "node", filepath.Join(l.m2, "client.mjs"),
-		"https://127.0.0.1:"+strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
-		"--vcek", l.vcek, "--amd-chain", l.product+"="+l.chain, "--min-tcb", "@"+l.minTCB,
-		"--runtime", l.runtimeIdentity, "--save", filepath.Join(workdir, "doc.json"))
+// verifyArgs is the judge's command line. With a deployment bound, guestd's own verifier requires the report to carry
+// it (--host-data): a guest that came up without its deployment id in HOST_DATA is never reported running for it.
+func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdir string) []string {
+	args := []string{filepath.Join(l.m2, "client.mjs"),
+		"https://127.0.0.1:" + strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
+		"--vcek", l.vcek, "--amd-chain", l.product + "=" + l.chain, "--min-tcb", "@" + l.minTCB,
+		"--runtime", l.runtimeIdentity, "--save", filepath.Join(workdir, "doc.json")}
+	if hostData != "" {
+		args = append(args, "--host-data", hostData)
+	}
+	return args
+}
+
+func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string) (string, string, error) {
+	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir)...)
 	verdict, keySha := "", ""
 	for _, ln := range strings.Split(out, "\n") {
 		if strings.HasPrefix(ln, "VERDICT ") && verdict == "" {

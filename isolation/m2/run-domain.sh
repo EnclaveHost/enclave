@@ -29,13 +29,23 @@ OVMF=${OVMF_OVERRIDE:-$OVMF}
 # firmware refuses to boot when there is nothing to verify against. Default on, so an ordinary run is unchanged.
 KERNEL_HASHES=${KERNEL_HASHES:-on}
 
+# HOST_DATA=<64 lowercase hex> launches an snp domain with those 32 bytes as SEV-SNP HOST_DATA: the host's
+# launch-time word, signed by the PSP into every report the guest ever gets, fixed for the guest's life, and NOT
+# part of the launch measurement. The per-app manager (m4/guestd) puts the deployment id there, so a client can
+# check which deployment it reached without the measurement becoming per-deployment. Unset = all zero, as before.
+HOST_DATA=${HOST_DATA:-}
+if [ -n "$HOST_DATA" ]; then
+  printf '%s' "$HOST_DATA" | grep -qE '^[0-9a-f]{64}$' || { echo "run-domain.sh: HOST_DATA must be 64 lowercase hex" >&2; exit 2; }
+  HD_OPT=",host-data=$(printf '%s' "$HOST_DATA" | xxd -r -p | base64 -w0)"
+fi
+
 cmd=$1; shift
 case "$cmd" in
 start)
   img=$1; mode=$2; tag=$3; W=$4; vcpus=${5:-1}; mem=${6:-512}; quota=${7:-100}
   case "$mode" in
     snp)   MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
-                  -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=$KERNEL_HASHES
+                  -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=$KERNEL_HASHES${HD_OPT:-}
                   -object memory-backend-memfd,id=ram1,size=${mem}M,share=true" ;;
     plain) MACH="-machine q35,accel=kvm"
            # The verifying firmware refuses to boot a guest with no kernel hash table, and a plain guest has no
