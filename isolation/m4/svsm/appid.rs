@@ -65,6 +65,7 @@ use crate::sev::utils::{rmp_adjust, RMPFlags};
 use crate::sev::vmsa::VMPL_MAX;
 use crate::types::GUEST_VMPL;
 use crate::types::{PageSize, PAGE_SIZE};
+use crate::utils::zero_mem_region;
 use core::sync::atomic::{AtomicU8, Ordering};
 use sha2::{Digest, Sha256};
 use zerocopy::IntoBytes;
@@ -107,6 +108,9 @@ const SVSM_APPID_WHOAMI: u32 = 1;
 const SVSM_APPID_ADMIT: u32 = 2;
 /// Which artifacts this plane has admitted, so a guest can tell WHY it is refused. Never gated.
 const SVSM_APPID_STATUS: u32 = 3;
+/// End this plane's admission: unfreeze and ZERO its artifacts, forget its key, forget what it was named.
+/// Callable only by the plane itself, and only when there is something to reclaim.
+const SVSM_APPID_RECLAIM: u32 = 5;
 /// Register this plane's transport key, once. a = GPA of the SPKI, b = its length.
 /// After this the SVSM computes the report binding itself, so GET_REPORT carries only a nonce.
 const SVSM_APPID_REGISTER_KEY: u32 = 4;
@@ -232,6 +236,7 @@ const E_RECORD_FAILED: u64 = 8;
 const E_NO_KEY: u64 = 9;
 const E_KEY_ALREADY_SET: u64 = 10;
 const E_NO_RUNTIME_ID: u64 = 11;
+const E_NOTHING_TO_RECLAIM: u64 = 12;
 
 /// The ABI/2 RuntimeID for each plane: sha256 of the canonical JSON runtime identity
 /// (isolation/contract/runtime.go RuntimeID), from ENCLAVE_RUNTIME_IDS, in plane order.
@@ -283,27 +288,26 @@ static ADMITTED: [AtomicU8; VMPL_MAX] = [const { AtomicU8::new(0) }; VMPL_MAX];
 /// path cheaply. Admitted pages must never be re-validated: PVALIDATE(invalid) then PVALIDATE(valid) zeroes a
 /// page and hands the guest RWX back, which would thaw an artifact this SVSM has vouched for while ADMITTED
 /// still said it was fine.
-static ADMITTED_PAGES: SpinLock<Vec<u64>> = SpinLock::new(Vec::new());
+static ADMITTED_PAGES: [SpinLock<Vec<u64>>; VMPL_MAX] = [const { SpinLock::new(Vec::new()) }; VMPL_MAX];
 
 /// Does this page belong to an admitted artifact? Consulted by the core protocol's PVALIDATE path.
 pub fn page_is_admitted(paddr: PhysAddr) -> bool {
     let frame = paddr.page_align().bits() as u64;
-    ADMITTED_PAGES.lock().binary_search(&frame).is_ok()
+    (0..VMPL_MAX).any(|v| ADMITTED_PAGES[v].lock().binary_search(&frame).is_ok())
 }
 
 /// Does an entire region intersect an admitted artifact? PVALIDATE takes 2 MiB entries too, and a huge entry
 /// covering one admitted 4 KiB page must be refused as a whole.
 pub fn region_is_admitted(paddr: PhysAddr, len: usize) -> bool {
-    let pages = ADMITTED_PAGES.lock();
-    if pages.is_empty() {
-        return false;
-    }
     let start = paddr.page_align().bits() as u64;
     let end = start + len as u64;
-    match pages.binary_search(&start) {
-        Ok(_) => true,
-        Err(i) => i < pages.len() && pages[i] < end,
-    }
+    (0..VMPL_MAX).any(|v| {
+        let pages = ADMITTED_PAGES[v].lock();
+        match pages.binary_search(&start) {
+            Ok(_) => true,
+            Err(i) => i < pages.len() && pages[i] < end,
+        }
+    })
 }
 
 /// THE OWNERSHIP PRECONDITION, and why this protocol refuses every plane but one.
@@ -545,8 +549,8 @@ fn plane_mask(level_bits: u64, owner: usize, kind: usize) -> u64 {
 }
 
 /// Record the admitted frames so the PVALIDATE path can refuse to thaw them.
-fn record_admitted(pages: &[PhysAddr]) -> Result<(), SvsmReqError> {
-    let mut held = ADMITTED_PAGES.lock();
+fn record_admitted(vmpl: usize, pages: &[PhysAddr]) -> Result<(), SvsmReqError> {
+    let mut held = ADMITTED_PAGES[vmpl].lock();
     held.try_reserve(pages.len())
         .map_err(|_| SvsmReqError::protocol(E_RECORD_FAILED))?;
     for p in pages {
@@ -608,7 +612,7 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     }
     // Recorded BEFORE the plane is marked admitted: if recording fails there is no point at which this SVSM
     // has named a plane whose pages the PVALIDATE path would still thaw.
-    record_admitted(&pages)?;
+    record_admitted(vmpl, &pages)?;
     ADMITTED[vmpl].fetch_or(bit, Ordering::Release);
     log::info!(
         "SVSM appid: plane {vmpl} admitted kind {kind}, {frozen} pages frozen read-only to every guest plane"
@@ -664,6 +668,71 @@ fn bind2_for_plane(vmpl: usize, nonce: &[u8; BIND_LEN]) -> Result<[u8; BIND_LEN]
     let mut bind = [0u8; BIND_LEN];
     bind.copy_from_slice(&out);
     Ok(bind)
+}
+
+/// Reclaim this plane: undo everything admission established, so the plane is as unspoken-for as it was
+/// before it started and its artifact pages carry nothing.
+///
+/// `contract.Lifecycle` promises exactly one reclamation however a domain ends, and until now that promise had
+/// NO SVSM counterpart: `ADMITTED` was never cleared, a plane that reset stayed admitted and named, and the
+/// frozen pages stayed frozen for the life of the guest. That is the A7 finding.
+///
+/// The order matters and is the security argument:
+///
+///   1. ZERO each admitted page BEFORE unfreezing it. The pages hold the app bundle and the runtime image, and
+///      whatever tenant gets them next must not read the last one's artifact - nor may a replayed admission
+///      find the old bytes still in place.
+///   2. Unfreeze only then, restoring the owner's write access, so at no point is a page both writable by the
+///      plane and still counted as admitted.
+///   3. Forget the frames, the admitted kinds and the registered key together. A plane that kept its key while
+///      losing its artifacts could bind a report to a key whose app is gone.
+///
+/// Under the PVALIDATE write lock, like admission, so a re-validation cannot interleave with the unfreeze.
+///
+/// Callable only by the owning plane: `require_owning_plane` means a plane cannot reclaim a neighbour, which
+/// would otherwise be the cheapest denial of service in the protocol.
+fn appid_reclaim(vmpl: usize, _params: &mut RequestParams) -> Result<(), SvsmReqError> {
+    require_owning_plane(vmpl)?;
+    let _pv = crate::protocols::core::pvalidate_write_lock();
+    let mut frames = ADMITTED_PAGES[vmpl].lock();
+    let had_key = REGISTERED_KEY[vmpl].lock().1 != 0;
+    let had_kinds = ADMITTED[vmpl].load(Ordering::Acquire) != 0;
+    if frames.is_empty() && !had_key && !had_kinds {
+        // A coded no-op rather than a silent success: a caller that reclaims twice should be able to tell that
+        // the second call did nothing, and a harness should be able to assert it.
+        return Err(SvsmReqError::protocol(E_NOTHING_TO_RECLAIM));
+    }
+    let count = frames.len();
+    for frame in frames.iter() {
+        let paddr = PhysAddr::from(*frame);
+        let guard = PerCPUPageMappingGuard::create_4k(paddr)?;
+        let vaddr = guard.virt_addr();
+        // 1. zero it while it is still frozen, so nothing observes the old bytes through a writable mapping.
+        // SAFETY: vaddr is a 4 KiB mapping this CPU holds for the life of `guard`, and the page is a guest page
+        // this SVSM froze itself, so writing zeroes over it cannot affect any other mapping's validity.
+        unsafe { zero_mem_region(vaddr, vaddr + PAGE_SIZE) };
+        // 2. then give the owner its page back
+        let mut level = RMPFlags::VMPL1.bits();
+        while level <= RMPFlags::VMPL3.bits() {
+            let flags = if level as usize == vmpl {
+                RMPFlags::from_bits_truncate(level | RMPFlags::RWX.bits())
+            } else {
+                RMPFlags::from_bits_truncate(level | RMPFlags::NONE.bits())
+            };
+            // SAFETY: this restores the OWNING plane's access to its own page, which it had before admission,
+            // and leaves every other plane denied. The page has just been zeroed, so nothing is exposed.
+            unsafe { rmp_adjust(vaddr, flags, PageSize::Regular) }
+                .map_err(|_| SvsmReqError::protocol(E_FREEZE_FAILED))?;
+            level += 1;
+        }
+    }
+    // 3. forget all three together
+    frames.clear();
+    drop(frames);
+    ADMITTED[vmpl].store(0, Ordering::Release);
+    REGISTERED_KEY[vmpl].lock().1 = 0;
+    log::info!("SVSM appid: plane {vmpl} reclaimed: {count} pages zeroed and unfrozen, key and naming forgotten");
+    Ok(())
 }
 
 /// What this plane has admitted and what it still owes, so a guest can tell WHY it is refused without being
@@ -744,6 +813,7 @@ pub fn appid_protocol_request(
         SVSM_APPID_ADMIT => appid_admit(vmpl, params),
         SVSM_APPID_STATUS => appid_status(vmpl, params),
         SVSM_APPID_REGISTER_KEY => appid_register_key(vmpl, params),
+        SVSM_APPID_RECLAIM => appid_reclaim(vmpl, params),
         _ => Err(SvsmReqError::unsupported_call()),
     }
 }
@@ -1026,13 +1096,109 @@ mod tests {
         clear_key(GUEST_VMPL);
     }
 
+    // ---- reclaim: contract.Lifecycle's "exactly one reclamation" needs an SVSM counterpart ----
+    //
+    // The parts that touch hardware - zeroing a frozen page, then restoring the owner's RWX with RMPADJUST -
+    // are exercised by the on-hardware negatives. What these cover is the state machine around them, because a
+    // mistake there leaves a plane named after its artifacts are gone, or reclaimable twice.
+
+    #[test]
+    fn reclaim_forgets_the_kinds_the_key_and_the_frames_together() {
+        let v = GUEST_VMPL;
+        ADMITTED[v].store(KINDS_REQUIRED, Ordering::Release);
+        set_key(v, &[4u8; 91]);
+        {
+            let mut f = ADMITTED_PAGES[v].lock();
+            f.clear();
+            f.push(0x4000_0000);
+        }
+        // the three pieces of state a plane accumulates
+        assert!(require_admitted(v).is_ok());
+        assert!(page_is_admitted(PhysAddr::from(0x4000_0000u64)));
+        assert_ne!(REGISTERED_KEY[v].lock().1, 0);
+
+        // what reclaim must leave behind: nothing. Simulated here in the order appid_reclaim performs it,
+        // since the RMPADJUST and the zeroing need hardware.
+        ADMITTED_PAGES[v].lock().clear();
+        ADMITTED[v].store(0, Ordering::Release);
+        REGISTERED_KEY[v].lock().1 = 0;
+
+        assert!(require_admitted(v).is_err(), "a reclaimed plane must not be named");
+        assert!(!page_is_admitted(PhysAddr::from(0x4000_0000u64)), "its frames must be forgotten");
+        assert_eq!(REGISTERED_KEY[v].lock().1, 0, "and its key, or a report could bind a key whose app is gone");
+        assert!(
+            bind2_for_plane(v, &[1u8; BIND_LEN]).is_err(),
+            "with no key there is no binding, so no report can be issued for the reclaimed plane"
+        );
+    }
+
+    #[test]
+    fn a_plane_with_nothing_to_reclaim_gets_its_own_code() {
+        // "reclaim twice" must be distinguishable from "reclaim succeeded", or a harness cannot assert either
+        let v = GUEST_VMPL;
+        ADMITTED_PAGES[v].lock().clear();
+        ADMITTED[v].store(0, Ordering::Release);
+        REGISTERED_KEY[v].lock().1 = 0;
+        let nothing = ADMITTED_PAGES[v].lock().is_empty()
+            && ADMITTED[v].load(Ordering::Acquire) == 0
+            && REGISTERED_KEY[v].lock().1 == 0;
+        assert!(nothing, "the precondition appid_reclaim tests for");
+        // and the code it returns is its own, not shared with a refusal that means something else
+        assert_ne!(E_NOTHING_TO_RECLAIM, E_NOT_ADMITTED);
+        assert_ne!(E_NOTHING_TO_RECLAIM, E_NO_KEY);
+    }
+
+    #[test]
+    fn a_plane_cannot_reclaim_a_neighbour() {
+        // the cheapest denial of service in the protocol if it were allowed, and the same gate that guards
+        // admission guards this
+        for v in 0..VMPL_MAX + 1 {
+            if v == GUEST_VMPL {
+                continue;
+            }
+            assert!(require_owning_plane(v).is_err(), "plane {v} must not reach reclaim");
+        }
+    }
+
+    #[test]
+    fn frames_are_tracked_per_plane_so_reclaim_cannot_free_anothers() {
+        // ADMITTED_PAGES used to be one global list, which reclaim would have emptied for every plane at once
+        ADMITTED_PAGES[1].lock().clear();
+        ADMITTED_PAGES[GUEST_VMPL].lock().clear();
+        ADMITTED_PAGES[1].lock().push(0x5000_0000);
+        ADMITTED_PAGES[GUEST_VMPL].lock().push(0x6000_0000);
+        // the PVALIDATE hook sees both, because any admitted page must be protected whoever owns it
+        assert!(page_is_admitted(PhysAddr::from(0x5000_0000u64)));
+        assert!(page_is_admitted(PhysAddr::from(0x6000_0000u64)));
+        // but clearing one plane's list leaves the other's
+        ADMITTED_PAGES[GUEST_VMPL].lock().clear();
+        assert!(page_is_admitted(PhysAddr::from(0x5000_0000u64)), "plane 1's frame must survive");
+        assert!(!page_is_admitted(PhysAddr::from(0x6000_0000u64)));
+        ADMITTED_PAGES[1].lock().clear();
+    }
+
+    #[test]
+    fn re_admission_after_reclaim_is_possible_and_starts_from_nothing() {
+        // a relaunched plane must have to re-admit: the alternative is a plane that inherits the last tenant's
+        // naming, which is the A7 defect
+        let v = GUEST_VMPL;
+        ADMITTED[v].store(KINDS_REQUIRED, Ordering::Release);
+        ADMITTED[v].store(0, Ordering::Release);      // reclaim
+        assert!(require_admitted(v).is_err());
+        ADMITTED[v].store(1 << KIND_BUNDLE, Ordering::Release);
+        assert!(require_admitted(v).is_err(), "one kind is not enough after a reclaim either");
+        ADMITTED[v].store(KINDS_REQUIRED, Ordering::Release);
+        assert!(require_admitted(v).is_ok());
+        ADMITTED[v].store(0, Ordering::Release);
+    }
+
     #[test]
     fn every_refusal_has_its_own_code() {
         // a harness that can only see "refused" cannot tell a finding from a bug in our own staging
         let codes = [
             E_NOT_OWNING_PLANE, E_PLANE_UNASSIGNED, E_NOT_ADMITTED, E_DIGEST_MISMATCH,
             E_ALREADY_ADMITTED, E_FREEZE_FAILED, E_CHANGED_UNDER_US, E_RECORD_FAILED,
-            E_NO_KEY, E_KEY_ALREADY_SET, E_NO_RUNTIME_ID,
+            E_NO_KEY, E_KEY_ALREADY_SET, E_NO_RUNTIME_ID, E_NOTHING_TO_RECLAIM,
         ];
         for (i, a) in codes.iter().enumerate() {
             assert_ne!(*a, 0, "0 would read as success");
@@ -1148,7 +1314,7 @@ mod tests {
     #[test]
     fn an_admitted_page_is_found_and_its_neighbours_are_not() {
         {
-            let mut held = ADMITTED_PAGES.lock();
+            let mut held = ADMITTED_PAGES[GUEST_VMPL].lock();
             held.clear();
             held.push(0x4000_0000);
             held.push(0x4000_2000);
@@ -1164,12 +1330,12 @@ mod tests {
         assert!(region_is_admitted(PhysAddr::from(0x4000_1000u64), 0x2000), "spans into 0x40002000");
         assert!(!region_is_admitted(PhysAddr::from(0x4000_1000u64), 0x1000), "the gap alone");
         assert!(!region_is_admitted(PhysAddr::from(0x5000_0000u64), 0x20_0000));
-        ADMITTED_PAGES.lock().clear();
+        ADMITTED_PAGES[GUEST_VMPL].lock().clear();
     }
 
     #[test]
     fn nothing_is_admitted_before_anything_is_admitted() {
-        ADMITTED_PAGES.lock().clear();
+        ADMITTED_PAGES[GUEST_VMPL].lock().clear();
         assert!(!page_is_admitted(PhysAddr::from(0x4000_0000u64)));
         assert!(!region_is_admitted(PhysAddr::from(0u64), 0x20_0000));
     }

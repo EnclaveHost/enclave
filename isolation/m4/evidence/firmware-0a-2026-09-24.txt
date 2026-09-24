@@ -1,0 +1,40 @@
+Step 0a: a firmware that VERIFIES the SEV kernel hash table, 2026-09-24, warden-host
+
+THE FINDING THIS ANSWERS. kernel-hashes=on makes QEMU write sha256(kernel), sha256(initrd) and sha256(cmdline)
+into a page the launch digest commits to. Whether anything COMPARES the served bytes against that table is a
+property of the FIRMWARE. /usr/share/edk2-ovmf/x64/OVMF.4m.fd is OvmfPkgX64, which links BlobVerifierLibNull and
+never compares. So "the app is in the measured image" was a statement about hashes on every kernel-hashes path in
+this repository - M1, M2 and M4a.
+
+THE CANDIDATE
+  path    ~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd
+  size    4194304
+  sha256  142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+  source  edk2-stable202608, OvmfPkg/AmdSev/AmdSevX64.dsc, -t GCC -b RELEASE
+  tools   nasm 2.16.03, iasl (ACPICA), mtools 4.0.43, all built from source: there is no root on this host and
+          Arch packages no AmdSev OVMF variant
+
+BUILD DEVIATIONS, both in the GRUB image the AmdSev prebuild embeds, because Arch's GRUB ships neither module:
+  linuxefi   dropped: a Fedora/RHEL patch, merged upstream into , which remains in the list
+  sevsecret  dropped: reads an injected SEV secret to unlock an encrypted disk
+Both belong to the AmdSev encrypted-disk-with-secret-injection flow, not to the QEMU -kernel path this project
+boots, and BlobVerifierLibSevHashes is untouched by either. THIS FIRMWARE IS THEREFORE NOT SUITABLE FOR THAT
+OTHER FLOW.
+
+WHAT THIS RUN SHOWS (isolation/m2/verify-firmware.sh, workdir /home/steven/enclave-bench/fw0a-001446)
+  1 control, kernel-hashes=on   the guest BOOTS      PASS
+  2 kernel-hashes=off, no table the firmware REFUSES PASS
+The same image on the distro firmware BOOTS in case 2 (~/enclave-bench/f0-235238), so this is a behavioural
+difference between the firmwares and not a property of the image.
+
+WHAT IT DOES NOT SHOW, and this matters more than the two passes: that a SUBSTITUTED initrd is refused. Cases 1
+and 2 show the firmware checks for a table's PRESENCE, not that it compares the bytes. The substitution needs a
+QEMU that hashes one file while serving another; that is the review lane's test-only build
+(parallel-vmsa-qemu-hashtest, branch test/hash-override) and its fixture, run against this firmware, is the
+acceptance for step 0a. A DEBUG build of the same firmware is being produced so the refusals carry the verifier's
+own diagnostic instead of being silent.
+
+NOT YET DONE, and required before any suite claims this: m1/domain.env still names the distro firmware. Moving a
+SUITE to this one means changing domain.env, because build-domain.sh predicts with domain.env's OVMF while
+OVMF_OVERRIDE changes only the launch - predicting against one firmware and launching another would fail check 1
+for a reason unrelated to the property.

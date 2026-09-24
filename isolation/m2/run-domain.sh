@@ -12,17 +12,25 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/../m1/domain.env"
-# A caller may point this launch at a DIFFERENT firmware without editing domain.env, which is how
+# A caller may point this LAUNCH at a different firmware without editing domain.env, which is how
 # verify-firmware.sh tests whether a build actually verifies the SEV kernel hash table. domain.env stays the
 # default so an ordinary run is unchanged.
+#
+# It changes the launch ONLY. build-domain.sh predicts a measurement with domain.env's OVMF, so a suite run with
+# this variable set would predict against one firmware and launch another, and check 1 would fail for the wrong
+# reason. To move a SUITE to another firmware, change domain.env.
 OVMF=${OVMF_OVERRIDE:-$OVMF}
+
+# KERNEL_HASHES=off launches WITHOUT the SEV kernel hash table, which is how verify-firmware.sh asks whether a
+# firmware refuses to boot when there is nothing to verify against. Default on, so an ordinary run is unchanged.
+KERNEL_HASHES=${KERNEL_HASHES:-on}
 cmd=$1; shift
 case "$cmd" in
 start)
   img=$1; mode=$2; tag=$3; W=$4; vcpus=${5:-1}; mem=${6:-512}; quota=${7:-100}
   case "$mode" in
     snp)   MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
-                  -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on
+                  -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=$KERNEL_HASHES
                   -object memory-backend-memfd,id=ram1,size=${mem}M,share=true" ;;
     plain) MACH="-machine q35,accel=kvm" ;;
     *) echo "mode must be snp or plain"; exit 2 ;;
