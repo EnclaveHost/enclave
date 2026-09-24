@@ -18,6 +18,12 @@ def main():
     repo, cid, out, cap, gw = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
     sys.path.insert(0, os.path.join(repo, "wasm"))
     import ipfs_fetch
+    # Public trustless gateways refuse Python's default user agent (403). Name ourselves instead; the bytes are
+    # verified against the CID either way, so which gateway answers decides availability, never content.
+    import urllib.request
+    opener = urllib.request.build_opener()
+    opener.addheaders = [("User-Agent", "enclave-guestd/1")]
+    urllib.request.install_opener(opener)
     try:
         data = ipfs_fetch.fetch_verified(cid, gw, cap, 180)
     except Exception as e:
