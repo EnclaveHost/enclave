@@ -83,6 +83,12 @@ VM removed by exact name, the node's pid unchanged, the six apps identical befor
 used `Invoke-WebRequest -SkipCertificateCheck`, absent in Windows PowerShell 5.1, so an earlier before/after app check
 reported -1 for all six and could not tell healthy from dead; replaced by curl.exe, with an all-dead baseline now itself
 a failure.) None of this is measured by this lane; it is recorded as the owner stated it.
+**Later (owner's report):** the GuestFeatureSet hypothesis is dead: a VM created with `-GuestStateIsolationType OpenHCL`
+carries GuestFeatureSet 1024 and GuestStateIsolationType 16, and pinning the firmware without touching it fails
+identically to overwriting it with 513; the WMI job's error is a bare MessageID 12030 with no underlying cause. The
+useful control: OpenHCL isolation with NO FirmwareFile fails with "failed to load IGVM file … IGVM image file: ''", so
+the worker does try to load one and this build has no in-box image, while our image produces no load error at all.
+Still no vmchipset fault on any WMI run. Cause of the start failure: not yet named.
 
 ## What these facts do and do not say
 

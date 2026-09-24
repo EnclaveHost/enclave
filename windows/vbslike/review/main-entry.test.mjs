@@ -57,3 +57,16 @@ test("a separately configured hash is not an input: with ENCLAVE_RUNTIME_ID nami
     assert.equal(m.health.catalog && m.health.catalog.runtimeId, DERIVED, "two independently supplied values that must agree are two values that will eventually disagree: the hash must be derived, never configured");
   } finally { m.stop(); }
 });
+
+test("a hash configured with NO identity is a refusal to start (exit 2), not a manager that runs pinning nothing (the owner's stricter reading of the spec, adopted)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "main-entry-"));
+  const port = await freePort();
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME, VMMGR_PORT: String(port), ENCLAVE_CID_FETCHER: path.join(dir, "fetch-cid.py"), PYTHON_BIN: "python3", ENCLAVE_RUNTIME_ID: "ab".repeat(32) };
+  const child = spawn(process.execPath, [MAIN], { env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+  let log = ""; child.stdout.on("data", (c) => { log += c; }); child.stderr.on("data", (c) => { log += c; });
+  try {
+    const code = await new Promise((res) => { const t = setTimeout(() => res(null), 15_000); child.once("exit", (c) => { clearTimeout(t); res(c); }); });
+    assert.equal(code, 2, `main.mjs ${code === null ? "kept running" : "exited " + code} with a hash and no identity: ${log.slice(-300)}`);
+    assert.match(log, /pins nothing|ENCLAVE_RUNTIME_IDENTITY/, "and says why");
+  } finally { try { process.kill(-child.pid, "SIGKILL"); } catch {} fs.rmSync(dir, { recursive: true, force: true }); }
+});
