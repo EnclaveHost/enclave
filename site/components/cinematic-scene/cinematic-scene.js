@@ -4,42 +4,29 @@ class CinematicScene extends EnclaveElement {
   static templateUrl = new URL("./cinematic-scene.html", import.meta.url);
   renderedCallback() {
     this._cleanup?.();
-    const button = this.querySelector(".cinema-pause");
     const video = this.querySelector(".cinema-video");
-    if (!button || !video) return;
+    if (!video) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     let visible = false;
     let failed = false;
     let playing = false;
     video.muted = true;
-    const setPaused = (paused) => {
-      button.setAttribute("aria-pressed", String(paused));
-      const label = paused ? "Play motion" : "Pause motion";
-      button.setAttribute("aria-label", label);
-      button.title = label;
-    };
     const sync = () => {
-      const running = visible && !document.hidden && !reduced.matches && !failed && button.getAttribute("aria-pressed") !== "true";
-      button.hidden = reduced.matches || failed || !playing;
+      const running = visible && !document.hidden && !reduced.matches && !failed;
       if (running) {
         // Delay the video request until motion is wanted; the image paints immediately.
         if (!video.getAttribute("src")) video.src = video.dataset.src;
         video.play().catch(() => {
-          if (video.paused && visible && !document.hidden && !reduced.matches && button.getAttribute("aria-pressed") !== "true") {
-            button.hidden = false;
-            setPaused(true);
+          if (video.paused && visible && !document.hidden && !reduced.matches) {
+            playing = false;
+            this.classList.remove("cinema-ready");
           }
         });
       } else video.pause();
       this.classList.toggle("cinema-ready", playing && !reduced.matches && !failed);
     };
-    video.onplaying = () => { playing = true; this.classList.add("cinema-ready"); button.hidden = false; };
+    video.onplaying = () => { playing = true; this.classList.add("cinema-ready"); };
     video.onerror = () => { failed = true; sync(); };
-    button.onclick = () => {
-      const paused = button.getAttribute("aria-pressed") !== "true";
-      setPaused(paused);
-      sync();
-    };
     document.addEventListener("visibilitychange", sync);
     reduced.addEventListener("change", sync);
     let observer;
@@ -51,7 +38,7 @@ class CinematicScene extends EnclaveElement {
       observer?.disconnect();
       document.removeEventListener("visibilitychange", sync);
       reduced.removeEventListener("change", sync);
-      video.onplaying = video.onerror = button.onclick = null;
+      video.onplaying = video.onerror = null;
       video.pause();
       video.removeAttribute("src");
       video.load();

@@ -8,8 +8,7 @@ class Ticker extends EnclaveElement {
     const ticker = this.querySelector(".ticker");
     const track = this.querySelector(".ticker-track");
     const group = this.querySelector(".ticker-group");
-    const button = this.querySelector(".ticker-pause");
-    if (!ticker || !track || !group || !button) return;
+    if (!ticker || !track || !group) return;
     track.querySelector('[aria-hidden="true"]')?.remove();
     const copy = group.cloneNode(true);
     copy.setAttribute("aria-hidden", "true");
@@ -19,15 +18,7 @@ class Ticker extends EnclaveElement {
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     let visible = false;
     const sync = () => {
-      ticker.classList.toggle("ticker-running", visible && !document.hidden && !reduced.matches && button.getAttribute("aria-pressed") !== "true");
-      button.hidden = reduced.matches;
-    };
-    button.onclick = () => {
-      const paused = button.getAttribute("aria-pressed") !== "true";
-      button.setAttribute("aria-pressed", String(paused));
-      button.setAttribute("aria-label", `${paused ? "Play" : "Pause"} the technology logos`);
-      button.textContent = paused ? "▶" : "Ⅱ";
-      sync();
+      ticker.classList.toggle("ticker-running", visible && !document.hidden && !reduced.matches);
     };
     let observer;
     if ("IntersectionObserver" in window) {
@@ -40,7 +31,6 @@ class Ticker extends EnclaveElement {
       observer?.disconnect();
       document.removeEventListener("visibilitychange", sync);
       reduced.removeEventListener("change", sync);
-      button.onclick = null;
       ticker.classList.remove("ticker-running");
     };
     sync();
