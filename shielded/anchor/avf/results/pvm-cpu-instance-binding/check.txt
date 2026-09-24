@@ -1,17 +1,59 @@
 -- the VM's logged InstanceIDs: A ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340  B ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340  C ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340  D None
 ok   phase A: the VM logged its InstanceID (INSTANCE id=...)
-ok   enrollment: the record's InstanceID is the one the VM logged, from a v3 envelope over the record's own nonce
-ok   policy 2 (type 2) binds the deployment to exactly the enrolled instance
-ok   every recorded envelope was read and re-verified (6 of 6)
-ok   every EVIDENCE3 answer is a v3 envelope that verifies under Google's roots and the policy's pins (5/5)
-ok   every EVIDENCE answer is a v2 envelope that verifies (1/1)
-ok   every v3 envelope proves an InstanceID a VM logged in this run
+ok   policy 2 (type 2) binds a deployment to exactly the phase-A InstanceID
+ok   coverage: enroll-a is recorded once, with exactly one evidence exchange ([[1]])
+ok   coverage: bound-a is recorded once, with exactly one evidence exchange ([[2]])
+ok   coverage: other-a is recorded once, with exactly one evidence exchange ([[3]])
+ok   coverage: unbound-a is recorded once, with exactly one evidence exchange ([[4]])
+ok   coverage: bound-b is recorded once, with exactly one evidence exchange ([[5]])
+ok   coverage: bound-c is recorded once, with exactly one evidence exchange ([[6]])
+ok   coverage: no exchange is claimed by two calls ({})
+ok   coverage: the recorded exchanges are exactly the calls' exchanges (recorded [1, 2, 3, 4, 5, 6], owned [1, 2, 3, 4, 5, 6])
+ok   coverage: no call outside the campaign's plan ([])
+ok   phase: enroll-a ran inside phase A (20:04:52..20:04:53; phase from 20:02:58 to 20:05:07)
+ok   phase: bound-a ran inside phase A (20:04:56..20:04:58; phase from 20:02:58 to 20:05:07)
+ok   phase: other-a ran inside phase A (20:05:01..20:05:02; phase from 20:02:58 to 20:05:07)
+ok   phase: unbound-a ran inside phase A (20:05:05..20:05:07; phase from 20:02:58 to 20:05:07)
+ok   phase: bound-b ran inside phase B (20:07:01..20:07:03; phase from 20:05:07 to 20:07:03)
+ok   phase: bound-c ran inside phase C (20:08:58..20:09:00; phase from 20:07:03 to the end)
+ok   phase: the calls ran in the campaign's order
+ok   enroll-a: exchange 1 is an EVIDENCE3 request (EVIDENCE3 09b096c90be858)
+ok   enroll-a: exchange 1 was sent inside the call (2026-09-24T20:04:52.627Z in 2026-09-24T20:04:52.548Z..2026-09-24T20:04:53.449Z)
+ok   enroll-a: the exchange's nonce is the one this call used (09b096c90be85881 vs 09b096c90be85881)
+ok   bound-a: exchange 2 is an EVIDENCE3 request (EVIDENCE3 6f5344e455f1de)
+ok   bound-a: exchange 2 was sent inside the call (2026-09-24T20:04:56.735Z in 2026-09-24T20:04:56.576Z..2026-09-24T20:04:58.642Z)
+ok   bound-a: the exchange's nonce is the one this call used (6f5344e455f1dea9 vs 6f5344e455f1dea9)
+ok   other-a: exchange 3 is an EVIDENCE3 request (EVIDENCE3 9a451a99408144)
+ok   other-a: exchange 3 was sent inside the call (2026-09-24T20:05:01.868Z in 2026-09-24T20:05:01.792Z..2026-09-24T20:05:02.746Z)
+ok   other-a: the exchange's nonce is the one this call used (9a451a99408144dd vs None)
+ok   unbound-a: exchange 4 is an EVIDENCE request (EVIDENCE 9c056aabdb059ae)
+ok   unbound-a: exchange 4 was sent inside the call (2026-09-24T20:05:05.932Z in 2026-09-24T20:05:05.862Z..2026-09-24T20:05:07.557Z)
+ok   unbound-a: the exchange's nonce is the one this call used (9c056aabdb059ae4 vs 9c056aabdb059ae4)
+ok   bound-b: exchange 5 is an EVIDENCE3 request (EVIDENCE3 c91ae5560f4f1f)
+ok   bound-b: exchange 5 was sent inside the call (2026-09-24T20:07:01.484Z in 2026-09-24T20:07:01.418Z..2026-09-24T20:07:03.292Z)
+ok   bound-b: the exchange's nonce is the one this call used (c91ae5560f4f1f98 vs c91ae5560f4f1f98)
+ok   bound-c: exchange 6 is an EVIDENCE3 request (EVIDENCE3 94a2f3451361e2)
+ok   bound-c: exchange 6 was sent inside the call (2026-09-24T20:08:58.734Z in 2026-09-24T20:08:58.669Z..2026-09-24T20:09:00.638Z)
+ok   bound-c: the exchange's nonce is the one this call used (94a2f3451361e235 vs 94a2f3451361e235)
+ok   every linked envelope reached the verifier (7 of 7)
+ok   enroll-a: its envelope re-verifies as v3 over its own nonce and proves phase A's InstanceID (ccd79db14e9f3a22)
+ok   bound-a: its envelope re-verifies as v3 over its own nonce and proves phase A's InstanceID (ccd79db14e9f3a22)
+ok   bound-a: its envelope carries the transport key the client pinned (bce263c1f3c84d55)
+ok   other-a: its envelope re-verifies as v3 over its own nonce and proves phase A's InstanceID (ccd79db14e9f3a22)
+ok   unbound-a: its envelope re-verifies as v2 over its own nonce (the app key 14fa49eb78b3a093… is signed by the attested transport key for this nonce and app)
+ok   unbound-a: its envelope carries the transport key the client pinned (bce263c1f3c84d55)
+ok   bound-b: its envelope re-verifies as v3 over its own nonce and proves phase B's InstanceID (ccd79db14e9f3a22)
+ok   bound-b: its envelope carries the transport key the client pinned (cb429b53d7267528)
+ok   bound-c: its envelope re-verifies as v3 over its own nonce and proves phase C's InstanceID (ccd79db14e9f3a22)
+ok   bound-c: its envelope carries the transport key the client pinned (5304fce30720d2f6)
+ok   enrollment: the record's own envelope re-verifies over the record's nonce and proves the InstanceID it names, the VM's logged one ()
+ok   enrollment: the record's envelope is the very envelope the carrier recorded for the enrollment call
 ok   A: the bound deployment answered (complete, v3, deployment.instance = the enrolled InstanceID, client 0.5.0)
-ok   A: a deployment bound to ANOTHER instance was refused by the client at verify, nothing sent -- the same genuine VM
+ok   A: a deployment bound to ANOTHER instance was refused at verify against this very instance, nothing sent
 ok   A: an unbound deployment still answered over v2 (the 0.4 rule, stated unbound)
 ok   B: after a restart the VM logged the SAME InstanceID (same)
 ok   B: the bound deployment answered under the same policy, with a NEW transport key (a new boot, the same instance)
-ok   the relay's hub verified 3 instance-bound attach frame(s) over its own nonce, each naming a logged instance
+ok   the relay's hub verified 3 instance-bound attach frame(s) over its own nonce (one per boot: 3), each naming a logged instance
 -- MEASURED: after the same-key APK update the InstanceID is the SAME
 ok   C: the bound turn's outcome matches the measurement (served if the instance survived, refused if not)
 ok   no private key anywhere in the results
