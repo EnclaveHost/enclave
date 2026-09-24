@@ -14,6 +14,11 @@ Apply in order; both touch `kernel/src/platform/snp_fw.rs`, in different functio
 a pristine d37095e worktree and comparing every file against the tree that was built and tested - identical.
 `tools/igvmbuilder/src/gpa_map.rs` and `tools/igvmmeasure/` are PR 1209 and are deliberately not in either patch.
 
+**On attribution (2026-09-24).** Where this file says "Steven's direction" or "Steven asked", some of those
+directions were relayed by the coordinator (Codex) under Steven's standing scope for this project, rather than
+given by Steven directly; none of them is a fresh approval of anything. Read them as prior coordinator direction
+unless a direct message from Steven is cited.
+
 ## Step 2 is CLOSED on hardware (2026-09-24): the measurement covers what executes
 
 15 of 15, warden-host, both the DEBUG and the RELEASE AmdSev firmware, launch digest AD876B1C...CBB986F86.
@@ -43,7 +48,9 @@ output if the emitted page is not `construct_page(offset)`.
 
 **What step 2 does NOT establish:** this is ONE app on ONE plane. It demonstrates no isolation BETWEEN two
 apps, which is the actual requirement. The five second-plane preconditions below are untouched. The runtime
-image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code.
+image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code. (That last sentence is
+the scope of THIS run and stays true of it. For the serving plane it is closed by the runtime-set increment
+below; the step-2 fixture itself was not re-run.)
 
 ## The monitor integration is CLOSED too (2026-09-24): the handshake key is the key the SVSM binds
 
@@ -83,6 +90,31 @@ same document relabelled `sev-snp-guest-domain-v1` still verifies, a weaker clai
 The binding property holds because `judge.mjs` RECOMPUTES Bind2 over the handshake key, so
 `doc_key_matches_handshake` is informational and a swapped handshake key is rejected. A `domtls` key rotation
 implies a RECLAIM cycle, since REGISTER_KEY is once per admission. And it remains ONE app on ONE plane.
+
+## The runtime SET is admitted whole (2026-09-24): the interpreter and shared libraries are inside admission
+
+`evidence/runtime-set-2026-09-24.txt`, generated from the run by `write-runtime-set-evidence.sh`. Not
+independently reviewed.
+
+The plane runs `/rt/ld-linux-x86-64.so.2 --library-path /rt /rt/wasmtime`, and the runtime kind admitted the
+wasmtime ELF alone. It now admits ONE canonical encoding of every file in `/rt` (`guest/rtset.h`,
+`enclave-runtime-set-v1`), and `ENCLAVE_RUNTIME_SHA256` is sha256 of that encoding - the interpreter, libc, libm,
+libgcc_s, wasmtime and runtime.json. `appid.rs` did not change: it hashes bytes and compares digests, so a changed,
+missing, added or renamed file is refused by the comparison every artifact already goes through. A subdirectory or
+any other non-file refuses the whole set, because the loader searches `/rt/glibc-hwcaps/*` before `/rt`.
+`planeinit` then reads the running runtime's `/proc` maps before starting the front: every executable file mapping
+must be an admitted member with the inode that was encoded, and every admitted ELF must be mapped, or it powers off.
+
+    good     10/10 (verify-plane.sh): SVSM froze 12097 pages = the whole 49546136-byte set (the ELF alone: 11137)
+             runtime_maps=ok elf_members_mapped=5/5, the only other file mapping /app.wasm (data)
+    changed  one byte of libc: firmware verified the image, bundle admitted, runtime REFUSED 0x80001004, powered off
+    missing  no libgcc_s:      the same, members=5 elf=4, REFUSED 0x80001004, powered off
+    local    test-rtset.sh 14/14 (every member flipped, shortened and dropped; three maps-check negatives)
+
+Each negative ran under an IGVM whose table covers ITS image and whose SVSM is the good run's own binary, so only
+admission could refuse it. **Not established:** the component `/app.wasm` is extracted from the admitted bundle
+at BUILD time and is not itself admitted (the next gap of the same shape); the maps check is one reading at load and
+is the plane's own word, not the hardware's; ONE app on ONE plane, and the second-plane blocker is unchanged.
 
 ## A malformed hash table does not refuse - it disarms verification
 
@@ -266,7 +298,10 @@ plane cannot exist until ALL of these land together:
 4. the AP_CREATE restriction on the hypervisor side, or the SVSM as sole VMSA issuer with the kernel
    enforcing it: the planes kernel's `sev_snp_ap_creation` checks only `vmpl < VMPL_MAX` and that VMPL0 is
    replaced only by a VMPL0 vCPU, so an AP_CREATE from plane 1 targeting plane 2's APIC id is honoured and the
-   SVSM is not in that path;
+   SVSM is not in that path. **(2026-09-24: that last clause is under question and unverified** - a guest not at
+   VMPL0 creates vCPUs through the SVSM's `SVSM_CORE_CREATE_VCPU`, so the SVSM may be in the path for our
+   topology; what it checks about the caller was not read. The remedy, and whether it needs a host change at all,
+   are open. See `HANDOFF.md` and `HOST-CHANGE-PLAN.md`. The blocker stands either way.)
 5. per-plane calling areas and the request-loop multiplexing that implies.
 
 **Scope, measured in the kit tree 2026-09-24 rather than estimated.** These five are not one size. 1 and 3 are
@@ -282,12 +317,14 @@ The single-guest assumption is spread across `guest_vmsa_ref` (10 sites), `updat
 `update_apic_emulation` (2 each), plus a plane-selection and scheduling policy that does not exist yet, per-plane
 CAA request flags, and 85 `GUEST_VMPL` references to audit. That is upstream-shaped work on the SVSM's core loop.
 
-**4 is Steven's, and it gates the others.** Without it the planes kernel honours an AP_CREATE from plane 1
-targeting plane 2's APIC id (`sev_snp_ap_creation` checks only `vmpl < VMPL_MAX`) and the SVSM is not in that
-path - so a second plane built on 1, 2, 3 and 5 alone would run, and would NOT be isolated. Building the
-multi-plane exec loop before 4 lands therefore produces a system that cannot honestly be called isolated and
-cannot be tested for the property that matters. **Do not score any run as isolation until the kernel change and
-reboot have happened.**
+**4 gates the others, and any host change it needs is Steven's decision.** As stated above - subject to the open
+question recorded there about which path a non-VMPL0 plane's vCPU creation takes - the planes kernel honours an
+AP_CREATE from plane 1 targeting plane 2's APIC id, so a second plane built on 1, 2, 3 and 5 alone
+would run, and would NOT be isolated. Building the multi-plane exec loop before 4 lands therefore produces a system
+that cannot honestly be called isolated and cannot be tested for the property that matters. **Do not score any run
+as isolation until precondition 4 is resolved and a second plane has been tested for the property.** (This used to
+say "until the kernel change and reboot have happened". Whether the remedy is a host kernel change, an SVSM change
+or both is not established; `HOST-CHANGE-PLAN.md` is the read-only plan for the host case, with no patch in it.)
 
 Also settled, and fixed here: the SVSM **attestation protocol (protocol 1)** stays callable by an app plane
 and used to return reports signed as VMPL0. That is not a forgery of the contract's `report_data` layout, but
@@ -563,10 +600,10 @@ matters:
   minting a signed report naming **vmpl=3** with the shared measurement. With planes, plane 1 forges plane 2
   completely - its own key bound, B's AppID, vmpl=2, the SVSM's measurement - over its own GHCB, and admission
   never sees it. The fix is that app planes get NO VMPCK and protocol 6 becomes the only report path.
-* **The admitted "runtime image" is the wasmtime ELF alone.** It is dynamically linked, and none of
-  `ld-linux-x86-64.so.2`, `libc`, `libgcc_s` or `libm` is admitted, so the bytes that actually run include
-  unadmitted code. Subsumed by A4 but worth its own line, because "the runtime image is admitted" would read
-  as covering the runtime and it does not.
+* ~~**The admitted "runtime image" is the wasmtime ELF alone.**~~ Closed for the serving plane 2026-09-24: the
+  runtime kind admits the whole `/rt` set (section "The runtime SET is admitted whole"). What remains of the same
+  shape: the executed component `/app.wasm` is cut from the admitted bundle at build time rather than by the plane
+  from the file it admitted.
 * **A4: admitted bytes are not bound to what EXECUTES.** The loader is the unmeasured guest kernel: it can
   present the genuine bundle and runtime, have them admitted, and execute a different copy. Closing it means
   the SVSM owning the plane's initial image and entry - loading it from compiled-in digests into pages it
