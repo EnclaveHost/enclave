@@ -28,7 +28,12 @@
 // direction closes both sides. Bytes move with stream backpressure (pipe), so a reader that stops reading
 // stops the writer instead of filling this process's memory.
 import net from "node:net";
-import { createWebSocketStream } from "ws";
+
+// `ws` is needed only by handleIsolationHttps, the supervisor's WebSocket half. routeFor and openSplice need
+// node:net alone, so the client half also runs where npm packages are not carried (the NucBox package, whose
+// datapath tests join this client to the Windows data plane). Loaded once, on first use.
+let _ws = null;
+const wsLib = async () => (_ws ||= await import("ws"));
 
 export const HELLO_MAX = 16384 + 5;   // one TLS record: 2^14 bytes of handshake, plus its 5-byte header
 export const HELLO_MS = 10_000;
@@ -229,8 +234,10 @@ export function handleIsolationHttps({ wss, req, socket, head, expectName, insta
                                        dataAddr, limits = {}, onOutcome = () => {} }) {
   return new Promise((resolve) => {
     wss.handleUpgrade(req, socket, head, async (ws) => {
-      const stream = createWebSocketStream(ws);
       const report = (o) => { onOutcome(o); resolve(o); };
+      let stream;
+      try { stream = (await wsLib()).createWebSocketStream(ws); }
+      catch (e) { try { ws.terminate(); } catch {} return report({ outcome: "refused", kind: "internal", why: `ws: ${e.message}` }); }
       const refuse = (kind, why) => {
         try { stream.destroy(); } catch {}
         try { ws.terminate(); } catch {}
