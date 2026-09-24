@@ -1,5 +1,5 @@
 // windows/vbslike/review/datapath.test.mjs: the NucBox datapath (enclave-splice/1, windows/vbslike/datapath/datapath.mjs at
-// 67354f3b, the guest lane's) under the conditions its own tests do not drive: a first line that arrives in pieces or a
+// b339e9d4, the guest lane's; admission reads the agreed /vms view: status, appId, image, runtimeId, transportKeySha256, relay) under the conditions its own tests do not drive: a first line that arrives in pieces or a
 // byte at a time, an oversized first line with no newline, a lookup that throws, the manager's ACTUAL record shape,
 // and the id form the manager emits today. Independent review tests (enclave-99, 2026-09-24).
 //   run: node --test windows/vbslike/review/*.test.mjs
@@ -33,7 +33,7 @@ const firstLine = (s, ms = 1500) => new Promise((resolve) => { let b = ""; const
 
 test("a first line that arrives in pieces, or a byte at a time, is still parsed whole and admitted; the bytes after it reach the domain intact", async () => {
   const r = await relay();
-  const rec = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, key: KEY, relay: { port: r.port } };
+  const rec = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, transportKeySha256: KEY, relay: { port: r.port } };
   const dp = await plane(() => rec);
   try {
     for (const pieces of [[LINE.slice(0, 20), LINE.slice(20, 90), LINE.slice(90) + "\n"], [...LINE].map((c) => c).concat(["\n"])]) {
@@ -73,24 +73,28 @@ test("a lookup that throws is a refusal with the reason, never a crash or an adm
   } finally { dp.close(); }
 });
 
-test("admission reads the manager's record as it IS: today's manager record (state, no status, UUID id, no image, no key) admits nothing", () => {
-  // the Windows manager's /vms record at 8327498e: { id: uuid, instanceId, appId, recordSha256, componentSha256, policy,
-  // catalog, cid, runtimeId, state: "guest-booted" | "failed", appReady, guest, vmName, reason } - no status, no image, no key
+test("admission reads the manager's record as it IS: today's manager record (state, no status, no image, no transportKeySha256) admits nothing; a UUID id is a safe token (the manager owns its ids)", () => {
+  // the Windows manager's /vms record at 8327498e..bcd40c07: { id: uuid, instanceId, appId, recordSha256, componentSha256, policy,
+  // catalog, cid, runtimeId, state: "guest-booted" | "failed", appReady, guest, vmName, reason } - no status, no image, no transportKeySha256
   const managerRecord = { id: "3f2a9c1e-5b7d-4e8a-9c1b-2d3e4f5a6b7c", instanceId: "3f2a9c1e5b7d4e8a-9c3d10f1", appId: APP, state: "guest-booted", appReady: false, runtimeId: RT };
   const [outcome] = admit(managerRecord, { app: APP, image: IMAGE, runtime: RT, key: KEY });
   assert.equal(outcome, "refused:not-running", "status is absent, so the route is refused as not running");
-  assert.throws(() => parsePreamble(`${PROTO} id=${managerRecord.id} app=${APP} image=${IMAGE} runtime=${RT} key=${KEY}`), /not a partition instance id/,
-    "and the manager's UUID id is not an hv id: the supervisor's routeFor would refuse it before this plane is asked");
-  // what the view contract the guest lane sent the Windows owner requires of the record, so both sides can be held to it
-  const conforming = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, key: KEY, relay: { port: 1 } };
+  assert.equal(parsePreamble(`${PROTO} id=${managerRecord.id} app=${APP} image=${IMAGE} runtime=${RT} key=${KEY}`).id, managerRecord.id,
+    "since 09b67414 any safe id token is accepted: the manager owns its ids");
+  for (const bad of ["a b", "x".repeat(65), "", "id/1", "hv0a1b2c3d\n"]) assert.throws(() => parsePreamble(`${PROTO} id=${bad} app=${APP} image=${IMAGE} runtime=${RT} key=${KEY}`), /malformed/, JSON.stringify(bad));
+  // what the agreed /vms view requires of the record, so both sides can be held to it
+  const conforming = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, transportKeySha256: KEY, relay: { port: 1 } };
   assert.deepEqual(admit(conforming, { app: APP, image: IMAGE, runtime: RT, key: KEY }), ["", ""]);
-  for (const [k, v, why] of [["status", "starting", "refused:not-running"], ["key", "ff".repeat(32), "refused:identity"], ["image", "ee".repeat(32), "refused:identity"], ["relay", null, "refused:no-relay"]])
+  for (const [k, v, why] of [["status", "starting", "refused:not-running"], ["transportKeySha256", "ff".repeat(32), "refused:identity"], ["image", "ee".repeat(32), "refused:identity"], ["relay", null, "refused:no-relay"]])
     assert.equal(admit({ ...conforming, [k]: v }, { app: APP, image: IMAGE, runtime: RT, key: KEY })[0], why, k);
+  // the OLD name is no longer read: a record that still says `key` and not transportKeySha256 is refused, not silently admitted
+  const { transportKeySha256, ...legacy } = conforming;
+  assert.equal(admit({ ...legacy, key: KEY }, { app: APP, image: IMAGE, runtime: RT, key: KEY })[0], "refused:identity");
 });
 
 test("a splice admitted on a record is ended when the instance is reclaimed, and a second connection is then refused on the fresh lookup", async () => {
   const r = await relay();
-  let rec = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, key: KEY, relay: { port: r.port } };
+  let rec = { status: "running", appId: APP, image: IMAGE, runtimeId: RT, transportKeySha256: KEY, relay: { port: r.port } };
   const dp = await plane(() => rec);
   try {
     const s = await client(dp.port); s.write(LINE + "\n"); assert.equal(await firstLine(s), "OK");

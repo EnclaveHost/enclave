@@ -14,15 +14,29 @@ const line = (w) => `ENCLAVE-SPLICE/1 id=${w.id} app=${w.app} image=${w.image} r
 // A stand-in for the launcher's relay to a domain: echoes, and counts who reached it.
 async function relay() {
   const r = { accepted: 0, conns: [] };
-  r.server = net.createServer((c) => { r.accepted++; r.conns.push(c); c.on("error", () => {}); c.pipe(c); });
+  r.server = net.createServer((c) => { track(c); r.accepted++; r.conns.push(c); c.on("error", () => {}); c.pipe(c); });
+  opened.add(r.server);
   r.server.listen(0, "127.0.0.1");
   await once(r.server, "listening");
   r.port = r.server.address().port;
   return r;
 }
 
+// every server and socket a test opens is ended when that test ends, pass or fail: a failed assertion used to leave
+// a spliced socket open, and the process never exited
+const opened = new Set(), socks = new Set();
+const track = (s) => { socks.add(s); s.once("close", () => socks.delete(s)); return s; };
+test.afterEach(() => {
+  for (const s of socks) s.destroy();
+  for (const s of opened) s.close();
+  socks.clear(); opened.clear();
+});
+const T = { timeout: 15_000 };
+
 async function plane(recs, opts = {}) {
   const dp = createDataPlane({ lookup: (id) => recs[id] ?? null, ...opts });
+  opened.add(dp.server);
+  dp.server.on("connection", track);
   dp.server.listen(0, "127.0.0.1");
   await once(dp.server, "listening");
   dp.addr = `127.0.0.1:${dp.server.address().port}`;
@@ -33,7 +47,7 @@ async function plane(recs, opts = {}) {
 function ask(dp, first, extra = "") {
   return new Promise((resolve) => {
     const [host, port] = dp.addr.split(":");
-    const c = net.connect({ host, port: Number(port) });
+    const c = track(net.connect({ host, port: Number(port) }));
     let buf = "";
     c.on("data", (d) => { buf += d.toString("latin1"); const nl = buf.indexOf("\n"); if (nl >= 0) resolve({ c, answer: buf.slice(0, nl), rest: buf.slice(nl + 1) }); });
     c.on("close", () => resolve({ c, answer: buf || "(closed)" }));
@@ -42,14 +56,15 @@ function ask(dp, first, extra = "") {
   });
 }
 
-const rec = (r, over = {}) => ({ status: "running", appId: good.app, image: good.image, runtimeId: good.runtime, key: good.key,
+const rec = (r, over = {}) => ({ status: "running", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key,
   relay: { host: "127.0.0.1", port: r.port }, ...over });
 
 test("the first line is strict", () => {
   assert.deepEqual(parsePreamble(line(good)), good);
   const bad = {
     "an SNP route (measurement=)": line(good).replace(`image=${good.image}`, `measurement=${H("b", 48)}`),
-    "a guestd instance id": line({ ...good, id: "gd0a1b2c3d" }),
+    "an id with a slash": line({ ...good, id: "hv/0a1b" }),
+    "an id of 65 characters": line({ ...good, id: "h".repeat(65) }),
     "uppercase hex": line({ ...good, app: H("A") }),
     "a short key": line({ ...good, key: H("d", 31) }),
     "reordered": `ENCLAVE-SPLICE/1 app=${good.app} id=${ID} image=${good.image} runtime=${good.runtime} key=${good.key}`,
@@ -59,7 +74,7 @@ test("the first line is strict", () => {
   for (const [what, l] of Object.entries(bad)) assert.throws(() => parsePreamble(l), undefined, what);
 });
 
-test("an admitted splice carries bytes both ways, including bytes sent right after the first line", async () => {
+test("an admitted splice carries bytes both ways, including bytes sent right after the first line", T, async () => {
   const r = await relay(); const dp = await plane({ [ID]: rec(r) });
   const { c, answer, rest } = await ask(dp, line(good) + "\n", "early");
   assert.equal(answer, "OK");
@@ -72,7 +87,7 @@ test("an admitted splice carries bytes both ways, including bytes sent right aft
   c.destroy(); dp.server.close(); r.server.close();
 });
 
-test("every refusal answers NO and never reaches the domain", async () => {
+test("every refusal answers NO and never reaches the domain", T, async () => {
   const r = await relay();
   const recs = { [ID]: rec(r), hv00000001: rec(r, { status: "starting" }), hv00000002: rec(r, { relay: null }) };
   const dp = await plane(recs);
@@ -95,7 +110,7 @@ test("every refusal answers NO and never reaches the domain", async () => {
   dp.server.close(); r.server.close();
 });
 
-test("busy, reclaim, idle and an unreachable domain", async () => {
+test("busy, reclaim, idle and an unreachable domain", T, async () => {
   const r = await relay();
   const dead = net.createServer(); dead.listen(0, "127.0.0.1"); await once(dead, "listening");
   const deadPort = dead.address().port; dead.close();
@@ -118,15 +133,15 @@ test("busy, reclaim, idle and an unreachable domain", async () => {
   dp.server.close(); r.server.close();
 });
 
-test("interop: the supervisor's own routeFor + openSplice reach a partition through this plane", async () => {
+test("interop: the supervisor's own routeFor + openSplice reach a partition through this plane", T, async () => {
   const r = await relay();
   const dp = await plane({ [ID]: rec(r) });
-  const view = { id: ID, status: "running", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key };
+  const view = { id: ID, status: "running", tier: "T0-hv", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key };
   const transport = { request: async () => ({ status: 200, body: view }) };
   const route = await routeFor(transport, ID, good.app);
   assert.equal(route.image, good.image);
   assert.equal(route.measurement, undefined);
-  const s = await openSplice(dp.addr, route);
+  const s = track(await openSplice(dp.addr, route));
   s.resume();
   let got = "";
   s.on("data", (d) => { got += d.toString(); });
@@ -134,8 +149,10 @@ test("interop: the supervisor's own routeFor + openSplice reach a partition thro
   for (let i = 0; i < 50 && got !== "ping"; i++) await new Promise((x) => setTimeout(x, 20));
   assert.equal(got, "ping");
   s.destroy();
-  // a view that states a measurement for an hv instance, or no image, is no route at all
-  for (const bad of [{ ...view, image: undefined, measurement: H("b", 48) }, { ...view, image: "x" }, { ...view, id: "hv0a1b2c3" }]) {
+  // a T0-hv view that states a measurement instead of an image, a bad image, or an unsafe id is no route at all; and
+  // a view without the tier is judged as an SNP guest (guestd's shape), which this one is not
+  for (const bad of [{ ...view, image: undefined, measurement: H("b", 48) }, { ...view, image: "x" }, { ...view, id: "hv 1" },
+                     { ...view, tier: undefined }]) {
     await assert.rejects(routeFor({ request: async () => ({ status: 200, body: bad }) }, bad.id, good.app));
   }
   // and an SNP route sent to this plane is refused by it
