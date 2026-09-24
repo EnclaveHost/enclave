@@ -71,6 +71,7 @@ cat > "$W/bin/fakeadb" <<'EOF'
 #!/usr/bin/env bash
 # install -r <apk>: "installs" by copying (FAKE_INSTALL_FAIL: refused; FAKE_INSTALL_CORRUPT: the stored copy differs)
 if [ "${1:-}" = install ]; then [ -n "${FAKE_INSTALL_FAIL:-}" ] && exit 1
+  echo x >> "$FAKE_HOME/installs"; [ -n "${FAKE_INSTALL_HANG:-}" ] && /bin/sleep 30   # the real sleep: $W/bin/sleep is a no-op
   cp "$3" "$FAKE_HOME/installed.apk" || exit 1; [ -n "${FAKE_INSTALL_CORRUPT:-}" ] && printf x >> "$FAKE_HOME/installed.apk"; exit 0; fi
 [ "${1:-}" = shell ] || exit 0
 shift
@@ -155,6 +156,13 @@ lc_apk; ck "an APK row installs, is hashed on the device and runs" "$(grep -c "^
 lc_apk FAKE_INSTALL_FAIL=1; ck "a failed install fails that run (97) without starting it" "$(grep -c $'^la-1\ta\t\tfailed\t97\t' "$W/lca/RUNS.tsv")/$( [ -e "$W/lca/la-1.driver" ] && echo started || echo not-started)" "1/not-started"
 ck "... and the next condition still runs" "$(grep -c $'^la-2\tb\t\tok\t0\t-$' "$W/lca/RUNS.tsv")" 1
 lc_apk FAKE_INSTALL_CORRUPT=1; ck "an installed copy that differs from the local APK fails that run" "$(grep -c $'^la-1\ta\t\tfailed\t97\t' "$W/lca/RUNS.tsv")" 1
+# two rows naming the same build: installed once, both rows hashed on the device and recorded
+lc_same() { rm -rf "$W/home" "$W/lcs"; mkdir -p "$W/home/files/capture"; printf 'ls-1\ta\t\t%s\nls-2\ta\t\t%s\n' "$W/a.apk" "$W/a.apk" > "$W/conds2.tsv"
+  OUT=$(env -i HOME="$HOME" PATH="$W/bin:/usr/bin:/bin" ADB="$W/bin/fakeadb" FAKE_STUBS="$W/stubs" FAKE_HOME="$W/home" COOL_TRIES=1 COOL_SLEEP=0 LANE_TRIES=3 LANE_SLEEP=0 LANE_CPU=0 ASK="Say hi." "$@" \
+        bash "$HERE/lane-conditions.sh" "$W/lcs" "$W/conds2.tsv" 2>&1); }
+lc_same; ck "the same build on two rows: installed once" "$(wc -l < "$W/home/installs")" 1
+ck "... and both rows ran and name it" "$(grep -c $'\tok\t0\t'"$A_SHA\$" "$W/lcs/RUNS.tsv")" 2
+lc_same FAKE_INSTALL_HANG=1 INSTALL_TIMEOUT=1; ck "an install that hangs (a prompt nobody answers) fails the row instead of the batch" "$(grep -c $'^ls-1\ta\t\tfailed\t97\t' "$W/lcs/RUNS.tsv")" 1
 ASK_='Say hi.'; run cpuonly GRAPHS=none FAKE_CPU_ONLY=1; ck "GRAPHS=none: a CPU-only run with no TPU records passes" "$RC" 0
 run cpuonly-tpu GRAPHS=none; ck "GRAPHS=none but the capture shows a TPU worker: refused" "$RC" 1
 run tpu-no-counters FAKE_CPU_ONLY=1; ck "a TPU run without TPU records: refused" "$RC" 1

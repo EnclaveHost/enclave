@@ -7,6 +7,7 @@
 #   ./build.sh probe                # the complete trusted half + shielded-probe, static, for the phone
 #   ./build.sh engine               # libggml-shielded.so + ggml-test + shielded-run for the phone (see build-ggml-arm64.sh)
 #   ./build.sh engine-pvm           # the VM-side engine: libengine.so, liblocalengine.so, libggml-tpu.so
+#   ANCHOR_TIER=pvm-cpu ./build.sh anchor   # the pVM CPU product build (PVM-CPU.md): out/anchor-pvm-cpu.apk, CPU engine only
 #
 # The VM-side libraries are built ONLY by engine-pvm; `anchor` packages what it finds and now REFUSES if a
 # source is newer than its library. A run that touches the TPU worker needs both, in order, and the worker
@@ -33,7 +34,12 @@ CLANG="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android${API
 HDR="${AVF_HDR:-$HERE}"          # $HDR/avfref/{vm_payload.h,libvm_payload.map.txt}: vendored from AOSP (avfref/NOTICE)
 GG="$HERE/../../../wasm/ggml-shielded"
 CORE="$HERE/../core"
-OUT="$HERE/out"; STUB="$OUT/stub"; STAGE="$OUT/stage-$NAME"
+# ANCHOR_TIER: "research" (default: the combined build -- local, split engine, the closed TPU lane) or "pvm-cpu" (PVM-CPU.md:
+# the payload + the CPU engine and nothing else; its own stage, APK name, manifest and therefore its own codeHash).
+TIER="${ANCHOR_TIER:-research}"
+case "$TIER" in research) SUFFIX="" ;; pvm-cpu) [ "$NAME" = anchor ] || { echo "ANCHOR_TIER=pvm-cpu builds the anchor only" >&2; exit 2; }; SUFFIX="-pvm-cpu" ;;
+  *) echo "ANCHOR_TIER must be research or pvm-cpu" >&2; exit 2 ;; esac
+OUT="$HERE/out"; STUB="$OUT/stub"; STAGE="$OUT/stage-$NAME$SUFFIX"
 mkdir -p "$STUB" "$STAGE/lib/arm64-v8a" "$STAGE/assets"
 
 # The APK signing key is the payload's identity to a verifier (its SHA-512 is the
@@ -155,14 +161,25 @@ case "$NAME" in
                       "$HERE/../harness/worker-client.c" "$HERE/../harness/wire-fd.c" "$GG/shielded-pads.c" "$GG/shielded-bank.c" "$GG/shielded-http.c" "$GG/prefix-kv.c" "$GG/poly1305-donna.c"
                       "$HERE/payload/third_party/tweetnacl.c" "$OUT/simd-neon-pic.o")
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)
+                GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
+                if [ "$TIER" = pvm-cpu ]; then
+                  # pVM CPU (PVM-CPU.md): the payload + the CPU engine, NOTHING else -- no split engine (libengine.so,
+                  # libggml-shielded.so, model.calib), no TPU backend (libggml-tpu.so), no TPU worker or Tensor dispatch
+                  # library. The payload is compiled with ANCHOR_TIER_PVM_CPU and refuses every mode but LOCAL.
+                  [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$OUT/engine-pvm/libllama-common.so" ] && [ -f "$GR/lib/libggml-cpu.so" ] || {
+                    echo "pvm-cpu: needs build.sh engine-pvm and GGML_CPU_REPACK=ON ./build-ggml-arm64.sh $HERE/out/ggml-arm64-repack-work" >&2; exit 2; }
+                  [ "$HERE/payload/engine_local.cpp" -nt "$OUT/engine-pvm/liblocalengine.so" ] && { echo "STALE: payload/engine_local.cpp is newer than liblocalengine.so. Run ./build.sh engine-pvm first." >&2; exit 2; }
+                  cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
+                  EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libllama-common.so"
+                              "$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so")
+                  CFLAGS+=(-DANCHOR_TIER_PVM_CPU)
+                  echo "pvm-cpu: bundling the CPU engine only (${#EXTRA_LIBS[@]} libraries); no split engine, no TPU backend or worker"
                 # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration
-                GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"
-                if [ -f "$OUT/engine-pvm/libengine.so" ]; then
+                elif [ -f "$OUT/engine-pvm/libengine.so" ]; then
                   EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libggml-cpu.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libggml-shielded.so" "$OUT/engine-pvm/libengine.so")
                   EXTRA_ASSETS=("${ANCHOR_CALIB:-$HERE/../../../metal/shielded-overlay/calib/qwen3.5-0.8b-mtp-gguf.calib}")
                   echo "engine: bundling ${#EXTRA_LIBS[@]} libraries + $(basename "${EXTRA_ASSETS[0]}") as assets/model.calib"
                   # the local engine rides along when both of its pieces exist: liblocalengine.so and the repacking CPU module
-                  GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
                   if [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$GR/lib/libggml-cpu.so" ]; then
                     cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
                     # STALENESS GUARD. These libraries are built by `build.sh engine-pvm`, NOT here: editing
@@ -193,7 +210,7 @@ rm -f "$STAGE"/lib/arm64-v8a/*.so
    -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so
 for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"; done
 # App-side echo diagnostic; no libvm_payload dependency and no inference hook.
-if [ "$NAME" = anchor ]; then
+if [ "$NAME" = anchor ] && [ "$TIER" != pvm-cpu ]; then
   "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so"
   "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so"   # opt-in native worker bridge (--ez nativebridge true)
 fi
@@ -205,6 +222,9 @@ for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.
 # assets/ledger.pk, model.sha256, prefix.pk. A protected build refuses to package without all three.
 MODE="${ANCHOR_MODE:-dev}"; case "$MODE" in dev|protected) ;; *) echo "ANCHOR_MODE must be dev or protected" >&2; exit 2;; esac
 printf '%s\n' "$MODE" > "$STAGE/assets/anchor.mode"
+printf '%s\n' "$TIER" > "$STAGE/assets/tier"   # measured with the APK (codeHash): the app shows the tier from it; the relay admits by codeHash
+if [ "$TIER" = pvm-cpu ]; then for v in ANCHOR_LEDGER_PK ANCHOR_PREFIX_PK ANCHOR_SOURCE_CATALOG_SHA256 ANCHOR_ENCODED_CATALOG_SHA256 ANCHOR_CONVERTER_SHA256 ANCHOR_SOURCE_CATALOG ANCHOR_ENCODED_CATALOG ANCHOR_MASKBENCH_PADS; do
+  [ -z "${!v:-}" ] || { echo "pvm-cpu: $v is split-engine machinery and is not packaged in this tier (the payload would refuse it)" >&2; exit 2; }; done; fi
 # An unset variable REMOVES the staged pin: the stage directory persists between builds, and a dev build
 # after a protected one must not inherit the other's pins (nor a protected build another model's).
 pin() { local var="$1" file="$2"; local src="${!var:-}"; if [ -n "$src" ]; then [ -f "$src" ] || { echo "$var: $src not found" >&2; exit 2; }
@@ -230,7 +250,8 @@ for pair in source-catalog.sha256:model.agcat encoded-catalog.sha256:model.ewcat
     if [ -f "$STAGE/assets/$p" ] && [ "$(sha256sum "$STAGE/assets/$a" | cut -c1-64)" != "$(cat "$STAGE/assets/$p")" ]; then echo "assets/$p is not the digest of the staged assets/$a" >&2; exit 2; fi
 done
 if [ -f "$STAGE/assets/encoded-catalog.sha256" ] && { [ ! -f "$STAGE/assets/source-catalog.sha256" ] || [ ! -f "$STAGE/assets/converter.sha256" ]; }; then echo "an encoded catalog needs the source-catalog and converter pins" >&2; exit 2; fi
-if [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
+if [ "$MODE" = protected ] && [ "$TIER" = pvm-cpu ]; then [ -f "$STAGE/assets/model.sha256" ] || { echo "protected pvm-cpu build needs assets/model.sha256 (set ANCHOR_MODEL_SHA256)" >&2; exit 2; }
+elif [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'
 
@@ -244,7 +265,14 @@ echo "dex: $(stat -c %s "$STAGE/dex/classes.dex") bytes"
 
 # --- 4. the APK: manifest via aapt2, dex + native lib stored uncompressed ----
 cd "$STAGE"
-"$BT/aapt2" link -o unaligned.apk --manifest "$HERE/AndroidManifest.xml" \
+MANIFEST="$HERE/AndroidManifest.xml"
+if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label; same package, so the provisioned model is kept
+  MANIFEST="$STAGE/AndroidManifest.xml"
+  sed -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
+      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave pVM CPU"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"
+  ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
+fi
+"$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" \
    -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API
 # extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign -p
 python3 - "$NAME" <<'PYZ'
@@ -261,7 +289,7 @@ PYZ
 "$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
 "$BT/apksigner" sign --ks "$HERE/keys/anchor.jks" --ks-pass pass:anchor123 --ks-key-alias anchor \
    --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
-   --out "$OUT/$NAME.apk" aligned.apk
+   --out "$OUT/$NAME$SUFFIX.apk" aligned.apk
 # the v4 signature's Merkle root IS the pVM's codeHash for this apk (pins.py); vm run-app takes the file as its idsig
-"$BT/apksigner" verify --print-certs "$OUT/$NAME.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
-echo "APK: $OUT/$NAME.apk ($(stat -c %s "$OUT/$NAME.apk") bytes)"
+"$BT/apksigner" verify --print-certs "$OUT/$NAME$SUFFIX.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
+echo "APK: $OUT/$NAME$SUFFIX.apk ($(stat -c %s "$OUT/$NAME$SUFFIX.apk") bytes, tier $TIER)"

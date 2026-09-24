@@ -1,0 +1,51 @@
+Q4 start 16:15:35
+== df-01 (default) 16:15:35
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+LANE-RUN FAIL df-01: label df-01 is already used on the device (or the check failed)
+== df-02 (default) 16:15:39
+LOCAL turn 1 STATS {status=eos, prefill_tokens=28, prefill_tok_s=26.19, decode_tokens=57, decode_tok_s=1.63, ctx_used=85, ctx=4096, steps=21, drafted=63, accepted=39, tokens_per_step=2.71}
+big-core cap through the run: cpu2 min 3052000, cpu7 min 3782000 (27 samples)
+cpu turn 1 decode window 33.35 s (57 tokens): COMPLETE: the app's processes 99.68 core-s = 2.99 cores busy, 1749 core-ms per decoded token (edge interpolation +-1.80 core-s) [crosvm_anchorlocal 95.66, host.enclave.anchor.avf 4.02, virtmgr_lave.anchor.avf 0.00] | 5.45 cores busy device-wide
+LANE-RUN OK df-02
+LANE-CONDITIONS END
+== dp-01 (d1) 16:18:16
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=15.95, decode_tokens=80, decode_tok_s=1.51, ctx_used=113, ctx=4096, steps=47, drafted=47, accepted=34, tokens_per_step=1.70}
+big-core cap through the run: cpu2 min 2400000, cpu7 min 2592000 (32 samples)
+cpu turn 1 decode window 51.23 s (80 tokens): COMPLETE: the app's processes 176.38 core-s = 3.44 cores busy, 2205 core-ms per decoded token (edge interpolation +-2.56 core-s) [crosvm_anchorlocal 170.42, host.enclave.anchor.avf 5.95, virtmgr_lave.anchor.avf 0.00] | 5.37 cores busy device-wide
+LANE-RUN OK dp-01
+== dp-02 (d2) 16:21:23
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=25.98, decode_tokens=80, decode_tok_s=1.59, ctx_used=113, ctx=4096, steps=37, drafted=69, accepted=45, tokens_per_step=2.16}
+big-core cap through the run: cpu2 min 3052000, cpu7 min 3398000 (30 samples)
+cpu turn 1 decode window 47.20 s (80 tokens): COMPLETE: the app's processes 154.61 core-s = 3.28 cores busy, 1933 core-ms per decoded token (edge interpolation +-2.28 core-s) [crosvm_anchorlocal 148.61, host.enclave.anchor.avf 6.00, virtmgr_lave.anchor.avf 0.00] | 5.30 cores busy device-wide
+LANE-RUN OK dp-02
+== dp-03 (d3) 16:49:37
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=19.17, decode_tokens=80, decode_tok_s=1.58, ctx_used=113, ctx=4096, steps=36, drafted=72, accepted=46, tokens_per_step=2.22}
+big-core cap through the run: cpu2 min 2284000, cpu7 min 2342000 (30 samples)
+cpu turn 1 decode window 48.47 s (80 tokens): COMPLETE: the app's processes 162.67 core-s = 3.36 cores busy, 2033 core-ms per decoded token (edge interpolation +-2.23 core-s) [crosvm_anchorlocal 157.26, host.enclave.anchor.avf 5.41, virtmgr_lave.anchor.avf 0.00] | 5.69 cores busy device-wide
+LANE-RUN OK dp-03
+== dp-04 (d4) 16:52:48
+VSOCK LOCAL tpu turn 1: exchanges by duration (<25us <100us <400us <1.6ms longer): unmask 0 1 996 2533 1510 | between exchanges 152 714 1891 1620 662
+big-core cap through the run: cpu2 min 1939000, cpu7 min 2208000 (31 samples)
+cpu turn 1 decode window 52.12 s (80 tokens): COMPLETE: the app's processes 176.77 core-s = 3.39 cores busy, 2210 core-ms per decoded token (edge interpolation +-2.88 core-s) [crosvm_anchorlocal 170.86, host.enclave.anchor.avf 5.91, virtmgr_lave.anchor.avf 0.00] | 5.51 cores busy device-wide
+LANE-RUN OK dp-04
+== dp-05 (nd) 16:57:33
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=21.38, decode_tokens=80, decode_tok_s=0.90, ctx_used=113, ctx=4096}
+big-core cap through the run: cpu2 min 2937000, cpu7 min 2707000 (37 samples)
+cpu turn 1 decode window 88.41 s (80 tokens): COMPLETE: the app's processes 182.09 core-s = 2.06 cores busy, 2276 core-ms per decoded token (edge interpolation +-1.73 core-s) [crosvm_anchorlocal 167.81, host.enclave.anchor.avf 14.28, virtmgr_lave.anchor.avf 0.00] | 4.19 cores busy device-wide
+LANE-RUN OK dp-05
+== dp-06 (nd) 17:04:15
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=24.49, decode_tokens=76, decode_tok_s=0.94, ctx_used=109, ctx=4096}
+big-core cap through the run: cpu2 min 2841000, cpu7 min 2707000 (35 samples)
+cpu turn 1 decode window 81.20 s (76 tokens): COMPLETE: the app's processes 174.02 core-s = 2.14 cores busy, 2290 core-ms per decoded token (edge interpolation +-1.42 core-s) [crosvm_anchorlocal 158.46, host.enclave.anchor.avf 15.56, virtmgr_lave.anchor.avf 0.00] | 3.81 cores busy device-wide
+LANE-RUN OK dp-06
+== dp-07 (d4) 17:10:46
+LOCAL turn 1 STATS {status=eos, prefill_tokens=33, prefill_tok_s=17.98, decode_tokens=80, decode_tok_s=1.41, ctx_used=113, ctx=4096, steps=35, drafted=75, accepted=49, tokens_per_step=2.29}
+big-core cap through the run: cpu2 min 1785000, cpu7 min 2208000 (32 samples)
+cpu turn 1 decode window 53.83 s (80 tokens): COMPLETE: the app's processes 177.29 core-s = 3.29 cores busy, 2216 core-ms per decoded token (edge interpolation +-2.30 core-s) [crosvm_anchorlocal 170.98, host.enclave.anchor.avf 6.31, virtmgr_lave.anchor.avf 0.00] | 5.67 cores busy device-wide
+LANE-RUN OK dp-07
+== dp-08 (d3) 17:17:01
+big-core cap through the run: cpu2 min 1785000, cpu7 min 2208000 (32 samples)
+cpu turn 1 decode window 56.47 s (80 tokens): INCOMPLETE (a lower bound): the app's processes 185.35 core-s = 3.28 cores busy, 2317 core-ms per decoded token (edge interpolation +-2.99 core-s) [crosvm_anchorlocal 178.80, host.enclave.anchor.avf 6.55, virtmgr_lave.anchor.avf 0.00] | 5.58 cores busy device-wide
+  coverage: the samples around the window start are 1.01 s apart (> 1.0)
+LANE-RUN OK dp-08
+== dp-09 (d2) 17:24:39
