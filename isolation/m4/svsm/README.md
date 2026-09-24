@@ -424,6 +424,11 @@ matters:
 * **It revokes naming, not evidence already issued.** A report fetched before reclaim stays a valid report: it is
   signed, its measurement is unchanged, and only the verifier's own nonce expires it. Reclaim stops the SVSM
   speaking for the plane from then on; it cannot reach back into reports already handed out.
+* **A frame that was recorded but never frozen is zeroed too.** If a freeze failed before reaching frame *k*,
+  that frame is still in the list and reclaim zeroes it like any other. That is correct rather than a bug: these
+  are artifact pages the plane offered for admission, and zeroing a page whose freeze never happened costs the
+  plane nothing it had a claim to - while leaving it alone would mean reclaim's guarantee ("nothing of the old
+  artifact survives") depended on how far a failed freeze got.
 * **It fails closed.** The naming and the key are cleared BEFORE any page is touched, so a failure partway leaves
   the plane unspoken-for rather than named over a half-erased artifact. Unprocessed frames stay recorded, the
   PVALIDATE hook keeps refusing them, and a later RECLAIM retries the remainder instead of being told there is

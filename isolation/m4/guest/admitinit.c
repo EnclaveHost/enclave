@@ -144,6 +144,9 @@ static void stop(void) {
     for (;;) pause();
 }
 
+/* the stand-in transport key, built once and reused when reclaim forgets it */
+static char keyhex[256 * 2 + 2];
+
 int main(void) {
     mkdir("/proc", 0555); mkdir("/sys", 0555);
     mount("proc", "/proc", "proc", 0, 0);
@@ -240,7 +243,6 @@ int main(void) {
     /* 4a. Register this plane's transport key. A stand-in for a real domain TLS key: what matters is that the
      * SVSM binds THE KEY THIS PLANE REGISTERED, which a verifier checks by recomputing Bind2 over the same
      * bytes. The report cannot carry any other key afterwards, and a second registration must be refused. */
-    static char keyhex[256 * 2 + 2];
     for (int i = 0; i < 91; i++) snprintf(keyhex + i * 2, 3, "%02x", (i * 11 + 5) & 0xff);
     e = puts_("key", keyhex);
     say("register_key", e == 0 ? "ok" : strerror(-e));
@@ -288,6 +290,64 @@ int main(void) {
     say("thaw_admitted_2m", e == 0 ? "GRANTED (a huge entry thawed it)" : "refused");
     show("thaw_admitted_2m_result", "result");
 
-    say("poke", "skipped in the good path: a write to a frozen page livelocks the vCPU rather than faulting");
+    say("poke", "skipped while the artifacts are admitted: a write to a frozen page livelocks the vCPU");
+
+    /* 7. RECLAIM. contract.Lifecycle promises exactly one reclamation however a domain ends; this is the half a
+     * plane performs at its own request. Everything after it checks that the SVSM really let go. */
+    e = puts_("reclaim", "1");
+    say("reclaim", e == 0 ? "ok" : strerror(-e));
+    show("reclaim_result", "result");
+    show("status_after_reclaim", "status");        /* admitted=0x00 and key=0 */
+    show("whoami_after_reclaim", "whoami");       /* must be refused: the plane is unnamed again */
+    say("report_after_reclaim", puts_("report", "1") == 0 ? "GRANTED" : "refused");
+    show("report_after_reclaim_result", "result");
+
+    /* the pages must be BACK and BLANK: writable again, and carrying nothing of the old artifact */
+    e = puts_("slot", "1");
+    say("select_runtime_slot_again", e == 0 ? "ok" : strerror(-e));
+    show("peek_runtime_after_reclaim", "peek");   /* all zeros */
+    say("poke_after_reclaim", "writing to a page the SVSM unfroze");
+    e = puts_("poke", "0 255");
+    say("poke_after_reclaim_result", e == 0 ? "WROTE" : strerror(-e));
+
+    /* and the frames must have left the PVALIDATE hook's list, not merely be consulted less often */
+    e = puts_("thaw", "0 0");
+    say("thaw_after_reclaim", e == 0 ? "allowed (the frame left the hook's list)" : "refused");
+    show("thaw_after_reclaim_result", "result");
+    e = puts_("thaw", "0 1");
+    say("thaw_after_reclaim_revalidate", e == 0 ? "ok" : strerror(-e));
+
+    /* 8. a second RECLAIM must be a CODED no-op, not a silent success */
+    e = puts_("reclaim", "1");
+    say("reclaim_again", e == 0 ? "GRANTED" : "refused");
+    show("reclaim_again_result", "result");
+
+    /* 9. the full cycle: re-stage, re-admit, re-register, and the SVSM names the plane again. The module reset
+     * its own staged lengths when the reclaim succeeded - without that, staging would append at a stale offset
+     * over pages the SVSM had zeroed underneath it. */
+    e = puts_("slot", "0");
+    say("re_select_bundle", e == 0 ? "ok" : strerror(-e));
+    e = stage("/app.bundle", 0);
+    say("re_stage_bundle", e == 0 ? "ok" : strerror(-e));
+    show("re_staged_bundle", "artifact");
+    e = puts_("admit", "0");
+    say("re_admit_bundle", e == 0 ? "ok" : strerror(-e));
+    show("re_admit_bundle_result", "result");
+    e = puts_("slot", "1");
+    say("re_select_runtime", e == 0 ? "ok" : strerror(-e));
+    e = stage("/rt/wasmtime", 0);
+    say("re_stage_runtime", e == 0 ? "ok" : strerror(-e));
+    e = puts_("admit", "1");
+    say("re_admit_runtime", e == 0 ? "ok" : strerror(-e));
+    show("re_admit_runtime_result", "result");
+    show("status_after_re_admit", "status");
+    show("whoami_after_re_admit", "whoami");      /* named again */
+    /* the key was forgotten with the naming, so a report needs it registered again */
+    e = puts_("key", keyhex);
+    say("re_register_key", e == 0 ? "ok" : strerror(-e));
+    e = puts_("report", "1");
+    say("report_after_re_admit", e == 0 ? "GRANTED" : strerror(-e));
+    show("report_after_re_admit_result", "result");
+
     stop();
 }
