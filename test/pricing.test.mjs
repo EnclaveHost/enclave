@@ -112,6 +112,9 @@ test("shareRates reads the adopted hardware, not constants", () => {
 
 /* ---- per-enclave targeting (the quick-deploy modal's "deploys to X" pick) ---- */
 
+// A shielded card sells only with Enclave Shield evidence (the masked-offload proof its box's
+// measured image ran); the fixtures that place work on such a card carry it.
+const PROOF = { ok: true, exact: true, verified: true, noPlaintext: true, lieRejected: true, denylistRefused: true };
 // Hardware evidence is the fixture default (a dialed box whose RAD named a confidential CPU):
 // eligibility for tenant compute is derived from it (computeEligibleOf), so a row without it is
 // not a target at all. A test ABOUT missing evidence sets teeCpu: null explicitly.
@@ -639,7 +642,7 @@ test("gpuDowngradeForMove gives the card back when the destination has none", ()
    attestation that does not cover them. Caught by a human looking at the page,
    which is not a control. These are. */
 test("a shielded card is never badged as being inside the enclave", () => {
-  const shielded = { availability: { gpu: true, shielded: {
+  const shielded = { availability: { gpu: true, shielded: { proof: PROOF, 
     card: "NVIDIA GeForce RTX 3070", vramGb: 7.7, vramFreeGb: 6.9, vramBudgetGb: 6.5, gmacPerSec: 7536 } } };
   const c = enclaveClassOf(shielded);
   assert.equal(c.kind, "shielded-gpu");
@@ -667,7 +670,7 @@ test("TEE CPU is badged from evidence, never from the box having no card", () =>
   t = teeCpuOf({ availability: { gpu: true, teeCpu: "intel-tdx" } });
   assert.equal(t.real, true); assert.equal(t.label, "Intel TDX");
   // the card does not enter into it: a shielded box on an SNP CPU is a TEE CPU
-  t = teeCpuOf({ availability: { gpu: true, teeCpu: "amd-sev-snp", shielded: { vramGb: 8, vramFreeGb: 4 } } });
+  t = teeCpuOf({ availability: { gpu: true, teeCpu: "amd-sev-snp", shielded: { proof: PROOF,  vramGb: 8, vramFreeGb: 4 } } });
   assert.equal(t.real, true);
   // the relay verified a fresh SEV-SNP quote at attach: proof from its side
   t = teeCpuOf({ tunnel: true, mode: "snp", availability: { gpu: false } });
@@ -708,7 +711,7 @@ test("a shielded card is one pool, sized by what it can actually sell", () => {
   // advertise VRAM the untrusted host keeps for itself -- and quoting it BESIDE
   // the GPU pool's 6.5 is what drew two differently-sized GPU rows on a box with
   // one card in it.
-  const p = shieldedPoolOf({ availability: { shielded: {
+  const p = shieldedPoolOf({ availability: { shielded: { proof: PROOF, 
     vramGb: 7.7, vramFreeGb: 6.9, vramBudgetGb: 6.5 } } });
   assert.equal(p.total, 6.5, "the pool must be the sellable budget, not the physical card");
   assert.equal(p.freeGb, 6.5, "free is clamped to the budget, never the card's free VRAM");
@@ -717,15 +720,15 @@ test("a shielded card is one pool, sized by what it can actually sell", () => {
 
   // protocol 1.3: the box already nets vramFreeGb of what tenants reserved at
   // HELLO and says how much that was, clamped to the budget like everything else
-  const r = shieldedPoolOf({ availability: { shielded: {
+  const r = shieldedPoolOf({ availability: { shielded: { proof: PROOF, 
     vramGb: 7.7, vramFreeGb: 5.5, vramBudgetGb: 6.5, vramReservedGb: 1.0 } } });
   assert.equal(r.reservedGb, 1.0);
   assert.equal(r.freeGb, 5.5);
-  assert.equal(shieldedPoolOf({ availability: { shielded: {
+  assert.equal(shieldedPoolOf({ availability: { shielded: { proof: PROOF, 
     vramGb: 7.7, vramFreeGb: 0, vramBudgetGb: 6.5, vramReservedGb: 99 } } }).reservedGb, 6.5);
 
   // no budget reported (older probe) -> fall back to the physical total
-  assert.equal(shieldedPoolOf({ availability: { shielded: { vramGb: 8, vramFreeGb: 4 } } }).total, 8);
+  assert.equal(shieldedPoolOf({ availability: { shielded: { proof: PROOF,  vramGb: 8, vramFreeGb: 4 } } }).total, 8);
   assert.equal(shieldedPoolOf({ availability: {} }), null);
 });
 
@@ -736,7 +739,7 @@ test("a shielded pool advertises what can be LEASED, not what is resident", () =
   // available" for a card the allocator would refuse to sell.
   const row = { availability: {
     gpuShareFree: 0,
-    shielded: { vramGb: 7.65, vramFreeGb: 6.28, vramBudgetGb: 6.5 } } };
+    shielded: { proof: PROOF,  vramGb: 7.65, vramFreeGb: 6.28, vramBudgetGb: 6.5 } } };
   const p = shieldedPoolOf(row);
   assert.equal(p.frac, 0, "a fully leased card must advertise nothing available");
   assert.equal(p.leasableGb, 0);
@@ -746,7 +749,7 @@ test("a shielded pool advertises what can be LEASED, not what is resident", () =
 
   // a partly leased card quotes the remainder, not the VRAM
   const half = shieldedPoolOf({ availability: {
-    gpuShareFree: 0.4, shielded: { vramGb: 7.65, vramFreeGb: 6.4, vramBudgetGb: 6.5 } } });
+    gpuShareFree: 0.4, shielded: { proof: PROOF,  vramGb: 7.65, vramFreeGb: 6.4, vramBudgetGb: 6.5 } } });
   assert.equal(half.frac, 0.4);
   assert.ok(Math.abs(half.leasableGb - 2.6) < 1e-9);
 
@@ -756,7 +759,7 @@ test("a shielded pool advertises what can be LEASED, not what is resident", () =
 
   // a row too old to report gpuShareFree keeps the previous behaviour
   const legacy = shieldedPoolOf({ availability: {
-    shielded: { vramGb: 7.65, vramFreeGb: 3.25, vramBudgetGb: 6.5 } } });
+    shielded: { proof: PROOF,  vramGb: 7.65, vramFreeGb: 3.25, vramBudgetGb: 6.5 } } });
   assert.equal(legacy.frac, 0.5, "no gpuShareFree -> fall back to the physical ratio");
 });
 
@@ -865,7 +868,7 @@ test("a free sibling GPU does not make a leased primary shielded card look avail
 
 test("a pooled GPU uses aggregate capacity and its pool lease fraction", () => {
   const p = shieldedPoolOf({ availability: { gpuShareFree: .1,
-    shielded: { pooled: true, vramGb: 68.5, vramBudgetGb: 68.5, vramFreeGb: 6.85 },
+    shielded: { proof: PROOF,  pooled: true, vramGb: 68.5, vramBudgetGb: 68.5, vramFreeGb: 6.85 },
     shieldedCards: [{ id: 0, gpuShareFree: .8, vramGb: 6.5 }] } });
   assert.equal(p.total, 68.5); assert.equal(p.frac, .1);
   assert.ok(Math.abs(p.leasableGb - 6.85) < 1e-9);
@@ -987,7 +990,7 @@ test("a shielded card serves any size, so it keeps the CARD-case node floor", ()
 
   // metal0 exactly as /enclaves reports it: a card, and the shielded block
   const shielded = row("metal0", { gpu: true, claimEnabled: true, ...HW,
-    shielded: { vramGb: 62, vramFreeGb: 40, vramBudgetGb: 62 },
+    shielded: { proof: PROOF,  vramGb: 62, vramFreeGb: 40, vramBudgetGb: 62 },
     gpuShareFree: 0.85, cpuShareFree: 0.62 }, { id: ID_A });
   const [t] = rankEnclavesFor(V, [shielded]);
   assert.equal(t.weightsOnCores, false, "150% is not a reason to leave a shielded card");
@@ -1003,11 +1006,11 @@ test("a shielded card serves any size, so it keeps the CARD-case node floor", ()
 
 test("cardServesApp is the console's copy of gpuRouting, shielded rule included", () => {
   const big = { gpuNeedPct: 150 }, small = { gpuNeedPct: 36 };
-  assert.equal(cardServesApp({ gpu: true, shielded: { vramGb: 62 } }, big), true,
+  assert.equal(cardServesApp({ gpu: true, shielded: { proof: PROOF,  vramGb: 62 } }, big), true,
     "shielded: any size, offloaded per matmul");
   assert.equal(cardServesApp({ gpu: true }, big), false, "local: weights must fit or it dies at load");
   assert.equal(cardServesApp({ gpu: true }, small), true);
-  assert.equal(cardServesApp({ gpu: false, shielded: { vramGb: 62 } }, small), false,
+  assert.equal(cardServesApp({ gpu: false, shielded: { proof: PROOF,  vramGb: 62 } }, small), false,
     "no card advertised is no card, whatever the block says");
   assert.equal(cardServesApp(null, small), false, "no host known: not on a card");
 });

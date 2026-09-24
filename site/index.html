@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
     <c-section-head eyebrow="What you get" heading="Portable apps. One isolation contract. Verifiable execution. Independent infrastructure.">
-      <p>Enclave is building one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract a host must prove before it can run anything. <b>Enclave Shield</b> is the isolation layer that meets that contract on hosts without a confidential-computing processor; confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
+      <p>Enclave is building one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract a host must prove before it can run anything. Where a GPU sits outside a confidential boundary, <b>Enclave Shield</b>, our protected GPU offload, is the only way it is used. Confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -154,9 +154,9 @@
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
-        <span class="tag">the isolation layer</span>
-        <h3>Enclave Shield</h3>
-        <p>Our OS-neutral, VBS-like isolation layer for hosts without a confidential-computing processor. Each app runs in its own hardware-isolated domain that the machine's ordinary operating system cannot see into; identity is measured, keys and traffic are bound to it, verification fails closed, cleanup leaves nothing behind. One contract, with backends on Windows and Linux, and the only supported way to expose a GPU on such a host. A host must prove it before it is listed. <a href="#protection">The contract →</a></p>
+        <span class="tag">hardware-isolated</span>
+        <h3>Isolated by contract</h3>
+        <p>One security contract, independent of the operating system: each app in its own hardware-isolated domain, the machine's ordinary operating system kept out by a smaller measured trusted layer, identity measured, keys and traffic bound to it, verification that fails closed, cleanup that leaves nothing behind. We are building it with backends on Windows and Linux, and a host must prove it before it is listed. Any GPU outside a confidential boundary is reached only through <b>Enclave Shield</b>: masked in, verified out. <a href="#protection">The contract →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
@@ -217,14 +217,14 @@
 <section id="protection" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="The isolation contract">
   <div class="wrap">
     <c-section-head eyebrow="The contract" heading="One isolation contract, two ways to meet it.">
-      <p>A protection level here is a set of guarantees a host proves with evidence, never a name for an operating system. <b>Enclave Shield</b> is the isolation layer we are building to meet the contract on hosts without a confidential-computing processor. Confidential hardware meets the same contract and adds protection from the machine's operator, without changing what your app is or how it is verified.</p>
+      <p>A protection level here is a set of guarantees a host proves with evidence, never a name for an operating system or a chip. On an ordinary machine the contract is met by the isolation layer we are building; on confidential hardware it is met by the processor, which adds protection from the machine's operator. Either way, a GPU is a separate question, answered by the card's own protection mode: inside the boundary if it runs in confidential-computing mode, otherwise only through <b>Enclave Shield</b>.</p>
     </c-section-head>
 
     <div class="cards iso-cards lvl-cards">
       <div class="card iris">
-        <span class="tag">Enclave Shield</span>
+        <span class="tag">the isolation contract</span>
         <h3>The host's operating system cannot see in</h3>
-        <p>Enclave Shield is our OS-neutral, VBS-like isolation layer for hosts without a confidential-computing TEE. Every app runs in its own hardware-isolated domain, kept out of the machine's ordinary operating system by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. On Windows it maps the contract onto VBS and Hyper-V hardware isolation and the paravisor direction; a Linux backend is part of the product only if it enforces the same contract, and there is no software-only fallback. What it does not add is the separate guarantee a confidential processor gives, that the machine's owner cannot inspect the data. No host is listed on Enclave Shield until a backend passes the common acceptance tests.</p>
+        <p>Every app runs in its own hardware-isolated domain, kept out of the machine's ordinary operating system by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. We are building this OS-neutral, VBS-like layer with backends on Windows, on VBS and Hyper-V hardware isolation and the paravisor direction, and on Linux only if it enforces the same contract; there is no software-only fallback. What it does not add is the separate guarantee a confidential processor gives, that the machine's owner cannot inspect the data. No host is listed on it until a backend passes the common acceptance tests.</p>
       </div>
       <div class="card jade">
         <span class="tag">confidential hardware</span>
@@ -234,13 +234,13 @@
     </div>
 
     <div class="doc-note gpu-rule">
-      <span class="nt">GPUs on hosts without a TEE</span>
-      <p>In Enclave's architecture, <b>Enclave Shield is the only supported way to expose a GPU on a host without a confidential-computing processor</b>. The card is used without being trusted: inputs are masked before they leave the app's domain and every result is verified before it is used. A host without a TEE neither advertises nor receives GPU work unless the Enclave Shield contract and its required evidence verify, and admission fails closed.</p>
+      <span class="nt">Enclave Shield · protected GPU offload</span>
+      <p><b>Enclave Shield is Enclave's protected GPU-offload mechanism for any GPU that does not support, or is not operating in, confidential-computing mode.</b> The card sees only masked inputs, returns results that are verified before use, and never receives plaintext protected state. It is required whenever the attached GPU is outside the confidential boundary, even when the app runs inside a confidential processor; a GPU operating in a supported confidential-computing mode sits inside the boundary and does not depend on Shield. In Enclave's architecture, Shield is the only supported way to expose such a card: admission reads the card's protection mode, never the CPU or the host, and a card outside the boundary is neither advertised nor routed until its Shield evidence verifies. Shield alone does not make a host eligible for tenant apps; that is the isolation contract's job.</p>
     </div>
 
     <div class="iso-honest">
       <h4>What we do <u>not</u> claim</h4>
-      <p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the Enclave Shield contract, a test-signed trusted layer, a key or traffic path that still runs through the host, a report signed by software the host controls, is evidence of work in progress, not a level for sale, and it is not listed as available. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
+      <p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the isolation contract, a test-signed trusted layer, a key or traffic path that still runs through the host, a report signed by software the host controls, is evidence of work in progress, not a level for sale, and it is not listed as available. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
     </div>
   </div>
 </section>

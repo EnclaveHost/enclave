@@ -275,22 +275,42 @@ test("api-relay: a box without confidential evidence is listed but never serving
   const old   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 6,  nodeRamGb: 24, claimEnabled: true });
   const vbs   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 12, nodeRamGb: 48, claimEnabled: true, fullService: false, teeCpu: "windows-vbs-enclave", tier: "vbs" });
   const good  = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8,  nodeRamGb: 32, claimEnabled: true, teeCpu: "amd-sev-snp" });
-  // a non-TEE box WITH a card: its GPU is exposed only through Enclave Shield, whose evidence it
-  // cannot present yet, so neither its card nor its masked-offload pool may be advertised or routed
+  // a non-TEE box WITH a card outside any confidential boundary: the card is reached only through
+  // Enclave Shield, and this relay cannot verify Shield evidence from a box whose word it does not
+  // accept, so neither the box nor its card may be advertised or routed
   const gpuBox = box({ gpu: true, type: "gpu", cpuShareFree: 0.5, gpuShareFree: 0.8, maxShare: 0.8, nodeVcpus: 24, nodeRamGb: 64, vramFreeGb: 12, cardVramGb: 16,
                        claimEnabled: true, teeCpu: "windows-vbs-enclave", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8, worker: "vulkan" } });
-  for (const s of [dev, old, vbs, good, gpuBox]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
-  t.after(() => { for (const s of [dev, old, vbs, good, gpuBox]) s.close(); });
-  const origin = await startRelay(t, { enclaves: [dev, old, vbs, good, gpuBox].map((s) => `http://127.0.0.1:${s.address().port}`).join(",") });
+  // Enclave Shield is selected by the CARD, not the CPU: a CONFIDENTIAL box whose card sits outside
+  // its boundary (a shielded pool) serves CPU work, but its card sells only with Shield evidence -
+  // today the masked-offload proof its own measured image ran. Without it: serving, card not for sale.
+  const PROOF = { ok: true, exact: true, verified: true, noPlaintext: true, lieRejected: true, denylistRefused: true };
+  const shieldNoProof = box({ gpu: true, type: "gpu", cpuShareFree: 0.5, gpuShareFree: 0.6, maxShare: 0.6, nodeVcpus: 32, nodeRamGb: 128, vramFreeGb: 6, cardVramGb: 8,
+                              claimEnabled: true, teeCpu: "amd-sev-snp", shielded: { vramGb: 8, vramBudgetGb: 6.5, vramFreeGb: 6, worker: "cuda" } });
+  const shieldProven = box({ gpu: true, type: "gpu", cpuShareFree: 0.5, gpuShareFree: 0.7, maxShare: 0.7, nodeVcpus: 48, nodeRamGb: 128, vramFreeGb: 5, cardVramGb: 8,
+                             claimEnabled: true, teeCpu: "amd-sev-snp", shielded: { vramGb: 8, vramBudgetGb: 6.5, vramFreeGb: 5, worker: "cuda", proof: PROOF } });
+  const all = [dev, old, vbs, good, gpuBox, shieldNoProof, shieldProven];
+  for (const s of all) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
+  t.after(() => { for (const s of all) s.close(); });
+  const origin = await startRelay(t, { enclaves: all.map((s) => `http://127.0.0.1:${s.address().port}`).join(",") });
   const { status, body } = await getJson(origin, "/enclaves");
   assert.equal(status, 200);
   const rows = Object.fromEntries(body.enclaves.map((r) => [r.availability.nodeVcpus, r]));
-  assert.equal(body.enclaves.length, 5, "every answering box is listed");
+  assert.equal(body.enclaves.length, 7, "every answering box is listed");
   assert.equal(rows[24].serving, false, "a non-TEE box with a card takes no work");
   assert.equal(rows[24].eligible, false);
   assert.match(String(rows[24].ineligible), /exposed only through Enclave Shield/);
-  assert.equal(body.aggregate.totalGpuShareFree, 0, "its card is not advertised as buyable GPU capacity");
-  assert.equal(body.aggregate.totalVramFreeGb, 0, "nor its VRAM");
+  assert.equal(rows[24].gpuMode, "shield", "the card's protection mode is read from the card: outside the boundary");
+  assert.equal(rows[24].gpuSellable, false);
+  assert.match(String(rows[24].gpuIneligible), /Enclave Shield, whose evidence this relay cannot verify/);
+  // the confidential boxes: CPU work yes; the card only with Shield evidence
+  assert.equal(rows[32].serving, true); assert.equal(rows[32].eligible, true);
+  assert.equal(rows[32].gpuMode, "shield"); assert.equal(rows[32].gpuSellable, false, "no proof, no card");
+  assert.match(String(rows[32].gpuIneligible), /Shield evidence .* missing or failed/);
+  assert.equal(rows[48].serving, true); assert.equal(rows[48].gpuMode, "shield"); assert.equal(rows[48].gpuSellable, true, "proven: the card sells through Shield");
+  assert.equal(rows[48].gpuIneligible, undefined);
+  assert.equal(rows[8].gpuMode, "none");
+  assert.equal(body.aggregate.totalGpuShareFree, 0.7, "only the proven card counts as buyable GPU capacity");
+  assert.equal(body.aggregate.totalVramFreeGb, 5, "and only its VRAM");
   assert.equal(rows[8].serving, true);  assert.equal(rows[8].eligible, true);  assert.equal(rows[8].ineligible, undefined);
   for (const [vcpus, why] of [[4, /dev-unattested-metal-v1, not a confidential CPU/], [6, /never named its CPU technology/], [12, /windows-vbs-enclave, not a confidential CPU/]]) {
     assert.equal(rows[vcpus].serving, false, `${vcpus}-vCPU box must not serve`);
@@ -298,11 +318,14 @@ test("api-relay: a box without confidential evidence is listed but never serving
     assert.equal(rows[vcpus].relay, false, "not a relay either: it has resources, it just proved nothing");
     assert.match(String(rows[vcpus].ineligible), why);
   }
-  assert.equal(body.aggregate.serving, 1, "one box can take work");
-  assert.equal(body.aggregate.totalCpuShareFree, 0.5, "and only its capacity is buyable");
-  // the fleet aggregate (sizing floors, capabilities, price) is computed over the same set
+  assert.equal(body.aggregate.serving, 3, "the three confidential boxes take work");
+  assert.equal(body.aggregate.totalCpuShareFree, 1.5, "and only their CPU capacity is buyable");
+  // the fleet aggregate (sizing floors, capabilities, price) is computed over the same set, and its
+  // GPU axes over the SELLABLE cards only
   const { body: a } = await getJson(origin, "/availability");
   assert.equal(a.specNodeVcpus, 8, "the no-evidence boxes never set the fleet's sizing floor");
+  assert.equal(a.gpuShareFree, 0.7, "the best free GPU slice is the proven card's");
+  assert.equal(a.cardVramGb, 8, "and the capacity view describes that card");
   // and a claim hint fans out to nobody but the eligible box
   const r = await fetch(origin + "/v1/claim-hint", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "0x" + "ab".repeat(32) }) });
   const j = await r.json().catch(() => ({}));
