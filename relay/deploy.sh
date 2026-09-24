@@ -148,12 +148,16 @@ echo "== api relay (site box)"
 # filter + on-chain runner routing), ./net-guard.mjs (SSRF classifier for discovered
 # origins), ./tunnel.js (fleet tunnel for CGNAT self-hosted enclaves) AND ./mcp.js
 # (the MCP coding-agent endpoint, mcp.enclave.host); fleet.mjs imports ./net-guard.mjs
-# too. ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
+# too, and ./fleet-status.mjs (a row's status word and the reason it takes no tenant work).
+# ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
+# This list is hand-maintained, so a NEW import is a new entry here in the same commit: an
+# api-relay.js that imports a module this line does not name restarts into ERR_MODULE_NOT_FOUND
+# and the check at the end of this script catches it only after the service is already down.
 # auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm ci below installs
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
-scp api-relay.js mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs pads.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
+scp api-relay.js mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js fleet-auth.js certs.js domains.js store.js fleet.mjs fleet-status.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs pads.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
 # vbs-*.mjs is the Windows VBS-enclave attach (tunnel mode vbs, windows/vbs/EVIDENCE.md).
 # vbs-policy.mjs defaults METAL_VBS_EK_ROOTS to ./fixtures/tpm-roots.pem beside itself
 # (the pinned AMD fTPM roots) and THROWS at startup when the file is unreadable with
