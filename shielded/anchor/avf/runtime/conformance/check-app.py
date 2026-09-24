@@ -28,4 +28,6 @@ for i, c in enumerate(v["cases"]):
 B = lines("ap-baddigest.log")
 expect(any("APP refused:" in l and "refusing to compile" in l for l in B), "a wrong announced digest: refused before compiling")
 expect(not any("APP ran " in l for l in B) and not any("APPOUT " in l for l in B), "... and nothing ran or printed")
+if os.environ.get("ABI2_BEFORE_DIGEST") != "1":   # builds before the fix attested the announced AppID before checking the bytes
+    expect(not any("ABI2 " in l or "ABI2_LINK" in l for l in B), "... and no ABI/2 certificate was requested for the refused app")
 print("PASS milestone 2 on the device" if not fails else f"FAIL ({len(fails)})"); sys.exit(1 if fails else 0)

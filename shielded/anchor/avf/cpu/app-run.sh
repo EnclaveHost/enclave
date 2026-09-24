@@ -15,13 +15,15 @@ if [ "$want" != "$have" ]; then timeout 300 "$ADB" install -r "$APK" </dev/null 
 echo "apk $want installed (hashed on the device)" | tee "$OUT/device.txt"
 "$ADB" push "$BUNDLE" /data/local/tmp/app-hello-v1.wasm </dev/null >/dev/null && sh_ "run-as $P cp /data/local/tmp/app-hello-v1.wasm files/app-hello-v1.wasm" >/dev/null
 F=/data/user/0/$P/files/app-hello-v1.wasm
-run() {   # run <label> [extra am args...]
-  local l="$1"; shift
+RUN_ID="${RUN_ID:-$(date +%m%d%H%M%S)}"   # device capture labels are unique per run: a reused label makes the app refuse to capture
+run() {   # run <label> [extra am args...]; the capture is saved as $OUT/<label>.log
+  local l="$1" d="$RUN_ID-$1"; shift
+  [ "$(sh_ "run-as $P sh -c 'test -e files/capture/$d.log && echo USED'")" = USED ] && { echo "$d: label already used on the device"; return 1; }
   sh_ "am force-stop $P; input keyevent KEYCODE_WAKEUP" >/dev/null
-  sh_ "am start -S -n $P/.Main --es mode app --es vmname anchorlocal --es app $F --es capture $l $*" > "$OUT/$l.am"
-  for _ in $(seq 1 60); do [ "$(sh_ "run-as $P sh -c 'test -e files/capture/$l.complete && echo Y'")" = Y ] && break
-    [ -n "$(sh_ "run-as $P cat files/capture/$l.log" | grep '^CAPTURE END')" ] && break; sleep 3; done
-  sh_ "run-as $P cat files/capture/$l.log" > "$OUT/$l.log"; echo "$l: $(grep -c . "$OUT/$l.log") lines"; }
+  sh_ "am start -S -n $P/.Main --es mode app --es vmname anchorlocal --es app $F --es capture $d $*" > "$OUT/$l.am"
+  for _ in $(seq 1 60); do [ "$(sh_ "run-as $P sh -c 'test -e files/capture/$d.complete && echo Y'")" = Y ] && break
+    [ -n "$(sh_ "run-as $P cat files/capture/$d.log" | grep '^CAPTURE END')" ] && break; sleep 3; done
+  sh_ "run-as $P cat files/capture/$d.log" > "$OUT/$l.log"; echo "$l ($d): $(grep -c . "$OUT/$l.log") lines"; }
 run ap-case0
 run ap-case1 "--es app_args 'a|b'"
 run ap-case2 "--es app_args 'exit|7'"

@@ -149,7 +149,8 @@ it may not write a memfd either, and every writable filesystem it has is `noexec
 measured APK carries. So inside the pVM the runtime **compiles the verified component to wasmtime's portable Pulley
 bytecode and interprets it**: compilation still happens inside the protected boundary, the output is data, never native
 code, and no executable page is ever created. Where a protected domain permits executable pages (Linux guests), the same
-runtime compiles to the local ISA with Cranelift; the Windows VBS enclave, like the pVM, runs Pulley. One runtime
+runtime compiles to the local ISA with Cranelift (the Windows tier now runs Hyper-V partitions with the same Linux guest;
+a VBS enclave, measured earlier, refuses executable pages just as the pVM does). One runtime
 abstraction, the execution strategy chosen per domain by a measured capability probe, and the same component everywhere.
 
 Security contract for the runtime in the pVM (each item fail-closed):
@@ -169,7 +170,7 @@ Security contract for the runtime in the pVM (each item fail-closed):
 | # | milestone | status |
 |---|---|---|
 | 1 | `runtime/pvm-rt` (wasmtime =49.0.0, Cranelift -> Pulley) runs the conformance component inside the pVM: verify before compile, W^X, limits, deadline, the contract's identity | **PASS on the Pixel 10** (results/rt-probe-20260923; host tests `cargo test` 5/5); a 512 MiB VM aborted on memory, open |
-| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | **PASS on the Pixel 10** (results/app-m2: every case byte-identical, a wrong digest refused before compiling; `test/anchor-app.test.mjs`) |
+| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | **PASS on the Pixel 10** (results/app-m2c, rt8: every case byte-identical; a wrong digest refused before compiling AND before any certificate. results/app-m2, rt4, is kept as recorded: its bad-digest run exposed a certificate requested before the digest check, fixed since; `test/anchor-app.test.mjs`) |
 | 3 | `wasi:nn` (ggml) backed by the in-VM llama.cpp engine, so an inference app runs unchanged | **PASS on the Pixel 10** (results/app-m3: the component's self-test digest through wasi:nn equals the engine's own, 12/12 refusals; host tests 8/8 in tests/nn.rs) |
 | 4 | `wasi:http` served over the vsock bridge | **PASS on the Pixel 10** (results/app-m4: enclave-apps' ggml-probe, unchanged, served over the verified model; host tests 4/4 in tests/httpd.rs); the relay tunnel in place of the app's test hook, and TLS into the VM, not built |
 | 5 | Bind2 in the 64-byte attestation challenge and the runtime identity + bundle hash in the capability report; the relay's ABI/2 AVF attach | **evidence verified on the Pixel 10** (results/app-m5: three apps, chain to Google's root, challenge = Bind2 \|\| AppID; `test/pvm-app-attest.test.mjs` 5/5, contract vectors byte-exact); a relay-bound nonce and the relay's attach wiring not yet (handoff) |
@@ -278,25 +279,83 @@ Not yet exercised on the device: a relay-bound attach (the report's nonce here i
 built on both sides and tested, not yet run against a live hub), and the payload's own refusal of a non-LOCAL run (the app
 refuses first).
 
-## Handoff: site and relay (owned by the site-refresh session)
+## Handoff (2026-09-23, 21:35): where the pVM CPU tier stands
 
-- `relay/tunnel.js` / `relay/api-relay.js`: after an AVF attach whose codeHash is in `PVM_CPU_CODE_HASHES`, accept one
-  `{t:"caps", report, sig}` frame and call `admitPvmCpu({ attach, reportBytes, signature, nonce }, pvmCpuPolicyFromEnv(env))`;
-  on `eligible`, set the row's relay-owned tier to `pvm-cpu` and add a capability-based branch to `computeEligible` for the
-  inference lane (not app deployments), with the verdict's `reasons` as the ineligible reason otherwise.
-- ABI/2 for apps on the phone: after the attach, when a pvm-cpu phone runs an app, read its `ABI2_*` lines (or a frame
-  carrying the same fields) and call `verifyPvmAppAbi2` (relay/pvm-app-attest.mjs) with the session's nonce, the attached
-  transport SPKI, the app's expected SHA-256, the pinned runtime IDs and the tier's code/authority pins; an app without
-  verified ABI/2 evidence is not served as a protected app.
-- `site/js/core/pricing.js` / `fleet-list.js`: the amber "pvm cpu" badge only for rows whose relay-owned tier is `pvm-cpu`;
-  Pixel 11 copy stays future tense until this file records a Pixel 11 run.
+The orange **pVM CPU** tier (Tier.java; the relay-owned tier value `pvm-cpu`): CPU-only inference and apps inside the
+protected VM of a Pixel 10, no TPU/NPU anywhere in the product path. Branch `pvm-cpu/portable-runtime` (not on main).
 
-## Gaps (open, in order)
+**The app runtime and its identity.** The app is the portable WebAssembly component every Enclave domain runs (the same
+bytes: runtime/conformance/bundles). A stock pVM may not hold an executable page (execmem denied, measured), so pvm-rt
+(wasmtime =49.0.0 as a library in the measured APK) compiles the verified component to Pulley bytecode inside the VM and
+interprets it. Identity (the isolation contract's RuntimeIdentity; RuntimeID `d3370878…`):
+`{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}`.
+Milestones M1-M5 PASS on the Pixel 10 (table above): conformance, delivery from outside the APK, wasi:nn with exact parity,
+wasi:http serving enclave-apps' ggml-probe unchanged, and the ABI/2 app attestation. One-bundle conformance: the Linux
+SNP domains and the Windows Hyper-V partitions share one guest (`wasmtime serve`, JIT, x86_64) whose common world with the
+pVM is wasi:http (their image links neither wasi:cli commands nor wasi:nn). enclave-d1's harness (isolation/conformance,
+record + compare) takes the pVM as a third column; the agreed shape is one isolation/contract/conformance/ holding both
+kinds of bundle with vectors, each backend's record declaring the worlds it runs ("not run", never a pass by omission).
 
-1. A live relay attach from the phone (both sides built and tested; not yet run against a hub).
-2. Cold start and recovery: 88-91 s cold, 123 s after a crash; one read of the model instead of two is the next change,
-   then one engine kept across conversations.
-3. The payload binary still contains the split-engine code (unreachable in the pvm-cpu build). Split it.
-4. The signing key is the spike key (keys/anchor.jks); a release key and a non-debuggable manifest before any admission.
-5. Prompt and answer text pass through the Android app (the owner's own UI); an end-to-end channel to the VM's attested
-   key for remote use is not built.
+**ABI/2 AVF challenge and admission status.**
+
+| piece | status |
+|---|---|
+| tier admission: AVF attach (chain to Google root, isVmSecure, pinned codeHash + authority) + one signed capability report -> `admitPvmCpu` | built on both sides and in the relay on main (tunnel.js caps frame; api-relay.js `PVM_CPU_*` env policy, computeEligible branch); verified OFFLINE on real captures; **never run against a live hub** |
+| app attestation: second AVF certificate over `Bind2(transport SPKI, nonce, RuntimeID) \|\| AppID` + the self-test tuple | built; **binding verified on the Pixel 10** (results/app-m5, app-m2c) with the OWNER's challenge as the nonce, so it is "ABI/2 binding verified", not "attested to a relay" |
+| relay verification of an app's ABI/2 | `relay/pvm-app-attest.mjs` `verifyPvmAppAbi2` (contract vectors byte-exact; enclave-74 cross-checked 22/22); **not called by the relay yet** |
+| signing | spike key (keys/anchor.jks, debuggable); a release key and a non-debuggable manifest are required before any production admission (the owner's call: key custody) |
+
+**Pixel 10 results** (Pixel 10 Pro XL, Gemma 4 E2B Q4_0, protected pvm-cpu build):
+
+| measure | result | source |
+|---|---|---|
+| interactive decode | 13.1-14.1 tok/s (cool), TTFT 250-300 ms warm | cpu-baseline-20260923, pvm-cpu-p5 |
+| sustained (4 x 512 tokens) | 7.33-7.65 tok/s whatever the threads; worst turn 5.9-6.5 | pvm-cpu-threads1 |
+| thermal | status up to 1, big cores 86 C, frequency caps halved (cpu7 3.78 -> 1.92 GHz) | pvm-cpu-threads1 |
+| CPU | 4-thread decode pool (now the default): 537 vs 790 core-ms per token, same rate | pvm-cpu-threads1, pvm-cpu-d4default |
+| cold start | 88-91 s; stage 18.3 s + load 59.5 s (36.8 s of it a second read of the model) | cpu-baseline, pvm-cpu-p5 |
+| crash recovery | automatic, fail-closed; 123 s to the next first token | pvm-cpu-p5 rs-01 |
+| memory | 7,168 MiB VM, phone MemAvailable >= 1.14 GiB | cpu-baseline |
+| parity | self-test digest identical native / pVM engine / pVM app via wasi:nn | pvm-cpu-p2, app-m3 |
+| app path | wasi:nn decode 10.7 tok/s (engine 14.0) -- the logits crossing into Pulley | app-m3 |
+
+**Pixel 11: nothing is verified.** No Pixel 11 has run anything. What is structured for it: sizing from the kernel
+(DeviceProfile: cores by cpu_capacity, VM memory from RAM), admission from evidence not the device name. What is assumed
+and must be measured on one: the AVF chain's root and extension shape (Pixel 10 on Android 17 already needed an avf-verify
+fix), execmem still denied to microdroid_app (else the identity could be `jit`), the thermal envelope (sustained rate),
+the memory fit, and the rates in the capability floor.
+
+### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
+
+The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
+produce binds it. Per claim:
+
+| claim | bound by | a host that changes it |
+|---|---|---|
+| runtime identity (the `ABI2 runtime` JSON) | RuntimeID = SHA-256 of that JSON is inside the 64-byte AVF challenge the VM computed from its own `pvmrt_identity()`; the verifier recomputes it and requires canonical form + a pinned RuntimeID | changes the RuntimeID, so the certificate's challenge no longer matches: refused |
+| that the identity is TRUE (Pulley, no JIT, no cache) | the constants and `Config::target("pulley64")` live in libpvm_rt.so inside the APK; the APK's codeHash is a vmComponent of the same certificate, and the verifier pins it | would need another APK: another codeHash, refused by the pin. (Offline, cpu/verify-app-attest.mjs takes the codeHash from the attach chain unless `--code-hash` is given: it then proves only "same build as the attach"; the relay path pins it) |
+| the app (AppID) | the challenge's second half; the payload now hashes the received bytes and refuses a mismatch BEFORE requesting the certificate (fixed 21:30: before, a host could obtain a genuine certificate naming an app the VM then refused -- seen in results/app-m2 ap-baddigest, gone in app-m2c) | a certificate only ever names bytes that are about to run |
+| the nonce | the verifier's own: the relay's nonce (v2 transcript) when relay-bound; today's runs carry the owner's challenge | freshness only; that is why the results say "binding verified", not "attested to a relay" |
+| the transport key | Bind2 includes it; the attach certificate's v2 transcript carries the same key; its private half never leaves the VM | a different SPKI changes Bind2: refused |
+| W^X / exec_pages tuple | printed by measured code (the payload, same process as the runtime) | would need another APK; it is the payload's word, not the hardware's (stated in every verdict) |
+| model identity, rates (CAPS report) | signed by the attested transport key; the model pin is an APK asset (in the codeHash) | signature fails |
+| `APP ran`, `APPOUT`, `nn digest`, HTTP bodies | nothing: app output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
+| the orange label (Tier.java, assets/tier) | display only; the relay admits from the chain + report, never the label or the device name | cannot change the relay's verdict |
+
+Two host-side attestation surfaces remain and are acceptable as stated: the attach path certifies any 32-byte challenge the
+owner sends (routing), but ABI/2 certificates are 64 bytes and only `app_attest_abi2` requests them; and the owner app can
+deny service (never deliver lines), which a verifier sees as missing evidence, not as a pass.
+
+### What remains, in order
+
+1. **A live relay attach** (blocks admission): run the real hub (`createTunnelHub`) with the tier's policy locally, the
+   phone over adb reverse, so the caps frame is admitted end to end and the ABI/2 nonce is the relay's. Then the relay
+   calls `verifyPvmAppAbi2` for apps.
+2. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
+3. TLS for app traffic terminating in the VM (today the owner app sees requests and answers, as it sees the chat).
+4. Cold start and recovery (targets 3, 5): keep the stage's page cache so the load's second read comes from memory
+   (results/pvm-cpu-single-read: the anonymous-memory attempt refused itself on a tied weight and slowed the stage), then
+   one engine across conversations.
+5. `topk` for wasi:nn (the app path's 10.7 vs 14.0 tok/s); sustained decode needs a lower operating point or a smaller
+   quantisation (thermal), not threads.
+6. The payload binary still carries the split-engine code (unreachable in the pvm-cpu build); the 512 MiB VM abort (M1).
