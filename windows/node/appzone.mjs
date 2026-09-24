@@ -27,6 +27,9 @@ import tls from "node:tls";
 import { WebSocketServer, createWebSocketStream } from "ws";
 
 const MAX_STREAMS = 32;
+/* How long a refusal's 502 may take to leave before the connection is closed anyway. Only a
+   backstop: the normal path is the TLS socket's own close, which flushes first. */
+const REFUSE_FLUSH_MS = 10_000;
 const HEAD_LIMIT = 16 * 1024;          // an upgrade request that never ends is not one
 const OPEN_MS = 15_000;
 /**
@@ -383,18 +386,31 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
         let spoke = false;
         const refuse = (why) => {
           log(`app-zone ${id.slice(0, 10)}: ${why}`);
+          try { if (app) app.destroy(); } catch {}
           const body = Buffer.from(JSON.stringify({ error: "app_unreachable", id,
             message: `this deployment is not accepting connections on the node right now (${why})`,
             hint: "the node holds the lease; the app inside the enclave is not answering" }) + "\n");
-          try {
-            tlsSock.end("HTTP/1.1 502 Bad Gateway\r\n"
-              + "content-type: application/json\r\n"
-              + `content-length: ${body.length}\r\n`
-              + "connection: close\r\ncache-control: no-store\r\n\r\n" + body.toString("utf8"));
-          } catch { try { tlsSock.destroy(); } catch {} }
-          try { if (app) app.destroy(); } catch {}
-          try { ws.close(); } catch {}
-          drop(st.sid);
+          const head = Buffer.from("HTTP/1.1 502 Bad Gateway\r\n"
+            + "content-type: application/json\r\n"
+            + `content-length: ${body.length}\r\n`
+            + "connection: close\r\ncache-control: no-store\r\n\r\n");
+          // FLUSH, THEN CLOSE - the same rule the teardown comment above states, and the first
+          // version of this broke it: it wrote the 502 and then called ws.close() and drop()
+          // immediately, tearing the transport down under bytes that had not left yet. A slow or
+          // backpressured tunnel would deliver a truncated body, or none, which is the very
+          // failure mode this response exists to replace.
+          //
+          // So the write is ENDED and nothing else is touched. tlsSock's own "close" runs finish(),
+          // which closes the WebSocket and drops the stream, exactly as a normal response does. The
+          // timer is only a backstop for a peer that never completes the close.
+          const guard = setTimeout(() => {
+            log(`app-zone ${id.slice(0, 10)}: the 502 did not flush within ${REFUSE_FLUSH_MS}ms; closing`);
+            try { tlsSock.destroy(); } catch {}
+          }, REFUSE_FLUSH_MS);
+          guard.unref?.();
+          tlsSock.once("close", () => clearTimeout(guard));
+          try { tlsSock.end(Buffer.concat([head, body])); }
+          catch { clearTimeout(guard); try { tlsSock.destroy(); } catch {} finish(); }
         };
         app.on("error", (e) => (spoke ? abort(`app ${e.message}`) : refuse(`app ${e.message}`)));
         app.once("data", () => { spoke = true; });
