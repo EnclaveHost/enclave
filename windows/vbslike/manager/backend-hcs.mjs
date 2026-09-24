@@ -85,15 +85,35 @@ export class HcsPartitionBackend {
     if (!t) return;
     let j = null;
     try { j = JSON.parse(t); } catch { return; }      // the lab prints only JSON lines
-    const w = this.#waiters.shift();
-    if (w) w(j); else this.#lines.push(j);
+    // hand the line to the OLDEST outstanding command, alive or dead: a dead one swallows the
+    // answer it was owed rather than letting it shift onto somebody else's command
+    while (this.#waiters.length) {
+      const w = this.#waiters.shift();
+      if (w.dead) return;                    // this answer belonged to the timed-out command
+      w.deliver(j);
+      return;
+    }
+    this.#lines.push(j);
   }
+  /**
+   * DEFECT 3. The lab protocol has NO request ids: answers are one JSON line per command, in order.
+   * The first version removed a waiter that timed out - and the launcher's answer still arrived and
+   * was handed to the NEXT command. After one `load` timeout every later answer was off by one, so
+   * `stop` read the stale "loaded" line as its destroy answer while the partition was still there.
+   *
+   * So a timed-out waiter is NOT removed. It stays in the queue, marked dead, and when its answer
+   * eventually arrives it is CONSUMED by it and discarded. Correlation is positional, so the only
+   * safe thing to do with a late answer is to let it settle the command it belonged to.
+   */
   #next(timeoutMs) {
     if (this.#lines.length) return Promise.resolve(this.#lines.shift());
     return new Promise((res, rej) => {
-      const timer = setTimeout(() => { const i = this.#waiters.indexOf(fn); if (i >= 0) this.#waiters.splice(i, 1); rej(new Error(`the launcher did not answer within ${timeoutMs}ms`)); }, timeoutMs);
-      const fn = (j) => { clearTimeout(timer); res(j); };
-      this.#waiters.push(fn);
+      const w = { dead: false, deliver: (j) => { clearTimeout(timer); res(j); } };
+      const timer = setTimeout(() => {
+        w.dead = true;                       // stays queued: its answer is still coming and is still ITS answer
+        rej(new Error(`the launcher did not answer within ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.#waiters.push(w);
     });
   }
 
@@ -116,7 +136,7 @@ export class HcsPartitionBackend {
       });
       this.proc.stderr?.on("data", () => {});
       this.proc.on("exit", (code) => { this.proc = null; this.ready = null;
-        const w = this.#waiters.shift(); if (w) w({ error: `the launcher exited ${code}` }); });
+        while (this.#waiters.length) { const w = this.#waiters.shift(); if (!w.dead) w.deliver({ error: `the launcher exited ${code}` }); } });
       const hello = await this.#next(this.startTimeoutMs);
       if (hello.ready !== true) throw new Error(`the launcher did not report ready: ${JSON.stringify(hello).slice(0, 200)}`);
       this.launcher = hello;
@@ -144,11 +164,13 @@ export class HcsPartitionBackend {
     await this.open();
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "enclave-bundle-"));
     const file = path.join(dir, `${instanceId}.bundle`);
+    let loadedId = null;        // the launcher's numeric domain id, once the load answer names it
     try {
       await fs.writeFile(file, mapping.bundle);
       const r = await this.#cmd(`load ${instanceId} ${file}`, this.loadTimeoutMs);
       const d = r && r.loaded;
       if (!d) throw new Error(`the launcher did not load it: ${JSON.stringify(r).slice(0, 200)}`);
+      loadedId = d.id;          // from HERE on there is a live partition to destroy if anything fails
       // HASH AGREEMENT, checked here too: the guest's answer must be the AppID we derived.
       if (String(d.appSha256 || "").toLowerCase() !== String(mapping.appId).toLowerCase())
         throw new Error(`the guest computed ${d.appSha256}, we derived ${mapping.appId}: refusing`);
@@ -161,7 +183,16 @@ export class HcsPartitionBackend {
       this.domains.set(instanceId, handle);
       return handle;
     } catch (e) {
-      await this.#cmd(`destroy ${instanceId}`, 30_000).catch(() => {});
+      // DEFECT 2. `destroy` takes the launcher's NUMERIC domain id (lab.rs parses its argument with
+      // s.parse::<u32>()), and this sent the LABEL - so the lab answered
+      // {"error":"invalid digit found in string"}, .catch swallowed it, and after a hash mismatch
+      // the partition the launcher had already loaded stayed LIVE while this map forgot it. The
+      // load answer carries the id; destroy by that, and only when we actually got one.
+      if (loadedId != null) {
+        const d = await this.#cmd(`destroy ${loadedId}`, 30_000).catch((x) => ({ error: x.message }));
+        if (d && d.error)
+          e.message += `; AND the partition (domain ${loadedId}) could not be destroyed: ${d.error}`;
+      }
       this.domains.delete(instanceId);
       throw e;
     } finally { await fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }
