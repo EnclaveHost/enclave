@@ -25,7 +25,7 @@ MON ready control_port=9000 snp=false
 
 | port | who listens | what |
 |---|---|---|
-| 9000 | guest | control. One JSON line per command. `{"cmd":"load","label":L,"size":N}` followed by exactly N bytes of the bundle; the answer is one JSON line, `{"id","label","appSha256","port","uid","cpuPercent","memMiB","mode","http"?}` or `{"error"}`. The monitor hashes the bytes it received (the AppID); the host must compare that with its own hash and end the partition on any difference. Also `list`, `state`, `{"cmd":"stop","id"}`, `{"cmd":"destroy","id"}`. |
+| 9000 | guest | control. One JSON line per command. `{"cmd":"load","label":L,"size":N,"name"?:"<8 hex>.<zone>"}` followed by exactly N bytes of the bundle; the answer is one JSON line, `{"id","label","appSha256","port","uid","cpuPercent","memMiB","mode","http"?}` or `{"error"}`. The monitor hashes the bytes it received (the AppID); the host must compare that with its own hash and end the partition on any difference. Also `list`, `state`, `{"cmd":"stop","id"}`, `{"cmd":"destroy","id"}`. |
 | 9001 | **host** | report signing. The guest sends `{"abi","reportData":<128 hex>}` and receives `{"report":{"doc","sig"}}` or `{"error"}`. The launcher signs only an app half it loaded into that partition. |
 | `port` from the load answer (40000 + id) | guest | the domain's TLS, ciphertext only. The host relays bytes; TLS ends in the domain's front. |
 
@@ -44,7 +44,7 @@ MON ready control_port=9000 snp=false
 |---|---|
 | `GET /.well-known/enclave-attestation?nonce=<64 hex>` | `{tier:"T0-hv", format:"hyperv-partition-domain/v1", report:<base64 of the launcher-signed JSON>, transportKey, appSha256, nonce, abi:"enclave-domain-abi/2", runtime, runtimeSelfTest}`. Judge it with `windows/vbslike/verify/judge-hv.mjs` against YOUR handshake's key and nonce, and pin the runtime (`expectRuntime`). The branch copy of judge-hv must be the ABI/2 one (windows/custom-vbs-like-hyperv 67762434); the older ABI/1-only copy rejects every document from this image on the binding. |
 | `GET /.well-known/enclave-ready` | `200 {"ready":true,"appId","mode","port"}` once a TCP connect to the app's port succeeds, `503 {"ready":false,"why"}` before. |
-| `GET /.well-known/enclave-csr`, `POST /.well-known/enclave-cert` | refused: a partition has no SNP HOST_DATA, so the domain has no deployment name and serves only its self-signed certificate. A browser-trusted name for a partition needs a name source that is not built yet. |
+| `GET /.well-known/enclave-csr`, `POST /.well-known/enclave-cert` | only for a domain the launcher NAMED at `load` (`name`, exactly `<8 hex>.app.enclave.host`, validated by the monitor and the front, and written root-owned to the domain's /cert.name): a PKCS#10 request for exactly that name on the domain's own key, and installation of a chain for that key and name (the F2 rules of the Linux tier). With no name: 404, self-signed only. The name is the launcher's word; on this tier the launcher is inside the trust boundary anyway. The CSR still has to reach the platform certificate service through the node, whose relay is not built on the Windows side. |
 | anything else | the app, as plaintext on the domain's loopback. No `X-Forwarded-For` (none added, and a client's is removed): no client address reaches a domain. The client's Host header is kept. |
 
 **Running** = the document verified on THIS handshake's key with a fresh nonce (verdict `monitor-signed`), AND
@@ -60,6 +60,6 @@ malformed does not parse, so it has no identity and is refused at `load`.
 
 `test-hv-local.sh <workdir> <hello.bundle> <hookbin.bundle> <judge-hv.mjs>` boots this image as two plain KVM guests
 on warden-host. It stands in for the launcher with `hvlab.py` (sign on host vsock 9001 under the launcher's rule,
-`load`, relay) and checks from outside with `hvlab-check.mjs`. 2026-09-24: 13/13 (`hv-local-check-2026-09-24.txt`).
+`load`, relay) and checks from outside with `hvlab-check.mjs`. 2026-09-24: 15/15 (`hv-local-check-2026-09-24.txt`).
 It is KVM with virtio vsock and the distribution kernel, **not Hyper-V**. It shows the guest runtime works; it shows
 nothing about the partition boundary.

@@ -95,6 +95,26 @@ for (const [label, port, app] of [["A (wasi:http, /1)", portA, appA], ["B (wasi:
   s.close();
 }
 
+// the certificate name: A was loaded with one (the launcher's word, T0-hv), B without. A's CSR is exactly that name on
+// the handshake key; B has no name to certify.
+if (process.env.HVLAB_NAME_A) {
+  const s = await session(portA);
+  const r = await s.req("GET", "/.well-known/enclave-csr");
+  const pem = r.body;
+  // node has no CSR parser: the subject/SAN name is checked as text and the key by re-exporting it from the CSR's DER
+  const der = Buffer.from((/-----BEGIN CERTIFICATE REQUEST-----([\s\S]+?)-----END/.exec(pem) || [, ""])[1].replace(/\s+/g, ""), "base64");
+  const { csrSpki } = await import("../m4/guestd/supervisor-guestcert.mjs");
+  let spkiOk = false;
+  try { spkiOk = Buffer.compare(csrSpki(pem), s.spki) === 0; } catch {}
+  record("A: a CSR for exactly the launcher's name, on the handshake key", r.status === 200 && der.includes(Buffer.from(process.env.HVLAB_NAME_A)) && spkiOk,
+    `${r.status}, name in CSR ${der.includes(Buffer.from(process.env.HVLAB_NAME_A))}, key matches ${spkiOk}`);
+  s.close();
+  const t = await session(portB);
+  const rb = await t.req("GET", "/.well-known/enclave-csr");
+  record("B (loaded with no name): no CSR", rb.status === 404, `${rb.status} ${rb.body.trim().slice(0, 80)}`);
+  t.close();
+}
+
 // crossed identities: each refused by the judge, never served as the other
 {
   const s = await session(portB);

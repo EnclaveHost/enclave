@@ -92,6 +92,10 @@ type domain struct {
 	// wasi:http component; "run" = a wasi:cli command binds HTTP (enclave-catalog-bundle/2).
 	Mode string `json:"mode"`
 	HTTP int    `json:"http,omitempty"`
+	// Name is the deployment name the domain may hold a WebPKI certificate for (<8 hex>.<zone>), as the LAUNCHER
+	// states it at load. There is no SNP HOST_DATA on a Hyper-V partition, so this is the launcher's word, which is
+	// honest only because the launcher is inside this tier's trust boundary already (T0-hv). Empty: no name.
+	Name string `json:"name,omitempty"`
 
 	dir     string
 	cgroup  string
@@ -239,6 +243,7 @@ func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *moni
 type request struct {
 	Cmd    string `json:"cmd"`
 	Label  string `json:"label"`
+	Name   string `json:"name"` // optional: the deployment name a certificate may be issued for (see domain.Name)
 	Size   int    `json:"size"`
 	CPU    int    `json:"cpu"`
 	MemMiB int    `json:"mem"`
@@ -316,6 +321,9 @@ func readLine(br *bufio.Reader, max int) ([]byte, error) {
 }
 
 func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
+	if req.Name != "" && !certNameOK(req.Name) {
+		return nil, fmt.Errorf("name %q is not <8 lowercase hex>.<zone>", req.Name)
+	}
 	if req.Size <= 0 || req.Size > maxAppBytes {
 		return nil, fmt.Errorf("size %d out of range (max %d)", req.Size, maxAppBytes)
 	}
@@ -353,7 +361,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if manifest != nil && manifest.World == contract.WorldCLI {
 		mode, httpPort = "run", manifest.HTTP
 	}
-	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort,
+	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
@@ -387,6 +395,12 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	if err := os.WriteFile(filepath.Join(d.dir, "app.sha256"), []byte(d.AppSha), 0o444); err != nil {
 		return fail(err)
+	}
+	// root-owned and read-only, like the AppID: the domain reads the name it may certify but cannot change it
+	if d.Name != "" {
+		if err := os.WriteFile(filepath.Join(d.dir, "cert.name"), []byte(d.Name+"\n"), 0o444); err != nil {
+			return fail(err)
+		}
 	}
 	// the platform tree (runtime, front, domexec) read-only, and the monitor's socket, are all the
 	// domain gets from outside itself
@@ -1143,4 +1157,28 @@ func (m *monitor) hostReport(rd []byte) ([]byte, []byte, error) {
 		return nil, nil, errors.New("host report service: empty answer")
 	}
 	return []byte(resp.Report), nil, nil
+}
+
+// certNameOK: <8 lowercase hex>.<zone>, the app-zone name shape (isolation/m2/front certs.go nameFromHostData), at
+// most 253 bytes, zone labels of lowercase letters, digits and hyphens.
+func certNameOK(n string) bool {
+	if len(n) > 253 || len(n) < 10 || n[8] != '.' {
+		return false
+	}
+	for _, c := range n[:8] {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	for _, lab := range strings.Split(n[9:], ".") {
+		if lab == "" || len(lab) > 63 || lab[0] == '-' || lab[len(lab)-1] == '-' {
+			return false
+		}
+		for _, c := range lab {
+			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }

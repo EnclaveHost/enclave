@@ -10,6 +10,12 @@
 // field, header or file names it, so a host cannot make this domain ask for, or serve, another deployment's name. A
 // domain launched with no HOST_DATA has no name and serves only its self-signed certificate, as before.
 //
+// ONE EXCEPTION, where there is no SNP at all: a Hyper-V partition (tier T0-hv, windows/vbslike). There the launcher
+// in the root partition names the domain at load (m3 monitor `load` field `name`, written root-owned to /cert.name)
+// and the front accepts it only in exactly the <8 hex>.<zone> shape (launcherName). That is the launcher's word, and
+// it is honest only because on that tier the launcher already signs the reports and can read the domain's memory:
+// it is inside the trust boundary either way. An SNP domain never takes a name from this file.
+//
 //	GET  /.well-known/enclave-csr   a PKCS#10 request for exactly {CN=name, SAN=[name]}, signed by the domain's key
 //	POST /.well-known/enclave-cert  a PEM chain: installed only if the leaf's public key IS the domain's key, the leaf
 //	                                is valid for the name, and it is valid now. Anyone may post one; the only thing a
@@ -33,6 +39,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +68,28 @@ func nameFromHostData(hd []byte, zone string) string {
 	return hex.EncodeToString(hd[:4]) + "." + zone
 }
 
+// launcherName reads the name a launcher gave this domain at load (the m3 monitor writes it, root-owned and
+// read-only, as /cert.name). Accepted only in exactly the shape a HOST_DATA-derived name has, in this front's zone;
+// anything else is no name at all.
+func launcherName(path, zone string) string {
+	if path == "" || zone == "" {
+		return ""
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	n := strings.TrimSpace(string(b))
+	label, rest, ok := strings.Cut(n, ".")
+	if !ok || rest != zone || len(label) != 8 {
+		return ""
+	}
+	if _, err := hex.DecodeString(label); err != nil || strings.ToLower(label) != label {
+		return ""
+	}
+	return n
+}
+
 func (c *certState) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if c.name != "" && strings.EqualFold(hello.ServerName, c.name) {
 		c.mu.RLock()
@@ -75,7 +104,7 @@ func (c *certState) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate
 
 func (c *certState) csr() ([]byte, error) {
 	if c.name == "" {
-		return nil, errors.New("this domain was launched with no deployment bound (HOST_DATA is zero): it has no name to certify")
+		return nil, errors.New("this domain has no deployment name to certify: no SEV-SNP HOST_DATA names one, and no launcher named it at load")
 	}
 	der, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
 		Subject: pkix.Name{CommonName: c.name}, DNSNames: []string{c.name}}, c.key)

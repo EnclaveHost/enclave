@@ -114,6 +114,7 @@ func main() {
 		"the SVSM computes the binding from a key registered here, so this domain cannot choose either half of report_data")
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
+	certNameFile := flag.String("cert-name-file", "", "where there is no SEV-SNP HOST_DATA (a Hyper-V partition): a file holding the deployment name the LAUNCHER named this domain for; used only if it is <8 hex>.<-cert-zone>")
 	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
 	flag.Parse()
 
@@ -191,7 +192,13 @@ func main() {
 	f.certs = &certState{key: cert.PrivateKey.(crypto.Signer), spki: spki, self: &cert}
 	if f.plane == nil {
 		if hd, err := f.hostData(); err != nil {
-			fmt.Printf("DOM certificate: no HOST_DATA to name this domain (%v); self-signed only\n", err)
+			if n := launcherName(*certNameFile, *certZone); n != "" {
+				f.certs.name = n
+				fmt.Printf("DOM certificate: this domain may certify %s (named by the launcher at load: no HOST_DATA here, "+
+					"so this is the launcher's word, T0-hv)\n", n)
+			} else {
+				fmt.Printf("DOM certificate: no HOST_DATA to name this domain (%v); self-signed only\n", err)
+			}
 		} else if f.certs.name = nameFromHostData(hd, *certZone); f.certs.name != "" {
 			fmt.Printf("DOM certificate: this domain may certify %s (HOST_DATA %x...)\n", f.certs.name, hd[:8])
 		} else {

@@ -39,7 +39,8 @@ for g in "A $CIDA" "B $CIDB"; do
 done
 t=0; until [ "$(grep -l "MON ready" "$W/gA.serial" "$W/gB.serial" 2>/dev/null | wc -l)" = 2 ]; do
   t=$((t + 1)); [ $t -lt 60 ] || { echo "the guests' monitors never came up"; exit 1; }; sleep 2; done
-python3 "$here/hvlab.py" load "$S" "$CIDA" "$A" app-A | tee "$W/load-A.json"
+NAME_A=${NAME_A:-a1b2c3d4.app.enclave.host}   # A is named by the launcher at load (T0-hv), B is not
+python3 "$here/hvlab.py" load "$S" "$CIDA" "$A" app-A "$NAME_A" | tee "$W/load-A.json"
 python3 "$here/hvlab.py" load "$S" "$CIDB" "$B" app-B | tee "$W/load-B.json"
 pa=$(python3 -c "import json;print(json.load(open('$W/load-A.json'))['port'])")
 pb=$(python3 -c "import json;print(json.load(open('$W/load-B.json'))['port'])")
@@ -52,5 +53,5 @@ for p in "$PA" "$PB"; do
 done
 appA=$(python3 -c "import json;print(json.load(open('$W/load-A.json'))['appSha256'])")
 appB=$(python3 -c "import json;print(json.load(open('$W/load-B.json'))['appSha256'])")
-HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-check.mjs" \
+HVLAB_NAME_A="$NAME_A" HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-check.mjs" \
   "$(python3 "$here/hvlab.py" pubkey "$S")" "$PA" "$appA" "$PB" "$appB" | tee "$W/check.txt"

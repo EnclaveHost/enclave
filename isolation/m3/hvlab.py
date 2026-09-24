@@ -12,7 +12,8 @@ It is a test fixture, not a backend. It does on vsock what vbslike-host does on 
   relay   127.0.0.1:<port> -> guest vsock <port>: bytes only; TLS ends in the domain.
 
   usage:  hvlab.py signer <state dir>                 (foreground; the key is <state dir>/launcher.key, made once)
-          hvlab.py load <state dir> <cid> <bundle> [label]   prints the monitor's answer (JSON)
+          hvlab.py load <state dir> <cid> <bundle> [label] [name]   prints the monitor's answer (JSON); name = the
+                                                    deployment name the domain may certify (<8 hex>.<zone>)
           hvlab.py relay <cid> <vsock port> <tcp port>       (foreground)
           hvlab.py pubkey <state dir>                 prints the fixture launcher's public key (base64)
 """
@@ -99,13 +100,14 @@ def sign_one(c, cid, state, k, started, image, kern):
         print(f"HVLAB signed cid={cid} app={app[:16]}...", flush=True)
 
 
-def load(state, cid, bundle, label=""):
+def load(state, cid, bundle, label="", name=""):
     data = open(bundle, "rb").read()
     mine = hashlib.sha256(data).hexdigest()
     s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     s.settimeout(120)
     s.connect((int(cid), 9000))
-    s.sendall((json.dumps({"cmd": "load", "label": label, "size": len(data)}) + "\n").encode() + data)
+    req = {"cmd": "load", "label": label, "size": len(data), **({"name": name} if name else {})}
+    s.sendall((json.dumps(req) + "\n").encode() + data)
     buf = b""
     while not buf.endswith(b"\n"):
         b = s.recv(65536)

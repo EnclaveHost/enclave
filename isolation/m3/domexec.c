@@ -163,7 +163,8 @@ int main(int argc, char **argv) {
                   "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
-                     "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", "-app-mode", "serve", NULL};
+                     "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", "-app-mode", "serve",
+                     "-cert-name-file", "/cert.name", NULL};
     /* RUN mode (enclave-catalog-bundle/2): the bundle's own manifest says the app is a wasi:cli COMMAND that binds
      * its declared HTTP port through wasi:sockets; the monitor passes that port (argv[5]) from the bundle it hashed,
      * never from the host's request. The same semantics as the Linux SNP tier's m2/dominit.c: -S tcp/udp/
@@ -176,7 +177,8 @@ int main(int argc, char **argv) {
                    "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
     char *run_front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                          "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
-                         "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run", NULL};
+                         "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run",
+                         "-cert-name-file", "/cert.name", NULL};
     if (argc > 3 && strcmp(argv[3], "run") == 0) {
         run_port = argc > 5 ? atoi(argv[5]) : 0;
         if (run_port < 1 || run_port > 49999) {
