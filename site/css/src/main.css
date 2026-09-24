@@ -97,3 +97,6 @@
   select:not(:focus),
   textarea:not(:focus) { border-color: var(--line-strong); }
 }
+
+@import "../../components/compute-art/compute-art.css" layer(components);
+@import "./visual.css" layer(components);
