@@ -5,11 +5,13 @@
 # using ggml's own GGML_F32_VEC operations in exactly the order of
 # ggml_vec_scale_f32 / ggml_vec_dot_f32 / ggml_vec_mad_f32 -- bit-identical by
 # construction, checked by wasm/llamacpp-conv-inplace/gdn-equiv.cpp and the
-# real-graph test. Applies AFTER llamacpp-conv-inplace.patch (and NOT with the
-# unapplied llamacpp-gdn-tokfuse.patch).
---- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 10:07:49.544494100 -0700
-+++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 10:07:49.545143076 -0700
-@@ -11003,6 +11003,65 @@
+# real-graph test. Compiled only at 16 floats per vector (AVX-512): on the
+# production AVX2 build a row is all 16 ymm registers and measured ~55% slower,
+# so there it compiles out and the vector calls run. Applies AFTER
+# llamacpp-conv-inplace.patch (and NOT with the unapplied llamacpp-gdn-tokfuse.patch).
+--- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.724488683 -0700
++++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.725191964 -0700
+@@ -11003,6 +11003,69 @@
      return on;
  }
 
@@ -32,7 +34,11 @@
 +    return on;
 +}
 +
-+#if defined(GGML_SIMD) && !defined(__ARM_FEATURE_SVE) && !defined(__riscv_v_intrinsic) && !defined(GGML_USE_ACCELERATE)
++// Only where a row fits the register file: at 16 floats per vector (AVX-512) the
++// row is 8 registers; at 8 (AVX2) it is all 16 ymm registers before a single
++// accumulator, the compiler spills, and the production toolchain's AVX2 build
++// measured the register row ~55% SLOWER than the calls (gdn-bench, GCC 11.4).
++#if defined(GGML_SIMD) && !defined(__ARM_FEATURE_SVE) && !defined(__riscv_v_intrinsic) && !defined(GGML_USE_ACCELERATE) && GGML_F32_EPR >= 16
 +#define GDN_REGROW_SV 128
 +static_assert(GDN_REGROW_SV % GGML_F32_STEP == 0, "the register row must have no dot/mad leftovers");
 +// returns dot(row after the update, q); updates the row in place
@@ -75,7 +81,7 @@
  static void ggml_compute_forward_gated_delta_net_one_chunk(
      const ggml_compute_params * params,
      ggml_tensor * dst,
-@@ -11142,6 +11201,13 @@
+@@ -11142,6 +11205,13 @@
              }
              const float expg = kda ? 0.0f : expf(g_d[0]);
 

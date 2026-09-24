@@ -5006,3 +5006,63 @@ pairs to completion, the ntsnap 27B op profile, and baseline runs with
 Unchanged: both Freivalds rejections open; the conv multi-sequence limitation;
 no model-matched quality evaluation of the 27B encoding; the production-toolchain
 run of the regrow/ntsnap checks not yet executed.
+
+### 18.53 The production toolchain catches a regression; two harness gates were measuring the wrong thing
+
+**Register row: a production regression, now compiled out there.** The
+production-toolchain check (ubuntu 22.04, GCC 11.4, `-mavx2 -mfma`, the
+workflow's CPU flags) passed every bitwise check for both new kernels (regrow
+and ntsnap: gdn-equiv on/off and the real graph on/off). Its informational
+timing then showed the register row **~55% slower on AVX2** (116.3 / 113.5 us
+against 73.5 / 72.5): at 8 floats per vector a 128-float row is all 16 ymm
+registers before one accumulator, and the compiler spills. It now compiles only
+at 16 floats per vector (AVX-512); re-run, the AVX2 build shows on and off equal
+(71.9 / 79.4 against 74.1 / 73.7, i.e. the calls in both) and ALL CHECKS PASSED,
+while the AVX-512 host build keeps it (57-60 against 78-83 us). The host bench
+has always been an AVX-512 build and production is AVX2, so any CPU-kernel gain
+measured here needs this check before it counts for production.
+
+**The streaming snapshot in the 27B graph:** the 2-row recurrent op 130.4 ->
+112.2 us (np-off-1 / np-on-1); the 1-row call, which takes no snapshot, 62.8 /
+59.4 and MUL_MAT 12.1 / 12.9 as controls. The second pair's profiles agree
+(126.7 off, 107.7 on).
+
+**The argmax, within-run.** Throughput pairs cannot resolve a 2 ms effect
+against this spread (four valid pairs: +0.67, +0.27, -0.38, -2.15), but each
+run's own artifacts can: the round time outside the draft and verify timers,
+where the argmax is, was 3.79-4.23 ms (old) against 1.70-2.02 (new), every
+new run below every old one: **-2.2 ms per round**, ~2.7%.
+
+**The spread is not the CPU ops' work.** Across eight op-profiled runs, verify
+ranged 67.6-79.9 ms while the CPU op time inside a verify graph stayed at
+12.2-15.2 ms with no relation to it. Six identical instrumented runs (vb-1..6,
+`ENCLAVE_SCHED_PROF=1` + phase trace, verify 76.2-84.0) put it in both halves:
+per ms of verify, the CPU-split wall moves +0.45 (r=0.83) and the shielded-split
+wall +0.63 (r=0.88), and inside the shielded part the join (card 0 waiting for
+card 1's helper) moves most, 4.3-12.6 ms per round. Card 1's device time is
+only ~1.6 ms per round above card 0's (worker logs), so most of the join is
+the helper thread being late, as 18.7 found. Between the fastest traced run
+(pt-1, verify 64.7) and a typical one (vb-3, 76.2), wire is the same (21.5 /
+21.1) and every CPU-bound shielded phase is slower together (mask 4.16 / 4.91,
+unmask 2.72 / 3.72, rhs 3.55 / 5.22, mask kernel 2.86 / 4.80): a whole-CPU
+slowdown, not an op. Pads were never short (missed 0, waited 0). Cause still
+not identified; transparent huge pages were the next candidate (this boot, THP
+is obtainable: one run's bench held 25.1 of 28.2 GB anonymous memory on huge
+pages) but that batch was stopped, see below.
+
+**Two harness gates were measuring the wrong thing.**
+- `ps` reports `pcpu` as a LIFETIME average. The quiet gate and the post-run
+  intruder check both used it, so a process busy hours ago reads as busy now
+  and a fresh burst reads as idle. The desktop compositor (picom) had averaged
+  53% over 4.6 hours and was really at ~88-91% of a core (3 s windows), which
+  stalled the huge-page batch at its gate and invalidated its first run. New
+  `cpunow.py` measures per-process CPU over a window; `waitquiet2.sh` and
+  `run9.sh` (foreign CPU sampled DURING the run in 5 s windows, `.intr`) use it.
+- The renamed bench binaries (`bench-spec2.fast`) have a 15-character process
+  name `bench-spec2.fas`, so `pgrep -x bench-spec2` (the double-bench guard)
+  and the CPU sampler never matched them. The queues were strictly sequential,
+  so no two benches overlapped, but the guard was off; variants now live in
+  `bin-*/bench-spec2`.
+
+No timed runs are possible while the compositor burns a core; the box is not
+quiet. **No 25.**
