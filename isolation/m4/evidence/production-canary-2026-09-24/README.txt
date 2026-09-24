@@ -23,8 +23,11 @@ WHAT SERVES IT
             metal.isolation=snp-guest-per-app. Live measurement = the build's prediction:
             2410964515fa82dac869ad2f3a6e06d245a0876858ad4fe165ae8a5c31a88a012bcf40e37626a1a768d77f0486ca8f30
   relay     production api-relay (nan): METAL_ALLOWED_MEASUREMENTS = that one measurement (env backed up first).
-            The node attached "via attestation" (VCEK chain verified; the VCEK rides fw_cfg because this host
-            attaches no certificate table and KDS has none for the part). The relay lists it serving, mode snp.
+            The node attached "via attestation" (VCEK chain verified). The VCEK rides fw_cfg because this host
+            attaches no certificate table to reports. CORRECTION (enclave-99): AMD KDS DOES serve this chip's VCEK
+            (kdsintf.amd.com/vcek/v1/Turin/fa11afcf54ae9c53?fmcSPL=01&blSPL=03&teeSPL=02&snpSPL=05&ucodeSPL=117), and
+            it verifies the live reports; an old note that it did not was repeated here. The relay lists the node
+            serving, mode snp.
   manager   enclave-guestd.service (user unit) from worktree ~/enclave-prod/iso-03be27d6 at f5053f62; control on
             127.0.0.1:8095 (guestd-control/1, kid 7dbd27b4352d10e1), data plane 127.0.0.1:8096 (enclave-splice/1);
             the node CVM reaches both at 10.0.2.2 over QEMU user networking.
@@ -35,7 +38,8 @@ WHY THIS IS THE NEW PER-APP PATH AND NOT THE OLD SHARED PROCESS PATH (each check
     SPKI sha256 b6230cb3948781c6c7fdf1f891f028c3a2fc99d59e726ef6462fe2bec06dbe91 equals the key the attestation
     document binds (prod-doc.json transportKey) and the key guestd's verifier recorded for the instance.
   - The attestation document is the GUEST's SNP report (format sev-snp-guest-domain-v1), measurement
-    df03e2f6...40f, not the node CVM's 24109645...f30.
+    df03e2f66cbb0b70f9cf0c474a2e334727b3b276ac496cb93f8937497b7c973790699f02e207e0e2f73f0146add8840f (the full
+    expected-measurement.sh output, with the release id, is expected-measurement.txt), not the node CVM's.
   - report_data[32:64] = AppID 9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45, the sha256 of
     the bundle derived from the catalog version (record.json, enclave-catalog-bundle/1, policy
     enclave-isolation-policy/1 = {cpuPercent 100, memMiB 128, vcpus 1}).
@@ -45,8 +49,9 @@ WHY THIS IS THE NEW PER-APP PATH AND NOT THE OLD SHARED PROCESS PATH (each check
 CLIENT VERIFICATION, from the public internet side (prod-client.txt): isolation/m2/client.mjs, TRUSTED mode, through
 the production relay: VERDICT attested (AMD chain via vcek.der to the pinned Turin ARK, TCB checked against
 min-tcb.json), key bound, second nonce attested, replay rejected, app 200 "Hello World!" on the pinned key.
-  The expectations were NOT taken from the host: the component was fetched by CID from a public gateway and
-  hash-checked; the bundle was derived by the independent derive_reference.py (AppID matches); the measurement was
+  The expectations were NOT taken from the host: the component was fetched by CID from the public trustless
+  gateway https://trustless-gateway.link/ipfs/<cid>?format=raw (Accept: application/vnd.ipld.raw; it refuses Python's
+  default user agent) and hash-checked against the CID; the bundle was derived by the independent derive_reference.py (AppID matches); the measurement was
   recomputed by expected-measurement.sh --pin from the domain release built at c423f9b9 (domain-release.json,
   release id ec0f713cebf03d601c6fab3a21394b6cf1447818a919b28bd47c527613689c6e).
 
@@ -79,6 +84,12 @@ FINDINGS
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
   F4  The node CVM itself boots from a measured image whose supervisor comes from a branch overlay, not a main release.
   F5  The operator key is metal0's (shared between two nodes that do not run together).
+
+LIVE CHECK BY THE VERIFIER LANE (enclave-99, research/independent-verifier), 2026-09-24T19:33Z, read-only from the
+public side: VERIFIED - served SPKI 08c88f1e... equals transportKey, VCEK -> SEV-Turin -> ARK-Turin (pinned), CRL
+fresh, TCB fmc 1 bl 3 tee 2 snp 5 ucode 117, report_data[0:32] = Bind2 over the served key, its own nonce and
+RuntimeID ccadb38a..., [32:64] = the AppID. Their measurement check is continuity with this capture (the domain
+release is not published), which they report as such. A second implementation agreeing; not an independent review.
 
 WHAT THIS DOES NOT ESTABLISH
   Anything beyond what one SNP guest per app gives: the host is still the scheduler and can deny service; the
