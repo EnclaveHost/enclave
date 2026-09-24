@@ -1,5 +1,5 @@
 Step 2: the launch measurement now covers the kernel, initrd and command line that ACTUALLY EXECUTE
-warden-host, 2026-09-24. Generated from /home/steven/enclave-bench/m4b-step2-020941 by m4/write-step2-evidence.sh; the quoted lines are cut from
+warden-host, 2026-09-24. Generated from /home/steven/enclave-bench/m4b-step2-021717 by m4/write-step2-evidence.sh; the quoted lines are cut from
 the run's own files. This is the inversion of evidence/igvm-0b-precondition-2026-09-24.txt, which recorded the
 same firmware inside the same kind of IGVM refusing every guest because the table was absent.
 
@@ -10,7 +10,7 @@ the IGVM digest. Three mechanisms have to hold together: emit the table where th
 SVSM from validating and zeroing that page, and grant the page to the guest VMPL.
 
 THE BUILD
-  IGVM            /home/steven/enclave-bench/m4b-step2-020941/measured.igvm
+  IGVM            /home/steven/enclave-bench/m4b-step2-021717/measured.igvm
                   4775896 bytes, sha256 0339333b19af29b77c20bbd5099bf0a0a1d2f2fc7fb7d64d8f46ff7368d4e859
   launch digest   AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
   firmware        OVMF.amdsev.debug.fd, sha256 50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2
@@ -24,7 +24,7 @@ THE BUILD
   app id, plane 2 3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
 
 WHERE THE TABLE GOES, which is the part that cost a hardware run:
-  Measured SEV hash table at 0x810c00: a 176-byte table in the firmware's 1024-byte slot at offset 0xc00 of the 4096-byte area at 0x810000, over kernel /boot/vmlinuz-linux, initrd /home/steven/enclave-bench/m4b-step2-020941/good.cpio.gz, cmdline "console=ttyS0 rdinit=/init loglevel=3"
+  Measured SEV hash table at 0x810c00: a 176-byte table in the firmware's 1024-byte slot at offset 0xc00 of the 4096-byte area at 0x810000, over kernel /boot/vmlinuz-linux, initrd /home/steven/enclave-bench/m4b-step2-021717/good.cpio.gz, cmdline "console=ttyS0 rdinit=/init loglevel=3"
   Pre-validated regions recorded (3): [0x800000-0x809000] [0x80a000-0x80d000] [0x811000-0x830000]
 
 The descriptor declares the PAGE, because that is what gets validated. The firmware reads the table at its own
@@ -72,10 +72,15 @@ right word for the report is "unauthenticated" and the measurement equality is a
   published 2047 bytes; response status=0 report_size=1184
   report version=5 vmpl=2 policy=0x30000
   reported_tcb=0103020500000075 chip_id=fa11afcf54ae9c530000000000000000...
+  allowed measurement set = { AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86 }  (this build only, NOT Metal's production allowlist)
   ok    the AMD chain verifies this report (VCEK -> ASK -> ARK), offline against the pinned root
           report is from VMPL2, as the caller expected (VMPL0-1 of this guest are more privileged and in its TCB); guest policy 0x30000: DEBUG off, MIGRATE_MA off; measurement on Metal release allowlist; report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity); AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin); VCEK chip ID and TCB extensions match the report; reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)
   ok    the signature was checked against a VCEK, not merely parsed
-  ok    the reported TCB meets the pinned floor (Turin)
+  ok    the reported TCB meets the pinned minimum (Turin)
+          pinned {"Turin":{"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117}}
+          reported 0103020500000075
+          NOTE: this minimum equals the values this part currently reports, so it is a pin at today's TCB
+          rather than a floor below it. It refuses a DOWNGRADE; it does not test the comparison.
   ok    VMPL is 2: this report was fetched by the plane, not by a VMPL0 component
   ok    POLICY is the launch policy 0x30000
           report says 0x30000
@@ -112,6 +117,7 @@ THE SCORE
   PASS 2b and no validated range contains it, so it was never zeroed
   PASS 5a control: the guest completed its admission cycle and produced a report
   PASS 5b and the report's MEASUREMENT equals igvmmeasure of the launched IGVM
+  PASS 5c and the AMD chain verifies it, at VMPL 2, with every field as the build stated
   PASS 3 substitution: a DIFFERENT initrd under the same measured IGVM is REFUSED
   PASS 4 no-table control: without a measured table the same firmware still REFUSES
   PASS 6 RELEASE control: the same guest boots under the firmware production would run
@@ -128,6 +134,21 @@ WHAT THIS DOES NOT ESTABLISH, and none of it is closed by the run above:
   evidence and never its name or its .dsc - a byte-perfect measured table over BlobVerifierLibNull passes every
   structural check there is. Reassembling the firmware from the IGVM's own pages would bind it after the fact
   too; that is the independent reviewer's mechanism and is not in this script.
+
+  The TCB minimum this run pins EQUALS the values this part currently reports, so it refuses a downgrade and does
+  not exercise the comparison. It is a pin at today's TCB, not a floor below it.
+
+  The root of trust is test/fixtures/amd/Turin-cert_chain.pem, a file in this repo dated 2026-07-27. Its ARK was
+  checked independently on 2026-09-24 (enclave-59): SEV-Turin is issued by ARK-Turin, the ARK is self-signed and
+  openssl verify accepts it, the VCEK is CN=SEV-VCEK issued by SEV-Turin, and the ARK's sha256 fingerprint is
+  1F:08:41:61:A4:4B:B6:D9:37:78:A9:04:87:7D:48:19:CA:FA:5D:05:EF:41:93:B2:DE:D9:DD:9C:73:DD:3F:6A. A reader who
+  wants this to be a root of trust rather than a file should compare that fingerprint with AMD's published
+  ARK-Turin themselves; snp-verify.mjs pins the root before caching, so a chain it refuses is never remembered.
+
+  The nonce is a compiled-in constant in admitinit.c. The run records that a nonce was set, not its value, so the
+  verifier supplies the constant; it is confirmed by Bind2 agreeing rather than read from the run, because the
+  SVSM computed the binding over the nonce it actually received. Having the guest print what it wrote would be
+  better and is not done.
 
   The runtime image admitted is the wasmtime ELF only. Its interpreter and shared libraries are not admitted, so
   the bytes that execute include unadmitted code.

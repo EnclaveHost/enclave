@@ -38,8 +38,11 @@ const respHex = pick('report_after_re_admit_hex') || pick('report_hex');
 const keyHex = pick('key_registered');
 if (!respHex) { console.error('FAIL: the run published no report'); process.exit(1); }
 if (!keyHex) { console.error('FAIL: the run does not record the registered key, so the binding cannot be recomputed'); process.exit(1); }
-// The nonce the guest wrote to `bind`. It is a constant in admitinit.c; taking it from the source would be
-// assuming what the guest did, so require it to be stated and fail if the run does not show it.
+// The nonce the guest wrote to `bind`. This IS the constant from admitinit.c - the run records that a nonce was
+// set but not its value - so it is not read from the run, and an earlier comment here claimed otherwise. What
+// makes it sound anyway is that the SVSM computed the binding over the nonce it actually received: if the guest
+// had used a different one, Bind2 below would not match and the check would fail. So the value is confirmed by
+// agreement rather than assumed - but the better fix is for admitinit to print what it wrote, and it does not yet.
 const nonceLine = /ADMIT nonce_set=ok/.test(ev);
 if (!nonceLine) { console.error('FAIL: the run does not show the nonce being set'); process.exit(1); }
 const NONCE = Buffer.from('a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90', 'hex');
@@ -92,10 +95,18 @@ const res = await verifyQuote(report, {
   expectedVmpl: 2,
   expectedBinding,
 });
+// The production verifier's reason strings are its own wording, and one of them reads "measurement on Metal
+// release allowlist" whatever set was passed. The set here is exactly one digest - this build's - and a reader
+// would otherwise take that phrase to mean the digest is on Metal's PRODUCTION allowlist. It is not.
+console.log(`allowed measurement set = { ${man.igvm.launchDigest} }  (this build only, NOT Metal's production allowlist)`);
 check(res.ok === true, 'the AMD chain verifies this report (VCEK -> ASK -> ARK), offline against the pinned root',
   res.reasons.join('; '));
 check(res.vcekVerified === true, 'the signature was checked against a VCEK, not merely parsed');
-check(res.tcb && res.tcb.checked === true, `the reported TCB meets the pinned floor (${res.tcb ? res.tcb.product : '?'})`);
+check(res.tcb && res.tcb.checked === true,
+  `the reported TCB meets the pinned minimum (${res.tcb ? res.tcb.product : '?'})`,
+  `pinned ${JSON.stringify(JSON.parse(fs.readFileSync(minTcbPath, 'utf8')))}\n        reported ${p.reportedTcb.toString('hex')}`
+  + '\n        NOTE: this minimum equals the values this part currently reports, so it is a pin at today\'s TCB'
+  + '\n        rather than a floor below it. It refuses a DOWNGRADE; it does not test the comparison.');
 check(p.vmpl === 2, 'VMPL is 2: this report was fetched by the plane, not by a VMPL0 component');
 const wantPolicy = BigInt(man.igvm.policy || 0x30000);
 check(p.policy === wantPolicy, `POLICY is the launch policy 0x${wantPolicy.toString(16)}`, `report says 0x${p.policy.toString(16)}`);
