@@ -41,7 +41,9 @@ function supervisorBody({ derive, deploymentId = DEPLOYMENT }) {
 /** What supervisor.js requires of the answer, read from its source rather than remembered. */
 const REQUIRED_STATUS = Number((/if \(r\.status !== (\d{3})\) throw new Error\(`guestd refused the launch/.exec(SUPERVISOR) || [])[1]);
 const ADOPT_ID_RE = new RegExp((/r\.status === 409 && r\.body && (\/\^gd\[0-9a-f\]\{8\}\$\/)\.test/.exec(SUPERVISOR) || [, "/^gd[0-9a-f]{8}$/"])[1].slice(1, -1));
-const GUESTD_CREATED = Number((/s\.json\(w, (\d{3}), pub\)/.exec(GUESTD) || [])[1]);
+// the create handler's own status: the `s.json(w, NNN, pub)` that follows its 409 "an instance for this name is live"
+// (an earlier `s.json(w, 200, pub)` belongs to a read or an adoption answer, not to a create)
+const GUESTD_CREATED = Number((/an instance for this name is live[\s\S]*?s\.json\(w, (\d{3}), pub\)/.exec(GUESTD) || [])[1]);
 
 /** A backend whose launch answers like the launcher does after a boot with no readiness handshake. */
 const bootedBackend = () => new HyperVPartitionBackend({ launch: async (mapping, { instanceId }) => ({
