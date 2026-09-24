@@ -1,0 +1,12 @@
+{"committed":{"serial":1,"gen":2}}
+{"line":"{\"graph\":\"gemma-4-e2b-it-q4_0\",\"n_vocab\":262144,\"prompt_tokens\":9,\"load_ms\":5,\"prefill_ms\":244}"}
+{"line":"{\"i\":0,\"token\":10950,\"ms\":0}"}
+{"line":"{\"i\":1,\"token\":17847,\"ms\":142}"}
+{"line":"{\"i\":2,\"token\":13,\"ms\":232}"}
+{"line":"{\"i\":3,\"token\":10950,\"ms\":374}"}
+{"line":"{\"i\":4,\"token\":17847,\"ms\":471}"}
+{"line":"{\"i\":5,\"token\":101,\"ms\":568}"}
+{"line":"{\"i\":6,\"token\":101,\"ms\":710}"}
+{"line":"{\"i\":7,\"token\":101,\"ms\":809}"}
+{"line":"{\"done\":true,\"tokens\":8,\"decode_ms\":809,\"tok_per_s\":8.65}"}
+{"result":{"label":"cli","mode":"stream","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","codeHash":"433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd","key":"5bb75d4fc7c85029","appKey":"9bb53db1cbcaa498","nonce":"77de043d05d909c6"},"verifyMs":725,"ms":1817,"firstTokenMs":1237,"arrivals":[1237,1237,1472,1472,1726,1726,1811,1811,1817,1817],"tokens":8,"status":200,"complete":true,"chunks":7,"policySerial":1,"stateGen":2,"clientVersion":"0.4.1"}}

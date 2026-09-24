@@ -116,7 +116,7 @@ Measured on a Pixel 10 through the fail-closed driver, protected pvm-cpu build, 
 | 6 | parity | every boot's self-test digest equals the model's native reference | **meets** (pc-01: identical to native) |
 | 7 | quality | >= 22/24 on the 24-prompt contract set (lane-score.py), default profile | 22/24 (earlier build) |
 | 8 | trust | protected build (model pinned), chain verified to Google's roots, capability report admitted by the relay's rules | **meets offline** (pc-01); a live relay attach not yet run |
-| 9 | stability | 50 consecutive mixed turns with no engine error | not yet run |
+| 9 | stability | 50 consecutive mixed turns with no engine error | **met once** (results/pvm-cpu-stability-50: 50/50 through the installed client 0.4.1, fresh evidence every turn, one VM boot; stream-probe turns of 8-128 tokens, not the chat workload) |
 
 Targets 2, 3 and 5 are where the work is. The levers, in order: keep one engine alive across conversations (3, and the
 cold start disappears for every turn after the first); restart a dead VM automatically (5); for sustained throughput, fewer
