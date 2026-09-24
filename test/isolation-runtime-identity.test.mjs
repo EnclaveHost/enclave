@@ -156,6 +156,37 @@ test('the runtime self-test is required and must record a clean W^X scan', () =>
   assert.equal(checkRuntimeSelfTest(ST, JIT).ok, true);
 });
 
+test('the scan scope is a closed vocabulary, so a domain cannot invent one that reads broad', () => {
+  // each admissible scope, with what it claims
+  const ok = [
+    ['exec_pages=allowed wx=clean maps=3 scope=all-processes', /every process with an address space/],
+    ['exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom7', /own cgroup \/dom7 \(2 processes\), and no neighbour/],
+    ['exec_pages=allowed wx=clean maps=1 scope=self', /reporting process ALONE/],
+  ];
+  for (const [st, re] of ok) {
+    const r = checkRuntimeSelfTest(st, JIT);
+    assert.equal(r.ok, true, `${st}: ${r.reasons.join('; ')}`);
+    assert.match(r.reasons.join(' '), re);
+  }
+  // scope=self must say it is incomplete for a separate runtime process, since nothing attests which it is
+  assert.match(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT).reasons.join(' '),
+    /separate runtime process would be unscanned/);
+  // and anything else is refused, however broad it reads
+  for (const st of [
+    'exec_pages=allowed wx=clean maps=3 scope=everything',
+    'exec_pages=allowed wx=clean maps=3 scope=all',
+    'exec_pages=allowed wx=clean maps=3 scope=vm',
+    'exec_pages=allowed wx=clean maps=3 scope=cgroup:',       // no path
+    'exec_pages=allowed wx=clean maps=3 scope=cgroup:dom1',   // not absolute
+    'exec_pages=allowed wx=clean maps=3 scope=',
+    'exec_pages=allowed wx=clean maps=3 scope=self-and-friends',
+  ]) {
+    assert.equal(checkRuntimeSelfTest(st, JIT).ok, false, `${JSON.stringify(st)} was accepted`);
+  }
+  // scope=self claiming to have scanned more than the one process it can see is refused
+  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=9 scope=self', JIT).ok, false);
+});
+
 test('a JIT identity from a domain that may not hold an executable page is refused', () => {
   const st = 'exec_pages=refused:EACCES wx=clean maps=3 scope=cgroup:/dom1';
   const r = checkRuntimeSelfTest(st, JIT);
