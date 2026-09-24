@@ -841,6 +841,27 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
 // ledger never lists it as a consumer and never issues it a seed - the same rule a
 // v1 attach lives under. A pad build on the same transcript keeps its key, and a
 // build in neither list is refused.
+// The attestation gate counts every build list the v2 attach is judged against. A relay configured for the pVM CPU tier
+// alone (no v1 METAL_AVF_CODE_HASHES) or for pad builds alone answered 401 before reading any evidence -- found by the
+// first live attach from a Pixel (shielded/anchor/avf/results/pvm-cpu-live-attach).
+test("pvm-cpu: a relay with no v1 AVF list still opens the attest handshake for pvm-cpu or pad builds; nothing configured stays shut", async () => {
+  const policy = pvmCpuPolicy({ codeHashes: [createHash("sha256").update("pvm-cpu protected build").digest("hex")], authorityHashes: [AUTH.toString("hex")],
+    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
+  const hPvm = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] }, pvmCpu: policy } });
+  const hPad = await hubServer({ attest: { avf: avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: "a".repeat(64), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") }) } });
+  const hNone = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] } } });
+  try {
+    for (const [h, who] of [[hPvm, "pvm-cpu only"], [hPad, "pad builds only"]]) {
+      const r = await dial(h.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" });
+      assert.equal(r.state, "open", who);
+      await settle();
+      assert.ok(r.frames.find((f) => f.t === "challenge"), `${who}: the hub sends its challenge`);
+      r.ws.close();
+    }
+    assert.equal((await dial(hNone.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" })).state, 401, "no build list: no attest handshake");
+  } finally { await hPvm.close(); await hPad.close(); await hNone.close(); }
+});
+
 test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility; a pad build keeps its key; a stranger is refused",
      { skip: !haveOpenssl && "openssl not installed" }, async () => {
   const dir = tmpdir("pvm-v2-");

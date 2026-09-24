@@ -284,7 +284,10 @@ static void attest(const char *hex, const char *bound_hex) {
         if (own) {
             size_t ssz = AVmAttestationResult_sign(res, bound, blen, NULL, 0);
             uint8_t *sig = malloc(ssz);
-            if (sig) { AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
+            /* print what THIS signing produced: the size query signs too, and an ECDSA P-256 DER signature is 70-72 bytes,
+             * so the second may be shorter than the first; printing the query's size appended a zero byte and the relay
+             * refused the signature (the first live attach, results/pvm-cpu-live-attach) */
+            if (sig) { const size_t n = AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, n < ssz ? n : ssz); free(sig); }
         }
         AVmAttestationResult_free(res);
     }

@@ -120,9 +120,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   const vbsOn = !!(attest && attest.vbs && attest.vbs.measurements && attest.vbs.measurements.length);
-  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
-                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)
-                               || vbsOn));
+  // AVF attestation is on when ANY build could pass it: the v1 list, or -- for the v2 pad-binding transcript -- a pad build
+  // or a pvm-cpu build (the lists the v2 attach below is judged against). Counting only the v1 list answered a relay
+  // configured for the pVM CPU tier alone with 401 before any evidence was read (the first live attach from a phone).
+  const avfOn = !!(attest && attest.avf && ((attest.avf.codeHashes && attest.avf.codeHashes.length)
+                                            || (attest.avf.padCodeHashes && attest.avf.padCodeHashes.length)
+                                            || (attest.pvmCpu && attest.pvmCpu.codeHashes && attest.pvmCpu.codeHashes.size)));
+  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length) || avfOn || vbsOn));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 
