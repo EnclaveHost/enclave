@@ -117,3 +117,25 @@ test("changing the requirement of a RUNNING deployment is surfaced, never swappe
   const off = await seam({ edits: [{ rec: { ...rec, _envelope: "" }, chainCid: REQ }] });
   assert.deepEqual(off.edits, ["error"]);
 });
+
+test("the tier's view of a version: _media is not app config, anything else is", async () => {
+  const r = await seam({ appConfig: ['{"_media":{"thumbnail":"bafk"}}', "", '{"_media":{},"model":"x"}', "not json", '{"a":1}'] }, TIER);
+  assert.deepEqual(r.appConfig, ["", "", '{"model":"x"}', "not json", '{"a":1}']);
+});
+
+test("the derivation record a spawn sends: the version's catalog ref, CID, pinned policy and the host's runtime", async () => {
+  const app = "0x" + "ab".repeat(32), rt = "7e".repeat(32);
+  const r = await seam({ derive: [
+    { catalogRef: `catalog://${app}/4`, wasmRef: "ipfs://bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza", memMb: 128, runtimeId: rt },
+    { catalogRef: `catalog://${app}/4`, wasmRef: "ipfs://bafkreiexample", memMb: 900, runtimeId: rt },
+    { catalogRef: `catalog://${app}/4`, wasmRef: "ipfs://bafkreiexample", memMb: 0, runtimeId: rt },
+    { catalogRef: "ipfs://bafkreiexample", wasmRef: "ipfs://bafkreiexample", memMb: 128, runtimeId: rt },
+    { catalogRef: `catalog://${app}/4`, wasmRef: "ipfs://bafkreiexample", memMb: 128, runtimeId: "" },
+  ] }, TIER);
+  assert.deepEqual(r.derive[0], { derivation: "enclave-catalog-bundle/1", catalog: { app, version: 4 },
+    cid: "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza", policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 }, runtimeId: rt });
+  assert.deepEqual(r.derive[1].policy, { cpuPercent: 100, memMiB: 900, vcpus: 1 });
+  assert.deepEqual(r.derive[2].policy, { cpuPercent: 100, memMiB: 128, vcpus: 1 }, "an on-chain 0 takes the floor");
+  assert.match(r.derive[3].error, /needs a catalog version/);
+  assert.match(r.derive[4].error, /states no runtime identity/);
+});

@@ -2242,6 +2242,40 @@ if (process.env.CFG_EDIT_SELFTEST) {
   process.exit(0);
 }
 
+// ---- per-app isolation: what a catalog version becomes on the per-app guest tier ----
+// The app config a guest on this tier would receive: the version's (or override's) config WITHOUT `_media`, which is
+// the catalog store's display metadata and never an app's input. "" when nothing else remains. Anything that does
+// remain is app config, which this tier refuses (isolationClaimVerdict), so a store thumbnail never blocks a claim
+// and a real config never slips through.
+function isolationAppConfig(config) {
+  if (!config) return "";
+  let o;
+  try { o = typeof config === "string" ? JSON.parse(config) : config; } catch { return String(config); }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return String(config);
+  const { _media, ...rest } = o;
+  return Object.keys(rest).length ? JSON.stringify(rest) : "";
+}
+// enclave-isolation-policy/1: the ONE policy a catalog version runs under on this tier, fixed per version and
+// recomputable by anyone from the chain (isolation/contract/catalog/DERIVE.md): 1 vCPU (part of the measurement),
+// memMiB = the version's own on-chain memMb (floor 128), cpuPercent 100. It reads only the version's immutable
+// record, never a deployment's purchase, so every deployment of a version is the same AppID and measurement.
+const ISOLATION_POLICY_RULE = "enclave-isolation-policy/1";
+function isolationPolicyFor(version) {
+  const mem = Math.max(128, Math.ceil(Number(version && version.memMb) || 0));
+  return { cpuPercent: 100, memMiB: mem, vcpus: 1 };
+}
+// The derivation record guestd needs to turn a catalog version into the exact bundle it runs
+// (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
+// images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
+function isolationDerivation(catalogRef, wasmRef, policy, runtimeId) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(catalogRef || ""));
+  const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
+  if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
+  if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+  return { derivation: "enclave-catalog-bundle/1", catalog: { app: m[1].toLowerCase(), version: Number(m[2]) },
+           cid: c[1], policy, runtimeId };
+}
+
 // ---- per-app isolation claim gate (ISOLATION_BACKEND set) ------------------
 // PURE: every input is passed in, so ISOLATION_SELFTEST exercises exactly this decision. null = claimable here.
 // On a box WITHOUT the backend it never refuses anything itself: parseDepOptions has already refused every
@@ -2298,6 +2332,9 @@ if (process.env.ISOLATION_SELFTEST) {
     parse: (c.parse || []).map((e) => { try { return { ok: true, opts: parseDepOptions(e) }; }
                                         catch (err) { return { ok: false, error: err.message }; } }),
     edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
+    appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId); }
+                                          catch (err) { return { error: err.message }; } }),
   }));
   process.exit(0);
 }
@@ -3432,6 +3469,7 @@ function launchSpecFrom(rec, sec, hosts) {
     gpuCardsHeld: rec._gpu?.cards,
     gpuShare: rec.resources.gpuShare || 0, cpuShare: rec.resources.cpuShare,
     image: { reference: rec.appWasm || (rec.image && rec.image.reference) },
+    catalogRef: rec.image && rec.image.reference, versionMemMb: rec._versionMemMb,
     appPort: rec.network.port, ports: rec.firewall,
     config: rec.config || "", configCid: rec.appConfigCid || "",
     secrets: sec && Object.keys(sec.env).length ? sec.env : null,
@@ -3450,7 +3488,7 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
   })));
   process.exit(0);
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, hosts }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, hosts, catalogRef, versionMemMb }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -3465,6 +3503,26 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     return { internalPort: 0 };
   }
 
+  if (PROVISION_BACKEND === "vm" && ISOLATION_BACKEND) {
+    // Per-app guest tier: guestd derives the bundle from the catalog version and runs it in its OWN SNP guest. It
+    // refuses every feature it cannot honour inside the guest, so none is sent; the claim gate already refused
+    // deployments that need one.
+    if (secrets || configCid || isolationAppConfig(config) || (ports && ports.length))
+      throw new Error("per-app isolation: this deployment carries config, secrets or ports the guest tier does not support");
+    // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
+    // is a different AppID and measurement for the same version).
+    if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
+    const h = await vmHealth();
+    const derive = isolationDerivation(catalogRef, image && image.reference,
+      isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId);
+    const r = await vmReq("POST", "/vms", { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
+      gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
+      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) }, SPAWN_TIMEOUT_MS);
+    if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
+    console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
+              + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
+    return { internalPort: 0, vmId: r.body.id, hostPort: r.body.hostPort, appId: r.body.appId };
+  }
   if (PROVISION_BACKEND === "vm") {
     const ref = image && image.reference;
     if (!ref) throw new Error("VM backend requires an image reference.");
@@ -8634,7 +8692,7 @@ async function switchTenantVersion(rec, d) {
   }
   const httpFw = firewall.find((x) => x.startsWith("http:"));
   rec.image = { reference: g.ref };
-  rec.app = g.app; rec.appWasm = g.wasmRef;
+  rec.app = g.app; rec.appWasm = g.wasmRef; rec._versionMemMb = g.min && g.min.memMb;
   // the deployer's config override rides the DEPLOYMENT (the on-chain
   // envelope), not the version — a version switch keeps it; only an
   // override-free deployment follows the new version's config. The envelope
@@ -9625,8 +9683,9 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // Per-app isolation: on a box that provides it, the deployment must ask for it, the manager must be it, and
   // nothing the guest cannot honour may be needed (isolationClaimVerdict). Inert when ISOLATION_BACKEND is unset.
   if (ISOLATION_BACKEND) {
+    const cf = overrideConfigFields(claimOpts, g);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
-      manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...overrideConfigFields(claimOpts, g),
+      manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
       waf: claimOpts.waf || null });
     if (isoWhy) return isoWhy;
@@ -9773,7 +9832,7 @@ async function adopt(d, g, firewall, slice) {
     // dashboard shows app.slug:app.version from it); the wasm CID in appWasm
     // is only the manager's fetch address
     image: { reference: g.ref }, command: [],
-    app: g.app, appWasm: g.wasmRef, config: g.config || "",
+    app: g.app, appWasm: g.wasmRef, config: g.config || "", _versionMemMb: g.min && g.min.memMb,
     // rev-7: when the version keeps its config at a CID, `config` above is only
     // the routing manifest and this is where the real one lives (the manager
     // fetches and hash-checks it). Empty on every inline version.

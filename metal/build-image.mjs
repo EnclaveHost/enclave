@@ -177,6 +177,31 @@ const WASM_ROOT = path.join(ROOT, 'opt/roots/wasm');
 fs.mkdirSync(path.dirname(WASM_ROOT), { recursive: true });
 console.log('[build] pulling supervisor (guest root)…');
 const supDigest = pull(SUPERVISOR_REF, ROOT);
+// --supervisor-overlay <repo checkout>: the supervisor files a pinned image does not carry yet, copied over it from a
+// git checkout and recorded by commit and hash (the per-app isolation tier's first builds: supervisor.js plus the
+// guestd client modules it imports). Reproducible only from a CLEAN tree at the recorded commit, and the manifest
+// says which it was rather than letting a dirty tree pass as a release.
+const OVERLAY_SRC = arg('supervisor-overlay', '');
+let supervisorOverlay = null;
+if (OVERLAY_SRC) {
+  const src = path.resolve(OVERLAY_SRC);
+  const files = ['supervisor.js', 'isolation/m4/guestd/supervisor-transport.mjs',
+                 'isolation/m4/guestd/control-client.mjs', 'isolation/m4/guestd/supervisor-splice.mjs'];
+  const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
+  const dirty = git('status', '--porcelain', '--', ...files) !== '';
+  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
+  for (const f of files) {
+    const to = path.join(ROOT, 'app', f);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(src, f), to);
+    supervisorOverlay.files.push({ path: '/app/' + f, sha256: sha256File(to) });
+  }
+  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${files.join(', ')}`);
+}
+// --isolation <backend>: this image is for a per-app isolation tier node, whose launcher adds
+// metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
+const ISOLATION = arg('isolation', '');
+if (ISOLATION && ISOLATION !== 'snp-guest-per-app') throw new Error('--isolation must be snp-guest-per-app');
 console.log('[build] pulling wasm-manager (chroot)…');
 const wasmDigest = pull(WASM_REF, WASM_ROOT);
 // A tag was resolved, not pinned: say so once, loudly, and hand over the exact
@@ -557,7 +582,8 @@ const kernelSha = sha256File(path.join(DIST, 'vmlinuz'));
 // --- 7. manifest (written into the image AND to dist; the in-image copy lets
 // the agent report exactly what it was built from) ---------------------------
 // The MEASURED cmdline carries only the mode; everything else is fw_cfg (unmeasured).
-const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}';
+const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}'
+  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '');
 const manifest = {
   builtWith: 'metal/build-image.mjs',
   flavor: 'cpu',
@@ -577,7 +603,10 @@ const manifest = {
   // could rebuild this measurement and check it. `shieldedBuild` is non-null
   // exactly when it was compiled here.
   reproducible: isPinned(SUPERVISOR_REF) && isPinned(WASM_REF)
-                && (shieldedFiles.length === 0 || shieldedBuild !== null),
+                && (shieldedFiles.length === 0 || shieldedBuild !== null)
+                && !(supervisorOverlay && supervisorOverlay.dirty),
+  ...(supervisorOverlay ? { supervisorOverlay } : {}),
+  ...(ISOLATION ? { isolation: ISOLATION } : {}),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   // Every shielded file baked in, by hash. Empty on a box with no shielded card.
