@@ -88,6 +88,10 @@ type domain struct {
 	UID    int    `json:"uid"`
 	CPU    int    `json:"cpuPercent"`
 	MemMiB int    `json:"memMiB"`
+	// How the app runs, from the bundle the monitor hashed (never from the request): "serve" = the runtime serves a
+	// wasi:http component; "run" = a wasi:cli command binds HTTP (enclave-catalog-bundle/2).
+	Mode string `json:"mode"`
+	HTTP int    `json:"http,omitempty"`
 
 	dir     string
 	cgroup  string
@@ -343,15 +347,21 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	m.next++
 	m.mu.Unlock()
 
-	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum,
+	// A bundle's manifest decides the run mode (contract.Parse already refused a wasi:cli bundle without a port in
+	// range, and any other world); a bare artifact is served as before.
+	mode, httpPort := "serve", 0
+	if manifest != nil && manifest.World == contract.WorldCLI {
+		mode, httpPort = "run", manifest.HTTP
+	}
+	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
-	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB\n",
-		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.CPU, d.MemMiB)
+	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
+		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.CPU, d.MemMiB, d.Mode, d.HTTP)
 	return d, nil
 }
 
@@ -416,10 +426,15 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 
 	mode := "app"
-	if d.probe {
-		mode = "probe"
+	args := []string{strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB)}
+	switch {
+	case d.probe:
+		args[2] = "probe"
+	case d.Mode == "run":
+		args[2] = "run"
+		args = append(args, strconv.Itoa(d.HTTP))
 	}
-	cmd := exec.Command("/plat/domexec", strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB))
+	cmd := exec.Command("/plat/domexec", args...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,

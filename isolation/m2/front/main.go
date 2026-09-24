@@ -3,7 +3,9 @@
 //   - mints the domain's TLS key in guest memory at start; the key is never written anywhere;
 //   - terminates TLS on the domain's only channel;
 //   - answers GET /.well-known/enclave-attestation?nonce=<64 hex> itself;
-//   - proxies everything else, as plaintext on the guest's loopback, to the app (wasmtime serve).
+//   - answers GET /.well-known/enclave-ready: whether the app's port accepts connections yet (ready.go);
+//   - proxies everything else, as plaintext on the guest's loopback, to the app (wasmtime serve, or a command
+//     that binds its own port), with no X-Forwarded-For (ready.go).
 //
 // Two shapes, one binary:
 //
@@ -42,8 +44,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -97,6 +97,7 @@ type front struct {
 	boundary     string      // the self-test init produced; relayed verbatim, never composed here
 	app          http.Handler
 	certs        *certState // a CA certificate for this domain's own key and deployment name (certs.go)
+	ready        *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
 	tsmMu        sync.Mutex
 }
 
@@ -113,6 +114,7 @@ func main() {
 		"the SVSM computes the binding from a key registered here, so this domain cannot choose either half of report_data")
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
+	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
 	flag.Parse()
 
 	raw, err := os.ReadFile(*appShaPath)
@@ -148,9 +150,11 @@ func main() {
 	}
 	must(err)
 
-	rp := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: *upstream})
-	rp.Transport = &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64}
-	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: rp}
+	if *appMode != "serve" && *appMode != "run" {
+		die("-app-mode must be serve or run, not %q", *appMode)
+	}
+	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream),
+		ready: &readiness{upstream: *upstream, mode: *appMode, appID: hex.EncodeToString(appSha), dial: 2 * time.Second}}
 	if *appid != "" {
 		// ABI/2 or nothing on this path. The SVSM computes Bind2, which folds in a RuntimeID; a domain with no
 		// runtime identity computes Bind, so the comparison below could never match and every /attest would
@@ -224,6 +228,9 @@ func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case certPath:
 		f.certs.serveInstall(w, r)
+		return
+	case readyPath:
+		f.ready.serve(w, r)
 		return
 	}
 	f.app.ServeHTTP(w, r)
@@ -319,7 +326,14 @@ func (f *front) hostData() ([]byte, error) {
 	var err error
 	switch {
 	case f.monitor != "":
-		rep, _, _, _, _, err = f.askMonitor(make([]byte, 32))
+		// Only a PSP-signed SNP report carries HOST_DATA at 0xC0. A monitor under a Hyper-V launcher returns the
+		// launcher's signed JSON in the same field; read at 0xC0 it spelled "hostExcl..." and named a deployment
+		// "686f7374" ("host"). Any format but SNP has no HOST_DATA, so no name.
+		var format string
+		rep, _, _, _, format, err = f.askMonitor(make([]byte, 32))
+		if err == nil && format != contract.FormatSNP {
+			return nil, fmt.Errorf("the monitor's report is %q, not an SEV-SNP report: it carries no HOST_DATA", format)
+		}
 	case f.snp:
 		rep, _, err = f.report(make([]byte, 64))
 	default:

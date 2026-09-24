@@ -163,7 +163,32 @@ int main(int argc, char **argv) {
                   "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
-                     "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", NULL};
+                     "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", "-app-mode", "serve", NULL};
+    /* RUN mode (enclave-catalog-bundle/2): the bundle's own manifest says the app is a wasi:cli COMMAND that binds
+     * its declared HTTP port through wasi:sockets; the monitor passes that port (argv[5]) from the bundle it hashed,
+     * never from the host's request. The same semantics as the Linux SNP tier's m2/dominit.c: -S tcp/udp/
+     * inherit-network, ENCLAVE_PORTS=http:N=N, a private 64 MiB scratch /data, lost when the domain ends. Here
+     * inherit-network reaches only this domain's OWN network namespace, whose one interface is its loopback. */
+    int run_port = 0;
+    char ports_env[64], upstream[32], data_opts[96];
+    char *run[] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
+                   "-S", "cli", "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
+                   "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
+    char *run_front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
+                         "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
+                         "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run", NULL};
+    if (argc > 3 && strcmp(argv[3], "run") == 0) {
+        run_port = argc > 5 ? atoi(argv[5]) : 0;
+        if (run_port < 1 || run_port > 49999) {
+            printf("DOM%s ERROR run mode needs the bundle's HTTP port in 1-49999\n", dom_id);
+            return 2;
+        }
+        snprintf(ports_env, sizeof ports_env, "ENCLAVE_PORTS=http:%d=%d", run_port, run_port);
+        snprintf(upstream, sizeof upstream, "127.0.0.1:%d", run_port);
+        snprintf(data_opts, sizeof data_opts, "size=64m,mode=0700,uid=%u,gid=%u", (unsigned)uid, (unsigned)uid);
+        mkdir("/data", 0700);
+        if (mount("tmpfs", "/data", "tmpfs", 0, data_opts) != 0) die("mount /data");
+    }
     char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
     struct sigaction sa_term = {0};
     sa_term.sa_handler = on_term;
@@ -174,11 +199,17 @@ int main(int argc, char **argv) {
         rt_pid = spawn(probe_argv, uid);
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
+    } else if (run_port) {
+        rt_pid = spawn(run, uid);
+        front_pid = spawn(run_front, uid);
+        front_pid_g = front_pid;
+        printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
+               run_port);
     } else {
         rt_pid = spawn(rt, uid);
         front_pid = spawn(front, uid);
         front_pid_g = front_pid;
-        printf("DOM%s started runtime=%d front=%d\n", dom_id, rt_pid, front_pid);
+        printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);
     }
     usleep(200000);
     probe(uid);
