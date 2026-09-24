@@ -112,7 +112,7 @@ Measured on a Pixel 10 through the fail-closed driver, protected pvm-cpu build, 
 | 2 | sustained 2,048 tokens back to back | >= 10 tok/s over the run and >= 8 in every 512-token window, thermal status <= 1 | 7.6-8.4, worst window 5.8, status 1 (**fails**) |
 | 3 | cold start, launch -> first token, model cached | <= 60 s; a kept-alive engine answers at target 1 | 88-91 s (**fails**) |
 | 4 | memory | VM <= 7 GiB, phone MemAvailable >= 1 GiB throughout | 7 GiB, 1.14 GiB (**meets**, no margin) |
-| 5 | crash recovery | an interrupted turn is reported failed, never as an answer; the engine is serving again within 90 s with no user action | fail-closed yes, auto-restart **no** (**fails**) |
+| 5 | crash recovery | an interrupted turn is reported failed, never as an answer; the engine is serving again within 90 s with no user action | fail-closed yes; auto-restart **yes** since p5 (results/pvm-cpu-p5 rs-01: PASS), but serving again after 123 s (**fails** the 90 s, on the cold start) |
 | 6 | parity | every boot's self-test digest equals the model's native reference | **meets** (pc-01: identical to native) |
 | 7 | quality | >= 22/24 on the 24-prompt contract set (lane-score.py), default profile | 22/24 (earlier build) |
 | 8 | trust | protected build (model pinned), chain verified to Google's roots, capability report admitted by the relay's rules | **meets offline** (pc-01); a live relay attach not yet run |
@@ -122,6 +122,19 @@ Targets 2, 3 and 5 are where the work is. The levers, in order: keep one engine 
 cold start disappears for every turn after the first); restart a dead VM automatically (5); for sustained throughput, fewer
 threads and a lower operating point that the phone can hold, and a smaller quantisation of the same model, each measured for
 quality against target 7 (2).
+
+Measured since (2026-09-23, evening):
+- **Threads do not move target 2** (results/pvm-cpu-threads1, 8 runs): sustained decode is 7.33-7.65 tok/s with 6 threads,
+  with a separate 4- or 5-thread decode pool, and with 4 threads for everything; the phone reaches 86 C on the big cores and
+  halves their clocks whatever the setting. What changes is CPU: a 4-thread decode pool holds the rate for ~32 % less CPU
+  (537 vs 790 core-ms per token) and keeps 6-thread prefill and TTFT, so it is now the CPU lane's default (Main.java;
+  results/pvm-cpu-d4default: 14.08 tok/s at 286 core-ms per token on a short turn, against 419 with one pool). Target 2 needs
+  a lower operating point or a smaller quantisation, not a thread count.
+- **Where the cold start goes** (results/pvm-cpu-p5 pt-01): the model crosses the encrypted store's decryption twice, stage
+  18.3 s and load 59.5 s (36.8 s of it the second read). Staging into private memory and building the tensors from there,
+  after the whole-file verdict, removes the second read: the lever for targets 3 and 5.
+- **The supervised restart works** (rs-01): a killed VM is run again, attests again, re-verifies the model and serves the
+  next turn; the interrupted turn is reported, never answered. Its 123 s is the cold start.
 
 ## The app runtime: the same portable component, compiled inside the pVM (direction 2026-09-23)
 
@@ -281,7 +294,8 @@ refuses first).
 ## Gaps (open, in order)
 
 1. A live relay attach from the phone (both sides built and tested; not yet run against a hub).
-2. Crash recovery: the app neither restarts a dead VM nor keeps one engine across conversations (measured below).
+2. Cold start and recovery: 88-91 s cold, 123 s after a crash; one read of the model instead of two is the next change,
+   then one engine kept across conversations.
 3. The payload binary still contains the split-engine code (unreachable in the pvm-cpu build). Split it.
 4. The signing key is the spike key (keys/anchor.jks); a release key and a non-debuggable manifest before any admission.
 5. Prompt and answer text pass through the Android app (the owner's own UI); an end-to-end channel to the VM's attested

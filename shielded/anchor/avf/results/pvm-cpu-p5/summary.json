@@ -1,0 +1,47 @@
+[
+ {
+  "run": "pt-01",
+  "status": "ok rc=0",
+  "turn": 1,
+  "cold_start_s": null,
+  "load_s": 59.5,
+  "ttft_ms": 300,
+  "prefill_tok_s": 96.71,
+  "decode_tokens": 59,
+  "decode_tok_s": 13.56,
+  "ctx_used": 87,
+  "cores_busy": 5.69,
+  "core_ms_per_token": 419,
+  "vm_mem_mib": 7168
+ },
+ {
+  "run": "rs-01",
+  "status": "?",
+  "turn": 1,
+  "cold_start_s": null,
+  "load_s": 61.7,
+  "ttft_ms": 308,
+  "prefill_tok_s": 77.26,
+  "decode_tokens": 152,
+  "decode_tok_s": 13.4,
+  "ctx_used": 175,
+  "cores_busy": null,
+  "core_ms_per_token": null,
+  "vm_mem_mib": 7168
+ },
+ {
+  "run": "rs-01",
+  "status": "?",
+  "turn": 3,
+  "cold_start_s": null,
+  "load_s": null,
+  "ttft_ms": 374,
+  "prefill_tok_s": 74.86,
+  "decode_tokens": 192,
+  "decode_tok_s": 13.26,
+  "ctx_used": 219,
+  "cores_busy": null,
+  "core_ms_per_token": null,
+  "vm_mem_mib": 7168
+ }
+]

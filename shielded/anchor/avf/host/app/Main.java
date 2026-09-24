@@ -256,6 +256,11 @@ public class Main extends Activity {
                     if (!i.hasExtra("verify_threads") && !p.draft.isEmpty()) { p.verifyThreads = 4; d.append(" verify_threads=4"); }
                     p.laneDefaults = d.length() == 0 ? "none (every profile setting named by the launch)" : d.toString().trim();
                 }
+                // The CPU lane's MEASURED default (results/pvm-cpu-threads1, 8 runs): decode on its own pool of 4 when there are
+                // more threads. Sustained decode is the same with 4, 5 or 6 decode threads (the phone is thermally limited) and 4
+                // spends ~32 % less CPU per token; prefill keeps every thread, so time to first token is unchanged (4 threads for
+                // everything slowed prefill). Measured on a Pixel 10 only; a launch that names decode_threads keeps its value.
+                else if (!i.hasExtra("decode_threads") && p.threads > 4) { p.decodeThreads = 4; p.deviceProfile += "; decode on its own pool of 4 (measured default)"; }
                 if (p.configError.isEmpty()) {
                     if (!p.pads.isEmpty() || !p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.artifacts.isEmpty() || !p.artifactsUrl.isEmpty()) p.configError = "mode local takes no pads, prefix or artifacts: nothing leaves the VM, so nothing is blinded";
                     else if ("catalog".equals(p.modelAuth)) p.configError = "mode local stages with the whole-file digest; model_auth catalog is not wired into the local engine yet";

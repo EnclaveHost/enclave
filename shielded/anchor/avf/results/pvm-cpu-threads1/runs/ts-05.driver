@@ -1,0 +1,11 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 40 check(s)
+LOCAL turn 1 STATS {status=budget, prefill_tokens=31, prefill_tok_s=73.07, decode_tokens=512, decode_tok_s=12.66, ctx_used=543, ctx=4096}
+LOCAL turn 2 STATS {status=budget, prefill_tokens=27, prefill_tok_s=42.15, decode_tokens=512, decode_tok_s=7.18, ctx_used=1082, ctx=4096}
+LOCAL turn 3 STATS {status=budget, prefill_tokens=29, prefill_tok_s=25.66, decode_tokens=512, decode_tok_s=6.00, ctx_used=1623, ctx=4096}
+LOCAL turn 4 STATS {status=budget, prefill_tokens=30, prefill_tok_s=22.96, decode_tokens=512, decode_tok_s=6.47, ctx_used=2165, ctx=4096}
+big-core cap through the run: cpu2 min 1785000, cpu7 min 2208000 (68 samples)
+cpu turn 1 decode window 40.42 s (512 tokens): COMPLETE: the app's processes 164.20 core-s = 4.06 cores busy, 321 core-ms per decoded token (edge interpolation +-5.30 core-s) [crosvm_anchorlocal 163.45, host.enclave.anchor.avf 0.75, virtmgr_lave.anchor.avf 0.00] | 5.30 cores busy device-wide
+cpu turn 2 decode window 71.18 s (512 tokens): COMPLETE: the app's processes 286.67 core-s = 4.03 cores busy, 560 core-ms per decoded token (edge interpolation +-3.78 core-s) [crosvm_anchorlocal 285.78, host.enclave.anchor.avf 0.88, virtmgr_lave.anchor.avf 0.00] | 5.25 cores busy device-wide
+cpu turn 3 decode window 85.26 s (512 tokens): COMPLETE: the app's processes 335.10 core-s = 3.93 cores busy, 655 core-ms per decoded token (edge interpolation +-3.69 core-s) [crosvm_anchorlocal 334.38, host.enclave.anchor.avf 0.73, virtmgr_lave.anchor.avf 0.00] | 6.03 cores busy device-wide
+cpu turn 4 decode window 79.06 s (512 tokens): COMPLETE: the app's processes 316.77 core-s = 4.01 cores busy, 619 core-ms per decoded token (edge interpolation +-2.86 core-s) [crosvm_anchorlocal 315.87, host.enclave.anchor.avf 0.90, virtmgr_lave.anchor.avf 0.00] | 5.09 cores busy device-wide
+LANE-RUN OK ts-05
