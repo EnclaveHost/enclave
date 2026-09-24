@@ -9,7 +9,7 @@ import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-test('anchor APP line: strict grammar, 1 GiB and 8 KiB bounds, the graph name, serve=http, no trailing bytes', () => {
+test('anchor APP line: strict grammar, 1 GiB and 8 KiB bounds, the graph name, serve=http|https, no trailing bytes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'anchor-app-'));
   try {
     const bin = join(dir, 'anchor-app');
@@ -18,6 +18,6 @@ test('anchor APP line: strict grammar, 1 GiB and 8 KiB bounds, the graph name, s
     assert.equal(cc.status, 0, cc.stderr);
     const r = spawnSync(bin, [], {encoding: 'utf8'});
     assert.equal(r.status, 0, r.stderr + r.stdout);
-    assert.deepEqual(JSON.parse(r.stdout), {status: 'PASS', executed_checks: 42});
+    assert.deepEqual(JSON.parse(r.stdout), {status: 'PASS', executed_checks: 47});
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });

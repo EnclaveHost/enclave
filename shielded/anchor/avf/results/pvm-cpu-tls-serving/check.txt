@@ -1,0 +1,31 @@
+ok   launch 1: the hub verified ggml-probe (1ad17b45e12aabde...) on the pVM runtime (d3370878afa9d5ee...)
+ok   launch 1: the key the hub publishes is the VM's announced transport key (35aafa495d1453c1)
+ok   launch 1: the VM bound the relay's app nonce (9adf8a6879695374...)
+ok   launch 1: the app nonce is fresh (not the attach nonce 1762200c1bd5862e...)
+ok   launch 1: verified by the relay, served over TLS in the VM
+ok   launch 2: the hub verified ggml-probe (1ad17b45e12aabde...) on the pVM runtime (d3370878afa9d5ee...)
+ok   launch 2: the key the hub publishes is the VM's announced transport key (01871e9f44489387)
+ok   launch 2: the VM bound the relay's app nonce (dd5571a1f83a8f72...)
+ok   launch 2: the app nonce is fresh (not the attach nonce f55ba4c71ac2af93...)
+ok   launch 2: verified by the relay, served over TLS in the VM
+ok   the hub verified exactly two app attestations (one per boot)
+ok   ok: 200 over TLS, pinned, with tokens (822 ms)
+ok   wrong pin: refused before sending a byte
+note launch 1's tamper attempt did not tamper (flipped=false: the chunk led with ChangeCipherSpec) and was served (200); the corrected carrier ran on launch 2
+ok   tamper: one byte of an encrypted record flipped in transit, no answer (ERR_SSL_SSL/TLS_ALERT_BAD_RECORD_MAC)
+ok   replay: 2 recorded chunks on a new connection, nothing in the clear (632 bytes back)
+ok   plaintext HTTP to the app port: no HTTP back
+ok   ok again after the attacks: 200
+ok   after termination: refused (no verified app), nothing sent
+ok   reconnect: a new boot serves with its own key
+ok   reconnect: the first boot's key is refused before sending
+ok   reconnect: a new transport key per boot
+ok   launch 1: the app served exactly the 3 requests that got a 200 (requests=3)
+ok   launch 2: the app served exactly the 1 requests that got a 200 (requests=1)
+ok   launch 1: terminated by the owner's STOP
+ok   l1.log: no request or response in the clear
+ok   l2.log: no request or response in the clear
+ok   hub.jsonl: no request or response in the clear
+ok   hub.err: no request or response in the clear
+ok   the phone logged its streams by size only
+PASS the lab serving prototype on the device

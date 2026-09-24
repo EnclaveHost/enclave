@@ -128,6 +128,9 @@ public class Main extends Activity {
         String appSha = "";                  // --es app_sha256: TEST HOOK -- announce this digest instead of the file's (the VM must refuse)
         String appGraph = "";                // --es app_graph <name>: the component runs over the staged model (LOCAL line + APP graph=), wasi:nn
         String appHttp = "";                 // --es app_http "/ping|/?q=1": a wasi:http app (APP serve=http); these GETs are sent to it, then STOP
+        int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
+        int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds
+        String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
         /* the whole model runs in the VM's CPU engine: mode local, or an app over the model (PVM-CPU.md, milestone 3) */
         boolean localEngine() { return mode.equals("local") || (mode.equals("app") && !appGraph.isEmpty()); }
         String deviceProfile = "";           // mode local: what DeviceProfile read (capacities, RAM) and chose from it
@@ -214,6 +217,7 @@ public class Main extends Activity {
             if (i.getStringExtra("app_sha256") != null) p.appSha = i.getStringExtra("app_sha256");
             if (i.getStringExtra("app_graph") != null) p.appGraph = i.getStringExtra("app_graph");
             if (i.getStringExtra("app_http") != null) p.appHttp = i.getStringExtra("app_http");
+            p.appTls = i.getIntExtra("app_tls", 0); p.appServeS = i.getIntExtra("app_serve_s", p.appServeS);
             if (p.mode.equals("app") && p.configError.isEmpty()) {
                 if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
                 else if (!p.appSha.isEmpty() && !p.appSha.matches("[0-9a-f]{64}")) p.configError = "app_sha256 must be 64 lowercase hex";
@@ -221,6 +225,8 @@ public class Main extends Activity {
                 else if (!p.appGraph.isEmpty() && !p.appGraph.matches("[a-z0-9][a-z0-9._-]{0,63}")) p.configError = "app_graph must be 1..64 of [a-z0-9._-], starting with a letter or digit";
                 else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
                 else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
+                else if (p.appTls != 0 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
+                else if (p.appServeS < 10 || p.appServeS > 3600) p.configError = "app_serve_s must be 10..3600";
                 else if (!p.appHttp.isEmpty() && !p.appHttp.matches("(/[\\x21-\\x7e]{0,1023})(\\|/[\\x21-\\x7e]{0,1023}){0,7}")) p.configError = "app_http is 1..8 paths separated by |, each starting with / and holding no spaces or control bytes";
             }
             if (p.restarts < -1 || p.restarts > 5) p.configError = "restarts must be 0..5";
@@ -683,7 +689,13 @@ public class Main extends Activity {
                     cmd.append(localLine).append('\n');
                     say("APP over the model: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + ", graph " + plan.appGraph + (modelOk ? "" : " -- the model stage did not pass; the VM will refuse"));
                 }
-                cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph).append(plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
+                plan.appAnnounced = asha;
+                if (relay != null) {   // LAB: the relay's fresh nonce goes into the app's ABI/2 evidence (the VM binds it into Bind2)
+                    try { final String an = relay.abi2Nonce.get(20, java.util.concurrent.TimeUnit.SECONDS); cmd.append("APPNONCE ").append(an).append('\n'); say("APP evidence will bind the relay's nonce " + an.substring(0, 16) + "…"); }
+                    catch (Exception e) { say("RELAY issued no ABI/2 nonce within 20 s: the app's evidence will not verify there (" + e + ")"); }
+                }
+                cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
+                   .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
                 new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
                 say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
             }
@@ -700,6 +712,8 @@ public class Main extends Activity {
                 feedThread.start();
             }
             int n = 0;
+            // LAB: the app's ABI/2 evidence as the VM prints it, relayed whole on "ABI2 end" for the relay to verify
+            String abi2Id = null, abi2Tuple = null; final TreeMap<Integer, TreeMap<Integer, String>> abi2Certs = new TreeMap<>();
             while ((line = r.readLine()) != null) {
                 // the pVM CPU capability report (PVM-CPU.md): the capture keeps it WHOLE (it is verifiable offline with the chain),
                 // and a bound relay tunnel receives it as the caps frame the relay admits the tier from
@@ -715,6 +729,24 @@ public class Main extends Activity {
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
                 if (line.startsWith("QUIETPADS v1 ") && quietControl != null) quietControl.offer(line);   // hand it to the worker and keep reading
                 if (line.startsWith("APP serving http") && !plan.appHttp.isEmpty()) { final OutputStream o = out; new Thread(() -> appHttpProbe(vm, plan.appHttp, o), "app-http").start(); }
+                if (line.startsWith("ABI2 runtime ")) abi2Id = line.substring(13);
+                else if (line.startsWith("ABI2 selftest ")) abi2Tuple = line.substring(14);
+                else if (line.startsWith("ABI2_LINK")) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ABI2_LINK(\\d+)\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line);
+                    if (m.matches()) abi2Certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3)); }
+                else if (line.startsWith("ABI2 end") && relay != null && abi2Id != null && abi2Tuple != null && !abi2Certs.isEmpty()) {
+                    final java.util.List<String> chain = new java.util.ArrayList<>();
+                    for (TreeMap<Integer, String> chunks : abi2Certs.values()) chain.add(RelayAttach.b64(RelayAttach.unhex(String.join("", chunks.values()))));
+                    relay.sendAbi2(chain, abi2Id, abi2Tuple, plan.appAnnounced);
+                }
+                if (line.startsWith("APP serving https") && plan.appTls == 1 && relay != null) {
+                    // LAB: from now the relay may open raw streams; this app splices each to the VM's TLS port and never
+                    // sees plaintext (TLS terminates in the VM with the attested transport key); STOP after app_serve_s
+                    relay.vmConnect = () -> connect(vm, APP_HTTP_PORT, 50);
+                    final OutputStream o = out; final int secs = plan.appServeS;
+                    say("APP https: relay streams are forwarded to the VM as ciphertext; the lab run STOPs in " + secs + " s");
+                    new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
+                        try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } say("APP https: STOP sent (lab time limit)"); } catch (Exception e) { say("APP https: STOP not sent: " + e); } }, "app-tls-stop").start();
+                }
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");

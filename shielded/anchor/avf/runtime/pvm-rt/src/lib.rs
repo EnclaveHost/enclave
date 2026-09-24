@@ -506,6 +506,79 @@ pub extern "C" fn pvmrt_http_open(
     err: *mut c_char,
     errcap: usize,
 ) -> *mut httpd::HttpServer {
+    http_open(
+        bundle,
+        len,
+        sha256,
+        mem_limit,
+        deadline_ms,
+        nn_name,
+        nn_ops,
+        None,
+        emit,
+        compile_ms,
+        err,
+        errcap,
+    )
+}
+
+/// `pvmrt_http_open` with TLS 1.3 terminating in this process (httpd.rs `with_tls`): `tls_seed` is the 32-byte seed of the
+/// VM's attested Ed25519 transport key, the TLS server key. It is copied, not kept; null is refused.
+#[no_mangle]
+pub extern "C" fn pvmrt_https_open(
+    bundle: *const u8,
+    len: usize,
+    sha256: *const u8,
+    mem_limit: u64,
+    deadline_ms: u64,
+    nn_name: *const c_char,
+    nn_ops: *const nn::NnOps,
+    tls_seed: *const u8,
+    emit: EmitFn,
+    compile_ms: *mut u64,
+    err: *mut c_char,
+    errcap: usize,
+) -> *mut httpd::HttpServer {
+    if tls_seed.is_null() {
+        put(err, errcap, "no TLS key seed: refusing to serve https");
+        return std::ptr::null_mut();
+    }
+    let mut seed = [0u8; 32];
+    // SAFETY: tls_seed is non-null and points to 32 bytes by the caller's contract.
+    unsafe { std::ptr::copy_nonoverlapping(tls_seed, seed.as_mut_ptr(), 32) };
+    let r = http_open(
+        bundle,
+        len,
+        sha256,
+        mem_limit,
+        deadline_ms,
+        nn_name,
+        nn_ops,
+        Some(&seed),
+        emit,
+        compile_ms,
+        err,
+        errcap,
+    );
+    seed.iter_mut().for_each(|b| *b = 0);
+    r
+}
+
+#[allow(clippy::too_many_arguments)]
+fn http_open(
+    bundle: *const u8,
+    len: usize,
+    sha256: *const u8,
+    mem_limit: u64,
+    deadline_ms: u64,
+    nn_name: *const c_char,
+    nn_ops: *const nn::NnOps,
+    tls_seed: Option<&[u8; 32]>,
+    emit: EmitFn,
+    compile_ms: *mut u64,
+    err: *mut c_char,
+    errcap: usize,
+) -> *mut httpd::HttpServer {
     let refuse = |why: &str| {
         put(err, errcap, why);
         std::ptr::null_mut()
@@ -520,14 +593,19 @@ pub extern "C" fn pvmrt_http_open(
         };
     let log: Box<dyn Fn(&[u8]) + Send + Sync> =
         Box::new(move |b: &[u8]| emit(2, b.as_ptr(), b.len()));
-    match httpd::HttpServer::open(
+    let opened = httpd::HttpServer::open(
         bytes,
         &want,
         mem_limit as usize,
         Duration::from_millis(deadline_ms),
         model,
         Some(log),
-    ) {
+    )
+    .and_then(|s| match tls_seed {
+        Some(seed) => s.with_tls(seed),
+        None => Ok(s),
+    });
+    match opened {
         Ok(s) => {
             if !compile_ms.is_null() {
                 // SAFETY: written only when non-null.

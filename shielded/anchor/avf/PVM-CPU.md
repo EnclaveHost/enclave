@@ -301,8 +301,8 @@ kinds of bundle with vectors, each backend's record declaring the worlds it runs
 | piece | status |
 |---|---|
 | tier admission: AVF attach (chain to Google root, isVmSecure, pinned codeHash + authority) + one signed capability report -> `admitPvmCpu` | **ADMITTED live** by the relay's own hub (results/pvm-cpu-live-attach la-04: relay nonce, codeHash = pins.py's, `tier: pvm-cpu`), after two fixes the live run found: the hub's attestation gate ignored the v2 build lists (401 for a tier-only relay; relay/tunnel.js), and the payload printed the attested-key signature with a trailing zero (rt9). The hub was local; production configuration and deployment are the owner's |
-| app attestation: second AVF certificate over `Bind2(transport SPKI, nonce, RuntimeID) \|\| AppID` + the self-test tuple | built; **binding verified on the Pixel 10** (results/app-m5, app-m2c) with the OWNER's challenge as the nonce, so it is "ABI/2 binding verified", not "attested to a relay" |
-| relay verification of an app's ABI/2 | `relay/pvm-app-attest.mjs` `verifyPvmAppAbi2` (contract vectors byte-exact; enclave-74 cross-checked 22/22); **not called by the relay yet** |
+| app attestation: second AVF certificate over `Bind2(transport SPKI, nonce, RuntimeID) \|\| AppID` + the self-test tuple | **verified by the relay's own hub over ITS fresh nonce** (LAB: results/pvm-cpu-tls-serving, two boots); earlier results (app-m5, app-m2c) carry the owner's challenge and read "binding verified" only |
+| relay verification of an app's ABI/2 | relay/tunnel.js: a fresh single-use nonce per attach (`abi2-challenge`), the `abi2` frame verified with `verifyPvmAppAbi2` against the attach's transport key, the row's `pvmApp`, raw streams (`spliceRaw`) only to a verified app -- enabled only when a hub is given `attest.pvmApp` (the lab hub); **api-relay.js does not configure it** (production) |
 | signing | spike key (keys/anchor.jks, debuggable); a release key and a non-debuggable manifest are required before any production admission (the owner's call: key custody) |
 
 **Pixel 10 results** (Pixel 10 Pro XL, Gemma 4 E2B Q4_0, protected pvm-cpu build):
@@ -325,6 +325,20 @@ and must be measured on one: the AVF chain's root and extension shape (Pixel 10 
 fix), execmem still denied to microdroid_app (else the identity could be `jit`), the thermal envelope (sustained rate),
 the memory fit, and the rates in the capability floor.
 
+### Serving prototype (LAB, 2026-09-23): TLS terminating inside the pVM
+
+Not production: test signing, a relay hub on the bench, the phone over adb reverse. results/pvm-cpu-tls-serving (PASS, two
+boots). The app (enclave-apps' ggml-probe, unchanged) is served by pvm-rt over TLS 1.3 whose server key is the VM's attested
+Ed25519 transport key, in a self-signed certificate made in the VM (`pvmrt_https_open`; `APP ... serve=https`). The relay
+hub issues a fresh nonce at attach; the VM binds it into the app's ABI/2 evidence (`APPNONCE`); the hub verifies that
+evidence itself and publishes the app and the key; the phone's Android app forwards each relay stream to the VM's app port
+as opaque bytes, logging sizes only; the client pins the published key and writes nothing until the handshake proves it.
+Measured: 200 with 8 tokens in 794-842 ms; a wrong key refused before sending; one flipped byte refused by the VM's TLS
+(`bad_record_mac`); a replayed session and plaintext HTTP get no HTTP; after the owner's STOP the relay has no app and the
+client sends nothing; a reconnect brings a new nonce and a new key, and the old key is refused; each app counted only the
+requests that got a 200; neither the Android captures nor the relay's log hold the request or the response. Host tests:
+pvm-rt tests/httpd_tls.rs (5), tunnel.test.mjs "pvm-app (lab)" (nonce, replay, reconnect, substitution, splice, detach).
+
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
 The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
@@ -339,7 +353,9 @@ produce binds it. Per claim:
 | the transport key | Bind2 includes it; the attach certificate's v2 transcript carries the same key; its private half never leaves the VM | a different SPKI changes Bind2: refused |
 | W^X / exec_pages tuple | printed by measured code (the payload, same process as the runtime) | would need another APK; it is the payload's word, not the hardware's (stated in every verdict) |
 | model identity, rates (CAPS report) | signed by the attested transport key; the model pin is an APK asset (in the codeHash) | signature fails |
-| `APP ran`, `APPOUT`, `nn digest`, HTTP bodies | nothing: app output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
+| `APP ran`, `APPOUT`, `nn digest`, `serve=http` bodies | nothing: that output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
+| `serve=https` requests and responses (LAB) | TLS 1.3 terminating in the VM under the attested transport key; the client pins the key and checks the handshake signature before writing | sees ciphertext only (results/pvm-cpu-tls-serving: nothing in the Android or relay logs); a flipped byte is refused, a replay cannot complete a handshake |
+| the key a client pins (LAB) | published by the relay after it verified the ABI/2 evidence over its own nonce | a host cannot change it (the relay reads it from the verified attach, not from the phone's frames); the client trusts the relay for it (re-verifying the evidence client-side is not built) |
 | the orange label (Tier.java, assets/tier) | display only; the relay admits from the chain + report, never the label or the device name | cannot change the relay's verdict |
 
 Two host-side attestation surfaces remain and are acceptable as stated: the attach path certifies any 32-byte challenge the
@@ -351,14 +367,16 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
 1. ~~A live relay attach~~ done (results/pvm-cpu-live-attach). Next on the admission path: the relay verifies an app's
    ABI/2 evidence itself (`verifyPvmAppAbi2` on a `{t:"abi2"}` frame over the attached tunnel, with its own nonce), and
    the relay fix (relay/tunnel.js attestOn) reaches main -- the owner's merge (a push to main restarts the workers).
-2. **The serving path -- the next blocker.** An admitted phone serves nothing yet: RelayAttach answers `/availability` and
-   `/v1/health` only, and the relay's `inferenceLaneOf` labels the row without routing to it. Serving must be confidential
-   from the phone's own Android host, which relays every byte. Recommended: TLS terminating IN the VM (the SNP fleet's
-   app-zone pattern) -- a key generated in the VM, its certificate from the platform certificate service, the key bound
-   into the ABI/2 evidence -- with the tunnel's stream frames (`s+`, today refused by the phone) forwarded byte for byte
-   to a VM port the Android app never parses; pvm-rt's wasi:http server (M4) behind it. The alternative, requests sealed
-   to an attested X25519 key, avoids certificates but is a new protocol for every client. A protocol decision across the
-   relay, the phone app and the VM: the owner's.
+2. **The serving path: a LAB prototype works end to end** (results/pvm-cpu-tls-serving; section below). What it does not
+   yet cover, exactly:
+   - production: api-relay.js neither sets `attest.pvmApp` nor routes client traffic to `spliceRaw` (the lab hub's raw TCP
+     port stands in); relay deployment, the main merge and release-key custody are separate review items;
+   - clients trust the relay's verification: they pin the key the relay published; a client that re-verifies the ABI/2
+     evidence itself (the relay's nonce transcript included) is not built;
+   - browsers: the TLS key is the Ed25519 transport key, which mainstream browsers do not accept for servers; a browser
+     endpoint needs a P-256 key made in the VM and bound into the evidence, or a platform (web PKI) certificate for it;
+   - one connection at a time in the VM (the payload accepts and serves serially); one app and one ABI/2 nonce per attach;
+   - no client identity: the app sees an anonymous TLS client (app-level authorisation is the app's own, inside TLS).
 3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
 4. Cold start and recovery (targets 3, 5): keep the stage's page cache so the load's second read comes from memory
    (results/pvm-cpu-single-read: the anonymous-memory attempt refused itself on a tied weight and slowed the stage), then

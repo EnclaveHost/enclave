@@ -10,6 +10,11 @@
 //! What a component cannot do here: open an outgoing connection (the VM has no network, and `send_request` refuses:
 //! there is no TLS client in this build), reach a model other than the one registered, or keep state across requests
 //! (a request's instance is dropped with its Store).
+//!
+//! With `with_tls`, every connection is TLS 1.3 terminating HERE, in the VM: the server key is the VM's Ed25519 transport
+//! key -- the key its AVF attestation binds (the v2 attach transcript, and Bind2 in the app's ABI/2 evidence) -- in a
+//! self-signed certificate made in this process. A client pins that key from verified evidence and ignores names and
+//! dates; whatever carries the bytes (the phone's Android app, the relay) sees only ciphertext.
 
 use crate::{engine_config, nn, verify_and_compile, NnModel};
 use hyper::server::conn::http1;
@@ -17,6 +22,7 @@ use std::os::fd::{FromRawFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio_rustls::rustls;
 use wasmtime::component::{Linker, ResourceTable};
 use wasmtime::{Engine, Result, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
@@ -100,7 +106,57 @@ pub struct HttpServer {
     /// the guest's stderr after each request, and the server's own notes (stream 2)
     log: Option<Box<dyn Fn(&[u8]) + Send + Sync>>,
     pub compile_ms: u128,
+    tls: Option<Arc<rustls::ServerConfig>>,
+    /// the DER SubjectPublicKeyInfo the TLS certificate carries (the transport key's), when TLS is on
+    pub tls_spki: Option<Vec<u8>>,
 }
+
+/// Ed25519 PKCS#8 v1 prefix: a 32-byte seed follows (RFC 8410).
+const ED25519_PKCS8_PREFIX: [u8; 16] = [
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+];
+
+/// The TLS server configuration over an Ed25519 seed: TLS 1.3 only, ALPN http/1.1, no client certificates, a
+/// self-signed certificate made here. Returns the config and the certificate's SPKI.
+pub fn tls_config(seed: &[u8; 32]) -> Result<(Arc<rustls::ServerConfig>, Vec<u8>)> {
+    let mut pkcs8 = ED25519_PKCS8_PREFIX.to_vec();
+    pkcs8.extend_from_slice(seed);
+    let built = (|| -> Result<(rustls::ServerConfig, Vec<u8>)> {
+        let kp = rcgen::KeyPair::try_from(pkcs8.as_slice())
+            .map_err(|e| wasmtime::format_err!("the transport key is not an Ed25519 key: {e}"))?;
+        let raw = kp.public_key_raw();
+        if raw.len() != 32 {
+            wasmtime::bail!("an Ed25519 public key is 32 bytes, not {}", raw.len());
+        }
+        let mut spki = ED25519_SPKI_PREFIX.to_vec(); // the same 44 bytes the VM announces as its transport SPKI
+        spki.extend_from_slice(raw);
+        let cert = rcgen::CertificateParams::new(vec!["pvm-app.invalid".to_string()])
+            .and_then(|p| p.self_signed(&kp))
+            .map_err(|e| wasmtime::format_err!("self-signed certificate: {e}"))?;
+        let key = rustls::pki_types::PrivateKeyDer::Pkcs8(pkcs8.clone().into());
+        let mut cfg = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        .map_err(|e| wasmtime::format_err!("TLS 1.3: {e}"))?
+        .with_no_client_auth()
+        .with_single_cert(vec![cert.der().clone()], key)
+        .map_err(|e| wasmtime::format_err!("TLS certificate: {e}"))?;
+        cfg.alpn_protocols = vec![b"http/1.1".to_vec()];
+        Ok((cfg, spki))
+    })();
+    pkcs8.iter_mut().for_each(|b| *b = 0); // this copy of the seed goes now; rustls holds its own
+    let (cfg, spki) = built?;
+    Ok((Arc::new(cfg), spki))
+}
+
+/// Ed25519 SubjectPublicKeyInfo prefix: the 32-byte public key follows (RFC 8410).
+pub const ED25519_SPKI_PREFIX: [u8; 12] = [
+    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+
+/// How long a client has to complete the TLS handshake.
+const TLS_HANDSHAKE: Duration = Duration::from_secs(20);
 
 impl HttpServer {
     /// Verify (W^X, digest), compile once, pre-instantiate. A component whose imports this server does not provide --
@@ -164,7 +220,17 @@ impl HttpServer {
             requests: AtomicU64::new(0),
             log,
             compile_ms,
+            tls: None,
+            tls_spki: None,
         })
+    }
+
+    /// Serve every connection over TLS 1.3 with this Ed25519 key (the VM's transport key; see the module doc).
+    pub fn with_tls(mut self, seed: &[u8; 32]) -> Result<HttpServer> {
+        let (cfg, spki) = tls_config(seed)?;
+        self.tls = Some(cfg);
+        self.tls_spki = Some(spki);
+        Ok(self)
     }
 
     pub fn requests(&self) -> u64 {
@@ -188,14 +254,35 @@ impl HttpServer {
         std_stream.set_nonblocking(true)?;
         self.rt.block_on(async {
             let stream = tokio::net::UnixStream::from_std(std_stream)?;
-            http1::Builder::new()
-                .keep_alive(true)
-                .serve_connection(
-                    TokioIo::new(stream),
-                    hyper::service::service_fn(|req| self.handle(req)),
-                )
-                .await
-                .map_err(|e| wasmtime::format_err!("the connection ended with an error: {e}"))
+            let served = match &self.tls {
+                None => {
+                    http1::Builder::new()
+                        .keep_alive(true)
+                        .serve_connection(
+                            TokioIo::new(stream),
+                            hyper::service::service_fn(|req| self.handle(req)),
+                        )
+                        .await
+                }
+                Some(cfg) => {
+                    // the handshake is bounded; a peer that sends anything but a TLS 1.3 ClientHello gets no HTTP at all
+                    let tls = tokio::time::timeout(
+                        TLS_HANDSHAKE,
+                        tokio_rustls::TlsAcceptor::from(cfg.clone()).accept(stream),
+                    )
+                    .await
+                    .map_err(|_| wasmtime::format_err!("TLS handshake timed out"))?
+                    .map_err(|e| wasmtime::format_err!("TLS handshake failed: {e}"))?;
+                    http1::Builder::new()
+                        .keep_alive(true)
+                        .serve_connection(
+                            TokioIo::new(tls),
+                            hyper::service::service_fn(|req| self.handle(req)),
+                        )
+                        .await
+                }
+            };
+            served.map_err(|e| wasmtime::format_err!("the connection ended with an error: {e}"))
         })
     }
 
