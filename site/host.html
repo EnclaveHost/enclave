@@ -54,13 +54,13 @@
       </div>
 
       <h2>The fleet you would be joining</h2>
-      <p>Every box below is attached right now, with the capacity it has left and the badges that say what it proved. Yours would appear here once it registers.</p>
+      <p>Every box below is taking deployments right now, with the capacity it has left and the badges that say what it proved. A machine that is attached but has not yet passed admission is not listed here. Yours would appear once it registers and qualifies.</p>
       <div class="host-fleet"><c-fleet-list></c-fleet-list></div>
 
       <h2>What can be listed</h2>
       <ul class="hostdoc-list">
         <li><b>A confidential server</b>: a CPU with a hardware TEE, virtualisation available to the OS, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM; the listing shows a jade <i>tee cpu</i> badge and the box sells the full service. The rest of this page describes it.</li>
-        <li><b>An Enclave Shield host</b>: a machine without confidential-computing hardware, protected by Enclave Shield's two components. Its apps run inside Shield's host isolation layer, hardware-enforced per-app CPU isolation that keeps the machine's ordinary operating system out of every app's domain, with keys and traffic terminating inside and a verified report, under one contract on every operating system. Its GPU, if it has one, is reached only through Shield's masked, verified offload: masked inputs, verified results, never plaintext on the card. Such a machine is listed once its backend passes the acceptance tests; a machine that meets part of the contract takes no tenant work.</li>
+        <li><b>An Enclave Shield host</b>: hardware-enforced CPU isolation keeps the host OS out, even without a confidential-computing processor. GPUs outside the confidential boundary use masked, verified offload. Hosts must pass the same acceptance tests before taking tenant work.</li>
         <li><b>Any GPU outside a confidential boundary</b>, including a card beside a confidential processor: Shield's GPU offload component applies to it regardless of the CPU or the operating system. A card operating in a supported confidential-computing mode sits inside the boundary instead. Admission reads the card's own verified protection mode, not the host, and a card outside the boundary is neither advertised nor routed until its Shield evidence verifies.</li>
       </ul>
       <p>A machine that proves neither is not a host: it can run the stack in dev mode for your own use, but it is not listed and is never routed tenant work. Eligibility is derived from verified evidence at attach, never from what a machine says about itself or what operating system it runs. Admission of a new confidential box goes through a published allowlist of measurements; the permissionless attach path switches on when that allowlist is curated. <a href="develop#contract">What each level guarantees, exactly →</a></p>

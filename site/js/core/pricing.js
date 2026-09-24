@@ -406,6 +406,43 @@ export function computeEligibleOf(row){
   return t.real === true && CONFIDENTIAL_CPU.has(t.technology);
 }
 
+/** How long a row may go unheard-from before the public list stops calling it live. Mirrors the
+ *  relay's own STALE_AFTER_SEC default; the relay already drops silent rows, so this is a second
+ *  line rather than the only one. */
+export const HOST_STALE_AFTER_SEC = 3600;
+
+/**
+ * Does this row belong in the PUBLIC app-host inventory - the list a reader treats as "what can I
+ * deploy on right now"?
+ *
+ * Only on the relay's own current verdict, and only when every part of it is positive:
+ *
+ *   serving === true      the relay routes work here NOW. Strictly true: a missing verdict is not
+ *                         a yes, and availability.claimEnabled is the BOX's word about itself and
+ *                         never overrides the relay's serving:false.
+ *   eligible             the box proved the isolation contract it would be sold under
+ *                         (computeEligibleOf: the relay's verdict when it sends one, the same rule
+ *                         mirrored from verified evidence when it does not). Relay-only rows are
+ *                         false there, so they are excluded here.
+ *   not stale             a row the relay has not heard from inside the window is not live.
+ *
+ * What this deliberately does NOT do is explain itself on the page. A host that is attached and
+ * healthy but takes no tenant work is real and its reasons are real, and they belong in the API
+ * (/enclaves carries status, eligible, ineligible and notClaiming) and in host management - not as
+ * a paragraph of security caveats in a list of machines a reader is about to buy from. That list
+ * printed exactly one such paragraph, for a consumer PC whose operator key had run out of gas, for
+ * a day and a half, under the heading "what can I deploy on right now".
+ */
+export function appHostVisible(row, nowSec){
+  if (!row || row.relay === true) return false;
+  if (row.serving !== true) return false;
+  if (computeEligibleOf(row) !== true) return false;
+  const seen = Number(row.lastSeen || 0);
+  const now = Number.isFinite(nowSec) ? nowSec : Math.floor(Date.now() / 1000);
+  if (seen > 0 && now - seen > HOST_STALE_AFTER_SEC) return false;
+  return true;
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
