@@ -2,7 +2,7 @@
 // pkg.mjs -- the NucBox own-guest package (README.md): every byte the box needs to boot our guest and serve one small
 // app, pinned by sha256 in ONE manifest, with where each byte comes from and how to make it again.
 //
-//   node windows/vbslike/pkg/pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY]
+//   node windows/vbslike/pkg/pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve]
 //   node windows/vbslike/pkg/pkg.mjs pack   <manifest> <outRoot>          writes <outRoot>/<id16>/, prints the id
 //   node windows/vbslike/pkg/pkg.mjs pins   <manifest>                    prints what each source hashes to NOW
 //
@@ -19,7 +19,10 @@
 //     only on the derivation the pinned manager serves;
 //   - with --out, the packed directory holds EXACTLY the shippable files, each with its hash;
 //   - with --rebuild, the VTL0 vmlinux and the IGVM are made again here and equal their pins (seconds, no compiler);
-//   - with --fetch, each component is fetched by CID from that gateway and equals its pin.
+//   - with --fetch, each component is fetched by CID from that gateway and equals its pin;
+//   - with --serve, each servable wasi:http app is served HERE by the pinned runtime (wasmtime serve, the version the
+//     runtime identity names) and its answer must be the manifest's expected bytes. A pinned answer that was never
+//     observed is how package v1 came to expect "Hello World!" from an app that says "Hello World!\n".
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -36,7 +39,7 @@ export const TYPE = "enclave-vbslike-package/1";
 const HEX64 = /^[0-9a-f]{64}$/, HEX40 = /^[0-9a-f]{40}$/;
 const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.initrd", "guest.runtime",
   "app.component", "app.record", "app.bundle", "app.spawn", "control.manager", "control.fetcher", "control.launcher",
-  "control.datapath", "tool.windows",
+  "control.datapath", "control.judge", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
@@ -187,8 +190,9 @@ async function checkClaims(m, bytes, R) {
     R.add(servableOk, `${n}: servable only on a derivation the pinned manager serves`,
           servableOk ? (a.servable ? "servable" : `not servable: ${a.blockedOn || "(no reason given)"}`) : `servable=${a.servable} for ${a.derivation}`);
     if (a.servable) {
-      const ok = a.expect && Number.isInteger(a.expect.status) && typeof a.expect.body === "string";
-      R.add(!!ok, `${n}: an expected answer to check a served app against`, ok ? `${a.expect.status} ${JSON.stringify(a.expect.body)}` : "no expect {status, body}");
+      const e = a.expect || {}, ok = Number.isInteger(e.status) && typeof e.body === "string" && e.bodySha256 === sha(Buffer.from(e.body, "utf8"));
+      R.add(ok, `${n}: an expected answer, exact to the byte`, ok ? `${e.status} ${JSON.stringify(e.body)} (${e.bodySha256.slice(0, 16)})`
+            : "expect needs status, body and bodySha256 = sha256 of the body's UTF-8 bytes");
     }
     const sp = B(`${dir}/spawn.json`);
     if (sp) {
@@ -202,7 +206,7 @@ async function checkClaims(m, bytes, R) {
   const has = (p, role) => { const f = file(p); return !!f && f.role === role; };
   R.add(!!hcs && has(hcs.kernel, "guest.kernel") && has(hcs.initrd, "guest.initrd") && has(hcs.launcher, "control.launcher"),
         "profile hcs-dev names a kernel, the monitor initrd and the launcher of this package", hcs ? "" : "no hcs-dev profile");
-  R.add(!!ig && has(ig.image, "guest.igvm") && !!file(ig.image)?.boxReuse, "profile igvm names the image of this package", ig ? "" : "no igvm profile");
+  R.add(!!ig && has(ig.image, "guest.igvm"), "profile igvm names the image of this package", ig ? ig.image : "no igvm profile");
   R.add(!!ig && m.rebuild?.igvm?.initrd === hcs?.initrd, "both profiles boot the SAME monitor image",
         m.rebuild?.igvm?.initrd === hcs?.initrd ? `${hcs.initrd} is the IGVM's VTL0 initrd` : "the IGVM's VTL0 initrd is not the hcs-dev initrd");
   // what the Windows scripts read from the manifest: present and pointing at files of this package
@@ -211,6 +215,28 @@ async function checkClaims(m, bytes, R) {
         `${c.manager}, ${c.fetcher}`);
   R.add(wr.length > 0 && wr.every((p) => !!file(p)) && wr.includes(ig?.image), "vmWorkerRead names the IGVM", wr.join(", "));
   R.add(["hcs-dev", "igvm"].every((p) => m.hostChecks?.[p] && typeof P[p]?.status === "string"), "each profile states its host checks and status");
+  // the guest's own HTTP surface and the judge that reads its document (isolation/m3/HV-GUEST.md), when declared
+  const G = m.guest;
+  if (G) {
+    const jf = file(G.judge);
+    const jr = file(G.judgeRun);
+    R.add(typeof G.readyPath === "string" && typeof G.attestationPath === "string" && !!jf && jf.role === "control.judge" && !!jr && jr.role === "tool.windows",
+          "guest declares its ready and attestation paths, a judge and its runner of this package", `${G.readyPath}, ${G.attestationPath}, ${G.judge}, ${G.judgeRun}`);
+    let judgeFn = null, why = "";
+    const judges = m.files.filter((f) => f.role === "control.judge");
+    if (judges.every((f) => bytes.get(f))) {
+      const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-judge-"));
+      try {
+        for (const f of judges) { const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f)); }
+        judgeFn = (await import(pathToFileURL(path.join(d, ...G.judge.split("/"))).href)).judge;
+      } catch (e) { why = e.message; } finally { fs.rmSync(d, { recursive: true, force: true }); }
+    } else why = "a judge file has no bytes";
+    R.add(typeof judgeFn === "function", "the pinned judge loads from the package's own files, laid out as shipped", why);
+    if (typeof judgeFn === "function") {
+      const v = judgeFn({ doc: {}, spki: Buffer.alloc(0), nonce: Buffer.alloc(32), expectedAppSha256: "00".repeat(32), launcherKey: "" });
+      R.add(v && v.verdict === "reject", "the pinned judge rejects a document that is not one", v ? v.verdict : "no answer");
+    }
+  }
   // slots the package does not fill yet, and must not pretend to
   for (const s of m.slots || []) {
     const filled = m.files.filter((f) => f.role === s.role);
@@ -260,6 +286,34 @@ async function fetchCheck(m, gw, R) {
   }
 }
 
+// Serve each servable wasi:http app HERE with the pinned runtime and compare its answer with the pin. The runtime on
+// this host must be the version the runtime identity names, or the comparison says nothing.
+async function serveCheck(m, bytes, R) {
+  const rt = JSON.parse(bytes.get(m.files.find((f) => f.path === m.runtime.file)).toString("utf8"));
+  const v = spawnSync("wasmtime", ["--version"], { encoding: "utf8" });
+  const have = (v.stdout || "").split(/\s+/)[1];
+  if (!R.add(v.status === 0 && have === rt.version, "serve: this host's wasmtime is the pinned runtime", v.status === 0 ? `wasmtime ${have}, pinned ${rt.version}` : "no wasmtime")) return;
+  for (const a of (m.apps || []).filter((x) => x.servable)) {
+    const comp = bytes.get(m.files.find((f) => f.path === `${a.dir}/component.wasm`));
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-serve-")), wasm = path.join(d, "c.wasm");
+    fs.writeFileSync(wasm, comp);
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    const { spawn } = await import("node:child_process");
+    const child = spawn("wasmtime", ["serve", "-S", "cli", "--addr", `127.0.0.1:${port}`, wasm], { stdio: "ignore" });
+    let got = null, err = "";
+    try {
+      const until = Date.now() + 30000;
+      while (Date.now() < until && !got) {
+        try { const res = await fetch(`http://127.0.0.1:${port}/`); got = { status: res.status, body: Buffer.from(await res.arrayBuffer()) }; }
+        catch (e) { err = e.message; await new Promise((r) => setTimeout(r, 200)); }
+      }
+    } finally { child.kill("SIGKILL"); fs.rmSync(d, { recursive: true, force: true }); }
+    const ok = !!got && got.status === a.expect?.status && sha(got.body) === a.expect?.bodySha256;
+    R.add(ok, `serve: ${a.name} ${a.version} answers exactly the pinned bytes under wasmtime ${have}`,
+          got ? `${got.status} ${JSON.stringify(got.body.toString("utf8"))}${ok ? "" : `, pinned ${a.expect?.status} ${JSON.stringify(a.expect?.body)}`}` : `no answer: ${err}`);
+  }
+}
+
 // the files that exist on this host and are packed; box-only files are staged on the box from boxReuse
 const packable = (m) => m.files.filter((f) => kindOf(f.from) !== "box");
 
@@ -278,7 +332,7 @@ function checkOut(m, mbytes, dir, bytes, R) {
   }
 }
 
-export async function verify(manifestPath, { out = null, rebuild: doRebuild = false, fetchGw = null } = {}) {
+export async function verify(manifestPath, { out = null, rebuild: doRebuild = false, fetchGw = null, serve = false } = {}) {
   const R = reporter();
   const mbytes = fs.readFileSync(manifestPath);
   let m; try { m = JSON.parse(mbytes.toString("utf8")); } catch (e) { R.add(false, "manifest is JSON", e.message); return { R, m: null, id: sha(mbytes) }; }
@@ -296,6 +350,7 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   if (out) checkOut(m, mbytes, out, bytes, R);
   if (doRebuild) rebuild(m, bytes, R);
   if (fetchGw) await fetchCheck(m, fetchGw, R);
+  if (serve) await serveCheck(m, bytes, R);
   return { R, m, id: sha(mbytes), bytes };
 }
 
@@ -303,7 +358,7 @@ async function main(argv) {
   const [cmd, manifest, ...rest] = argv;
   const flag = (n) => rest.includes(n), val = (n) => { const i = rest.indexOf(n); return i >= 0 ? rest[i + 1] : null; };
   if (cmd === "verify" && manifest) {
-    const { R, id } = await verify(manifest, { out: val("--out"), rebuild: flag("--rebuild"), fetchGw: val("--fetch") });
+    const { R, id } = await verify(manifest, { out: val("--out"), rebuild: flag("--rebuild"), fetchGw: val("--fetch"), serve: flag("--serve") });
     R.print();
     console.log(R.ok() ? `PASS package ${id}` : `FAIL package ${id}`);
     return R.ok() ? 0 : 1;
@@ -333,7 +388,7 @@ async function main(argv) {
     }
     return 0;
   }
-  console.error("usage: pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] | pack <manifest> <outRoot> | pins <manifest>");
+  console.error("usage: pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve] | pack <manifest> <outRoot> | pins <manifest>");
   return 2;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

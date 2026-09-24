@@ -132,10 +132,61 @@ function Test-HostProfile($R, $M, [string]$Boot) {
 
 function Get-PkgApp($M, [string]$Name) { return @($M.apps | Where-Object { $_.name -eq $Name })[0] }
 
+function Get-BytesSha256([byte[]]$B) {
+  $h = [System.Security.Cryptography.SHA256]::Create()
+  try { return ([System.BitConverter]::ToString($h.ComputeHash($B)) -replace '-', '').ToLower() } finally { $h.Dispose() }
+}
+
 # One HTTP answer, through curl.exe (in the box's System32). -k: the app's TLS ends INSIDE the domain on its own key,
 # which this tier does not attest; the check here is the ANSWER, tied to the bytes by the guest's AppID, not the key.
+# BodySha256 is over the exact bytes received: an answer is compared to the byte, never trimmed.
 function Invoke-PkgGet([string]$Url, [string]$BodyFile) {
+  if (Test-Path -LiteralPath $BodyFile) { Remove-Item -LiteralPath $BodyFile }
   $code = & curl.exe -sk --max-time 20 -o $BodyFile -w '%{http_code}' $Url 2>$null
-  $body = if (Test-Path -LiteralPath $BodyFile) { [System.IO.File]::ReadAllText($BodyFile, [System.Text.Encoding]::UTF8) } else { '' }
-  return [pscustomobject]@{ Status = [int]("0$code"); Body = $body; Exit = $LASTEXITCODE }
+  $raw = if (Test-Path -LiteralPath $BodyFile) { [System.IO.File]::ReadAllBytes($BodyFile) } else { [byte[]]@() }
+  return [pscustomobject]@{ Status = [int]("0$code"); Body = [System.Text.Encoding]::UTF8.GetString($raw); BodySha256 = (Get-BytesSha256 $raw); Exit = $LASTEXITCODE }
+}
+
+# One HTTPS request on its OWN TLS session, returning the certificate that session saw. The domain's certificate is
+# self-signed on the domain's own key; what ties that key to the app is the judged document (judge-hv binds
+# report_data to THIS handshake's SPKI and our nonce), never a CA -- so the certificate is recorded, not validated.
+# HTTP/1.1 with Connection: close; a chunked body (wasmtime serve answers chunked) is de-chunked.
+function Invoke-TlsRequest([string]$HostName, [int]$Port, [string]$Path, [int]$TimeoutMs = 15000) {
+  $tcp = New-Object System.Net.Sockets.TcpClient
+  try {
+    $iar = $tcp.BeginConnect($HostName, $Port, $null, $null)
+    if (-not $iar.AsyncWaitHandle.WaitOne($TimeoutMs)) { throw "connect ${HostName}:$Port timed out" }
+    $tcp.EndConnect($iar)
+    $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ([System.Net.Security.RemoteCertificateValidationCallback]{ $true }))
+    $ssl.ReadTimeout = $TimeoutMs; $ssl.WriteTimeout = $TimeoutMs
+    $protos = [System.Security.Authentication.SslProtocols]::Tls12
+    try { $protos = $protos -bor [System.Security.Authentication.SslProtocols]'Tls13' } catch { }
+    $ssl.AuthenticateAsClient($HostName, $null, $protos, $false)
+    $cert = [System.Convert]::ToBase64String($ssl.RemoteCertificate.GetRawCertData())
+    $req = [System.Text.Encoding]::ASCII.GetBytes("GET $Path HTTP/1.1`r`nHost: $HostName`r`nAccept: */*`r`nConnection: close`r`n`r`n")
+    $ssl.Write($req, 0, $req.Length); $ssl.Flush()
+    $ms = New-Object System.IO.MemoryStream; $buf = New-Object byte[] 65536
+    try { while (($n = $ssl.Read($buf, 0, $buf.Length)) -gt 0) { $ms.Write($buf, 0, $n) } } catch [System.IO.IOException] { if ($ms.Length -eq 0) { throw } }
+    $all = $ms.ToArray()
+  } finally { $tcp.Close() }
+  $sep = -1
+  for ($i = 0; $i -le $all.Length - 4; $i++) { if ($all[$i] -eq 13 -and $all[$i + 1] -eq 10 -and $all[$i + 2] -eq 13 -and $all[$i + 3] -eq 10) { $sep = $i; break } }
+  if ($sep -lt 0) { throw "no HTTP response header from ${HostName}:$Port$Path ($($all.Length) bytes)" }
+  $lines = [System.Text.Encoding]::ASCII.GetString($all, 0, $sep) -split "`r`n"
+  $status = [int](($lines[0] -split ' ')[1])
+  $h = @{}; foreach ($l in @($lines | Select-Object -Skip 1)) { $k = $l.IndexOf(':'); if ($k -gt 0) { $h[$l.Substring(0, $k).Trim().ToLower()] = $l.Substring($k + 1).Trim() } }
+  $rest = New-Object byte[] ($all.Length - $sep - 4); [Array]::Copy($all, $sep + 4, $rest, 0, $rest.Length)
+  if ($h['transfer-encoding'] -eq 'chunked') {
+    $out = New-Object System.IO.MemoryStream; $p = 0
+    while ($p -lt $rest.Length) {
+      $e = $p; while ($e -lt $rest.Length - 1 -and -not ($rest[$e] -eq 13 -and $rest[$e + 1] -eq 10)) { $e++ }
+      $size = [Convert]::ToInt32((([System.Text.Encoding]::ASCII.GetString($rest, $p, $e - $p)) -split ';')[0].Trim(), 16)
+      if ($size -eq 0) { break }
+      $out.Write($rest, $e + 2, $size); $p = $e + 2 + $size + 2
+    }
+    $body = $out.ToArray()
+  } elseif ($h.ContainsKey('content-length')) {
+    $len = [Math]::Min([int]$h['content-length'], $rest.Length); $body = New-Object byte[] $len; [Array]::Copy($rest, 0, $body, 0, $len)
+  } else { $body = $rest }
+  return [pscustomobject]@{ Status = $status; Headers = $h; Body = [System.Text.Encoding]::UTF8.GetString($body); BodySha256 = (Get-BytesSha256 $body); CertB64 = $cert }
 }
