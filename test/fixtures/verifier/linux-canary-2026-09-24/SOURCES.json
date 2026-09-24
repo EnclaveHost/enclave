@@ -1,8 +1,8 @@
 {
  "what": "the Linux per-app SNP tier's FIRST production canary capture (hello-world:1.0.4 on metal-iso0, deployment 0x4e62e60d...), copied verbatim from the isolation owner's commit; reviewed by test/verifier-linux-canary.test.mjs",
  "branch": "isolation/portable-runtime-jit",
- "commit": "aeddcfa19958015a9bca19fc75b104739f9292da",
+ "commit": "368a3aa9c8f47afe54cc81db19a8b6359ccf50fa",
  "path": "isolation/m4/evidence/production-canary-2026-09-24",
  "copiedAt": "2026-09-24T19:29:34Z",
- "note": "served-cert.pem was added by the owner at this commit after the verifier session reported it missing from 26c3cc86; the live transport key rotated after a node restart (owner's F6) and differs from this capture by design"
+ "note": "served-cert.pem (added at aeddcfa1 after the verifier session reported it missing from 26c3cc86), expected-measurement.txt (added at e1ce5f21 after the README was found to abbreviate the measurement) and the KDS and gateway corrections (368a3aa9) are the owner's fixes to the verifier session's defects; the live transport key rotated after a node restart (owner's F6) and differs from this capture by design"
 }

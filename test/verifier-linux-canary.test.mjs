@@ -33,9 +33,13 @@ const asBuf = (x) => (Buffer.isBuffer(x) ? x : typeof x === "string" ? Buffer.fr
 const saved = json(new URL("prod-doc.json", F)), doc = saved.doc, report = Buffer.from(doc.report, "base64");
 const certPem = text(new URL("served-cert.pem", F)), { spki } = spkiOfCert(certPem);
 const nonce = Buffer.from(saved.nonce, "hex"), identity = json(new URL("expected-runtime.json", F)), minTcb = json(new URL("min-tcb.json", F)), record = json(new URL("record.json", F));
-// the owner's stated expectations (README.txt; prod-client.txt RESULT lines): not reproduced here
-const OWNER_MEASUREMENT = "df03e2f66cbb0b70f9cf0c474a2e334727b3b276ac496cb93f8937497b7c973790699f02e207e0e2f73f0146add8840f";
-const OWNER_APP_ID = "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45";
+// the owner's stated expectations, from the committed output of expected-measurement.sh (expected-measurement.txt): the
+// measurement is not reproduced here (release bytes unpublished); the AppID is reproduced by verifier/live-domain-check.mjs
+// --derive from the component by CID, and the value there equalled this one on 2026-09-24
+const expectedTxt = text(new URL("expected-measurement.txt", F)), field = (k) => (new RegExp(`^${k}\\s+(\\S+)$`, "m").exec(expectedTxt) || [])[1];   // a template literal eats single backslashes
+const OWNER_MEASUREMENT = field("measurement"), OWNER_APP_ID = field("app_id");
+assert.match(OWNER_MEASUREMENT || "", /^[0-9a-f]{96}$/, "expected-measurement.txt states the full measurement"); assert.match(OWNER_APP_ID || "", /^[0-9a-f]{64}$/);
+assert.equal(field("runtime_id"), json(new URL("record.json", F)).runtimeId, "the owner's runtime_id is the derivation record's");
 const OWNER_SPKI_SHA256 = "b6230cb3948781c6c7fdf1f891f028c3a2fc99d59e726ef6462fe2bec06dbe91";
 const NOW = "2026-09-24T19:00:00Z";   // after the served certificate's notBefore (18:15:27Z), the day of the capture
 const col = (over = {}) => memoryCollateral({ chains: { Turin: text(new URL("Turin-cert_chain.pem", A)), Genoa: text(new URL("Genoa-cert_chain.pem", A)) }, vceks: { Turin: read(new URL("vcek.der", F)) }, crls: { Turin: read(new URL("Turin-crl.der", V)) }, ...over });
@@ -49,6 +53,8 @@ test("the served certificate's key is the key the document binds and the key the
   assert.ok(spki.equals(Buffer.from(doc.transportKey, "base64")), "doc.transportKey is the served SPKI"); assert.ok(spki.equals(Buffer.from(saved.spki, "base64")), "the client's handshake SPKI");
   assert.equal(doc.nonce, saved.nonce); assert.equal(doc.abi, "enclave-domain-abi/2"); assert.equal(doc.tier, "T1"); assert.equal(doc.format, "sev-snp-guest-domain-v1");
   assert.deepEqual(Object.keys(doc).sort(), ["abi", "appSha256", "format", "nonce", "report", "runtime", "runtimeSelfTest", "tier", "transportKey"], "exactly the keys the owner stated");
+  assert.equal(doc.appSha256, OWNER_APP_ID, "the document's own appSha256 claim equals the expected AppID (a claim; report_data decides)");
+  assert.equal(JSON.stringify(JSON.parse(field("runtime_identity_json") || "{}")), JSON.stringify(identity), "the owner's identity JSON is expected-runtime.json");
   assert.equal(C.validateRuntimeIdentity(identity), null); assert.deepEqual(doc.runtime, identity, "the document states the expected identity");
   assert.equal(rid().toString("hex"), record.runtimeId, "RuntimeID from the pinned contract equals the derivation record's");
 });

@@ -838,13 +838,14 @@
   "linux-canary-2026-09-24": {
     "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record; reviewed by test/verifier-linux-canary.test.mjs",
     "branch": "isolation/portable-runtime-jit",
-    "commit": "aeddcfa19958015a9bca19fc75b104739f9292da",
+    "commit": "368a3aa9c8f47afe54cc81db19a8b6359ccf50fa",
     "path": "isolation/m4/evidence/production-canary-2026-09-24",
     "dir": "test/fixtures/verifier/linux-canary-2026-09-24",
     "files": {
-      "README.txt": "559dde94113aba2b044fa351dac0da78de9d72c2435e77911027cdb529d191a9",
+      "README.txt": "fb3b32226718cef0c1f45cb608b4fc9aecd97c8dd9fb27cfb166df8f291ac9f7",
       "deployment-txs.json": "dd00baec247af18ee93d033433236af596db23df439a6990c884b5872dfe29b2",
       "domain-release.json": "ec0f713cebf03d601c6fab3a21394b6cf1447818a919b28bd47c527613689c6e",
+      "expected-measurement.txt": "1436104ced39a74904d09934a27bcfaf1d0c73cc8dac319e0e56feb40e8a103c",
       "expected-runtime.json": "8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6",
       "guestd-instance.json": "63dc625ed09da60548141bc8e55512bc5480c0a95112e7ebed881643db8ced86",
       "min-tcb.json": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
