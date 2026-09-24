@@ -50,5 +50,5 @@ Nothing here produces a report, and `running` is not `attested` either.
 
 ```
 node windows/vbslike/manager/main.mjs        # loopback only; the supervisor reaches it over guestd-control/1
-node --test windows/vbslike/manager/         # derivation vectors + the contract surface
+node --test windows/vbslike/manager/*.test.mjs   # derivation vectors + the contract surface
 ```
