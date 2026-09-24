@@ -29,6 +29,13 @@ for (const [name, pin] of Object.entries(pinsFile)) {
   env[pin.env] = manifest.entry;
   console.log(`integration: ${name} @ ${manifest.commit} (${manifest.branch}) -> ${path.relative(REPO, manifest.entry)} (manifest and hashes re-checked) as ${pin.env}`);
 }
+// the pinned build artifacts must reproduce byte for byte before any acceptance case runs
+const artifacts = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "artifacts.json"), "utf8"));
+for (const name of Object.keys(artifacts)) {
+  const a = spawnSync(process.execPath, [path.join(REPO, "verifier", "integration", "reproduce.mjs"), "--pin", name], { cwd: REPO, encoding: "utf8" });
+  if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
+  process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
+}
 const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=120000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped)/.test(l)).join("  ");

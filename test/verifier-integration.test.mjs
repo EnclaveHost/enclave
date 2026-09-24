@@ -108,3 +108,42 @@ test("the strict integration command passes end to end against the pinned revisi
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, new RegExp(`integration: PASS against ${pin.commit.slice(0, 12)}`)); assert.match(r.stdout, /# skipped 0|skipped 0/);
 });
+
+// ---- build-artifact reproduction (verifier/integration/reproduce.mjs) ----------------------------------------------------
+const ART = JSON.parse(fs.readFileSync(path.join(REPO, "verifier/integration/artifacts.json"), "utf8"));
+const art = ART["pvm-client-artifact"];
+const haveArt = (() => { try { execFileSync("git", ["cat-file", "-e", `${art.commit}^{commit}`], { cwd: REPO, stdio: "ignore" }); return true; } catch { return false; } })();
+const haveTool = (() => { try { return execFileSync(path.join(REPO, "node_modules/.bin", art.tool.name), ["--version"]).toString().trim() === art.tool.version; } catch { return false; } })();
+test("the artifact pin is explicit: full commit, the build tool's exact version, every output's sha256 and size, the dynamic-import allowlist", () => {
+  assert.match(art.commit, /^[0-9a-f]{40}$/); assert.equal(art.tool.version, "0.28.1");
+  for (const o of Object.values(art.outputs)) { assert.match(o.sha256, /^[0-9a-f]{64}$/); assert.ok(Number.isInteger(o.size) && o.size > 0); }
+  assert.deepEqual(art.codeLoading["pvm-client.mjs"].allowedDynamicImports, ['"crypto"']);
+});
+test("reproduce: the pinned client artifact rebuilds byte for byte in a detached worktree that is removed afterwards", { skip: (!haveArt && "pinned commit not in this repository") || (!haveTool && `${art.tool.name} ${art.tool.version} not installed`) }, () => {
+  const before = execFileSync("git", ["worktree", "list"], { cwd: REPO }).toString();
+  const r = node("verifier/integration/reproduce.mjs", []);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  for (const [out, want] of Object.entries(art.outputs)) assert.match(r.stdout, new RegExp(`${out} sha256 ${want.sha256} \\(${want.size} bytes\\) == pin`));
+  assert.match(r.stdout, /REPRODUCED/); assert.match(r.stdout, /no eval \/ new Function \/ importScripts/);
+  assert.equal(execFileSync("git", ["worktree", "list"], { cwd: REPO }).toString(), before, "the temporary worktree was removed");
+});
+test("reproduce: a pin whose output hash is wrong, or whose commit is unknown, fails with exit 2 and leaves no worktree", { skip: (!haveArt && "pinned commit not in this repository") || (!haveTool && `${art.tool.name} ${art.tool.version} not installed`) }, () => {
+  const withArt = (mut) => { const dir = fs.mkdtempSync(path.join(tmp, "art-")); const p = JSON.parse(JSON.stringify(ART)); mut(p["pvm-client-artifact"]);
+    fs.mkdirSync(path.join(dir, "verifier/integration"), { recursive: true }); fs.writeFileSync(path.join(dir, "verifier/integration/artifacts.json"), JSON.stringify(p));
+    fs.copyFileSync(path.join(REPO, "verifier/integration/reproduce.mjs"), path.join(dir, "verifier/integration/reproduce.mjs"));
+    for (const f of [".git", "node_modules"]) fs.symlinkSync(path.join(REPO, f), path.join(dir, f)); return dir; };
+  const before = execFileSync("git", ["worktree", "list"], { cwd: REPO }).toString();
+  const wrongHash = withArt((q) => { q.outputs["pvm-client.mjs"].sha256 = "0".repeat(64); });
+  const r1 = spawnSync(process.execPath, [path.join(wrongHash, "verifier/integration/reproduce.mjs")], { encoding: "utf8", env: childEnv({}) });
+  assert.equal(r1.status, 2); assert.match(r1.stderr, /hashes to .* the pin says/);
+  const wrongCommit = withArt((q) => { q.commit = "0".repeat(40); });
+  const r2 = spawnSync(process.execPath, [path.join(wrongCommit, "verifier/integration/reproduce.mjs")], { encoding: "utf8", env: childEnv({}) });
+  assert.equal(r2.status, 2); assert.match(r2.stderr, /not in this repository/);
+  const wrongTool = withArt((q) => { q.tool.version = "0.0.1"; });
+  const r3 = spawnSync(process.execPath, [path.join(wrongTool, "verifier/integration/reproduce.mjs")], { encoding: "utf8", env: childEnv({}) });
+  assert.equal(r3.status, 2); assert.match(r3.stderr, /the pin requires 0\.0\.1/);
+  const badImport = withArt((q) => { q.codeLoading["pvm-client.mjs"].allowedDynamicImports = []; });
+  const r4 = spawnSync(process.execPath, [path.join(badImport, "verifier/integration/reproduce.mjs")], { encoding: "utf8", env: childEnv({}) });
+  assert.equal(r4.status, 2); assert.match(r4.stderr, /not on the pin's allowlist/);
+  assert.equal(execFileSync("git", ["worktree", "list"], { cwd: REPO }).toString(), before, "no temporary worktree survives a refusal");
+});
