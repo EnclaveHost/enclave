@@ -97,7 +97,7 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     assert.equal(li?.step, "list", JSON.stringify(li)); assert.deepEqual(li.deployments, [{ id: D1, app: APP }, { id: D2, app: OTHER }]); assert.equal(li.policySerial, 3);
     await browse(`chrome-extension://${id}/client.html?label=ext-dep&deployment=${D1}&path=%2F`, 6000, prof);
     const dp = outcome("ext-dep");
-    assert.equal(dp?.step, "verify", JSON.stringify(dp)); assert.deepEqual(dp.deployment, { id: D1, app: APP }); assert.match(dp.refused, /not a pinned Google attestation root/);
+    assert.equal(dp?.step, "verify", JSON.stringify(dp)); assert.deepEqual(dp.deployment, { id: D1, app: APP, instance: null, bound: false }); assert.match(dp.refused, /not a pinned Google attestation root/);
     assert.equal(vm.log.filter((l) => l.evidence).length, ev0 + 1, "the selection reached the VM's evidence, for the table's app");
     for (const [lab, qs, why] of [["ext-dep-unknown", `deployment=${D3}`, /does not name deployment/], ["ext-dep-mismatch", `deployment=${D1}&app=${OTHER}`, /is not the app the policy expects/],
                                   ["ext-dep-twice", `deployment=${D1}&deployment=${D2}`, /more than once: ambiguous/]]) {

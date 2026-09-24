@@ -10,6 +10,7 @@
 //                           another app than A, or there is no table); the install-time app is used only when neither
 //                           ?deployment nor ?app is given. A repeated ?deployment or ?app is refused before anything runs.
 import { connect, acceptPolicy } from "../src/client.js";
+import { carrierFor } from "../src/carrier.js";
 import { ExtStore } from "../src/store-ext.js";
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -36,7 +37,10 @@ try {
       }
     } else {
       const deployment = q.get("deployment"), app = q.get("app") || (deployment === null ? config.appId : null);
-      const r = await connect({ relay: config.relayUrl, policyEnv, store, appId: app, deployment, path: q.get("path") || "/", stream: q.get("whole") !== "1",
+      // a platform relay base routes by deployment (<base>/x/<id>/pvm); the id is a route, the app still the signed table's
+      const carrier = carrierFor({ relay: config.relayUrl || null, relayBase: config.relayBase || null, deployment });
+      if (!carrier.ok) throw new Error(carrier.reason);
+      const r = await connect({ relay: carrier.url, policyEnv, store, appId: app, deployment, path: q.get("path") || "/", stream: q.get("whole") !== "1",
                                 cancelAfter: Number(q.get("cancel") || 0), label, onCommitted: (c) => post({ event: "policy-committed", ...c }),
                                 onLine: (l) => { $("out").textContent += l + "\n"; } });
       result = r.result;

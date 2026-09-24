@@ -302,7 +302,7 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
     const D = "0x" + "d1".repeat(32), tbl = path.join(L.dir, "pol-11-table.json");
     fs.writeFileSync(tbl, JSON.stringify(policyDoc(L.P, 11, { deployments: [{ id: D, app: APP }] })));
     const sel = (await L.runWith(["--policy", tbl, "--relay", relay, "--deployment", D])).lines.at(-1).result;
-    assert.equal(sel.clientVersion, "9.3.2", "the delegated child selected, not the launcher"); assert.deepEqual(sel.deployment, { id: D, app: APP });
+    assert.equal(sel.clientVersion, "9.3.2", "the delegated child selected, not the launcher"); assert.deepEqual(sel.deployment, { id: D, app: APP, instance: null, bound: false });
     assert.equal(sel.step, "verify"); assert.match(sel.refused, /not a pinned Google attestation root/);
     // no fallback for the real client either: its file gone, nothing runs
     fs.rmSync(L.file(R2));

@@ -53,7 +53,7 @@ test("policy: the anchored key's signed policy is accepted; every substitution, 
   for (const k of ["codeHashes", "authorityHashes", "runtimeIds", "appIds"]) await refused(signPolicy(policyBody(P, { [k]: [] }), P), /non-empty/);
   await refused(signPolicy(policyBody(P, { googleRootPins: [] }), P), /only narrow/);
   await refused(signPolicy(policyBody(P, { googleRootPins: ["ab".repeat(32)] }), P), /only narrow/);
-  await refused(signPolicy(policyBody(P, { formats: ["enclave-pvm-app-evidence/v3"] }), P), /formats/);
+  await refused(signPolicy(policyBody(P, { formats: ["enclave-pvm-app-evidence/v4"] }), P), /formats/);
   await refused(signPolicy(policyBody(P, { sealedModes: ["plaintext"] }), P), /modes/);
   await refused(signPolicy(policyBody(P, { sealedWindow: { seconds: 600 } }), P), /sealedWindow/);
   // time: expired, not yet valid (the client's clock; no stale fallback)

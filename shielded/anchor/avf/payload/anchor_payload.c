@@ -88,6 +88,14 @@
  * randombytes() below is the guest's getrandom. */
 static unsigned char g_tpk[32], g_tsk[64];
 #ifdef ANCHOR_TIER_PVM_CPU
+/* The VM INSTANCE's key (INSTANCE-BINDING.md, evidence v3): Ed25519 seeded from AVmPayload_getVmInstanceSecret, so the same
+ * instance derives the same key after a restart or a reboot, a new instance another, and the host never sees the seed.
+ * InstanceID = SHA-256(its SPKI). g_inst: derived this boot. The seeded key pair is third_party/tweetnacl.c's Enclave
+ * addition, declared here because wasm/ggml-shielded/tweetnacl.h (same include guard) is the header in effect. */
+static unsigned char g_ipk[32], g_isk[64]; static int g_inst = 0;
+extern int crypto_sign_ed25519_tweet_seed_keypair(unsigned char *pk, unsigned char *sk, const unsigned char *seed);
+#endif
+#ifdef ANCHOR_TIER_PVM_CPU
 /* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs): the nonce it answers and the VM clock at the attestation.
  * kind 2 = the relay's nonce from this pVM's own v2 binding (admissible); 1 = the owner's bare challenge (evidence only). */
 static uint8_t g_caps_nonce[32]; static int g_caps_nonce_kind = 0; static uint64_t g_caps_attach_ms = 0;
@@ -1219,16 +1227,33 @@ static const char *errno_name(int e, char *buf, size_t cap) {
 /* The W^X tuple measured when the app was received (app_attest_abi2), for every later answer (the evidence endpoint). */
 static char g_abi2_tuple[96] = "";
 /* One ABI/2 certificate: RuntimeID = SHA-256(identity as printed), Bind2 = SHA-256("enclave-bind-v2\n" || transport SPKI ||
- * nonce || RuntimeID), challenge = Bind2 || AppID. Returns the result (the caller frees it) or NULL with *st set. */
+ * nonce || RuntimeID), challenge = Bind2 || AppID. v3 (inst != NULL, INSTANCE-BINDING.md): the VM INSTANCE inside the first
+ * half, Bind3 = SHA-256("enclave-bind-v3-instance\n" || transport SPKI || nonce || RuntimeID || InstanceID) with InstanceID =
+ * SHA-256(instance SPKI), and inst->sig = the instance key's signature over "enclave-pvm-instance-sig-v1\n" || challenge.
+ * AppID stays whole as the second half. Returns the result (the caller frees it) or NULL with *st set. */
+typedef struct { uint8_t id[32]; uint8_t spki[44]; uint8_t sig[64]; } abi2_instance;
+static void instance_spki(uint8_t spki[44]) { memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_ipk, 32); }
 static AVmAttestationResult *abi2_certify(const char *identity, const uint8_t nonce[32], const uint8_t app_sha[32],
-                                          uint8_t rid[32], uint8_t bind[32], AVmAttestationStatus *st) {
+                                          uint8_t rid[32], uint8_t bind[32], abi2_instance *inst, AVmAttestationStatus *st) {
     uint8_t spki[44], ch[64];
     sha256((const uint8_t *)identity, strlen(identity), rid);
     memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
-    {   static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
+    if (!inst) {
+        static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
         memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
-        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind);
+    } else {
+        static const char dom[] = "enclave-bind-v3-instance\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32 + 32]; size_t o = 0;
+        instance_spki(inst->spki); sha256(inst->spki, 44, inst->id);
+        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; memcpy(m + o, inst->id, 32); o += 32; sha256(m, o, bind);
+    }
     memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
+    if (inst) {   /* the instance key endorses exactly this challenge (TweetNaCl: sm = sig || m) */
+        static const char dom[] = "enclave-pvm-instance-sig-v1\n"; uint8_t m[sizeof dom - 1 + 64], sm[64 + sizeof m]; unsigned long long smlen = 0;
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, ch, 64);
+        crypto_sign(sm, &smlen, m, sizeof m, g_isk); memcpy(inst->sig, sm, 64);
+    }
     AVmAttestationResult *res = NULL;
     *st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
     if (*st != ATTESTATION_OK || !res) { if (res) AVmAttestationResult_free(res); return NULL; }
@@ -1253,10 +1278,14 @@ static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
     const uint8_t *nonce = g_app_nonce_set ? g_app_nonce : g_caps_nonce;
     const char *nonce_kind = g_app_nonce_set ? "relay app nonce" : g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only";
     uint8_t rid[32], bind[32];
-    AVmAttestationStatus st;
-    AVmAttestationResult *res = abi2_certify(identity, nonce, app_sha, rid, bind, &st);
+    AVmAttestationStatus st; abi2_instance inst;
+    AVmAttestationResult *res = abi2_certify(identity, nonce, app_sha, rid, bind, g_inst ? &inst : NULL, &st);
     char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
-    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s bind2=%s app=%s", nh, nonce_kind, rh, bh, ah);
+    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s %s=%s app=%s", nh, nonce_kind, rh, g_inst ? "bind3" : "bind2", bh, ah);
+    if (g_inst) {   /* v3: the instance key and its signature, for the relay's hub to check at attach (public values) */
+        char kh[89], sg[129], ih[65]; sh_pads_bin2hex(inst.spki, 44, kh); sh_pads_bin2hex(inst.sig, 64, sg); sh_pads_bin2hex(inst.id, 32, ih);
+        OUT("ABI2 instance key=%s sig=%s id=%s", kh, sg, ih);
+    }
     if (!res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
     const size_t n = AVmAttestationResult_getCertificateCount(res);
     for (size_t i = 0; i < n; i++) {
@@ -1296,12 +1325,14 @@ static void evidence_answer(evidence_srv *e, int c) {
     char line[128]; size_t n = 0;
     while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
     line[n] = 0;
-    const char *h = line + 9; size_t hl = 0;
-    if (strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
-    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex>\"}\n")); return; }
+    const int v3 = strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
+    const char *h = line + (v3 ? 10 : 9); size_t hl = 0;
+    if (v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
+    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n")); return; }
+    if (v3 && (!g_inst || !e->sealed)) { write_all(c, "{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n", strlen("{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n")); return; }
     if (e->answered >= 120) { write_all(c, "{\"error\":\"evidence budget spent for this session\"}\n", strlen("{\"error\":\"evidence budget spent for this session\"}\n")); return; }
-    uint8_t nonce[32], rid[32], bind[32]; unhex(h, nonce, 32);
-    AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, &st);
+    uint8_t nonce[32], rid[32], bind[32]; unhex(h, nonce, 32); abi2_instance inst;
+    AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, v3 ? &inst : NULL, &st);
     if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); write_all(c, "{\"error\":\"attestation unavailable\"}\n", strlen("{\"error\":\"attestation unavailable\"}\n")); return; }
     const size_t k = AVmAttestationResult_getCertificateCount(res);
     size_t cap = 1024; for (size_t i = 0; i < k; i++) cap += AVmAttestationResult_getCertificateAt(res, i, NULL, 0) * 4 / 3 + 8;
@@ -1310,7 +1341,14 @@ static void evidence_answer(evidence_srv *e, int c) {
     char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
     sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
     size_t o;
-    if (e->sealed) {   /* v2: the app key, vouched for by the attested transport key under THIS nonce and THIS app */
+    if (v3) {   /* v3: the app key vouched for under THIS nonce, THIS app and THIS instance; the instance key and its signature */
+        static const char dom[] = "enclave-pvm-app-key-v2\n"; uint8_t m[sizeof dom - 1 + 128], sig[64]; char kh[65], sg[129], ik[89], is[129];
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32);
+        memcpy(m + sizeof dom - 1 + 64, inst.id, 32); memcpy(m + sizeof dom - 1 + 96, e->app_key, 32);
+        { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }
+        sh_pads_bin2hex(e->app_key, 32, kh); sh_pads_bin2hex(sig, 64, sg); sh_pads_bin2hex(inst.spki, 44, ik); sh_pads_bin2hex(inst.sig, 64, is);
+        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v3\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"instanceKey\":\"%s\",\"instanceSig\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",\"identity\":\"", nh, ah, sh, ik, is, kh, sg);
+    } else if (e->sealed) {   /* v2: the app key, vouched for by the attested transport key under THIS nonce and THIS app */
         static const char dom[] = "enclave-pvm-app-key-v1\n"; uint8_t m[sizeof dom - 1 + 96], sig[64]; char kh[65], sg[129];
         memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32); memcpy(m + sizeof dom - 1 + 64, e->app_key, 32);
         { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }   /* TweetNaCl: sig || m */
@@ -1330,7 +1368,7 @@ static void evidence_answer(evidence_srv *e, int c) {
     if (write_all(c, js, o) == 0) {
         e->answered++;
         const int admitted = e->sealed && e->admit && e->admit(e->srv, nonce) == 0;
-        OUT("EVIDENCE answered nonce=%.16s... (%zu certificates, answer %d%s)", nh, k, e->answered, admitted ? ", v2: sealed requests admitted under it" : "");
+        OUT("EVIDENCE answered nonce=%.16s... (%s, %zu certificates, answer %d%s)", nh, v3 ? "v3" : e->sealed ? "v2" : "v1", k, e->answered, admitted ? ": sealed requests admitted under it" : "");
     }
     free(js);
 }
@@ -1745,6 +1783,13 @@ int AVmPayload_main(void) {
     g_ls_model = ls_model;
     crypto_sign_keypair(g_tpk, g_tsk);
     crypto_box_keypair(g_ppk, g_psk);                 /* the pad key: the platform's seed is boxed to it */
+#ifdef ANCHOR_TIER_PVM_CPU
+    {   /* the INSTANCE key (INSTANCE-BINDING.md): seeded from the VM instance's secret, the same for this instance every boot */
+        static const char ident[] = "enclave-pvm-instance-key-v1"; uint8_t seed[32];
+        AVmPayload_getVmInstanceSecret(ident, sizeof ident - 1, seed, sizeof seed);
+        crypto_sign_ed25519_tweet_seed_keypair(g_ipk, g_isk, seed); memset(seed, 0, sizeof seed); g_inst = 1;
+    }
+#endif
     AVmPayload_notifyPayloadReady();
     g_ctl = vs_accept(ls_ctl, 20000);
     {   /* the first thing the owner hears is the transport key it will present to the relay */
@@ -1765,6 +1810,12 @@ int AVmPayload_main(void) {
         storage_probe();
     }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (g_inst) {   /* public: the device campaign compares it across restarts and re-provisioning (INSTANCE-BINDING.md) */
+        uint8_t sp[44], id[32]; char ih[65]; instance_spki(sp); sha256(sp, 44, id); sh_pads_bin2hex(id, 32, ih);
+        OUT("INSTANCE id=%s (Ed25519, seeded from this VM instance's secret)", ih);
+    }
+#endif
     {
         FILE *f = fopen("/proc/cpuinfo", "r"); char line[1024]; char feats[1024] = "?";
         if (f) { while (fgets(line, sizeof line, f)) if (!strncmp(line, "Features", 8)) { strncpy(feats, line + 10, sizeof feats - 1); break; } fclose(f); }

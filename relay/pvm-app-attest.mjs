@@ -17,6 +17,10 @@ import { createHash, createPublicKey, verify as cryptoVerify } from "node:crypto
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 
 export const BIND2_DOMAIN = "enclave-bind-v2\n";
+// v3 (shielded/anchor/avf/INSTANCE-BINDING.md, agreed with the verifier session): the VM INSTANCE inside the challenge
+export const BIND3_DOMAIN = "enclave-bind-v3-instance\n";
+export const INSTANCE_SIG_DOMAIN = "enclave-pvm-instance-sig-v1\n";
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const FIELDS = ["name", "version", "execution", "targetIsa", "hostIsa", "cpuFeatures", "wx", "cache"];
 
 /** Canonical JSON: compact, keys sorted at every level (the contract's Canonical()). */
@@ -55,6 +59,17 @@ export function bind2(spki, nonce, rid) {
   if (rid.length !== 32) throw new Error("runtime id must be 32 bytes");
   return createHash("sha256").update(Buffer.concat([Buffer.from(BIND2_DOMAIN), Buffer.from(spki), Buffer.from(nonce), Buffer.from(rid)])).digest();
 }
+
+/** v3: SHA-256(domain || spki || nonce || runtime id || InstanceID); the challenge is this || AppID. */
+export function bind3(spki, nonce, rid, instanceId) {
+  if (nonce.length !== 32 || rid.length !== 32 || instanceId.length !== 32) throw new Error("nonce, runtime id and instance id must be 32 bytes each");
+  return createHash("sha256").update(Buffer.concat([Buffer.from(BIND3_DOMAIN), Buffer.from(spki), Buffer.from(nonce), Buffer.from(rid), Buffer.from(instanceId)])).digest();
+}
+/** InstanceID = SHA-256(the instance key's 44-byte Ed25519 SPKI). */
+export const instanceIdOf = (instanceSpki) => createHash("sha256").update(Buffer.from(instanceSpki)).digest();
+/** What instanceSig signs: the domain and the whole 64-byte challenge. */
+export const instanceSigMessage = (challenge) => Buffer.concat([Buffer.from(INSTANCE_SIG_DOMAIN), Buffer.from(challenge)]);
+const isEd25519Spki = (b) => Buffer.isBuffer(b) && b.length === 44 && b.subarray(0, 12).equals(ED25519_SPKI_PREFIX);
 
 /** The runtime self-test tuple, `exec_pages=... wx=clean maps=N scope=...`, under the shared judge's rules, with the
  * exec_pages value also held to its grammar. Returns { ok, reasons }. */
@@ -98,14 +113,21 @@ const hex32 = (v, what) => {
  *   evidence: { chain: [DER...], identity: "<the ABI2 runtime line's JSON, verbatim>", selftest: "<the tuple>",
  *               spki: Buffer (the transport key the verifier holds for this session), nonce: 32 bytes (the verifier's
  *               own), appId: 32 bytes (the component the verifier expects) }
+ *               v3 (optional, together): instanceKey: Buffer (the instance key's 44-byte Ed25519 SPKI), instanceSig: Buffer
+ *               (64 bytes) -- the challenge is then Bind3(spki, nonce, RuntimeID, SHA-256(instanceKey)) || AppID, and
+ *               instanceSig must be the instance key's signature over it
  *   opts: relay/avf-verify.mjs options (allowedCodeHashes, allowedAuthorityHashes, rootPins, now), plus
  *         allowedRuntimeIds: hex runtime IDs this verifier admits (fail closed when empty), and verifyAvf (tests only).
- * Returns { ok, reasons, runtimeId, bind2, measurement }.
+ * Returns { ok, reasons, runtimeId, bind2 (v2), bind3 (v3), instanceId (v3), measurement }.
  */
 export function verifyPvmAppAbi2(evidence = {}, opts = {}) {
   const reasons = [];
-  const fail = (m) => ({ ok: false, reasons: [...reasons, m], runtimeId: null, bind2: null, measurement: null });
+  const fail = (m) => ({ ok: false, reasons: [...reasons, m], runtimeId: null, bind2: null, bind3: null, instanceId: null, measurement: null });
   const { chain, identity, selftest, spki } = evidence;
+  const v3 = evidence.instanceKey !== undefined || evidence.instanceSig !== undefined;
+  if (v3 && !isEd25519Spki(evidence.instanceKey)) return fail("the instance key is not a 44-byte Ed25519 SPKI");
+  if (v3 && (!Buffer.isBuffer(evidence.instanceSig) || evidence.instanceSig.length !== 64)) return fail("the instance signature is not 64 bytes");
+  if (v3 && Buffer.isBuffer(spki) && evidence.instanceKey.equals(spki)) return fail("the instance key is the transport key: an instance key is its own, never the boot's");
   let nonce, appId;
   try { nonce = hex32(evidence.nonce, "nonce"); appId = hex32(evidence.appId, "appId"); } catch (e) { return fail(e.message); }
   if (!Buffer.isBuffer(spki) || spki.length < 32 || spki.length > 512) return fail("the transport SPKI is missing");
@@ -123,12 +145,21 @@ export function verifyPvmAppAbi2(evidence = {}, opts = {}) {
   const st = checkRuntimeSelfTest(selftest, r);
   if (!st.ok) return fail(st.reasons[0]);
   reasons.push(...st.reasons);
-  const b = bind2(spki, nonce, rid);
+  const iid = v3 ? instanceIdOf(evidence.instanceKey) : null;
+  const b = v3 ? bind3(spki, nonce, rid, iid) : bind2(spki, nonce, rid);
   const challenge = Buffer.concat([b, appId]);
   const avf = (opts.verifyAvf || verifyAvfEvidence)({ chain, challenge }, opts);
   if (!avf.ok) return fail(`attestation: ${avf.reasons.join("; ")}`);
-  reasons.push(`the AVF certificate's challenge is Bind2(transport key, nonce, runtime) || app ${appId.toString("hex").slice(0, 16)}…`);
-  return { ok: true, reasons, runtimeId: rid.toString("hex"), bind2: b.toString("hex"), measurement: avf.measurement };
+  reasons.push(v3 ? `the AVF certificate's challenge is Bind3(transport key, nonce, runtime, instance ${iid.toString("hex").slice(0, 16)}…) || app ${appId.toString("hex").slice(0, 16)}…`
+                  : `the AVF certificate's challenge is Bind2(transport key, nonce, runtime) || app ${appId.toString("hex").slice(0, 16)}…`);
+  if (v3) {
+    let ok = false;
+    try { ok = cryptoVerify(null, instanceSigMessage(challenge), createPublicKey({ key: evidence.instanceKey, format: "der", type: "spki" }), evidence.instanceSig); } catch { ok = false; }
+    if (!ok) return fail("the instanceSig is not the instance key's signature over this challenge");
+    reasons.push(`the instance key signed this challenge: instance ${iid.toString("hex").slice(0, 16)}…`);
+  }
+  return { ok: true, reasons, runtimeId: rid.toString("hex"), bind2: v3 ? null : b.toString("hex"), bind3: v3 ? b.toString("hex") : null,
+           instanceId: v3 ? iid.toString("hex") : null, measurement: avf.measurement };
 }
 
 export const PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
@@ -145,6 +176,13 @@ export const SEALED_WINDOW_SECONDS = 600, SEALED_MAX_REQUESTS = 256;
 export function appKeyMessage(nonce, appId, appKey) {
   return Buffer.concat([Buffer.from(APP_KEY_DOMAIN), hex32(nonce, "nonce"), hex32(appId, "appId"), hex32(appKey, "appKey")]);
 }
+// v3: the same evidence bound to the VM INSTANCE (INSTANCE-BINDING.md) -- plus instanceKey (the instance key's SPKI, hex) and
+// instanceSig; appKeySig then signs under APP_KEY_DOMAIN_V3 and covers the InstanceID
+export const PVM_APP_EVIDENCE_FORMAT_V3 = "enclave-pvm-app-evidence/v3";
+export const APP_KEY_DOMAIN_V3 = "enclave-pvm-app-key-v2\n";
+export function appKeyMessageV3(nonce, appId, instanceId, appKey) {
+  return Buffer.concat([Buffer.from(APP_KEY_DOMAIN_V3), hex32(nonce, "nonce"), hex32(appId, "appId"), hex32(instanceId, "instanceId"), hex32(appKey, "appKey")]);
+}
 
 /**
  * A CLIENT's verification of a pVM app's evidence envelope (LAB, PVM-CPU.md "client-verified channel"): the VM answered
@@ -155,20 +193,31 @@ export function appKeyMessage(nonce, appId, appKey) {
  * runtime IDs). v2 also carries appKey; it is returned only after appKeySig verifies under the attested transport key
  * for the caller's nonce and app. Returns { ok, reasons, transportSpki (hex, the key to pin for TLS), runtimeId,
  * measurement, freshness, appId, appKey (v2), sealedWindowSeconds, sealedMaxRequests (v2) }.
- *   envelope: { format, nonce, app, spki, identity, selftest, chain: [b64 DER], (v2) appKey, appKeySig }
- *   expect:   { nonce (32 bytes), appId (hex), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now? }
+ *   envelope: { format, nonce, app, spki, identity, selftest, chain: [b64 DER], (v2, v3) appKey, appKeySig, (v3) instanceKey, instanceSig }
+ *   expect:   { nonce (32 bytes), appId (hex), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now?,
+ *               instanceIds? -- a deployment bound to instances: only v3 for a listed instance verifies, v1/v2 are refused as a
+ *               downgrade by name }
  * The browser's copy, on WebCrypto alone: shielded/anchor/avf/web/pvm-verify.js (test/pvm-web-verify.test.mjs: parity).
  */
 export function verifyPvmAppEvidence(envelope, expect = {}) {
-  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null };
+  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null, instanceId: null, instanceKey: null };
   const no = (m, reasons = []) => ({ ok: false, reasons: [...reasons, m], ...base });
   const e = envelope;
   // a closed shape per version: exactly these fields, each at its exact form (an unknown field is refused, never ignored)
   if (!e || typeof e !== "object" || Array.isArray(e)) return no("the evidence is not an object");
-  const v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2;
-  const KEYS = v2 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "nonce", "selftest", "spki"] : ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
+  let bound = null;   // a deployment bound to instances takes v3 only: an unbound format is a downgrade, refused by name first
+  if (expect.instanceIds !== undefined) {
+    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h)))
+      return no("the caller's instanceIds are not a non-empty list of 64 lowercase hex: refusing (fail closed)");
+    bound = new Set(expect.instanceIds);
+    if (e.format !== PVM_APP_EVIDENCE_FORMAT_V3)
+      return no(`${JSON.stringify(e.format)} is an unbound evidence format for a deployment bound to instances: refused as a downgrade (v3 required)`);
+  }
+  const v3 = e.format === PVM_APP_EVIDENCE_FORMAT_V3, v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2 || v3;
+  const KEYS = v3 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "instanceKey", "instanceSig", "nonce", "selftest", "spki"]
+             : v2 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "nonce", "selftest", "spki"] : ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
   if (Object.keys(e).sort().join() !== KEYS.join()) return no(`the evidence fields must be exactly ${KEYS.join(",")} (got ${Object.keys(e).sort().join(",")})`);
-  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT} or ${PVM_APP_EVIDENCE_FORMAT_V2}`);
+  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}, ${PVM_APP_EVIDENCE_FORMAT_V2} or ${PVM_APP_EVIDENCE_FORMAT_V3}`);
   for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes"])
     if (!Array.isArray(expect[k]) || !expect[k].length) return no(`no ${k}: refusing (fail closed)`);
   if (expect.rootPins !== undefined && (!Array.isArray(expect.rootPins) || !expect.rootPins.length)) return no("an empty rootPins: refusing (fail closed)");
@@ -183,6 +232,9 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
   if (typeof e.selftest !== "string" || e.selftest.length > 300) return no("the evidence self-test is not a string of at most 300 bytes");
   if (v2 && (typeof e.appKey !== "string" || !/^[0-9a-f]{64}$/.test(e.appKey))) return no("the evidence appKey is not 64 lowercase hex (an X25519 key)");
   if (v2 && (typeof e.appKeySig !== "string" || !/^[0-9a-f]{128}$/.test(e.appKeySig))) return no("the evidence appKeySig is not 128 lowercase hex (an Ed25519 signature)");
+  if (v3 && (typeof e.instanceKey !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(e.instanceKey))) return no("the evidence's instance key is not a 44-byte Ed25519 SPKI");
+  if (v3 && e.instanceKey === e.spki) return no("the evidence's instance key is its transport key: an instance key is its own, never the boot's");
+  if (v3 && (typeof e.instanceSig !== "string" || !/^[0-9a-f]{128}$/.test(e.instanceSig))) return no("the evidence instanceSig is not 128 lowercase hex (an Ed25519 signature)");
   if (!Array.isArray(e.chain) || e.chain.length < 2 || e.chain.length > 8) return no("the evidence chain is not 2..8 certificates");
   const chain = [];
   for (const c of e.chain) {
@@ -192,37 +244,46 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
     chain.push(der);
   }
   const spki = Buffer.from(e.spki, "hex");
-  const v = verifyPvmAppAbi2({ chain, identity: e.identity, selftest: e.selftest, spki, nonce, appId },
+  const v = verifyPvmAppAbi2({ chain, identity: e.identity, selftest: e.selftest, spki, nonce, appId,
+                               ...(v3 ? { instanceKey: Buffer.from(e.instanceKey, "hex"), instanceSig: Buffer.from(e.instanceSig, "hex") } : {}) },
     { allowedRuntimeIds: expect.allowedRuntimeIds, allowedCodeHashes: expect.allowedCodeHashes, allowedAuthorityHashes: expect.allowedAuthorityHashes,
       ...(expect.rootPins ? { rootPins: expect.rootPins } : {}), ...(expect.now ? { now: expect.now } : {}) });
   if (!v.ok) return { ...base, ok: false, reasons: v.reasons, appId: appId.toString("hex") };
   const reasons = [...v.reasons];
-  // v2: the attested transport key vouches for the app key, under THIS nonce and THIS app
+  // v2/v3: the attested transport key vouches for the app key, under THIS nonce and THIS app (v3: and THIS instance)
   let appKey = null;
   if (v2) {
     let ok = false;
-    try { ok = cryptoVerify(null, appKeyMessage(nonce, appId, e.appKey), createPublicKey({ key: spki, format: "der", type: "spki" }), Buffer.from(e.appKeySig, "hex")); }
+    const msg = v3 ? appKeyMessageV3(nonce, appId, v.instanceId, e.appKey) : appKeyMessage(nonce, appId, e.appKey);
+    try { ok = cryptoVerify(null, msg, createPublicKey({ key: spki, format: "der", type: "spki" }), Buffer.from(e.appKeySig, "hex")); }
     catch { ok = false; }
-    if (!ok) return no("the appKey is not signed by the attested transport key for this nonce and app", reasons);
+    if (!ok) return no(`the appKey is not signed by the attested transport key for this nonce and app${v3 ? " and instance" : ""}`, reasons);
     appKey = e.appKey;
-    reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app`);
+    reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app${v3 ? " and instance" : ""}`);
   }
+  // a bound deployment: the attested instance must be one the signed policy lists for it
+  if (bound && !bound.has(v.instanceId))
+    return no(`instance ${v.instanceId.slice(0, 16)}… is a genuine instance of this app, but not one bound to the selected deployment: refused`, reasons);
   return { ok: true, reasons, transportSpki: e.spki, runtimeId: v.runtimeId, measurement: v.measurement, freshness: "client-nonce", appId: appId.toString("hex"),
-           appKey, sealedWindowSeconds: v2 ? SEALED_WINDOW_SECONDS : null, sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null };
+           appKey, sealedWindowSeconds: v2 ? SEALED_WINDOW_SECONDS : null, sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null,
+           instanceId: v.instanceId, instanceKey: v3 ? e.instanceKey : null };
 }
 
-/** The app attestation's pieces from a captured pVM log (ABI2_LINK<i>[k], ABI2 runtime, ABI2 selftest, ABI2 binding). */
+/** The app attestation's pieces from a captured pVM log (ABI2_LINK<i>[k], ABI2 runtime, ABI2 selftest, ABI2 binding, and v3's
+ * ABI2 instance: the instance key, its signature over the challenge and the InstanceID the VM computed). */
 export function abi2FromLog(text) {
   const certs = new Map();
-  let identity = null, selftest = null, binding = null;
+  let identity = null, selftest = null, binding = null, instance = null;
   for (const line of text.split("\n")) {
     let m;
     if ((m = /ABI2_LINK(\d+)\[(\d+)\] ([0-9a-f]+)/.exec(line))) { const i = +m[1]; if (!certs.has(i)) certs.set(i, []); certs.get(i)[+m[2]] = m[3]; }
     else if ((m = /ABI2 runtime (\{.*\})\s*$/.exec(line))) identity = m[1];
     else if ((m = /ABI2 selftest (.*?)\s*$/.exec(line))) selftest = m[1];
-    else if ((m = /ABI2 binding nonce=([0-9a-f]{64}) .* runtime_id=([0-9a-f]{64}) bind2=([0-9a-f]{64}) app=([0-9a-f]{64})/.exec(line)))
-      binding = { nonce: m[1], runtimeId: m[2], bind2: m[3], app: m[4] };
+    else if ((m = /ABI2 binding nonce=([0-9a-f]{64}) .* runtime_id=([0-9a-f]{64}) (bind2|bind3)=([0-9a-f]{64}) app=([0-9a-f]{64})/.exec(line)))
+      binding = { nonce: m[1], runtimeId: m[2], [m[3]]: m[4], app: m[5] };
+    else if ((m = /ABI2 instance key=([0-9a-f]{88}) sig=([0-9a-f]{128}) id=([0-9a-f]{64})/.exec(line)))
+      instance = { instanceKey: m[1], instanceSig: m[2], instanceId: m[3] };
   }
   const chain = [...certs.keys()].sort((a, b) => a - b).map((i) => Buffer.from(certs.get(i).join(""), "hex"));
-  return { chain, identity, selftest, binding };
+  return { chain, identity, selftest, binding, instance };
 }

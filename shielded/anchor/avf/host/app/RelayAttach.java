@@ -47,6 +47,13 @@ public final class RelayAttach {
     static String hex(byte[] b) { StringBuilder s = new StringBuilder(); for (byte x : b) s.append(String.format("%02x", x)); return s.toString(); }
     static byte[] unhex(String h) { byte[] b = new byte[h.length() / 2]; for (int i = 0; i < b.length; i++) b[i] = (byte) Integer.parseInt(h.substring(2 * i, 2 * i + 2), 16); return b; }
     static String b64(byte[] b) { return Base64.getEncoder().encodeToString(b); }
+    /* wss://host[:port]/v1/fleet-tunnel (or ws:// in the lab) -> https://host[:port]/t/<name>; null when not a ws(s) URL */
+    static String selfRoutedUrl(String relayUrl, String name) {
+        try { final java.net.URI u = new java.net.URI(relayUrl);
+              if (!"wss".equals(u.getScheme()) && !"ws".equals(u.getScheme()) || u.getHost() == null) return null;
+              return "https://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : "") + "/t/" + name; }
+        catch (Exception e) { return null; }
+    }
 
     /** Dial the relay and take its nonce; returns the hex challenge the VM must certify. */
     String challenge() throws Exception {
@@ -93,7 +100,14 @@ public final class RelayAttach {
     /** Bound: announce the identity, then answer the hub until the socket ends. */
     void serve(String phone) {
         try {
-            sendFrame(new JSONObject().put("t", "hello").put("name", name).put("mode", "avf").put("transportKeyFp", hex(sha256(spki))));
+            // publicUrl: this tunnel's own relay route, https://<relay host>/t/<name> -- the only form the hub honors
+            // (tunnel.js selfRoutedUrl). keccak256 of it is the registry id a lease records as `runner`, so without it the
+            // phone could never be a deployment's runner. Stating it registers nothing: it matches a ledger row only once
+            // the owner registers this exact URL on-chain and holds a lease (RELAY-SERVING.md "Runner registration").
+            final String pub = selfRoutedUrl(url, name);
+            final JSONObject hello = new JSONObject().put("t", "hello").put("name", name).put("mode", "avf").put("transportKeyFp", hex(sha256(spki)));
+            if (pub != null) hello.put("publicUrl", pub);
+            sendFrame(hello);
             String f;
             while ((f = ws.receive()) != null) {
                 JSONObject o = new JSONObject(f); String t = o.optString("t");
@@ -155,10 +169,18 @@ public final class RelayAttach {
 
     /* LAB: the VM's ABI/2 evidence for the relay to verify with ITS nonce: the chain (public), the runtime identity and the
      * self-test tuple exactly as the VM printed them, and the app's digest. Nothing here is secret or from this app. */
-    void sendAbi2(java.util.List<String> chainB64, String identity, String selftest, String appHex) {
+    /* instanceLine (v3, INSTANCE-BINDING.md): the VM's "ABI2 instance key=<spki hex> sig=<hex> id=<hex>" line, or null. Its key
+     * and signature go to the relay as printed; the relay recomputes the InstanceID and checks Bind3 over its own nonce. */
+    void sendAbi2(java.util.List<String> chainB64, String identity, String selftest, String appHex, String instanceLine) {
         try { JSONArray c = new JSONArray(); for (String x : chainB64) c.put(x);
-              sendFrame(new JSONObject().put("t", "abi2").put("chain", c).put("identity", identity).put("selftest", selftest).put("app", appHex));
-              Main.say("RELAY abi2 evidence sent (" + chainB64.size() + " certificates)"); }
+              final JSONObject f = new JSONObject().put("t", "abi2").put("chain", c).put("identity", identity).put("selftest", selftest).put("app", appHex);
+              if (instanceLine != null) {
+                  final java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ABI2 instance key=([0-9a-f]{88}) sig=([0-9a-f]{128}) id=[0-9a-f]{64}$").matcher(instanceLine);
+                  if (!m.matches()) { Main.say("RELAY abi2 not sent: the VM's instance line is malformed"); return; }
+                  f.put("instanceKey", m.group(1)).put("instanceSig", m.group(2));
+              }
+              sendFrame(f);
+              Main.say("RELAY abi2 evidence sent (" + chainB64.size() + " certificates" + (instanceLine != null ? ", instance-bound" : "") + ")"); }
         catch (Exception e) { Main.say("RELAY abi2 not sent: " + e); }
     }
 

@@ -713,7 +713,7 @@ public class Main extends Activity {
             }
             int n = 0;
             // LAB: the app's ABI/2 evidence as the VM prints it, relayed whole on "ABI2 end" for the relay to verify
-            String abi2Id = null, abi2Tuple = null; final TreeMap<Integer, TreeMap<Integer, String>> abi2Certs = new TreeMap<>();
+            String abi2Id = null, abi2Tuple = null, abi2Inst = null; final TreeMap<Integer, TreeMap<Integer, String>> abi2Certs = new TreeMap<>();
             while ((line = r.readLine()) != null) {
                 // the pVM CPU capability report (PVM-CPU.md): the capture keeps it WHOLE (it is verifiable offline with the chain),
                 // and a bound relay tunnel receives it as the caps frame the relay admits the tier from
@@ -731,12 +731,13 @@ public class Main extends Activity {
                 if (line.startsWith("APP serving http") && !plan.appHttp.isEmpty()) { final OutputStream o = out; new Thread(() -> appHttpProbe(vm, plan.appHttp, o), "app-http").start(); }
                 if (line.startsWith("ABI2 runtime ")) abi2Id = line.substring(13);
                 else if (line.startsWith("ABI2 selftest ")) abi2Tuple = line.substring(14);
+                else if (line.startsWith("ABI2 instance ")) abi2Inst = line;   // v3: the VM instance's key + its signature (INSTANCE-BINDING.md)
                 else if (line.startsWith("ABI2_LINK")) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ABI2_LINK(\\d+)\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line);
                     if (m.matches()) abi2Certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3)); }
                 else if (line.startsWith("ABI2 end") && relay != null && abi2Id != null && abi2Tuple != null && !abi2Certs.isEmpty()) {
                     final java.util.List<String> chain = new java.util.ArrayList<>();
                     for (TreeMap<Integer, String> chunks : abi2Certs.values()) chain.add(RelayAttach.b64(RelayAttach.unhex(String.join("", chunks.values()))));
-                    relay.sendAbi2(chain, abi2Id, abi2Tuple, plan.appAnnounced);
+                    relay.sendAbi2(chain, abi2Id, abi2Tuple, plan.appAnnounced, abi2Inst);
                 }
                 if (line.startsWith("APP serving https") && plan.appTls == 1 && relay != null) {
                     // LAB: from now the relay may open raw streams; this app splices each to the VM's TLS port and never

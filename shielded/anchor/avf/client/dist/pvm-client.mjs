@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.4.1 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.5.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -56,8 +56,12 @@ import { createHash as createHash3 } from "node:crypto";
 // ../web/pvm-verify.js
 var PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
 var PVM_APP_EVIDENCE_FORMAT_V2 = "enclave-pvm-app-evidence/v2";
+var PVM_APP_EVIDENCE_FORMAT_V3 = "enclave-pvm-app-evidence/v3";
 var APP_KEY_DOMAIN = "enclave-pvm-app-key-v1\n";
+var APP_KEY_DOMAIN_V3 = "enclave-pvm-app-key-v2\n";
 var BIND2_DOMAIN = "enclave-bind-v2\n";
+var BIND3_DOMAIN = "enclave-bind-v3-instance\n";
+var INSTANCE_SIG_DOMAIN = "enclave-pvm-instance-sig-v1\n";
 var SEALED_WINDOW_SECONDS = 600;
 var SEALED_MAX_REQUESTS = 256;
 var AVF_ATTESTATION_EXTENSION_OID = "1.3.6.1.4.1.11129.2.1.29.1";
@@ -73,6 +77,7 @@ var MAX_COMPONENTS = 256;
 var FIELDS = ["name", "version", "execution", "targetIsa", "hostIsa", "cpuFeatures", "wx", "cache"];
 var KEYS_V1 = ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
 var KEYS_V2 = ["app", "appKey", "appKeySig", "chain", "format", "identity", "nonce", "selftest", "spki"];
+var KEYS_V3 = ["app", "appKey", "appKeySig", "chain", "format", "identity", "instanceKey", "instanceSig", "nonce", "selftest", "spki"];
 var ED25519_SPKI = /^302a300506032b6570032100[0-9a-f]{64}$/;
 var te = new TextEncoder();
 var toHex = (u8) => Array.from(u8, (b2) => b2.toString(16).padStart(2, "0")).join("");
@@ -423,13 +428,17 @@ function checkRuntimeSelfTest(selfTest, identity) {
 }
 var bind2 = async (spki, nonce, rid) => sha256(cat(te.encode(BIND2_DOMAIN), spki, nonce, rid));
 var appKeyMessage = (nonce, appId, appKey) => cat(te.encode(APP_KEY_DOMAIN), nonce, appId, appKey);
+var bind3 = async (spki, nonce, rid, instanceId) => sha256(cat(te.encode(BIND3_DOMAIN), spki, nonce, rid, instanceId));
+var instanceIdOf = async (instanceSpki) => sha256(instanceSpki);
+var instanceSigMessage = (challenge) => cat(te.encode(INSTANCE_SIG_DOMAIN), challenge);
+var appKeyMessageV3 = (nonce, appId, instanceId, appKey) => cat(te.encode(APP_KEY_DOMAIN_V3), nonce, appId, instanceId, appKey);
 function bytes32(v, what) {
   const b2 = v instanceof Uint8Array ? v : typeof v === "string" && /^[0-9a-f]{64}$/.test(v) ? fromHex(v) : null;
   if (!b2 || b2.length !== 32) throw new Error(`${what} must be 32 bytes`);
   return b2;
 }
 async function verifyPvmAppEvidence(envelope, expect = {}) {
-  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null };
+  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null, instanceId: null, instanceKey: null };
   const no = (m, reasons2 = []) => ({ ok: false, reasons: [...reasons2, m], ...base });
   try {
     await requireCurves();
@@ -438,9 +447,18 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
   }
   const e = envelope;
   if (!e || typeof e !== "object" || Array.isArray(e)) return no("the evidence is not an object");
-  const v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2, KEYS = v2 ? KEYS_V2 : KEYS_V1;
+  let bound = null;
+  if (expect.instanceIds !== void 0) {
+    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h)))
+      return no("the caller's instanceIds are not a non-empty list of 64 lowercase hex: refusing (fail closed)");
+    bound = new Set(expect.instanceIds);
+    if (e.format !== PVM_APP_EVIDENCE_FORMAT_V3)
+      return no(`${JSON.stringify(e.format)} is an unbound evidence format for a deployment bound to instances: refused as a downgrade (v3 required)`);
+  }
+  const v3 = e.format === PVM_APP_EVIDENCE_FORMAT_V3, v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2 || v3;
+  const KEYS = v3 ? KEYS_V3 : v2 ? KEYS_V2 : KEYS_V1;
   if (Object.keys(e).sort().join() !== KEYS.join()) return no(`the evidence fields must be exactly ${KEYS.join(",")} (got ${Object.keys(e).sort().join(",")})`);
-  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT} or ${PVM_APP_EVIDENCE_FORMAT_V2}`);
+  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}, ${PVM_APP_EVIDENCE_FORMAT_V2} or ${PVM_APP_EVIDENCE_FORMAT_V3}`);
   for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes"])
     if (!Array.isArray(expect[k]) || !expect[k].length) return no(`no ${k}: refusing (fail closed)`);
   if (expect.rootPins !== void 0 && (!Array.isArray(expect.rootPins) || !expect.rootPins.length)) return no("an empty rootPins: refusing (fail closed)");
@@ -460,6 +478,9 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
   if (typeof e.selftest !== "string" || e.selftest.length > 300) return no("the evidence self-test is not a string of at most 300 bytes");
   if (v2 && (typeof e.appKey !== "string" || !/^[0-9a-f]{64}$/.test(e.appKey))) return no("the evidence appKey is not 64 lowercase hex (an X25519 key)");
   if (v2 && (typeof e.appKeySig !== "string" || !/^[0-9a-f]{128}$/.test(e.appKeySig))) return no("the evidence appKeySig is not 128 lowercase hex (an Ed25519 signature)");
+  if (v3 && (typeof e.instanceKey !== "string" || !ED25519_SPKI.test(e.instanceKey))) return no("the evidence's instance key is not a 44-byte Ed25519 SPKI");
+  if (v3 && e.instanceKey === e.spki) return no("the evidence's instance key is its transport key: an instance key is its own, never the boot's");
+  if (v3 && (typeof e.instanceSig !== "string" || !/^[0-9a-f]{128}$/.test(e.instanceSig))) return no("the evidence instanceSig is not 128 lowercase hex (an Ed25519 signature)");
   if (!Array.isArray(e.chain) || e.chain.length < 2 || e.chain.length > 8) return no("the evidence chain is not 2..8 certificates");
   const chain = [];
   for (const c of e.chain) {
@@ -485,7 +506,8 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
   if (!st.ok) return no(st.reasons[0], reasons);
   reasons.push(...st.reasons);
   const spki = fromHex(e.spki);
-  const challenge = cat(await bind2(spki, nonce, rid), appId);
+  const instanceId = v3 ? await instanceIdOf(fromHex(e.instanceKey)) : null;
+  const challenge = cat(v3 ? await bind3(spki, nonce, rid, instanceId) : await bind2(spki, nonce, rid), appId);
   const avf = await verifyAvfChain(chain, challenge, {
     allowedCodeHashes: expect.allowedCodeHashes,
     allowedAuthorityHashes: expect.allowedAuthorityHashes,
@@ -493,15 +515,24 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
     ...expect.now ? { now: expect.now } : {}
   });
   if (!avf.ok) return no(`attestation: ${avf.reasons.join("; ")}`, reasons);
-  reasons.push(`the AVF certificate's challenge is Bind2(transport key, nonce, runtime) || app ${toHex(appId).slice(0, 16)}…`);
+  reasons.push(v3 ? `the AVF certificate's challenge is Bind3(transport key, nonce, runtime, instance ${toHex(instanceId).slice(0, 16)}…) || app ${toHex(appId).slice(0, 16)}…` : `the AVF certificate's challenge is Bind2(transport key, nonce, runtime) || app ${toHex(appId).slice(0, 16)}…`);
+  if (v3) {
+    const ik = await subtle().importKey("spki", fromHex(e.instanceKey), { name: "Ed25519" }, false, ["verify"]);
+    if (!await subtle().verify({ name: "Ed25519" }, ik, fromHex(e.instanceSig), instanceSigMessage(challenge)))
+      return no("the instanceSig is not the instance key's signature over this challenge", reasons);
+    reasons.push(`the instance key signed this challenge: instance ${toHex(instanceId).slice(0, 16)}…`);
+  }
   let appKey = null;
   if (v2) {
     const k = await subtle().importKey("spki", spki, { name: "Ed25519" }, false, ["verify"]);
-    const ok = await subtle().verify({ name: "Ed25519" }, k, fromHex(e.appKeySig), appKeyMessage(nonce, appId, fromHex(e.appKey)));
-    if (!ok) return no("the appKey is not signed by the attested transport key for this nonce and app", reasons);
+    const msg = v3 ? appKeyMessageV3(nonce, appId, instanceId, fromHex(e.appKey)) : appKeyMessage(nonce, appId, fromHex(e.appKey));
+    if (!await subtle().verify({ name: "Ed25519" }, k, fromHex(e.appKeySig), msg))
+      return no(`the appKey is not signed by the attested transport key for this nonce and app${v3 ? " and instance" : ""}`, reasons);
     appKey = e.appKey;
-    reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app`);
+    reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app${v3 ? " and instance" : ""}`);
   }
+  if (bound && !bound.has(toHex(instanceId)))
+    return no(`instance ${toHex(instanceId).slice(0, 16)}… is a genuine instance of this app, but not one bound to the selected deployment: refused`, reasons);
   return {
     ok: true,
     reasons,
@@ -512,12 +543,14 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
     appId: toHex(appId),
     appKey,
     sealedWindowSeconds: v2 ? SEALED_WINDOW_SECONDS : null,
-    sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null
+    sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null,
+    instanceId: instanceId ? toHex(instanceId) : null,
+    instanceKey: v3 ? e.instanceKey : null
   };
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.4.1";
+var CLIENT_VERSION = "0.5.0";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -588,6 +621,10 @@ var POLICY_KEYS = [
 ];
 var DEPLOYMENT_ID = /^0x[0-9a-f]{64}$/;
 var MAX_DEPLOYMENTS = 64;
+var MAX_INSTANCES = 8;
+var POLICY_TYPE = "enclave-pvm-client-policy";
+var POLICY_TYPE_V2 = "enclave-pvm-client-policy/2";
+var INSTANCE_ID = /^[0-9a-f]{64}$/;
 async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIENT_VERSION } = {}) {
   const no = (m) => ({ ok: false, reasons: [m], policy: null, pins: null, state });
   if (!state || !HEX(64).test(state.policyFp || "")) return no("no policy key was anchored at install: refusing (fail closed)");
@@ -610,7 +647,8 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
   }
   if (!sigOk) return no("the policy signature does not verify over its exact bytes");
   if (!closed(b2, POLICY_KEYS) && !closed(b2, [...POLICY_KEYS, "deployments"])) return no(`the policy fields must be exactly ${POLICY_KEYS.join(",")}, optionally with deployments`);
-  if (b2.type !== "enclave-pvm-client-policy") return no("not a pVM client policy");
+  if (b2.type !== POLICY_TYPE && b2.type !== POLICY_TYPE_V2) return no("not a pVM client policy");
+  const typeV2 = b2.type === POLICY_TYPE_V2;
   if (!Number.isSafeInteger(b2.serial) || b2.serial < 1) return no("the policy serial is not a positive integer");
   const nb = time(b2.notBefore), na = time(b2.notAfter);
   if (!(nb < na)) return no("the policy validity is not notBefore < notAfter (UTC seconds, Z)");
@@ -620,7 +658,7 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
     return no("the policy's code hashes, app IDs, runtime IDs and authority hashes must be non-empty lists of lowercase hex (an empty list is never read as all)");
   if (!list(b2.googleRootPins, HEX(64), 8) || !b2.googleRootPins.every((p) => GOOGLE_ATTESTATION_ROOT_SHA256.includes(p)))
     return no("the policy's root pins may only narrow the Google attestation roots built into this client, never widen or empty them");
-  if (!list(b2.formats, /./, 2) || !b2.formats.every((f) => f === PVM_APP_EVIDENCE_FORMAT_V2 || f === PVM_APP_EVIDENCE_FORMAT)) return no("the policy's evidence formats are not known to this client");
+  if (!list(b2.formats, /./, 3) || !b2.formats.every((f) => f === PVM_APP_EVIDENCE_FORMAT_V3 || f === PVM_APP_EVIDENCE_FORMAT_V2 || f === PVM_APP_EVIDENCE_FORMAT)) return no("the policy's evidence formats are not known to this client");
   if (!list(b2.sealedModes, /./, 2) || !b2.sealedModes.every((m) => m === "whole" || m === "chunked")) return no("the policy's sealed modes are not known to this client");
   const w = b2.sealedWindow;
   if (!w || typeof w !== "object" || !closed(w, ["maxRequests", "seconds"]) || !Number.isSafeInteger(w.seconds) || !Number.isSafeInteger(w.maxRequests) || w.seconds < 1 || w.maxRequests < 1)
@@ -628,12 +666,23 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
   if ("deployments" in b2) {
     const d = b2.deployments;
     if (!Array.isArray(d) || d.length < 1 || d.length > MAX_DEPLOYMENTS) return no(`the policy's deployments must be a list of 1..${MAX_DEPLOYMENTS} entries (an empty table is never read as all)`);
+    const seen = /* @__PURE__ */ new Map();
     for (const e of d) {
-      if (!e || typeof e !== "object" || Array.isArray(e) || !closed(e, ["app", "id"])) return no("each deployment must be exactly { id, app }");
+      if (!e || typeof e !== "object" || Array.isArray(e)) return no(`each deployment must be exactly { id, app }${typeV2 ? " or { id, app, instances }" : ""}`);
+      if (!typeV2 && "instances" in e) return no(`a deployment binds instances, which only a ${POLICY_TYPE_V2} policy may: this ${POLICY_TYPE} policy is refused, never read as unbound`);
+      if (!closed(e, ["app", "id"]) && !(typeV2 && closed(e, ["app", "id", "instances"]))) return no(`each deployment must be exactly { id, app }${typeV2 ? " or { id, app, instances }" : ""}`);
       if (typeof e.id !== "string" || !DEPLOYMENT_ID.test(e.id)) return no(`deployment id ${JSON.stringify(e.id)} is not 0x + 64 lowercase hex (the ledger's bytes32)`);
       if (typeof e.app !== "string" || !HEX(64).test(e.app) || !b2.appIds.includes(e.app)) return no(`deployment ${e.id}'s app is not one of the policy's appIds`);
+      if ("instances" in e) {
+        if (!list(e.instances, INSTANCE_ID, MAX_INSTANCES)) return no(`deployment ${e.id}'s instances must be 1..${MAX_INSTANCES} unique InstanceIDs, 64 lowercase hex (an empty list is never read as any)`);
+        for (const i of e.instances) {
+          if (seen.has(i)) return no(`instance ${i.slice(0, 16)}... is bound to two deployments (${seen.get(i).slice(0, 18)}... and ${e.id.slice(0, 18)}...): an instance serving both could not tell them apart, refused`);
+          seen.set(i, e.id);
+        }
+      }
     }
     if (new Set(d.map((e) => e.id)).size !== d.length) return no("the policy names a deployment id twice: ambiguous, refused");
+    if (seen.size && !b2.formats.includes(PVM_APP_EVIDENCE_FORMAT_V3)) return no(`the policy binds instances but does not allow ${PVM_APP_EVIDENCE_FORMAT_V3}, the only format that names one: incoherent, refused`);
   }
   if (!semver(b2.minClientVersion)) return no("the policy's minClientVersion is not MAJOR.MINOR.PATCH");
   if (b2.nextPolicyKey !== null && (typeof b2.nextPolicyKey !== "string" || !HEX(64).test(b2.nextPolicyKey) || b2.nextPolicyKey === b2.key)) return no("the policy's nextPolicyKey is not null or another 32-byte key");
@@ -650,14 +699,14 @@ function selectDeployment(policy, { deployment = null, app = null } = {}) {
   if (deployment === null) {
     if (!app) return no("no app or deployment selected");
     if (!policy.appIds.includes(app)) return no("the policy does not admit this app");
-    return { ok: true, app, deployment: null };
+    return { ok: true, app, deployment: null, instances: null };
   }
   if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no(`deployment ${JSON.stringify(deployment)} is not 0x + 64 lowercase hex: not normalized, refused`);
   if (!Array.isArray(policy.deployments)) return no("the policy names no deployments: select an app, or get a policy that names this deployment");
   const hits = policy.deployments.filter((e) => e.id === deployment);
   if (hits.length !== 1) return no(hits.length ? "the policy names this deployment more than once: ambiguous" : `the policy does not name deployment ${deployment}`);
   if (app && app !== hits[0].app) return no(`the selected app ${app.slice(0, 16)}... is not the app the policy expects for deployment ${deployment.slice(0, 18)}... (${hits[0].app.slice(0, 16)}...)`);
-  return { ok: true, app: hits[0].app, deployment };
+  return { ok: true, app: hits[0].app, deployment, instances: hits[0].instances || null };
 }
 var UPDATE_KEYS = ["artifact", "artifactSha256", "nextReleaseKey", "notAfter", "policyKey", "releaseKey", "size", "sourceCommit", "type", "version"];
 async function verifyUpdate(env, bytes, { state, now = Date.now(), currentVersion = CLIENT_VERSION, artifact } = {}) {
@@ -1039,6 +1088,7 @@ var FileStore = class {
 
 // src/gate.js
 var HEX2 = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
+var V3 = "enclave-pvm-app-evidence/v3";
 var hexOf = (v) => v && typeof v === "object" && typeof v.hex === "string" ? v.hex : v instanceof Uint8Array ? toHex(v) : typeof v === "string" ? v : null;
 var hold = (reason) => ({ decision: "hold", reason: `HOLD: ${reason}`, pinned: null });
 async function admit(verdict, expect = {}, { clientKind, observedPeerSpki = null, usedNonces = [] } = {}) {
@@ -1059,13 +1109,19 @@ async function admit(verdict, expect = {}, { clientKind, observedPeerSpki = null
   if (!app || c.appId !== app) return hold("the verified app id is not the client's expected app");
   if (!expect.allowedRuntimeIds.includes(c.runtimeId)) return hold("the verified runtime id is not one the client admits");
   if (typeof c.transportSpki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(c.transportSpki)) return hold("the verdict binds no transport key");
+  if (expect.instanceIds !== void 0) {
+    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((i) => typeof i === "string" && HEX2(64).test(i)))
+      return hold("the client's instance expectation is malformed");
+    if (c.format !== V3) return hold("the deployment is bound to instances, and the evidence format names none: a downgrade");
+    if (typeof c.instanceId !== "string" || !expect.instanceIds.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
+  }
   if (clientKind === "native") {
     const peer = hexOf(observedPeerSpki);
     if (!peer) return hold("native client: no peer key observed on this connection");
     if (peer !== c.transportSpki) return hold("the peer key this connection presented is not the key the evidence binds");
     return { decision: "release", reason: "RELEASE", pinned: { transportSpkiSha256: toHex(await sha256(fromHex(c.transportSpki))) } };
   }
-  if (c.format !== "enclave-pvm-app-evidence/v2" || typeof c.appKey !== "string" || !HEX2(64).test(c.appKey))
+  if (c.format !== "enclave-pvm-app-evidence/v2" && c.format !== V3 || typeof c.appKey !== "string" || !HEX2(64).test(c.appKey))
     return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing can be pinned");
   const s = c.sealed;
   if (!s || !Number.isSafeInteger(s.windowSeconds) || !Number.isSafeInteger(s.maxRequests) || s.windowSeconds < 1 || s.maxRequests < 1)
@@ -1089,7 +1145,8 @@ async function verdictOf(v, env, nonceHex) {
       transportSpki: v.transportSpki,
       transportSpkiSha256: v.transportSpki ? toHex(await sha256(fromHex(v.transportSpki))) : null,
       appKey: v.appKey,
-      sealed: v.appKey ? { windowSeconds: v.sealedWindowSeconds, maxRequests: v.sealedMaxRequests } : null
+      sealed: v.appKey ? { windowSeconds: v.sealedWindowSeconds, maxRequests: v.sealedMaxRequests } : null,
+      instanceId: v.instanceId || null
     }
   };
 }
@@ -3019,21 +3076,23 @@ var expectOf = (pins, nonce, now) => ({
   allowedCodeHashes: pins.allowedCodeHashes || [pins.codeHash],
   allowedAuthorityHashes: pins.allowedAuthorityHashes || [pins.authority],
   ...pins.rootPins ? { rootPins: pins.rootPins } : {},
-  ...now ? { now } : {}
+  ...now ? { now } : {},
+  ...pins.instanceIds ? { instanceIds: pins.instanceIds } : {}
 });
+var evidenceLine = (v3, nonce) => `${v3 ? "EVIDENCE3" : "EVIDENCE"} ${toHex(nonce)}
+`;
 async function post(url, body2, type) {
   const r = await fetch(url, { method: "POST", body: body2, headers: { "content-type": type }, cache: "no-store", credentials: "omit" });
   if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
-async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", body: body2 = null, label = "ok", now, gate }) {
+async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", body: body2 = null, label = "ok", now, gate, v3 = false }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out2 = (o2) => ({ label, ...o2 });
   let env;
   try {
-    const bytes = await post(`${relay}/evidence`, `EVIDENCE ${toHex(nonce)}
-`, "text/plain");
+    const bytes = await post(`${relay}/evidence`, evidenceLine(v3, nonce), "text/plain");
     const line = new TextDecoder().decode(bytes).split("\n")[0];
     env = JSON.parse(line);
   } catch (e) {
@@ -3047,7 +3106,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", b
     const why = await gate(v, env, toHex(nonce));
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
-  const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
+  const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16), instance: v.instanceId };
   const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path5, body2) });
   let answer;
   try {
@@ -3066,14 +3125,13 @@ async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", b
   }
 }
 async function fetchVerifiedStream({ relay, pins, path: path5 = "/", label = "ok", onLine = () => {
-}, cancelAfter = 0, trace = false, now, gate }) {
+}, cancelAfter = 0, trace = false, now, gate, v3 = false }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out2 = (o) => ({ label, mode: "stream", ...o });
   let env;
   try {
-    env = JSON.parse(new TextDecoder().decode(await post(`${relay}/evidence`, `EVIDENCE ${toHex(nonce)}
-`, "text/plain")).split("\n")[0]);
+    env = JSON.parse(new TextDecoder().decode(await post(`${relay}/evidence`, evidenceLine(v3, nonce), "text/plain")).split("\n")[0]);
   } catch (e) {
     return out2({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false });
   }
@@ -3085,7 +3143,7 @@ async function fetchVerifiedStream({ relay, pins, path: path5 = "/", label = "ok
     const why = await gate(v, env, toHex(nonce));
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
-  const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
+  const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16), instance: v.instanceId };
   const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path5), chunked: true });
   const traceCtx = trace ? { enc: toHex(ctx.enc), exported: toHex(ctx.secret), nonce: toHex(nonce) } : void 0;
   const ac = new AbortController();
@@ -3166,21 +3224,24 @@ async function connect({ relay, policyEnv, store, appId = null, deployment = nul
   if (!pol.ok) return { result: { label, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason, sent: false } };
   await onCommitted({ serial: pol.serial, gen: pol.gen });
   const p = pol.policy;
+  let instances = null;
   if (deployment !== null) {
     const sel = selectDeployment(p, { deployment, app: appId });
     if (!sel.ok) return { result: { label, step: "select", refused: sel.reason, sent: false, policySerial: p.serial } };
     appId = sel.app;
+    instances = sel.instances;
   }
   if (!appId) return { result: { label, step: "select", refused: "no app or deployment selected", sent: false, policySerial: p.serial } };
   if (!p.appIds.includes(appId)) return { result: { label, step: "policy", refused: "the policy does not admit this app", sent: false, policySerial: p.serial } };
   const mode = stream ? "chunked" : "whole";
   if (!p.sealedModes.includes(mode)) return { result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false, policySerial: p.serial } };
-  const pins = { app: appId, ...pol.pins };
+  const v3 = instances !== null || !p.formats.includes("enclave-pvm-app-evidence/v2");
+  const pins = { app: appId, ...pol.pins, ...instances ? { instanceIds: instances } : {} };
   const gate = async (v, env, nonceHex) => {
     if (!p.formats.includes(env.format)) return `the evidence format ${env.format} is not one the policy allows`;
     const d = await admit(
       await verdictOf(v, env, nonceHex),
-      { nonce: nonceHex, appId, ...pol.pins },
+      { nonce: nonceHex, appId, ...pol.pins, ...instances ? { instanceIds: instances } : {} },
       { clientKind: "browser", usedNonces: [...usedNonces] }
     );
     if (d.decision !== "release") return d.reason;
@@ -3196,9 +3257,71 @@ async function connect({ relay, policyEnv, store, appId = null, deployment = nul
     usedNonces.add(nonceHex);
     return null;
   };
-  const args = { relay, pins, path: path5, label, gate, ...now ? { now } : {} };
+  const args = { relay, pins, path: path5, label, gate, v3, ...now ? { now } : {} };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
-  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION, ...deployment !== null ? { deployment: { id: deployment, app: appId } } : {} } };
+  const instance = instances && result.verified ? result.verified.instance : null;
+  return { result: {
+    ...result,
+    policySerial: p.serial,
+    stateGen: pol.gen,
+    clientVersion: CLIENT_VERSION,
+    ...deployment !== null ? { deployment: { id: deployment, app: appId, instance, bound: instances !== null } } : {}
+  } };
+}
+
+// src/carrier.js
+var PLATFORM_RELAYS = ["https://api.enclave.host"];
+var LAB_LOOPBACK = /^http:\/\/127\.0\.0\.1:\d{1,5}$/;
+function carrierFor({ relay = null, relayBase = null, deployment = null } = {}) {
+  const no = (reason) => ({ ok: false, reason });
+  if (relay && relayBase) return no("both a carrier URL and a relay base were given: ambiguous, nothing fetched or sent");
+  if (relay) return { ok: true, url: relay };
+  if (!relayBase) return no("no carrier: give a platform relay base or a carrier URL");
+  if (!PLATFORM_RELAYS.includes(relayBase) && !LAB_LOOPBACK.test(relayBase))
+    return no(`${JSON.stringify(relayBase)} is not a platform relay this client knows (${PLATFORM_RELAYS.join(", ")}; or the lab's http://127.0.0.1:<port>)`);
+  if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no("a relay base routes by deployment: select one (0x + 64 lowercase hex)");
+  return { ok: true, url: `${relayBase}/x/${deployment}/pvm` };
+}
+
+// src/enroll.js
+async function enrollInstance({ relay, policyEnv, store, deployment, now }) {
+  const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
+  if (!pol.ok) return { ok: false, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason };
+  const p = pol.policy;
+  const sel = selectDeployment(p, { deployment });
+  if (!sel.ok) return { ok: false, step: "select", refused: sel.reason };
+  if (!p.formats.includes(PVM_APP_EVIDENCE_FORMAT_V3))
+    return { ok: false, step: "policy", refused: `the policy does not allow ${PVM_APP_EVIDENCE_FORMAT_V3}: an instance cannot be enrolled under it` };
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+  let env;
+  try {
+    const r = await fetch(`${relay}/evidence`, { method: "POST", body: `EVIDENCE3 ${toHex(nonce)}
+`, headers: { "content-type": "text/plain" }, cache: "no-store", credentials: "omit" });
+    if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
+    env = JSON.parse(new TextDecoder().decode(new Uint8Array(await r.arrayBuffer())).split("\n")[0]);
+  } catch (e) {
+    return { ok: false, step: "evidence", refused: `no evidence: ${e.message}` };
+  }
+  if (!env || env.format !== PVM_APP_EVIDENCE_FORMAT_V3)
+    return { ok: false, step: "verify", refused: `${JSON.stringify(env && env.format)} names no instance: only ${PVM_APP_EVIDENCE_FORMAT_V3} can be enrolled` };
+  const v = await verifyPvmAppEvidence(env, { nonce, appId: sel.app, ...pol.pins, ...now ? { now } : {} });
+  if (!v.ok) return { ok: false, step: "verify", refused: v.reasons.at(-1) };
+  return { ok: true, record: {
+    type: "enclave-pvm-instance-enrollment/1",
+    deployment,
+    app: sel.app,
+    instanceId: v.instanceId,
+    instanceKey: v.instanceKey,
+    alreadyBound: !!(sel.instances && sel.instances.includes(v.instanceId)),
+    runtimeId: v.runtimeId,
+    codeHash: v.measurement,
+    transportSpki: v.transportSpki,
+    nonce: toHex(nonce),
+    policySerial: p.serial,
+    at: new Date(now ?? Date.now()).toISOString(),
+    reasons: v.reasons,
+    envelope: env
+  } };
 }
 
 // cli.mjs
@@ -3264,8 +3387,10 @@ async function main() {
       if (r2.sig) return out({ error: `the active client ${active.version} ended by signal ${r2.sig}` }), 2;
       return r2.code;
     }
-    const twice = ["--deployment", "--app"].filter((k) => argv.filter((a) => a === k).length > 1);
+    const twice = ["--deployment", "--app", "--relay", "--relay-base"].filter((k) => argv.filter((a) => a === k).length > 1);
     if (twice.length) return out({ result: { step: "select", refused: `${twice.join(" and ")} given more than once: ambiguous, nothing fetched or sent`, sent: false, clientVersion: CLIENT_VERSION } }), 2;
+    const carrier = carrierFor({ relay: arg("--relay"), relayBase: arg("--relay-base"), deployment: arg("--deployment") });
+    if (!carrier.ok) return out({ result: { step: "carrier", refused: carrier.reason, sent: false, clientVersion: CLIENT_VERSION } }), 2;
     let policyEnv;
     try {
       policyEnv = await fetchJson(arg("--policy"));
@@ -3273,7 +3398,7 @@ async function main() {
       return out({ result: { step: "policy", refused: `no policy: ${e.message}`, sent: false, clientVersion: CLIENT_VERSION } }), 1;
     }
     const r = await connect({
-      relay: arg("--relay"),
+      relay: carrier.url,
       policyEnv,
       store,
       appId: arg("--app"),
@@ -3301,6 +3426,29 @@ async function main() {
     const r = await stageUpdate(store, env, bytes, { dir });
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
     return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...r.already ? { already: true } : {} } }), 0;
+  }
+  if (cmd === "instance") {
+    const twice = ["--deployment", "--relay", "--relay-base", "--out"].filter((k) => argv.filter((a) => a === k).length > 1);
+    if (twice.length) return out({ enroll: { ok: false, step: "select", refused: `${twice.join(" and ")} given more than once: ambiguous` } }), 2;
+    const carrier = carrierFor({ relay: arg("--relay"), relayBase: arg("--relay-base"), deployment: arg("--deployment") });
+    if (!carrier.ok) return out({ enroll: { ok: false, step: "carrier", refused: carrier.reason } }), 2;
+    let policyEnv;
+    try {
+      policyEnv = await fetchJson(arg("--policy"));
+    } catch (e) {
+      return out({ enroll: { ok: false, step: "policy", refused: `no policy: ${e.message}` } }), 1;
+    }
+    const r = await enrollInstance({ relay: carrier.url, policyEnv, store, deployment: arg("--deployment") });
+    if (!r.ok) return out({ enroll: { ok: false, step: r.step, refused: r.refused } }), 1;
+    if (arg("--out")) {
+      try {
+        fs4.writeFileSync(arg("--out"), JSON.stringify(r.record, null, 1) + "\n", { flag: "wx", mode: 420 });
+      } catch (e) {
+        return out({ enroll: { ok: false, step: "record", refused: `the record could not be written as a new file (${e.code || e.message})` } }), 1;
+      }
+    }
+    const { envelope, reasons, ...summary } = r.record;
+    return out({ enroll: { ok: true, ...summary, record: arg("--out") || null } }), 0;
   }
   if (cmd === "deployments") {
     let policyEnv;
@@ -3338,7 +3486,7 @@ async function main() {
     const s = check(cur.state.staged || null), a = check(active);
     return out({ staged: s, active: a }), s && !s.bytesMatch || a && !a.bytesMatch ? 1 : 0;
   }
-  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | deployments | update | activate | staged | state | version` });
+  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | deployments | instance | update | activate | staged | state | version` });
   return 2;
 }
 main().then((rc) => process.exit(rc), (e) => {

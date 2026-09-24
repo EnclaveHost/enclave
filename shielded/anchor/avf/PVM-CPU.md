@@ -628,7 +628,10 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
      hub's raw TCP port stands in). On this branch both are wired behind `PVM_SERVING`, OFF by default and set nowhere
      (RELAY-SERVING.md "Wired behind a switch": `/x/<id>/pvm/{evidence,sealed}` on the on-chain runner's pVM tunnel, the
      app policy from `PVM_APP_*`; the deployment-instance limit unchanged). Enabling it, the runner registration, relay
-     deployment, the main merge and release-key custody are the owner's, each its own review;
+     deployment, the main merge and release-key custody are the owner's, each its own review. Since client 0.5.0 a
+     deployment can be BOUND to VM instances by the signed policy (INSTANCE-BINDING.md, evidence v3, agreed with the
+     verifier session), which closes the "another genuine instance" limit for bound deployments. The exact runner-
+     registration steps that remain are listed in RELAY-SERVING.md "Runner registration";
    - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
      verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
    - ~~browsers~~ a LAB verified channel for pages, answers streamed, and an installed client (CLI + extension)

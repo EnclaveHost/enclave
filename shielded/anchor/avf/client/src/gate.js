@@ -6,10 +6,13 @@
 // Release only when the verdict is verified, admission-safe, with nothing omitted and every check true; every
 // expectation is the client's own and matched; the freshness is the client's single-use nonce; and the transport is bound
 // the way THIS client kind can check -- native: the peer key it saw is the attested transport key; browser: an
-// application-layer key (v2 appKey) and its sealed window (TLS pinning is never claimed for a page).
+// application-layer key (v2/v3 appKey) and its sealed window (TLS pinning is never claimed for a page). With
+// expect.instanceIds (a deployment the signed policy binds to VM instances; INSTANCE-BINDING.md, agreed with the verifier
+// session, which owns the vectors), only a v3 verdict whose instanceId is listed releases -- native and browser alike.
 import { sha256, toHex, fromHex } from "../../web/pvm-verify.js";
 
 const HEX = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
+const V3 = "enclave-pvm-app-evidence/v3";
 const hexOf = (v) => (v && typeof v === "object" && typeof v.hex === "string" ? v.hex : v instanceof Uint8Array ? toHex(v) : typeof v === "string" ? v : null);
 const hold = (reason) => ({ decision: "hold", reason: `HOLD: ${reason}`, pinned: null });
 
@@ -31,13 +34,19 @@ export async function admit(verdict, expect = {}, { clientKind, observedPeerSpki
   if (!app || c.appId !== app) return hold("the verified app id is not the client's expected app");
   if (!expect.allowedRuntimeIds.includes(c.runtimeId)) return hold("the verified runtime id is not one the client admits");
   if (typeof c.transportSpki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(c.transportSpki)) return hold("the verdict binds no transport key");
+  if (expect.instanceIds !== undefined) {   // a bound deployment: the instance is part of what must match, never optional
+    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((i) => typeof i === "string" && HEX(64).test(i)))
+      return hold("the client's instance expectation is malformed");
+    if (c.format !== V3) return hold("the deployment is bound to instances, and the evidence format names none: a downgrade");
+    if (typeof c.instanceId !== "string" || !expect.instanceIds.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
+  }
   if (clientKind === "native") {
     const peer = hexOf(observedPeerSpki);
     if (!peer) return hold("native client: no peer key observed on this connection");
     if (peer !== c.transportSpki) return hold("the peer key this connection presented is not the key the evidence binds");
     return { decision: "release", reason: "RELEASE", pinned: { transportSpkiSha256: toHex(await sha256(fromHex(c.transportSpki))) } };
   }
-  if (c.format !== "enclave-pvm-app-evidence/v2" || typeof c.appKey !== "string" || !HEX(64).test(c.appKey))
+  if ((c.format !== "enclave-pvm-app-evidence/v2" && c.format !== V3) || typeof c.appKey !== "string" || !HEX(64).test(c.appKey))
     return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing can be pinned");
   const s = c.sealed;
   if (!s || !Number.isSafeInteger(s.windowSeconds) || !Number.isSafeInteger(s.maxRequests) || s.windowSeconds < 1 || s.maxRequests < 1)
@@ -52,6 +61,7 @@ export async function verdictOf(v, env, nonceHex) {
     checks: { "echo matches client": !!env && env.nonce === nonceHex, pvmEvidence: v.ok === true },
     claims: { technology: "android-avf", family: "pvm-app", format: env && env.format, freshness: v.freshness, nonce: env && env.nonce, appId: v.appId,
               runtimeId: v.runtimeId, transportSpki: v.transportSpki, transportSpkiSha256: v.transportSpki ? toHex(await sha256(fromHex(v.transportSpki))) : null,
-              appKey: v.appKey, sealed: v.appKey ? { windowSeconds: v.sealedWindowSeconds, maxRequests: v.sealedMaxRequests } : null },
+              appKey: v.appKey, sealed: v.appKey ? { windowSeconds: v.sealedWindowSeconds, maxRequests: v.sealedMaxRequests } : null,
+              instanceId: v.instanceId || null },
   };
 }

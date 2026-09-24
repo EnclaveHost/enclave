@@ -1,7 +1,10 @@
-# Instance binding for pVM deployments (PROPOSED to the verifier session; format `enclave-pvm-app-evidence/v3`)
+# Instance binding for pVM deployments (AGREED with the verifier session; IMPLEMENTED on the branch; device capture pending)
 
-**Status.** A proposed wire format, sent to the verifier session (enclave-99) for agreement before either side writes
-these bytes. LAB, not production. Nothing here is deployed.
+**Status.** The verifier session (enclave-99) agreed the bytes, the trust source and the release rule at 3be2ce0c,
+before either side wrote them. They are implemented on this branch in the client (0.5.0), the relay's hub, the VM
+payload and the phone's host app, and tested on synthetic fixtures. The verifier pins those fixtures.
+- **Not yet done:** a real device capture. The instance secret's device behaviour stays unmeasured until then.
+- LAB, not production. Nothing here is deployed.
 
 This slice was directed in this session, relaying Steven's ask to restart idle work. It is not a new approval for any
 host, key or registry change.
@@ -96,13 +99,26 @@ instance's VM process holds `appKey`'s private half. So pvm-rt does not change.
   it prints is what they sign.
 - **The relay is never the source.** The relay's hub may publish a tunnel's attested InstanceID as a hint, to help the
   signer find it. It is never trusted, and the ledger's runner field says nothing about the instance.
-- **Old clients fail closed.** 0.4.x clients refuse a policy whose deployment entries carry `instances`: the entry's
-  shape is closed. An old client cannot read a bound deployment as unbound.
+- **Old clients fail closed, by version.** The policy's own format string was bumped rather than relying on the closed
+  entry shape alone (the verifier session's ask):
+
+  | policy `type` | read by | table entries |
+  |---|---|---|
+  | `enclave-pvm-client-policy` (type 1) | every client since 0.1.0 | exactly `{ id, app }`; an `instances` field refuses the whole policy, by name |
+  | `enclave-pvm-client-policy/2` (type 2) | 0.5.0 and later | `{ id, app }` or `{ id, app, instances }` |
+
+  - A client before 0.5.0 refuses type 2 as "not a pVM client policy"; the built 0.4.1 artifact is tested doing so.
+  - The signature domain is unchanged, because `type` is inside the signed bytes.
+  - Serials are one space across both types.
 - **Rotation is a policy update**, under the existing serial floor, rollback and equivocation rules:
   - a new instance is refused until a policy with a higher serial lists it;
   - one serial may list both the old and the new instance while traffic moves;
   - a later serial drops the old one;
   - a client that has accepted that serial refuses the older policy that still listed it.
+
+- **Enrollment refuses another app** (the verifier session's ask). `pvm-client instance` verifies with the table
+  ENTRY's app as the expected app, so evidence for any other app is refused, before any certificate is read. Its
+  record keeps the nonce, the raw envelope, the whole verification and the policy serial.
 
 ## Client rules (0.5.0)
 
@@ -151,6 +167,66 @@ instance's VM process holds `appKey`'s private half. So pvm-rt does not change.
   - `instances` without v3 in `formats`;
   - an empty or oversized `instances` list;
   - a 0.4.1 client given a bound policy.
+
+## Where it is implemented
+
+| part | file | what |
+|---|---|---|
+| **VM** | payload/anchor_payload.c | the instance key from `AVmPayload_getVmInstanceSecret("enclave-pvm-instance-key-v1")` (pVM CPU tier only); `INSTANCE id=` at start; Bind3 and `instanceSig` in `abi2_certify`; `EVIDENCE3` answered with v3; the attach certificate is v3, with an `ABI2 instance key=... sig=... id=...` line |
+| **VM** | payload/third_party/tweetnacl.c | `crypto_sign_ed25519_tweet_seed_keypair` (an Enclave addition; RFC 8032 TEST 1 reproduced) |
+| **phone** | host/app/Main.java, RelayAttach.java | the instance line forwarded in the ABI/2 frame; the `hello` now states the self-routed `publicUrl` (RELAY-SERVING.md "Runner registration") |
+| **relay** | relay/pvm-app-attest.mjs | the canonical verifier: v3 in `verifyPvmAppAbi2` and `verifyPvmAppEvidence`, `expect.instanceIds`, `abi2FromLog`. The verifier session imports this module. |
+| **relay** | relay/tunnel.js | the hub checks an instance-bound frame over its own nonce and publishes `pvmApp.instanceId` as a hint |
+| **client** | web/pvm-verify.js | the WebCrypto copy, held equal to the node one on every fixture |
+| **client** | client/src/{trust,client,gate,enroll,carrier}.js, cli.mjs, ext/ | policy type 2, the v3 path for bound entries, the gate rule, enrollment, carriers |
+
+- **Compile checks.** The payload was checked with the NDK clang in both tier builds, and the host app with `javac`
+  against android-35. The APK itself was NOT built, and nothing ran on the device.
+
+## Tests
+
+- **Static fixtures.** test/fixtures/pvm-v3/fixtures.json, made once by make-fixtures.mjs over a synthetic CA. It holds a
+  fixed `now` and fixed nonces, and no private key: 16 evidence cases and 7 policy cases, with the outcome expected for
+  each.
+  - test/pvm-v3-fixtures.test.mjs replays them through BOTH verifiers. Each case must give the expected outcome, and both
+    verifiers the same final reason.
+  - The verifier session pins these fixtures. Among them: (a) another instance of the same app, refused at the instance
+    check after every other check passed; (b) v2 where v3 is expected, refused as a downgrade; (c) v3 fields over a
+    Bind2 certificate, refused at attestation; (d) a replay, a spliced `instanceSig` and `instanceSig` made by the
+    transport key; `instanceKey` equal to `spki`; another app; a duplicate InstanceID across deployments; `instances`
+    on a type-1 policy.
+- **The client, in process.** test/pvm-instance-binding.test.mjs runs the client's own `connect()`, gate and sealed
+  channel through the relay's pVM route to fake VMs. The synthetic root is admitted in the test process only. Covered:
+  - the bound path, and a swapped instance;
+  - the wrong deployment, including one instance routed as two deployments: the v2 limit, now closed for bound entries;
+  - a restart, which keeps the binding;
+  - rotation through enrollment, the overlap serial, the drop and a refused rollback;
+  - a downgrade, and an old VM that does not know `EVIDENCE3`;
+  - an unbound entry.
+- **The built artifacts.** The same test file runs them:
+  - 0.5.0 refuses a downgrade by name and never trusts the synthetic root;
+  - 0.4.1, from its own commit, refuses a type-2 policy;
+  - carrier refusals, and the manifest's origins equal to the compiled-in list.
+- **The relay's hub.** test/pvm-relay-serving.test.mjs attaches a synthetic phone to the real `tunnel.js`:
+  - an instance-bound frame is verified and its InstanceID published;
+  - a forged `instanceSig` and a Bind2 certificate are refused;
+  - v2 frames still verify.
+- **Mutation spot-checks.** Each was caught:
+  - both verifiers without the instance check;
+  - v3 checked over Bind2;
+  - `connect()` without the instance expectation.
+
+## The device campaign (pending; coordinated with the isolation owner before it runs)
+
+Until it runs, device behaviour is **unmeasured**, and the verifier marks it so. It needs:
+- **A real capture with the instance bound.** A v3 evidence exchange and the attach frame from the Pixel.
+- **Restart.** A VM stop and start, and a device reboot: is the InstanceID the same?
+- **Re-provisioning.** A new `instance.img` (app data cleared, or a reinstall): is the InstanceID new?
+- **An APK update signed by the same key.** Does the InstanceID survive? If it changes, every enrolled binding breaks on
+  update, and that is a rotation event the policy's signer must plan for.
+
+The campaign needs a build of the anchor APK (the payload and the phone's host app) and a device run. The VM build and
+the device session are heavier work, so they wait for the isolation owner's go-ahead.
 
 ## Not given
 

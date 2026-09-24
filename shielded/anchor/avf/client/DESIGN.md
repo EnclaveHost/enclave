@@ -79,10 +79,12 @@ is exactly what the client exists not to believe.
   - It is an acceptance under the anchor like any run: it verifies and COMMITS the policy, and its output names the
     serial and generation.
   - A policy it refuses prints no table.
-- **What it does not prove.** The evidence carries the app, runtime and code identity; it carries no deployment id.
+- **What it does not prove, for an UNBOUND entry.** v2 evidence carries the app, runtime and code identity; it carries no
+  deployment id and no instance.
   - A hostile relay can therefore route deployment D's traffic to ANOTHER genuine instance of the SAME app.
-  - The client proves "a genuine instance of the app the signed policy expects for D". It does not prove "D's physical
-    instance or its operator".
+  - For such an entry the client proves "a genuine instance of the app the signed policy expects for D". It does not
+    prove "D's instance or its operator".
+  - A **bound** entry (policy type 2, since 0.5.0) closes the instance half of this: see "Instance binding" below.
   - `--relay` stays the carrier, untrusted, and the id is not used to route.
   - The extension follows the same rules on its own request page (`client.html`), through the same `connect` and
     `selectDeployment` code:
@@ -99,6 +101,58 @@ is exactly what the client exists not to believe.
 - **Agreed first.** The verifier session agreed this contract before the commit. Its independent policy replay adds the
   optional field under exactly these rules.
 
+## Instance binding (policy type 2, evidence v3; `src/trust.js`, `src/enroll.js`; CLI `instance`; since 0.5.0)
+
+The byte format, its trust source and the release rule were agreed with the verifier session before any code:
+../INSTANCE-BINDING.md. In short:
+
+- **Which client reads which policy.**
+
+  | policy `type` | read by | table entries |
+  |---|---|---|
+  | `enclave-pvm-client-policy` (type 1) | every client since 0.1.0 | exactly `{ id, app }`; an `instances` field refuses the whole policy |
+  | `enclave-pvm-client-policy/2` (type 2) | 0.5.0 and later | `{ id, app }` or `{ id, app, instances }` |
+
+  - A client before 0.5.0 refuses type 2 as "not a pVM client policy". It can never run a bound deployment as unbound.
+  - Serials are one space across both types: the floor, rollback and equivocation rules are unchanged.
+  - The signature domain is unchanged; `type` is inside the signed bytes.
+- **An entry's `instances`.** These are the InstanceIDs that may serve the deployment:
+  - 1 to 8 of them, unique, each 64 lowercase hex;
+  - an InstanceID may appear in only one deployment of the table;
+  - `formats` must include `enclave-pvm-app-evidence/v3`.
+  Any fault refuses the whole policy.
+- **A bound entry is served v3 only.**
+  - The client sends `EVIDENCE3`, and v1 or v2 is refused as a downgrade, by name, before any certificate is read.
+  - The verifier and the gate both require the attested InstanceID to be one of the entry's.
+  - There is no fallback.
+  - The result is `deployment: { id, app, instance, bound: true }`.
+  - An unbound entry, or an app selection, keeps the 0.4 rule (v2 where the policy allows it). Its result says
+    `instance: null, bound: false`.
+- **Enrollment.** `pvm-client instance --policy SRC --deployment ID (--relay URL | --relay-base URL) [--out FILE]` is how
+  the policy's signer learns an InstanceID. It uses its own nonce and the policy's pins.
+  - The expected app is the table entry's, so evidence for another app is refused before any certificate.
+  - It seals and sends nothing.
+  - The record keeps the nonce, the raw envelope, the whole verification and the policy serial. `--out` writes it to a
+    new file and never overwrites one.
+  - The relay's hub may publish a tunnel's attested InstanceID. That is a hint where to look, never a source.
+- **Rotation is a policy update.**
+  - A new instance is refused until a higher serial lists it.
+  - An overlap serial may list both instances.
+  - A later serial drops the old one; the older policy is then a refused rollback.
+
+## Carriers (`src/carrier.js`; since 0.5.0)
+
+- **`--relay URL`** is a carrier URL, used as given (the lab's).
+- **`--relay-base URL`** is a platform relay compiled into the artifact: today only `https://api.enclave.host`, or a
+  lab `http://127.0.0.1:<port>`. The carrier is then `<base>/x/<deployment>/pvm`, the relay's pVM deployment route
+  (relay/pvm-serving.mjs).
+  - The id in that URL is a route only. The app to expect is still the table's.
+  - Any other base is refused, and so is giving both flags, or a base with no deployment.
+- **The extension** grants exactly those origins in its manifest: `http://127.0.0.1/*` and `https://api.enclave.host/*`.
+  - A test holds the manifest and `PLATFORM_RELAYS` equal.
+  - A policy, a page or a relay cannot widen where the client sends: the list is in the artifact's bytes.
+  - Its options take one of a carrier URL or a platform relay base, never both.
+
 ## The release rule (`src/gate.js admit`)
 
 The client runs ONE verifier at runtime: web/pvm-verify.js, with node parity asserted in test/pvm-web-verify.test.mjs.
@@ -109,7 +163,10 @@ What is shared is the **gate**, the verifier session's admission rule, held here
 - the verdict is verified and admission-safe, with nothing omitted and every check true;
 - every expectation came from the signed policy;
 - the freshness is the client's own single-use nonce;
-- for a browser, a v2 app key and its sealed window are present, and TLS pinning is never claimed.
+- for a browser, a v2 or v3 app key and its sealed window are present, and TLS pinning is never claimed;
+- since 0.5.0, for a deployment bound to instances (`expect.instanceIds`): only a v3 verdict whose `instanceId` is
+  listed releases, native and browser alike, and anything else HOLDs. This is the rule agreed with the verifier session.
+  Its admission vectors are theirs to write, and this file mirrors them when they land.
 
 This pVM-only client holds the vectors' three AMD SEV-SNP releases (out of scope, fail closed) and matches all 37 other
 decisions. After the gate, the client also requires the policy's format and sealed window, then seals, sends, and spends

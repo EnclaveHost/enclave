@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Enclave pVM client (LAB)",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "LAB, not production: talks to a Pixel pVM app only after verifying its attestation itself, under a signed policy anchored at install. Loads no remote code.",
   "permissions": ["storage"],
-  "host_permissions": ["http://127.0.0.1/*"],
+  "host_permissions": ["http://127.0.0.1/*", "https://api.enclave.host/*"],
   "options_page": "options.html",
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" }
 }
