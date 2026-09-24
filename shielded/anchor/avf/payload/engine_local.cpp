@@ -143,6 +143,7 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
     int src; do { src = fcntl(model_fd, F_DUPFD_CLOEXEC, 0); } while (src < 0 && errno == EINTR);
     if (src < 0) { outf("LOCAL refused: cannot hold the staged model: %s", strerror(errno)); llama_model_free(model); return nullptr; }
     std::vector<uint8_t> tmp; size_t n_repack = 0, n_cpu = 0; uint64_t vbytes = 0; bool ok = true;
+    int64_t us_read = 0, us_hash = 0, us_place = 0;   /* where the cold start's load goes (PVM-CPU.md, target 3) */
     for (const auto &kv : llama_internal_get_tensor_map(model)) {
         ggml_tensor *t = kv.second; const std::string &name = kv.first;
         if (t->data) continue;                                             /* a tied weight appears twice in the map */
@@ -153,16 +154,20 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
         if (!same) { outf("LOCAL refused: %s: type/dims/size differ between the verified header and the table", name.c_str()); ok = false; break; }
         ggml_backend_buffer_type_t buft = t->buffer ? ggml_backend_buffer_get_type(t->buffer) : ggml_backend_cpu_buffer_type();   /* llama's choice */
         tmp.resize((size_t)e->size);
+        int64_t tq = ggml_time_us();
         const bool whole = anchor_striped_pread(src, g_table->data_start + e->offset, tmp.data(), e->size, read_threads, (uint64_t)16 << 20) == 0;
+        us_read += ggml_time_us() - tq; tq = ggml_time_us();
         posix_fadvise(src, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* read once, then out of the guest's cache */
         if (!whole) { outf("LOCAL refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
         if (!digest_matches(e, tmp.data(), (size_t)e->size)) { outf("LOCAL refused: %s: bytes in the staged model differ from its digest at stage time", name.c_str()); ok = false; break; }
+        us_hash += ggml_time_us() - tq; tq = ggml_time_us();
         ggml_backend_buffer_t buf = ggml_backend_buft_alloc_buffer(buft, ggml_backend_buft_get_alloc_size(buft, t));
         if (!buf) { outf("LOCAL refused: %s: no memory for %zu bytes", name.c_str(), (size_t)e->size); ok = false; break; }
         t->buffer = nullptr;
         if (ggml_backend_tensor_alloc(buf, t, ggml_backend_buffer_get_base(buf)) != GGML_STATUS_SUCCESS) { outf("LOCAL refused: %s: tensor placement failed", name.c_str()); ggml_backend_buffer_free(buf); ok = false; break; }
         ggml_backend_tensor_set(t, tmp.data(), 0, (size_t)e->size);        /* a repack type repacks FROM the verified bytes here */
         ggml_backend_buffer_set_usage(buf, GGML_BACKEND_BUFFER_USAGE_WEIGHTS); owned.push_back(buf);
+        us_place += ggml_time_us() - tq;
         const char *bname = ggml_backend_buft_name(buft);
         if (strstr(bname, "REPACK") || strstr(bname, "AARCH64")) n_repack++; else n_cpu++;
         vbytes += e->size;
@@ -172,6 +177,7 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
     model->hparams.no_alloc = false;   /* the pinned fork's flag: every tensor is real now, contexts may allocate */
     outf("LOCAL verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu repacked from verified bytes, %zu plain CPU",
          n_repack + n_cpu, vbytes / 1048576.0, n_repack, n_cpu);
+    outf("LOCAL verified loader timing: read %.1f s (%d threads), hash %.1f s, place+repack %.1f s", us_read / 1e6, read_threads, us_hash / 1e6, us_place / 1e6);
     if (n_repack == 0) outf("LOCAL WARNING: nothing was repacked: the CPU module is not the repacking build, decode will run on the generic kernels");
     return model;
 }

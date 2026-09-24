@@ -62,7 +62,9 @@ public class Main extends Activity {
     static final int VENDOR_LEVEL_ATTEST = 202404;      // /avf RKP component min-level
 
     /* run plan, from intent extras */
-    public static final class Plan {
+    public static final class Plan implements Cloneable {
+        /** A field-for-field copy for a supervised restart; only the scripted turns change (Main.restartVm). */
+        static Plan copyForRestart(Plan p) { try { return (Plan) p.clone(); } catch (CloneNotSupportedException e) { throw new IllegalStateException(e); } }
         String payload = "libanchor.so"; int debug = 0; long memMib = 1024;
         String worker = "127.0.0.1:9500"; String mode = "bridge";
         String relay = null; String name = "phone-anchor";
@@ -121,6 +123,7 @@ public class Main extends Activity {
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal); "none" = no drafter
         String laneDefaults = "";            // which Shielded-TPU profile values this launch took by default (logged in "LOCAL plan"), "" off the TPU lane
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
+        int restarts = -1;                   // --ei restarts N (0..5): mode local restarts a VM that died mid-conversation; -1 = the tier's default (pvm-cpu 2, research 0)
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
         static Plan from(Intent i) {
@@ -197,6 +200,8 @@ public class Main extends Activity {
             }
             p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
+            p.restarts = i.getIntExtra("restarts", -1);
+            if (p.restarts < -1 || p.restarts > 5) p.configError = "restarts must be 0..5";
             if (i.getStringExtra("draft") != null) p.draft = "none".equals(i.getStringExtra("draft")) ? "" : i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
             p.tpuLinks = i.getIntExtra("tpu_links", p.tpuLinks);
@@ -351,7 +356,7 @@ public class Main extends Activity {
     static java.io.File filesDir = new java.io.File("/data/user/0/host.enclave.anchor.avf/files");
     static Context appCtx = null;
     static void runVm(Context ctx, Plan plan) {
-        appCtx = ctx;
+        appCtx = ctx; sLivePlan = plan;
         filesDir = ctx.getFilesDir();
         apkPath = ctx.getApplicationInfo().sourceDir;
         try {
@@ -427,10 +432,10 @@ public class Main extends Activity {
                 if (n.equals("toString")) return "cb"; if (n.equals("hashCode")) return 0; if (n.equals("equals")) return proxy == a[0];
                 switch (n) {
                     case "onPayloadStarted": say("VM payload started"); break;
-                    case "onPayloadReady": say("VM payload ready"); new Thread(() -> control(vm, plan), "vsock-control").start(); break;
+                    case "onPayloadReady": say("VM payload ready"); { final Plan live = sLivePlan != null ? sLivePlan : plan; new Thread(() -> control(vm, live), "vsock-control").start(); } break;
                     case "onPayloadFinished": say("VM payload finished exit=" + a[1]); break;
                     case "onError": say("VM error code=" + a[1] + " msg=" + a[2]); break;
-                    case "onStopped": say("VM stopped reason=" + a[1]); break;
+                    case "onStopped": say("VM stopped reason=" + a[1]); if (sRestartPending) restartVm(vm); break;
                     default: say("VM cb " + n);
                 }
                 return null;
@@ -454,6 +459,26 @@ public class Main extends Activity {
     }
 
     private static volatile boolean sEnded;
+    /* Supervised restart (mode local; PVM-CPU.md target 5): a VM that dies mid-conversation is run again with the turns that
+     * remain. The interrupted turn is reported INTERRUPTED and never as an answer; the capture stays open across the restart
+     * and is closed once, at the real end. */
+    static volatile Plan sLivePlan;
+    static volatile boolean sRestartPending, sInterrupted;
+    static volatile int sTurnOffset = 0, sTurnsDone = 0, sInterruptedTurn = 0, sRestartsUsed = 0;
+    static int restartsAllowed(Plan p) { return p.restarts >= 0 ? p.restarts : Tier.PVM_CPU.equals(Tier.of(appCtx)) ? 2 : 0; }
+    static void restartVm(Object vm) {
+        sRestartPending = false; sRestartsUsed++;
+        final Plan base = sLivePlan; final Plan next = Plan.copyForRestart(base);
+        final java.util.List<String> turns = new java.util.ArrayList<>();
+        for (String q : base.ask.split("\\|")) if (!q.trim().isEmpty()) turns.add(q.trim());
+        final int consumed = sInterruptedTurn - sTurnOffset;   /* turns of the live plan finished or interrupted */
+        next.ask = String.join("|", turns.subList(Math.min(consumed, turns.size()), turns.size()));
+        sTurnOffset = sInterruptedTurn; sInterrupted = false; sLivePlan = next;
+        say("LOCAL restart " + sRestartsUsed + " boottime_ms=" + android.os.SystemClock.elapsedRealtime() + ": the VM stopped during turn " + sInterruptedTurn
+            + "; running it again (" + (turns.size() - Math.min(consumed, turns.size())) + " turn(s) remain)");
+        new Thread(() -> { try { call(vm, "run"); say("HOST vm.run() returned after restart, status=" + call(vm, "getStatus")); }
+                           catch (Exception e) { say("LOCAL restart failed: " + e); captureClose(false); } }, "vm-restart").start();
+    }
     static boolean ended() { return sEnded; }
     static void control(Object vm, Plan plan) {
         sEnded = false;
@@ -466,6 +491,7 @@ public class Main extends Activity {
         if (pfd == null) { padSession.close(); say("CONTROL connect failed"); captureClose(false); return; }
         say("CONTROL connected");
         boolean sawEnd = false; Thread feedThread = null;   /* prepare mode: joined (bounded) at END so its terminal line lands in the capture */
+        Thread localThread = null;                          /* mode local: joined (bounded) before the end is judged, so an interruption is known */
         if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
@@ -611,7 +637,7 @@ public class Main extends Activity {
                 if (tpu && modelOk && plan.tpuLinks >= 2) for (int li = 0; li < plan.tpuLinks; li++) { final int w = li; new Thread(() -> benchLink(vm, w), "linkbench-" + li).start(); }
                 say("LOCAL plan: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + (plan.ask.isEmpty() ? ", no turns scripted (--es ask)" : ", scripted turns"));
                 if (tpu) say("LOCAL tpu lane: corr_threads " + plan.corrThreads + ", decode_threads " + plan.decodeThreads + ", verify_threads " + plan.verifyThreads + ", tpu_bank " + plan.tpuBank + ", drafter " + (plan.draft.isEmpty() ? "none" : plan.draft + " draft_max " + plan.draftMax) + " | defaulted: " + plan.laneDefaults);
-                if (modelOk) new Thread(() -> localSession(vm, plan), "vsock-local").start(); else say("LOCAL not started: the model stage did not pass");
+                if (modelOk) { localThread = new Thread(() -> localSession(vm, plan), "vsock-local"); localThread.start(); } else say("LOCAL not started: the model stage did not pass");
             }
             if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
@@ -655,7 +681,10 @@ public class Main extends Activity {
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
-            captureClose(sawEnd);   /* the footer, then nothing more is written to the capture file */
+            if (localThread != null) { try { localThread.join(10000); } catch (InterruptedException ignored) { } }
+            if (sInterrupted && sRestartsUsed < restartsAllowed(plan)) {
+                sRestartPending = true; say("LOCAL restart pending: the conversation was interrupted; the VM will be run again when it has stopped");
+            } else captureClose(sawEnd);   /* the footer, then nothing more is written to the capture file */
         }
     }
 
@@ -771,9 +800,10 @@ public class Main extends Activity {
                       StringBuilder hx = new StringBuilder(); for (byte x : d) hx.append(String.format("%02x", x & 0xff));
                       say("LOCAL ask sha256=" + hx + " bytes=" + plan.ask.getBytes(java.nio.charset.StandardCharsets.UTF_8).length); }
                 catch (java.security.NoSuchAlgorithmException e) { say("LOCAL ask sha256=unavailable"); }
-                int k = 0;
+                int k = sTurnOffset;
+                if (sRestartsUsed > 0) say("LOCAL restart ready boottime_ms=" + android.os.SystemClock.elapsedRealtime() + " (restart " + sRestartsUsed + ")");
                 for (String q : plan.ask.split("\\|")) {
-                    if (q.trim().isEmpty()) continue; k++;
+                    if (q.trim().isEmpty()) continue; k++; sInterruptedTurn = k;
                     final StringBuilder reply = new StringBuilder();
                     /* The turn's window on CLOCK_BOOTTIME (elapsedRealtime), the clock /proc/uptime reads, so a device-side
                      * CPU sampler can cut its samples to exactly this turn (tpu/cpu-window.py): start = request sent,
@@ -784,12 +814,16 @@ public class Main extends Activity {
                     say("LOCAL turn " + k + " window boottime_ms start=" + tStart + " first=" + first[0] + " end=" + android.os.SystemClock.elapsedRealtime());
                     say("LOCAL turn " + k + " Q: " + q.trim());
                     say("LOCAL turn " + k + " A: " + reply.toString().replace("\n", "\\n"));
-                    say("LOCAL turn " + k + " STATS " + st);
+                    say("LOCAL turn " + k + " STATS " + st); sTurnsDone = k;
                 }
                 localState("done", k + " scripted turns");
             }
             s.close();
-        } catch (Exception e) { localState("failed", String.valueOf(e.getMessage())); }
+        } catch (Exception e) {
+            if (sInterruptedTurn > sTurnsDone) say("LOCAL turn " + sInterruptedTurn + " INTERRUPTED: " + e.getMessage() + " (no answer is reported for it)");
+            if (sRestartsUsed < restartsAllowed(sLivePlan != null ? sLivePlan : plan)) { sInterrupted = true; say("LOCAL interrupted: " + e.getMessage()); }
+            else localState("failed", String.valueOf(e.getMessage()));
+        }
         finally { try { pfd.close(); } catch (Exception ignored) { } }
     }
 
