@@ -21,6 +21,7 @@
 import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
 import { createDataPlane } from "./datapath.mjs";
 
+export const BACKEND = "hyperv-partition-per-app";
 export const V1 = "enclave-catalog-bundle/1";
 export const V2 = "enclave-catalog-bundle/2";
 export const POLICY_RULE = "enclave-isolation-policy/1";
@@ -77,17 +78,32 @@ export function derivationOf(appId, index, cid, policy, runtimeId, httpPort = 0)
  *   hasSecrets    true | false | null (null: could not be established)
  *   waf           the deployment's protection rules: {} or null-free object when none; undefined/null = unknown
  *   volumes       model volumes the app needs: [] when none; undefined/null = unknown
+ *   require       the deployment envelope's isolation.require: the backend the TENANT asked for (an opt-in; a
+ *                 deployment that did not ask is not planned onto a partition)
+ *   manager       the manager's /health object: its `backend` must be this one, and `catalog.derivations` is what it
+ *                 can SERVE; null when it could not be asked
+ *   appConfigCid  the deployment's config override by CID ("" when the deployment has none; the version's own
+ *                 configCid is read from `version`)
  *   runtimeId     the manager's pinned runtime identity (64 hex)
- *   derivations   the manager's /health catalog.derivations: what it can SERVE; null when it could not be asked
+ * The same inputs, in the same sense, as supervisor.js isolationClaimVerdict (require, manager, gpuMilli, config,
+ * appConfigCid, hasSecrets, firewall, volumes, isPublic, waf); node-bridge.test.mjs compares verdicts through its seam.
  *
  * -> { ok: true, derivation, httpPort, policy, spawn } where `spawn` is exactly the argument of
  *    IsolationManagerClient.spawnBody (windows/node/isolation-client.mjs), the body supervisor.js sends
  * -> { ok: false, input, why, unknown }
  */
 export function isolationPlan({ deploymentId, deployment, version, appConfig, hasSecrets, waf, volumes, runtimeId,
-                                derivations } = {}) {
+                                require, manager, appConfigCid, backend = BACKEND } = {}) {
   if (!/^0x[0-9a-f]{64}$/.test(String(deploymentId || ""))) return refused("deploymentId", `${deploymentId} is not a deployment id`);
   if (!deployment || typeof deployment !== "object") return unknownInput("deployment", "the ledger record");
+  // the tenant's opt-in, then the manager's identity: supervisor.js checks these first, in this order
+  if (require === undefined || require === null) return unknownInput("require", "whether the deployment asked for per-app isolation");
+  if (require !== backend)
+    return refused("require", `this runner serves only deployments that require per-app isolation (isolation.require="${backend}"), and this one ${require ? `requires "${require}"` : "does not ask for it"}`);
+  if (!manager || typeof manager !== "object") return unknownInput("manager", "the partition manager's /health");
+  if (manager.backend !== backend)
+    return refused("manager.backend", `the manager is not the ${backend} manager (its /health says backend=${JSON.stringify(manager.backend ?? null)})`);
+  const derivations = manager.catalog && manager.catalog.derivations;
   if (!version || typeof version !== "object") return unknownInput("version", "the catalog version");
   if (version.yanked === true) return refused("version.yanked", "the catalog version is yanked");
   if (!/^0x[0-9a-fA-F]{64}$/.test(String(version.appId || "")) || !Number.isInteger(Number(version.index)) || Number(version.index) < 0)
@@ -111,6 +127,8 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
 
   if (appConfig === undefined) return unknownInput("appConfig", "the config the app would run with");
   if (appConfigOf(appConfig)) return refused("appConfig", "the app has config beyond _media, which is not delivered into a partition");
+  if (appConfigCid === undefined || appConfigCid === null) return unknownInput("appConfigCid", "whether the deployment overrides its config by CID");
+  if (appConfigCid) return refused("appConfigCid", "the deployment overrides its config by CID, which is not delivered into a partition");
   if (version.configCid) return refused("version.configCid", "the version keeps its config at a CID, which is not delivered into a partition");
 
   if (waf === undefined || waf === null) return unknownInput("waf", "the deployment's protection rules");
@@ -122,9 +140,9 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   let httpPort;
   try { httpPort = httpPortOf(version.ports); } catch (e) { return refused("version.ports", e.message); }
   const derivation = httpPort ? V2 : V1;
-  if (!Array.isArray(derivations)) return unknownInput("derivations", "what the manager can serve (its /health)");
+  if (!Array.isArray(derivations)) return unknownInput("manager.catalog.derivations", "what the manager can serve");
   if (!derivations.includes(derivation))
-    return refused("derivations", httpPort
+    return refused("manager.catalog.derivations", httpPort
       ? `the version serves HTTP on its own port (http:${httpPort}), and the manager cannot serve ${V2} yet`
       : `the manager does not serve ${V1}`);
   if (!HEX(32).test(String(runtimeId || ""))) return unknownInput("runtimeId", "the runtime identity the manager pins");

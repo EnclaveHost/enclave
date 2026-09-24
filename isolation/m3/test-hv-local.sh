@@ -73,4 +73,25 @@ HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvla
   > "$W/route.txt" 2>&1 || rc=$?
 cat "$W/route.txt"
 [ "$rc" = 0 ] && [ "$(tail -1 "$W/route.txt")" = "HVLAB-ROUTE ALL PASS" ] || { echo "TEST-HV-LOCAL FAILED (route rc=$rc)"; exit 1; }
+# phase 4, only with NODE_TREE (a checkout of the Windows node, e.g. windows/isolation-manager): the node's OWN code path
+# (Host.ensureApp -> plan -> its manager -> readiness; appZoneTarget; appzone.mjs; the relay's tunnel hub) against two
+# fresh guests the manager loads itself. Still plain KVM, not Hyper-V.
+if [ -n "${NODE_TREE:-}" ]; then
+  units="$units hvlab-gC hvlab-gD"
+  for g in "C 70003" "D 70004"; do
+    set -- $g
+    systemd-run --user --unit="hvlab-g$1" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
+      -cpu host -smp 1 -m 1024M -bios "$OVMF_PLAIN" -kernel "$KERNEL" -initrd "$W/mon.cpio.gz" \
+      -append "console=ttyS0 rdinit=/init loglevel=3 report_host=9001" -device "vhost-vsock-pci,guest-cid=$2" \
+      -nodefaults -display none -serial "file:$W/g$1.serial" -no-reboot
+  done
+  t=0; until [ "$(grep -l "MON ready" "$W/gC.serial" "$W/gD.serial" 2>/dev/null | wc -l)" = 2 ]; do
+    t=$((t + 1)); [ $t -lt 60 ] || { echo "the node-phase guests never came up"; exit 1; }; sleep 2; done
+  rc=0
+  HVLAB_NODE_TREE="$NODE_TREE" HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" \
+    HVLAB_WASM_DIR="${HVLAB_WASM_DIR:-$(dirname "$A")}" node "$here/hvlab-node.mjs" "$S" "$W/mon.cpio.gz" 70003 70004 \
+    > "$W/node.txt" 2>&1 || rc=$?
+  cat "$W/node.txt"
+  [ "$rc" = 0 ] && [ "$(tail -1 "$W/node.txt")" = "HVLAB-NODE ALL PASS" ] || { echo "TEST-HV-LOCAL FAILED (node phase rc=$rc)"; exit 1; }
+fi
 echo "TEST-HV-LOCAL PASS"

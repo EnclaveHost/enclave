@@ -1,0 +1,32 @@
+# 2026-09-24 isolation/m3/hvlab-node.mjs (test-hv-local.sh phase 4) against enclave-d1's windows/isolation-manager at 5af19b19
+# (worktree ~/enclave-bench/wt-d1-5af19b19; that tree carries node-bridge b1483afa, i.e. BEFORE the plan took require/manager/appConfigCid).
+# REAL: d1's Host.ensureApp/appZoneTarget, appzone.mjs, isolation-client, manager server + ready.mjs; relay/tunnel.js hub; the chain (read-only: address book, catalog).
+# STAND-INS: a KVM launch backend (hvlab.py load/relay), the agent's frame dispatch, the relay secrets route ('none'). Plain KVM guests, NOT Hyper-V.
+# Artifact fetch: the node's default gateway ipfs.enclave.host, CID-verified by fetch-cid.py (72,989 B for hello-world, 29090a8d...);
+# trustless-gateway.link answered 403 to Python's default user agent (the same failure guestd hit), so the harness uses the node's own default.
+# RESULT: FAILED at d1's in-enclave gates (host.mjs appsInTee :610 and the engine-memory gate :675 at d1f4b745), which run BEFORE the isolation branch (:753)
+# and give each isolated deployment up (on a real node #giveUp releases the lease on chain). Reported to enclave-d1.
+PASS the node tree carries node-bridge.mjs b1483afa: b1483afa861ccb19
+PASS the node tree carries datapath.mjs 2db32e0a: 2db32e0a4fb1f759
+PASS the node tree carries supervisor-splice.mjs 88e688cd: 88e688cdfd341f46
+PASS SAFETY: this node's enclave id is a test id, not a deployment's runner: enclaveId 0xf367bd4b6c393db4..., no operator key in /tmp/hvnode-5USu8e
+[as configured] ensureApp A 0x4e62e60d: status=failed reason="this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it"
+[as configured] ensureApp B 0x0ddbd824: status=failed reason="this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it"
+FAIL ensureApp A (hello-world /1) reaches running through the node's own path, AS CONFIGURED: status=failed reason="this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it"
+FAIL ensureApp B (hookbin /2) reaches running through the node's own path, AS CONFIGURED: status=failed reason="this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it"
+WORKAROUND for the in-enclave runtime gates: cfg.enclaveAppAbi=1, cfg.enclaveAppWorlds=7 (NOT a real enclave runtime)
+[workaround] ensureApp A 0x4e62e60d: status=failed reason="this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds"
+[workaround] ensureApp B 0x0ddbd824: status=failed reason="this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds"
+FAIL (workaround) ensureApp A reaches running: status=failed reason="this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds"
+FAIL (workaround) ensureApp B reaches running: status=failed reason="this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds"
+FAIL browser -> A: not running; nothing to route
+FAIL browser -> B: not running; nothing to route
+secrets probed for: (none)
+data plane: {"open":0}
+  node: giving up on 0x4e62e60d: this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it
+  node: giving up on 0x0ddbd824: this enclave image carries no app runtime, so this box cannot host an app inside the enclave and will not host one outside it
+  node: config: its options envelope carries isolation, which this node does not enforce (it knows: config, gpu, network, configCid, waf); the version's own config stands
+  node: giving up on 0x4e62e60d: this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds
+  node: config: its options envelope carries isolation, which this node does not enforce (it knows: config, gpu, network, configCid, waf); the version's own config stands
+  node: giving up on 0x0ddbd824: this box has not yet measured what its engine holds of the enclave, so it does not know how much memory it can honestly promise; it re-checks every 30 seconds
+HVLAB-NODE 4 FAILED
