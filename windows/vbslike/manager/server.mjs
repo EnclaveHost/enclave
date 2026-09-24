@@ -65,7 +65,7 @@ export class Manager {
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
       // including hostExcluded:false, because that is the word that must never be lost.
-      boundary: this.backend.BOUNDARY ?? null,
+      boundary: this.backend.boundary ?? null,
       // `derivations` IS THE GATE. The supervisor reads it as "this manager can derive AND run",
       // and acts on it: a listed derivation means the claim gate passes and the node takes the
       // lease ON CHAIN before this process ever sees the spawn. So a rule we can compute but not
@@ -142,7 +142,7 @@ export class Manager {
                   // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
                   // splice admits on `image` + `transportKeySha256` and refuses without them, and
                   // the boundary is the word this backend's own header says must never be lost.
-                  boundary: this.backend.BOUNDARY ?? null, tier: null, hostExcluded: false,
+                  boundary: this.backend.boundary ?? null, tier: null, hostExcluded: false,
                   verdict: null, image: null, transportKeySha256: null, relay: null,
                   domainId: null, guestPort: null };
     this.domains.set(id, rec);

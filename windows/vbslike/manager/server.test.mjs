@@ -176,7 +176,7 @@ test("ids are the manager's own shape, and the record names the deployment", asy
 });
 
 test("defect 4: the record carries what the data plane needs to route, and the boundary word", async () => {
-  const withRoute = { supports: {}, backend: "hv", BOUNDARY: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+  const withRoute = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
     start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 12, head: "MON" },
                           appReady: false, boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
                           domainId: 1, guestPort: 40001, tcpPort: 19101, image: "ab".repeat(32) }) };
@@ -186,6 +186,8 @@ test("defect 4: the record carries what the data plane needs to route, and the b
   assert.equal(r.guestPort, 40001);
   assert.equal(r.image, "ab".repeat(32), "the splice admits on image + transportKeySha256");
   assert.equal(r.boundary.hostExcluded, false, "carried verbatim: this is the word that must never be lost");
+  // and /health must carry it too, read through the SAME accessor the real backends expose
+  assert.equal(mk({ backend: withRoute }).health().boundary.hostExcluded, false);
   assert.equal(r.hostExcluded, false);
   assert.equal(r.tier, "t0-hv");
 });
@@ -201,4 +203,22 @@ test("defect 5: a stop that FAILED is not a removal, and the domain stays listed
   assert.match(e.message, /may still be RUNNING/);
   assert.equal(m.list().length, 1, "an orphan the manager stopped listing is one nobody can find");
   assert.equal(m.get(r.id).status, "failed");
+});
+
+
+test("the boundary is read through the accessor the real backends actually expose", async () => {
+  // enclave-99 caught this: server.mjs read `backend.BOUNDARY`, the MODULE constant, while
+  // backend-hcs exposes `get boundary()`. Both came out null against the real backend, so the
+  // record's tier and hostExcluded silently fell back to defaults - the exact loss defect 4 was
+  // supposed to fix - and my own test passed because its fake set BOUNDARY as a property. A fake
+  // shaped like the code under test rather than like the real collaborator proves nothing.
+  const { HcsPartitionBackend } = await import("./backend-hcs.mjs");
+  const real = new HcsPartitionBackend({ exe: "C:/nonexistent.exe", kernel: "k", initrd: "i", out: "o" });
+  assert.ok(real.boundary, "the real backend exposes `boundary`");
+  assert.equal(real.boundary.hostExcluded, false);
+  assert.equal(real.BOUNDARY, undefined, "and NOT `BOUNDARY`: reading that gives null forever");
+  const h = mk({ backend: real }).health();
+  assert.ok(h.boundary, "so /health must carry it");
+  assert.equal(h.boundary.hostExcluded, false);
+  assert.equal(h.boundary.partition, "hcs-child");
 });
