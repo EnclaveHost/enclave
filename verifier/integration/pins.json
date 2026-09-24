@@ -2,17 +2,20 @@
  "pvm-app-attest": {
   "purpose": "the pVM owner's evidence verifier, judged against by the consumer adapter (verifier/pvm-evidence.mjs); never copied into this branch",
   "branch": "pvm-cpu/portable-runtime",
-  "commit": "193cf823119657e5740696fc144033f658c3dcb7",
+  "commit": "047f77396fbbabf85e39699d47a0848a48e80f35",
   "entry": "relay/pvm-app-attest.mjs",
   "files": {
-   "relay/pvm-app-attest.mjs": "25e20c3673a64138db026fcf6bf002cd51a257b4dd26898fafccf729964d457b",
-   "relay/avf-verify.mjs": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd"
+   "relay/pvm-app-attest.mjs": "c77df680107b07465183680627f30eb46f5f0a33fee004c6b2be6b4000d1ef62",
+   "relay/avf-verify.mjs": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
+   "relay/pvm-checkpoint.mjs": "524926f1e1acfd1d80f61c15694b874b366340ca2915136fdfc054d35da7d304",
+   "test/fixtures/pvm-proof-key/fixtures.json": "b49f5f952325fea994ca1dac823bc1b8bd5b316fb7bd8e3aeec824dac7c19291",
+   "test/pvm-proof-key-fixtures.test.mjs": "046019cd5734a1d0ca3e6f184737bcdf73b6c52b8e428a8d2beb8c138884b810"
   },
   "mustMatchWorktree": [
    "relay/avf-verify.mjs"
   ],
   "pinnedAt": "2026-09-24",
-  "note": "v3 (INSTANCE-BINDING.md, agreed 2026-09-24): Bind3 over the instance, instanceSig, appKeySig v3, expect.instanceIds; v1 and v2 unchanged (the device and stability fixtures produced by afd437a2 re-verify through this revision)",
+  "note": "047f7739 (PROOF-KEY.md, agreed 2026-09-24): verifyPvmProofKey and proofKeyMessage appended to the module (a pure append after abi2FromLog: the v1/v2/v3 evidence paths are the same bytes as at 193cf823), relay/pvm-checkpoint.mjs (verifyPvmCheckpoint, typedDataOf), and the Pixel 10 device fixtures for both (26 statements, 7 checkpoints) with the owner's replay test; v3 (INSTANCE-BINDING.md): Bind3 over the instance, instanceSig, appKeySig v3, expect.instanceIds; v1 and v2 unchanged (the device and stability fixtures produced by afd437a2 re-verify through this revision)",
   "env": "ENCLAVE_PVM_MODULE"
  },
  "pvm-sealed": {
