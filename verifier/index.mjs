@@ -1,7 +1,14 @@
 // verifier/index.mjs: one entry point, one verdict shape, evidence classes kept apart.
 //
-//   verifyEvidence(doc, { policy, context, collateral }) -> { status, technology, reasons, checks, claims }
-//     status: "verified" | "rejected" | "unsupported"
+//   verifyEvidence(doc, { policy, context, collateral })
+//     -> { status, admissionSafe, omissions, technology, reasons, checks, claims }
+//     status: "verified"    every security check passed and the policy omitted nothing (admissionSafe: true)
+//             "limited"     every cryptographic check passed but the policy EXPLICITLY skipped a security
+//                           check, or a report version's semantics are unimplemented; `omissions` names them;
+//                           never admission-safe (a consumer testing status === "verified" cannot accept it)
+//             "rejected"    a check failed
+//             "unsupported" evidence whose semantics this verifier does not implement
+//     checks[name]: true passed, false failed, null not judged (an omission names why)
 //
 // Rules that hold for every class: an unknown or unimplemented format is "unsupported" (never green); a
 // development format is "rejected"; a CPU verdict says nothing about a GPU; delegated classes (AVF, VBS,
@@ -11,12 +18,12 @@ import { verifySnp } from "./snp.mjs";
 import { sha256 } from "./tls-binding.mjs";
 
 export { parseEnvelope, FORMATS, TECH } from "./envelope.mjs";
-export { verifySnp, parseReportStrict, checkChain, checkCrl, DEFAULT_SNP_POLICY } from "./snp.mjs";
+export { verifySnp, parseReportStrict, checkChain, checkCrl, verdictStatus, DEFAULT_SNP_POLICY, JUDGED_MAX_REPORT_VERSION } from "./snp.mjs";
 export { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 export { checkHostedCertificate, spkiOfCert, hashAttestationDocument } from "./tls-binding.mjs";
 export { fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, AMD_KDS } from "./collateral.mjs";
 
-const unsupported = (technology, why) => ({ status: "unsupported", technology, reasons: [`UNSUPPORTED: ${why}`], checks: {}, claims: null });
+const unsupported = (technology, why) => ({ status: "unsupported", admissionSafe: false, omissions: [], technology, reasons: [`UNSUPPORTED: ${why}`], checks: {}, claims: null });
 
 export async function verifyEvidence(doc, { policy = {}, context = {}, collateral = null } = {}) {
   let env;
@@ -24,7 +31,7 @@ export async function verifyEvidence(doc, { policy = {}, context = {}, collatera
   catch (e) {
     if (!(e instanceof EnvelopeError)) throw e;
     const technology = FORMATS[doc?.format]?.technology ?? null;
-    return { status: e.code === "unsupported" ? "unsupported" : "rejected", technology, reasons: [`${e.code.toUpperCase()}: ${e.message}`], checks: {}, claims: null };
+    return { status: e.code === "unsupported" ? "unsupported" : "rejected", admissionSafe: false, omissions: [], technology, reasons: [`${e.code.toUpperCase()}: ${e.message}`], checks: {}, claims: null };
   }
   const technology = env.spec.technology;
   switch (technology) {
@@ -42,15 +49,16 @@ export async function verifyEvidence(doc, { policy = {}, context = {}, collatera
 async function verifyAvf(env, policy, context) {
   const { verifyAvfEvidence } = await import("../relay/avf-verify.mjs");
   const { avfPadBinding } = await import("../relay/avf-binding.mjs");
-  const reasons = [], fail = (m) => ({ status: "rejected", reasons: [...reasons, `REJECT: ${m}`], checks: {}, claims: null });
+  const reasons = [], fail = (m) => ({ status: "rejected", admissionSafe: false, omissions: [], reasons: [...reasons, `REJECT: ${m}`], checks: {}, claims: null });
   let ev; try { ev = JSON.parse(env.body.toString("utf8")); } catch { return fail("AVF body is not JSON"); }
   if (!ev || !Array.isArray(ev.chain) || ev.chain.length > 8) return fail("AVF body needs a bounded chain[]");
+  if (typeof ev.signature !== "string" || !ev.signature) return fail("AVF body needs the attested key's signature over the binding transcript (a chain alone proves the VM, not this connection)");
   if (!Buffer.isBuffer(context.transportKeySpki) || !Buffer.isBuffer(context.nonce) || context.nonce.length !== 32) return fail("AVF needs the transport SPKI and a 32-byte nonce from the verifier");
   const bound = env.format === "android-avf-pvm/v2" ? avfPadBinding(context.transportKeySpki, String(env.doc.padKey || ""), context.nonce) : Buffer.concat([context.transportKeySpki, context.nonce]);
   if (!policy.allowedCodeHashes?.length || !policy.allowedAuthorityHashes?.length) return fail("AVF policy needs allowedCodeHashes and allowedAuthorityHashes (fail closed)");
-  const r = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: sha256(bound), signature: ev.signature ? Buffer.from(ev.signature, "base64") : null, signedMessage: bound },
+  const r = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: sha256(bound), signature: Buffer.from(ev.signature, "base64"), signedMessage: bound },
     { allowedCodeHashes: policy.allowedCodeHashes, allowedAuthorityHashes: policy.allowedAuthorityHashes, ...(policy.rootPins ? { rootPins: policy.rootPins } : {}), now: context.now ? new Date(context.now).getTime() : Date.now() });
-  return { status: r.ok ? "verified" : "rejected", reasons: [...reasons, ...r.reasons], checks: { avf: r.ok }, claims: r.ok ? { technology: TECH.AVF, measurement: r.measurement, component: r.component ?? null, rootVerified: r.rootVerified ?? null, freshness: "verifier nonce" } : null };
+  return { status: r.ok ? "verified" : "rejected", admissionSafe: !!r.ok, omissions: [], reasons: [...reasons, ...r.reasons], checks: { avf: r.ok }, claims: r.ok ? { technology: TECH.AVF, measurement: r.measurement, component: r.component ?? null, rootVerified: r.rootVerified ?? null, freshness: "verifier nonce" } : null };
 }
 
 // The pVM ABI/2 app attestation (Bind2 || AppID as the AVF challenge) lives on branch pvm-cpu/portable-runtime
@@ -58,5 +66,6 @@ async function verifyAvf(env, policy, context) {
 export async function verifyPvmAbi2(evidence, opts) {
   let mod; try { mod = await import("../relay/pvm-app-attest.mjs"); } catch { return unsupported(TECH.AVF, "relay/pvm-app-attest.mjs is not in this tree (branch pvm-cpu/portable-runtime); the pVM ABI/2 app attestation cannot be judged here"); }
   const r = mod.verifyPvmAppAbi2(evidence, opts);
-  return { status: r.ok ? "verified" : "rejected", technology: TECH.AVF, reasons: r.reasons, checks: { pvmAbi2: r.ok }, claims: r.ok ? { runtimeId: r.runtimeId, bind2: r.bind2, measurement: r.measurement } : null };
+  // the pVM captures bind an OWNER nonce (fixtures/verifier/pvm-abi2/SOURCE.md): the module's ok is "binding verified"
+  return { status: r.ok ? "verified" : "rejected", admissionSafe: !!r.ok, omissions: [], technology: TECH.AVF, reasons: r.reasons, checks: { pvmAbi2: r.ok }, claims: r.ok ? { runtimeId: r.runtimeId, bind2: r.bind2, measurement: r.measurement } : null };
 }

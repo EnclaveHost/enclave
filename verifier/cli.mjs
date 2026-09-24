@@ -41,11 +41,14 @@ async function cmdVerify() {
   layers.push(fileCollateral(opt("collateral-dir") || path.join(REPO, "test", "fixtures"), {}));
   if (flag("kds")) layers.push(httpCollateral({}));
   const policy = { snp: { allowedMeasurements: opts("measurement"), expectedVmpl: opt("vmpl") !== undefined ? parseInt(opt("vmpl"), 10) : 0, crl: opt("crl-mode") || "required",
-    ...(opt("min-tcb") ? { minTcb: JSON.parse(opt("min-tcb")) } : {}), ...(flag("no-cert-binding") ? { requireCertificateBinding: false } : {}) } };
+    ...(opt("min-tcb") ? { minTcb: JSON.parse(opt("min-tcb")) } : {}), ...(flag("no-cert-binding") ? { requireCertificateBinding: false } : {}),
+    ...(flag("research-unjudged-versions") ? { researchAllowUnjudgedReportVersions: true } : {}) } };
   const v = await verifyEvidence(doc, { policy, context, collateral: layeredCollateral(...layers) });
   if (flag("json")) console.log(JSON.stringify(v, null, 2));
-  else { for (const r of v.reasons) console.log(`  ${r.startsWith("REJECT") ? "\x1b[31m✗\x1b[0m" : r.startsWith("WARN") || r.startsWith("UNSUPPORTED") ? "\x1b[33m•\x1b[0m" : "\x1b[32m✓\x1b[0m"} ${r}`); console.log(`\n${v.status.toUpperCase()}  (${v.technology || "?"})`); }
-  process.exit(v.status === "verified" ? 0 : v.status === "unsupported" ? 3 : 1);
+  else { for (const r of v.reasons) console.log(`  ${r.startsWith("REJECT") ? "\x1b[31m✗\x1b[0m" : /^(OMITTED|UNSUPPORTED)/.test(r) ? "\x1b[33m•\x1b[0m" : "\x1b[32m✓\x1b[0m"} ${r}`);
+         console.log(`\n${v.status.toUpperCase()}  (${v.technology || "?"})${v.status === "limited" ? `  omissions: ${v.omissions.join(", ")}  [NOT admission-safe]` : v.status === "verified" ? "  [admission-safe]" : ""}`); }
+  // exit codes: 0 verified (admission-safe), 1 rejected, 3 unsupported, 4 limited (policy omitted a check)
+  process.exit(v.status === "verified" ? 0 : v.status === "unsupported" ? 3 : v.status === "limited" ? 4 : 1);
 }
 
 async function cmdRelease() {

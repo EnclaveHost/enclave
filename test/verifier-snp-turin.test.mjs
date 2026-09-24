@@ -30,8 +30,8 @@ const rejectedAt = (v, check, re) => { assert.equal(v.status, "rejected", v.reas
 
 test("the M4a document verifies: Turin layout, v5 report, ABI/2 binding, app id, TCB floor on reported and committed", async () => {
   const v = await run();
-  assert.equal(v.status, "verified", v.reasons.join("\n"));
-  assert.equal(v.claims.product, "Turin"); assert.equal(v.claims.reportVersion, 5);
+  assert.equal(v.status, "verified", v.reasons.join("\n")); assert.equal(v.admissionSafe, true); assert.deepEqual(v.omissions, []);
+  assert.equal(v.claims.product, "Turin"); assert.equal(v.claims.reportVersion, 5); assert.equal(v.checks["report version"], true);
   assert.deepEqual(v.claims.tcb.reported, { fmc: 1, bootloader: 3, tee: 2, snp: 5, microcode: 117 });
   assert.equal(v.claims.abi, "enclave-domain-abi/2"); assert.equal(v.claims.appId, doc.appSha256); assert.equal(v.claims.freshness, "verifier nonce");
   assert.equal(v.checks["tcb policy"], true); assert.equal(v.checks.crl, true);
@@ -60,7 +60,7 @@ test("Turin TCB floors: the FMC field is judged; a floor above the part is refus
   rejectedAt(await run(doc, { policy: { minTcb: { Turin: { fmc: 2, bootloader: 3, tee: 2, snp: 5, microcode: 117 } } } }), "tcb policy", /fmc 1 < 2/);
   rejectedAt(await run(doc, { policy: { minTcb: { Genoa: { bootloader: 0, tee: 0, snp: 0, microcode: 0 } } } }), "tcb policy", /no floor for Turin/);
   const unjudged = await run(doc, { policy: { minTcb: undefined } });
-  assert.equal(unjudged.status, "verified"); assert.equal(unjudged.checks["tcb policy"], false);
+  assert.equal(unjudged.status, "limited"); assert.equal(unjudged.checks["tcb policy"], null); assert.deepEqual(unjudged.omissions, ["tcb-floor-unjudged"]);
 });
 test("root and VCEK: Genoa's chain does not verify a Turin report; a Genoa VCEK is not this report's key", async () => {
   rejectedAt(await run(doc, { collateral: col({ chains: { Turin: chains.Genoa } }) }), "chain", /pinned/);
