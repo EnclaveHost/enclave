@@ -65,8 +65,13 @@ What this is: the whole partition path on the box works end to end through the o
 launcher-signed document judged on the client's own key and nonce, and the app's answer. What it is NOT: a user-owned
 canary. Nothing on the node asked for this partition (the node's /vms client exists only since 261e5f03 and is not
 wired into host.mjs), the manager's record contract is still the one defects 1-6 name, readiness needs the newer initrd,
-and no relay route or lease touched it. The IGVM (role) path does not boot yet: the owner reports `Start-VM` on a pinned
-VM failing 0x80070057 with `AllowFirmwareLoadFromFile` unset, a host change that is Steven's to approve.
+and no relay route or lease touched it. The IGVM (role) path does not boot yet. The owner's controlled comparison through the launcher's own `start()`
+(`enclave-boot-cmp-0001`, real host): create works, pinFirmware works (returnValue 0, GuestFeatureSet 513, FirmwareFile
+reads back), `Start-VM` works (worker event 18500 "started successfully"), and then the guest never boots (worker event
+18603 "failed to boot an operating system", zero bytes on the COM pipe in 45 s); the launcher refused it as "the VM is
+Running but the guest produced no output: a silent partition is not a booted one". An earlier 0x80070057 was the owner's
+hand-built step sequence, not the launcher. `AllowFirmwareLoadFromFile` (unset) is a hypothesis with Steven, not a
+conclusion. The custom-IGVM milestone is NOT met.
 
 ## What these facts do and do not say
 
