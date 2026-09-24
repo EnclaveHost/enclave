@@ -24,6 +24,7 @@ const AGENT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "met
 
 let proc, sup, honey, relay, ws;
 let honeyHits = 0, supPaths = [];
+const hellos = [];                              // every hello frame the agent sent the relay
 const frames = new Map();                       // id -> resolve
 
 const listen = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv.address().port)));
@@ -43,6 +44,7 @@ before(async () => {
     ws = sock;
     sock.on("message", (d) => {
       let f; try { f = JSON.parse(d); } catch { return; }
+      if (f.t === "hello") hellos.push(f);
       const done = frames.get(f.id);
       if (f.t === "res" && done) { frames.delete(f.id); done(f); }
     });
@@ -61,7 +63,8 @@ before(async () => {
       env: { ...process.env, METAL_MODE: "dev", METAL_NAME: "testbox",
              METAL_SUP_URL: `http://127.0.0.1:${supPort}`,
              METAL_RELAY_URL: `ws://127.0.0.1:${relayPort}/v1/fleet-tunnel`,
-             METAL_TUNNEL_TOKEN: "t", METAL_RAD_PORT: String(await freePort()) },
+             METAL_TUNNEL_TOKEN: "t", METAL_RAD_PORT: String(await freePort()),
+             METAL_PUBLIC_URL: "https://relay.test/t/testbox" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     log = "";
@@ -114,4 +117,20 @@ test("agent: dot segments cannot climb off the supervisor either", async () => {
   const r = await send("/x/abc/../../v1/health");
   assert.equal(r.status, 200);
   assert.equal(supPaths.at(-1), "/v1/health", "resolved against the supervisor, still the supervisor");
+});
+
+test("agent: after an ACCEPTED attest the hello (with publicUrl) is sent again, for the now-bound tunnel", async () => {
+  // On the attested path the hub binds the tunnel only after the quote verifies, so the hello sent at 'open' was
+  // dropped there and the box's registry id (keccak of publicUrl) was never stamped - the relay then routed its
+  // /x/<id> data path by fan-out instead of to the lease holder (found on the per-app isolation canary).
+  const before = hellos.length;
+  ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: "ab".repeat(48) }));
+  for (let i = 0; i < 50 && hellos.length === before; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(hellos.length, before + 1, "one more hello after the accepted attest");
+  assert.equal(hellos.at(-1).publicUrl, "https://relay.test/t/testbox");
+  assert.equal(hellos.at(-1).name, "testbox");
+  const n = hellos.length;
+  ws.send(JSON.stringify({ t: "attest-result", ok: false, reason: "measurement not on the allowlist" }));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(hellos.length, n, "a rejected attest says nothing more");
 });
