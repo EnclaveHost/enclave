@@ -39,6 +39,25 @@ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the pla
 // 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
 const RENEW_LEAD_MS = 15 * 60_000;
 
+/**
+ * Whether a claim can be paid for at all, and what to say when it cannot.
+ *
+ * A claim is a transaction, and a key with no gas cannot send one. That is a standing condition,
+ * not a transient error: it cannot change until somebody tops the key up, so a box that keeps
+ * trying learns nothing and says nothing useful. What it did instead, for 34 hours on nucbox-k11:
+ * re-take five lapsed leases every 30 seconds, 18,761 rounds, recording only that `renew` had
+ * reverted with "lease expired" - true, and not the reason. The reason was an empty operator key,
+ * and it appeared nowhere a tenant or an operator would look.
+ *
+ * Returns null when there is gas, or the sentence to record when there is not.
+ */
+export function claimGasBlock(gasRenewals, operator) {
+  if ((gasRenewals ?? 1) > 0) return null;
+  return "the operator key has no gas for a claim transaction: top up "
+    + (operator || "the operator address") + " on Base."
+    + " The lease is funded and the ledger would allow the claim; only the gas is missing.";
+}
+
 export class Host {
   constructor(cfg) {
     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
@@ -228,6 +247,17 @@ export class Host {
    * `invited` is the deploy console's target pick arriving as a claim hint that names this box -
    * the buyer choosing it, which is the consent the policy looks for on an older deployment.
    */
+  /**
+   * Record the gas block against one deployment, and SAY it once rather than every 30 seconds.
+   * The record is what the console and the tenant read; the log line is for whoever is watching.
+   */
+  #noGasToClaim(id, d) {
+    const reason = claimGasBlock(this.gasRenewals, chain.operatorAddress());
+    const rec = this.records.get(id);
+    if (!rec || rec.reason !== reason) this.log(`ledger: cannot take ${id.slice(0, 10)}: ${reason}`);
+    this.#record(id, { status: "queued", reason, appRef: d?.appRef || rec?.appRef || "" });
+    return reason;
+  }
   async consider(id, { force = false, invited = false } = {}) {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
@@ -257,9 +287,17 @@ export class Host {
                                           privateOk: !!this.cfg.sessionKid,
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
-    this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
     const live = Number(d.leaseUntil) * 1000 > Date.now();
+    // Gas BEFORE tracking it. A lease this box already holds and is serving stays tracked whatever
+    // the tank says - it is running work, and the renewal path has its own answer for an empty key.
+    // But taking on something new means sending a claim, and a box that cannot send one must not
+    // add it to the watch list: tracking it is what brought it back round every tick, to be stopped
+    // and re-taken and stopped again.
+    if (!(ours && live) && claimGasBlock(this.gasRenewals, chain.operatorAddress())) {
+      return { accepted: false, reason: this.#noGasToClaim(id, d) };
+    }
+    this.tracked.add(id); this.#saveTracked();
     if (!(ours && live)) {
       if (!chain.operatorAddress()) { this.#record(id, { status: "queued", reason: "no operator key on this box: cannot claim", appRef: d.appRef }); return { accepted: false, reason: "no operator key on this box" }; }
       if (!this.registered) { this.#record(id, { status: "queued", reason: "this box is not registered on the ledger yet", appRef: d.appRef }); return { accepted: false, reason: "not registered" }; }
@@ -899,6 +937,9 @@ export class Host {
         if (!rec || rec.reason !== refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d.appRef }); this.log(`ledger: not taking ${id.slice(0, 10)}: ${refuse}`); }
         continue;
       }
+      // ...and the same question here, before the take line. A "taking" line followed by nothing
+      // is worse than no line: it reads as progress.
+      if (claimGasBlock(this.gasRenewals, chain.operatorAddress())) { this.#noGasToClaim(id, d); continue; }
       if (!ours) claimed++;
       this.log(`ledger: taking ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
       await this.consider(id).catch((e) => this.log(`consider ${id.slice(0, 10)}: ${e.message}`));
@@ -932,6 +973,24 @@ export class Host {
       if (!ours) {
         if (rec.claimedAt && Date.now() - rec.claimedAt < 120_000) continue;
         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
+        continue;
+      }
+      // A lease that has already ENDED is not a renewal problem. The ledger closes a lease on its
+      // own clock and `renew` on a dead one reverts ("lease expired"), so retrying it each tick
+      // spent an RPC to be told the same thing and wrote a stop line for an app that had not been
+      // running since the first one. Stop once, name what actually failed, and leave it to the
+      // claim path - which is where an expired lease is picked up again, and where the gas answer
+      // lives.
+      if (!leaseLive) {
+        const ends = new Date(untilMs).toISOString().replace("T", " ").slice(0, 19);
+        const noGas = claimGasBlock(this.gasRenewals, chain.operatorAddress());
+        const why = noGas ? `the lease ended at ${ends} UTC and could not be renewed: ${noGas}`
+                          : `the lease ended at ${ends} UTC`;
+        // Stop what is running; if nothing is, stop WATCHING it instead of announcing a stop that
+        // is not happening. "stopped" for an app that stopped 34 hours ago is not news, and it was
+        // most of the 18,761 lines.
+        if (this.apps.has(id) || ["running", "provisioning", "claiming"].includes(rec.status)) await this.#stopApp(id, why);
+        else { this.#record(id, { status: "stopped", reason: why }); this.tracked.delete(id); this.#saveTracked(); }
         continue;
       }
       if (untilMs - Date.now() < RENEW_LEAD_MS) {
