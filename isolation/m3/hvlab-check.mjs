@@ -5,8 +5,9 @@
 // OWN handshake key and nonce. On this path the best verdict is "monitor-signed" (T0-hv: a launcher in the root
 // partition signs; the host is NOT excluded). Nothing here says "attested".
 //
-//   usage: node hvlab-check.mjs <launcher pubkey b64> <A port> <A appId> <B port> <B appId>
-//          A = a wasi:http app (enclave-catalog-bundle/1), B = hookbin, a wasi:cli command (/2)
+//   usage: node hvlab-check.mjs <launcher pubkey b64> <A port> <A appId> [<B port> <B appId>]
+//          A = a wasi:http app (enclave-catalog-bundle/1), B = hookbin, a wasi:cli command (/2). With A alone, every
+//          check that needs a second domain is SKIPPED and listed as such, never counted as passed.
 // prints one line per check (PASS/FAIL) and exits non-zero if any failed.
 import tls from "node:tls";
 import http from "node:http";
@@ -23,9 +24,11 @@ const expectRuntime = process.env.HVLAB_RUNTIME ? JSON.parse(readFileSync(proces
 const judge = (a) => judgeHv({ ...a, ...(expectRuntime ? { expectRuntime } : {}) });
 
 const [launcherKey, portA, appA, portB, appB] = process.argv.slice(2);
-if (!appB) { console.error("usage: node hvlab-check.mjs <launcher key> <A port> <A appId> <B port> <B appId>"); process.exit(2); }
-let failed = 0;
+if (!appA || (portB && !appB)) { console.error("usage: node hvlab-check.mjs <launcher key> <A port> <A appId> [<B port> <B appId>]"); process.exit(2); }
+const two = !!appB;
+let failed = 0, skipped = 0;
 const record = (name, ok, detail) => { if (!ok) failed++; console.log(`${ok ? "PASS" : "FAIL"} ${name}: ${detail}`); };
+const skip = (name) => { skipped++; console.log(`SKIP ${name}: needs a second domain`); };
 
 // One TLS session; every request on it is answered by the key this handshake saw.
 function session(port) {
@@ -56,7 +59,7 @@ async function attest(sess, expectApp) {
 }
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
-for (const [label, port, app] of [["A (wasi:http, /1)", portA, appA], ["B (wasi:cli socket server, /2)", portB, appB]]) {
+for (const [label, port, app] of [["A (wasi:http, /1)", portA, appA], ...(two ? [["B (wasi:cli socket server, /2)", portB, appB]] : [])]) {
   const s = await session(port);
   const { doc, v } = await attest(s, app);
   record(`${label}: judged on this handshake's key and a fresh nonce`, v.verdict === "monitor-signed",
@@ -78,7 +81,8 @@ for (const [label, port, app] of [["A (wasi:http, /1)", portA, appA], ["B (wasi:
   record("A: the app answers through the domain's TLS", r.status === 200 && r.body.length > 0, `${r.status} ${JSON.stringify(r.body.slice(0, 40))}`);
   s.close();
 }
-{
+if (!two) { skip("B: webhook captured inside the guest and read back"); skip("B: the app is told no X-Forwarded-For"); }
+else {
   const s = await session(portB);
   const bin = "hv" + randomBytes(4).toString("hex"), nonce = randomBytes(8).toString("hex");
   const mk = await s.req("POST", "/api/bins", null, { "x-bin-id": bin });
@@ -114,31 +118,39 @@ if (process.env.HVLAB_NAME_A) {
   record("A: a CSR for exactly the launcher's name, on the handshake key", r.status === 200 && der.includes(Buffer.from(process.env.HVLAB_NAME_A)) && spkiOk,
     `${r.status}, name in CSR ${der.includes(Buffer.from(process.env.HVLAB_NAME_A))}, key matches ${spkiOk}`);
   s.close();
-  const t = await session(portB);
-  const rb = await t.req("GET", "/.well-known/enclave-csr");
-  record("B (loaded with no name): no CSR", rb.status === 404, `${rb.status} ${rb.body.trim().slice(0, 80)}`);
-  t.close();
+  if (two) {
+    const t = await session(portB);
+    const rb = await t.req("GET", "/.well-known/enclave-csr");
+    record("B (loaded with no name): no CSR", rb.status === 404, `${rb.status} ${rb.body.trim().slice(0, 80)}`);
+    t.close();
+  } else skip("B (loaded with no name): no CSR");
 }
 
 // crossed identities: each refused by the judge, never served as the other
-{
+if (two) {
   const s = await session(portB);
   const { v } = await attest(s, appA);
   record("B's domain judged as A's app: refused", v.verdict === "reject" && v.reasons.some((x) => /different app/.test(x)), `${v.verdict}: ${v.reasons.join("; ")}`);
   s.close();
-}
+} else skip("B's domain judged as A's app: refused");
 {
-  const s = await session(portA), t = await session(portB);
+  const s = await session(portA), t = two ? await session(portB) : null;
   const nonce = randomBytes(32);
   const r = await s.req("GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`);
-  const v = judge({ doc: JSON.parse(r.body), spki: t.spki, nonce, expectedAppSha256: appA, launcherKey });
-  record("A's document presented on B's key: refused", v.verdict === "reject", `${v.verdict}: ${v.reasons.join("; ")}`);
+  if (t) {
+    const v = judge({ doc: JSON.parse(r.body), spki: t.spki, nonce, expectedAppSha256: appA, launcherKey });
+    record("A's document presented on B's key: refused", v.verdict === "reject", `${v.verdict}: ${v.reasons.join("; ")}`);
+  } else {
+    // with one domain, "another key" is any key that is not this handshake's
+    const v = judge({ doc: JSON.parse(r.body), spki: randomBytes(91), nonce, expectedAppSha256: appA, launcherKey });
+    record("A's document presented on another key: refused", v.verdict === "reject", `${v.verdict}: ${v.reasons.join("; ")}`);
+  }
   const v2 = judge({ doc: JSON.parse(r.body), spki: s.spki, nonce: randomBytes(32), expectedAppSha256: appA, launcherKey });
   record("A's document replayed for another nonce: refused", v2.verdict === "reject", `${v2.verdict}`);
   const other = randomBytes(32).toString("base64");
   const v3 = judge({ doc: JSON.parse(r.body), spki: s.spki, nonce, expectedAppSha256: appA, launcherKey: other });
   record("A's document under an untrusted launcher key: not monitor-signed", v3.verdict !== "monitor-signed", `${v3.verdict}`);
-  s.close(); t.close();
+  s.close(); if (t) t.close();
 }
-console.log(failed ? `HVLAB-CHECK ${failed} FAILED` : "HVLAB-CHECK ALL PASS");
+console.log(failed ? `HVLAB-CHECK ${failed} FAILED` : skipped ? `HVLAB-CHECK PASS WITH ${skipped} SKIPPED (one domain)` : "HVLAB-CHECK ALL PASS");
 process.exit(failed ? 1 : 0);
