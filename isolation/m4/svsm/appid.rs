@@ -87,7 +87,8 @@ pub const APPID_PROTOCOL_VERSION_MAX: u32 = 2;
 //
 // The descriptor is three little-endian u64s, and each call reads only the fields it needs:
 //
-//     +0   a    GET_REPORT: GPA of the 32-byte bind   ADMIT: GPA of the PAGE LIST   WHOAMI/STATUS: out GPA
+//     +0   a    GET_REPORT: GPA of the 32-byte NONCE  ADMIT: GPA of the PAGE LIST   WHOAMI/STATUS: out GPA
+//                REGISTER_KEY: GPA of the transport key SPKI
 //     +8   b    GET_REPORT: GPA of the report buffer  ADMIT: the artifact's total length in bytes
 //     +16  c    GET_REPORT: that buffer's length in, bytes written out   ADMIT: which artifact
 //
@@ -106,6 +107,9 @@ const SVSM_APPID_WHOAMI: u32 = 1;
 const SVSM_APPID_ADMIT: u32 = 2;
 /// Which artifacts this plane has admitted, so a guest can tell WHY it is refused. Never gated.
 const SVSM_APPID_STATUS: u32 = 3;
+/// Register this plane's transport key, once. a = GPA of the SPKI, b = its length.
+/// After this the SVSM computes the report binding itself, so GET_REPORT carries only a nonce.
+const SVSM_APPID_REGISTER_KEY: u32 = 4;
 
 const BIND_LEN: usize = 32;
 const APPID_LEN: usize = 32;
@@ -225,6 +229,36 @@ const E_ALREADY_ADMITTED: u64 = 5;
 const E_FREEZE_FAILED: u64 = 6;
 const E_CHANGED_UNDER_US: u64 = 7;
 const E_RECORD_FAILED: u64 = 8;
+const E_NO_KEY: u64 = 9;
+const E_KEY_ALREADY_SET: u64 = 10;
+const E_NO_RUNTIME_ID: u64 = 11;
+
+/// The ABI/2 RuntimeID for each plane: sha256 of the canonical JSON runtime identity
+/// (isolation/contract/runtime.go RuntimeID), from ENCLAVE_RUNTIME_IDS, in plane order.
+///
+/// Compiled in, so it is in the measurement, which is what makes it the SVSM's word rather than the guest's.
+/// B5 in the review was exactly this: the runtime LABEL in report_data[0:32] was the guest's to state, because
+/// the front computed Bind2 itself over an identity file inside an unmeasured image. Folding it in here means a
+/// verifier recomputes the binding from an identity the measured image asserts, and a guest cannot claim a
+/// different runtime than the one this image was built for.
+static RUNTIME_ID_TABLE: [[u8; APPID_LEN]; VMPL_MAX] = build_table(option_env!("ENCLAVE_RUNTIME_IDS"));
+
+/// The maximum transport-key SPKI this SVSM will record. A P-256 SubjectPublicKeyInfo is 91 bytes; the bound
+/// exists so a plane cannot make the SVSM hold an arbitrary amount of its memory.
+const MAX_SPKI: usize = 256;
+
+/// The transport key registered for each plane, recorded ONCE and never replaced.
+///
+/// The whole point is that the mapping from a key to an app is fixed before the plane serves anything: the SVSM
+/// computes the binding itself over THIS key, so a report for this plane can only ever carry the key registered
+/// at its start. A caller cannot present a different key later, and no compromise after registration can
+/// re-label a live domain. The residual is a plane that registers the wrong key at start, which is the TCB
+/// statement M3a already makes about code inside the plane - and which A4 is what removes.
+static REGISTERED_KEY: [SpinLock<([u8; MAX_SPKI], usize)>; VMPL_MAX] =
+    [const { SpinLock::new(([0u8; MAX_SPKI], 0)) }; VMPL_MAX];
+
+/// The ABI/2 binding domain separator, byte for byte isolation/contract/runtime.go bind2Domain.
+const BIND2_DOMAIN: &[u8] = b"enclave-bind-v2\n";
 
 /// The artifacts a plane's identity covers. Both must be admitted before this SVSM speaks for the plane.
 const KIND_BUNDLE: usize = 0;
@@ -577,6 +611,56 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     Ok(())
 }
 
+/// Record this plane's transport key. Once, and never replaced.
+fn appid_register_key(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqError> {
+    require_owning_plane(vmpl)?;
+    let desc = read_desc(params.rcx)?;
+    let len = desc[1] as usize;
+    if len == 0 || len > MAX_SPKI {
+        return Err(SvsmReqError::invalid_parameter());
+    }
+    let gpa = PhysAddr::from(desc[0]);
+    let mut held = REGISTERED_KEY[vmpl].lock();
+    if held.1 != 0 {
+        // A second key would let a caller re-point the binding after the first was vouched for, which is the
+        // whole property this registration exists to fix.
+        return Err(SvsmReqError::protocol(E_KEY_ALREADY_SET));
+    }
+    let mut buf = [0u8; MAX_SPKI];
+    copy_slice_from_guest(gpa, &mut buf[..len]).map_err(|_| SvsmReqError::invalid_parameter())?;
+    held.0 = buf;
+    held.1 = len;
+    log::info!("SVSM appid: plane {vmpl} registered a {len}-byte transport key");
+    Ok(())
+}
+
+/// The ABI/2 binding, computed HERE: sha256("enclave-bind-v2\n" || SPKI || nonce || RuntimeID).
+///
+/// Byte for byte isolation/contract/runtime.go Bind2, over the key registered for this plane and a RuntimeID
+/// compiled into this measured image. The caller supplies only the nonce. That is the difference from ABI/2 as
+/// the front computed it: there, both the key and the runtime identity came from an unmeasured image and the
+/// binding was the guest's word; here a report for this plane can only carry the key it registered at start and
+/// the runtime this image was built for.
+fn bind2_for_plane(vmpl: usize, nonce: &[u8; BIND_LEN]) -> Result<[u8; BIND_LEN], SvsmReqError> {
+    let runtime_id = RUNTIME_ID_TABLE[vmpl];
+    if runtime_id == [0u8; APPID_LEN] {
+        return Err(SvsmReqError::protocol(E_NO_RUNTIME_ID));
+    }
+    let held = REGISTERED_KEY[vmpl].lock();
+    if held.1 == 0 {
+        return Err(SvsmReqError::protocol(E_NO_KEY));
+    }
+    let mut h = Sha256::new();
+    h.update(BIND2_DOMAIN);
+    h.update(&held.0[..held.1]);
+    h.update(nonce);
+    h.update(runtime_id);
+    let out = h.finalize();
+    let mut bind = [0u8; BIND_LEN];
+    bind.copy_from_slice(&out);
+    Ok(bind)
+}
+
 /// What this plane has admitted and what it still owes, so a guest can tell WHY it is refused without being
 /// told anything it could not compute itself.
 fn appid_status(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqError> {
@@ -587,6 +671,8 @@ fn appid_status(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqEr
     out[1] = KINDS_REQUIRED;
     out[2] = KIND_COUNT as u8;
     out[3] = vmpl as u8;
+    out[4] = if REGISTERED_KEY[vmpl].lock().1 != 0 { 1 } else { 0 };
+    out[5] = if RUNTIME_ID_TABLE[vmpl] != [0u8; APPID_LEN] { 1 } else { 0 };
     write_out(desc[0], &out)
 }
 
@@ -596,10 +682,15 @@ fn appid_get_report(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmR
     require_owning_plane(vmpl)?;
     require_admitted(vmpl)?;
     let desc = read_desc(params.rcx)?;
-    let bind = read_bind(desc[0])?;
+    // The caller supplies the verifier's NONCE and nothing else. It used to supply the whole 32-byte binding,
+    // which meant the key and the runtime identity inside it were the guest's to choose; both now come from
+    // this measured image or from what the plane registered at its start.
+    let nonce = read_bind(desc[0])?;
+    let bind = bind2_for_plane(vmpl, &nonce)?;
     let app = app_id_for_plane(vmpl)?;
 
-    // report_data, assembled HERE: the caller's bind, and the app ID this plane is measured to be.
+    // report_data, assembled HERE: a binding over the plane's registered key, the caller's nonce and this
+    // image's RuntimeID, and the app ID this plane is measured to be.
     let mut report_data = [0u8; BIND_LEN + APPID_LEN];
     report_data[..BIND_LEN].copy_from_slice(&bind);
     report_data[BIND_LEN..].copy_from_slice(&app);
@@ -647,6 +738,7 @@ pub fn appid_protocol_request(
         SVSM_APPID_WHOAMI => appid_whoami(vmpl, params),
         SVSM_APPID_ADMIT => appid_admit(vmpl, params),
         SVSM_APPID_STATUS => appid_status(vmpl, params),
+        SVSM_APPID_REGISTER_KEY => appid_register_key(vmpl, params),
         _ => Err(SvsmReqError::unsupported_call()),
     }
 }
@@ -824,12 +916,118 @@ mod tests {
 
     // ---- freeze: what the owner keeps, and that neighbours are never granted anything ----
 
+    // ---- the key registered at plane start, and the binding the SVSM computes over it ----
+
+    fn set_key(vmpl: usize, spki: &[u8]) {
+        let mut held = REGISTERED_KEY[vmpl].lock();
+        held.0 = [0u8; MAX_SPKI];
+        held.0[..spki.len()].copy_from_slice(spki);
+        held.1 = spki.len();
+    }
+
+    fn clear_key(vmpl: usize) {
+        REGISTERED_KEY[vmpl].lock().1 = 0;
+    }
+
+    #[test]
+    fn no_binding_without_a_registered_key() {
+        clear_key(GUEST_VMPL);
+        let e = bind2_for_plane(GUEST_VMPL, &[7u8; BIND_LEN]).unwrap_err();
+        // either refusal is fail-closed; which one depends on whether this build names a RuntimeID
+        let expected_no_key = SvsmReqError::protocol(E_NO_KEY);
+        let expected_no_rt = SvsmReqError::protocol(E_NO_RUNTIME_ID);
+        assert!(
+            format!("{e:?}") == format!("{expected_no_key:?}")
+                || format!("{e:?}") == format!("{expected_no_rt:?}"),
+            "a plane with no registered key must get no binding, got {e:?}"
+        );
+    }
+
+    /// A VECTOR from the contract's own implementation, not a reference recomputed beside the code.
+    ///
+    /// Produced by isolation/contract/runtime.mjs bind2 - which agrees with runtime.go and the Rust launcher on
+    /// every vectors.json case - over spki[i] = (i*7+3)&0xff for 91 bytes, nonce[i] = (i*5+1)&0xff for 32, and
+    /// RuntimeID = ab repeated 32 times. Recomputing the rule here would pass while the SVSM's computation
+    /// drifted from the contract's, which is the shape an earlier review caught twice; a fixed vector cannot.
+    const BIND2_VECTOR_RID_AB: [u8; BIND_LEN] = [
+        0x0a, 0x73, 0x6a, 0xa6, 0x80, 0xa5, 0x68, 0xd9, 0xd5, 0x51, 0x67, 0x72, 0x5b, 0x57, 0x03, 0xa3,
+        0x8a, 0xf9, 0x2e, 0xa1, 0xaa, 0x69, 0xab, 0xd3, 0xec, 0x39, 0xc6, 0x84, 0xa3, 0xbb, 0x27, 0xb8,
+    ];
+
+    #[test]
+    fn the_binding_matches_the_contracts_own_bind2_vector() {
+        // only meaningful when this build's RuntimeID is the vector's; otherwise the refusal path is covered
+        if RUNTIME_ID_TABLE[GUEST_VMPL] != [0xabu8; APPID_LEN] {
+            return;
+        }
+        let spki: [u8; 91] = core::array::from_fn(|i| (i * 7 + 3) as u8);
+        let nonce: [u8; BIND_LEN] = core::array::from_fn(|i| (i * 5 + 1) as u8);
+        set_key(GUEST_VMPL, &spki);
+        let got = bind2_for_plane(GUEST_VMPL, &nonce).expect("a registered key and a RuntimeID must bind");
+        assert_eq!(
+            got, BIND2_VECTOR_RID_AB,
+            "the SVSM's binding must equal the contract's Bind2 over the same inputs, or every honest domain \
+             looks like a liar to a verifier that recomputes it"
+        );
+        clear_key(GUEST_VMPL);
+    }
+
+    #[test]
+    fn a_different_key_or_nonce_or_runtime_gives_a_different_binding() {
+        if RUNTIME_ID_TABLE[GUEST_VMPL] == [0u8; APPID_LEN] {
+            return;
+        }
+        let nonce = [9u8; BIND_LEN];
+        set_key(GUEST_VMPL, &[1u8; 91]);
+        let a = bind2_for_plane(GUEST_VMPL, &nonce).unwrap();
+        clear_key(GUEST_VMPL);
+        set_key(GUEST_VMPL, &[2u8; 91]);
+        let b = bind2_for_plane(GUEST_VMPL, &nonce).unwrap();
+        assert_ne!(a, b, "a different transport key must give a different binding");
+        let c = bind2_for_plane(GUEST_VMPL, &[8u8; BIND_LEN]).unwrap();
+        assert_ne!(b, c, "a different nonce must give a different binding");
+        clear_key(GUEST_VMPL);
+    }
+
+    #[test]
+    fn a_key_is_registered_once_and_the_registration_is_per_plane() {
+        // the property: no compromise after plane start can re-point the binding at another key
+        clear_key(GUEST_VMPL);
+        set_key(GUEST_VMPL, &[3u8; 91]);
+        assert_ne!(REGISTERED_KEY[GUEST_VMPL].lock().1, 0);
+        for v in 0..VMPL_MAX {
+            if v == GUEST_VMPL {
+                continue;
+            }
+            assert_eq!(
+                REGISTERED_KEY[v].lock().1, 0,
+                "plane {v} must have no key of its own from plane {GUEST_VMPL}'s registration"
+            );
+        }
+        clear_key(GUEST_VMPL);
+    }
+
+    #[test]
+    fn the_spki_bound_is_the_bytes_registered_not_a_digest_of_them() {
+        // Registering a digest would make "the report carries the key this plane registered" a statement about
+        // a hash rather than about the key, and a verifier recomputes Bind2 over the SPKI its own handshake saw.
+        assert!(MAX_SPKI >= 91, "a P-256 SubjectPublicKeyInfo is 91 bytes and must fit");
+        clear_key(GUEST_VMPL);
+        let spki: [u8; 91] = core::array::from_fn(|i| i as u8);
+        set_key(GUEST_VMPL, &spki);
+        let held = REGISTERED_KEY[GUEST_VMPL].lock();
+        assert_eq!(&held.0[..held.1], &spki[..], "the SPKI itself is recorded");
+        drop(held);
+        clear_key(GUEST_VMPL);
+    }
+
     #[test]
     fn every_refusal_has_its_own_code() {
         // a harness that can only see "refused" cannot tell a finding from a bug in our own staging
         let codes = [
             E_NOT_OWNING_PLANE, E_PLANE_UNASSIGNED, E_NOT_ADMITTED, E_DIGEST_MISMATCH,
             E_ALREADY_ADMITTED, E_FREEZE_FAILED, E_CHANGED_UNDER_US, E_RECORD_FAILED,
+            E_NO_KEY, E_KEY_ALREADY_SET, E_NO_RUNTIME_ID,
         ];
         for (i, a) in codes.iter().enumerate() {
             assert_ne!(*a, 0, "0 would read as success");

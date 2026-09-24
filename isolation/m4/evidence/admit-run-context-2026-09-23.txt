@@ -1,10 +1,11 @@
 M4b admission on hardware, warden-host, 2026-09-23
 
 IGVM digest (igvmmeasure, from the shipped IGVM)
-  839B88FCD2B8B45B7C05F1E25FFD972FFE81D5207198DA277D2E78E99E5401545767BFE9AA02913BC03DBE23D2F51B0F
+  796AD982D4DE386D47F15D760EF188A463D3BAE01F69663AF90018044AE353F5D14A9FDBD48AF27EEB2CE36BEB85CFCA
 built with
   make RELEASE=1 FW_FILE=/usr/share/edk2-ovmf/x64/OVMF.4m.fd igvm
   ENCLAVE_APP_IDS=8773d33454df65f420cf3923344e05e1bd28db15568ba49f4c1dfe111ff12685,ce52712f14ed972c66a97c8ca046d69f0c4133d9b7a7fdb27d4ea307dd310b91
+  ENCLAVE_RUNTIME_IDS=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8 (x2, the ABI/2 RuntimeID)
   ENCLAVE_RUNTIME_SHA256=b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451 (x2)
   coconut-svsm/svsm at d37095e + PR 1209 + isolation/m4/svsm/{appid.rs,0001-wire-appid-protocol.diff}
 launched with
@@ -17,9 +18,11 @@ guest
 Verified from the signed report in admit-good-2026-09-23.txt (parsed, not eyeballed):
   response status 0, report_size 1184
   VMPL field         = 2                      the report names the plane, not VMPL0
-  report_data[0:32]  = the caller's bind      a1b2...8f90 repeated
+  report_data[0:32]  = the SVSM's OWN Bind2 over the key this plane registered, the caller's nonce and the
+                       RuntimeID compiled into this image: b303eadb4d01cf19cc635e883e52e9542e9aff8aa616...19e6
+                       recomputed independently by isolation/contract/runtime.mjs bind2 and equal byte for byte
   report_data[32:64] = ce52712f...b91         the AppID the SVSM holds for plane 2
-  measurement        = 839B88FCD2B8B45B7C05F1E25FFD972FFE81D5207198DA277D2E78E99E5401545767BFE9AA02913BC03DBE23D2F51B0F
+  measurement        = 796AD982D4DE386D47F15D760EF188A463D3BAE01F69663AF90018044AE353F5D14A9FDBD48AF27EEB2CE36BEB85CFCA
                        equal to the igvmmeasure digest above
 
 LAYOUT an allowlist entry for this digest must carry (see svsm/README.md, condition 3): a report differs
@@ -27,7 +30,7 @@ between a dedicated and a shared plane only by the VMPL field, so the shape has 
 
   { "plane": 2, "shape": "dedicated", "slots": 1,
     "admitted": { "bundle": "ce52712f...0b91", "runtime": "b77aecdb...f451" },
-    "guest_vmpck": "none",
+    "guest_vmpck": "none", "runtime_id": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
     "report_paths": ["svsm protocol 6", "svsm protocol 1 (gated on admission)"] }
 
 Plane 1 is named in ENCLAVE_APP_IDS but unreachable: require_owning_plane serves only GUEST_VMPL.
