@@ -12,8 +12,9 @@
 // the newest policy serial and digest, the release key, the staged update. Every change to it is a cross-process
 // compare-and-swap committed BEFORE anything is sent; a 0.1.0 state FILE given as --state is imported into <file>.d once.
 // `run` prints one JSON line per token line ({"line":...}) and ends with {"result":...}; exit 0 only on a complete answer.
-// `update` verifies a signed, countersigned manifest and the delivered bytes, writes them beside this client as
-// pvm-client-<version>.mjs and commits that version as staged -- only if it is newer than anything staged or running.
+// `update` verifies a signed, countersigned manifest and the delivered bytes, publishes them beside this client under a
+// content-addressed name, pvm-client-<version>-<sha256>.mjs (never replacing a file: src/update.js), and commits that
+// version as staged -- only if it is newer than anything staged or running; the same artifact again changes nothing.
 // The running process never imports them; `staged` reports what the next start should run and whether its bytes still
 // match.
 import fs from "node:fs";
@@ -73,7 +74,7 @@ async function main() {
     try { env = await fetchJson(arg("--manifest")); bytes = await fetchBytes(arg("--artifact")); } catch (e) { return out({ update: { ok: false, reasons: [`not delivered: ${e.message}`] } }), 1; }
     const r = await stageUpdate(store, env, bytes, { dir: arg("--install-dir", path.dirname(process.argv[1])) });
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
-    return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen } }), 0;
+    return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...(r.already ? { already: true } : {}) } }), 0;
   }
   if (cmd === "state") {   // the committed state, for the user and for black-box tests (so they never read the layout)
     const l = store.latest();

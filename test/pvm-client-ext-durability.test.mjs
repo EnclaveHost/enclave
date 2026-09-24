@@ -114,7 +114,7 @@ test("the finding, in a real browser on the shipped 0.1.0 extension: killed whil
   assert.equal(o.rollback, "reached the carrier", "0.1.0 sent the evidence request under the older policy");
 });
 
-test("0.2.0 in a real browser: the policy is committed before the evidence request; killed while stalled, the floor holds and the older policy is refused", { skip, timeout: 180000 }, async () => {
+test("since 0.2.0, in a real browser: the policy is committed before the evidence request; killed while stalled, the floor holds and the older policy is refused", { skip, timeout: 180000 }, async () => {
   const o = await stallKillRollback(fs.readFileSync(ZIP), true);
   console.log("0.2.0", JSON.stringify(o));
   assert.equal(o.committedBeforeEvidence, 3, "policy-committed (serial 3) was posted before the carrier saw the evidence request");
@@ -122,7 +122,7 @@ test("0.2.0 in a real browser: the policy is committed before the evidence reque
   assert.match(o.rollback, /rollback/);
 });
 
-test("0.2.0 in a real browser: two tabs with an older and a newer policy, in either order, serialize under the lock -- the floor ends at the newer", { skip, timeout: 240000 }, async () => {
+test("since 0.2.0, in a real browser: two tabs with an older and a newer policy, in either order, serialize under the lock -- the floor ends at the newer", { skip, timeout: 240000 }, async () => {
   const { ext, id } = unpack(fs.readFileSync(ZIP)), L = lab(), C = heldCarrier(), P = key(), R = key();
   await Promise.all([new Promise((r) => L.srv.on("listening", r)), new Promise((r) => C.srv.on("listening", r))]);
   try {

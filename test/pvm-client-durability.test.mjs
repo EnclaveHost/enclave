@@ -13,6 +13,7 @@ import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
 import { FileStore, StoreError } from "../shielded/anchor/avf/client/src/store-file.js";
 import { ExtStore } from "../shielded/anchor/avf/client/src/store-ext.js";
 import { acceptPolicy } from "../shielded/anchor/avf/client/src/client.js";
+import { stageUpdate } from "../shielded/anchor/avf/client/src/update.js";
 import { initialState, VERSION_MARKER } from "../shielded/anchor/avf/client/src/trust.js";
 import { heldCarrier } from "./fixtures/held-carrier.mjs";
 
@@ -84,7 +85,7 @@ test("the finding, reproduced on the shipped 0.1.0 artifact: a kill at a stalled
   assert.equal(o.finalSerial, 3, "0.1.0: the older run wrote last and the floor went back from 4 to 3");
 });
 
-test("0.2.0: the policy is committed before the evidence request; a kill at a stalled carrier keeps the new floor; the rollback and the overlapping older run are refused", async () => {
+test("since 0.2.0: the policy is committed before the evidence request; a kill at a stalled carrier keeps the new floor; the rollback and the overlapping older run are refused", async () => {
   const o = await barrierRun(CLI, "020");
   assert.equal(o.serialAtBarrier, 2, "committed before the evidence request left");
   assert.equal(o.serialAfterKill, 2);
@@ -97,12 +98,13 @@ test("0.2.0: the policy is committed before the evidence request; a kill at a st
 function driver(args) { return run(DRIVER, args); }
 async function reached(barrier, name) { for (let i = 0; i < 2000; i++) { if (fs.existsSync(path.join(barrier, `${name}.reached`))) return JSON.parse(fs.readFileSync(path.join(barrier, `${name}.reached`), "utf8")); await wait(10); } throw new Error(`${name} never reached its barrier`); }
 const go = (barrier, name) => fs.writeFileSync(path.join(barrier, `${name}.go`), "");
-async function pair(store, first, second) {   // both read the same generation, then commit in the order given
+async function pair(store, first, second, between = () => {}) {   // both read the same generation, then commit in the order given
   const barrier = tmp("pvm-bar-");
   const kids = Object.fromEntries([first, second].map((d) => [d.name, driver([...d.args(barrier)])]));
   const r1 = await reached(barrier, first.name), r2 = await reached(barrier, second.name);
   assert.equal(r1.serial, r2.serial, "both read the same state before either committed");
   go(barrier, first.name); const o1 = (await kids[first.name].done).lines[0];
+  await between();
   go(barrier, second.name); const o2 = (await kids[second.name].done).lines[0];
   return { [first.name]: o1, [second.name]: o2, state: store.latest().state, gen: store.latest().gen };
 }
@@ -150,26 +152,142 @@ test("processes: key rotation racing its own successor and a rollback under the 
 });
 
 // updates: artifacts carrying their own version line, manifests release-signed and policy-countersigned
-function updateFiles(dir, P, R, version, over = {}) {
-  const bytes = Buffer.from(`${VERSION_MARKER}${version} (LAB) */\nexport const v = ${JSON.stringify(version)};\n`);
-  const af = path.join(dir, `a-${version}.mjs`); fs.writeFileSync(af, bytes);
+function updateFiles(dir, P, R, version, over = {}, variant = "") {   // variant: other bytes under the same version (a re-signed build)
+  const bytes = Buffer.from(`${VERSION_MARKER}${version} (LAB) */\nexport const v = ${JSON.stringify(version)};${variant ? ` // ${variant}` : ""}\n`);
+  const af = path.join(dir, `a-${version}-${Math.random().toString(16).slice(2)}.mjs`); fs.writeFileSync(af, bytes);
   const t = JSON.stringify({ type: "enclave-pvm-client-update", artifact: "pvm-client.mjs", version, artifactSha256: sha(bytes), size: bytes.length, sourceCommit: "ab".repeat(20),
     notAfter: iso(Date.now() + 3600e3), releaseKey: R.pub, policyKey: P.pub, nextReleaseKey: null, ...over });
   const mf = path.join(dir, `m-${version}-${Math.random().toString(16).slice(2)}.json`);
   fs.writeFileSync(mf, JSON.stringify({ manifest: Buffer.from(t).toString("base64"), releaseSig: esig(t, "enclave-pvm-client-update-v1\n", R), policySig: esig(t, "enclave-pvm-client-update-countersign-v1\n", P) }));
-  return { mf, af };
+  return { mf, af, bytes, sha: sha(bytes), name: `pvm-client-${version}-${sha(bytes)}.mjs`, env: JSON.parse(fs.readFileSync(mf, "utf8")) };
 }
+// what an install directory holds (published artifacts and any temp file), and one file's identity: its bytes AND the file itself
+const published = (d) => fs.readdirSync(d).filter((n) => /^\.?pvm-client-/.test(n)).sort();
+const fileId = (f) => { const st = fs.statSync(f); return { sha: sha(fs.readFileSync(f)), ino: st.ino, mtimeMs: st.mtimeMs, mode: st.mode & 0o777 }; };
 const udrv = (name, st, u, installDir) => ({ name, args: (b) => ["update", st.store.dir, u.mf, u.af, b, name, installDir, "0.2.0"] });
 
 test("processes: two updates staged concurrently -- the newer stays staged, the older cannot replace it, whatever the order", async () => {
   for (const order of ["newer-first", "older-first"]) {
     const st = installed(1); const inst = tmp("pvm-inst-");
-    const u3 = udrv("u3", st, updateFiles(st.dir, st.P, st.R, "0.3.0"), inst), u4 = udrv("u4", st, updateFiles(st.dir, st.P, st.R, "0.4.0"), inst);
-    const r = await pair(st.store, ...(order === "newer-first" ? [u4, u3] : [u3, u4]));
+    const f3 = updateFiles(st.dir, st.P, st.R, "0.3.0"), f4 = updateFiles(st.dir, st.P, st.R, "0.4.0");
+    const u3 = udrv("u3", st, f3, inst), u4 = udrv("u4", st, f4, inst);
+    let firstId;
+    const r = await pair(st.store, ...(order === "newer-first" ? [u4, u3] : [u3, u4]), () => { firstId = fileId(path.join(inst, order === "newer-first" ? f4.name : f3.name)); });
     assert.equal(r.state.staged.version, "0.4.0", `${order}: the newer is staged`);
+    assert.equal(r.state.staged.file, f4.name);
     assert.equal(sha(fs.readFileSync(path.join(inst, r.state.staged.file))), r.state.staged.sha256, "the staged file's bytes are the recorded ones");
+    assert.deepEqual(fileId(path.join(inst, order === "newer-first" ? f4.name : f3.name)), firstId, "the first commit's file is untouched by the second stager");
+    assert.deepEqual(published(inst), [f3.name, f4.name].sort(), "each published under its own name; no temp file left");
     if (order === "newer-first") { assert.equal(r.u3.ok, false); assert.match(r.u3.reason, /already staged/); } else assert.equal(r.u3.ok, true);
   }
+});
+
+test("processes: the same version with OTHER bytes (a re-signed build), concurrently, both orders -- the first commit stands, the other is refused and cannot touch the staged file", async () => {
+  for (const order of ["a-first", "b-first"]) {
+    const st = installed(1); const inst = tmp("pvm-inst-");
+    const fa = updateFiles(st.dir, st.P, st.R, "0.3.0", {}, "build a"), fb = updateFiles(st.dir, st.P, st.R, "0.3.0", {}, "build b");
+    assert.notEqual(fa.sha, fb.sha);
+    const [win, lose] = order === "a-first" ? [fa, fb] : [fb, fa];
+    let winId;
+    const r = await pair(st.store, ...(order === "a-first" ? [udrv("a", st, fa, inst), udrv("b", st, fb, inst)] : [udrv("b", st, fb, inst), udrv("a", st, fa, inst)]),
+                         () => { winId = fileId(path.join(inst, win.name)); });
+    const [ow, ol] = order === "a-first" ? [r.a, r.b] : [r.b, r.a];
+    assert.equal(ow.ok, true); assert.equal(ol.ok, false);
+    assert.match(ol.reason, /already staged: 0\.3\.0 cannot replace it/); assert.match(ol.reason, /second signed artifact under the same version/);
+    assert.equal(r.gen, 2, "one commit"); assert.equal(r.state.staged.sha256, win.sha); assert.equal(r.state.staged.file, win.name);
+    assert.deepEqual(fileId(path.join(inst, win.name)), winId, `${order}: the staged file -- bytes, inode, mtime, mode -- is exactly what the winner committed`);
+    assert.equal(winId.sha, win.sha); assert.equal(winId.mode, 0o444, "published read-only");
+    assert.deepEqual(published(inst), [fa.name, fb.name].sort(), "the loser's bytes sit under their own name, named by no state; no temp file");
+  }
+});
+
+test("processes: the SAME artifact staged twice, concurrently -- both succeed, one commit, the file is published once and never rewritten", async () => {
+  const st = installed(1); const inst = tmp("pvm-inst-"); const f = updateFiles(st.dir, st.P, st.R, "0.3.0");
+  let id;
+  const r = await pair(st.store, udrv("x", st, f, inst), udrv("y", st, f, inst), () => { id = fileId(path.join(inst, f.name)); });
+  assert.equal(r.x.ok, true); assert.equal(r.y.ok, true, JSON.stringify(r.y)); assert.equal(r.y.already, true, "the second is idempotent");
+  assert.equal(r.gen, 2, "one commit"); assert.deepEqual(fileId(path.join(inst, f.name)), id); assert.deepEqual(published(inst), [f.name]);
+});
+
+// the update finding (the verifier session's review of 0.2.0), black-box on the shipped bytes and on the current build
+async function sameVersionRestage(bin) {
+  const dir = tmp("pvm-restage-"), st = path.join(dir, "state"), inst = path.join(dir, "inst"), P = key(), R = key(); fs.mkdirSync(inst);
+  await run(bin, ["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp]).done;
+  const upd = async (f) => (await run(bin, ["update", "--state", st, "--manifest", f.mf, "--artifact", f.af, "--install-dir", inst]).done);
+  const fa = updateFiles(dir, P, R, "0.3.0", {}, "build a"), fb = updateFiles(dir, P, R, "0.3.0", {}, "build b");
+  const a = await upd(fa), b = await upd(fb), staged = (await run(bin, ["staged", "--state", st, "--install-dir", inst]).done);
+  return { a: a.lines.at(-1).update, b: b.lines.at(-1).update, bCode: b.code, staged: staged.lines[0].staged, files: published(inst) };
+}
+test("the update finding, reproduced on the shipped 0.2.0 artifact and refused by the current one: a refused same-version re-stage must leave the staged bytes untouched", async (t) => {
+  const old = path.join(tmp("pvm-020-"), "pvm-client-0.2.0.mjs");
+  try { fs.writeFileSync(old, execFileSync("git", ["show", "6784f671:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: new URL("..", import.meta.url).pathname })); }
+  catch { t.skip("6784f671 not in this checkout"); return; }
+  assert.equal(sha(fs.readFileSync(old)), "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6");
+  const o = await sameVersionRestage(old);
+  assert.equal(o.a.ok, true); assert.equal(o.b.ok, false); assert.notEqual(o.bCode, 0); assert.match(o.b.reasons[0], /already staged: 0\.3\.0 cannot replace it/);
+  assert.equal(o.staged.bytesMatch, false, "0.2.0: refused, yet its bytes replaced the staged file");
+  const n = await sameVersionRestage(CLI);
+  assert.equal(n.a.ok, true); assert.equal(n.b.ok, false); assert.notEqual(n.bCode, 0); assert.match(n.b.reasons[0], /already staged: 0\.3\.0 cannot replace it/);
+  assert.equal(n.staged.bytesMatch, true, "the staged bytes are the committed ones"); assert.equal(n.files.length, 1, "the refused stager published nothing");
+});
+
+test("updates in sequence: an identical re-stage changes nothing (and repairs a missing file), other bytes under the staged version are refused, a planted file is left alone", async () => {
+  const st = installed(1); const inst = tmp("pvm-inst-");
+  const fa = updateFiles(st.dir, st.P, st.R, "0.3.0", {}, "build a"), fb = updateFiles(st.dir, st.P, st.R, "0.3.0", {}, "build b");
+  const stage = (f) => stageUpdate(st.store, f.env, f.bytes, { dir: inst, currentVersion: "0.2.0" });
+  const a = await stage(fa); assert.equal(a.ok, true); assert.equal(a.gen, 2);
+  const id = fileId(path.join(inst, fa.name));
+  const again = await stage(fa);
+  assert.equal(again.ok, true); assert.equal(again.already, true); assert.equal(again.gen, 2, "nothing recorded"); assert.deepEqual(fileId(path.join(inst, fa.name)), id, "nothing rewritten");
+  const b = await stage(fb);
+  assert.equal(b.ok, false); assert.match(b.reason, /already staged: 0\.3\.0 cannot replace it/);
+  assert.deepEqual(fileId(path.join(inst, fa.name)), id, "the staged file is untouched"); assert.deepEqual(published(inst), [fa.name], "refused before publishing: no leftover");
+  assert.equal(st.store.latest().gen, 2);
+  // an older version after a newer one is staged: refused, nothing published
+  const f2 = updateFiles(st.dir, st.P, st.R, "0.2.5"); const old = await stage(f2);
+  assert.equal(old.ok, false); assert.match(old.reason, /0\.3\.0 is already staged: 0\.2\.5 cannot replace it/); assert.deepEqual(published(inst), [fa.name]);
+  // the staged file removed behind the client's back: the same artifact again puts it back, still one generation
+  fs.rmSync(path.join(inst, fa.name));
+  const heal = await stage(fa); assert.equal(heal.ok, true); assert.equal(heal.already, true); assert.equal(heal.gen, 2);
+  assert.equal(sha(fs.readFileSync(path.join(inst, fa.name))), fa.sha);
+  // a file planted under the name the next version's bytes would take: refused, left as it was, nothing staged
+  const f4 = updateFiles(st.dir, st.P, st.R, "0.4.0"); fs.writeFileSync(path.join(inst, f4.name), "planted");
+  const p = await stage(f4); assert.equal(p.ok, false); assert.match(p.reason, /already exists with bytes other than its name says/);
+  assert.equal(fs.readFileSync(path.join(inst, f4.name), "utf8"), "planted"); assert.equal(st.store.latest().state.staged.version, "0.3.0");
+});
+
+test("update write and commit failures: nothing staged changes; a failed commit leaves at most an unreferenced file, which a retry reuses; a crash between publish and commit likewise", async () => {
+  const st = installed(1); const inst = tmp("pvm-inst-");
+  const f3 = updateFiles(st.dir, st.P, st.R, "0.3.0"), f4 = updateFiles(st.dir, st.P, st.R, "0.4.0"), f5 = updateFiles(st.dir, st.P, st.R, "0.5.0");
+  const stage = (f, store = st.store) => stageUpdate(store, f.env, f.bytes, { dir: inst, currentVersion: "0.2.0" });
+  assert.equal((await stage(f3)).ok, true);
+  const id3 = fileId(path.join(inst, f3.name));
+  // the install directory cannot be written
+  fs.chmodSync(inst, 0o500);
+  try { const w = await stage(f4); assert.equal(w.ok, false); assert.match(w.reason, /could not write the verified artifact/); }
+  finally { fs.chmodSync(inst, 0o700); }
+  assert.equal(st.store.latest().state.staged.version, "0.3.0"); assert.equal(st.store.latest().gen, 2); assert.deepEqual(published(inst), [f3.name]);
+  // the state cannot be committed: the new bytes are published under their own name, named by nothing; the staged one stands
+  fs.chmodSync(st.store.dir, 0o500);
+  try { const c = await stage(f4); assert.equal(c.ok, false); assert.match(c.reason, /could not record the staged update durably/); }
+  finally { fs.chmodSync(st.store.dir, 0o700); }
+  assert.equal(st.store.latest().state.staged.version, "0.3.0"); assert.deepEqual(fileId(path.join(inst, f3.name)), id3);
+  assert.deepEqual(published(inst), [f3.name, f4.name].sort(), "no temp file left");
+  const id4 = fileId(path.join(inst, f4.name));
+  const retry = await stage(f4); assert.equal(retry.ok, true); assert.equal(retry.gen, 3);
+  assert.deepEqual(fileId(path.join(inst, f4.name)), id4, "the retry reused the published file, not rewrote it");
+  // a store that throws on commit
+  const throwing = { latest: () => st.store.latest(), update: async () => { throw new StoreError("disk full"); } };
+  const t = await stage(f5, throwing); assert.equal(t.ok, false); assert.match(t.reason, /could not record the staged update durably \(disk full\)/);
+  assert.equal(st.store.latest().state.staged.version, "0.4.0"); assert.deepEqual(fileId(path.join(inst, f4.name)), id4);
+  // a crash after publishing, before committing: the driver is killed at its barrier
+  const barrier = tmp("pvm-bar-"), f6 = updateFiles(st.dir, st.P, st.R, "0.6.0");
+  const kid = driver(["update", st.store.dir, f6.mf, f6.af, barrier, "crash", inst, "0.2.0"]);
+  await reached(barrier, "crash"); kid.kill("SIGKILL"); await kid.done;
+  assert.equal(st.store.latest().state.staged.version, "0.4.0", "nothing committed"); assert.equal(st.store.latest().gen, 3);
+  assert.ok(published(inst).includes(f6.name), "published before the commit");
+  assert.deepEqual(fileId(path.join(inst, f4.name)), id4, "the staged file is untouched");
+  const after = await stage(f6); assert.equal(after.ok, true); assert.equal(after.gen, 4); assert.equal(sha(fs.readFileSync(path.join(inst, f6.name))), f6.sha);
 });
 
 test("processes: a policy commit and an update that rotates the release key, concurrently -- neither loses the other's change", async () => {

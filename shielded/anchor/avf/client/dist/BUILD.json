@@ -7,10 +7,10 @@
   "../web/pvm-verify.js": "6c962bc32cfe117e1b6f54b80ddc41f3be4eec8f090209875d0b6da3fbf4682a",
   "../web/vendor/hpke-LICENSE.txt": "6c18618fc1fbd7d6b2a1a024813b6efa17d499455516c2e4b8bbaba29cc72537",
   "../web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34",
-  "cli.mjs": "92b8db3622c58dc23c4f80f74aa9e45254c5b40a5490529165125181eceae908",
+  "cli.mjs": "23a0e6cb5aae3f2ba8933acca3a097e331b8107fdde8cbb204950acd3837455b",
   "ext/client.html": "959fd39b9838a965dae274b6c630a110262a6bca5d2ffec075ea2cf54d475bfc",
   "ext/client.src.js": "f7182231d3f6d51667ea47c0e8495672c56cb5a2cd38e8f5a14f14f2c619bc2a",
-  "ext/manifest.json": "589fdd899598931b976828371c4fc4df4f22a2e71df0bb75fce2bcbdce711d31",
+  "ext/manifest.json": "cf2f8d2b030ca6c907e9e5b1ec39a9269b2ac56d1cac884e477f2c0988282759",
   "ext/options.html": "77a41f6e3e4dc9e376d2c5db4b22514ae4feb3fcb758fbb3bf52eecb516586c7",
   "ext/options.src.js": "c239f0bd9e559c4c37a1bb4982175f71075168acface30a9b1e98f27ec90717d",
   "ext/style.css": "e5569e35994377a0ea8a1375364eb2721ddafba55b97b2ea179f73f93778fdc9",
@@ -18,19 +18,19 @@
   "src/gate.js": "610627d34d249080cc19fd4a5d4a59f3ff29598e2dc279102a426dd8aee2a330",
   "src/store-ext.js": "6d59acdc0a27bfed73ce37c1ef79c8946b89434271dac445782774a17034fe9f",
   "src/store-file.js": "6293fbcf26e2789bc44160f7ee6e33e3a69638153ea4f60ba6b3da73623c82b8",
-  "src/trust.js": "514468bb3432261d3d2fec361f2607a8a884dc5c4c15694ceaf282590bd12cfd",
-  "src/update.js": "790ad41f8460a3ea87a8b088ca2374eda056b0e1cfbc97340fbe571446cab454"
+  "src/trust.js": "e0ef2044156a756cdbfe6c2e406b81e91e01ecf2608188bcc3088dd0e5ae44ad",
+  "src/update.js": "a3d7ec5cbe14b9955e01f243d5de435d8781361faa7d4b6879ce8654cfb12c7f"
  },
  "lab": "NOT PRODUCTION",
  "outputs": {
   "pvm-client-ext.zip": {
-   "sha256": "800129d5c00072c4edb4570d2342f08ef37b2e7d586589e14bc9b349c7da7601",
+   "sha256": "483af80966518db0cda4f077ffb3e15044c35301a0d4f2bdec4c7d2d3e65141c",
    "size": 128994
   },
   "pvm-client.mjs": {
-   "sha256": "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6",
-   "size": 126408
+   "sha256": "111a8db8a60dfc36bcee7e149b28909bd4726670ae9f5305298992f72a9e1dab",
+   "size": 128361
   }
  },
- "version": "0.2.0"
+ "version": "0.2.1"
 }

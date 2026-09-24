@@ -111,14 +111,15 @@ test("the CLI's updates: staged beside it only when release-signed, policy-count
     const t = JSON.stringify(body);
     return { manifest: Buffer.from(t).toString("base64"), releaseSig: esig(t, "enclave-pvm-client-update-v1\n", r), policySig: esig(t, "enclave-pvm-client-update-countersign-v1\n", p) };
   };
-  const upd = async (m, b) => {
+  const published = () => fs.readdirSync(dir).filter((n) => /^\.?pvm-client-/.test(n)).sort();
+  const upd = async (m, b) => {   // the install directory is never cleaned between attempts: what an attempt leaves, the next one sees
     const mf = path.join(dir, "m.json"), af = path.join(dir, "a.mjs"); fs.writeFileSync(mf, JSON.stringify(m)); fs.writeFileSync(af, b);
-    fs.rmSync(path.join(dir, `pvm-client-${NEXT}.mjs`), { force: true });
+    const before = published();
     const r = (await cli(["update", "--state", state, "--manifest", mf, "--artifact", af, "--install-dir", dir])).lines.at(-1).update;
-    const st = (await cli(["state", "--state", state])).lines[0].state;
-    return { ...r, staged: !!st.staged && fs.existsSync(path.join(dir, st.staged.file)) };
+    const st = (await cli(["state", "--state", state])).lines[0];
+    return { ...r, staged: !!st.state.staged && fs.existsSync(path.join(dir, st.state.staged.file)), gen: st.gen, before, after: published() };
   };
-  const bad = (r, re) => { assert.equal(r.ok, false); assert.match(r.reasons[0], re); assert.equal(r.staged, false, "nothing staged"); };
+  const bad = (r, re) => { assert.equal(r.ok, false); assert.match(r.reasons[0], re); assert.equal(r.staged, false, "nothing staged"); assert.deepEqual(r.after, r.before, "nothing published"); };
   bad(await upd(man(next), Buffer.concat([next, Buffer.from("\nevil();")])), /bytes; the signed manifest says|not the signed artifact/);
   const t = Buffer.from(next); t[t.length - 5] ^= 1; bad(await upd(man(next), t), /not the signed artifact/);
   bad(await upd(man(next, {}, X, P), next), /release key this client's anchor does not name/);
@@ -128,11 +129,20 @@ test("the CLI's updates: staged beside it only when release-signed, policy-count
   bad(await upd(man(next, { notAfter: iso(Date.now() - 1000e3) }), next), /expired/);
   const ok = await upd(man(next), next);
   assert.equal(ok.ok, true, JSON.stringify(ok)); assert.equal(ok.staged, true); assert.equal(ok.version, NEXT);
-  assert.deepEqual(fs.readFileSync(path.join(dir, `pvm-client-${NEXT}.mjs`)), next);
+  const NAME = `pvm-client-${NEXT}-${sha(next)}.mjs`;   // content-addressed: other bytes never take this name
+  assert.deepEqual(ok.after, [NAME]); assert.deepEqual(fs.readFileSync(path.join(dir, NAME)), next);
+  const id = () => { const st = fs.statSync(path.join(dir, NAME)); return [sha(fs.readFileSync(path.join(dir, NAME))), st.ino, st.mtimeMs, st.mode & 0o777]; };
+  const id0 = id(); assert.equal(id0[3], 0o444, "published read-only");
   const staged = (await cli(["staged", "--state", state, "--install-dir", dir])).lines[0].staged;
-  assert.equal(staged.version, NEXT); assert.equal(staged.bytesMatch, true);
-  const again = await upd(man(next), next);   // the same version again: refused; the earlier staging stands
-  assert.equal(again.ok, false); assert.match(again.reasons[0], /already staged/);
+  assert.equal(staged.version, NEXT); assert.equal(staged.bytesMatch, true); assert.equal(staged.file, NAME);
+  const again = await upd(man(next), next);   // the same artifact again: idempotent -- success, nothing recorded, nothing rewritten
+  assert.equal(again.ok, true, JSON.stringify(again)); assert.equal(again.already, true); assert.equal(again.gen, ok.gen); assert.deepEqual(id(), id0);
+  // a second, validly signed artifact under the SAME version (a re-signed build): refused, and the staged bytes untouched
+  const other = Buffer.concat([next, Buffer.from("\n// another build of the same version\n")]);
+  const eq = await upd(man(other), other);
+  assert.equal(eq.ok, false); assert.match(eq.reasons[0], /already staged: 9\.1\.0 cannot replace it/);
+  assert.deepEqual(id(), id0, "the refused stager did not touch the staged file"); assert.deepEqual(eq.after, [NAME], "refused before publishing anything");
+  assert.equal(eq.gen, ok.gen);
   assert.equal((await cli(["staged", "--state", state, "--install-dir", dir])).lines[0].staged.bytesMatch, true);
   assert.equal((await cli(["version"])).lines[0].version, CLIENT_VERSION, "the running client did not load what it staged");
 });

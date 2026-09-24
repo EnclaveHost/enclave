@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.2.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.2.1 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -51,7 +51,7 @@ SOFTWARE.
 import fs3 from "node:fs";
 import os from "node:os";
 import path3 from "node:path";
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 
 // ../web/pvm-verify.js
 var PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
@@ -517,7 +517,7 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.2.0";
+var CLIENT_VERSION = "0.2.1";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -676,40 +676,89 @@ async function verifyUpdate(env, bytes, { state, now = Date.now(), currentVersio
 // src/update.js
 import fs from "node:fs";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
-async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VERSION, hold: hold2 = null } = {}) {
-  const cur = store.latest();
-  if (!cur) return { ok: false, reason: "no client installed" };
-  const first = await verifyUpdate(env, bytes, { state: cur.state, currentVersion, artifact: "pvm-client.mjs" });
-  if (!first.ok) return { ok: false, reason: first.reasons[0] };
-  const file = path.join(dir, `pvm-client-${first.manifest.version}.mjs`), tmp = `${file}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+import { createHash, randomBytes } from "node:crypto";
+var sha2562 = (b2) => createHash("sha256").update(b2).digest("hex");
+function publishArtifact(dir, name, bytes, sha) {
+  const file = path.join(dir, name), tmp = path.join(dir, `.${name}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`);
   try {
-    const fd = fs.openSync(tmp, "wx", 420);
+    const fd = fs.openSync(tmp, "wx", 292);
     try {
       fs.writeSync(fd, bytes);
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
     }
-    fs.renameSync(tmp, file);
   } catch (e) {
-    fs.rmSync(tmp, { force: true });
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+    }
     return { ok: false, reason: `could not write the verified artifact (${e.code || e.message}): nothing staged` };
   }
+  let created = true;
+  try {
+    fs.linkSync(tmp, file);
+  } catch (e) {
+    created = false;
+    if (e.code !== "EEXIST") {
+      fs.rmSync(tmp, { force: true });
+      return { ok: false, reason: `could not publish the verified artifact (${e.code || e.message}): nothing staged` };
+    }
+  }
+  fs.rmSync(tmp, { force: true });
+  if (!created) {
+    let have = null;
+    try {
+      have = sha2562(fs.readFileSync(file));
+    } catch {
+    }
+    if (have !== sha) return { ok: false, reason: `${name} already exists with bytes other than its name says: refusing; it is left untouched and nothing is staged` };
+  }
+  try {
+    const dfd = fs.openSync(dir, "r");
+    try {
+      fs.fsyncSync(dfd);
+    } finally {
+      fs.closeSync(dfd);
+    }
+  } catch (e) {
+    return { ok: false, reason: `could not make the verified artifact durable (${e.code || e.message}): nothing staged` };
+  }
+  return { ok: true, file, created };
+}
+function decide(state, m, name) {
+  const v = m.version, s = state.staged;
+  if (!s || semverCmp(s.version, v) < 0) return { stage: true };
+  if (semverCmp(s.version, v) > 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it` };
+  if (s.sha256 === m.artifactSha256 && s.file === name && s.sourceCommit === m.sourceCommit) return { same: true };
+  return { refuse: `update ${s.version} is already staged: ${v} cannot replace it (a second signed artifact under the same version: refused, the staged one stands)` };
+}
+async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VERSION, hold: hold2 = null } = {}) {
+  const cur = store.latest();
+  if (!cur) return { ok: false, reason: "no client installed" };
+  const first = await verifyUpdate(env, bytes, { state: cur.state, currentVersion, artifact: "pvm-client.mjs" });
+  if (!first.ok) return { ok: false, reason: first.reasons[0] };
+  const m = first.manifest, name = `pvm-client-${m.version}-${m.artifactSha256}.mjs`;
+  const pre = decide(cur.state, m, name);
+  if (pre.refuse) return { ok: false, reason: pre.refuse };
+  const pub = publishArtifact(dir, name, bytes, m.artifactSha256);
+  if (!pub.ok) return { ok: false, reason: pub.reason };
   let r;
   try {
     r = await store.update(async (state) => {
       if (hold2) await hold2(state);
       const u = await verifyUpdate(env, bytes, { state, currentVersion, artifact: "pvm-client.mjs" });
       if (!u.ok) return { refuse: u.reasons[0] };
-      if (state.staged && semverCmp(state.staged.version, u.manifest.version) >= 0) return { refuse: `update ${state.staged.version} is already staged: ${u.manifest.version} cannot replace it` };
-      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, file: path.basename(file), sourceCommit: u.manifest.sourceCommit } } };
+      const d = decide(state, u.manifest, name);
+      if (d.refuse) return { refuse: d.refuse };
+      if (d.same) return { same: true };
+      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, file: name, sourceCommit: u.manifest.sourceCommit } } };
     });
   } catch (e) {
     return { ok: false, reason: `could not record the staged update durably (${e.message}): nothing staged` };
   }
   if (!r.ok) return { ok: false, reason: r.reason };
-  return { ok: true, version: r.state.staged.version, file, gen: r.gen };
+  return { ok: true, version: r.state.staged.version, file: path.join(dir, r.state.staged.file), gen: r.gen, ...r.same ? { already: true } : {} };
 }
 
 // src/store-file.js
@@ -3056,7 +3105,7 @@ async function main() {
     }
     const r = await stageUpdate(store, env, bytes, { dir: arg("--install-dir", path3.dirname(process.argv[1])) });
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
-    return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen } }), 0;
+    return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...r.already ? { already: true } : {} } }), 0;
   }
   if (cmd === "state") {
     const l = store.latest();
@@ -3068,7 +3117,7 @@ async function main() {
     const f = path3.join(arg("--install-dir", path3.dirname(process.argv[1])), s.file);
     let ok = false;
     try {
-      ok = createHash("sha256").update(fs3.readFileSync(f)).digest("hex") === s.sha256;
+      ok = createHash2("sha256").update(fs3.readFileSync(f)).digest("hex") === s.sha256;
     } catch {
     }
     return out({ staged: { ...s, path: f, bytesMatch: ok } }), ok ? 0 : 1;
