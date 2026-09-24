@@ -493,8 +493,13 @@ Exact remaining integration gaps (nothing below is verified today):
    evidence capture (owner's ae209496, review section 12, fixture pinned) closed that gap: all ten exchanges re-verify
    offline through the exact pinned adapter under the policy committed before each, correlated by label, nonce, time
    and the client's primary state data; one capture defect (the carrier-side state copies null, a run-script fault
-   disclosed by the owner) is recorded as finding F3 and the strict verdict is NOT ACCEPTED (exit 3) until a run with
-   the copies present or the user's recorded decision; 115 of 116 cases pass, the one failure being that copy.
+   disclosed by the owner) was recorded as finding F3 with the strict verdict NOT ACCEPTED (exit 3). A third bounded
+   run, directed by Codex under Steven's standing validation scope with no fresh approval message (owner's 75718b4b,
+   review section 13, fixture pinned, tooling committed before the run), has every snapshot present and equal, all ten
+   chains re-verified offline again, its checker and preflight passing: F3 is closed by that rule's first path. Run 2
+   stays a recorded failed run, never accepted: an F2-style regression case asserts its precise null-copy defect
+   inside the run-2 review, and a separately invoked negative runner verifies the original assertion fails on it with
+   its recorded reason; the strict acceptance command itself has zero failed, skipped or todo cases (130 of 130).
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial

@@ -17,6 +17,7 @@ import { createHash, verify as edVerify, createPublicKey } from "node:crypto";
 import { verifyClientPolicy, keyFingerprint } from "../verifier/pvm-policy.mjs";
 import { loadOwnerModule, STRICT_INTEGRATION, verifyPvmEvidence } from "../verifier/pvm-evidence.mjs";
 import { readExchanges, reverifyExchange, expectFromPolicy } from "./helpers/pvm-device-evidence.mjs";
+import { assertCarrierCopyEqualsLog } from "./helpers/pvm-device-state-copy.mjs";
 
 const ownerMod = await loadOwnerModule();
 const skipOwner = !ownerMod && !STRICT_INTEGRATION && "owner module absent (ENCLAVE_PVM_MODULE via verifier/integration/resolve.mjs)";
@@ -247,17 +248,18 @@ test("repeat: the committed state each exchange ran under, from the client's PRI
     assert.equal(g.nextPolicyFp, e.label === "rotate-3" ? keys.successor.fingerprint : null); assert.equal(g.releaseFp, keys.release.fingerprint);
   }
 });
-test("repeat: the carrier-side committed-state copy (exchanges.jsonl 'after', capture.json 'stateAfter') equals the generation log for every exchange", { skip }, () => {
-  // Asserted as agreed with the owner before the run. On ae209496 every copy is null (the run script piped the state into a
-  // heredoc that consumed its stdin; disclosed by the owner, not a client or device defect) and this case FAILS: the copy is
-  // MISSING, recorded as finding F3, never as a pass. The correlation itself holds through the client's primary data above.
+test("repeat: RECORDED FAILED CAPTURE (finding F3, closed by run 3): the carrier-side committed-state copies are exactly the null-copy defect for every row and every exchange, and they do not equal the generation log; the original assertion is run separately (npm run test:client-device-2-negative) and must fail there with its recorded reason", { skip }, () => {
+  // An F2-style regression case: it passes only when the precise historical defect reproduces, so any OTHER defect in the
+  // run-2 capture fails here rather than hiding behind the expected one. Run 2 is never relabelled accepted: its own
+  // failed checker output stays as produced, and the original equality assertion (test/helpers/pvm-device-state-copy.mjs,
+  // the one run 3 must pass) is verified to fail on this fixture by the separately invoked negative runner.
+  const NULL_COPY = { gen: null, serial: null, policyFp: null, nextPolicyFp: null, releaseFp: null, active: null };
   const cap = js("capture.json"), rows = rd("exchanges.jsonl").toString().split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
-  for (const e of cap.exchanges) {
-    const row = rows.find((r) => r.label === e.label), a = row.after, res = result(e.label), g = gen(res.stateGen).state;
-    const want = { gen: res.stateGen, serial: g.serial, policyFp: g.policyFp, nextPolicyFp: g.nextPolicyFp, releaseFp: g.releaseFp, active: g.active ? { version: g.active.version, sha256: g.active.sha256 } : null };
-    assert.deepEqual(a, want, `${e.label}: exchanges.jsonl 'after' is MISSING or wrong (carrier-side copy)`);
-    assert.deepEqual(e.stateAfter, want, `${e.label}: capture.json 'stateAfter' is MISSING or wrong (carrier-side copy)`);
-  }
+  assert.equal(rows.length, 20, "one row per CLI call"); assert.equal(cap.exchanges.length, 10);
+  for (const r of rows) assert.deepEqual(r.after, NULL_COPY, `${r.label}: the recorded defect is exactly the null copy`);
+  for (const e of cap.exchanges) { assert.deepEqual(e.stateAfter, NULL_COPY, `${e.label}: the recorded defect is exactly the null copy`); const g = gen(result(e.label).stateGen).state; assert.notEqual(g.serial, null); assert.notEqual(g.policyFp, null); }
+  assert.throws(() => assertCarrierCopyEqualsLog(F), (e) => e.code === "ERR_ASSERTION" && /^base-stream: exchanges\.jsonl 'after' is MISSING or wrong \(carrier-side copy\)/.test(e.message), "the original assertion fails on this fixture with its recorded reason");
+  assert.match(rd("check.txt").toString(), /^FAIL \(1\)$/m, "the run's own failed checker output, kept as produced");
 });
 test("repeat: evidence classes, as this review states them: the attestation chains of all ten exchanges are re-verified offline here through the pinned adapter; stream authenticity remains the client's FIN plus the VM's served count plus the per-nonce match, with no stream secret replayed", { skip }, () => {
   assert.equal(readExchanges(path.join(F, "evidence")).length, 10);

@@ -315,8 +315,9 @@ review cycle, which nobody has asked for.
 
 ## 12. The repeat run with raw evidence capture (owner's ae209496, `results/pvm-cpu-client-activation-2`): every chain re-verified offline; one capture defect, recorded as a finding
 
-One bounded repeat of the same sequence, directed by the user, with the lab carrier recording every `/evidence`
-exchange as received (d12e78c9). The first run's directory is byte-identical between a7d624c2 and ae209496, so its
+One bounded repeat of the same sequence, directed by Codex under Steven's standing validation scope (Steven sent no
+fresh approval message for it, as for run 3; that affects neither run's technical validity and authorised no host
+setting or reboot), with the lab carrier recording every `/evidence` exchange as received (d12e78c9). The first run's directory is byte-identical between a7d624c2 and ae209496, so its
 fixture and pin stand. The repeat's results were copied verbatim into `test/fixtures/verifier/pvm-client-activation-device-2/`
 (169 files) and pinned in `verifier/integration/fixtures.json` (commit, path, per-file sha256, compared with the
 owner's commit tree on every strict run); the owner's reported hashes for the capture files, the checker outputs, the
@@ -368,3 +369,44 @@ client's FIN verification plus the served count plus the per-nonce match. Host e
 environment, the swap races, one hop across a concurrent activation. Unchanged limits: the first install and the root
 of code trust, the Node binary, whole-machine power loss, the extension cannot activate, no unattended activation, no
 production keys, no merge or deploy.
+
+## 13. Run 3 (owner's 75718b4b, `results/pvm-cpu-client-activation-3`): finding F3 closed by its first closure path; run 2 retained as a failed run
+
+Attribution, corrected: the additional bounded run was directed by Codex under Steven's standing validation scope;
+Steven sent no fresh approval message. That does not affect the run's technical validity, and it authorises no host
+setting or reboot. The standing instruction that run 2 be neither waived nor labelled accepted holds. Run 3 is the same
+sequence with raw evidence capture and, this time, every per-exchange committed-state snapshot present. Verified
+here before anything else: runs 1 and 2 are byte-identical to their fixtures at 75718b4b; the capture tooling the run
+executed (the capture and preflight scripts, the run script, the checker) is identical to 75a8ffca, an ancestor of the
+run commit committed at 13:10:41Z, eleven seconds before the run's start at 13:10:52Z; every hash the owner reported
+matches (the checker output, the preflight, `capture.json`, `exchanges.jsonl`, the final generation, the activate line,
+the notes, all ten envelopes in order). The results (169 files) are the third pinned fixture, compared with the owner's
+tree on every strict run.
+
+`test/verifier-pvm-client-device-activation-3.test.mjs` (in the strict command) repeats the run-2 review at the same
+strictness and all of it passes: the first review's checks, the capture's completeness, all ten exchanges re-verified
+offline through the exact pinned adapter under the policy committed before each with the exchange's own time as the
+clock and released by the browser-kind gate, claims equal to the client's own verified summaries, one boot, replay and
+stale-clock refusals, the primary-data state correlation, and now the carrier-side copy REQUIRED: all twenty CLI rows
+carry a snapshot equal to the generation log at its generation, the refusal, update, activate and repair rows carry no
+exchange, and the snapshots record the expected progression (generation 2 at serial 1; 3 staged; 4 active for
+exchanges 3 to 5; 5 at serial 2; 6 at serial 3 naming the successor; 7 at serial 4 under it for exchanges 8 to 10 and
+every refusal and repair). The run's own checker passed 51 checks with no failing line, and the capture preflight,
+which stops the shell before anything touches the phone if a state cannot be captured, passed (the owner reports the
+same preflight fails six cases against run 2's capture code, the negative control).
+
+**F3 is closed**, by the rule written when it was raised: a run whose copies are present and equal. It is closed by
+this session, not by the owner, in `verifier/integration/findings.json` with the closing fixture and commit. **Run 2
+is retained as a failed run, with no expected failure inside acceptance.** The strict acceptance command has zero
+failed, skipped or todo cases and ignores no test by name: a failing test there is a failure. Run 2's record is kept
+three ways: its fixture and its own failed checker output are unchanged; its review carries an F2-style regression
+case that passes only when the precise historical defect reproduces (every row's and every exchange's copy exactly the
+null copy, unequal to the generation log), so any other defect in that capture fails rather than hiding behind the
+expected one; and the original equality assertion, one shared function that run 3's acceptance must pass, is verified
+to fail on run 2 with its recorded reason by a separately invoked negative runner (`npm run test:client-device-2-negative`,
+exit 0 only when that assertion fails exactly as recorded). Nothing about run 2 is waived or relabelled accepted.
+
+**Evidence classes** are unchanged from section 12: the ten chains of run 3 (and of run 2) are device evidence
+re-verified here; sealing to the attested app key and the FIN of each stream remain the client's own claim plus the
+served count and the per-nonce match; the start check, swap races and one hop are host evidence; the first install, the
+Node binary and whole-machine power loss are the unchanged limits.
