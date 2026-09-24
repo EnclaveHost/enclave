@@ -1,6 +1,6 @@
 /* Full-width cinematic marketing banners. */
 .hero{padding:0;overflow:hidden;isolation:isolate;background:#070a0f;}
-.hero>c-cinematic-scene{bottom:50px;}
+.hero>c-cinematic-scene{bottom:0;}
 .hero-grid{display:flex;align-items:center;min-height:760px;padding-top:70px;padding-bottom:85px;}
 .hero-grid{pointer-events:none;}
 .hero-copy{max-width:610px;pointer-events:auto;}
@@ -13,7 +13,6 @@
 .hero-cta .btn-primary:hover{background:#8ef4d2;transform:translateY(-2px);}
 .hero-cta .btn-ghost{background:rgba(5,10,12,.6);border-color:#77817f;color:#fff;}
 .hero-foot{font-size:.62rem;gap:10px 14px;margin-top:30px;max-width:560px;color:#b7c4c6;}
-.hero c-ticker{position:relative;display:block;margin-top:0;background:#070a0f;z-index:1;}
 #why .sec-head h2{font-family:var(--font-sans);letter-spacing:-.035em;font-size:clamp(2rem,3.2vw,3rem);max-width:25ch;}
 #why .cards .card{min-height:275px;padding:28px 24px;background:linear-gradient(145deg,rgba(28,48,51,.55),rgba(10,16,25,.85));}
 #why .cards .card .ic{width:48px;height:48px;margin:22px 0 28px;border-radius:13px;}
