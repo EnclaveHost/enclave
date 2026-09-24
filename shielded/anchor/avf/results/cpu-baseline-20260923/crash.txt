@@ -1,0 +1,8 @@
+killed crosvm_anchorlocal pid=769 at wall 1790211993.540713869
+killed run's driver: cr-01 failed 143
+crosvm_anchorlocal processes after the kill: 0
+relaunch driver: cr-02 ok 0  (relaunch requested at wall 1790214715.318755656)
+LOCAL ready: {ctx=4096, threads=6, vocab=262144, model=5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48, load_s=57.9}
+LOCAL turn 1 window boottime_ms start=360115412 first=360115702 end=360156370
+START of the relaunch: 1790214721.586
+device boottime->wall offset now: 360366.67 1790215062.079316197
