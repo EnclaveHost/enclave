@@ -328,7 +328,10 @@ const PROVISION_BACKEND = (process.env.PROVISION_BACKEND || "worker").toLowerCas
 // requires it, and only while its manager's /health says it IS that backend; a box without it refuses every
 // deployment that requires it (parseDepOptions). An unknown value takes no tenant work at all.
 const ISOLATION_BACKEND = (process.env.ISOLATION_BACKEND || "").trim().toLowerCase();
-const ISOLATION_BACKENDS = ["snp-guest-per-app"];
+// hyperv-partition-per-app: the Windows owner's backend (a Hyper-V isolated partition per app) under the SAME
+// contract - envelope, claim gate, derivation, manager channel and splice. Inert until a box sets it, and a client
+// cannot verify it until the judge has that evidence format's own branch (isolation/m2/judge.mjs).
+const ISOLATION_BACKENDS = ["snp-guest-per-app", "hyperv-partition-per-app"];
 const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
 function mgrReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -2276,6 +2279,17 @@ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId) {
            cid: c[1], policy, runtimeId };
 }
 
+// What the manager's /prefetch needs for a version: on the tier, the same derivation record the spawn will send (a
+// catalog CID alone names bytes, not a contract identity, and guestd refuses it).
+function isolationPrefetchBody(g, runtimeId) {
+  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId) };
+}
+async function managerPrefetchBody(g) {
+  if (!ISOLATION_BACKEND) return { image: g.wasmRef };
+  const h = await vmHealth();
+  return isolationPrefetchBody(g, h && h.catalog && h.catalog.runtimeId);
+}
+
 // ---- per-app isolation claim gate (ISOLATION_BACKEND set) ------------------
 // PURE: every input is passed in, so ISOLATION_SELFTEST exercises exactly this decision. null = claimable here.
 // On a box WITHOUT the backend it never refuses anything itself: parseDepOptions has already refused every
@@ -2333,6 +2347,7 @@ if (process.env.ISOLATION_SELFTEST) {
                                         catch (err) { return { ok: false, error: err.message }; } }),
     edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
+    prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
     derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId); }
                                           catch (err) { return { error: err.message }; } }),
   }));
@@ -3521,7 +3536,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
     console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
               + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
-    return { internalPort: 0, vmId: r.body.id, hostPort: r.body.hostPort, appId: r.body.appId };
+    // hostPort 0: the guest's forwarder is on the HOST, which this process cannot reach as 127.0.0.1; liveness is
+    // guestd's "running", which it reports only after verifying the guest (instanceAlive, tenantServing)
+    return { internalPort: 0, vmId: r.body.id, hostPort: 0, appId: r.body.appId };
   }
   if (PROVISION_BACKEND === "vm") {
     const ref = image && image.reference;
@@ -6577,7 +6594,11 @@ async function instanceAlive(rec) {
   const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
   if (!r) return false;                        // manager unreachable mid-tick: freeze, don't respawn
   // the manager reports crashed processes as status "failed" (with the exit
-  // signal in .error) - an existing record is NOT the same as a live app
+  // signal in .error) - an existing record is NOT the same as a live app.
+  // On the per-app guest tier a launch takes tens of seconds (boot, then guestd's own verification) and reads
+  // "starting" meanwhile: that is a live launch, not a missing instance, and respawning it would only collide
+  // with it. It does not count as SERVING (tenantServing).
+  if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
   return r.status === 200 && r.body && r.body.status === "running";
 }
 function pauseRec(rec, reason) {
@@ -8657,7 +8678,7 @@ async function switchTenantVersion(rec, d) {
   // fetch + verify + cache the new bytes while the old version keeps serving
   if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(g.wasmRef)) {
     try {
-      const r = await vmReq("POST", "/prefetch", { image: g.wasmRef }, 300_000);
+      const r = await vmReq("POST", "/prefetch", await managerPrefetchBody(g), 300_000);
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
     } catch (e) { return refuse("could not fetch the new version's wasm: " + e.message, true); }
   }
@@ -9757,7 +9778,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   // user nothing (no claim ever happens).
   if (PROVISION_BACKEND === "vm" && /^ipfs:\/\//.test(g.wasmRef)) {
     try {
-      const r = await vmReq("POST", "/prefetch", { image: g.wasmRef }, 300_000);
+      const r = await vmReq("POST", "/prefetch", await managerPrefetchBody(g), 300_000);
       if (r.status !== 200) throw new Error((r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`);
       if (r.body && r.body.seconds > 1) console.log(`[claim] ${d.id} prefetched ${r.body.bytes} bytes in ${r.body.seconds}s`);
     } catch (e) {
@@ -10016,6 +10037,12 @@ let _proof = { at: 0, proved: 0, rejected: 0, lastError: null };
 // port yet, raw-TCP-only app with nothing on the HTTP port) falls back to the
 // manager's answer rather than refusing to pay ourselves for real work.
 async function tenantServing(rec) {
+  if (ISOLATION_BACKEND) {
+    // the guest serves only once guestd has verified it; its forwarder is on the host, not probeable from here
+    if (!rec._vmId) return false;
+    const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
+    return !!(r && r.status === 200 && r.body && r.body.status === "running");
+  }
   if (!(await instanceAlive(rec))) return false;
   const port = rec._vmHostPort;
   if (!port) return true;                                  // nothing to probe yet; the manager's word stands
