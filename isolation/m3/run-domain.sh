@@ -6,6 +6,12 @@
 #        run-domain.sh stop <tag> <workdir>
 #   snp   : T1, an SEV-SNP guest (host excluded from its memory; reports available to the monitor)
 #   plain : T0, the same image as an ordinary KVM guest (no confidentiality, no reports)
+# EVIDENCE_SERIAL=1 adds a SECOND serial port, captured to <workdir>/<tag>.evidence, for a guest that must
+# report results a harness will score. The first port carries the SVSM's console AND the guest's console with
+# no flow control between them, so concurrent writers DROP BYTES: an M4b run lost five consecutive result
+# lines that way, and the line before them visibly interleaved with an SVSM request-loop message. Evidence a
+# harness scores must not share a lossy channel with anything else.
+#
 # start writes the guest console to <workdir>/<tag>.serial and prints a HOST line with the unit, the
 # guest's vsock CID and the launch time.
 set -e
@@ -65,7 +71,7 @@ start)
     "$QEMU" $MACH -cpu "host${CPUOPT}" -smp "$vcpus" -m "${mem}M" $BIOS \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
-      -nodefaults -display none -serial "file:$W/$tag.serial" -no-reboot
+      -nodefaults -display none -serial "file:$W/$tag.serial" ${EVIDENCE_SERIAL:+-serial "file:$W/$tag.evidence"} -no-reboot
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0${IGVM:+ igvm=$IGVM plane=$PLANE}"
   ;;
 stop)

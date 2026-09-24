@@ -1,0 +1,23 @@
+M4b admission on hardware, warden-host, 2026-09-23
+
+IGVM digest (igvmmeasure, from the shipped IGVM)
+  95E4BC1286F6612181B6BECE81886CBC323260AA9B9087EA880C40EECD742E803F1E07461464E05F175504185AB9B7C3
+built with
+  make RELEASE=1 FW_FILE=/usr/share/edk2-ovmf/x64/OVMF.4m.fd igvm
+  ENCLAVE_APP_IDS=8773d33454df65f420cf3923344e05e1bd28db15568ba49f4c1dfe111ff12685,ce52712f14ed972c66a97c8ca046d69f0c4133d9b7a7fdb27d4ea307dd310b91
+  ENCLAVE_RUNTIME_SHA256=b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451 (x2)
+  coconut-svsm/svsm at d37095e + PR 1209 + isolation/m4/svsm/{appid.rs,0001-wire-appid-protocol.diff}
+launched with
+  planes QEMU, -machine ...,igvm-cfg=igvm0,device-plane=2 -cpu host,phys-bits=46
+guest
+  kernel 7.2.3-arch1-2, initramfs from isolation/m4/build-admit-guest.sh
+  plane 2 artifacts: B.bundle (59829 bytes, AppID ce52712f...b91) and the wasmtime 48.0.1 ELF
+                     (45616736 bytes, sha256 b77aecdb...451)
+
+Verified from the signed report in admit-good-2026-09-23.txt (parsed, not eyeballed):
+  response status 0, report_size 1184
+  VMPL field         = 2                      the report names the plane, not VMPL0
+  report_data[0:32]  = the caller's bind      a1b2...8f90 repeated
+  report_data[32:64] = ce52712f...b91         the AppID the SVSM holds for plane 2
+  measurement        = 95E4BC1286F6612181B6BECE81886CBC323260AA9B9087EA880C40EECD742E803F1E07461464E05F175504185AB9B7C3
+                       equal to the igvmmeasure digest above

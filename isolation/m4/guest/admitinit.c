@@ -27,12 +27,48 @@
 #include <sys/reboot.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define SYS "/sys/kernel/appid/"
 #define CHUNK 4096            /* kernfs caps one sysfs write at PAGE_SIZE; more is silently truncated */
 
-static void say(const char *k, const char *v) { printf("ADMIT %s=%s\n", k, v); fflush(stdout); }
+/* Results go to /dev/ttyS1 when it exists, and to the console either way.
+ *
+ * The console is shared with the SVSM's own output and has no flow control, so concurrent writers drop bytes:
+ * a first run on hardware lost five consecutive result lines and mangled a sixth into an SVSM request-loop
+ * message. A harness cannot score a channel that loses evidence, so the scoreable copy gets its own port. */
+static int evfd = -1;
+
+static void say(const char *k, const char *v) {
+    char line[9000];
+    int n = snprintf(line, sizeof line, "ADMIT %s=%s\n", k, v);
+    if (n < 0) return;
+    if (n > (int)sizeof line - 1) n = sizeof line - 1;
+    if (evfd >= 0) {
+        ssize_t off = 0;
+        while (off < n) {
+            ssize_t w = write(evfd, line + off, n - off);
+            if (w <= 0) break;
+            off += w;
+        }
+        fsync(evfd);
+    }
+    fputs(line, stdout);
+    fflush(stdout);
+}
+
+/* Load a module that MUST fail, and say which way it went. tsm_report itself may well load - it is the
+ * report plumbing, not the key holder - so its result is recorded rather than required; sev-guest is the one
+ * that must refuse for want of a VMPCK. */
+static void insmod_expect_failure(const char *p, const char *key) {
+    int fd = open(p, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) { say(key, "absent from the image"); return; }
+    long r = syscall(SYS_finit_module, fd, "", 4 /* MODULE_INIT_COMPRESSED_FILE */);
+    if (r == 0) say(key, "LOADED - this guest holds a message key, so it can mint its own reports");
+    else say(key, strerror(errno));
+    close(fd);
+}
 
 static void insmod(const char *p) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
@@ -56,6 +92,14 @@ static int put(const char *name, const void *buf, size_t n) {
 }
 
 static int puts_(const char *name, const char *s) { return put(name, s, strlen(s)); }
+
+static void show_path(const char *key, const char *path) {
+    char buf[512] = {0};
+    int fd = open(path, O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) { close(fd); say(key, "present"); return; }
+    say(key, strerror(errno));
+    (void)buf;
+}
 
 static void show(const char *key, const char *name) {
     char path[128], buf[8192] = {0};
@@ -100,12 +144,30 @@ int main(void) {
     mount("proc", "/proc", "proc", 0, 0);
     mount("sysfs", "/sys", "sysfs", 0, 0);
     setvbuf(stdout, NULL, _IOLBF, 0);
+    mkdir("/dev", 0755);
+    mknod("/dev/ttyS1", S_IFCHR | 0600, makedev(4, 65));
+    evfd = open("/dev/ttyS1", O_WRONLY | O_CLOEXEC);
 
     char mode[32] = "good";
     FILE *f = fopen("/admit.mode", "r");
     if (f) { if (fscanf(f, "%31s", mode) != 1) strcpy(mode, "good"); fclose(f); }
     say("mode", mode);
     int tampered = strcmp(mode, "tampered") == 0;
+
+    /* 0. KEY ABSENCE, before anything else, because everything else depends on it.
+     *
+     * A guest that holds a VMPCK can ask the PSP for a signed report over its own GHCB, with report_data of
+     * its choosing and any VMPL from its own level downwards, without involving the SVSM at all - which
+     * bypasses every gate the SVSM puts in front of a report. The SVSM therefore hands this guest a secrets
+     * page with all four VMPCKs cleared, and the observable consequence is that Linux's sev-guest driver
+     * finds no usable key and REFUSES TO PROBE.
+     *
+     * So this must FAIL. If it succeeds, this guest can mint its own reports, admission proves nothing, and
+     * the run should be read as a failure however well the rest of it goes. It is also the key-absence test
+     * that the forgeable vmpl0=refused tuple could never perform (isolation/DESIGN.md section 12). */
+    insmod_expect_failure("/tsm_report.ko.zst", "tsm_report");
+    insmod_expect_failure("/sev-guest.ko.zst", "sev_guest_no_vmpck");
+    show_path("tsm_report_dir", "/sys/kernel/config/tsm");
 
     /* the module splits both staging buffers to 4 KiB RMP entries at load time and checks a canary; a failure
      * here is a staging problem and must not be read as a digest problem later */
@@ -160,6 +222,7 @@ int main(void) {
     say("bind_set", e == 0 ? "ok" : strerror(-e));
     e = puts_("report", "1");
     say("report", e == 0 ? "GRANTED" : strerror(-e));
+    show("report_result", "result");          /* before anything else overwrites the SVSM's own code */
     show("report_hex", "report");
 
     /* 5. admitting a kind twice must be refused: a second region vouched for would let this plane choose */

@@ -30,6 +30,13 @@ cp "$bundle" "$d/app.bundle"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/rt/wasmtime"
 printf '%s\n' "$mode" > "$d/admit.mode"
+# The report modules are carried so the guest can PROVE it cannot use them: with every VMPCK cleared from its
+# secrets page, sev-guest must refuse to probe, which is the key-absence evidence the forgeable vmpl0 tuple
+# could never give (isolation/DESIGN.md section 12).
+. "$here/../m1/domain.env"
+M=/lib/modules/$GUEST_KREL/kernel
+cp "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
+mkdir -p "$d/sys/kernel/config"
 
 find "$d" -exec touch -h -d @0 {} +
 (cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
