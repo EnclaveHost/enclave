@@ -1,0 +1,15 @@
+{
+  "pvm-app-attest": {
+    "purpose": "the pVM owner's evidence verifier, judged against by the consumer adapter (verifier/pvm-evidence.mjs); never copied into this branch",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "afd437a25305ba32f83d0384eb30240a31cd4391",
+    "entry": "relay/pvm-app-attest.mjs",
+    "files": {
+      "relay/pvm-app-attest.mjs": "9ad268685757c19f56e2c6ece739a000fd551751b9ff35168c535a4eae7b1eda",
+      "relay/avf-verify.mjs": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd"
+    },
+    "mustMatchWorktree": ["relay/avf-verify.mjs"],
+    "pinnedAt": "2026-09-24",
+    "note": "v2 evidence (appKey, appKeySig, sealed window); the real fixtures under test/fixtures/verifier/pvm-evidence were produced by this revision's device runs"
+  }
+}

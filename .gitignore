@@ -127,3 +127,6 @@ windows/enclave-app-hello/target/
 
 # isolation/m4 builds the contract's bundle tool into the tree; it is reproducible output
 /isolation/m4/.bundle
+
+# pinned cross-branch modules materialised by verifier/integration/resolve.mjs (never tracked here)
+.verifier-integration/

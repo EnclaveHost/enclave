@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
-import { verifyEvidence, verifyPvmEvidence, loadOwnerVerifier, admit, createNonceRegistry, RELEASE, HOLD, PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2 } from "../verifier/index.mjs";
+import { verifyEvidence, verifyPvmEvidence, loadOwnerVerifier, STRICT_INTEGRATION, admit, createNonceRegistry, RELEASE, HOLD, PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2 } from "../verifier/index.mjs";
 
 const sha = (...b) => createHash("sha256").update(Buffer.concat(b.map((x) => Buffer.isBuffer(x) ? x : Buffer.from(String(x))))).digest("hex");
 const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
@@ -118,17 +118,18 @@ test("malformed evidence: wrong format, extra fields, not an object, oversized",
   assert.notEqual(viaIndex.status, "verified");   // through the dispatcher the owner's module is absent on main: unsupported, never verified
   assert.ok(["unsupported", "rejected"].includes(viaIndex.status), viaIndex.status);
 });
-test("without the owner's module the verdict is unsupported, never verified, and a gate holds it", async () => {
+test("the owner's module absent: unsupported and held; present: the stand-in envelope is judged (and refused, its chain is fake), never unsupported", async () => {
   const nonce = randomBytes(32);
-  const v = await verifyPvmEvidence(evidenceFor(nonce), expectFor(nonce));   // no verifyImpl injected
+  const v = await verifyPvmEvidence(evidenceFor(nonce), expectFor(nonce));   // no verifyImpl injected: whatever the environment provides
   const owner = await loadOwnerVerifier();
-  if (owner) { assert.notEqual(v.status, "unsupported"); return; }
-  assert.equal(v.status, "unsupported"); assert.match(v.reasons.at(-1), /pvm-app-attest/);
+  if (owner) { assert.equal(v.status, "rejected", v.reasons.join("\n")); assert.notEqual(v.status, "unsupported"); }
+  else { assert.equal(v.status, "unsupported"); assert.match(v.reasons.at(-1), /pvm-app-attest/); }
   assert.equal(admit(v, expectFor(nonce), { clientKind: "native", observedPeerSpki: SPKI }).decision, HOLD);
 });
 // ---- contract tests against the OWNER's verifier, run automatically once it is pushed ----------------------------
 const owner = await loadOwnerVerifier();
-test("owner's verifyPvmAppEvidence: empty pins and unknown fields are refused; the echoed nonce is never used as the challenge", { skip: !owner && "relay/pvm-app-attest.mjs verifyPvmAppEvidence not in this tree" }, async () => {
+test("owner's verifyPvmAppEvidence: empty pins and unknown fields are refused; the echoed nonce is never used as the challenge", { skip: !owner && !STRICT_INTEGRATION && "owner module absent (set ENCLAVE_PVM_MODULE via verifier/integration/resolve.mjs)" }, async () => {
+  assert.ok(owner, "strict integration: the owner's module must be present");
   const nonce = randomBytes(32);
   for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes", "rootPins"]) {
     const r = await owner(evidenceFor(nonce), { ...expectFor(nonce), [k]: [] }); assert.equal(r.ok, false, k);

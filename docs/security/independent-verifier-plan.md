@@ -376,9 +376,22 @@ pin, each empty pin list, a clock a month later or before issuance (the RKP leaf
 stripped or extra field, a non-canonical chain entry and another format string. These cases skip where the
 owner's module is absent (main, and a clean checkout of this branch) and run wherever both trees meet.
 
+Reproducible cross-branch acceptance (2026-09-24): `verifier/integration/pins.json` pins the owner's module
+by branch, FULL commit (`afd437a25305ba32f83d0384eb30240a31cd4391`) and the sha256 of each blob it needs;
+`verifier/integration/resolve.mjs` reads those blobs from that commit's tree with `git cat-file`, hash-checks
+them and the worktree copy of `relay/avf-verify.mjs` the adapter also uses, and materialises them under the
+gitignored `.verifier-integration/` with a manifest, exiting 2 on any mismatch; `npm run test:integration`
+(`verifier/integration/run.mjs`) resolves, then runs the acceptance suites with `ENCLAVE_PVM_MODULE` set and
+`ENCLAVE_STRICT_INTEGRATION=1`, under which a missing or wrong module FAILS the suites and any skipped case
+fails the run. Result against the pin: 30 tests, 30 pass, 0 skipped. `test/verifier-integration.test.mjs`
+spawns the real scripts and proves a wrong commit, a tampered blob hash and a worktree mismatch each exit 2
+leaving no usable entry, a missing or export-less module fails strict mode, an unknown pin refuses to run,
+the non-strict default skips with a stated reason, and the strict command passes end to end. No copy of the
+owner's module is tracked on this branch.
+
 Exact remaining integration gaps (nothing below is verified today):
-1. The owner's module lives on `pvm-cpu/portable-runtime`; until it lands on main (or this branch is
-   rebased onto it) the device and contract suites skip on this branch alone. No copy is kept here.
+1. The owner's module lives on `pvm-cpu/portable-runtime`; plain `npm test` on this branch alone skips the
+   acceptance cases (stated), and `npm run test:integration` is the command that must pass.
 2. The real envelopes carry the client's nonce of that exchange, so the device suite proves "binding
    verified for that exchange"; a live exchange with a nonce chosen at test time is the owner's device run
    (22/22 in their `check.txt`), not reproducible offline.
@@ -403,6 +416,10 @@ Exact remaining integration gaps (nothing below is verified today):
    runtime ids, which code hashes a client should expect for a deployment) is not built.
 6. A native client's `observedPeerSpki` must come from its own TLS handshake; only Node clients can do that
    today, and no CLI command performs a live exchange.
+7. Encrypted incremental response streaming on the sealed channel is agreed in principle with the owner
+   (`docs/security/pvm-sealed-streaming-review.md`, agreed revision) but not accepted: the protocol text and an
+   offline fixture are pending, and the consumer reader with its sequencing, replay, truncation, tamper,
+   cancellation and policy cases is not built.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
