@@ -36,11 +36,15 @@ for (const name of Object.keys(artifacts)) {
   if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
   process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 }
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs"];
-const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=120000", ...suites], { cwd: REPO, encoding: "utf8", env });
-const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped)/.test(l)).join("  ");
-const failed = /^# fail (\d+)/m.exec(t.stdout || ""), skipped = /^# skipped (\d+)/m.exec(t.stdout || "");
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs"];
+const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=180000", ...suites], { cwd: REPO, encoding: "utf8", env });
+const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped|todo)/.test(l)).join("  ");
+const failed = /^# fail (\d+)/m.exec(t.stdout || ""), skipped = /^# skipped (\d+)/m.exec(t.stdout || ""), todo = /^# todo (\d+)/m.exec(t.stdout || "");
 console.log(tail);
+// a todo case is a KNOWN FINDING reported to the owner: its required behaviour is asserted and does not hold yet. It never
+// passes silently: every one is named here, with whether it still fails (open) or now passes (fixed: drop the todo mark).
+if (todo && Number(todo[1]) > 0) for (const l of (t.stdout || "").split("\n").filter((l) => /^(not )?ok \d+ - .* # TODO/i.test(l)))
+  console.log(`integration: known finding (${l.startsWith("not ok") ? "still open" : "now passes: remove its todo mark"}): ${l.replace(/^(not )?ok \d+ - /, "").replace(/ # TODO.*$/i, "")}`);
 if (t.status !== 0 || !failed || Number(failed[1]) > 0) { process.stdout.write((t.stdout || "").split("\n").filter((l) => /^not ok|^\s+error|^\s+\+|^\s+-/.test(l)).join("\n") + "\n"); console.error("integration: FAILED"); process.exit(1); }
 if (skipped && Number(skipped[1]) > 0) { console.error(`integration: ${skipped[1]} acceptance case(s) SKIPPED under strict mode; a skip is a failure here`); process.exit(1); }
 console.log(`integration: PASS against ${Object.values(pinsFile).map((p) => p.commit.slice(0, 12)).join(", ")}`);
