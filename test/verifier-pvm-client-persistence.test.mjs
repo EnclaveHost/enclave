@@ -84,21 +84,24 @@ function run(stateFile, policyName, label, extra = []) {
   const settled = Promise.race([done, evidenceRequested(label).then(() => ({ exited: false, requested: true, status: null, out, err, result: null }))]);
   return { child, done, settled };
 }
-// the committed serial, independent of the store's layout: 0.1.0 state.json, or a generation log beside/at the path
-function committed(stateFile) {
-  const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
-  const direct = read(stateFile); if (direct && Number.isInteger(direct.serial)) return direct;
-  for (const dir of [stateFile, `${stateFile}.d`, path.join(path.dirname(stateFile), "state.d")]) {
-    let names = []; try { names = fs.readdirSync(dir).filter((n) => /^\d+\.json$/.test(n)); } catch { continue; }
-    if (!names.length) continue;
-    const newest = names.map((n) => Number(n.slice(0, -5))).sort((a, b) => b - a)[0];
-    const s = read(path.join(dir, `${newest}.json`)); return s ? { ...s, generation: newest } : { corrupt: true, generation: newest };
-  }
+// the committed state, read the way the client defines it (0.2.0: `pvm-client state --state DIR` prints { state, gen, dir });
+// a 0.1.0 client has no such command, so its state.json is read directly (the fallback exists only for the reproduction)
+function committed(stateLoc) {
+  const r = spawnSync(process.execPath, [CLI, "state", "--state", stateLoc], { encoding: "utf8", env: cliEnv() });
+  const line = (r.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
+  try { const j = JSON.parse(line); if (j.state && Number.isInteger(j.state.serial)) return { ...j.state, gen: j.gen, dir: j.dir }; if (j.error) return { error: j.error }; } catch {}
+  try { const d = JSON.parse(fs.readFileSync(stateLoc, "utf8")); if (Number.isInteger(d.serial)) return d; } catch {}
   return null;
 }
+// where a client keeps its state: 0.2.0 takes a DIRECTORY; the name below is a directory that does not exist before install
+const stateLoc = (name) => path.join(tmp, name, "state.d");
+// the client's own version (0.2.0 introduced the generation log, the state command and the 0.1.0 import): cases that
+// exercise those semantics must not pass vacuously on such a client
+const clientVersion = (() => { if (!CLI || !fs.existsSync(CLI)) return null; const r = spawnSync(process.execPath, [CLI, "version"], { encoding: "utf8", env: cliEnv() }); try { return JSON.parse(r.stdout.trim().split("\n").pop()).version; } catch { return null; } })();
+const hasLog = clientVersion ? clientVersion.split(".").map(Number) >= [0, 2, 0] && !(clientVersion.split(".").map(Number)[0] === 0 && clientVersion.split(".").map(Number)[1] < 2) : false;
 
 test("1. stall after acceptance, then kill: the accepted serial is committed BEFORE the client acts, and a later rollback is refused", { skip }, async () => {
-  const state = path.join(tmp, "s1", "state.json"); install(state);
+  const state = stateLoc("s1"); install(state);
   assert.equal(committed(state).serial, 1, "the install floor");
   policies.set("p2", signedPolicy(2)); policies.set("p1", signedPolicy(1));
   const a = run(state, "p2", "s1-a");
@@ -113,7 +116,7 @@ test("1. stall after acceptance, then kill: the accepted serial is committed BEF
   assert.match(rb.result?.refused || "", /rollback/); assert.equal(requestedEver("s1-b"), false, "no evidence request under a rolled-back policy");
 });
 test("2. concurrent old and new serials, new commits first: the old one is refused, never acted on, and the state stays new", { skip }, async () => {
-  const state = path.join(tmp, "s2", "state.json"); install(state);
+  const state = stateLoc("s2"); install(state);
   policies.set("p5", signedPolicy(5)); policies.set("p6", signedPolicy(6));
   const nu = run(state, "p6", "s2-new"); await evidenceRequested("s2-new");
   assert.equal(committed(state)?.serial, 6, "the newer serial committed before acting");
@@ -125,7 +128,7 @@ test("2. concurrent old and new serials, new commits first: the old one is refus
   assert.equal(committed(state)?.serial, 6);
 });
 test("3. concurrent old and new serials, old starts first and finishes last: the newer serial is never overwritten by the older completion", { skip }, async () => {
-  const state = path.join(tmp, "s3", "state.json"); install(state);
+  const state = stateLoc("s3"); install(state);
   policies.set("q5", signedPolicy(5)); policies.set("q6", signedPolicy(6));
   const old = run(state, "q5", "s3-old"); await evidenceRequested("s3-old");
   const nu = run(state, "q6", "s3-new"); await evidenceRequested("s3-new");
@@ -135,7 +138,7 @@ test("3. concurrent old and new serials, old starts first and finishes last: the
   assert.equal(committed(state)?.serial, 6, `the older completion must not overwrite the newer serial (committed: ${JSON.stringify(committed(state))})`);
 });
 test("3b. lost update: two clients hold old and new serials; the NEWER completes first, the OLDER last; the state must still be the newer", { skip }, async () => {
-  const state = path.join(tmp, "s3b", "state.json"); install(state);
+  const state = stateLoc("s3b"); install(state);
   policies.set("z5", signedPolicy(5)); policies.set("z6", signedPolicy(6));
   const old = run(state, "z5", "s3b-old"), nu = run(state, "z6", "s3b-new");
   // whichever of the two acts (on a fixed client the second is refused as a rollback if the newer committed first; on a client
@@ -149,7 +152,7 @@ test("3b. lost update: two clients hold old and new serials; the NEWER completes
   assert.equal(final, 6, `the older client's completion must not overwrite the newer serial (final ${final})`);
 });
 test("4. the same serial with other bytes, concurrently: the second is refused as equivocation and makes no request", { skip }, async () => {
-  const state = path.join(tmp, "s4", "state.json"); install(state);
+  const state = stateLoc("s4"); install(state);
   policies.set("x6", signedPolicy(6)); policies.set("y6", signedPolicy(6, { tag: "other bytes" }));
   assert.notEqual(policies.get("x6").digest, policies.get("y6").digest);
   const a = run(state, "x6", "s4-a"); await evidenceRequested("s4-a");
@@ -163,9 +166,10 @@ test("4. the same serial with other bytes, concurrently: the second is refused a
   const c = run(state, "x6", "s4-c"); const rc0 = await c.settled; assert.equal(rc0.exited, false, "the same policy again is accepted (idempotent), so the client acts on it"); release("s4-c"); const rc = await c.done; assert.notEqual(rc.result?.step, "policy", rc.out);
 });
 test("5. failed persistence: when the commit cannot be made durable, nothing is sent (no evidence request, no private request)", { skip }, async () => {
-  const dir = path.join(tmp, "s5"); const state = path.join(dir, "state.json"); install(state);
+  const state = stateLoc("s5"); install(state);
   policies.set("r2", signedPolicy(2));
-  fs.chmodSync(dir, 0o555);                                      // the store cannot be written
+  const dirs = [state, path.dirname(state)].filter((d) => { try { return fs.statSync(d).isDirectory(); } catch { return false; } });
+  for (const d of dirs) fs.chmodSync(d, 0o555);                  // the store (and its parent) cannot be written
   try {
     const a = run(state, "r2", "s5-a"); const ra = await a.settled;
     assert.equal(ra.exited, true, "the client must refuse before acting when its store is not writable (its evidence request arrived instead)");
@@ -173,21 +177,59 @@ test("5. failed persistence: when the commit cannot be made durable, nothing is 
     assert.equal(requestedEver("s5-a:sealed"), false);
     assert.notEqual(ra.status, 0, "a failed commit is a refusal, not success");
     assert.equal(committed(state)?.serial, 1, "the floor is unchanged");
-  } finally { fs.chmodSync(dir, 0o755); }
+  } finally { for (const d of dirs) fs.chmodSync(d, 0o755); }
 });
 test("6. a corrupt state is fatal: no fallback, no request", { skip }, async () => {
-  const state = path.join(tmp, "s6", "state.json"); install(state);
+  const state = stateLoc("s6"); install(state);
   policies.set("t2", signedPolicy(2));
-  const target = fs.existsSync(state) ? state : (() => { const c = committed(state); const d = [state, `${state}.d`, path.join(path.dirname(state), "state.d")].find((x) => { try { return fs.statSync(x).isDirectory(); } catch { return false; } }); return path.join(d, `${c.generation}.json`); })();
+  const c = committed(state);   // the newest generation, located through the client's own report of gen and dir (fault injection touches the layout; reading never does)
+  const target = c && c.dir ? path.join(c.dir, `${c.gen}.json`) : state;
   fs.writeFileSync(target, "{ this is not the state");
   const a = run(state, "t2", "s6-a"); const ra = await a.settled;
   assert.equal(ra.exited, true, "a corrupt state is fatal before acting"); assert.notEqual(ra.status, 0); assert.equal(requestedEver("s6-a"), false, "a client with a corrupt state makes no request");
 });
 test("7. an attacker's policy and a stalled carrier leave no trace in the state, and a later genuine policy is accepted", { skip }, async () => {
-  const state = path.join(tmp, "s7", "state.json"); install(state);
+  const state = stateLoc("s7"); install(state);
   policies.set("evil3", signedPolicy(3, { key: otherKey })); policies.set("g2", signedPolicy(2));
   const e = run(state, "evil3", "s7-e"); const re = await e.settled;
   assert.equal(re.exited, true); assert.equal(re.result?.step, "policy"); assert.match(re.result?.refused || "", /anchor does not name/); assert.equal(requestedEver("s7-e"), false);
   assert.equal(committed(state)?.serial, 1);
   const g = run(state, "g2", "s7-g"); const rg = await g.settled; assert.equal(rg.exited, false, "a genuine newer policy is accepted and acted on"); assert.equal(committed(state)?.serial, 2, "committed before acting"); release("s7-g"); await g.done;
+});
+
+test("8. three concurrent writers (serials 5, 6, 7) started in that order: the state ends at 7 and every client either committed monotonically or was refused before acting", { skip }, async () => {
+  const state = stateLoc("s8"); install(state);
+  for (const n of [5, 6, 7]) policies.set(`w${n}`, signedPolicy(n));
+  const runs = [5, 6, 7].map((n) => run(state, `w${n}`, `s8-${n}`));
+  const settled = await Promise.all(runs.map((r) => r.settled));
+  for (const n of [5, 6, 7]) release(`s8-${n}`);
+  const results = await Promise.all(runs.map((r) => r.done));
+  assert.equal(committed(state)?.serial, 7, `the highest serial is the state (${JSON.stringify(committed(state))})`);
+  results.forEach((r, i) => { const acted = settled[i].exited === false; if (!acted) { assert.equal(r.result?.step, "policy", `s8-${[5, 6, 7][i]}: a client that did not act was refused at policy`); assert.match(r.result?.refused || "", /rollback|superseded|equivocation/); } });
+  assert.ok(settled[2].exited === false, "the highest serial's client acted");
+  if (hasLog) assert.equal(results.filter((r) => /"committed"/.test(r.out)).length >= 1, true, "at least one commit line was printed before acting");
+});
+test("9. a hostile local process plants a truncated newest generation: fatal, no fallback to the older one, no request", { skip }, async () => {
+  const state = stateLoc("s9"); install(state);
+  policies.set("v2", signedPolicy(2)); policies.set("v3", signedPolicy(3));
+  const a = run(state, "v2", "s9-a"); await a.settled; release("s9-a"); await a.done;
+  const c = committed(state); assert.equal(c?.serial, 2);
+  if (hasLog) assert.ok(typeof c.dir === "string" && Number.isInteger(c.gen), `a ${clientVersion} client reports its generation log (${JSON.stringify(c)})`);
+  if (!c?.dir) return;   // a client without a generation log (0.1.0) has no newest generation to plant
+  fs.writeFileSync(path.join(c.dir, `${c.gen + 1}.json`), '{"gen":' + (c.gen + 1) + ',"state":{"policyFp":"');   // truncated
+  const b = run(state, "v3", "s9-b"); const rb = await b.settled;
+  assert.equal(rb.exited, true, "a truncated newest generation must be fatal before acting"); assert.notEqual(rb.status, 0); assert.equal(requestedEver("s9-b"), false);
+  assert.ok(committed(state)?.error, "the state command reports the fatal store, not the older generation");
+});
+test("10. a 0.1.0 state file is imported once; the stale file cannot roll the log back afterwards", { skip }, async () => {
+  const dir = path.join(tmp, "s10"); fs.mkdirSync(dir, { recursive: true }); const legacy = path.join(dir, "state.json");
+  fs.writeFileSync(legacy, JSON.stringify({ policyFp: fpOf(policyKey), nextPolicyFp: null, serial: 4, digest: null, releaseFp: fpOf(releaseKey), nextReleaseFp: null }) + "\n");
+  policies.set("u5", signedPolicy(5)); policies.set("u3", signedPolicy(3));
+  const a = run(legacy, "u5", "s10-a"); const ra = await a.settled;
+  if (hasLog) assert.match(ra.out, /"imported"/, `a ${clientVersion} client imports the 0.1.0 file once and says so (${ra.out.slice(0, 200)})`);
+  if (ra.exited && /already installed|no client installed/.test(ra.out)) return;   // not an importing client
+  assert.equal(ra.exited, false, `the imported floor 4 admits serial 5 (${ra.out})`); assert.equal(committed(legacy)?.serial, 5, "committed before acting, into the log"); release("s10-a"); await a.done;
+  fs.writeFileSync(legacy, JSON.stringify({ policyFp: fpOf(policyKey), nextPolicyFp: null, serial: 1, digest: null, releaseFp: fpOf(releaseKey), nextReleaseFp: null }) + "\n");   // the legacy file rewritten by a hostile local process
+  const b = run(legacy, "u3", "s10-b"); const rb = await b.settled;
+  assert.equal(rb.exited, true, "serial 3 is below the log's 5: refused, the stale legacy file is not consulted again"); assert.match(rb.result?.refused || "", /rollback/); assert.equal(committed(legacy)?.serial, 5);
 });

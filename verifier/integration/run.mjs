@@ -36,7 +36,7 @@ for (const name of Object.keys(artifacts)) {
   if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
   process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 }
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs"];
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=120000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped)/.test(l)).join("  ");
 const failed = /^# fail (\d+)/m.exec(t.stdout || ""), skipped = /^# skipped (\d+)/m.exec(t.stdout || "");

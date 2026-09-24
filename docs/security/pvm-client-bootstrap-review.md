@@ -156,7 +156,33 @@ asserts the fixed behaviour, so against 0.1.0 it fails by design and the output 
 | 6 corrupt state | fatal, no request | passes already |
 | 7 attacker policy then stall, then a genuine newer one | no trace of the attacker's; the genuine one committed before acting | `committed before acting 1 !== 2` |
 
-Result: 8 cases, 1 pass, 7 fail against 0.1.0 (`client-persistence: 7 case(s) FAILED against 4e55879b9329`). When the
-owner's 0.2.0 lands, the pin is bumped to its commit and hashes (both `pvm-client-dist` and `pvm-client-artifact`) and
-the same suite must pass unchanged; only then is the gap closed. Kept apart from `npm run test:integration` until then,
-so the other acceptance suites keep a meaningful PASS.
+Result against 0.1.0: 8 cases, 1 pass, 7 fail (`client-persistence: 7 case(s) FAILED against 4e55879b9329`).
+
+**Verification of the fix (client 0.2.0, owner's 6784f671, 2026-09-24).** Both client pins were bumped
+(`pvm-client-artifact`: `pvm-client.mjs` `3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6`,
+126408 bytes; `pvm-client-ext.zip` `800129d5c00072c4edb4570d2342f08ef37b2e7d586589e14bc9b349c7da7601`, 128994 bytes;
+both REPRODUCED from the commit by the strict command), and the suite ran with every assertion unchanged, only its
+state reading switched to the client's own `pvm-client state --state DIR` command (0.2.0 takes a directory holding a
+generation log; the layout is touched only to inject faults). Result: all seven by-design failures now pass, the
+corrupt-state case still passes, and three added angles pass:
+
+| case | 0.1.0 (4e55879b) | 0.2.0 (6784f671) |
+|---|---|---|
+| 1 stall, kill, rollback | fail | pass: serial committed before the evidence request, survives SIGKILL, the rollback refused with no request |
+| 2 old/new, new first | fail | pass |
+| 3 old/new, old first, finishes last | fail | pass |
+| 3b lost update | fail (final 5) | pass (final 6) |
+| 4 equal serial, other bytes | fail | pass: equivocation refused, no request; same bytes idempotent |
+| 5 read-only store | fail | pass: nothing sent, non-zero exit, floor unchanged |
+| 6 corrupt state | pass | pass |
+| 7 attacker policy, stall, then genuine | fail | pass |
+| 8 three concurrent writers 5, 6, 7 | n/a | pass: the state ends at 7, every non-acting client refused at policy, a commit line printed before acting |
+| 9 planted truncated newest generation | n/a | pass: fatal before acting, no fallback to the older generation, no request |
+| 10 0.1.0 file imported once, then rewritten | n/a | pass: imported with its floor, the rewritten legacy file cannot roll the log back |
+
+Retry semantics as shipped (the CAS loser re-reads the newest generation and re-decides repeatedly, final only when
+decided on the newest, giving up after 64 lost races) are compatible with every case here: none assumed a single retry,
+only the outcome. `npm run test:client-persistence` now reports PASS against 6784f671 (11 cases), and the suite is part
+of `npm run test:integration`. Not covered on this branch: the extension's Web Locks path (the owner's own Chrome
+durability tests cover it), the supersede-at-sealing check (needs verifying evidence), and update staging races (the
+owner's durability tests). The gap is closed for the CLI as far as these black-box cases reach.
