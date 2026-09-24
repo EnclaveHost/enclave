@@ -48,16 +48,44 @@ should be. It declares exactly one platform, at compatibility mask `0x1`. That s
 most likely reading of "Element not found": the worker selects a platform configuration and finds
 no header matching it. That is a hypothesis with a cheap next test, not a conclusion.
 
+## IT STARTS (runs 3 and 4, 11:41 and 11:42)
+
+`FirmwareFile.Parameters` was the missing element. Without a `FirmwareFile` block the worker has no
+firmware element to attach the IGVM to, and `HcsStartComputeSystem` returns `0x80070490`. With one,
+a VBS-isolated partition running **our own paravisor image, loaded by path** creates and starts:
+
+| shape | result |
+|---|---|
+| VBS + IgvmFilePath + empty VMGS + Uefi + `FirmwareFile.Parameters` | **create ok, start ok, 961 ms** |
+| the same with `OPENHCL_BOOT_LOG=com2` | create ok, start ok, 949 ms |
+| the same with `OPENHCL_BOOT_LOG=com1` | create ok, start ok, 949 ms |
+| VBS + LinuxKernelDirect + IgvmFilePath + empty VMGS | start `0x80070490` — the direct-boot chipset is not the answer; the firmware block is |
+| ... + HclEnabled | start `0x80070490` |
+| VBS + IgvmFilePath + TRANSIENT guest state (no file) | create `0x80070057` on the guest-state device — a VMGS FILE is required, an in-memory declaration is not |
+
+Three runs, three starts, ~950 ms each. That is the new isolation backend launching on this box for
+the first time.
+
+**It starts and says nothing.** Both COM ports capture 0 bytes and the worker exits with the same
+`UnexpectedExit` the in-box control shows on an empty guest state. So "start ok" means the host
+accepted and ran our image, not that the paravisor booted. The two likely reasons, in order: the
+partition is sized at 1024 MB, which is small for a VTL2 paravisor plus a VTL0 guest, and VTL0 has
+nothing to boot from an empty VMGS.
+
 ## Next concrete milestone
 
 Make our paravisor START in an isolated partition. In order of cost:
 
-1. Vary what the host selects and see whether any combination matches mask `0x1`: `HclEnabled`,
-   `FirmwareFile.Parameters`, the chipset (UEFI vs direct boot), and the VTL2 memory declaration.
-   All are document-side and need one more approved run.
-2. If nothing matches, rebuild the IGVM with `igvmfilegen` declaring the platform set this host
-   asks for, and compare against the in-box paravisor's own headers as the reference.
-3. Only then wire the backend into the node's app path behind an explicitly unverified status.
+1. **Make the paravisor speak.** Raise the partition's memory well above 1024 MB and re-run the
+   shape that starts, watching COM2. A boot log is the difference between "the host ran our image"
+   and "our paravisor is alive".
+2. **Give VTL0 something to boot**, so the partition does more than start and stop: the monitor
+   initrd this lab already builds, reached through the paravisor rather than through
+   LinuxKernelDirect.
+3. **hv_sock from inside**, which is the existing launcher's transport, to prove the guest is
+   addressable.
+4. **Only then** wire this backend into the node's app path, behind an explicitly unverified
+   development status, with a user-owned canary first.
 
 ## What is NOT true yet
 
