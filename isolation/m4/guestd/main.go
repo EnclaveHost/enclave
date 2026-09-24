@@ -183,7 +183,7 @@ func (l *realLauncher) Stop(tag, workdir string) error {
 // Sweep stops the guests a previous guestd left: every user unit run-domain.sh named for a guestd tag. Guests do
 // not outlive the manager that launched them, the same rule the wasm-manager keeps for its processes - the
 // supervisor re-provisions what it still holds a lease for.
-func (l *realLauncher) Sweep() ([]string, error) {
+func (l *realLauncher) Sweep(keep map[string]bool) ([]string, error) {
 	out, err := exec.Command("systemctl", "--user", "list-units", "--plain", "--no-legend", "--all", "m2-gd*").Output()
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func (l *realLauncher) Sweep() ([]string, error) {
 	var stopped []string
 	for _, ln := range strings.Split(string(out), "\n") {
 		f := strings.Fields(ln)
-		if len(f) == 0 || !strings.HasPrefix(f[0], "m2-gd") {
+		if len(f) == 0 || !strings.HasPrefix(f[0], "m2-gd") || keep[strings.TrimSuffix(f[0], ".service")] || keep[f[0]] {
 			continue
 		}
 		if exec.Command("systemctl", "--user", "stop", f[0]).Run() == nil {
@@ -322,16 +322,23 @@ func main() {
 	}
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
-	if stopped, err := l.Sweep(); err != nil {
+	s := newServer(l, *root)
+	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
+	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
+	actx, acancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	keep, adopted, dropped := s.adoptOnBoot(actx)
+	acancel()
+	if len(adopted) > 0 {
+		log.Printf("adopted %d guest(s) a previous guestd left, each verified again as the same guest: %v", len(adopted), adopted)
+	}
+	for _, d := range dropped {
+		log.Printf("not adopted, ended: %s", d)
+	}
+	if stopped, err := l.Sweep(keep); err != nil {
 		log.Fatalf("sweeping a previous run's guests: %v", err)
 	} else if len(stopped) > 0 {
-		log.Printf("stopped %d guest(s) a previous guestd left: %v", len(stopped), stopped)
+		log.Printf("stopped %d guest unit(s) with no adoptable record: %v", len(stopped), stopped)
 	}
-	stale, _ := filepath.Glob(filepath.Join(*root, "gd*"))
-	for _, d := range stale {
-		_ = os.RemoveAll(d)
-	}
-	s := newServer(l, *root)
 	s.Firmware = map[string]any{"path": *ovmf, "sha256": fw, "pinnedVerifying": true}
 	// The catalog store, and the RuntimeID a derivation record must be pinned to: this host's, computed from the
 	// same identity file the judge is given, by the contract's own function.

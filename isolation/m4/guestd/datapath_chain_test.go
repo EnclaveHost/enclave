@@ -339,7 +339,7 @@ func (l *chainLauncher) Stop(tag, workdir string) error {
 	return nil
 }
 
-func (l *chainLauncher) Sweep() ([]string, error) { return nil, nil }
+func (l *chainLauncher) Sweep(keep map[string]bool) ([]string, error) { return nil, nil }
 
 // results parses client.mjs's RESULT k=v lines and its VERDICT line.
 func results(out string) map[string]string {
