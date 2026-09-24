@@ -35,10 +35,12 @@ import (
 	"crypto/sha512"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -199,7 +201,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	// rightly refuse to serve there)
 	g.front = exec.Command("systemd-run", "--user", "--scope", "--quiet", "--", l.front,
 		"-listen-unix", g.sock+".tls", "-report-unix", g.sock+".mon", "-app-sha", shaFile,
-		"-runtime-identity", l.rtFile, "-upstream", al.Addr().String())
+		"-runtime-identity", l.rtFile, "-upstream", al.Addr().String(), "-cert-zone", "app.test")
 	out, _ := g.front.StdoutPipe()
 	g.front.Stderr = g.front.Stdout
 	if err := g.front.Start(); err != nil {
@@ -369,6 +371,90 @@ type chain struct {
 	apps     map[string]string // label -> AppID
 	deps     map[string]string // label -> deployment id
 	certs    map[string][]string
+	nDeps    int // deployments the supervisor seam holds
+	ca       *fakeCertService
+}
+
+// fakeCertService stands in for the platform certificate service (relay/certs.js POST /v1/certs/issue): it checks the
+// CSR is exactly {CN=name, SAN=[name]} and self-signed by its key, and issues a SHORT-lived leaf from its own CA, so
+// rotation happens inside the test. For misbehaveFor it answers with a certificate for ANOTHER key.
+type fakeCertService struct {
+	caCert       *x509.Certificate
+	caKey        *ecdsa.PrivateKey
+	misbehaveFor string
+	lifetime     time.Duration
+	mu           sync.Mutex
+	issued       map[string]int
+	sent         map[string]int      // name -> requests received, before any validation (what the relay ASKED for)
+	keys         map[string][]string // name -> spki sha256 of every CSR it was asked to certify
+}
+
+func newFakeCertService(t *testing.T) *fakeCertService {
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "fixture WebPKI root"}, IsCA: true,
+		BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &k.PublicKey, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := x509.ParseCertificate(der)
+	return &fakeCertService{caCert: c, caKey: k, lifetime: 12 * time.Second, issued: map[string]int{}, sent: map[string]int{}, keys: map[string][]string{}}
+}
+
+func (f *fakeCertService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name, Csr, Endpoint, OpSig, Sig string }
+	if r.URL.Path != "/v1/certs/issue" || json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	f.mu.Lock()
+	f.sent[req.Name]++
+	f.mu.Unlock()
+	b, _ := pem.Decode([]byte(req.Csr))
+	if b == nil {
+		writeJSON(w, 400, map[string]any{"error": "no csr"})
+		return
+	}
+	csr, err := x509.ParseCertificateRequest(b.Bytes)
+	if err != nil || csr.CheckSignature() != nil || csr.Subject.CommonName != req.Name || len(csr.DNSNames) != 1 || csr.DNSNames[0] != req.Name ||
+		(req.OpSig == "" && req.Sig == "") {
+		writeJSON(w, 400, map[string]any{"error": "csr refused"})
+		return
+	}
+	spki, _ := x509.MarshalPKIXPublicKey(csr.PublicKey)
+	sum := sha256.Sum256(spki)
+	pub := csr.PublicKey
+	if req.Name == f.misbehaveFor {
+		other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		pub = &other.PublicKey
+	}
+	serial, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
+	now := time.Now()
+	f.mu.Lock()
+	life := f.lifetime
+	f.mu.Unlock()
+	tpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: req.Name}, DNSNames: []string{req.Name},
+		NotBefore: now.Add(-time.Minute), NotAfter: now.Add(life), KeyUsage: x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	der, _ := x509.CreateCertificate(rand.Reader, tpl, f.caCert, pub, f.caKey)
+	f.mu.Lock()
+	f.issued[req.Name]++
+	f.keys[req.Name] = append(f.keys[req.Name], hex.EncodeToString(sum[:]))
+	f.mu.Unlock()
+	chain := append(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: f.caCert.Raw})...)
+	writeJSON(w, 200, map[string]any{"certPem": string(chain), "ca": "fixture"})
+}
+
+func (f *fakeCertService) stats(name string) (int, []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.issued[name], append([]string{}, f.keys[name]...)
+}
+
+func (f *fakeCertService) asked(name string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sent[name]
 }
 
 func depName(dep string) string { return dep[2:10] + ".app.test" }
@@ -467,16 +553,38 @@ func newChain(t *testing.T) *chain {
 	// E: a supervisor record whose instance is B's guest, but which recorded launching A's app - the route must
 	// be refused, whatever that guest would say
 	deps = append(deps, map[string]any{"id": ch.deps["E"], "vmId": ch.inst["B"], "appId": ch.apps["A"]})
-	cfg, _ := json.Marshal(map[string]any{"deployments": deps})
+	// A3: its own deployment and guest, but launched by a host that copied A's label into HOST_DATA - the route and the
+	// handshake key are right, so only the attestation (HOST_DATA = this deployment) can stop a certificate
+	deps = append(deps, map[string]any{"id": ch.deps["A3"], "vmId": ch.inst["A3"], "appId": ch.apps["A3"]})
+	ch.ca = newFakeCertService(t)
+	ch.ca.misbehaveFor = depName(ch.deps["B"])
+	cats := httptest.NewServer(ch.ca)
+	t.Cleanup(cats.Close)
+	// C: the host terminates TLS in front of C from before the supervisor starts, so the certificate relay's first look
+	// at C is through a MITM (guestd verified C earlier, cleanly)
+	ch.l.guestByLabel("C").mitm.Store(true)
+	ch.nDeps = len(deps)
+	cfg, _ := json.Marshal(map[string]any{"deployments": deps, "guestCerts": map[string]any{"everyMs": 1500}})
 	sup := exec.Command("node", "../../../supervisor.js")
 	sup.Env = append(os.Environ(), "SECRET=test-secret", "ISOLATION_DATAPATH_SELFTEST="+string(cfg),
 		"ISOLATION_BACKEND=snp-guest-per-app", "VMMGR_URL="+ts.URL, "GUESTD_KEY_FILE="+keyFile,
-		"GUESTD_DATA_ADDR="+ch.dataAddr, "APP_CERT_DOMAIN=app.test",
+		"GUESTD_DATA_ADDR="+ch.dataAddr, "APP_CERT_DOMAIN=app.test", "CERTS_API="+cats.URL,
+		"PUBLIC_URL=https://api.enclave.test/t/metal-iso0", "REGISTRY_PRIVATE_KEY=0x"+strings.Repeat("11", 32),
 		"GUESTD_TRANSPORT_SELFTEST=", "ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=",
 		"REACH_SELFTEST=", "ACME_SELFTEST=", "CFG_EDIT_SELFTEST=", "ADDRESS_BOOK_ADDRESS=", "REGISTRY_ENABLED=",
 		"CLAIM_ENABLED=", "ACME_EAB_KID=", "ACME_EAB_HMAC=", "DNS_API=")
 	so, _ := sup.StdoutPipe()
-	sup.Stderr = io.Discard // one warning per refused splice; the SPLICE lines on stdout carry every outcome
+	// one warning per refused splice (the SPLICE lines on stdout carry every outcome); the certificate relay's own
+	// warnings are kept, since they say why a guest got no certificate
+	se, _ := sup.StderrPipe()
+	go func() {
+		sc := bufio.NewScanner(se)
+		for sc.Scan() {
+			if strings.Contains(sc.Text(), "certificate") {
+				t.Logf("supervisor: %s", sc.Text())
+			}
+		}
+	}()
 	if err := sup.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +788,7 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 	}
 
 	// 0a. this process requests no certificate for any tier deployment's names: TLS for them ends in the guest
-	none := len(ch.certs) == 5
+	none := len(ch.certs) == ch.nDeps
 	for _, v := range ch.certs {
 		none = none && len(v) == 0
 	}
@@ -724,6 +832,76 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 	wg.Wait()
 	record("6 concurrent clients over two tenants", fmt.Sprint(served), served["A"] == 3 && served["B"] == 3 && served["wrong-or-failed"] == 0)
 
+	// 2b. F2: a WebPKI certificate for the guest's OWN key, relayed by the supervisor (supervisor-guestcert.mjs)
+	roots := x509.NewCertPool()
+	roots.AddCert(ch.ca.caCert)
+	browser := func(via, name string) (string, error) { // what a browser does: WebPKI verification, nothing else
+		c, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", "127.0.0.1:"+strconv.Itoa(ch.routes[via]),
+			&tls.Config{ServerName: name, RootCAs: roots, MinVersion: tls.VersionTLS13})
+		if err != nil {
+			return "", err
+		}
+		defer c.Close()
+		leaf := c.ConnectionState().PeerCertificates[0]
+		sum := sha256.Sum256(leaf.RawSubjectPublicKeyInfo)
+		return hex.EncodeToString(sum[:]) + " serial " + leaf.SerialNumber.String(), nil
+	}
+	_, vA := ch.direct("GET", "/vms/"+ch.inst["A"], nil)
+	var seen string
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(300 * time.Millisecond) {
+		if s, err := browser("A", depName(A)); err == nil {
+			seen = s
+			break
+		}
+	}
+	record("a browser-like client (WebPKI only) accepts A's name", seen, strings.HasPrefix(seen, fmt.Sprint(vA["transportKeySha256"])+" "))
+	r := ch.client("A", depName(A), "A", nil)
+	record("... and the verifying client still attests A on the same key", fmt.Sprintf("exit=%d spki=%.16s", r.code, r.r["spki_sha256"]),
+		r.code == 0 && r.r["spki_sha256"] == fmt.Sprint(vA["transportKeySha256"]))
+	var nB int
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(300 * time.Millisecond) {
+		if nB, _ = ch.ca.stats(depName(B)); nB >= 1 {
+			break
+		}
+	}
+	time.Sleep(time.Second) // the relay's install decision follows the issuance
+	_, errB := browser("B", depName(B))
+	record("a certificate issued for ANOTHER key is never installed (B)", fmt.Sprintf("issued %d, browser: %v", nB, errB),
+		nB >= 1 && errB != nil && strings.Contains(errB.Error(), "certificate"))
+	nC := ch.ca.asked(depName(C))
+	record("nothing is issued for a guest seen through a MITM (C)", fmt.Sprintf("CSRs sent for C: %d", nC), nC == 0)
+	nA3 := ch.ca.asked(depName(ch.deps["A3"]))
+	record("nothing is issued for a guest whose attestation names another deployment (A3, copied label)",
+		fmt.Sprintf("CSRs sent for A3: %d", nA3), nA3 == 0)
+	nE := ch.ca.asked(depName(ch.deps["E"]))
+	record("nothing is issued on a route that is not the launched app (E)", fmt.Sprintf("CSRs sent for E: %d", nE), nE == 0)
+	_, keysA := ch.ca.stats(depName(A))
+	onlyA := len(keysA) > 0
+	for _, k := range keysA {
+		onlyA = onlyA && k == fmt.Sprint(vA["transportKeySha256"])
+	}
+	record("every CSR for A was for A's attested key (the key never left the guest)", fmt.Sprintf("%d CSRs", len(keysA)), onlyA)
+	first := seen
+	var rotated string
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(500 * time.Millisecond) {
+		if s, err := browser("A", depName(A)); err == nil && s != first {
+			rotated = s
+			break
+		}
+	}
+	record("rotation: a new certificate replaces the old before it expires, on the SAME key", fmt.Sprintf("%.40s -> %.40s", first, rotated),
+		rotated != "" && strings.SplitN(rotated, " ", 2)[0] == strings.SplitN(first, " ", 2)[0])
+	// quiet the relay for the steps that count data-plane admissions: long-lived certificates from here on, and one
+	// more renewal to install one
+	ch.ca.mu.Lock()
+	ch.ca.lifetime = time.Hour
+	ch.ca.mu.Unlock()
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(500 * time.Millisecond) {
+		if s, err := browser("A", depName(A)); err == nil && s != rotated {
+			break
+		}
+	}
+
 	// 3. the wrong guest, app, key, runtime, measurement: the CLIENT refuses (exit 3 = gate closed, no app traffic)
 	wrongRT := filepath.Join(filepath.Dir(ch.l.rtFile), "other-runtime.json")
 	other := chainRuntime
@@ -747,7 +925,7 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 	// splice), and the client refuses because the report does not bind the key its handshake saw
 	ch.l.guestByLabel("C").mitm.Store(true)
 	before := ch.s.Data.Stats()["spliced"]
-	r := ch.client("C", depName(C), "C", nil)
+	r = ch.client("C", depName(C), "C", nil)
 	record("a host MITM behind the splice (wrong key)", fmt.Sprintf("exit=%d verdict=%.70q spliced_by_guestd=%d",
 		r.code, r.r["VERDICT"], ch.s.Data.Stats()["spliced"]-before),
 		r.code == 3 && strings.Contains(r.out, "report_data does not bind") && r.r["app_requests_sent"] == "0")

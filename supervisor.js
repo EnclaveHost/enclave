@@ -8104,6 +8104,68 @@ server.on("upgrade", async (req, socket, head) => {
   socket.destroy();
 });
 
+// ---- per-app isolation: a WebPKI certificate for each guest's OWN key (F2) ----------------------------------------
+// A browser needs a CA certificate for <label>.APP_CERT_DOMAIN. On this tier the key is the guest's and never leaves
+// it, and TLS ends in the guest, so this process holds no certificate for the name (desiredCertNames). Instead it
+// RELAYS: the guest's CSR goes to the platform certificate service under this box's lease authority, and the
+// certificate goes back into the guest - but only after the guest verified, over a session with guestd's verified
+// key, as this deployment's app (isolation/m4/guestd/supervisor-guestcert.mjs says exactly what is checked).
+let _guestCertMod = null, _guestCertJudgeMode = "trusted";
+const _guestCerts = new Map();         // deployment id -> { instanceId, key, notAfter, renewAt, issuer } | { backoffUntil, failures, why }
+async function issueGuestCsr(name, csrPem, spkiHash) {
+  if (!CERTS_API) throw new Error("no platform certificate service (CERTS_API)");
+  const endpoint = _advertisedEndpoint || PUBLIC_URL;
+  if (!endpoint) throw new Error("this node has not registered its endpoint yet");
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = CERTS_KEY ? certsSig(name, endpoint, spkiHash, ts) : "";
+  // signed with the operator key directly: the same key claimSigner() uses, without its wallet client
+  const opSig = REGISTRY_PK ? await privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`)
+    .signMessage({ message: certsOpSigText(name, endpoint, spkiHash, ts) }) : "";
+  if (!sig && !opSig) throw new Error("this node has neither an operator key nor the fleet secret to sign the request");
+  const r = await acmeFetch(`${CERTS_API}/v1/certs/issue`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, csr: csrPem, endpoint, ts, ...(sig ? { sig } : {}), ...(opSig ? { opSig } : {}) }) }, CERTS_HTTP_MS);
+  const data = /json/.test(r.headers.get("content-type") || "") ? await r.json().catch(() => null) : null;
+  if (r.status === 202) throw Object.assign(new Error(`order for ${name} in flight`), { retryMs: Math.max(5, Number(data?.retryAfterSec) || 60) * 1000 });
+  if (r.status !== 200 || !data || !data.certPem) throw new Error(`the certificate service answered ${r.status} ${String(data?.error || "")} ${String(data?.message || "")}`.trim());
+  return data.certPem;
+}
+async function guestCertPass() {
+  if (!ISOLATION_BACKEND || !GUESTD_DATA_ADDR || !APP_CERT_DOMAIN) return;
+  let mod, judgeMod, transport;
+  try {
+    _guestCertMod = _guestCertMod || await import(new URL("./isolation/m4/guestd/supervisor-guestcert.mjs", import.meta.url));
+    judgeMod = await import(new URL("./isolation/m2/judge.mjs", import.meta.url));
+    transport = await guestdTransport();
+    mod = _guestCertMod;
+  } catch (e) { console.warn(`[isolation] guest certificates unavailable: ${e.message}`); return; }
+  for (const rec of deployments.values()) {
+    if (rec.status !== "running" || !rec._vmId || !rec.public) continue;
+    const st = _guestCerts.get(rec.id);
+    if (st && st.backoffUntil && Date.now() < st.backoffUntil) continue;
+    if (st && st.instanceId === rec._vmId && st.renewAt && Date.now() < st.renewAt) continue;   // installed and fresh
+    const name = appCertName(rec.id);
+    try {
+      const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
+        expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
+        judgeOk: _guestCertJudgeMode === "trusted" ? ["attested", "no-tcb-policy"] : ["attested", "no-tcb-policy", "unauthenticated"],
+        issue: issueGuestCsr });
+      _guestCerts.set(rec.id, got);
+      console.log(`[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
+                + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);
+    } catch (e) {
+      const failures = (st && st.failures || 0) + 1;
+      const wait = e.retryMs || Math.min(3600_000, 300_000 * 2 ** (failures - 1));
+      _guestCerts.set(rec.id, { ...(st && st.instanceId === rec._vmId ? st : {}), backoffUntil: Date.now() + wait, failures, why: e.message });
+      console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
+    }
+  }
+}
+function startGuestCertLoop(everyMs = 60_000) {
+  if (!ISOLATION_BACKEND || !CERTS_API) return;
+  const t = setInterval(() => { guestCertPass().catch((e) => console.warn(`[isolation] certificate pass failed: ${e.message}`)); }, everyMs);
+  if (t.unref) t.unref();
+}
+
 // ISOLATION_DATAPATH_SELFTEST='{"deployments":[{"id","vmId","appId","status","public"}]}' - the per-app data path
 // through THIS process's own upgrade handler and /x/:id routes, for isolation/m4/guestd/datapath_chain_test.go.
 // It installs the given deployment records, serves on an ephemeral loopback port (printing
@@ -8117,6 +8179,9 @@ if (process.env.ISOLATION_DATAPATH_SELFTEST) {
       public: d.public !== false, firewall: [], _vmId: d.vmId, _vmAppId: d.appId });
   }
   _isolationSpliceObserver = (id, o) => console.log("SPLICE " + JSON.stringify({ id, ...o }));
+  // guest certificates in the fixture: its reports are unsigned, so the lab judge mode stands in for "trusted"
+  // here and ONLY here (production hardcodes trusted; nothing else reads this seam's config)
+  if (c.guestCerts) { _guestCertJudgeMode = "lab-unsigned"; startGuestCertLoop(Number(c.guestCerts.everyMs) || 2000); }
   // and which certificates this process would ask for on their behalf: none, on this tier
   const certNames = Object.fromEntries([...deployments.values()].map((r) => [r.id, desiredCertNames(r)]));
   server.listen(0, "127.0.0.1", () => console.log(JSON.stringify({ listening: server.address().port, certNames })));
@@ -10454,6 +10519,7 @@ startPoolReconciler();
 // record owns, so an unconfirmed stop can never strand a tenant's slice (and
 // its resident model weights) against a deployment that no longer exists.
 startInstanceReconciler();
+startGuestCertLoop();
 
 // portable deployments: claim/renew/release on-chain leases (opt-in; see
 // contracts/DEPLOYMENTS.md). Requires registry advertising + DEPLOYMENTS_ADDRESS.
