@@ -1,0 +1,157 @@
+{
+ "a": "windows/vbslike/evidence/linux-record-2026-09-23.json",
+ "b": "windows/vbslike/evidence/windows-record-2026-09-23.json",
+ "ok": true,
+ "findings": [],
+ "differences": [
+  {
+   "path": "platform",
+   "a": "linux-snp-guest",
+   "b": "windows-hcs-partition",
+   "why": "linux SNP guest vs Windows HCS child partition"
+  },
+  {
+   "path": "tier",
+   "a": "T1",
+   "b": "T0-hv",
+   "why": "T1 (hardware report) vs T0-hv (launcher-signed, host not excluded)"
+  },
+  {
+   "path": "format",
+   "a": "sev-snp-guest-domain-v1",
+   "b": "hyperv-partition-domain/v1",
+   "why": "the report format follows the tier"
+  },
+  {
+   "path": "attest.A.verdict",
+   "a": "attested",
+   "b": "monitor-signed",
+   "why": "attested (AMD chain) vs monitor-signed (a launcher key the caller chose to trust)"
+  },
+  {
+   "path": "attest.B.verdict",
+   "a": "attested",
+   "b": "monitor-signed",
+   "why": "attested (AMD chain) vs monitor-signed (a launcher key the caller chose to trust)"
+  },
+  {
+   "path": "attest.B.selfTest",
+   "a": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom2",
+   "b": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1",
+   "why": "the W^X scan scope may differ by domain layout"
+  },
+  {
+   "path": "backend",
+   "a": {
+    "measurement": "483bd097aa45c05971ec230f5178eb8b1650fb4730aed136bf5e78e452fce40b4ae50f488f8874aad78e9ecec55ba0c2",
+    "vmpl": 0,
+    "chain": "AMD (test/fixtures/amd), VCEK held, min-TCB = the box's own"
+   },
+   "b": {
+    "launcherKey": "IvzjeI2GWwCIt965CNGhnAcPO0YgVMMUcCTTC8494uo=",
+    "imageSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+    "hostExcluded": false
+   },
+   "why": "what vouches differs: a launch measurement vs a launcher key and an image hash"
+  },
+  {
+   "path": "image.kernelSha256",
+   "a": null,
+   "b": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+   "why": "the Linux guest kernel differs from the WSL kernel the partitions boot"
+  },
+  {
+   "path": "provenance.baselineVerdict",
+   "a": "attested",
+   "b": "monitor-signed",
+   "why": "which layer refused or ended something may differ (the launcher's contract mirror before a partition exists, or the in-guest monitor); the outcome must not"
+  },
+  {
+   "path": "provenance.crash",
+   "a": "a bare artifact that is not wasm: the runtime fails and the domain's init exits",
+   "b": "the host terminates the partition without notice (HcsTerminateComputeSystem)",
+   "why": "which layer refused or ended something may differ (the launcher's contract mirror before a partition exists, or the in-guest monitor); the outcome must not"
+  },
+  {
+   "path": "provenance.tamperedBundleRefusedBy",
+   "a": "in-guest monitor (isolation/contract Parse, Go)",
+   "b": "launcher (isolation/contract mirror, Rust) before the partition exists",
+   "why": "which layer refused or ended something may differ (the launcher's contract mirror before a partition exists, or the in-guest monitor); the outcome must not"
+  },
+  {
+   "path": "timings.boot_to_monitor_A_ms",
+   "b": 5339,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.boot_to_monitor_B_ms",
+   "b": 5328,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.boot_to_monitor_ms",
+   "a": 3802,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.contention",
+   "a": "quiet box: the SNP-batch owner held SVSM/IGVM builds for this window; no other guest running (pgrep qemu-system = 0 before start)",
+   "b": "NucBox otherwise idle apart from the live node (ee-host, node agent); no other partitions",
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.echo_A_mb_per_s",
+   "a": 714.8,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.echo_B_mb_per_s",
+   "a": 725.8,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.first_app_response_A_ms",
+   "a": null,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.first_app_response_B_ms",
+   "a": null,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.first_attestation_A_ms",
+   "a": null,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.first_attestation_B_ms",
+   "a": null,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.latency_p50_A_ms",
+   "a": 0.34,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.latency_p50_B_ms",
+   "a": 0.35,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.load_A_ms",
+   "a": 7,
+   "b": 6,
+   "why": "never compared: stated with their contention"
+  },
+  {
+   "path": "timings.load_B_ms",
+   "a": 8,
+   "b": 7,
+   "why": "never compared: stated with their contention"
+  }
+ ],
+ "checked": 27,
+ "imageSame": true
+}

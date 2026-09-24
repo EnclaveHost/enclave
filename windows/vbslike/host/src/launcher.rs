@@ -254,6 +254,8 @@ impl Launcher {
         // a bundle that this side cannot parse is refused here, before a partition exists
         match contract::parse(req.app) {
             Ok(_) | Err(contract::ParseError::NotBundle) => {}
+            // the same words the in-guest monitor uses (isolation/contract Parse), so a refusal reads the
+            // same on every backend whichever layer refused first
             Err(contract::ParseError::Malformed(m)) => return Err(format!("bundle refused: {m}")),
         }
         let sys_id = new_guid_string();

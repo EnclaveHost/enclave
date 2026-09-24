@@ -1,5 +1,5 @@
 {
- "started": "2026-09-24T03:12:22.402Z",
+ "started": "2026-09-24T04:36:28.281Z",
  "apps": {
   "A": {
    "file": "C:\\Users\\claude\\vbs-like\\apps\\appA.bundle",
@@ -17,67 +17,67 @@
  "timings": [
   {
    "domain": "A",
-   "create": 39.6473,
-   "loaded": 5342.3778999999995,
-   "monitor": 5336.0769,
-   "start": 74.3091,
-   "total": 5342.7293
+   "create": 38.4749,
+   "loaded": 5345.4657,
+   "monitor": 5339.0787,
+   "start": 71.73400000000001,
+   "total": 5345.8085
   },
   {
    "domain": "B",
-   "create": 42.414300000000004,
-   "loaded": 5330.103700000001,
-   "monitor": 5322.9289,
-   "start": 74.9398,
-   "total": 5330.3363
+   "create": 36.4291,
+   "loaded": 5334.642,
+   "monitor": 5327.6266000000005,
+   "start": 69.1327,
+   "total": 5334.8942
   },
   {
    "domain": "C",
-   "create": 35.6199,
-   "loaded": 5322.2307,
-   "monitor": 5315.9775,
-   "start": 67.45,
-   "total": 5322.4722
+   "create": 37.786300000000004,
+   "loaded": 5341.7742,
+   "monitor": 5334.9498,
+   "start": 69.61359999999999,
+   "total": 5342.0122
   },
   {
    "domain": "D",
-   "create": 36.7512,
-   "loaded": 5336.7789999999995,
-   "monitor": 5329.217500000001,
-   "start": 70.273,
-   "total": 5337.0362000000005
+   "create": 37.1718,
+   "loaded": 5333.5131,
+   "monitor": 5326.1416,
+   "start": 68.82130000000001,
+   "total": 5333.7705
   }
  ],
  "memory": {
   "before": {
-   "freeKiB": 104703392,
+   "freeKiB": 104706076,
    "vmmemWorkingSet": 0,
    "vmwpWorkingSet": 0,
-   "hostPrivate": 1187840
+   "hostPrivate": 1183744
   },
   "two-partitions": {
-   "freeKiB": 104193768,
-   "vmmemWorkingSet": 507535360,
-   "vmwpWorkingSet": 38051840,
-   "hostPrivate": 1851392
+   "freeKiB": 104223436,
+   "vmmemWorkingSet": 507539456,
+   "vmwpWorkingSet": 38019072,
+   "hostPrivate": 1978368
   },
   "after-kill": {
-   "freeKiB": 104398816,
+   "freeKiB": 104435460,
    "vmmemWorkingSet": 253767680,
-   "vmwpWorkingSet": 19034112,
-   "hostPrivate": 1802240
+   "vmwpWorkingSet": 19005440,
+   "hostPrivate": 1818624
   },
   "one-partition-D": {
-   "freeKiB": 104407448,
+   "freeKiB": 104470572,
    "vmmemWorkingSet": 253767680,
-   "vmwpWorkingSet": 19030016,
-   "hostPrivate": 1900544
+   "vmwpWorkingSet": 19021824,
+   "hostPrivate": 2019328
   },
   "end": {
-   "freeKiB": 104670264,
+   "freeKiB": 104731692,
    "vmmemWorkingSet": 0,
    "vmwpWorkingSet": 0,
-   "hostPrivate": 1658880
+   "hostPrivate": 1740800
   }
  },
  "verdicts": {
@@ -146,14 +146,14 @@
  },
  "events": {
   "A": [
-   "0 created 164c0d82-5ae6-4c72-9b7f-1c302281fe22 runtime_id=164c0d82-5ae6-4c72-9b7f-1c302281fe22 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
-   "35 started",
-   "5296 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
-   "5303 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
-   "5303 running",
-   "11634 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind d506423c3db0703ebccfd395c3675f6f793e045277a8727b3d90df9701b7c090",
-   "11646 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind 8a757205d89490ff649330b44239de1a5c7ef820d116f17262f310e28764ac3c",
-   "19676 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
+   "0 created 20146550-4702-4af1-bb38-854f70b73e7c runtime_id=20146550-4702-4af1-bb38-854f70b73e7c app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+   "33 started",
+   "5300 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+   "5307 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
+   "5307 running",
+   "11639 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind e0ee7d8d985c69eae167a4fcc94bc0ba738ccbd2f22d4cd2a9b9457d3d9b18c8",
+   "11651 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind c56c8dcd7809eaa3a71baafc102964862ffa186062314a81d3a2ed0ce878e2d8",
+   "19685 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
   ]
  },
  "guest": {
@@ -199,7 +199,7 @@
   "boundary": "tier=T0-hv partition=hcs-child isolation=none host_excluded=no signer=launcher-in-root-partition",
   "initrdSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
   "kernelSha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
-  "launcherKey": "XcmdV6uarGp6jzb6IEf0HElbSIMjUf4YcadzDc8J7Bs=",
+  "launcherKey": "IvzjeI2GWwCIt965CNGhnAcPO0YgVMMUcCTTC8494uo=",
   "ready": true
  },
  "A": {
@@ -218,14 +218,14 @@
   "id": 1,
   "label": "A",
   "ms": {
-   "create": 39.6473,
-   "loaded": 5342.3778999999995,
-   "monitor": 5336.0769,
-   "start": 74.3091,
-   "total": 5342.7293
+   "create": 38.4749,
+   "loaded": 5345.4657,
+   "monitor": 5339.0787,
+   "start": 71.73400000000001,
+   "total": 5345.8085
   },
   "tcpPort": 45001,
-  "vmId": "164c0d82-5ae6-4c72-9b7f-1c302281fe22"
+  "vmId": "20146550-4702-4af1-bb38-854f70b73e7c"
  },
  "B": {
   "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
@@ -243,22 +243,22 @@
   "id": 2,
   "label": "B",
   "ms": {
-   "create": 42.414300000000004,
-   "loaded": 5330.103700000001,
-   "monitor": 5322.9289,
-   "start": 74.9398,
-   "total": 5330.3363
+   "create": 36.4291,
+   "loaded": 5334.642,
+   "monitor": 5327.6266000000005,
+   "start": 69.1327,
+   "total": 5334.8942
   },
   "tcpPort": 45002,
-  "vmId": "af74864e-3bce-40af-bf2f-dcffac7ea98e"
+  "vmId": "c672ae4f-dd96-4c22-9d02-c4d8b715fd4e"
  },
  "attestA": {
   "tier": "T0-hv",
   "format": "hyperv-partition-domain/v1",
-  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiQSJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5NTU1MTQxLCJsYXVuY2hlciI6eyJrZXkiOiJYY21kVjZ1YXJHcDZqemI2SUVmMEhFbGJTSU1qVWY0WWNhZHpEYzhKN0JzPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTU0MjQ1N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiIxNjRjMGQ4Mi01YWU2LTRjNzItOWI3Zi0xYzMwMjI4MWZlMjIifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiZDUwNjQyM2MzZGIwNzAzZWJjY2ZkMzk1YzM2NzVmNmY3OTNlMDQ1Mjc3YTg3MjdiM2Q5MGRmOTcwMWI3YzA5MDYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiaFNWOFR3SldMVENsaTFST3B0d0VoN2NDdUliOU9pVFNxK1N3emI4MVloYS9Galh5a2lnSnlKMExOSWl1M1QyenJwcnR0dFZSeDkrcyswaHJ2T3lBQ1E9PSJ9",
-  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEg9U3DTZGmy2uWGITqMAu5xE0BCcaJr19mMdjLGq/aPTzjRSGvfMnCkbS7BjlEpNFLBMj9JbJRgVQrHJ86PWX6w==",
+  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiQSJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjI0NjAxMDE4LCJsYXVuY2hlciI6eyJrZXkiOiJJdnpqZUkyR1d3Q0l0OTY1Q05HaG5BY1BPMFlnVk1NVWNDVFRDODQ5NHVvPSIsInN0YXJ0ZWRNcyI6MTc5MDIyNDU4ODMyOX0sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiIyMDE0NjU1MC00NzAyLTRhZjEtYmIzOC04NTRmNzBiNzNlN2MifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiZTBlZTdkOGQ5ODVjNjllYWUxNjdhNGZjYzk0YmMwYmE3MzhjY2JkMmYyMmQ0Y2QyYTliOTQ1N2QzZDliMThjODYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiY2dKc0VkeDdEM1A2dTh6b1FBTWhtaWNtWUk5RmJFc2ExVU1adG9aSEFudTJhblV4Qi9PMFJ4OVhweFdBdHVSeUdSVzY3RERIb2x5ZFZPSG1TNkNHQmc9PSJ9",
+  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErjqkeCYIJHM/sO2ftKRpH8MCZpJ8HuAens61Yb+q1MPQ0eK0QTyTjnbTcF9pSVs7FoHgB1ObBExrPU/wRaWsPg==",
   "appSha256": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
-  "nonce": "e12106a8298fcabe3473e8e87796ec108ede513503ab381a56a50d47b41b5421",
+  "nonce": "72ad51be369b1b5627552f1850ac0dd9e5ebaed586864aaf2c89e604ec3dec10",
   "boundary": "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no",
   "abi": "enclave-domain-abi/2",
   "runtime": {
@@ -276,10 +276,10 @@
  "attestB": {
   "tier": "T0-hv",
   "format": "hyperv-partition-domain/v1",
-  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiYmJhODJkNTZlOTJiOTVhZmQ0ZTNkNDZiYzBkZTBkNzQyMmY5NjkwZTRlZWQ4M2NlNTg1YzhlNTVkNjEzODgzNyIsImxhYmVsIjoiQiJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5NTU1MTQ3LCJsYXVuY2hlciI6eyJrZXkiOiJYY21kVjZ1YXJHcDZqemI2SUVmMEhFbGJTSU1qVWY0WWNhZHpEYzhKN0JzPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTU0MjQ1N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJhZjc0ODY0ZS0zYmNlLTQwYWYtYmYyZi1kY2ZmYWM3ZWE5OGUifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiOWRhNDZmMzc1ZjY2ZGJiMmI2ODk0M2EyN2UzMmY3MWJmMzY0ZmU0YTdlNWUyZWI2ZDdiMjk5ZWI5YWI3OTk5ZWJiYTgyZDU2ZTkyYjk1YWZkNGUzZDQ2YmMwZGUwZDc0MjJmOTY5MGU0ZWVkODNjZTU4NWM4ZTU1ZDYxMzg4MzciLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiV2xab1VaMVdRVnQ2RVZKU2kvOVJrNXJvR3JwR3JBbW5odmlOeWc5NkNjaVIzZ2ttRnRNZGtzYTk1L1Q3cDRybWZEQ1ZpMjVHYjlQRTAxWEhDNkx3QXc9PSJ9",
-  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAETbbb1srg7lxrpMrI8ZtOXz4LtMuIwGpTzDPvbq+aUUFfkPoJH2uHuroTsx9CuPWgK1h0hTR1kv5Rz8fWmbM/qQ==",
+  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiYmJhODJkNTZlOTJiOTVhZmQ0ZTNkNDZiYzBkZTBkNzQyMmY5NjkwZTRlZWQ4M2NlNTg1YzhlNTVkNjEzODgzNyIsImxhYmVsIjoiQiJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjI0NjAxMDI0LCJsYXVuY2hlciI6eyJrZXkiOiJJdnpqZUkyR1d3Q0l0OTY1Q05HaG5BY1BPMFlnVk1NVWNDVFRDODQ5NHVvPSIsInN0YXJ0ZWRNcyI6MTc5MDIyNDU4ODMyOX0sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJjNjcyYWU0Zi1kZDk2LTRjMjItOWQwMi1jNGQ4YjcxNWZkNGUifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjMyMzUyOGVjN2JlMTc2NmEzNjcwYzg4NDVkYzI4ZmM1ZTJmYmIzYWFhOWQxYzA4MjliZjIxN2ExMjY4NjgyNmJiYTgyZDU2ZTkyYjk1YWZkNGUzZDQ2YmMwZGUwZDc0MjJmOTY5MGU0ZWVkODNjZTU4NWM4ZTU1ZDYxMzg4MzciLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiODNqdE9jZExaTXdiWm55SnEzbEQrejY0Q29KSEdoWHoyLzAzU0FseVljTmZ2RWlVT0c1czdkTUk4SEdYaEFPeVByVldacEtWWDNsa1IwbjdzVnpZQnc9PSJ9",
+  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFhfYsgD+yhkAFU+1mpIiPSllF1xZJRGlFCiRPbKIAtb08gCMGWXiLSmYRhiGAxv9HlaeeQjZoFaLUY4X5dCPTw==",
   "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
-  "nonce": "c0d161cebc8e9e1ea24ce58d9cf3b666a34f6a40bfc67d590589cc7b560d33e0",
+  "nonce": "848a26980e63ec0fb67871d80635869123d19ef5e1e04f643a7db99cb059bbbc",
   "boundary": "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no",
   "abi": "enclave-domain-abi/2",
   "runtime": {
@@ -301,8 +301,17 @@
   "that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)",
   "enclave-domain-abi/2: report_data[0:32] must bind the transport key, the nonce AND runtime id ccadb38a67796155…"
  ],
+ "hello": {
+  "A": "APP AAAAA path=/hello?from=client\n",
+  "B": "APP BBBBB path=/hello?from=client\n"
+ },
+ "echoIntact": {
+  "A": true,
+  "B": true
+ },
+ "tamperedBundle": "bundle refused: bundle manifest names a different artifact than it carries",
  "probeConsole": [
-  "MON snp=0 vcpus=1 memMiB=395 boot_ms=318\r",
+  "MON snp=0 vcpus=1 memMiB=395 boot_ms=312\r",
   "MON insmod /vsock.ko.zst failed: Operation not supported\r",
   "MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\r",
   "MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\r",
@@ -324,7 +333,7 @@
   "PROBE1 visible_pids=2\r",
   "PROBE1 signalable_pids=1\r",
   "PROBE1 report=granted-for-this-domain\r",
-  "PROBE1 report_b64=eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5NTYwNTc4LCJsYXVuY2hlciI6eyJrZXkiOiJYY21kVjZ1YXJHcDZqemI2SUVmMEhFbGJTSU1qVWY0WWNhZHpEYzhKN0JzPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTU0MjQ1N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiI1YTdkNTA3OC1kNTM3LTRkZDMtOGM4MS05NjZiN2VmNjM2NTMifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoieHNDTi9lZnFobUNLM0RBd3hnSW5wS21CeE0wYWF1Z0FvVUh3SHBhZFR5bkN3eEYrdlcwQUlHbXI3WGxLSjVYb1JaYlAzZ2RHZDhuTHB1OEphT3RxQmc9PSJ9\r",
+  "PROBE1 report_b64=eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjI0NjA2NDY1LCJsYXVuY2hlciI6eyJrZXkiOiJJdnpqZUkyR1d3Q0l0OTY1Q05HaG5BY1BPMFlnVk1NVWNDVFRDODQ5NHVvPSIsInN0YXJ0ZWRNcyI6MTc5MDIyNDU4ODMyOX0sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJmOGNmYzg3Ni05NGRhLTRjMTgtYTY5Ny0zMDhhNmU4ZTMxYTQifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiYWd0czVLQ3NDMzVoN093Q0wzSmU5WXJSNnREUWVOQ3ZBV25HcHdxNDBXV3J0QzNKZHdLSUo5YVhwc2RtUStOUUYwaDNpeWpQR2M3bDN4dndtS1NXRGc9PSJ9\r",
   "PROBE1 vsock_local_domain1=Network is unreachable\r",
   "PROBE1 vsock_local_domain2=Network is unreachable\r",
   "PROBE1 vsock_own_control=Network is unreachable\r",
@@ -366,7 +375,7 @@
   "visible_pids": "2",
   "signalable_pids": "1",
   "report": "granted-for-this-domain",
-  "report_b64": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5NTYwNTc4LCJsYXVuY2hlciI6eyJrZXkiOiJYY21kVjZ1YXJHcDZqemI2SUVmMEhFbGJTSU1qVWY0WWNhZHpEYzhKN0JzPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTU0MjQ1N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiI1YTdkNTA3OC1kNTM3LTRkZDMtOGM4MS05NjZiN2VmNjM2NTMifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoieHNDTi9lZnFobUNLM0RBd3hnSW5wS21CeE0wYWF1Z0FvVUh3SHBhZFR5bkN3eEYrdlcwQUlHbXI3WGxLSjVYb1JaYlAzZ2RHZDhuTHB1OEphT3RxQmc9PSJ9",
+  "report_b64": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjI0NjA2NDY1LCJsYXVuY2hlciI6eyJrZXkiOiJJdnpqZUkyR1d3Q0l0OTY1Q05HaG5BY1BPMFlnVk1NVWNDVFRDODQ5NHVvPSIsInN0YXJ0ZWRNcyI6MTc5MDIyNDU4ODMyOX0sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJmOGNmYzg3Ni05NGRhLTRjMTgtYTY5Ny0zMDhhNmU4ZTMxYTQifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiYWd0czVLQ3NDMzVoN093Q0wzSmU5WXJSNnREUWVOQ3ZBV25HcHdxNDBXV3J0QzNKZHdLSUo5YVhwc2RtUStOUUYwaDNpeWpQR2M3bDN4dndtS1NXRGc9PSJ9",
   "vsock_local_domain1": "Network is unreachable",
   "vsock_local_domain2": "Network is unreachable",
   "vsock_own_control": "Network is unreachable",
@@ -375,6 +384,30 @@
   "host_gateway": "Network is unreachable",
   "memory_touched": "240 MiB"
  },
+ "stateBeforeKill": {
+  "byVm": 2,
+  "domains": 2,
+  "hcs": [
+   {
+    "Id": "20146550-4702-4af1-bb38-854f70b73e7c",
+    "Owner": "vbslike",
+    "RuntimeId": "20146550-4702-4af1-bb38-854f70b73e7c",
+    "State": "Running",
+    "SystemType": "VirtualMachine"
+   },
+   {
+    "Id": "c672ae4f-dd96-4c22-9d02-c4d8b715fd4e",
+    "Owner": "vbslike",
+    "RuntimeId": "c672ae4f-dd96-4c22-9d02-c4d8b715fd4e",
+    "State": "Running",
+    "SystemType": "VirtualMachine"
+   }
+  ],
+  "hcsOwnedByVbslike": 2
+ },
+ "crashEndedLines": [
+  "19685 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
+ ],
  "results": [
   {
    "name": "0 the guest image on this box is byte-identical to the one built beside the Linux path (sha256 of mon.cpio.gz)",
@@ -384,12 +417,12 @@
   {
    "name": "1 partition A: the launcher's hash of the bundle it pushed equals the in-guest monitor's hash of what arrived, and it is appA's ID",
    "ok": true,
-   "detail": "5343 ms, vm 164c0d82-5ae6-4c72-9b7f-1c302281fe22, guest domain 1"
+   "detail": "5346 ms, vm 20146550-4702-4af1-bb38-854f70b73e7c, guest domain 1"
   },
   {
    "name": "1b partition B: the same for appB, in a different partition",
    "ok": true,
-   "detail": "5330 ms, vm af74864e-3bce-40af-bf2f-dcffac7ea98e"
+   "detail": "5335 ms, vm c672ae4f-dd96-4c22-9d02-c4d8b715fd4e"
   },
   {
    "name": "1c the service lists exactly the two partitions this launcher owns",
@@ -470,12 +503,17 @@
   {
    "name": "4 app A answers with label AAAAA and app B with BBBBB, each on its own attested key",
    "ok": true,
-   "detail": "{\"A\":\"APP AAAAA path=/hello\",\"B\":\"APP BBBBB path=/hello\"}"
+   "detail": "{\"A\":\"APP AAAAA path=/hello?from=client\",\"B\":\"APP BBBBB path=/hello?from=client\"}"
   },
   {
-   "name": "4b 4 MiB echoed intact through a partition (TLS ends inside it; the launcher relays ciphertext)",
+   "name": "4b 4 MiB echoed intact through each partition (TLS ends inside it; the launcher relays ciphertext)",
    "ok": true,
-   "detail": "4194304 bytes"
+   "detail": "4194304 / 4194304 bytes"
+  },
+  {
+   "name": "4c a bundle whose artifact was altered after its manifest named it is refused with the contract's reason",
+   "ok": true,
+   "detail": "bundle refused: bundle manifest names a different artifact than it carries"
   },
   {
    "name": "5 from inside the partition nothing beyond it is reachable: no other domain's files, no vsock port but its own monitor's, no host network",
@@ -500,7 +538,7 @@
   {
    "name": "6b it ended exactly once, by the partition's exit",
    "ok": true,
-   "detail": "19676 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
+   "detail": "19685 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
   },
   {
    "name": "6c A's relay port no longer answers",
@@ -538,46 +576,46 @@
  ],
  "failures": 0,
  "hostLog": [
-  "LAUNCH partition 1 created 164c0d82-5ae6-4c72-9b7f-1c302281fe22 runtime_id=164c0d82-5ae6-4c72-9b7f-1c302281fe22 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 1 created 20146550-4702-4af1-bb38-854f70b73e7c runtime_id=20146550-4702-4af1-bb38-854f70b73e7c app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
   "LAUNCH partition 1 started",
   "LAUNCH partition 1 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
   "LAUNCH partition 1 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
   "LAUNCH partition 1 running",
-  "LAUNCH partition 2 created af74864e-3bce-40af-bf2f-dcffac7ea98e runtime_id=af74864e-3bce-40af-bf2f-dcffac7ea98e app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=B image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 2 created c672ae4f-dd96-4c22-9d02-c4d8b715fd4e runtime_id=c672ae4f-dd96-4c22-9d02-c4d8b715fd4e app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=B image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
   "LAUNCH partition 2 started",
   "LAUNCH partition 2 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
   "LAUNCH partition 2 loaded: guest agrees on bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837; guest domain 1 on vsock port 40001",
   "LAUNCH partition 2 running",
-  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind d506423c3db0703ebccfd395c3675f6f793e045277a8727b3d90df9701b7c090",
-  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 9da46f375f66dbb2b68943a27e32f71bf364fe4a7e5e2eb6d7b299eb9ab7999e",
-  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind 8a757205d89490ff649330b44239de1a5c7ef820d116f17262f310e28764ac3c",
-  "LAUNCH partition 3 created 5a7d5078-d537-4dd3-8c81-966b7ef63653 runtime_id=5a7d5078-d537-4dd3-8c81-966b7ef63653 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=P image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
-  "LAUNCH partition 3 started",
-  "LAUNCH partition 3 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":308,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
-  "LAUNCH partition 3 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
-  "LAUNCH partition 3 running",
-  "LAUNCH partition 3 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind 2222222222222222222222222222222222222222222222222222222222222222",
-  "LAUNCH partition 3 terminate: partition told to stop",
-  "LAUNCH partition 3 ended: destroyed at lease end",
-  "LAUNCH partition 1 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}",
-  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 6ce9800bda2ebc4e5a29149ab6a17bc567682852e2c2936be20e1fb9438becdf",
-  "LAUNCH partition 4 created 14e977df-cdfe-4de9-94a1-815bdb949153 runtime_id=14e977df-cdfe-4de9-94a1-815bdb949153 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=C image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind e0ee7d8d985c69eae167a4fcc94bc0ba738ccbd2f22d4cd2a9b9457d3d9b18c8",
+  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 2323528ec7be1766a3670c8845dc28fc5e2fbb3aaa9d1c0829bf217a12686826",
+  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind c56c8dcd7809eaa3a71baafc102964862ffa186062314a81d3a2ed0ce878e2d8",
+  "LAUNCH partition 4 created f8cfc876-94da-4c18-a697-308a6e8e31a4 runtime_id=f8cfc876-94da-4c18-a697-308a6e8e31a4 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=P image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
   "LAUNCH partition 4 started",
-  "LAUNCH partition 4 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 4 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":308,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
   "LAUNCH partition 4 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
   "LAUNCH partition 4 running",
+  "LAUNCH partition 4 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind 2222222222222222222222222222222222222222222222222222222222222222",
   "LAUNCH partition 4 terminate: partition told to stop",
-  "LAUNCH partition 4 ended: stopped at lease end",
-  "LAUNCH partition 2 terminate: partition told to stop",
-  "LAUNCH partition 2 ended: destroyed at lease end",
-  "LAUNCH partition 5 created 3165db80-6498-46b2-8f71-5fea87d6419e runtime_id=3165db80-6498-46b2-8f71-5fea87d6419e app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=D image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 4 ended: destroyed at lease end",
+  "LAUNCH partition 1 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}",
+  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 4efd9aab3eca14e37bdaa581da88e87e2d0a11e027e553afb46d89995652ab0a",
+  "LAUNCH partition 5 created 78947624-77cc-49b9-b4e1-00d144bc6613 runtime_id=78947624-77cc-49b9-b4e1-00d144bc6613 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=C image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
   "LAUNCH partition 5 started",
   "LAUNCH partition 5 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
-  "LAUNCH partition 5 loaded: guest agrees on bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 5 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
   "LAUNCH partition 5 running",
-  "LAUNCH partition 5 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind bcddc82029e55b3024be28877257e48b1db3d19a6b27b38fd3a8ea5e9ede1d3b",
   "LAUNCH partition 5 terminate: partition told to stop",
-  "LAUNCH partition 5 ended: destroyed at lease end"
+  "LAUNCH partition 5 ended: stopped at lease end",
+  "LAUNCH partition 2 terminate: partition told to stop",
+  "LAUNCH partition 2 ended: destroyed at lease end",
+  "LAUNCH partition 6 created f6e5ec0c-6799-4416-a1bb-22f6fcb58bf9 runtime_id=f6e5ec0c-6799-4416-a1bb-22f6fcb58bf9 app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=D image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 6 started",
+  "LAUNCH partition 6 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 6 loaded: guest agrees on bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 6 running",
+  "LAUNCH partition 6 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 4b14774eb7593da782ae5464c366877de7a2aecdce4d7b9cf243a88c57c4b3fd",
+  "LAUNCH partition 6 terminate: partition told to stop",
+  "LAUNCH partition 6 ended: destroyed at lease end"
  ],
  "imageSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf"
 }
