@@ -10,8 +10,9 @@ import http from "node:http";
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
 import { CLIENT_VERSION, VERSION_MARKER } from "../shielded/anchor/avf/client/src/trust.js";
-import { connect } from "../shielded/anchor/avf/client/src/client.js";
+import { connect, acceptPolicy } from "../shielded/anchor/avf/client/src/client.js";
 import { initialState } from "../shielded/anchor/avf/client/src/trust.js";
+import { FileStore } from "../shielded/anchor/avf/client/src/store-file.js";
 import { tmpdir, makeCa, haveOpenssl } from "./fixtures/avf-synthetic.mjs";
 import { startFakeVm } from "./fixtures/pvm-fake-vm.mjs";
 import { createWebCarrier } from "../shielded/anchor/avf/cpu/web-carrier.mjs";
@@ -89,7 +90,7 @@ test("the CLI: installs its anchors once; refuses unsigned, foreign, rolled-back
     // a well-formed VM whose chain is not Google's: the installed client refuses it at verify, and sends nothing
     const r7 = await run(policy(P, { serial: 7 }));
     assert.equal(r7.step, "verify"); assert.equal(r7.sent, false); assert.match(r7.refused, /not a pinned Google attestation root/);
-    assert.equal(JSON.parse(fs.readFileSync(state, "utf8")).serial, 7, "the client remembers the newest policy");
+    assert.equal((await cli(["state", "--state", state])).lines[0].state.serial, 7, "the client remembers the newest policy");
     assert.match((await run(policy(P, { serial: 6 }))).refused, /rollback/, "an older signed policy after a newer one, in a later run");
     assert.match((await run(policy(P, { serial: 7, formats: ["enclave-pvm-app-evidence/v1", "enclave-pvm-app-evidence/v2"] }))).refused, /equivocation/);
     assert.match((await run(policy(P, { serial: 8, notBefore: iso(Date.now() - 7200e3), notAfter: iso(Date.now() - 3600e3) }))).refused, /expired/);
@@ -102,30 +103,37 @@ test("the CLI's updates: staged beside it only when release-signed, policy-count
   const P = key(), R = key(), X = key();
   await cli(["install", "--state", state, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp]);
   const cur = fs.readFileSync(CLI);
-  const next = Buffer.from(cur.toString("utf8").replace(`${VERSION_MARKER}${CLIENT_VERSION} `, `${VERSION_MARKER}0.2.0 `));
+  const NEXT = "9.1.0";   // newer than the running client, whatever its version
+  const next = Buffer.from(cur.toString("utf8").replace(`${VERSION_MARKER}${CLIENT_VERSION} `, `${VERSION_MARKER}${NEXT} `));
   const man = (b, over = {}, r = R, p = P) => {
-    const body = { type: "enclave-pvm-client-update", artifact: "pvm-client.mjs", version: "0.2.0", artifactSha256: sha(b), size: b.length, sourceCommit: "ab".repeat(20),
+    const body = { type: "enclave-pvm-client-update", artifact: "pvm-client.mjs", version: NEXT, artifactSha256: sha(b), size: b.length, sourceCommit: "ab".repeat(20),
                    notAfter: iso(Date.now() + 86400e3), releaseKey: r.pub, policyKey: p.pub, nextReleaseKey: null, ...over };
     const t = JSON.stringify(body);
     return { manifest: Buffer.from(t).toString("base64"), releaseSig: esig(t, "enclave-pvm-client-update-v1\n", r), policySig: esig(t, "enclave-pvm-client-update-countersign-v1\n", p) };
   };
   const upd = async (m, b) => {
     const mf = path.join(dir, "m.json"), af = path.join(dir, "a.mjs"); fs.writeFileSync(mf, JSON.stringify(m)); fs.writeFileSync(af, b);
-    fs.rmSync(path.join(dir, "pvm-client.mjs.next"), { force: true });
+    fs.rmSync(path.join(dir, `pvm-client-${NEXT}.mjs`), { force: true });
     const r = (await cli(["update", "--state", state, "--manifest", mf, "--artifact", af, "--install-dir", dir])).lines.at(-1).update;
-    return { ...r, staged: fs.existsSync(path.join(dir, "pvm-client.mjs.next")) };
+    const st = (await cli(["state", "--state", state])).lines[0].state;
+    return { ...r, staged: !!st.staged && fs.existsSync(path.join(dir, st.staged.file)) };
   };
   const bad = (r, re) => { assert.equal(r.ok, false); assert.match(r.reasons[0], re); assert.equal(r.staged, false, "nothing staged"); };
   bad(await upd(man(next), Buffer.concat([next, Buffer.from("\nevil();")])), /bytes; the signed manifest says|not the signed artifact/);
   const t = Buffer.from(next); t[t.length - 5] ^= 1; bad(await upd(man(next), t), /not the signed artifact/);
   bad(await upd(man(next, {}, X, P), next), /release key this client's anchor does not name/);
   bad(await upd({ ...man(next), policySig: man(next, {}, R, X).policySig }, next), /countersignature does not verify/);
-  bad(await upd(man(cur, { version: "0.1.0" }), cur), /downgrade or a replay/);
-  bad(await upd(man(cur, { version: "0.2.0" }), cur), /own version line is not 0\.2\.0/);
+  bad(await upd(man(cur, { version: CLIENT_VERSION }), cur), /downgrade or a replay/);
+  bad(await upd(man(cur, { version: NEXT }), cur), /own version line is not 9\.1\.0/);
   bad(await upd(man(next, { notAfter: iso(Date.now() - 1000e3) }), next), /expired/);
   const ok = await upd(man(next), next);
-  assert.equal(ok.ok, true, JSON.stringify(ok)); assert.equal(ok.staged, true); assert.equal(ok.version, "0.2.0");
-  assert.deepEqual(fs.readFileSync(path.join(dir, "pvm-client.mjs.next")), next);
+  assert.equal(ok.ok, true, JSON.stringify(ok)); assert.equal(ok.staged, true); assert.equal(ok.version, NEXT);
+  assert.deepEqual(fs.readFileSync(path.join(dir, `pvm-client-${NEXT}.mjs`)), next);
+  const staged = (await cli(["staged", "--state", state, "--install-dir", dir])).lines[0].staged;
+  assert.equal(staged.version, NEXT); assert.equal(staged.bytesMatch, true);
+  const again = await upd(man(next), next);   // the same version again: refused; the earlier staging stands
+  assert.equal(again.ok, false); assert.match(again.reasons[0], /already staged/);
+  assert.equal((await cli(["staged", "--state", state, "--install-dir", dir])).lines[0].staged.bytesMatch, true);
   assert.equal((await cli(["version"])).lines[0].version, CLIENT_VERSION, "the running client did not load what it staged");
 });
 
@@ -133,11 +141,12 @@ test("in process, on the Pixel's real v2 evidence: policy, verification and the 
   const env = JSON.parse(fs.readFileSync(new URL("../shielded/anchor/avf/results/pvm-cpu-browser-channel/l1-evidence.json", import.meta.url)));
   const at = Date.parse("2026-09-24T07:26:36Z");
   const P = key(), R = key();
-  const state = initialState({ policyKeyFp: P.fp, serialFloor: 1, releaseKeyFp: R.fp });
+  const store = new FileStore(fs.mkdtempSync(path.join(os.tmpdir(), "pvm-inproc-")));
+  store.init({ ...initialState({ policyKeyFp: P.fp, serialFloor: 1, releaseKeyFp: R.fp }), staged: null });
   const pol = policy(P, { serial: 1, codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"] }, at);
-  let evidenceOut = JSON.stringify(env), sealedSeen = 0;
-  const srv = http.createServer((q, s) => { let b = ""; q.on("data", (d) => { b += d; }); q.on("end", () => {
-    if (q.url === "/evidence") { s.end(evidenceOut + "\n"); return; }
+  let evidenceOut = JSON.stringify(env), sealedSeen = 0, holdEvidence = null, evidenceHeld = null;
+  const srv = http.createServer((q, s) => { let b = ""; q.on("data", (d) => { b += d; }); q.on("end", async () => {
+    if (q.url === "/evidence") { if (holdEvidence) { const h = holdEvidence; holdEvidence = null; evidenceHeld(); await h; } s.end(evidenceOut + "\n"); return; }
     sealedSeen++; s.writeHead(502); s.end(); }); }).listen(0, "127.0.0.1");
   await new Promise((r) => srv.on("listening", r));
   const relay = `http://127.0.0.1:${srv.address().port}`;
@@ -145,17 +154,30 @@ test("in process, on the Pixel's real v2 evidence: policy, verification and the 
   crypto.getRandomValues = (a) => { if (a.length === 32) { a.set(Buffer.from(env.nonce, "hex")); return a; } return orig(a); };   // the page's nonce is the one the Pixel answered
   try {
     const used = new Set();
-    const r1 = await connect({ relay, policyEnv: pol, state, appId: env.app, path: "/?graph=g&steps=3", usedNonces: used, now: at });
+    const r1 = await connect({ relay, policyEnv: pol, store, appId: env.app, path: "/?graph=g&steps=3", usedNonces: used, now: at });
     assert.equal(r1.result.step, "sealed", JSON.stringify(r1.result)); assert.equal(r1.result.sent, true); assert.equal(sealedSeen, 1, "released: sealed and sent");
     assert.ok(used.has(env.nonce), "the nonce is spent");
-    const r2 = await connect({ relay, policyEnv: pol, state: r1.state, appId: env.app, path: "/", usedNonces: used, now: at });
+    const r2 = await connect({ relay, policyEnv: pol, store, appId: env.app, path: "/", usedNonces: used, now: at });
     assert.equal(r2.result.step, "gate"); assert.match(r2.result.refused, /used before/); assert.equal(sealedSeen, 1, "a replayed exchange sends nothing");
     evidenceOut = JSON.stringify({ ...env, appKey: "11".repeat(32) });
-    const r3 = await connect({ relay, policyEnv: pol, state: r1.state, appId: env.app, path: "/", usedNonces: new Set(), now: at });
+    const r3 = await connect({ relay, policyEnv: pol, store, appId: env.app, path: "/", usedNonces: new Set(), now: at });
     assert.equal(r3.result.step, "verify"); assert.equal(sealedSeen, 1, "a relay's app key: nothing sent");
     const narrow = policy(P, { serial: 2, googleRootPins: [GOOGLE[0]] }, at);
     evidenceOut = JSON.stringify(env);
-    const r4 = await connect({ relay, policyEnv: narrow, state: r1.state, appId: env.app, path: "/", usedNonces: new Set(), now: at });
+    const r4 = await connect({ relay, policyEnv: narrow, store, appId: env.app, path: "/", usedNonces: new Set(), now: at });
     assert.equal(r4.result.step, "verify"); assert.match(r4.result.refused, /not a pinned Google attestation root/); assert.equal(sealedSeen, 1);
+    // superseded while it waited: this run commits serial 3, its evidence is held; meanwhile serial 4 is committed (another
+    // tab or process); on release, the evidence verifies and the release rule passes -- and it is still refused, nothing sent
+    let release; holdEvidence = new Promise((r) => { release = r; });
+    const held = new Promise((r) => { evidenceHeld = r; });
+    const pending = connect({ relay, policyEnv: policy(P, { serial: 3, codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"] }, at), store, appId: env.app, path: "/", usedNonces: new Set(), now: at });
+    await held;
+    assert.equal(store.latest().state.serial, 3, "committed before the evidence request");
+    assert.equal((await acceptPolicy(store, policy(P, { serial: 4, codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"] }, at), { now: at })).serial, 4);
+    release();
+    const r5 = (await pending).result;
+    assert.equal(r5.step, "gate"); assert.match(r5.refused, /serial 3 was superseded by serial 4/); assert.equal(sealedSeen, 1, "a superseded policy sends nothing");
+    const r6 = await connect({ relay, policyEnv: policy(P, { serial: 4, codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"] }, at), store, appId: env.app, path: "/", usedNonces: new Set(), now: at });
+    assert.equal(r6.result.step, "sealed", JSON.stringify(r6.result)); assert.equal(sealedSeen, 2, "the newest policy still releases");
   } finally { crypto.getRandomValues = orig; srv.close(); }
 });

@@ -91,12 +91,48 @@ The manifest travels as `{ manifest: base64(exact bytes), releaseSig, policySig 
 - **Bytes.** The delivered bytes must hash to the manifest and have its size, and their own first line must carry the
   manifest's version, so a manifest cannot rename an artifact.
 - **Order.** The version must be strictly newer: a downgrade or a replay is refused. The manifest also expires.
-- **Staging.** The CLI writes the verified bytes **beside itself** as `pvm-client.mjs.next`, for the next start. The
-  running process never imports what it fetched.
+- **Staging.** The CLI writes the verified bytes **beside itself** as `pvm-client-<version>.mjs`, for the next start,
+  and records them in its state (see State). The running process never imports what it fetched.
 - **Rotation.** The release key rotates only by a signed `nextReleaseKey`.
 - **Production.** Toward production, the manifest becomes a **Sigstore bundle** under the release workflow's GitHub
   identity, which the verifier session's provenance module already verifies against a repo/workflow/tag policy. This
   Ed25519 manifest is the lab stand-in.
+
+## State (`src/store-file.js`, `src/store-ext.js`; since 0.2.0)
+
+The state is the client's rollback memory: the anchors, the newest accepted policy's serial and digest and the key it
+accepted, the release key, and the staged update. It changes in one way only. A policy or update is verified against the
+**newest committed** state and committed as its successor, **before** the client fetches evidence or sends anything.
+0.1.0 saved the state after the whole exchange, so a stalled carrier plus a kill, or an overlapping older run, brought
+the floor back (reproduced on its shipped bytes by the tests below).
+- **Order.** `connect` commits the policy before its first evidence request. After that point, a stalled carrier, a
+  killed process or a closed tab cannot bring the floor back.
+  - If the commit fails, nothing is sent and the result is `step: "commit"`. Failures include a read-only or full disk,
+    an unreadable newest generation, and storage that throws or does not keep the write.
+  - Just before a request is sealed, the client reads the committed state again. If another process or tab committed
+    a newer policy meanwhile, the request is refused (`step: "gate"`, superseded), never sent under the older policy.
+- **CLI** (`--state DIR`, default `$XDG_CONFIG_HOME/enclave-pvm-client/state.d`). A generation log: `<n>.json` holds
+  `{gen, state}`, and the newest generation is the state.
+  - A commit writes a uniquely named temp file, fsyncs it, and `link()`s it to `<n+1>.json`, then fsyncs the directory.
+  - The link fails if that generation already exists, so two processes that read the same generation cannot both
+    commit. It is a compare-and-swap with no lock to go stale.
+  - The process that loses re-reads the newest state and decides again. A refusal counts only when it was made on the
+    newest generation. An older policy that lost to a newer one therefore becomes a rollback refusal, and an update that
+    lost to a policy commit keeps both changes. After 64 lost races it gives up (exit 2, nothing sent).
+  - An unreadable or inconsistent newest generation is fatal (exit 2): falling back to an older one would itself be a
+    rollback. The last 16 generations are kept.
+  - A 0.1.0 state FILE given as `--state` is imported once into `<file>.d`, with its floor.
+  - `pvm-client state` prints `{state, gen, dir}`. Users and black-box tests read the state through it, not the layout.
+- **Extension.** `chrome.storage.local` key `stateDoc` holds `{gen, state}`.
+  - Every read-verify-write runs inside one Web Locks exclusive lock (`enclave-pvm-client-state`). The lock is
+    browser-wide for the extension's origin, so two tabs serialize.
+  - Each write is read back before it counts, compared independently of key order (Chrome's storage does not keep it).
+  - A 0.1.0 install's `state` key is imported by the first commit.
+  - Pages post a `policy-committed` event to the lab result sink when they commit, so tests can observe the order.
+- **Updates.** The CLI writes verified bytes to `pvm-client-<version>.mjs` (unique temp file, fsync, rename).
+  - It then commits `staged = {version, sha256, file, sourceCommit}`, only if the version is newer than anything staged
+    or running. An older concurrent update cannot replace a newer staged one.
+  - `pvm-client staged` reports the staged update and whether its bytes still match.
 
 ## Tests
 
@@ -120,7 +156,24 @@ The manifest travels as `{ manifest: base64(exact bytes), releaseSig, policySig 
     state file), equivocating and expired policies are refused; a VM chaining to a non-Google root is refused before
     anything is sent; updates are staged only when valid and never run;
   - in process, the Pixel's real v2 evidence passes policy, verification and gate, and the request is sealed and sent
-    once; a replay is held; a relay's app key is refused.
+    once; a replay is held; a relay's app key is refused; a run whose policy was superseded while its evidence was held
+    is refused at the gate, although that evidence verifies, and nothing is sent.
+- test/pvm-client-durability.test.mjs: the State rules under deterministic barriers, never timing. The barriers are a
+  carrier that holds requests, and a driver process that pauses between reading the state and committing
+  (fixtures/pvm-client-store-driver.mjs).
+  - The shipped 0.1.0 CLI (4e55879b) reproduces the finding; 0.2.0 keeps the floor and refuses both rollbacks.
+  - Processes: an older and a newer policy in both commit orders; the same serial with different bytes
+    (equivocation); key rotation racing its successor, then a policy under the retired key; two updates staged
+    concurrently; a policy commit racing a release-key rotation.
+  - Failed persistence: a read-only state, a corrupt newest generation and a throwing store. Nothing reaches the
+    carrier.
+  - The 0.1.0 state import, and the extension store under a fake storage (lock, throwing and dropped writes).
+- test/pvm-client-ext-durability.test.mjs: the same in Chrome for Testing, with tabs opened through DevTools and a
+  policy server that holds each tab's policy.
+  - The shipped 0.1.0 extension, killed while stalled at the carrier, accepts the older policy afterwards.
+  - 0.2.0 commits before the evidence request and refuses it.
+  - Two tabs with an older and a newer policy, in both orders: the floor ends at the newer, including after a kill.
+  - Two tabs with the same serial but different bytes: equivocation. The identical policy in two tabs is one commit.
 - Device: results/pvm-cpu-client-artifact (the CLI and the extension on the Pixel 10).
 
 ## What this does not solve
@@ -131,3 +184,6 @@ The manifest travels as `{ manifest: base64(exact bytes), releaseSig, policySig 
 - **The extension store.** The store is trusted to deliver the bytes it is given (bounded by `minClientVersion`).
 - **Production keys and provenance.** Custody of the production keys and the Sigstore provenance is the owner's.
 - **Traffic analysis and denial of service** by the relay, as in SEALED-STREAMING.md.
+- **Restoring the state from a backup** (a disk or profile snapshot) restores its older floor. Whoever can do that
+  controls the host. The tests kill the client or the browser, not the machine: durability across power loss rests on
+  fsync (CLI) and on Chrome's storage backend (extension), and has not been tested.

@@ -43,7 +43,7 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     sealedModes: ["chunked"], sealedWindow: { seconds: 600, maxRequests: 256 }, minClientVersion: "0.1.0", nextPolicyKey: null });
     return { policy: Buffer.from(t).toString("base64"), sig: edSign(null, Buffer.concat([Buffer.from("enclave-pvm-client-policy-v1\n"), Buffer.from(t)]), K.k.privateKey).toString("hex") }; };
   const srv = http.createServer((q, s) => { let b = ""; q.on("data", (d) => { b += d; }); q.on("end", () => {
-    if (q.url === "/policy") { s.writeHead(200, { "content-type": "application/json" }); return s.end(JSON.stringify(policyDoc)); }
+    if (q.url.split("?")[0] === "/policy") { s.writeHead(200, { "content-type": "application/json" }); return s.end(JSON.stringify(policyDoc)); }
     if (q.url === "/result") { try { results.push(JSON.parse(b)); } catch {} return s.end("ok"); }
     if (q.url === "/evil") {   // a site sends the browser to the extension's options page with the SITE's anchor
       const planted = `chrome-extension://${id}/options.html?install=1&policyKeyFp=${X.fp}&serialFloor=1&releaseKeyFp=${R.fp}&policyUrl=x&relayUrl=x&appId=${APP}&resultUrl=${encodeURIComponent(`http://127.0.0.1:${srv.address().port}/result`)}`;
@@ -62,7 +62,7 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     assert.equal(results.filter((r) => r.installed).length, 0, "no anchor was installed from a site");
     // and none was planted silently: on that same profile the user's own install still succeeds (an installed anchor is never replaced)
     await browse(`chrome-extension://${id}/options.html?install=1&policyKeyFp=${P.fp}&serialFloor=1&releaseKeyFp=${R.fp}&policyUrl=x&relayUrl=x&appId=${APP}&resultUrl=${encodeURIComponent(base + "/result")}`, 5000, p0);
-    assert.deepEqual(results.filter((r) => r.installed).map((r) => r.anchor.policyKeyFp), [P.fp], "the profile the site visited had no anchor");
+    assert.deepEqual(results.filter((r) => r.installed).map((r) => r.anchor.policyKeyFp), [P.fp], `the profile the site visited had no anchor: ${JSON.stringify(results)}`);
     results.length = 0;
     // the user installs from the options page
     const prof = fs.mkdtempSync(path.join(os.tmpdir(), "pvm-ext-prof-"));
@@ -71,13 +71,19 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     // a policy signed by a key the anchor does not name: refused, nothing sent
     policyDoc = sign(X, 2);
     await browse(`chrome-extension://${id}/client.html?label=ext-foreign-policy&path=%2F`, 6000, prof);
-    const f = results.find((r) => r.label === "ext-foreign-policy");
+    const outcome = (label) => results.find((r) => r.label === label && !r.event);   // the final result, not the policy-committed event
+    const f = outcome("ext-foreign-policy");
     assert.ok(f, "the extension posted its outcome"); assert.equal(f.step, "policy"); assert.equal(f.sent, false); assert.match(f.refused, /anchor does not name/);
     assert.equal(f.extension, id);
+    assert.equal(results.filter((r) => r.label === "ext-foreign-policy" && r.event).length, 0, "a refused policy is never committed");
     // the genuine policy, a VM outside Google's roots: refused at verify, nothing sent
     policyDoc = sign(P, 2);
     await browse(`chrome-extension://${id}/client.html?label=ext-non-google&path=%2F`, 6000, prof);
-    const g = results.find((r) => r.label === "ext-non-google");
+    const g = outcome("ext-non-google");
+    // the genuine policy was committed durably BEFORE the evidence fetch (it posts policy-committed first), and verify then refused
+    const gi = results.findIndex((r) => r.label === "ext-non-google" && r.event === "policy-committed");
+    assert.ok(gi >= 0 && gi < results.indexOf(g), `policy-committed precedes the outcome: ${JSON.stringify(results)}`);
+    assert.equal(results[gi].serial, 2); assert.equal(results[gi].gen, 2);
     assert.ok(g, "the extension posted its outcome"); assert.equal(g.step, "verify"); assert.equal(g.sent, false); assert.match(g.refused, /not a pinned Google attestation root/);
     assert.match(g.userAgent, /HeadlessChrome/);
     assert.equal(vm.log.filter((l) => l.served).length, 0, "no request reached the VM");

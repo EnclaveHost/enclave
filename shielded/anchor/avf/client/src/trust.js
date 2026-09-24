@@ -15,7 +15,7 @@
 // the LAB stand-in.
 import { GOOGLE_ATTESTATION_ROOT_SHA256, PVM_APP_EVIDENCE_FORMAT, PVM_APP_EVIDENCE_FORMAT_V2, fromHex, toHex, sha256 } from "../../web/pvm-verify.js";
 
-export const CLIENT_VERSION = "0.1.0";   // inside the artifact's bytes: it cannot be claimed without changing the artifact's hash
+export const CLIENT_VERSION = "0.2.0";   // inside the artifact's bytes: it cannot be claimed without changing the artifact's hash
 export const POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 export const UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 export const UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";

@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.1.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.2.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -48,9 +48,10 @@ SOFTWARE.
 */
 
 // cli.mjs
-import fs from "node:fs";
+import fs3 from "node:fs";
 import os from "node:os";
-import path from "node:path";
+import path3 from "node:path";
+import { createHash } from "node:crypto";
 
 // ../web/pvm-verify.js
 var PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
@@ -516,7 +517,7 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.1.0";
+var CLIENT_VERSION = "0.2.0";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -671,6 +672,154 @@ async function verifyUpdate(env, bytes, { state, now = Date.now(), currentVersio
   const next = { ...state, releaseFp: rfp, nextReleaseFp: b2.nextReleaseKey ? await fingerprint(b2.nextReleaseKey) : null };
   return { ok: true, reasons: [`update ${b2.version} (${b2.artifact}, source ${b2.sourceCommit.slice(0, 12)}) signed and countersigned; install for the next start`], manifest: b2, state: next };
 }
+
+// src/update.js
+import fs from "node:fs";
+import path from "node:path";
+import { randomBytes } from "node:crypto";
+async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VERSION, hold: hold2 = null } = {}) {
+  const cur = store.latest();
+  if (!cur) return { ok: false, reason: "no client installed" };
+  const first = await verifyUpdate(env, bytes, { state: cur.state, currentVersion, artifact: "pvm-client.mjs" });
+  if (!first.ok) return { ok: false, reason: first.reasons[0] };
+  const file = path.join(dir, `pvm-client-${first.manifest.version}.mjs`), tmp = `${file}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    const fd = fs.openSync(tmp, "wx", 420);
+    try {
+      fs.writeSync(fd, bytes);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    return { ok: false, reason: `could not write the verified artifact (${e.code || e.message}): nothing staged` };
+  }
+  let r;
+  try {
+    r = await store.update(async (state) => {
+      if (hold2) await hold2(state);
+      const u = await verifyUpdate(env, bytes, { state, currentVersion, artifact: "pvm-client.mjs" });
+      if (!u.ok) return { refuse: u.reasons[0] };
+      if (state.staged && semverCmp(state.staged.version, u.manifest.version) >= 0) return { refuse: `update ${state.staged.version} is already staged: ${u.manifest.version} cannot replace it` };
+      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, file: path.basename(file), sourceCommit: u.manifest.sourceCommit } } };
+    });
+  } catch (e) {
+    return { ok: false, reason: `could not record the staged update durably (${e.message}): nothing staged` };
+  }
+  if (!r.ok) return { ok: false, reason: r.reason };
+  return { ok: true, version: r.state.staged.version, file, gen: r.gen };
+}
+
+// src/store-file.js
+import fs2 from "node:fs";
+import path2 from "node:path";
+import { randomBytes as randomBytes2 } from "node:crypto";
+var GEN = /^([1-9]\d{0,14})\.json$/;
+var canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((y) => [y, x[y]])) : x);
+var KEEP = 16;
+var StoreError = class extends Error {
+};
+var FileStore = class {
+  constructor(dir) {
+    this.dir = dir;
+  }
+  gens() {
+    let names;
+    try {
+      names = fs2.readdirSync(this.dir);
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw new StoreError(`the state directory is unreadable (${e.code})`);
+    }
+    return names.map((n) => GEN.exec(n)).filter(Boolean).map((m) => Number(m[1])).sort((a, b2) => a - b2);
+  }
+  /** The newest committed generation { gen, state }, or null before install. */
+  latest() {
+    const g = this.gens();
+    if (!g.length) return null;
+    const gen = g[g.length - 1];
+    let doc;
+    try {
+      doc = JSON.parse(fs2.readFileSync(path2.join(this.dir, `${gen}.json`), "utf8"));
+    } catch (e) {
+      throw new StoreError(`the newest state generation ${gen} is unreadable (${e.code || e.message}): refusing -- an older generation would itself be a rollback`);
+    }
+    if (!doc || typeof doc !== "object" || doc.gen !== gen || !doc.state || typeof doc.state !== "object")
+      throw new StoreError(`state generation ${gen} is inconsistent: refusing`);
+    return doc;
+  }
+  /** Commit { gen, state } iff <gen>.json does not exist yet: true, false (lost the race), or StoreError (not durable). */
+  commit(gen, state) {
+    const tmp = path2.join(this.dir, `.tmp-${process.pid}-${randomBytes2(8).toString("hex")}`);
+    try {
+      fs2.mkdirSync(this.dir, { recursive: true, mode: 448 });
+      const fd = fs2.openSync(tmp, "wx", 384);
+      try {
+        fs2.writeSync(fd, JSON.stringify({ gen, state }) + "\n");
+        fs2.fsyncSync(fd);
+      } finally {
+        fs2.closeSync(fd);
+      }
+    } catch (e) {
+      try {
+        fs2.rmSync(tmp, { force: true });
+      } catch {
+      }
+      throw new StoreError(`could not write state generation ${gen} (${e.code || e.message})`);
+    }
+    try {
+      fs2.linkSync(tmp, path2.join(this.dir, `${gen}.json`));
+    } catch (e) {
+      fs2.rmSync(tmp, { force: true });
+      if (e.code === "EEXIST") return false;
+      throw new StoreError(`could not commit state generation ${gen} (${e.code || e.message})`);
+    }
+    fs2.rmSync(tmp, { force: true });
+    try {
+      const dfd = fs2.openSync(this.dir, "r");
+      try {
+        fs2.fsyncSync(dfd);
+      } finally {
+        fs2.closeSync(dfd);
+      }
+    } catch (e) {
+      throw new StoreError(`could not make generation ${gen} durable (${e.code || e.message})`);
+    }
+    for (const g of this.gens()) if (g <= gen - KEEP) fs2.rmSync(path2.join(this.dir, `${g}.json`), { force: true });
+    return true;
+  }
+  /** The first generation (install): refused if any generation exists, including one a concurrent install committed. */
+  init(state) {
+    if (this.latest()) return { ok: false, reason: "a client is already installed in this state directory: anchors are not replaced in place" };
+    if (!this.commit(1, state)) return { ok: false, reason: "a concurrent install committed first: anchors are not replaced in place" };
+    return { ok: true, gen: 1, state };
+  }
+  /**
+   * Read-verify-commit, retried on a lost race. fn(state, gen) returns { state } (commit it), { same: true } (nothing to
+   * record: already the committed state) or { refuse: reason }. Returns { ok, gen, state } or { ok: false, reason }.
+   */
+  async update(fn, { tries = 64 } = {}) {
+    for (let i = 0; i < tries; i++) {
+      const cur = this.latest();
+      if (!cur) throw new StoreError("no client installed");
+      const r = await fn(cur.state, cur.gen);
+      if (r.refuse !== void 0) {
+        const now = this.latest();
+        if (now && now.gen === cur.gen) return { ok: false, reason: r.refuse, gen: cur.gen };
+        continue;
+      }
+      if (r.same || canon(r.state) === canon(cur.state)) {
+        const now = this.latest();
+        if (now && now.gen === cur.gen) return { ok: true, gen: cur.gen, state: cur.state, same: true };
+        continue;
+      }
+      if (this.commit(cur.gen + 1, r.state)) return { ok: true, gen: cur.gen + 1, state: r.state };
+    }
+    throw new StoreError("the state kept changing under this commit: refusing");
+  }
+};
 
 // src/gate.js
 var HEX2 = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
@@ -2491,10 +2640,10 @@ async function openStream(ctx, source, { onData = () => {
   if (state === "refusal") return fail("refused", `the VM refused (unauthenticated hint): ${td2.decode(buf.subarray(1, 300))}`);
   return fail("truncated", state === "chunk" && i > 0 ? `the stream ended after ${i} chunks with no FIN: INCOMPLETE` : "the stream ended before any chunk: INCOMPLETE");
 }
-function httpRequest(method, path2, body2 = null, headers = {}) {
-  if (!/^\/[\x21-\x7e]*$/.test(path2)) throw new Error("path must be an origin-form path");
+function httpRequest(method, path4, body2 = null, headers = {}) {
+  if (!/^\/[\x21-\x7e]*$/.test(path4)) throw new Error("path must be an origin-form path");
   const x = body2 == null ? null : typeof body2 === "string" ? te3.encode(body2) : body2;
-  let h = `${method} ${path2} HTTP/1.1\r
+  let h = `${method} ${path4} HTTP/1.1\r
 host: pvm-app\r
 connection: close\r
 `;
@@ -2661,7 +2810,7 @@ async function post(url, body2, type) {
   if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
-async function fetchVerified({ relay, pins, method = "GET", path: path2 = "/", body: body2 = null, label = "ok", now, gate }) {
+async function fetchVerified({ relay, pins, method = "GET", path: path4 = "/", body: body2 = null, label = "ok", now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out2 = (o2) => ({ label, ...o2 });
@@ -2683,7 +2832,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path2 = "/", b
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
-  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path2, body2) });
+  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path4, body2) });
   let answer;
   try {
     answer = await post(`${relay}/sealed`, frame, "application/octet-stream");
@@ -2700,7 +2849,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path2 = "/", b
     return out2({ step: "sealed", refused: `the opened answer is not HTTP: ${e.message}`, sent: true, verified, verifyMs, ms });
   }
 }
-async function fetchVerifiedStream({ relay, pins, path: path2 = "/", label = "ok", onLine = () => {
+async function fetchVerifiedStream({ relay, pins, path: path4 = "/", label = "ok", onLine = () => {
 }, cancelAfter = 0, trace = false, now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
@@ -2721,7 +2870,7 @@ async function fetchVerifiedStream({ relay, pins, path: path2 = "/", label = "ok
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
-  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path2), chunked: true });
+  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path4), chunked: true });
   const traceCtx = trace ? { enc: toHex(ctx.enc), exported: toHex(ctx.secret), nonce: toHex(nonce) } : void 0;
   const ac = new AbortController();
   const lines = [], arrivals = [];
@@ -2774,14 +2923,36 @@ async function fetchVerifiedStream({ relay, pins, path: path2 = "/", label = "ok
 }
 
 // src/client.js
-async function connect({ relay, policyEnv, state, appId, path: path2 = "/", stream = true, cancelAfter = 0, onLine = () => {
+async function acceptPolicy(store, policyEnv, { now = Date.now(), clientVersion = CLIENT_VERSION, hold: hold2 = null } = {}) {
+  let accepted = null;
+  let r;
+  try {
+    r = await store.update(async (state) => {
+      if (hold2) await hold2(state);
+      const v = await verifyPolicy(policyEnv, { state, now, clientVersion });
+      if (!v.ok) {
+        accepted = null;
+        return { refuse: v.reasons[0] };
+      }
+      accepted = v;
+      return { state: v.state };
+    });
+  } catch (e) {
+    return { ok: false, commitFailed: true, reason: `the client could not record the policy durably (${e.message}): nothing is sent` };
+  }
+  if (!r.ok) return { ok: false, reason: r.reason };
+  return { ok: true, policy: accepted.policy, pins: accepted.pins, gen: r.gen, serial: r.state.serial };
+}
+async function connect({ relay, policyEnv, store, appId, path: path4 = "/", stream = true, cancelAfter = 0, onLine = () => {
+}, onCommitted = () => {
 }, usedNonces = /* @__PURE__ */ new Set(), now, label = "client" }) {
-  const pol = await verifyPolicy(policyEnv, { state, now: now ?? Date.now() });
-  if (!pol.ok) return { state, result: { label, step: "policy", refused: pol.reasons[0], sent: false } };
+  const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
+  if (!pol.ok) return { result: { label, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason, sent: false } };
+  await onCommitted({ serial: pol.serial, gen: pol.gen });
   const p = pol.policy;
-  if (!p.appIds.includes(appId)) return { state: pol.state, result: { label, step: "policy", refused: "the policy does not admit this app", sent: false } };
+  if (!p.appIds.includes(appId)) return { result: { label, step: "policy", refused: "the policy does not admit this app", sent: false, policySerial: p.serial } };
   const mode = stream ? "chunked" : "whole";
-  if (!p.sealedModes.includes(mode)) return { state: pol.state, result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false } };
+  if (!p.sealedModes.includes(mode)) return { result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false, policySerial: p.serial } };
   const pins = { app: appId, ...pol.pins };
   const gate = async (v, env, nonceHex) => {
     if (!p.formats.includes(env.format)) return `the evidence format ${env.format} is not one the policy allows`;
@@ -2793,12 +2964,19 @@ async function connect({ relay, policyEnv, state, appId, path: path2 = "/", stre
     if (d.decision !== "release") return d.reason;
     if (d.pinned.sealed.windowSeconds !== p.sealedWindow.seconds || d.pinned.sealed.maxRequests !== p.sealedWindow.maxRequests)
       return `the VM's sealed window (${d.pinned.sealed.windowSeconds} s, ${d.pinned.sealed.maxRequests}) is not the policy's (${p.sealedWindow.seconds} s, ${p.sealedWindow.maxRequests})`;
+    let cur;
+    try {
+      cur = await store.latest();
+    } catch (e) {
+      return `the committed state cannot be read (${e.message}): nothing is sent`;
+    }
+    if (!cur || cur.state.serial !== p.serial) return `policy serial ${p.serial} was superseded by serial ${cur && cur.state.serial} committed meanwhile: nothing is sent`;
     usedNonces.add(nonceHex);
     return null;
   };
-  const args = { relay, pins, path: path2, label, gate, ...now ? { now } : {} };
+  const args = { relay, pins, path: path4, label, gate, ...now ? { now } : {} };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
-  return { state: pol.state, result: { ...result, policySerial: p.serial, clientVersion: CLIENT_VERSION } };
+  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION } };
 }
 
 // cli.mjs
@@ -2809,38 +2987,43 @@ var arg = (k, d = null) => {
   return i > 0 ? argv[i + 1] : d;
 };
 var out = (o) => process.stdout.write(JSON.stringify(o) + "\n");
-var stateFile = arg("--state", path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "enclave-pvm-client", "state.json"));
-var readState = () => {
-  try {
-    return JSON.parse(fs.readFileSync(stateFile, "utf8"));
-  } catch {
-    return null;
-  }
-};
-var writeState = (s) => {
-  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-  fs.writeFileSync(stateFile + ".tmp", JSON.stringify(s) + "\n");
-  fs.renameSync(stateFile + ".tmp", stateFile);
-};
 async function fetchBytes(src) {
   if (/^https?:\/\//.test(src)) {
     const r = await fetch(src, { cache: "no-store" });
     if (!r.ok) throw new Error(`${src}: ${r.status}`);
     return new Uint8Array(await r.arrayBuffer());
   }
-  return new Uint8Array(fs.readFileSync(src));
+  return new Uint8Array(fs3.readFileSync(src));
 }
 var fetchJson = async (src) => JSON.parse(new TextDecoder().decode(await fetchBytes(src)));
+function openStore() {
+  const given = arg("--state", path3.join(process.env.XDG_CONFIG_HOME || path3.join(os.homedir(), ".config"), "enclave-pvm-client", "state.d"));
+  let st = null;
+  try {
+    st = fs3.statSync(given);
+  } catch {
+  }
+  if (st && st.isFile()) {
+    const store = new FileStore(given + ".d");
+    if (!store.latest()) {
+      const legacy = JSON.parse(fs3.readFileSync(given, "utf8"));
+      const r = store.init(legacy);
+      out({ imported: given, into: store.dir, ok: r.ok || void 0 });
+    }
+    return store;
+  }
+  return new FileStore(given);
+}
 async function main() {
   if (cmd === "version") return out({ client: "enclave-pvm-client", version: CLIENT_VERSION, lab: "NOT PRODUCTION" }), 0;
+  const store = openStore();
   if (cmd === "install") {
-    if (readState()) return out({ refused: `a client is already installed at ${stateFile}: anchors are not replaced in place (reinstall to a new state file)` }), 2;
     const s = initialState({ policyKeyFp: arg("--policy-key-fp"), serialFloor: Number(arg("--serial-floor")), releaseKeyFp: arg("--release-key-fp") });
-    writeState(s);
-    return out({ installed: stateFile, anchor: { policyKeyFp: s.policyFp, serialFloor: s.serial, releaseKeyFp: s.releaseFp } }), 0;
+    const r = store.init({ ...s, staged: null });
+    if (!r.ok) return out({ refused: r.reason }), 2;
+    return out({ installed: store.dir, anchor: { policyKeyFp: s.policyFp, serialFloor: s.serial, releaseKeyFp: s.releaseFp } }), 0;
   }
-  const state = readState();
-  if (!state) return out({ refused: `no client installed at ${stateFile} (run install with the anchors you were given out of band)` }), 2;
+  if (!store.latest()) return out({ refused: `no client installed at ${store.dir} (run install with the anchors you were given out of band)` }), 2;
   if (cmd === "run") {
     let policyEnv;
     try {
@@ -2851,15 +3034,15 @@ async function main() {
     const r = await connect({
       relay: arg("--relay"),
       policyEnv,
-      state,
+      store,
       appId: arg("--app"),
       path: arg("--path", "/"),
       stream: !argv.includes("--whole"),
       cancelAfter: Number(arg("--cancel", "0")),
       label: arg("--label", "cli"),
-      onLine: (line) => out({ line })
+      onLine: (line) => out({ line }),
+      onCommitted: (c) => out({ committed: c })
     });
-    if (r.state !== state) writeState(r.state);
     out({ result: { ...r.result, lines: void 0 } });
     return r.result.complete === true || r.result.status === 200 && r.result.mode !== "stream" ? 0 : 1;
   }
@@ -2871,18 +3054,29 @@ async function main() {
     } catch (e) {
       return out({ update: { ok: false, reasons: [`not delivered: ${e.message}`] } }), 1;
     }
-    const u = await verifyUpdate(env, bytes, { state, currentVersion: CLIENT_VERSION, artifact: "pvm-client.mjs" });
-    if (!u.ok) return out({ update: { ok: false, reasons: u.reasons } }), 1;
-    const dir = arg("--install-dir", path.dirname(process.argv[1]));
-    fs.writeFileSync(path.join(dir, "pvm-client.mjs.next"), bytes);
-    fs.writeFileSync(path.join(dir, "pvm-client.mjs.next.manifest.json"), JSON.stringify(env) + "\n");
-    writeState(u.state);
-    return out({ update: { ok: true, reasons: u.reasons, version: u.manifest.version, staged: path.join(dir, "pvm-client.mjs.next") } }), 0;
+    const r = await stageUpdate(store, env, bytes, { dir: arg("--install-dir", path3.dirname(process.argv[1])) });
+    if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
+    return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen } }), 0;
   }
-  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | version` });
+  if (cmd === "state") {
+    const l = store.latest();
+    return out({ state: l.state, gen: l.gen, dir: store.dir }), 0;
+  }
+  if (cmd === "staged") {
+    const s = store.latest().state.staged;
+    if (!s) return out({ staged: null }), 0;
+    const f = path3.join(arg("--install-dir", path3.dirname(process.argv[1])), s.file);
+    let ok = false;
+    try {
+      ok = createHash("sha256").update(fs3.readFileSync(f)).digest("hex") === s.sha256;
+    } catch {
+    }
+    return out({ staged: { ...s, path: f, bytesMatch: ok } }), ok ? 0 : 1;
+  }
+  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | staged | state | version` });
   return 2;
 }
 main().then((rc) => process.exit(rc), (e) => {
-  out({ error: e.message });
+  out({ error: e instanceof StoreError ? `state: ${e.message}` : e.message });
   process.exit(2);
 });
