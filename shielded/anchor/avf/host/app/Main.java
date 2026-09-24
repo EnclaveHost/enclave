@@ -123,6 +123,7 @@ public class Main extends Activity {
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal); "none" = no drafter
         String laneDefaults = "";            // which Shielded-TPU profile values this launch took by default (logged in "LOCAL plan"), "" off the TPU lane
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
+        String deviceProfile = "";           // mode local: what DeviceProfile read (capacities, RAM) and chose from it
         int restarts = -1;                   // --ei restarts N (0..5): mode local restarts a VM that died mid-conversation; -1 = the tier's default (pvm-cpu 2, research 0)
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
         String configError = "";             // a plan that must not run (mutually exclusive extras): the launcher says HOST FAIL and stops instead of guessing
@@ -212,9 +213,14 @@ public class Main extends Activity {
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
             p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuRefill = i.getIntExtra("tpu_refill", p.tpuRefill); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
             if (p.mode.equals("local")) {                                          // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
-                if (i.getIntExtra("mem", 0) == 0) p.memMib = 7168;
+                /* sized from what the kernel reports, never from the device name (DeviceProfile; PVM-CPU.md, Devices): on a Pixel 10
+                 * this is the measured 6 threads and 7,168 MiB */
+                final int[] caps = DeviceProfile.capacities(); final int big = DeviceProfile.bigCores(caps); final long ram = DeviceProfile.totalMib();
+                if (i.getIntExtra("mem", 0) == 0) p.memMib = ram > 0 ? DeviceProfile.vmMemMib(ram) : 7168;
                 if (i.getIntExtra("storage", 0) == 0) p.storageMib = 6144;
-                if (i.getIntExtra("threads", 0) == 0) p.threads = 6;               // the six big cores of a Tensor G5; the little ones drag every parallel section
+                if (i.getIntExtra("threads", 0) == 0) p.threads = big > 0 ? big : 6;   // the big and mid cores; the little ones drag every parallel section
+                p.deviceProfile = "cpu_capacity " + java.util.Arrays.toString(caps) + " -> " + big + " cores at >= half the largest; RAM " + ram + " MiB";
+                if (p.configError.isEmpty() && i.getIntExtra("mem", 0) == 0) { final String mr = DeviceProfile.memRefusal(p.memMib, new java.io.File(p.model).length()); if (mr != null) p.configError = mr; }
                 // The MEASURED Shielded-TPU profile (TPU.md; TRANSFER-27B.md): before this, a launch that named only the graphs and
                 // bundle ran the lane with none of it -- no drafter, one correction helper (so no parallel unmask), a 64-position
                 // bank -- about 1 tok/s instead of 2.4-2.6. Applied ONLY on the TPU lane and ONLY to settings the launch did not
@@ -361,6 +367,7 @@ public class Main extends Activity {
         apkPath = ctx.getApplicationInfo().sourceDir;
         try {
             say("HOST start payload=" + plan.payload + " debug=" + plan.debug + " mem=" + plan.memMib + "MiB worker=" + plan.worker + " mode=" + plan.mode + " host=" + ctx.getClass().getSimpleName());
+            if (!plan.deviceProfile.isEmpty()) say("HOST device profile: " + plan.deviceProfile + " -> threads " + plan.threads + ", VM mem " + plan.memMib + " MiB");
             Object vmm = ctx.getSystemService("virtualization");
             if (vmm == null) { say("HOST no VirtualMachineManager: this build of Android has no AVF"); return; }
             if (plan.mode.equals("delete")) {   // --es mode delete --es vmname <test instance>: reclaim a test store (Astra 03:58); nothing is created or started
