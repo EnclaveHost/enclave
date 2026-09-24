@@ -1,0 +1,1 @@
+CXX_FLAGS = -DGGML_MAX_NAME=128 -O3 -DNDEBUG -fPIC -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -msse4.2 -mf16c -mfma -mbmi2 -mavx -mavx2 -fopenmp -std=gnu++17

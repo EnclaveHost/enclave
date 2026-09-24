@@ -88,6 +88,16 @@ is `.github/workflows/llamacpp-toolchain.yml` (LLAMA_COMMIT + its patches, AVX2,
 workflow's tree plus the candidate under the workflow's compiler and flags.
 `prod-toolchain-check.sh` checks the development FORK under the same compiler.
 
+**Graph-slot multi-sequence check** (`graph-slot-check.sh`, `official-graph-slot-check.sh`;
+REPORT 18.55, `shielded/WRAPUP-27B-INTEGRATION.md`). `graph-slot-check.sh BIN MODEL
+OUTDIR` runs every `conv-graph-test` scenario (plain, spec, lifetime, multi) with the
+KV cache per-sequence and unified (`CONV_TEST_KV_UNIFIED=1`), each with the
+small-batch graph slot on and with `LLAMA_GRAPH_SLOT_ALT=0`, through `run_graph`'s
+optional scenario argument; every cell must finish with byte-identical logits.
+`official-graph-slot-check.sh` runs it on the workflow's tree under GCC 11.4 / AVX2.
+Before the reservation fix in `../llamacpp-graph-slot.patch` exactly one cell failed
+(multi, per-sequence cache: the slot-on arm aborted); after it all eight pass.
+
 **Streaming-store rollback snapshots** (`../llamacpp-gdn-ntsnap.patch`, switch
 `ENCLAVE_GGML_GDN_NTSNAP`; REPORT 18.52-18.54; NOT APPLIED, see above). Evidence on the AVX-512
 build: `gdn-equiv` byte-identical on and off and identical to the pre-change

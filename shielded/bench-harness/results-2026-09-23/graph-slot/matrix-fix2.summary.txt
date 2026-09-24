@@ -1,0 +1,32 @@
+kv0-lifetime/cgt-1: [conv-graph-test] scenario: lifetime
+kv0-lifetime/cgt-1: steps=21 rows=60 bytes=59596800 n_vocab=248320
+kv0-lifetime/cgt-0: [conv-graph-test] scenario: lifetime
+kv0-lifetime/cgt-0: steps=21 rows=60 bytes=59596800 n_vocab=248320
+kv0-multi/cgt-1: [conv-graph-test] scenario: multi
+kv0-multi/cgt-1: steps=11 rows=46 bytes=45690880 n_vocab=248320
+kv0-multi/cgt-0: [conv-graph-test] scenario: multi
+kv0-multi/cgt-0: steps=11 rows=46 bytes=45690880 n_vocab=248320
+kv0-plain/cgt-1: [conv-graph-test] scenario: plain
+kv0-plain/cgt-1: steps=25 rows=35 bytes=34764800 n_vocab=248320
+kv0-plain/cgt-0: [conv-graph-test] scenario: plain
+kv0-plain/cgt-0: steps=25 rows=35 bytes=34764800 n_vocab=248320
+kv0-spec/cgt-1: [conv-graph-test] scenario: spec
+kv0-spec/cgt-1: steps=25 rows=47 bytes=46684160 n_vocab=248320
+kv0-spec/cgt-0: [conv-graph-test] scenario: spec
+kv0-spec/cgt-0: steps=25 rows=47 bytes=46684160 n_vocab=248320
+kv1-lifetime/cgt-1: [conv-graph-test] scenario: lifetime
+kv1-lifetime/cgt-1: steps=21 rows=60 bytes=59596800 n_vocab=248320
+kv1-lifetime/cgt-0: [conv-graph-test] scenario: lifetime
+kv1-lifetime/cgt-0: steps=21 rows=60 bytes=59596800 n_vocab=248320
+kv1-multi/cgt-1: [conv-graph-test] scenario: multi
+kv1-multi/cgt-1: steps=11 rows=46 bytes=45690880 n_vocab=248320
+kv1-multi/cgt-0: [conv-graph-test] scenario: multi
+kv1-multi/cgt-0: steps=11 rows=46 bytes=45690880 n_vocab=248320
+kv1-plain/cgt-1: [conv-graph-test] scenario: plain
+kv1-plain/cgt-1: steps=25 rows=35 bytes=34764800 n_vocab=248320
+kv1-plain/cgt-0: [conv-graph-test] scenario: plain
+kv1-plain/cgt-0: steps=25 rows=35 bytes=34764800 n_vocab=248320
+kv1-spec/cgt-1: [conv-graph-test] scenario: spec
+kv1-spec/cgt-1: steps=25 rows=47 bytes=46684160 n_vocab=248320
+kv1-spec/cgt-0: [conv-graph-test] scenario: spec
+kv1-spec/cgt-0: steps=25 rows=47 bytes=46684160 n_vocab=248320

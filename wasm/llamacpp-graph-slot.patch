@@ -54,6 +54,18 @@ process_ubatch, the counters that named this bottleneck.
 # measured total sync waits at 0.18 ms/token on the fleet - the CVM is
 # CPU-orchestration-bound, and llama_decode's ~15 ms/token CPU path had only
 # ~1 ms (build/alloc/input) named. These counters name the rest.
+Multi-sequence reservation fix (2026-09-23, shielded/WRAPUP-27B-INTEGRATION.md):
+ensure_slot_alt reserved every slot with n_seqs = 1 against memory->init_full(),
+which spans n_seq_max KV streams when the cache is not unified. In such a
+context the first 2..8-token single-sequence decode aborted building the
+reservation graph (qwen35 build_layer_attn: GGML_ASSERT(ggml_can_repeat) in
+ggml_mul). The slot now reserves with the stream count, as sched_reserve does
+(1 when kv_unified, else n_seq_max; graph_reserve rounds n_tokens up). The
+reservation only sizes the slot's buffers, so decode numerics are unchanged:
+the multi, spec and lifetime scenarios of
+wasm/llamacpp-conv-inplace/conv-graph-test.cpp give byte-identical logits with
+the slot on and with LLAMA_GRAPH_SLOT_ALT=0.
+
 diff --git a/include/llama.h b/include/llama.h
 index 6e53e22..253c2ca 100644
 --- a/include/llama.h
@@ -102,7 +114,7 @@ index 5ef7bec..87c4ee0 100644
  
          if (!mctx->apply()) {
              LLAMA_LOG_ERROR("%s: failed to apply memory update\n", __func__);
-@@ -1317,6 +1327,71 @@ bool llama_context::set_adapter_cvec(
+@@ -1317,6 +1327,80 @@ bool llama_context::set_adapter_cvec(
      return res;
  }
  
@@ -153,8 +165,17 @@ index 5ef7bec..87c4ee0 100644
 +            return nullptr;
 +        }
 +    }
++    // init_full() spans every KV stream the context has: one when the cache is
++    // unified, n_seq_max otherwise. A single-sequence reservation against a
++    // multi-stream memory context builds inconsistent attention shapes (qwen35
++    // build_layer_attn: GGML_ASSERT(ggml_can_repeat) in ggml_mul), so reserve
++    // with the stream count, as sched_reserve does; graph_reserve rounds
++    // n_tokens up to a multiple of it. The reservation only sizes this slot's
++    // buffers -- the decode graph is built from the real ubatch -- so the
++    // unified (and n_seq_max == 1) case keeps its single-sequence reserve.
++    const uint32_t n_seqs_rsv = cparams.kv_unified ? 1 : std::max<uint32_t>(1, cparams.n_seq_max);
 +    const auto save_active = sched_active;
-+    auto * gf = graph_reserve(n_tokens, 1, n_tokens, mctx.get(), false, nullptr, pick->sched.get());
++    auto * gf = graph_reserve(n_tokens, n_seqs_rsv, n_tokens, mctx.get(), false, nullptr, pick->sched.get());
 +    sched_active = save_active;
 +    if (!gf) {
 +        LLAMA_LOG_WARN("%s: graph-slot reserve failed for n_tokens=%u - shared slot fallback\n", __func__, n_tokens);
