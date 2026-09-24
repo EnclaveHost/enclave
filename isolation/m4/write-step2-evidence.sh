@@ -112,6 +112,21 @@ WHAT THIS DOES NOT ESTABLISH, and none of it is closed by the run above:
   structural check there is. Reassembling the firmware from the IGVM's own pages would bind it after the fact
   too; that is the independent reviewer's mechanism and is not in this script.
 
+  The TCB minimum this run pins EQUALS the values this part currently reports, so it refuses a downgrade and does
+  not exercise the comparison. It is a pin at today's TCB, not a floor below it.
+
+  The root of trust is test/fixtures/amd/Turin-cert_chain.pem, a file in this repo dated 2026-07-27. Its ARK was
+  checked independently on 2026-09-24 (enclave-59): SEV-Turin is issued by ARK-Turin, the ARK is self-signed and
+  openssl verify accepts it, the VCEK is CN=SEV-VCEK issued by SEV-Turin, and the ARK's sha256 fingerprint is
+  1F:08:41:61:A4:4B:B6:D9:37:78:A9:04:87:7D:48:19:CA:FA:5D:05:EF:41:93:B2:DE:D9:DD:9C:73:DD:3F:6A. A reader who
+  wants this to be a root of trust rather than a file should compare that fingerprint with AMD's published
+  ARK-Turin themselves; snp-verify.mjs pins the root before caching, so a chain it refuses is never remembered.
+
+  The nonce is a compiled-in constant in admitinit.c. The run records that a nonce was set, not its value, so the
+  verifier supplies the constant; it is confirmed by Bind2 agreeing rather than read from the run, because the
+  SVSM computed the binding over the nonce it actually received. Having the guest print what it wrote would be
+  better and is not done.
+
   The runtime image admitted is the wasmtime ELF only. Its interpreter and shared libraries are not admitted, so
   the bytes that execute include unadmitted code.
 
