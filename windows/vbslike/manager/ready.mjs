@@ -23,55 +23,58 @@
 // host is not excluded, and no chain is verified. `running` is an operational statement about one
 // domain, never a security claim about the boundary.
 import tls from "node:tls";
+import http from "node:http";
 import crypto from "node:crypto";
 import { judge } from "../verify/judge-hv.mjs";
 
 const NONCE_LEN = 32;
 
-/** One TLS session, reused for every request, so the document and the readiness answer share a key. */
-function connect({ host, port, timeoutMs }) {
+/**
+ * One TLS session, reused for every request, so the document and the readiness answer share a key.
+ *
+ * The HTTP is node:http driven over that one socket through an Agent whose createConnection hands
+ * it back, rather than a hand-rolled parser. The first version here DID hand-roll it and understood
+ * only content-length and connection:close - which is wrong against this guest: its front is Go
+ * net/http, which sends any body over its 2,048-byte buffer with `Transfer-Encoding: chunked`, and
+ * the attestation document is ~2,208 bytes. So every real document either came back with the chunk
+ * framing still in it ("the attestation answer is not JSON") or hung until the attempt timeout on a
+ * keep-alive connection with no framing the parser could use. Found by enclave-99 against the spec.
+ * Writing HTTP by hand to save a dependency that is in the standard library was not worth it.
+ */
+function session_({ host, port, timeoutMs }) {
   return new Promise((resolve, reject) => {
     const sock = tls.connect({ host, port, rejectUnauthorized: false, servername: host }, () => {
       const cert = sock.getPeerX509Certificate ? sock.getPeerX509Certificate() : null;
       const spki = cert ? cert.publicKey.export({ type: "spki", format: "der" }) : null;
       if (!spki) { sock.destroy(); return reject(new Error("the domain presented no usable public key")); }
-      resolve({ sock, spki });
+      sock.setTimeout(0);
+      const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+      agent.createConnection = () => sock;
+      resolve({ sock, spki, agent });
     });
     sock.setTimeout(timeoutMs, () => { sock.destroy(); reject(new Error(`no TLS session within ${timeoutMs} ms`)); });
     sock.on("error", reject);
   });
 }
 
-/** A minimal HTTP/1.1 GET over an OPEN socket, so every request rides the session we verified. */
-function get(sock, host, path, { timeoutMs = 10_000, maxBytes = 1 << 20 } = {}) {
+/** One GET on the established session. node:http handles chunked, content-length and keep-alive. */
+export function get(sess, host, path, { timeoutMs = 10_000, maxBytes = 1 << 20 } = {}) {
   return new Promise((resolve, reject) => {
-    let buf = Buffer.alloc(0);
-    let done = false;
-    const finish = (fn, v) => { if (!done) { done = true; cleanup(); fn(v); } };
-    const onData = (d) => {
-      buf = Buffer.concat([buf, d]);
-      if (buf.length > maxBytes) return finish(reject, new Error(`answer over the ${maxBytes}-byte cap`));
-      const sep = buf.indexOf("\r\n\r\n");
-      if (sep < 0) return;
-      const head = buf.subarray(0, sep).toString("latin1");
-      const status = Number((head.split("\r\n")[0] || "").split(" ")[1]);
-      const len = /content-length:\s*(\d+)/i.exec(head);
-      const body = buf.subarray(sep + 4);
-      if (len && body.length < Number(len[1])) return;      // still arriving
-      if (!len && !/connection:\s*close/i.test(head)) return; // no framing we can use yet
-      finish(resolve, { status, body });
-    };
-    const onEnd = () => {
-      const sep = buf.indexOf("\r\n\r\n");
-      if (sep < 0) return finish(reject, new Error("the domain closed before sending headers"));
-      const head = buf.subarray(0, sep).toString("latin1");
-      finish(resolve, { status: Number((head.split("\r\n")[0] || "").split(" ")[1]), body: buf.subarray(sep + 4) });
-    };
-    const timer = setTimeout(() => finish(reject, new Error(`no answer to ${path} within ${timeoutMs} ms`)), timeoutMs);
-    function cleanup() { clearTimeout(timer); sock.off("data", onData); sock.off("end", onEnd); sock.off("error", onErr); }
-    const onErr = (e) => finish(reject, e);
-    sock.on("data", onData); sock.on("end", onEnd); sock.on("error", onErr);
-    sock.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: keep-alive\r\nAccept: application/json\r\n\r\n`);
+    const req = http.request({ agent: sess.agent, host, port: 0, path, method: "GET",
+                               headers: { Host: host, Accept: "application/json" } }, (res) => {
+      const chunks = [];
+      let n = 0;
+      res.on("data", (d) => {
+        n += d.length;
+        if (n > maxBytes) { req.destroy(new Error(`answer over the ${maxBytes}-byte cap`)); return; }
+        chunks.push(d);
+      });
+      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+      res.on("error", reject);
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(new Error(`no answer to ${path} within ${timeoutMs} ms`)));
+    req.on("error", reject);
+    req.end();
   });
 }
 
@@ -120,9 +123,9 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
   while (true) {
     let session = null;
     try {
-      session = await connect({ host, port, timeoutMs: attemptTimeoutMs });
+      session = await session_({ host, port, timeoutMs: attemptTimeoutMs });
       const nonce = crypto.randomBytes(NONCE_LEN);
-      const r = await get(session.sock, host, `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`,
+      const r = await get(session, host, `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`,
                           { timeoutMs: attemptTimeoutMs });
       if (r.status === 503) { last = "the domain answered 503 to the attestation request: still starting"; }
       else if (r.status !== 200) { last = `the domain answered ${r.status} to the attestation request`; }
@@ -134,15 +137,22 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
           return { status: "failed", reason: checks.document.reason, checks };
         }
         const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectRuntime });
-        checks.document = { ok: !!v.ok, verdict: v.verdict ?? null, reasons: v.reasons ?? v.checks ?? null };
-        if (!v.ok) {
+        // judge-hv answers { verdict, reasons, checks } and has NO `ok` field: reading v.ok was
+        // always false, so a perfectly good monitor-signed document reported "was not accepted"
+        // and this rule could never have said running (enclave-99, against the spec).
+        // "monitor-signed" is the ONLY acceptable verdict. "unsigned" means the signature did not
+        // verify, and "reject" that something structural failed; neither is a weaker pass.
+        const accepted = v.verdict === "monitor-signed";
+        checks.document = { ok: accepted, verdict: v.verdict ?? null, reasons: v.reasons ?? null };
+        if (!accepted) {
           // a document that does not verify is terminal: we are not talking to what we meant to
           return { status: "failed",
-                   reason: `the domain's attestation document was not accepted: ${(v.reasons || []).join("; ") || "rejected"}`,
+                   reason: `the domain's attestation document was not accepted (verdict ${v.verdict}): `
+                     + `${(v.reasons || []).join("; ") || "no reason given"}`,
                    checks };
         }
         // SAME session, SAME key: the readiness answer must come from what we just identified
-        const rr = await get(session.sock, host, "/.well-known/enclave-ready", { timeoutMs: attemptTimeoutMs });
+        const rr = await get(session, host, "/.well-known/enclave-ready", { timeoutMs: attemptTimeoutMs });
         const jr = judgeReadyBody(rr.status, rr.body, appId);
         checks.ready = { ok: jr.ok, status: rr.status, reason: jr.reason };
         if (jr.ok) return { status: "running", reason: null, checks };
