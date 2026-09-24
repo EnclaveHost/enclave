@@ -24,7 +24,9 @@ test("/health states the backend, refuses everything it cannot honour, and admit
   assert.equal(h.backend, "hyperv-partition-per-app", "the name agreed with the SNP lane");
   for (const k of ["gpu", "secrets", "egress", "config", "ports", "configCid"])
     assert.equal(h.supports[k], false, `supports.${k} must be false`);
-  assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1"]);
+  assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"],
+                   "both rules are implemented and agree with the shared vectors");
+  assert.equal(h.runtime.v2SocketServer, false, "deriving /2 is not serving it, and health says which");
   assert.equal(h.catalog.runtimeId, RT);
   assert.equal(h.policyRule, POLICY_RULE);
   assert.equal(h.canStart, false, "no launch path on this host, and it says so");
@@ -82,7 +84,8 @@ test("everything this backend cannot honour is refused again on this side of the
 
 test("a mapping pinned to another runtime, or another derivation, is refused", async () => {
   await assert.rejects(() => mk().spawn(spawnBody({ derive: { ...REC, runtimeId: "aa".repeat(32) } })), /pinned to runtime/);
-  await assert.rejects(() => mk().spawn(spawnBody({ derive: { ...REC, derivation: "enclave-catalog-bundle/2" } })), /unknown derivation/);
+  // /2 is a KNOWN rule now, so an unknown one has to be a genuinely unknown one
+  await assert.rejects(() => mk().spawn(spawnBody({ derive: { ...REC, derivation: "enclave-catalog-bundle/9" } })), /unknown derivation/);
 });
 
 test("the lifecycle is readable: list, get, delete", async () => {
@@ -114,4 +117,14 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
   assert.equal("attestation" in r, false, "a VM that started is still not an attested one");
   const pre = await backend.preflight();
   assert.equal(pre.ok, true, "and the backend can ask the host what it has");
+});
+
+test("a /2 app is REFUSED rather than approximated, even though its AppID is right", async () => {
+  const { DERIVATION_V2, derive } = await import("./derive.mjs");
+  const rec2 = { ...REC, derivation: DERIVATION_V2, http: 8000 };
+  // the identity is correct here - that is the point of implementing the rule at all
+  assert.equal(derive({ record: rec2, component }).appId.length, 64);
+  // and the manager still will not take it, because serving one needs a runtime it does not have
+  await assert.rejects(() => mk().spawn(spawnBody({ derive: rec2 })),
+                       /derives enclave-catalog-bundle\/2 but cannot serve it yet/);
 });

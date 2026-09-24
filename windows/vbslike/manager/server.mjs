@@ -19,7 +19,7 @@
    ============================================================ */
 import http from "node:http";
 import crypto from "node:crypto";
-import { derive, DERIVATION } from "./derive.mjs";
+import { derive, DERIVATION, DERIVATIONS } from "./derive.mjs";
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
 
 export const POLICY_RULE = "enclave-isolation-policy/1";
@@ -58,7 +58,15 @@ export class Manager {
     return {
       backend: this.backend.backend,
       supports: { ...this.backend.supports },
-      catalog: { derivations: [DERIVATION], runtimeId: this.runtimeId || null },
+      // WHAT IT DERIVES, which is not what it can RUN. Both rules are implemented here and agree
+      // with the shared vectors byte for byte, so an AppID computed on this box equals the one the
+      // Linux tier computes. Whether a /2 app could actually be SERVED is a different question and
+      // `canStart` is the one that answers it: /2's runtime semantics (the command's own socket,
+      // wasi:sockets inside the partition, an in-guest TLS front proxying to 127.0.0.1:N) are not
+      // implemented on this backend, and nothing here should read as a claim that they are.
+      catalog: { derivations: DERIVATIONS, runtimeId: this.runtimeId || null },
+      runtime: { v2SocketServer: false,
+                 note: "enclave-catalog-bundle/2 is derived but not yet served here: no partition runs on this host" },
       policyRule: POLICY_RULE,
       // canStart is the HOST's answer, refreshed by probe(), not "a launcher object exists". A
       // launcher wired to a box with no Hyper-V role is still a launcher, and reporting ready on
@@ -78,7 +86,13 @@ export class Manager {
 
   async spawn(body = {}) {
     const d = body.derive || {};
-    if (d.derivation !== DERIVATION) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
+    if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
+    // Refuse rather than approximate. The identity is right either way - derive() proves that -
+    // but a /2 app is a command with its own socket, and serving one needs a runtime this backend
+    // does not have. Taking it and running something else would be the worst of both.
+    if (d.derivation === "enclave-catalog-bundle/2")
+      throw badRequest("this backend derives enclave-catalog-bundle/2 but cannot serve it yet: "
+        + "a command serving its own socket needs wasi:sockets inside the partition and an in-guest TLS front");
     if (this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
     const refusal = refuseUnsupported(body);

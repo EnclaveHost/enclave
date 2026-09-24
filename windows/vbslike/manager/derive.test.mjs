@@ -12,7 +12,7 @@ const VECTORS = path.join(HERE, "../../../isolation/contract/catalog/derive_vect
 const v = JSON.parse(fs.readFileSync(VECTORS, "utf8"));
 const component = Buffer.from(v.component_hex, "hex");
 
-test("every ok vector derives the same AppID, record hash and bundle size", () => {
+test("every ok vector derives the same AppID, record hash and bundle size - /1 AND /2", () => {
   assert.ok(v.ok.length, "vectors carry accepted cases");
   for (const c of v.ok) {
     const got = derive({ record: c.mapping.record, component });
@@ -30,4 +30,17 @@ test("every refused vector is refused here too", () => {
     assert.throws(() => derive({ record: c.record ?? c.mapping?.record, component:
       c.component_hex ? Buffer.from(c.component_hex, "hex") : component }), `${c.name}: must be refused`);
   }
+});
+
+test("the two rules are not interchangeable", async () => {
+  const { derive, DERIVATION, DERIVATION_V2 } = await import("./derive.mjs");
+  const v2 = v.ok.find((c) => c.mapping.record.derivation === DERIVATION_V2);
+  assert.ok(v2, "the shared vectors carry /2");
+  const rec = v2.mapping.record;
+  // the same component and policy under /1 gives a DIFFERENT app: another world, another manifest
+  const asV1 = derive({ record: { ...rec, derivation: DERIVATION, http: undefined }, component });
+  assert.notEqual(asV1.appId, v2.mapping.appId, "a command server is not the same app as a proxy");
+  // and the port is part of the identity
+  const other = v.ok.find((c) => c.mapping.record.derivation === DERIVATION_V2 && c.mapping.record.http !== rec.http);
+  if (other) assert.notEqual(other.mapping.appId, v2.mapping.appId, "another port, another AppID");
 });

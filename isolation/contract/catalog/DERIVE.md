@@ -30,6 +30,39 @@ and every backend reach the same AppID from the same inputs.
 The mapping stored beside it is keyed by `recordSha256 = sha256(canonical JSON of the record)`. It holds
 `{record, recordSha256, componentSha256, componentBytes, appId, bundleBytes}` and is immutable.
 
+## The rule, `enclave-catalog-bundle/2` (2026-09-24)
+
+For a catalog version whose component is a `wasi:cli/run` COMMAND that binds its own HTTP port through
+`wasi:sockets`, rather than a `wasi:http` proxy the runtime serves. Every input and step is `/1`'s except:
+
+| field | what | in the bundle? |
+|---|---|---|
+| `derivation` | `"enclave-catalog-bundle/2"` | no; it selects this rule |
+| `http` | the port the command serves HTTP on: the version's one declared `http:N` port, an integer 1..49999 | **yes** |
+
+Output. `Build(Manifest{abi: "enclave-domain-abi/1", world: "wasi:cli", http: N, policy}, component)`. In the
+manifest's canonical JSON (keys sorted, no whitespace) `http` sits between `artifact` and `policy`, and `world` is
+`"wasi:cli"`. The record carries `http` too, so `recordSha256` differs from a `/1` record for the same version.
+
+Refused, each by name (`derive.go` Validate, `derive_reference.py`, and the contract's bundle Parse):
+- a `/2` record with no `http`, or `http` outside 1..49999 (0 included);
+- a `/1` record carrying any non-zero `http` (a version that declares a port is `/2`);
+- a bundle whose world is `wasi:http` (or absent) and names a port, a `wasi:cli` bundle that names none, or any
+  other world;
+- any other `derivation` string.
+
+Where `http` comes from. It is the version's on-chain `ports` declaration, fixed per version like the policy. The
+per-app tier derives `/2` only for a version that declares EXACTLY one port, of kind `http`, and only on a manager
+whose `/health` lists `enclave-catalog-bundle/2`. Anything else (tcp/udp/tls ports, two http ports) is refused at
+the claim gate, not approximated.
+
+What the domain does with it (`isolation/m2/dominit.c`, not part of the AppID rule): it runs the command with
+`wasmtime run` and wasi:sockets enabled, a 64 MiB tmpfs at `/data` (ephemeral; lost on stop) and
+`ENCLAVE_PORTS=http:N=N`, and its TLS front forwards to `127.0.0.1:N`. The domain has no NIC, so the sockets reach
+its own loopback only.
+
+Every `/1` vector in `derive_vectors.json` is byte-identical to the one before `/2` existed.
+
 ## Consequences, stated so nobody infers the opposite
 
 - **The same component under another catalog version or app gives the same AppID.** Only the record differs. The
@@ -40,8 +73,8 @@ The mapping stored beside it is keyed by `recordSha256 = sha256(canonical JSON o
   flow into the bundle; the record pins it.
 - **Another pinned runtime gives the same AppID but a different record.** A mapping is refused on a host whose
   runtime is not the one pinned, so a verifier's expected runtime identity is the record's.
-- **A new rule is a new version.** Any change to how the manifest is built becomes `enclave-catalog-bundle/2`.
-  Records under `/1` keep deriving exactly what they always did.
+- **A new rule is a new version.** Any change to how the manifest is built becomes a new version (`/2` was the
+  first; the next is `/3`). Records under `/1` and `/2` keep deriving exactly what they always did.
 
 ## Incompatibilities with existing semantics
 
@@ -55,10 +88,29 @@ These are documented, not remapped:
    identities on two backends. The portable identity for a catalog app is the derived bundle's AppID, so a backend
    meant to be comparable must run the derived bundle and not the bare component. No backend was changed here.
 3. **The supervisor's app reference is `ipfs://<cid>` today.** The per-app manager needs the record as well.
-   `guestd` takes it as `derive` on `/prefetch` and `/vms`, and refuses a CID without one. The supervisor does not
-   send it yet: that wiring is part of C3/C7 in `isolation/DEPLOYMENT-PATH.md`.
+   `guestd` takes it as `derive` on `/prefetch` and `/vms`, and refuses a CID without one. On the per-app tier the
+   supervisor sends it (`isolationDerivation` in `supervisor.js`); no other backend does.
 4. **Which policy a catalog version pins is not decided by this rule.** The rule takes it as an explicit input. The
    branch's working assumption is below. Production policy is a separate decision.
+
+## Reproducing an AppID from the catalog alone
+
+A verifier needs the component's bytes, fetched by its CID from any IPFS gateway and hash-checked against the CID
+(the gateway is untrusted: it decides availability, never content). On 2026-09-24 the canary's component
+`bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza` was NOT served by ipfs.io, dweb.link or Cloudflare, and
+WAS served by `https://trustless-gateway.link/ipfs/<cid>?format=raw` with `Accept: application/vnd.ipld.raw` (that
+gateway refuses Python's default user agent). Then `derive_reference.py bundle <record.json> <component> <out>` gives
+the bundle whose sha256 is the AppID. The platform's own gateway also serves it:
+`https://ipfs.enclave.host/ipfs/<cid>` (the verifier lane fetched the 72,989 bytes there, sha256 29090a8d..., and
+reproduced AppID 9c3d10f1... with derive_reference.py). A verifier should use either and check the CID itself.
+
+## Production policy for the per-app tier: `enclave-isolation-policy/1` (2026-09-24)
+
+The production canary pins each catalog version's policy by a published rule over the version's IMMUTABLE on-chain
+record, so it is explicit, fixed per version, recomputable by anyone, and never read from a deployment:
+`vcpus` 1, `memMiB` = the version's on-chain `memMb` (floor 128), `cpuPercent` 100 (supervisor.js
+`isolationPolicyFor`). A catalog field for a publisher-chosen policy remains possible later; it would be a new rule
+name, so it cannot silently remap an existing AppID.
 
 ## Branch design assumption: one fixed, explicit policy per catalog version
 
