@@ -273,6 +273,48 @@ async function checkClaims(m, bytes, R) {
     R.add(!!res?.ok, "the igvm manager creates its VM with a guest-state isolation type (its own start(), on a recording host)",
           res?.ok ? `New-VM -GuestStateIsolationType ${res.isolation}${res.secureBootOff ? ", Secure Boot off" : ""}` : res?.reason || "no answer");
   }
+  // The node's own record builder against the catalog. The manifest records each app's catalog version as READ FROM THE
+  // CHAIN (catalogFacts, with the block, address book and catalog it came from); the shipped node-bridge.mjs's
+  // isolationPlan builds the derivation record from those facts exactly as the node will at spawn time, and it must be
+  // the pinned record BYTE FOR BYTE (canonical JSON, not field by field). A node-side builder that took its policy or
+  // catalog id from somewhere else -- enclave-d1's hand-built record used the node's cpuFallback floor for memMiB and a
+  // label for catalog.app: every field present and well-formed, two wrong -- derives another AppID than the Linux tier.
+  if (m.catalogFacts) {
+    const nb = m.files.find((f) => f.path.endsWith("/node-bridge.mjs"));
+    let plan = null, why = "";
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-plan-"));
+    try {
+      for (const f of m.files.filter((x) => x.path.startsWith("control/") && bytes.get(x))) {
+        const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
+      }
+      if (!nb) throw new Error("no node-bridge.mjs in the package");
+      plan = (await import(pathToFileURL(path.join(d, ...nb.path.split("/"))).href)).isolationPlan;
+      if (typeof plan !== "function") throw new Error("node-bridge.mjs exports no isolationPlan");
+    } catch (e) { why = e.message; } finally { fs.rmSync(d, { recursive: true, force: true }); }
+    const src = m.catalogFacts.source || {};
+    R.add(typeof plan === "function" && Number.isInteger(src.block) && /^0x[0-9a-fA-F]{40}$/.test(src.catalog || ""),
+          "catalog facts name their chain read, and the shipped node-bridge exports isolationPlan", why || `chain ${src.chainId}, block ${src.block}, catalog ${src.catalog}`);
+    for (const a of m.apps || []) {
+      const n = `${a.name} ${a.version}`, key = `${a.catalog.app}/${a.catalog.version}`, v = (m.catalogFacts.versions || {})[key];
+      if (!v) { R.add(false, `${n}: catalog facts`, `none recorded for ${key}`); continue; }
+      R.add(v.cid === a.cid && v.yanked === false && v.approval === 1, `${n}: the catalog version names this CID, approved and not yanked`,
+            `cid ${v.cid === a.cid}, yanked ${v.yanked}, approval ${v.approval}`);
+      if (typeof plan !== "function") continue;
+      let got = null, err = "";
+      try {
+        const p = plan({ deploymentId: "0x" + "11".repeat(32), deployment: { cpuMilli: 250, gpuMilli: 0, isPublic: true, appPort: 8080 },
+          version: { appId: a.catalog.app, index: a.catalog.version, cid: v.cid, memMb: v.memMb, ports: v.ports, config: v.config, configCid: v.configCid || "", yanked: v.yanked },
+          appConfig: v.config ? JSON.parse(v.config) : null, hasSecrets: false, waf: {}, volumes: [], runtimeId: m.runtime.runtimeId,
+          derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] });
+        got = p && p.spawn ? p.spawn : null;
+        if (!got) err = `the plan refused: ${JSON.stringify(p).slice(0, 200)}`;
+      } catch (e) { err = e.message; }
+      const rec = B(`${a.dir}/record.json`), ok = !!got && !!rec && canonical(got.derive).equals(rec) && got.isPublic === true && got.hasSecrets === false;
+      R.add(ok, `${n}: the node's isolationPlan builds exactly the pinned record from the on-chain version`,
+            ok ? `record ${a.recordSha256.slice(0, 16)}, memMb ${v.memMb}${v.ports ? `, ports ${v.ports}` : ""}`
+               : err || `it builds ${got ? sha(canonical(got.derive)).slice(0, 16) : "nothing"}, pinned ${a.recordSha256.slice(0, 16)}`);
+    }
+  }
   // slots the package does not fill yet, and must not pretend to
   for (const s of m.slots || []) {
     const filled = m.files.filter((f) => f.role === s.role);

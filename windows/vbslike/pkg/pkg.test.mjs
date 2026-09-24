@@ -230,6 +230,35 @@ test("committed manifests keep verifying after their scripts move on: v4 and v5 
     assert.match(r.out, /ok   source win\/check\.ps1 \(repo at the manifest's commit [0-9a-f]{12}\)/);
   }
 });
+// the node's record builder against the catalog, on v7's pinned node-bridge.mjs: the on-chain facts (Base block
+// 51751542, catalog 0x18419CA2..., schema 9) build exactly the pinned records; d1's defect class is refused.
+const V7 = path.join(HERE, "manifests/nucbox-ownguest-7.json");
+const FACTS = { source: { chainId: 8453, block: 51751542, addressBook: "0xab214342d5A490150A4A977063A2f88E21F80907", catalog: "0x18419CA2b502D423A8de6269AEeE171a378626e3", catalogSchema: 9 },
+  versions: {
+    "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4": { cid: "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza", version: "1.0.4", memMb: 128, ports: "",
+      config: "{\"_media\":{\"thumbnail\":\"bafkreifwbdhx3sp7juo4fy3g47zmvik5lakqvte3okdnoij6gv5v5lnoue\",\"thumbnailSvg\":true,\"banner\":\"bafkreicr4ejprdyuwzise2oehjjy52in6zawoa2j6hwve2yad7nxejtaau\",\"bannerSvg\":true}}", yanked: false, approval: 1 },
+    "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4": { cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", version: "0.1.4", memMb: 256, ports: "http:8000",
+      config: "{\"_media\":{\"thumbnail\":\"bafkreifzvpy3jk67jklyi3war6zzlz62hmj3dd7nblpllxcckwf6eoijzq\",\"thumbnailSvg\":true,\"banner\":\"bafkreiet6ftvptcqexzkn5657wivim7xeeodxruo3f7qoy52uf5wib2uxu\"}}", yanked: false, approval: 1 } } };
+const withFacts = (mut) => { const m = committed(V7); m.catalogFacts = structuredClone(FACTS); if (mut) mut(m.catalogFacts); return m; };
+test("catalog: isolationPlan builds exactly the pinned records from the on-chain versions (v7's node-bridge)", { skip }, () => {
+  const r = run(["verify", writeManifest(withFacts())]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   hello-world 1\.0\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version \(record bff33b951aade0a9, memMb 128\)/);
+  assert.match(r.out, /ok   hookbin 0\.1\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version \(record 1fb9360ddfd50a25, memMb 256, ports http:8000\)/);
+});
+test("catalog: a record built from another memMb (d1's defect class: the node's floor, not the version's) is refused", { skip }, () => {
+  const r = run(["verify", writeManifest(withFacts((f) => { f.versions["0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4"].memMb = 256; }))]);
+  assert.equal(r.code, 1, "a record built from the wrong memMb passed");
+  assert.match(r.out, /FAIL hello-world 1\.0\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version: it builds [0-9a-f]{16}, pinned bff33b951aade0a9/, fails(r.out));
+});
+test("catalog: facts naming another CID, or a yanked version, are refused", { skip }, () => {
+  for (const mut of [(f) => { f.versions["0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4"].cid = FACTS.versions["0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4"].cid; },
+                     (f) => { f.versions["0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4"].yanked = true; }]) {
+    const r = run(["verify", writeManifest(withFacts(mut))]);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /FAIL hello-world 1\.0\.4: the catalog version names this CID, approved and not yanked/, fails(r.out));
+  }
+});
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
   assert.equal(r.code, 1);
