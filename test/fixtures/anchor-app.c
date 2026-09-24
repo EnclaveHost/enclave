@@ -37,6 +37,10 @@ int main(void) {
     OK("APP bytes=5 sha256=%s graph=m", H); assert(p.http == 0);
     BAD("APP bytes=5 sha256=%s args=6100 serve=http", H); BAD("APP bytes=5 sha256=%s serve=http graph=m", H);
     BAD("APP bytes=5 sha256=%s serve=cli", H); BAD("APP bytes=5 sha256=%s serve=http ", H); BAD("APP bytes=5 sha256=%s serve=httpx", H);
+    /* serve=https: TLS in the VM */
+    OK("APP bytes=5 sha256=%s serve=https", H); assert(p.http == 2);
+    OK("APP bytes=5 sha256=%s graph=m serve=https", H); assert(p.http == 2 && !strcmp(p.graph, "m"));
+    BAD("APP bytes=5 sha256=%s args=6100 serve=https", H); BAD("APP bytes=5 sha256=%s serve=httpss", H); BAD("APP bytes=5 sha256=%s serve=https ", H);
     printf("{\"status\":\"PASS\",\"executed_checks\":%d}\n", n);
     return 0;
 }

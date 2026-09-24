@@ -1143,6 +1143,8 @@ static void caps_sink(const char *id, int tokens, double pf, double dc, const ui
  * comes back as APPOUT <stream> <hex> lines (1 = stdout, 2 = stderr), in 1 KiB chunks. The sha256 is the app's identity
  * (AppID), kept for the attestation binding (report_data[32:64], milestone 5). */
 static uint8_t g_app_sha256[32]; static int g_app_have = 0;
+/* the relay's fresh nonce for the app's ABI/2 evidence (APPNONCE): used instead of the attach nonce when present */
+static uint8_t g_app_nonce[32]; static int g_app_nonce_set = 0;
 typedef int (*pvmrt_identity_fn)(char *, size_t);
 typedef int (*pvmrt_run_app_fn)(const uint8_t *, size_t, const uint8_t *, const char *const *, int, uint64_t, uint64_t,
                                 const char *, const pvmrt_nn_ops *, void (*)(int, const uint8_t *, size_t), int *, uint64_t *,
@@ -1228,16 +1230,18 @@ static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
     if (wx != 0) { OUT("APP refused: %s", wx < 0 ? "this process's mappings could not be read, so W^X cannot be stated" : "this process holds a writable+executable mapping"); return 4; }
     OUT("ABI2 selftest exec_pages=%s wx=clean maps=1 scope=self", exec_pages);
     OUT("ABI2 runtime %s", identity);
-    if (!g_caps_nonce_kind) { OUT("ABI2 unavailable: no attach nonce in this session (the app runs; a verifier admits nothing without ABI/2 evidence)"); return 0; }
+    if (!g_caps_nonce_kind && !g_app_nonce_set) { OUT("ABI2 unavailable: no nonce in this session (the app runs; a verifier admits nothing without ABI/2 evidence)"); return 0; }
+    const uint8_t *nonce = g_app_nonce_set ? g_app_nonce : g_caps_nonce;
+    const char *nonce_kind = g_app_nonce_set ? "relay app nonce" : g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only";
     uint8_t rid[32], spki[44], bind[32], ch[64];
     sha256((const uint8_t *)identity, strlen(identity), rid);
     memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
     {   static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
         memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
-        memcpy(m + o, g_caps_nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
     memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
-    char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
-    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s bind2=%s app=%s", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", rh, bh, ah);
+    char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
+    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s bind2=%s app=%s", nh, nonce_kind, rh, bh, ah);
     AVmAttestationResult *res = NULL;
     const AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
     if (st != ATTESTATION_OK || !res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
@@ -1260,22 +1264,30 @@ typedef void *(*pvmrt_http_open_fn)(const uint8_t *, size_t, const uint8_t *, ui
 typedef int (*pvmrt_http_serve_fd_fn)(void *, int, char *, size_t);
 typedef uint64_t (*pvmrt_http_requests_fn)(const void *);
 typedef void (*pvmrt_http_close_fn)(void *);
+typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
+                                     const uint8_t *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
 static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const anchor_app_plan *plan = a->plan;
     pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
+    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, "pvmrt_https_open");
+    const int tls = plan->http == 2;
     pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
     pvmrt_http_requests_fn hreqs = (pvmrt_http_requests_fn)dlsym(a->rt, "pvmrt_http_requests");
     pvmrt_http_close_fn hclose = (pvmrt_http_close_fn)dlsym(a->rt, "pvmrt_http_close");
-    if (!hopen || !hserve || !hreqs || !hclose) { free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http"); return 4; }
+    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen)) { free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", tls ? " over TLS" : ""); return 4; }
     uint64_t cms = 0; char err[1024] = "";
-    void *srv = hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
+    /* https: TLS 1.3 terminates in this process with the VM's Ed25519 transport key -- the key the attach transcript and the
+     * app's ABI/2 evidence bind -- so whatever carries the bytes (the phone's Android app, the relay) holds only ciphertext.
+     * The seed is libsodium's secret key's first half; pvm-rt copies it into its TLS config and zeroes its own copy. */
+    void *srv = tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, g_tsk, app_emit, &cms, err, sizeof err)
+                    : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
     free(a->bytes); a->bytes = NULL;
     char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
     if (!srv) { OUT("APP refused: %s", err); return 4; }
     memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
     const int ls = vs_bind(APP_HTTP_PORT);
     if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
-    OUT("APP serving http on vsock %d: %s compile_ms=%llu%s%s", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
     for (;;) {
         struct pollfd pf[2] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN } };
         const int r = poll(pf, 2, 3600 * 1000);
@@ -1666,6 +1678,10 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
                 if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
                 app = 1; }
+            else if (!strncmp(l, "APPNONCE ", 9)) {   /* the relay's fresh nonce for this app's ABI/2 evidence: 64 lowercase hex, once */
+                const char *h = l + 9; size_t n = 0; while (n < 64 && ((h[n] >= '0' && h[n] <= '9') || (h[n] >= 'a' && h[n] <= 'f'))) n++;
+                if (g_app_nonce_set || n != 64 || h[64] != 0) { app_bad = 1; OUT("APP refused: APPNONCE %s", g_app_nonce_set ? "repeated" : "malformed (64 lowercase hex)"); }
+                else { unhex(h, g_app_nonce, 32); g_app_nonce_set = 1; OUT("APPNONCE accepted: the app's ABI/2 evidence binds the relay's nonce"); } }
 #endif
             else if (!strncmp(l, "PREFIXPK ", 9)) {    /* the platform's shared-prefix key (prefix-kv.h) */
                 char h[65] = ""; uint8_t pk[32];

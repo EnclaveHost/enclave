@@ -26,6 +26,17 @@ public final class RelayAttach {
     final String url, name; final byte[] spki;
     Ws ws; byte[] nonce, bound; String challengeHex;
     String padKey = "";                       // the VM's X25519 pad key (PADKEY), presented with the attestation
+    /* LAB serving prototype (PVM-CPU.md): the relay's fresh nonce for the app's ABI/2 evidence, hex, from abi2-challenge */
+    final java.util.concurrent.CompletableFuture<String> abi2Nonce = new java.util.concurrent.CompletableFuture<>();
+    /* opens a stream to the VM's app port; set once the VM serves https (TLS terminates IN the VM, this app never holds a key) */
+    volatile java.util.function.Supplier<android.os.ParcelFileDescriptor> vmConnect;
+    private final java.util.concurrent.ConcurrentHashMap<Long, Pipe> pipes = new java.util.concurrent.ConcurrentHashMap<>();
+    /* One relay raw stream spliced to one VM connection. The bytes are TLS ciphertext end to end: they are copied, counted
+     * and never logged, parsed or kept. */
+    static final class Pipe { final android.os.ParcelFileDescriptor pfd; final java.io.OutputStream toVm; long in, out;
+        Pipe(android.os.ParcelFileDescriptor p) { pfd = p; toVm = new java.io.FileOutputStream(p.getFileDescriptor()); } }
+    /* every frame goes out through here: the receive loop, the stream pumps and the control thread all send */
+    private synchronized void sendFrame(JSONObject o) throws Exception { ws.sendText(o.toString()); }
     static final String AVF_PAD_FORMAT = "android-avf-pvm/v2", AVF_PAD_DOMAIN = "enclave-avf-pad-bind-v1\n";
 
     RelayAttach(String url, String name, byte[] spki) { this.url = url; this.name = name; this.spki = spki; }
@@ -80,30 +91,76 @@ public final class RelayAttach {
     /** Bound: announce the identity, then answer the hub until the socket ends. */
     void serve(String phone) {
         try {
-            ws.sendText(new JSONObject().put("t", "hello").put("name", name).put("mode", "avf").put("transportKeyFp", hex(sha256(spki))).toString());
+            sendFrame(new JSONObject().put("t", "hello").put("name", name).put("mode", "avf").put("transportKeyFp", hex(sha256(spki))));
             String f;
             while ((f = ws.receive()) != null) {
                 JSONObject o = new JSONObject(f); String t = o.optString("t");
-                if ("ping".equals(t)) { ws.sendText("{\"t\":\"pong\"}"); continue; }
+                if ("ping".equals(t)) { sendFrame(new JSONObject().put("t", "pong")); continue; }
+                if ("abi2-challenge".equals(t)) {   // LAB: the relay's own fresh nonce, for the VM to bind into the app's evidence
+                    try { abi2Nonce.complete(hex(Base64.getDecoder().decode(o.getString("nonce")))); Main.say("RELAY abi2 nonce received (fresh, relay-owned)"); }
+                    catch (Exception e) { Main.say("RELAY abi2 nonce malformed: " + e); } continue; }
+                if ("abi2-result".equals(t)) { Main.say("RELAY abi2 " + (o.optBoolean("ok") ? "VERIFIED by the relay" : "REFUSED: " + o.optJSONArray("reasons"))); continue; }
                 if ("caps-result".equals(t)) {   // the relay's pVM CPU verdict on this VM's capability report (relay/pvm-cpu-tier.mjs)
                     Main.say("RELAY caps " + (o.optBoolean("ok") ? "ADMITTED tier=" + o.optString("tier") : "REFUSED: " + o.optJSONArray("reasons"))); continue; }
-                if ("s+".equals(t)) { ws.sendText(new JSONObject().put("t", "s=").put("sid", o.opt("sid")).put("ok", false).put("err", "phone anchor carries no streams").toString()); continue; }
+                if ("s+".equals(t)) {
+                    final long sid = o.optLong("sid", -1);
+                    if (!"pvm-app-tls".equals(o.optString("kind")) || vmConnect == null || sid < 0) {
+                        sendFrame(new JSONObject().put("t", "s=").put("sid", o.opt("sid")).put("ok", false).put("err", "phone anchor carries no streams"));
+                        continue;
+                    }
+                    new Thread(() -> openPipe(sid), "relay-stream-" + sid).start();   // connecting must not stall this loop
+                    continue;
+                }
+                if ("sd".equals(t)) { Pipe pp = pipes.get(o.optLong("sid", -1)); if (pp != null) { byte[] b = Base64.getDecoder().decode(o.optString("d"));
+                    try { pp.toVm.write(b); pp.toVm.flush(); pp.in += b.length; } catch (Exception e) { closePipe(o.optLong("sid"), "VM write failed"); } } continue; }
+                if ("sx".equals(t)) { closePipe(o.optLong("sid", -1), "closed by the relay"); continue; }
                 if (!"req".equals(t)) continue;
                 String path = o.optString("path").split("\\?")[0]; int status; JSONObject body;
                 if (path.equals("/availability")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name).put("phone", phone).put("gpu", false); }   // no teeCpu/tier self-claim: the relay tiers this row from its verified verdict (PVM-CPU.md)
                 else if (path.equals("/v1/health")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name); }
                 else { status = 404; body = new JSONObject().put("error", "not_found"); }
-                ws.sendText(new JSONObject().put("t", "res").put("id", o.opt("id")).put("status", status)
-                    .put("headers", new JSONObject().put("content-type", "application/json")).put("body", b64(body.toString().getBytes("UTF-8"))).toString());
+                sendFrame(new JSONObject().put("t", "res").put("id", o.opt("id")).put("status", status)
+                    .put("headers", new JSONObject().put("content-type", "application/json")).put("body", b64(body.toString().getBytes("UTF-8"))));
             }
+            for (Long sid : pipes.keySet()) closePipe(sid, "tunnel closed");
             Main.say("RELAY tunnel closed");
         } catch (Exception e) { Main.say("RELAY serve error " + e); }
     }
 
     /** The pVM's capability report (PVM-CPU.md): report hex -> base64 as the relay parses it, signature as hex. The app only
      *  carries these bytes; the relay verifies them against the key this VM attested (relay/pvm-cpu-tier.mjs). */
+    /* LAB: one relay raw stream -> one connection to the VM's TLS app port; VM -> relay pumped here, relay -> VM in serve() */
+    private void openPipe(long sid) {
+        android.os.ParcelFileDescriptor pfd = null;
+        try { java.util.function.Supplier<android.os.ParcelFileDescriptor> c = vmConnect; pfd = c == null ? null : c.get(); } catch (Exception ignored) { }
+        try {
+            if (pfd == null) { sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", false).put("err", "the VM's app port did not answer")); return; }
+            Pipe p = new Pipe(pfd); pipes.put(sid, p);
+            sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", true));
+            Main.say("RELAY stream " + sid + " opened to the VM's TLS app port (the bytes are ciphertext; sizes only are logged)");
+            java.io.InputStream fromVm = new java.io.FileInputStream(pfd.getFileDescriptor()); byte[] buf = new byte[1 << 16]; int n;
+            while ((n = fromVm.read(buf)) > 0) { p.out += n; sendFrame(new JSONObject().put("t", "sd").put("sid", sid).put("d", Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(buf, n)))); }
+        } catch (Exception ignored) { }
+        if (pipes.containsKey(sid)) { try { sendFrame(new JSONObject().put("t", "sx").put("sid", sid)); } catch (Exception ignored) { } closePipe(sid, "the VM closed it"); }
+        else if (pfd != null) try { pfd.close(); } catch (Exception ignored) { }
+    }
+    private void closePipe(long sid, String why) {
+        Pipe p = pipes.remove(sid); if (p == null) return;
+        try { p.pfd.close(); } catch (Exception ignored) { }
+        Main.say("RELAY stream " + sid + " closed (" + why + "): " + p.in + " bytes to the VM, " + p.out + " bytes from it");
+    }
+
+    /* LAB: the VM's ABI/2 evidence for the relay to verify with ITS nonce: the chain (public), the runtime identity and the
+     * self-test tuple exactly as the VM printed them, and the app's digest. Nothing here is secret or from this app. */
+    void sendAbi2(java.util.List<String> chainB64, String identity, String selftest, String appHex) {
+        try { JSONArray c = new JSONArray(); for (String x : chainB64) c.put(x);
+              sendFrame(new JSONObject().put("t", "abi2").put("chain", c).put("identity", identity).put("selftest", selftest).put("app", appHex));
+              Main.say("RELAY abi2 evidence sent (" + chainB64.size() + " certificates)"); }
+        catch (Exception e) { Main.say("RELAY abi2 not sent: " + e); }
+    }
+
     void sendCaps(String reportHex, String sigHex) {
-        try { ws.sendText(new JSONObject().put("t", "caps").put("report", b64(unhex(reportHex))).put("sig", sigHex).toString());
+        try { sendFrame(new JSONObject().put("t", "caps").put("report", b64(unhex(reportHex))).put("sig", sigHex));
               Main.say("RELAY caps sent (" + reportHex.length() / 2 + " bytes, signed by the VM's attested key)"); }
         catch (Exception e) { Main.say("RELAY caps not sent: " + e); }
     }

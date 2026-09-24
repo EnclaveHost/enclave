@@ -1,0 +1,51 @@
+Q20 start 22:43:13
+22:43:17 apk 9a65862bd4e86d51aae094167e8c4a09c7b3b72d4dbc887d77d2a2f44039c1bb installed (hashed on the device); code hash pinned by the hub: 25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec; app 1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339
+/home/steven/Projects/enclave-pvm/shielded/anchor/avf/runtime/conformance/bundles/ggml-probe.wasm: 1 file pushed, 0 skipped. 171.5 MB/s (109030 bytes in 0.001s)
+22:43:19 == launch 1
+22:45:01 l1: the VM serves https (99 s)
+22:45:01 hub: {"name":"pixel10-pvm-cpu","appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b6570032100063ddf62ba6773a3dcdc5e5cfdc73270268991fee8ce1ab335aafa495d1453c1","verifiedAt":1790228634194,"lab":"NOT PRODUCTION"}
+{"mode":"ok","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","pinned":"35aafa495d1453c1","ms":822,"sent":true,"status":200,"body":"{\"graph\":\"gemma-4-e2b-it-q4_0\",\"n_vocab\":262144,\"prompt_tokens\":9,\"tokens\":[10950, 17847, 13, 10950, 17847, 101, 101, 101],\"load_ms\":4,\"prefill_ms\":153,\"decode_ms\":590,\"tok_per_s\":11.86}","bytes":332}
+{"mode":"wrong-pin","expected":"refused before sending","ms":29,"sent":false,"refused":"the server's key is not the attested transport key","serverKey":"35aafa495d1453c1"}
+{"mode":"tamper","expected":"no answer (the VM's TLS refuses the altered record)","flipped":false,"ms":1025,"sent":true,"status":200,"body":"{\"graph\":\"gemma-4-e2b-it-q4_0\",\"n_vocab\":262144,\"prompt_tokens\":9,\"tokens\":[10950, 17847, 13, 10950, 17847, 101, 101, 101],\"load_ms\":5,\"prefill_ms\":167,\"decode_ms\":805,\"tok_per_s\":8.70}","bytes":331}
+{"mode":"replay","expected":"no answer (a replayed session cannot complete a new handshake)","chunks":2,"bytesBack":632,"httpInClear":false,"firstByte":22,"closedByPeer":true}
+{"mode":"plaintext","expected":"no HTTP (the port speaks TLS only)","bytesBack":7,"httpInClear":false,"firstByte":21,"closedByPeer":true}
+{"mode":"ok","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","pinned":"35aafa495d1453c1","ms":794,"sent":true,"status":200,"body":"{\"graph\":\"gemma-4-e2b-it-q4_0\",\"n_vocab\":262144,\"prompt_tokens\":9,\"tokens\":[10950, 17847, 13, 10950, 17847, 101, 101, 101],\"load_ms\":5,\"prefill_ms\":169,\"decode_ms\":551,\"tok_per_s\":12.70}","bytes":332}
+22:45:12 termination: waiting for the lab STOP and the run's end
+{"mode":"after-termination","refused":"the relay has not verified an app under this name: nothing is sent"}
+22:47:04 == launch 2 (reconnect)
+22:48:52 l2: the VM serves https (104 s)
+22:48:52 hub: {"name":"pixel10-pvm-cpu","appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b65700321007a6f79a49a207fa2f223d7830a3b206ee75b2d8255c8f05701871e9f44489387","verifiedAt":1790228860705,"lab":"NOT PRODUCTION"}
+{"mode":"reconnect-ok","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","pinned":"01871e9f44489387","ms":842,"sent":true,"status":200,"body":"{\"graph\":\"gemma-4-e2b-it-q4_0\",\"n_vocab\":262144,\"prompt_tokens\":9,\"tokens\":[10950, 17847, 13, 10950, 17847, 101, 101, 101],\"load_ms\":20,\"prefill_ms\":184,\"decode_ms\":549,\"tok_per_s\":12.75}","bytes":333}
+{"mode":"reconnect-old-key","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","pinned":"35aafa495d1453c1","ms":24,"sent":false,"refused":"the server's key is not the attested transport key","serverKey":"01871e9f44489387"}
+ok   launch 1: the hub verified ggml-probe (1ad17b45e12aabde...) on the pVM runtime (d3370878afa9d5ee...)
+ok   launch 1: the key the hub publishes is the VM's announced transport key (35aafa495d1453c1)
+ok   launch 1: the VM bound the relay's app nonce (9adf8a6879695374...)
+ok   launch 1: the app nonce is fresh (not the attach nonce 1762200c1bd5862e...)
+ok   launch 1: verified by the relay, served over TLS in the VM
+ok   launch 2: the hub verified ggml-probe (1ad17b45e12aabde...) on the pVM runtime (d3370878afa9d5ee...)
+ok   launch 2: the key the hub publishes is the VM's announced transport key (01871e9f44489387)
+ok   launch 2: the VM bound the relay's app nonce (dd5571a1f83a8f72...)
+ok   launch 2: the app nonce is fresh (not the attach nonce f55ba4c71ac2af93...)
+ok   launch 2: verified by the relay, served over TLS in the VM
+ok   the hub verified exactly two app attestations (one per boot)
+ok   ok: 200 over TLS, pinned, with tokens (822 ms)
+ok   wrong pin: refused before sending a byte
+note launch 1's tamper attempt did not tamper (flipped=false: the chunk led with ChangeCipherSpec) and was served (200); the corrected carrier ran on launch 2
+ok   tamper: one byte of an encrypted record flipped in transit, no answer (ERR_SSL_SSL/TLS_ALERT_BAD_RECORD_MAC)
+ok   replay: 2 recorded chunks on a new connection, nothing in the clear (632 bytes back)
+ok   plaintext HTTP to the app port: no HTTP back
+ok   ok again after the attacks: 200
+ok   after termination: refused (no verified app), nothing sent
+ok   reconnect: a new boot serves with its own key
+ok   reconnect: the first boot's key is refused before sending
+ok   reconnect: a new transport key per boot
+ok   launch 1: the app served exactly the 3 requests that got a 200 (requests=3)
+ok   launch 2: the app served exactly the 1 requests that got a 200 (requests=1)
+ok   launch 1: terminated by the owner's STOP
+ok   l1.log: no request or response in the clear
+ok   l2.log: no request or response in the clear
+ok   hub.jsonl: no request or response in the clear
+ok   hub.err: no request or response in the clear
+ok   the phone logged its streams by size only
+PASS the lab serving prototype on the device
+Q20-END 22:50:54 rc=0

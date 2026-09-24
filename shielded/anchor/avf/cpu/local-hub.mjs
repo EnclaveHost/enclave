@@ -6,9 +6,16 @@
 // host/local-hub.mjs (the dealt-pads hub: the v1 list, no tier policy) this hub is configured for the pVM CPU tier alone.
 //   node cpu/local-hub.mjs --port 18443 --code-hash H --authority A --model-sha S --selftest-sha R --min-tok-s F
 //                          [--min-mem-mib M] [--seconds N]
+//                          [--app-id <sha256> [--runtime-id <hex>] --app-port 18445 --app-name <tunnel name>]
+// With --app-id (the LAB serving prototype, NOT production): the hub issues each pVM attach a fresh ABI/2 nonce, verifies
+// the app's evidence itself (relay/pvm-app-attest.mjs; runtime pinned to --runtime-id, default the pVM runtime), publishes
+// the verified app at GET /pvm-app/<name> (the transport key a client pins), and splices each TCP connection on
+// --app-port raw to that app: TLS terminates in the VM, this hub and the phone carry ciphertext and log sizes only.
 // One JSON line per event on stdout: listening, the hub's own log lines (attach verdicts, "pvm-cpu ADMITTED/REFUSED"),
 // and the hub's row for the name on every change (onChange) -- where the relay-owned tier and pvmCpu show. Exits after --seconds (default 900).
 import http from "node:http";
+import net from "node:net";
+import { createHash } from "node:crypto";
 import { createTunnelHub } from "../../../../relay/tunnel.js";
 import { pvmCpuPolicy } from "../../../../relay/pvm-cpu-tier.mjs";
 
@@ -21,12 +28,28 @@ const pvmCpu = pvmCpuPolicy({ codeHashes: [arg("--code-hash")], authorityHashes:
              minMemMib: Number(arg("--min-mem-mib", "0")) }] });
 // v2 (pad-binding transcript) attaches are judged against the pvm-cpu build's code hash; the APK authority is the avf pin.
 // No pad builds: this hub never deals pads.
-const attest = { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [arg("--authority")] }, pvmCpu };
+const PIXEL_RUNTIME = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
+const appId = arg("--app-id");
+const pvmApp = appId ? { appIds: [appId.toLowerCase()], runtimeIds: [(arg("--runtime-id") || createHash("sha256").update(PIXEL_RUNTIME).digest("hex")).toLowerCase()] } : null;
+const attest = { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [arg("--authority")] }, pvmCpu, ...(pvmApp ? { pvmApp } : {}) };
 const log = console.log; console.log = (...a) => { emit({ hub: a.map(String).join(" ") }); };
 const hub = createTunnelHub({ allow: [], attest, onChange: (why, name) => emit({ change: why, name, row: hub.origins().find((o) => o.name === name) || null }) });
-const server = http.createServer((_req, res) => res.end("local hub"));
+const server = http.createServer((req, res) => {
+  const m = /^\/pvm-app\/([A-Za-z0-9_-]{1,64})$/.exec(req.url || "");
+  if (m) {   // the relay-verified app facts (public): what a client pins before it sends a byte
+    const row = hub.origins().find((o) => o.name === m[1]);
+    res.writeHead(row && row.pvmApp ? 200 : 404, { "content-type": "application/json" });
+    return res.end(JSON.stringify(row && row.pvmApp ? { name: m[1], ...row.pvmApp, lab: "NOT PRODUCTION" } : { error: "no verified app" }));
+  }
+  res.end("local hub");
+});
 server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
 const port = Number(arg("--port", "18443"));
-server.listen(port, "127.0.0.1", () => emit({ listening: `ws://127.0.0.1:${port}/v1/fleet-tunnel` }));
+server.listen(port, "127.0.0.1", () => emit({ listening: `ws://127.0.0.1:${port}/v1/fleet-tunnel`, lab: pvmApp ? "serving prototype, NOT PRODUCTION" : undefined }));
+if (arg("--app-port")) {   // LAB: raw TCP -> the verified app's TLS in the VM (hub.spliceRaw); the hub logs sizes only
+  const appName = arg("--app-name");
+  const raw = net.createServer((sock) => { const ok = hub.spliceRaw(appName, sock); emit({ raw: ok ? "stream opened" : "refused: no verified app", name: appName }); });
+  raw.listen(Number(arg("--app-port")), "127.0.0.1", () => emit({ rawListening: `tcp://127.0.0.1:${arg("--app-port")} -> ${appName}` }));
+}
 setTimeout(() => { emit({ end: "time" }); console.log = log; process.exit(0); }, Number(arg("--seconds", "900")) * 1000).unref();
 process.on("SIGTERM", () => { emit({ end: "SIGTERM" }); process.exit(0); });
