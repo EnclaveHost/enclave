@@ -216,11 +216,19 @@ print(f"igvmmeasure {pred}")
 print(f"report      {meas}")
 print(f"report_data[0:32]  (the binding) {rd[:32].hex()}")
 print(f"report_data[32:64] (the app id)  {rd[32:].hex()}")
-want = (appids.split(',')[2] if len(appids.split(',')) > 2 else '')
-if want:
-    print(f"expected app id for plane 2      {want}")
-    if rd[32:].hex() != want:
-        sys.exit("FAIL: the report does not name the app this SVSM was built to admit")
+# ENCLAVE_APP_IDS fills planes 1..VMPL_MAX-1, so plane 2 is the SECOND entry. An earlier version indexed [2]
+# behind a "len > 2" guard, so with the two-entry list this suite uses the guard was false, the comparison
+# never ran, and the check printed the app id while verifying nothing - then reported OK. Absence of an
+# expectation must be a FAILURE here, not a skip.
+parts = appids.split(',')
+if len(parts) < 2:
+    sys.exit(f"FAIL: ENCLAVE_APP_IDS has {len(parts)} entr(ies); plane 2 needs at least two")
+want = parts[1].strip().lower()
+print(f"expected app id for plane 2      {want}")
+if not want or want == '0' * 64:
+    sys.exit("FAIL: no app id is compiled in for plane 2, so there is nothing to compare the report against")
+if rd[32:].hex() != want:
+    sys.exit("FAIL: the report does not name the app this SVSM was built to admit")
 if meas != pred:
     sys.exit("FAIL: the report's MEASUREMENT is not igvmmeasure of the launched IGVM")
 print("OK: measurement matches, and the app half is the one compiled into the SVSM")

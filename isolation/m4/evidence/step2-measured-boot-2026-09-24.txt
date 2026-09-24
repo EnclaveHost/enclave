@@ -1,0 +1,117 @@
+Step 2: the launch measurement now covers the kernel, initrd and command line that ACTUALLY EXECUTE
+warden-host, 2026-09-24. Generated from /home/steven/enclave-bench/m4b-step2-020307 by m4/write-step2-evidence.sh; the quoted lines are cut from
+the run's own files. This is the inversion of evidence/igvm-0b-precondition-2026-09-24.txt, which recorded the
+same firmware inside the same kind of IGVM refusing every guest because the table was absent.
+
+WHAT WAS UNDER TEST. On the IGVM path QEMU writes no SEV hash table - it hands the metadata pages to the IGVM
+instead - so the guest's kernel, initrd and command line reached the firmware through fw_cfg, outside the launch
+measurement. igvmbuilder now emits the table itself as MEASURED page data, which is what puts those three inside
+the IGVM digest. Three mechanisms have to hold together: emit the table where the FIRMWARE reads it, keep the
+SVSM from validating and zeroing that page, and grant the page to the guest VMPL.
+
+THE BUILD
+  IGVM            /home/steven/enclave-bench/m4b-step2-020307/measured.igvm
+                  4775896 bytes, sha256 0339333b19af29b77c20bbd5099bf0a0a1d2f2fc7fb7d64d8f46ff7368d4e859
+  launch digest   AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
+  firmware        OVMF.amdsev.debug.fd, sha256 50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2
+                  pinned as VERIFYING by verifying-firmware.txt
+  guest kernel    /boot/vmlinuz-linux, sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+  guest initrd    good.cpio.gz, sha256 1fd2cbc62bb83ffcfef3caf6e456e43b60017ec5bcd5ee33d54a0dc0238f0699
+  guest cmdline   "console=ttyS0 rdinit=/init loglevel=3"
+  SVSM            d37095e + 0001 + 0002 + appid.rs, FEATURES=vtpm,uefivars,enable-console-log, RELEASE
+                  elf fe442951da5301971a7be0bc31c97bf8107f34a2f2d80ab26126d9cc32c5ee05
+                  igvmbuilder cc78de9f84902c510df2bac982a9a0e1dede0928342dc52b1bb7ff6a42d89e75
+  app id, plane 2 
+
+WHERE THE TABLE GOES, which is the part that cost a hardware run:
+  Measured SEV hash table at 0x810c00: a 176-byte table in the firmware's 1024-byte slot at offset 0xc00 of the 4096-byte area at 0x810000, over kernel /boot/vmlinuz-linux, initrd /home/steven/enclave-bench/m4b-step2-020307/good.cpio.gz, cmdline "console=ttyS0 rdinit=/init loglevel=3"
+  Pre-validated regions recorded (3): [0x800000-0x809000] [0x80a000-0x80d000] [0x811000-0x830000]
+
+The descriptor declares the PAGE, because that is what gets validated. The firmware reads the table at its own
+FixedPcd PcdQemuHashTableBase (0x810c00, offset 0xc00, slot 0x400), which comes from the SEV_HASH_TABLE_RV_GUID
+footer entry and NOT from the descriptor. A table at the descriptor's base is invisible: the first run of this
+fixture put it there, every structural check passed, and the firmware reported no table and booted nothing.
+
+THE FIRMWARE'S OWN WORDS, control (I/O port 0x402, FW_DEBUGCON=1):
+  BlobVerifierLibSevHashesConstructor: Found injected hashes table in secure location
+  VerifyBlob: Hash comparison succeeded for "kernel"
+  VerifyBlob: Hash comparison succeeded for "initrd"
+  VerifyBlob: Hash comparison succeeded for "cmdline"
+
+All three blobs, and that is the acceptance rather than the boot. A malformed table does not refuse: the verifier
+searches for a per-blob GUID and treats "not found" as EFI_SUCCESS, so it would verify nothing and boot normally,
+silently on a RELEASE build. A booting guest is not evidence that verification happened.
+
+THE SVSM'S OWN WORDS, control - the page is neither validated nor zeroed, and IS granted:
+  [SVSM] Validating 0x0000000000800000-0x0000000000809000
+  [SVSM] Validating 0x000000000080a000-0x0000000000810000
+  [SVSM] Validating 0x0000000000811000-0x0000000000830000
+  [SVSM] Measured SEV hash table [0x0000000000810000-0x0000000000811000] excluded from validation
+  [SVSM] Firmware region 0 at [0x00000000ffc00000-0x0000000100000000]
+  [SVSM] Firmware region 1 at [0x0000000000812000-0x00000000008120c0]
+  [SVSM] Firmware region 2 at [0x0000000000810000-0x0000000000811000]
+
+Three "Validating" ranges where the 0b run had two, and none contains 0x810000. The secrets, CPUID and CAA pages
+sit at 0x80d000/0x80e000/0x80f000 and used to BRIDGE the gap so everything merged into 0x80a000-0x830000; the
+split leaves a one-page hole, which breaks the merge because validate_fw_memory_vec merges only contiguous
+regions. "Firmware region 2" is the grant: rmp_adjust to the guest VMPL, no PVALIDATE, no zeroing, which is what
+a launch-measured page needs.
+
+THE MEASUREMENT LINK - the digest covering those artifacts is the digest in the signed report:
+  response status=0 report_size=1184 bytes_published=2047
+  igvmmeasure AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
+  report      AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
+  report_data[0:32]  (the binding) b303eadb4d01cf19cc635e883e52e9542e9aff8aa6161040f121c93d4f4119e6
+  report_data[32:64] (the app id)  3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
+  OK: measurement matches, and the app half is the one compiled into the SVSM
+
+SUBSTITUTION: the same IGVM, one different initrd:
+  VerifyBlob: Hash comparison succeeded for "kernel"
+  VerifyBlob: Hash comparison failed for "initrd"
+  guest markers in the substituted run: 0
+0
+
+The kernel still verifies - it is the same kernel - and the initrd does not. No guest marker at all, because the
+verifier dead-loops rather than returning.
+
+NO-TABLE CONTROL: the same firmware, an IGVM with no measured table:
+  VerifyBlob: Verifier called but no hashes table discoverd in MEMFD
+  guest markers: 0
+0
+
+This one is not redundant. Without it, the control passing is equally consistent with a firmware that checks
+nothing, and the substitution failing to boot is equally consistent with a broken image.
+
+THE SCORE
+  PASS 0a the pre-launch check accepts the artifacts the IGVM measured
+  PASS 0b and REFUSES the substituted initrd before launching, naming it
+  PASS 0c and REFUSES the right artifacts beside the wrong IGVM
+  PASS 1a control: the firmware FOUND the measured table in its secure location
+  PASS 1b control: the firmware VERIFIED all three blobs (kernel, initrd, cmdline)
+  PASS 1c control: and the guest actually booted under that verification
+  PASS 2a the SVSM excluded the measured hash page from validation (it says so itself)
+  PASS 2b and no validated range contains it, so it was never zeroed
+  PASS 5a control: the guest completed its admission cycle and produced a report
+  PASS 5b and the report's MEASUREMENT equals igvmmeasure of the launched IGVM
+  PASS 3 substitution: a DIFFERENT initrd under the same measured IGVM is REFUSED
+  PASS 4 no-table control: without a measured table the same firmware still REFUSES
+  PASS 6 RELEASE control: the same guest boots under the firmware production would run
+  PASS 7 RELEASE substitution: a DIFFERENT initrd is refused with no output at all
+  M4b-step2: all checks passed
+
+WHAT THIS DOES NOT ESTABLISH, and none of it is closed by the run above:
+
+  The pre-launch manifest check is a DIAGNOSTIC, not the security property. It runs on the host, so it is exactly
+  as trustworthy as the host. It exists because "Hash comparison failed for initrd" reads identically whether an
+  image was swapped or an operator pointed at last week's build, and those should not look the same.
+
+  The firmware pin is by sha256 of a file, at build time. What makes a firmware "verifying" is substitution
+  evidence and never its name or its .dsc - a byte-perfect measured table over BlobVerifierLibNull passes every
+  structural check there is. Reassembling the firmware from the IGVM's own pages would bind it after the fact
+  too; that is the independent reviewer's mechanism and is not in this script.
+
+  The runtime image admitted is the wasmtime ELF only. Its interpreter and shared libraries are not admitted, so
+  the bytes that execute include unadmitted code.
+
+  This is ONE app on ONE plane. Nothing here demonstrates isolation between two apps on two planes; the
+  second-plane preconditions are in svsm/README.md and remain open.
