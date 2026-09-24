@@ -590,6 +590,8 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
   - A catalog or relay is never consulted for identity. `deployments` lists the verified table.
   - Limit: the evidence names no deployment, so a relay can route to another genuine instance of the same app
     (client/DESIGN.md "Deployments").
+  - 0.4.1: the browser extension's page follows the same rules (`?deployments=1` lists, `?deployment=ID` selects),
+    through the same code.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

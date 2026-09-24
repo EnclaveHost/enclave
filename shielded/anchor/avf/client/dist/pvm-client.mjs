@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.4.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.4.1 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -517,7 +517,7 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.4.0";
+var CLIENT_VERSION = "0.4.1";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";

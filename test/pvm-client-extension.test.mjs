@@ -37,10 +37,10 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
   const results = [];
   let policyDoc = null;
   const PIXEL_RID = sha('{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}');
-  const sign = (K, serial) => { const now = Date.now(); const t = JSON.stringify({ type: "enclave-pvm-client-policy", key: K.pub, serial, notBefore: iso(now - 3600e3), notAfter: iso(now + 86400e3),
+  const sign = (K, serial, over = {}) => { const now = Date.now(); const t = JSON.stringify({ type: "enclave-pvm-client-policy", key: K.pub, serial, notBefore: iso(now - 3600e3), notAfter: iso(now + 86400e3),
     codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"], authorityHashes: ["cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f"], // gitleaks:allow -- public: sha512 of the TEST signing certificate
     runtimeIds: [PIXEL_RID], appIds: [APP], googleRootPins: ["6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"], formats: ["enclave-pvm-app-evidence/v2"],
-    sealedModes: ["chunked"], sealedWindow: { seconds: 600, maxRequests: 256 }, minClientVersion: "0.1.0", nextPolicyKey: null });
+    sealedModes: ["chunked"], sealedWindow: { seconds: 600, maxRequests: 256 }, minClientVersion: "0.1.0", nextPolicyKey: null, ...over });
     return { policy: Buffer.from(t).toString("base64"), sig: edSign(null, Buffer.concat([Buffer.from("enclave-pvm-client-policy-v1\n"), Buffer.from(t)]), K.k.privateKey).toString("hex") }; };
   const srv = http.createServer((q, s) => { let b = ""; q.on("data", (d) => { b += d; }); q.on("end", () => {
     if (q.url.split("?")[0] === "/policy") { s.writeHead(200, { "content-type": "application/json" }); return s.end(JSON.stringify(policyDoc)); }
@@ -52,6 +52,8 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     s.writeHead(404); s.end(); }); });
   const port = await listen(srv), base = `http://127.0.0.1:${port}`;
   const browse = async (url, ms = 6000, profile) => {
+    // a SIGKILLed Chrome restores its tabs on the next launch, re-running earlier pages: clear the session files first
+    for (const f of ["Sessions", "Current Session", "Current Tabs", "Last Session", "Last Tabs"]) fs.rmSync(path.join(profile, "Default", f), { recursive: true, force: true });
     const b = spawn(CFT, ["--headless=new", "--no-first-run", "--no-default-browser-check", `--user-data-dir=${profile}`, `--disable-extensions-except=${ext}`, `--load-extension=${ext}`, url], { detached: true, stdio: "ignore" });
     await wait(ms); try { process.kill(-b.pid, "SIGKILL"); } catch {} await wait(300);
   };
@@ -86,6 +88,26 @@ test("the extension: anchored from its own page only, refuses a foreign policy a
     assert.equal(results[gi].serial, 2); assert.equal(results[gi].gen, 2);
     assert.ok(g, "the extension posted its outcome"); assert.equal(g.step, "verify"); assert.equal(g.sent, false); assert.match(g.refused, /not a pinned Google attestation root/);
     assert.match(g.userAgent, /HeadlessChrome/);
+    // deployments (since 0.4.0): the page lists the signed table, and a selection takes its app from it -- the CLI's rules
+    const OTHER = "ee".repeat(32), D1 = "0x" + "d1".repeat(32), D2 = "0x" + "d2".repeat(32), D3 = "0x" + "d3".repeat(32);
+    policyDoc = sign(P, 3, { appIds: [APP, OTHER], deployments: [{ id: D1, app: APP }, { id: D2, app: OTHER }] });
+    const ev0 = vm.log.filter((l) => l.evidence).length;
+    await browse(`chrome-extension://${id}/client.html?label=ext-list&deployments=1`, 6000, prof);
+    const li = outcome("ext-list");
+    assert.equal(li?.step, "list", JSON.stringify(li)); assert.deepEqual(li.deployments, [{ id: D1, app: APP }, { id: D2, app: OTHER }]); assert.equal(li.policySerial, 3);
+    await browse(`chrome-extension://${id}/client.html?label=ext-dep&deployment=${D1}&path=%2F`, 6000, prof);
+    const dp = outcome("ext-dep");
+    assert.equal(dp?.step, "verify", JSON.stringify(dp)); assert.deepEqual(dp.deployment, { id: D1, app: APP }); assert.match(dp.refused, /not a pinned Google attestation root/);
+    assert.equal(vm.log.filter((l) => l.evidence).length, ev0 + 1, "the selection reached the VM's evidence, for the table's app");
+    for (const [lab, qs, why] of [["ext-dep-unknown", `deployment=${D3}`, /does not name deployment/], ["ext-dep-mismatch", `deployment=${D1}&app=${OTHER}`, /is not the app the policy expects/],
+                                  ["ext-dep-twice", `deployment=${D1}&deployment=${D2}`, /more than once: ambiguous/]]) {
+      await browse(`chrome-extension://${id}/client.html?label=${lab}&${qs}&path=%2F`, 6000, prof);
+      const o = outcome(lab);
+      assert.equal(o?.step, "select", JSON.stringify([lab, o])); assert.match(o.refused, why); assert.equal(o.sent, false);
+    }
+    assert.equal(vm.log.filter((l) => l.evidence).length, ev0 + 1, "no refused selection asked for evidence");
+    const labels = results.filter((r) => r.label && !r.event).map((r) => r.label);
+    assert.equal(labels.length, new Set(labels).size, `each page ran exactly once (no restored tab re-ran one): ${labels}`);
     assert.equal(vm.log.filter((l) => l.served).length, 0, "no request reached the VM");
   } finally { srv.close(); carrier.close(); vm.close(); }
 });
