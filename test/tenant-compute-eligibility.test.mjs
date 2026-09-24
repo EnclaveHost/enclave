@@ -164,17 +164,17 @@ test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and 
   assert.doesNotMatch(capsHandler, /f\.tier|f\.device|f\.model/, "nothing the frame says about itself is read past the verifier");
 });
 
-test("a GPU on a non-TEE host is exposed only through Enclave Shielded: until that verifies, no GPU work lands there", () => {
+test("a GPU on a non-TEE host is exposed only through Enclave Shield: until that verifies, no GPU work lands there", () => {
   const GPU_APP = { vramMb: 8192, gpuGflops: 100, memMb: 2048, cpuGflops: 10 };
   const nonTee = row("pc", { gpu: true, gpuShareFree: 0.9, cpuShareFree: 0.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cardVramGb: 16, cardTflops: 8, vramFreeGb: 14,
                                claimEnabled: true, teeCpu: "windows-vbs-enclave", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8 } }, { tunnel: true, mode: "vbs", tier: "vbs" });
   const dialedNoTee = row("box", { gpu: true, gpuShareFree: 0.9, cpuShareFree: 0.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cardVramGb: 16, cardTflops: 8, vramFreeGb: 14, claimEnabled: true });
-  assert.ok(pickEnclaveFor(GPU_APP, [nonTee, dialedNoTee]).none, "no GPU target without confidential evidence or a verified Enclave Shielded contract");
+  assert.ok(pickEnclaveFor(GPU_APP, [nonTee, dialedNoTee]).none, "no GPU target without confidential evidence or a verified Enclave Shield contract");
   assert.equal(rankEnclavesFor(GPU_APP, [nonTee, dialedNoTee]).length, 0);
   // the relay's serving verdict cannot override the client's evidence check either
   assert.ok(pickEnclaveFor(GPU_APP, [{ ...dialedNoTee, serving: true }]).none);
   // pinned: the relay's reason names the rule for a carded non-TEE box
   const src = read("relay/api-relay.js");
   const reason = between(src, "function ineligibleReason(e)", "\n}\n", "relay/api-relay.js");
-  assert.match(reason, /exposed only through Enclave Shielded/);
+  assert.match(reason, /exposed only through Enclave Shield/);
 });

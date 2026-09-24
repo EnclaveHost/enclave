@@ -1386,13 +1386,19 @@ function sendForwarded(res, r, req) {
 // The rule is fail-closed on purpose: a machine with no evidence may carry
 // traffic (a relay row) or sit attached as evidence of work in progress, but it
 // is never presented as sellable capacity and never routed a deployment.
-// GPUs follow the same gate with one more word: on a host WITHOUT a confidential
-// processor, Enclave Shielded (the OS-neutral VBS-like isolation layer) is the only
-// supported way a GPU is exposed at all, and until that contract and its evidence
-// verify, such a host neither advertises a card (its GPU / shielded pools never
-// reach the totals or the placement pool) nor receives GPU work. A verifier for the
-// Enclave Shielded contract does not exist yet, so today this is simply the
-// confidential-CPU rule above applied to every axis of the box.
+// GPUs. Enclave Shield is the umbrella name for Enclave's protection technology on
+// machines without confidential-computing hardware: a host isolation component
+// (hardware-enforced per-app CPU isolation that keeps the ordinary host OS out of each
+// app's domain) and a masked, verified GPU-offload component. The GPU component is
+// required for any card outside a confidential boundary, on any host, even beside a
+// confidential CPU: masked inputs, results verified before use, no plaintext protected
+// state on the card; a card operating in a supported confidential-computing mode sits
+// inside the boundary and does not need it. The card-specific admission gate for that
+// rule is BEING BUILT and must rely on explicit, verified GPU protection-mode evidence,
+// never on the absence of a field; nothing here classifies a card as confidential
+// because some block is missing. Today the only gate is the box-level one above: a box
+// without confidential-CPU evidence sells nothing, card included, and a confidential
+// box's card is offered exactly as before.
 const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
@@ -1421,7 +1427,7 @@ function ineligibleReason(e) {
   }
   const t = String(e.availability?.teeCpu || "");
   const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
-    ? "; its GPU is exposed only through Enclave Shielded, whose evidence it has not presented" : "";
+    ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
   return (t ? `its attestation document presents ${t}, not a confidential CPU` : "its build never named its CPU technology") + gpu;
 }
 function servingEnclaves() {

@@ -1,4 +1,4 @@
-# shielded/ — masked GGML offload to untrusted GPUs
+# shielded/ — the GPU offload component of Enclave Shield: masked GGML offload to untrusted GPUs
 
 Design: [docs/shielded-inference.md](../docs/shielded-inference.md).
 

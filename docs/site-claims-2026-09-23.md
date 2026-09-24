@@ -7,33 +7,29 @@ the owner's direction; present and future are told apart by tense, and the dated
 Develop > Architecture > "Engineering progress and evidence" is the one public place that records
 what has been demonstrated.
 
-## How current-vs-future truth is communicated after the rewrite
+## How the product narrative and the evidence are kept apart
 
-- **Tense.** "Is" and "runs" describe what a deployment gets today (confidential hosts, the
-  bundle on the catalog, client-side verification). "We are building", "the architecture is",
-  "hosts must prove", "is being brought under" describe the target. The hero, the four cards and
-  the contract section are written this way and never say a future capability is live.
-- **One contract, two ways to meet it.** Protection levels are OS-neutral sets of guarantees:
-  the isolation contract (per-app hardware isolation, ordinary host OS excluded by a smaller
-  measured trusted layer, measured identity, attestation, key and traffic binding, fail-closed
-  verification, lifecycle cleanup, portable operation) and confidential hardware, which is the
-  same contract plus memory encryption and protection from the machine's operator. The copy
-  says plainly that every host listed today is confidential hardware and that no host is listed
-  at the base level until a backend passes the common acceptance tests.
-- **Operating systems appear only as implementation detail.** "Equivalent VBS-style
-  implementations on supported Windows and Linux hosts" is the only place the names appear in
-  market copy; no level, badge or card is named after an OS.
-- **Partial evidence is not a level.** A machine that meets part of the contract (test-signed
-  trusted layer, key or traffic on the host side, launcher-signed report, host-readable memory)
-  is described as implementation evidence, is not presented as available, and is refused tenant
-  work by the relay and by its own claim gate.
-- **The evidence note.** Develop > Architecture > `#progress` lists, dated, what is in
-  production, what runs in the lab, and what is design, including the per-app isolation
-  milestones, the consumer machine's gaps, shielded inference, and the pVM CPU tier. Milestone
-  names (M1 to M4b) appear only there and in repository docs.
-- **The live panel is the authority on "now".** The fleet panel (Develop > Architecture
-  `#fleet`, Host page) shows what is attached, with evidence badges, and the copy points to it
-  wherever availability could be misread.
+- **Market copy is present tense.** The homepage, the host page, the components and the market
+  portion of Develop > Architecture describe the full target architecture as the product: what
+  Enclave does, how hosts, apps and GPU isolation work, what customers receive. No roadmap, status
+  or readiness framing appears there (owner's direction, 2026-09-23).
+- **Evidence contexts are exact.** The dated "Engineering evidence" note at the end of Develop >
+  Architecture, the live fleet panel, and this record state what has been demonstrated, what has
+  not, and what is attached, in direct factual language (a backend has not passed admission; no
+  host advertises a capability; a gate is not implemented).
+- **Two levels, defined by guarantees.** The isolation contract (per-app hardware isolation, the
+  ordinary host OS excluded by a smaller measured trusted layer on every operating system, measured identity, attestation, key and traffic binding, fail-closed
+  verification, lifecycle cleanup, portable operation) and confidential hardware, the same
+  contract plus memory encryption and operator exclusion.
+- **Enclave Shield is the umbrella name** for the protection technology on machines without
+  confidential-computing hardware: the host isolation component (hardware-enforced per-app CPU
+  isolation that keeps the ordinary OS out of each app's domain) and the GPU offload component
+  (masked inputs, verified results, never plaintext on a non-CC card, on any host). Market copy
+  names them together as Shield, explains the two components separately, and describes them by
+  their guarantees only; vendor and platform terms (VBS, Hyper-V, paravisor, OpenHCL) appear only
+  in the dated evidence note and technical documentation.
+- **Operating systems appear only as implementation detail** of the isolation layer; no level,
+  badge or card is named after an OS.
 
 ## Claims and their evidence
 
@@ -49,10 +45,10 @@ what has been demonstrated.
 | Per-app hardware isolation research: what is demonstrated | architecture #progress | M1/M2 (`isolation/DESIGN.md` sections 8, 11), M3a/M3b (`isolation/m3/PLAN.md`; correction 00f8c2b4: IGVM digest covers SVSM + firmware, not the monitor), M4a (8651212b, 773a7450: adversary's fully signed, correctly bound report rejected on measurement; independent recheck 14 PASS / 0 FAIL), M4b in progress (`isolation/m4/PLAN.md` section 2: 2 to 3 apps per guest) | "nothing in the product starts a domain this way yet"; "the run of the same image on ordinary virtualization is a control, not a level" |
 | The consumer machine and the partition lab build | architecture #progress | `windows/vbs/REPORT.md`, `windows/PARITY.md`, `windows/vbslike/README.md` (30 lab checks; `hostExcluded:false`; launcher-signed) | "does not meet the contract and takes no tenant work"; "lab evidence only" |
 | Linux VBS-equivalent is a design | architecture #contract, #progress | `isolation/DESIGN.md` T0+ row ("proposal only"; nothing upstream on x86) | |
-| Shielded inference | architecture #shielded, #progress, README table | `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*`, `docs/shielded-inference.md:3` ("nothing on the fleet"); the live consumer row's `shielded` block | no numbers published; only chat decode measured |
+| Shielded inference | architecture #shield, #progress, README table | `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*`, `docs/shielded-inference.md:3` ("nothing on the fleet"); the live consumer row's `shielded` block | no numbers published; only chat decode measured |
 | The pVM CPU tier (amber "pvm cpu") | architecture #pvm-cpu, #progress, fleet badge | owner's direction 2026-09-23; pVM session (enclave-53): TPU closed at 3d7b64de (2.4 to 2.6 tok/s measured against a 15 tok/s floor); `relay/avf-verify.mjs` verifies the protected-VM chain at attach; `relay/pvm-cpu-tier.mjs` (785ef92a) judges the signed capability report; hub wiring on this branch (`relay/tunnel.js` caps frame, `relay/api-relay.js inferenceLaneOf`) | future tense; no Pixel 11 runtime validation or availability claimed; "there is no accelerator tier"; a phone row is never sellable app capacity (`computeEligibleOf`); the badge is amber only when the HUB tiered the row, a verified-but-unreported phone reads plain "pvm" |
-| Enclave Shielded: the OS-neutral VBS-like isolation layer for hosts without a confidential-computing TEE; Windows maps it onto VBS/Hyper-V isolation and the paravisor direction; a Linux backend only if it enforces the equivalent contract; no software-only fallback; does not add the owner-cannot-inspect guarantee | index pillars + contract card + GPU note, Develop > Architecture #shielded and the level table, host page, ticker, footer | owner's definition 2026-09-23; `windows/vbs/REPORT.md`, `windows/vbslike/README.md` (partition build, paravisor as the open item), `isolation/DESIGN.md` T0+ row (Linux design); `isolation/contract` as the shared ABI | future tense throughout; "no host is listed on Enclave Shielded until a backend passes the common acceptance tests" |
-| Within Enclave's architecture, Enclave Shielded is the only supported way to expose a GPU on a non-TEE host; such a host neither advertises nor receives GPU work until the contract and evidence verify; fail-closed | index GPU note, architecture #shielded note and level table, host page | policy statement (Enclave's own platform, not a universal claim); enforced today by `relay/api-relay.js computeEligible` (a non-confidential box is not serving, so its GPU and masked-offload pools never reach the totals or placement) with the reason naming the rule, and `site/js/core/pricing.js computeEligibleOf`; tests: `test/api-relay.test.mjs` (a carded non-TEE box: not serving, VRAM and GPU totals 0), `test/tenant-compute-eligibility.test.mjs` (no GPU app lands there) | an Enclave Shielded verifier does not exist yet, so the gate is the confidential-CPU rule applied to every axis; masked offload's large-model performance research is separate and unnumbered |
+| Enclave Shield is the umbrella protection technology for machines without confidential-computing hardware: a host isolation component (OS-neutral, hardware-enforced per-app CPU isolation; implementation backends named only in the evidence note: Windows VBS/Hyper-V with a paravisor-owned partition, Linux a measured layer below a deprivileged host kernel) and a GPU offload component (masked inputs, verified results, never plaintext on a non-CC card); the GPU component also applies beside a confidential CPU when the card is outside the boundary; a CC-mode card sits inside the boundary | index lede, pillar card, contract card and GPU note, Develop > Architecture #shield with component subsections (aliases #shielded, #masked-offload) and the level tables, host page, ticker, footer | owner's definition 2026-09-23; host component: `windows/vbs/REPORT.md`, `windows/vbslike/README.md`, `isolation/DESIGN.md` T0+ row, `isolation/contract`; GPU component: `docs/shielded-inference.md`, `shielded/README.md`, `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*` | present-tense product language; deployment facts in the evidence note: no machine has passed admission on the host component, the offload engine runs on one self-hosted confidential server and the consumer machine's card and not on the hosted fleet |
+| The GPU rule: Shield's offload is the only supported way to expose a non-CC GPU; admission reads the card's protection mode from explicit verified evidence, never the absence of a field, and fails closed | architecture #shield note, index note, host page, relay policy comment | stated in future tense; no runtime change: a box without confidential-CPU evidence sells nothing, card included (`computeEligible`), and a confidential box's card is offered exactly as before; `relay/api-relay.js` carries the rule as a comment only | an earlier draft on this branch classified a card as confidential when no shielded block was present; that absence-based signal was removed before promotion |
 | Verification chain | index #attest, architecture #verify | `site/js/core/verify.js` (same-origin verifier, Sigstore), `supervisor.js` attestation endpoints, `metal/` reproducible image | the API self-check is a labeled diagnostic |
 | Independent infrastructure: what is on public contracts vs on company servers | architecture #independent | contracts, `wasm/ipfs_fetch.py`, `relay/api-relay.js`, `relay/relay.js`, `relay/tunnel.js`, `relay/certs.js`, `relay/billing.js`, `docs/autoscale.md`, `METAL_ALLOWED_MEASUREMENTS` (api-relay.js:121-127) | the decentralization direction is "proposals under discussion"; existing payments and contracts are not replaced |
 | Live wasmtime and WASIp3 pin advice | develop guide | `wasm/Dockerfile.wasm:18` pins the toolchain build of wasmtime commit `ac077297` (repinned 2026-09-14), workspace `Cargo.toml` 49.0.0, WASIp3 WIT `wasi:http@0.3.0` final; crates.io: wasip3 0.7.0+ target `+wasi-0.3.0`, 0.6.0 targets the March rc | residual: the chapter's Rust sample was not recompiled against 0.7 |
@@ -104,3 +100,24 @@ Remaining gaps, stated rather than closed:
    ledger) and `test/tenant-compute-eligibility.test.mjs`. Two pre-existing failures in
    `test/pad-ack-receiver.test.mjs` and `test/pad-seed-open.test.mjs` (native C compile errors) fail
    identically on main and do not involve the hub.
+
+## Brand: Enclave Shield (naming record, 2026-09-23)
+
+The product name is Enclave Shield everywhere a person reads it: site pages and components,
+PRODUCT.md, README, the Shield documentation headings, the relay's policy comments and
+ineligible-reason copy, the test descriptions, and the phone anchor's active source and docs. The
+Develop > Architecture section is `#shield`; empty `<a id="shielded">` and `<a id="masked-offload">`
+aliases precede it so links published under either earlier anchor still land.
+
+The earlier working name survives only where renaming would change a compatibility identifier or
+rewrite immutable evidence:
+
+| group | where | why it stays |
+|---|---|---|
+| compatibility identifiers | the systemd unit `metal/systemd/enclave-shielded-worker.service` (name and description), the shared-memory paths `/dev/enclave-shielded-shm/*` and `/dev/shm/enclave-shielded-*`, the user-agent `enclave-shielded/1`, the wire field `availability.shielded`, the `shielded/` and `wasm/ggml-shielded` directories | operators, running boxes and older peers key on these strings; "shielded" is the technical adjective there, not the brand |
+| immutable historical evidence | `docs/research-archive-2026-09/logs/COORDINATION.md`, `docs/research-archive-2026-09/logs/current-state.md`, `docs/research-archive-2026-09/pixel/pixel8-qwen08-tpu-baseline.md` | dated logs and measurements whose index says they are not a current statement; rewriting them would alter the record |
+
+The adjective "shielded" (the `shielded/` directory, `availability.shielded`, the shielded worker
+service and shared-memory paths, the "shielded tier" in engineering docs, `wasm/ggml-shielded`) is the
+technical term for masked GPU offload, a separate concept and a wire-compatibility surface, and was
+deliberately not touched.
