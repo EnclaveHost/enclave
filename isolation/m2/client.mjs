@@ -11,6 +11,7 @@
 // usage: node client.mjs <https://host:port> --measurement <hex> --app-sha <hex>
 //          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
 //          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
+//          [--runtime <runtime.json>]
 //   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
 //   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
@@ -18,6 +19,12 @@
 //   --vcek           a VCEK the caller already holds; judged exactly like one in the report's certificate table
 //   --amd-chain      AMD's cert_chain for a product line, held locally; refused unless its ARK is the pinned root
 //   --no-kds         never contact AMD KDS (which answers 429 after a couple of requests)
+//   --runtime        the runtime identity this domain must state, as a file in the shape
+//                    isolation/contract/runtime-identity.sh writes. Supplying it DEMANDS ABI/2 and pins the
+//                    runtime field for field: the app is one portable WebAssembly component compiled inside
+//                    the domain, so the runtime, its version, its execution mode, the ISA it targets and its
+//                    CPU-feature policy are part of what the report vouches for. Without it the runtime a
+//                    domain states is bound but unpinned, and the verdict lines say so
 //   --vmpl N         the privilege level the report must come from (default 0). A domain beneath a monitor
 //                    at VMPL0 reports its own level, and the launch measurement is the same at every level.
 //                    Above 0 this ALSO requires the monitor's boundary self-test in the document to record
@@ -49,6 +56,7 @@ if (opt('--min-tcb') !== undefined) {
   try { want.minTcb = JSON.parse(text); } catch { want.minTcb = text; }        // malformed: the verifier refuses it
 }
 if (opt('--vcek')) want.vcek = fs.readFileSync(opt('--vcek'));
+if (opt('--runtime')) want.runtime = JSON.parse(fs.readFileSync(opt('--runtime'), 'utf8'));
 if (opt('--amd-chain')) {
   const [product, file] = opt('--amd-chain').split('=');
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
@@ -147,6 +155,13 @@ if (j1.vmpl !== undefined) out('report_vmpl', j1.vmpl);
 // serial console. A report naming a lower level proves nothing on its own; the refusal at level 0 is the
 // part that distinguishes confinement, and judge.mjs rejects a document that cannot show it.
 if (j1.boundary !== undefined) out('boundary', JSON.stringify(j1.boundary));
+// The ABI the domain bound, and under ABI/2 the runtime identity that went into report_data[0:32] plus the
+// domain's own runtime self-test (may it hold an executable page at all; is any page writable AND
+// executable). Whether that identity was PINNED by this caller is in the evidence lines above.
+out('abi', j1.abi ?? 'enclave-domain-abi/1');
+out('runtime_pinned', want.runtime !== undefined ? 1 : 0);
+if (j1.runtime !== undefined) out('runtime', JSON.stringify(j1.runtime));
+if (j1.runtimeSelfTest !== undefined) out('runtime_selftest', JSON.stringify(j1.runtimeSelfTest));
 if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');

@@ -18,7 +18,11 @@
 //   lab-unsigned     attested, no-tcb-policy, unauthenticated   explicit lab-only diagnostic
 //   t0-diagnostic    not-attested                               explicit; a T0 domain is never trusted
 //
-// want = { measurement, appSha, mode, minTcb?, vcek?, kds? }
+// want = { measurement, appSha, mode, minTcb?, vcek?, kds?, runtime? }
+//   runtime the runtime identity the caller expects the domain to state (isolation/contract/RUNTIME.md).
+//           Supplying it pins the runtime field for field AND requires ABI/2, so a domain cannot silently
+//           drop to a binding that covers no runtime. Omitting it accepts either ABI and says in the
+//           reasons that the runtime is unpinned.
 //   minTcb  the caller's floor, passed to relay/snp-verify.mjs checkMinTcb unchanged; nothing picks one here
 //   vcek    a VCEK (DER) the caller already holds, used exactly like one in the report's certificate table:
 //           it must sign the report, chain to AMD's pinned root and name this chip and TCB
@@ -36,6 +40,7 @@
 //                 be coherent and to record that refusal, and rejects when it is absent, contradictory or
 //                 disagrees with the signed report. See checkBoundary.
 import { verifyQuote, parseSnpReport } from '../../relay/snp-verify.mjs';
+import { ABI1, ABI2, EXEC_JIT, bind1, bind2, runtimeId, validateRuntimeIdentity } from '../contract/runtime.mjs';
 
 export const MODES = ['trusted', 'lab-unsigned', 't0-diagnostic'];
 
@@ -93,6 +98,106 @@ export function checkBoundary(boundary, expectedVmpl, reportVmpl) {
   reasons.push('that refusal is the measured monitor\'s own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkBoundary)');
   return { ok: true, reasons };
 }
+// checkRuntime judges the ABI the domain used and, under ABI/2, the runtime identity it states - and
+// returns the 32 bytes report_data[0:32] must equal. The app is a portable WebAssembly component
+// compiled INSIDE the domain (isolation/contract/RUNTIME.md), so the runtime that compiled it, its
+// version, its execution mode, the ISA it targeted and its CPU-feature policy are part of what a report
+// vouches for. A verifier that ignored them would accept "some runtime compiled this component somehow".
+//
+// Rules, all fail-closed:
+//   - an ABI this judge does not implement is a reject, never a fall-back to the one it does;
+//   - under ABI/2 the identity must be admissible on the SAME rules the domain applied
+//     (validateRuntimeIdentity mirrors contract.Validate): W^X enforced, a stated feature policy, a
+//     cache that is none or authenticated, and an execution mode whose target ISA matches it;
+//   - the binding is recomputed from the handshake's own key, the caller's own nonce and that identity,
+//     so a document naming a different runtime than the one that asked for the report cannot verify. Under
+//     ABI/1 it returns null, which leaves verifyQuote to compute the binding it always has;
+//   - want.runtime, when the caller supplies it, pins the identity field for field: without it the
+//     runtime is authenticated but UNPINNED, and the verdict says so rather than implying otherwise;
+//   - the domain's runtime self-test must be present and coherent (see below).
+//
+// The self-test is the front's own measurement of this domain before it stated the identity
+// (isolation/m2/front/runtime.go): whether the domain may hold an executable page at all, and whether
+// any page in it is both writable and executable. Same standing as the boundary tuple: measured code's
+// own word over an attested connection, and the front exits rather than serving on a fault. Not
+// hardware proof.
+export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
+  const reasons = [];
+  const abi = doc.abi ?? ABI1;
+  if (abi !== ABI1 && abi !== ABI2) return { ok: false, reasons: [`REJECT: the document states abi ${JSON.stringify(abi)}, which this verifier does not implement`] };
+  if (want.runtime !== undefined && abi !== ABI2) {
+    return { ok: false, reasons: [`REJECT: a runtime identity was expected (abi ${ABI2}) but the document states ${abi}: a domain that dropped to ${ABI1} binds no runtime, and accepting that would be a silent downgrade`] };
+  }
+  if (abi === ABI1) {
+    if (doc.runtime !== undefined || doc.runtimeSelfTest !== undefined) {
+      return { ok: false, reasons: [`REJECT: the document states ${ABI1} but carries runtime fields; the binding it signed does not cover them, so they are unauthenticated decoration`] };
+    }
+    reasons.push(`${ABI1}: the binding covers the transport key and the nonce; no runtime identity is bound, so nothing here says what compiled this app`);
+    // binding null means "the default": verifyQuote computes sha256(spki || nonce) itself, exactly as it
+    // did before ABI/2 existed, so the path every domain in production uses today is untouched.
+    return { ok: true, reasons, binding: null };
+  }
+
+  const why = validateRuntimeIdentity(doc.runtime);
+  if (why) return { ok: false, reasons: [`REJECT: the runtime identity is not admissible: ${why}`] };
+  const r = doc.runtime;
+  if (want.runtime !== undefined) {
+    const wr = want.runtime;
+    const diff = Object.keys(r).filter((k) => r[k] !== wr[k]);
+    if (diff.length) {
+      return { ok: false, reasons: [`REJECT: the runtime identity differs from the expected one in ${diff.join(', ')}: got ${JSON.stringify(r)}`] };
+    }
+    reasons.push(`the runtime identity is the expected one: ${r.name}/${r.version} execution=${r.execution} target=${r.targetIsa} host=${r.hostIsa} features=${r.cpuFeatures} wx=${r.wx} cache=${r.cache}`);
+  } else {
+    reasons.push(`the runtime identity is bound into the report but UNPINNED by this caller: ${r.name}/${r.version} execution=${r.execution} target=${r.targetIsa} host=${r.hostIsa} features=${r.cpuFeatures} wx=${r.wx} cache=${r.cache} (pass want.runtime to pin it)`);
+  }
+
+  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r);
+  reasons.push(...st.reasons);
+  if (!st.ok) return { ok: false, reasons };
+
+  let rid;
+  try { rid = runtimeId(r); } catch (e) { return { ok: false, reasons: [`REJECT: ${e.message}`] }; }
+  reasons.push(`${ABI2}: report_data[0:32] must bind the transport key, the nonce AND runtime id ${rid.toString('hex').slice(0, 16)}…`);
+  return { ok: true, reasons, binding: bind2(handshakeSpki, nonce, rid) };
+}
+
+// checkRuntimeSelfTest judges "exec_pages=allowed wx=clean maps=7 scope=cgroup:/dom1".
+export function checkRuntimeSelfTest(selfTest, identity) {
+  if (typeof selfTest !== 'string' || selfTest === '') {
+    return { ok: false, reasons: [`REJECT: the document carries no runtime self-test, so nothing says this domain checked W^X or whether it may hold an executable page at all`] };
+  }
+  if (selfTest.length > 300) return { ok: false, reasons: ['REJECT: the runtime self-test is not a short string'] };
+  const f = {};
+  for (const part of selfTest.trim().split(/\s+/)) {
+    const i = part.indexOf('=');
+    if (i <= 0) return { ok: false, reasons: [`REJECT: malformed runtime self-test ${JSON.stringify(selfTest)}`] };
+    const k = part.slice(0, i);
+    if (k in f) return { ok: false, reasons: [`REJECT: the runtime self-test names ${k} more than once: ${JSON.stringify(selfTest)}`] };
+    f[k] = part.slice(i + 1);
+  }
+  for (const k of ['exec_pages', 'wx', 'maps', 'scope']) {
+    if (!(k in f)) return { ok: false, reasons: [`REJECT: the runtime self-test is missing ${k}: ${JSON.stringify(selfTest)}`] };
+  }
+  if (f.wx !== 'clean') {
+    return { ok: false, reasons: [`REJECT: the runtime self-test says wx=${JSON.stringify(f.wx)}; W^X holds only when the domain found NO writable-and-executable mapping (wx=clean)`] };
+  }
+  const maps = Number(f.maps);
+  if (!Number.isInteger(maps) || maps < 1) {
+    return { ok: false, reasons: [`REJECT: the runtime self-test scanned maps=${JSON.stringify(f.maps)} processes; a scan that saw nothing is not a clean scan`] };
+  }
+  const reasons = [];
+  if (identity.execution === EXEC_JIT) {
+    if (f.exec_pages !== 'allowed') {
+      return { ok: false, reasons: [`REJECT: the identity says execution=${EXEC_JIT} but the domain measured exec_pages=${JSON.stringify(f.exec_pages)}: no JIT can run where an executable page is refused`] };
+    }
+    reasons.push(`the domain measured that it may hold an executable page (exec_pages=allowed), which execution=${EXEC_JIT} requires, and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
+  } else {
+    reasons.push(`the domain interprets ${identity.targetIsa} bytecode (exec_pages=${f.exec_pages}) and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
+  }
+  reasons.push("that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)");
+  return { ok: true, reasons };
+}
 const OPENS = { trusted: ['attested'], 'lab-unsigned': ['attested', 'no-tcb-policy', 'unauthenticated'], 't0-diagnostic': ['not-attested'] };
 
 // the certificate table configfs-tsm returns, holding one VCEK: {guid, offset, length}, zero-terminated
@@ -104,7 +209,7 @@ export function vcekTable(vcekDer) {
   return Buffer.concat([hdr, vcekDer]);
 }
 
-export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl }) {
+export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl, runtime }) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${mode}`);
   const out = (verdict, reasons, extra = {}) => ({ verdict, reasons, gateOpen: OPENS[mode].includes(verdict), ...extra });
 
@@ -123,13 +228,22 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   const extra = { measurement: p.measurement.toString('hex'), reportData: p.reportData.toString('hex'),
     vmpl: p.vmpl };   // which privilege level the report came from, so a caller can show it, not just pin it
   const auxblob = doc.certs ? Buffer.from(doc.certs, 'base64') : vcek ? vcekTable(vcek) : null;
+  // Which ABI, and therefore which binding report_data[0:32] must equal. Judged BEFORE the report is
+  // verified, for the same reason as the boundary tuple below: an inadmissible runtime identity or an
+  // incoherent self-test is a security fault in every mode, including the lab-unsigned diagnostic.
+  const rt = checkRuntime(doc, handshakeSpki, nonce, { runtime });
+  extra.abi = doc.abi ?? ABI1;
+  if (doc.runtime !== undefined) extra.runtime = doc.runtime;
+  if (doc.runtimeSelfTest !== undefined) extra.runtimeSelfTest = doc.runtimeSelfTest;
+  if (!rt.ok) return out('reject', rt.reasons, extra);
   const v = await verifyQuote(report, {
     challenge: nonce, transportKeySpki: handshakeSpki, allowedMeasurements: [measurement], auxblob, kds,
     requireVcek: mode === 'trusted',      // lab-unsigned alone may continue without the chain
+    ...(rt.binding !== null ? { expectedBinding: rt.binding } : {}),
     ...(minTcb !== undefined ? { minTcb } : {}),
     ...(expectedVmpl !== undefined ? { expectedVmpl } : {}),
   });
-  const reasons = [...v.reasons];
+  const reasons = [...rt.reasons, ...v.reasons];
   if (v.tcb) extra.tcb = v.tcb;
   if (!v.ok) return out('reject', reasons, extra);
   if (p.reportData.subarray(32, 64).toString('hex') !== appSha) {

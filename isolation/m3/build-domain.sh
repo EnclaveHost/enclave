@@ -25,6 +25,8 @@ gcc -static -O2 -o "$d/plat/domprobe" "$here/domprobe.c"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/plat/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/plat/rt/"; done
+# the runtime identity ABI/2 binds into report_data (isolation/contract/RUNTIME.md), beside the runtime
+"$here/../contract/runtime-identity.sh" "$W" > "$d/plat/rt/runtime.json"
 # The guest kernel's module tree is named after the GUEST kernel, so domain.env has to be read
 # before M= below, not only before the measurement prediction further down.
 . "$here/../m1/domain.env"

@@ -38,6 +38,7 @@ gcc -static -O2 -o "$d/init" "$m2/dominit.c"
 mkdir -p "$d/rt" "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
 W=$(command -v wasmtime)
 cp -L "$W" "$d/rt/wasmtime"
+"$here/../contract/runtime-identity.sh" "$W" > "$d/rt/runtime.json"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/rt/"; done
 # the artifact is what the runtime executes; the bundle is what the identity is taken over. Both measured.
 "$BUNDLETOOL" extract "$bundle" "$d/app.wasm"

@@ -155,9 +155,14 @@ int main(int argc, char **argv) {
     /* Both workloads run as the domain's uid, in these namespaces, with this root. The runtime serves
      * the app on the domain's OWN loopback: every domain uses 127.0.0.1:8080 and they cannot collide
      * or reach each other, because each has its own network namespace. */
+    /* -C cache=n: compile inside the domain every time and keep no compiled artifact. See the same flag in
+     * m2/dominit.c: wasmtime caches compiled modules by default, and an unauthenticated compiled cache is
+     * refused by the portable-runtime contract (isolation/contract/RUNTIME.md rule 5). It also matters more
+     * here than in M2, because several domains share this guest's filesystem. */
     char *rt[] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
-                  "serve", "-S", "cli", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
-    char *front[] = {"/plat/front", "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
+                  "serve", "-S", "cli", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
+    char *front[] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
+                     "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                      "-upstream", "127.0.0.1:8080", "-app-sha", "/app.sha256", NULL};
     char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
     struct sigaction sa_term = {0};

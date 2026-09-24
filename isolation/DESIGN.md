@@ -440,8 +440,13 @@ says. The M2 client and verdict rules apply unchanged.
 At that stage domains are separated by the **guest kernel** — a uid, a network namespace, a private
 directory and a cgroup each. That is MMU isolation enforced by the guest kernel, which therefore joins
 the app-vs-app TCB: **weaker than VMPL isolation, never equivalent, and labelled so wherever it appears.**
-SNP still excludes the host from every domain's memory. The app stays a Wasm component and runs natively
-under `wasmtime serve`; the AOT/JIT choice stays open.
+SNP still excludes the host from every domain's memory. The app stays a Wasm component and is compiled
+INSIDE the domain by `wasmtime serve` - JIT to the domain's own ISA, because a Linux domain may hold
+executable pages; see `isolation/contract/RUNTIME.md` for the contract and for the two tiers that may not
+(a stock Pixel pVM and a Windows VBS enclave, both measured), which interpret Pulley instead. Since
+2026-09-23 the domain also STATES what compiled it: ABI/2 binds the runtime identity into
+`report_data[0:32]`, and the front checks that identity against the domain - an executable page must be
+obtainable for `execution: jit`, and no page may be writable and executable - before stating it.
 
 **Done already (2026-09-23, offline):** a report carries the VMPL that asked for it, and the launch
 measurement is identical at every level, so that field is the only thing separating a monitor's report
