@@ -90,6 +90,15 @@ report.session = { protocol: session.protocol, alpn: session.alpn, servedCertSub
   servedCertValid: [cert.validFrom, cert.validTo], servedSpkiSha256: createHash("sha256").update(spki).digest("hex"), httpStatus: status, bodyBytes: Buffer.byteLength(body) };
 if (status !== "200") { report.verdict = { status: "rejected", reasons: [`REJECT: the endpoint answered HTTP ${status}`] }; done(); }
 let doc; try { doc = JSON.parse(body); } catch (e) { report.verdict = { status: "rejected", reasons: [`REJECT: the document is not JSON: ${e.message}`] }; done(); }
+// --save DIR: keep THIS session's raw capture (the document as served, the nonce, the peer certificate of the handshake as PEM)
+// so the exchange can be re-judged offline as a fixture; nothing else is written there
+if (opt("save")) {
+  const dir = opt("save"); fs.mkdirSync(dir, { recursive: true });
+  const pem = "-----BEGIN CERTIFICATE-----\n" + session.der.toString("base64").replace(/(.{64})/g, "$1\n").replace(/\n?$/, "\n") + "-----END CERTIFICATE-----\n";
+  fs.writeFileSync(path.join(dir, "prod-doc.json"), JSON.stringify({ host, at: report.at, nonce: nonce.toString("hex"), doc, servedCertSha256: report.session.servedCertSha256 }, null, 1) + "\n");
+  fs.writeFileSync(path.join(dir, "served-cert.pem"), pem);
+  report.saved = dir;
+}
 report.document = { keys: Object.keys(doc).sort(), format: doc.format, abi: doc.abi, tier: doc.tier, nonceEchoed: doc.nonce === nonce.toString("hex"), transportKeyIsServedSpki: Buffer.from(String(doc.transportKey || ""), "base64").equals(spki), runtime: doc.runtime, runtimeSelfTest: doc.runtimeSelfTest, hasCerts: "certs" in doc };
 
 // 3. the verdict: the served SPKI (this handshake), the fresh nonce, Bind2 from the pinned contract, the explicit expectations

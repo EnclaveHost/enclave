@@ -1,0 +1,22 @@
+{
+  "what": "F10 canary: hookbin 0.1.4 (wasi:cli socket server) on the per-app SNP guest tier",
+  "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+  "at": "2026-09-24T21:21:21.487Z",
+  "tx": "0xc27794c9e7b8d4567282d301357bf3df57d6310bbd0a2eaec36913efeec756a7",
+  "status": "success",
+  "gasUsed": "431911",
+  "deploymentId": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+  "args": [
+    "catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4",
+    "0",
+    "100",
+    "8000",
+    "http:8000",
+    "true",
+    "{\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+    "0x0000000000000000000000000000000000000000",
+    "0",
+    "84"
+  ],
+  "envelope": "{\"isolation\":{\"require\":\"snp-guest-per-app\"}}"
+}
