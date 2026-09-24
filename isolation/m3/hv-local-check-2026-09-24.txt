@@ -1,19 +1,23 @@
-# 2026-09-24 isolation/m3/test-hv-local.sh on warden-host (plain KVM, NOT Hyper-V); image 7eb1ded4a47165408a004e5da3aa5d6a2f23769ff360a6db9c35fe3f368e2338
+# 2026-09-24 isolation/m3/test-hv-local.sh from a CLEAN worktree of 14367dd2 on warden-host (plain KVM, NOT Hyper-V)
+# image 4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85 (guest sources as of aef54ff7)
 # judge: windows/vbslike/verify/judge-hv.mjs from windows/custom-vbs-like-hyperv 67762434, runtime pinned to the image's plat/rt/runtime.json
-# A = hello-world 1.0.4 (enclave-catalog-bundle/1), B = hookbin 0.1.4 (/2); bundles derived by derive_reference.py
-{"id": 1, "label": "app-A", "appSha256": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45", "port": 40001, "uid": 5001, "cpuPercent": 100, "memMiB": 128, "mode": "serve"}
+# A = hello-world 1.0.4 (enclave-catalog-bundle/1, named a1b2c3d4.app.enclave.host at load), B = hookbin 0.1.4 (/2, no name); bundles from derive_reference.py
+{"id": 1, "label": "app-A", "appSha256": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45", "port": 40001, "uid": 5001, "cpuPercent": 100, "memMiB": 128, "mode": "serve", "name": "a1b2c3d4.app.enclave.host"}
 {"id": 1, "label": "app-B", "appSha256": "d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24", "port": 40001, "uid": 5001, "cpuPercent": 100, "memMiB": 256, "mode": "run", "http": 8000}
-PASS A (wasi:http, /1): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key d05b474de0ec7fe6...
+PASS A (wasi:http, /1): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key 7c65680f4fd437ce...
 PASS A (wasi:http, /1): the document never claims host exclusion or hardware attestation: tier T0-hv, format hyperv-partition-domain/v1
 PASS A (wasi:http, /1): enclave-ready on the SAME session: 200 {"appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","mode":"serve","port":8080,"ready":true}
-PASS B (wasi:cli socket server, /2): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key c18d61cdb8d41cc8...
+PASS B (wasi:cli socket server, /2): judged on this handshake's key and a fresh nonce: verdict monitor-signed, tier T0-hv, key 4cd3df719c23c2c9...
 PASS B (wasi:cli socket server, /2): the document never claims host exclusion or hardware attestation: tier T0-hv, format hyperv-partition-domain/v1
 PASS B (wasi:cli socket server, /2): enclave-ready on the SAME session: 200 {"appId":"d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24","mode":"run","port":8000,"ready":true}
 PASS A: the app answers through the domain's TLS: 200 "Hello World!\n"
-PASS B: webhook captured inside the guest and read back: create 200, post 200, read 200, body "{\"nonce\":\"d521c3147f4e430d\"}"
+PASS B: webhook captured inside the guest and read back: create 200, post 200, read 200, body "{\"nonce\":\"c46e066f4d05b87b\"}"
 PASS B: the app is told no X-Forwarded-For (not the host's CID, not the client's claim): headers the app saw: host,content-length,content-type,accept-encoding
+PASS A: a CSR for exactly the launcher's name, on the handshake key: 200, name in CSR true, key matches true
+PASS B (loaded with no name): no CSR: 404 this domain has no deployment name to certify: no SEV-SNP HOST_DATA names one, a
 PASS B's domain judged as A's app: refused: reject: the report names a different app; the domain's own claim differs from the expected app (informational field)
 PASS A's document presented on B's key: refused: reject: binding does not match the handshake
 PASS A's document replayed for another nonce: refused: reject
 PASS A's document under an untrusted launcher key: not monitor-signed: reject
 HVLAB-CHECK ALL PASS
+TEST-HV-LOCAL PASS
