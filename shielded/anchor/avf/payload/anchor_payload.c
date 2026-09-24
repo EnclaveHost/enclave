@@ -954,7 +954,11 @@ static int model_stage(uint64_t bytes) {
     /* the bytes that will be parsed, judged by ONE read: GGUF header walked, whole-file digest (the pin's
      * form) and each tensor's digest from the same pass; then the pin and the grant's frozen digest */
     char why[256] = "";
-    if (!anchor_gguf_stage(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why)) { close(fd); OUT("MODEL fail not a usable GGUF: %s", why); model_cache_purge(); return -1; }
+    struct timespec st0; clock_gettime(CLOCK_MONOTONIC, &st0);
+    const int staged_ok = anchor_gguf_stage(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why);
+    { struct timespec st1; clock_gettime(CLOCK_MONOTONIC, &st1);
+      OUT("MODEL stage timing: whole-file and per-tensor SHA-256 in one read, %.1f s", (st1.tv_sec - st0.tv_sec) + (st1.tv_nsec - st0.tv_nsec) / 1e9); }
+    if (!staged_ok) { close(fd); OUT("MODEL fail not a usable GGUF: %s", why); model_cache_purge(); return -1; }
     if (g_pins.has_model && memcmp(g_model_digest, g_pins.model_sha256, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the measured pin"); model_cache_purge(); return -1; }
     if (g_have_seed && memcmp(g_model_digest, g_grant_model, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the one the seed was granted for"); model_cache_purge(); return -1; }
     g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1; g_auth_mode = 1; g_staged_table = &g_model_table;
