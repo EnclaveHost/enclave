@@ -14,6 +14,39 @@ Apply in order; both touch `kernel/src/platform/snp_fw.rs`, in different functio
 a pristine d37095e worktree and comparing every file against the tree that was built and tested - identical.
 `tools/igvmbuilder/src/gpa_map.rs` and `tools/igvmmeasure/` are PR 1209 and are deliberately not in either patch.
 
+## Step 2 is CLOSED on hardware (2026-09-24): the measurement covers what executes
+
+15 of 15, warden-host, both the DEBUG and the RELEASE AmdSev firmware, launch digest AD876B1C...CBB986F86.
+`evidence/step2-measured-boot-2026-09-24.txt`, generated from the run by `write-step2-evidence.sh`.
+
+What now holds, and it is the thing M3b could not say: the kernel, initrd and command line that ACTUALLY
+EXECUTE are inside the launch measurement, and that measurement is in a report verified to AMD's pinned root
+at VMPL 2. Substituting the initrd is refused by the firmware - `Hash comparison failed for "initrd"`, zero
+guest markers - and refused silently by the RELEASE build production would run.
+
+    firmware   Found injected hashes table in secure location
+               Hash comparison succeeded for "kernel" / "initrd" / "cmdline"
+    SVSM       Validating 0x800000-0x809000 / 0x80a000-0x810000 / 0x811000-0x830000
+               Measured SEV hash table [0x810000-0x811000] excluded from validation
+               Firmware region 2 at [0x810000-0x811000]
+    report     chain VCEK -> ASK -> ARK offline, vmpl 2, policy 0x30000, MEASUREMENT == the manifest's
+               digest, report_data[32:64] == the compiled-in app id, report_data[0:32] == Bind2 recomputed
+
+Three mechanisms had to hold together, and two of them fail in ways that look like something else: emit the
+table where the FIRMWARE reads it (`SEV_HASH_TABLE_RV_GUID`, 0x810c00 - NOT the descriptor's base), SPLIT the
+pre-validated range so the SVSM does not validate-and-zero that page, and GRANT the page through
+`adjust_fw_mem`. `0002-measured-guest-hash-table.diff`.
+
+Run it with `verify-measured-boot.sh <good.cpio.gz> <other.cpio.gz>`, `RELEASE_FW=` for cases 6/7. Build with
+`build-measured-igvm.sh`, which refuses any firmware not in `verifying-firmware.txt` and deletes its own
+output if the emitted page is not `construct_page(offset)`.
+
+**What step 2 does NOT establish:** this is ONE app on ONE plane. It demonstrates no isolation BETWEEN two
+apps, which is the actual requirement. The five second-plane preconditions below are untouched. The runtime
+image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code. And the transport
+key registered is the guest's synthetic 91-byte value, not a real `domtls`-minted SPKI - the monitor
+integration is next.
+
 ## A malformed hash table does not refuse - it disarms verification
 
 Worth stating before anything else about step 2, because it inverts the intuition the rest of this file is
