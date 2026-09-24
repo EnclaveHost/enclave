@@ -151,6 +151,17 @@ Security contract for the runtime in the pVM (each item fail-closed):
 | lifecycle and limits | a Store per session with memory limits and epoch/fuel deadlines; deterministic teardown at session end; the VM's supervised restart (target 5) on death |
 | cross-platform conformance | the same component and test vectors on the Linux host (Cranelift), Linux Pulley and the Pixel pVM (Pulley): identical outputs |
 
+### Runtime milestones
+
+| # | milestone | status |
+|---|---|---|
+| 1 | `runtime/pvm-rt` (wasmtime =49.0.0, Cranelift -> Pulley) runs the conformance component inside the pVM: verify before compile, W^X, limits, deadline, the contract's identity | **PASS on the Pixel 10** (results/rt-probe-20260923; host tests `cargo test` 5/5); a 512 MiB VM aborted on memory, open |
+| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | next |
+| 3 | `wasi:nn` (ggml) backed by the in-VM llama.cpp engine, so an inference app runs unchanged | |
+| 4 | `wasi:http` served over the vsock bridge | |
+| 5 | Bind2 in the 64-byte attestation challenge and the runtime identity + bundle hash in the capability report; the relay's ABI/2 AVF attach | |
+| 6 | cross-domain conformance: the same vectors on Linux (Cranelift), Linux (Pulley), Windows, the pVM | host Cranelift + host Pulley + pVM Pulley agree |
+
 ## On-device validation, Pixel 10 Pro XL, 2026-09-23
 
 results/pvm-cpu-p2: the protected pvm-cpu build **p2** (`out/anchor-pvm-cpu.apk` sha256 `2bca7b35…`, codeHash
