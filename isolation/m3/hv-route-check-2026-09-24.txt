@@ -1,0 +1,19 @@
+# 2026-09-24 isolation/m3/test-hv-local.sh phase 3 (hvlab-route.mjs) on warden-host: plain KVM guests + the hvlab.py launcher stand-in, NOT Hyper-V.
+# image 4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85; judge-hv from windows/custom-vbs-like-hyperv 67762434; runtime pinned.
+# path: TLS client -> relay-fixture.mjs (relay splice half) -> app-zone stand-in (isolatedTarget + createIsolationSplicer) -> dataPlaneFor(manager-shaped records from real load + readiness) -> hvlab relay -> guest front.
+# The app-zone stand-in replaces windows/node/appzone.mjs's hook, which enclave-d1 is writing against node-bridge.mjs.
+PASS plan 0x4e62e60d: enclave-catalog-bundle/1: enclave-catalog-bundle/1 http=0 memMiB=128
+PASS plan 0x0ddbd824: enclave-catalog-bundle/2: enclave-catalog-bundle/2 http=8000 memMiB=256
+PASS plan: a deployment with staged secrets is refused, naming the input: hasSecrets
+PASS manager readiness 0x4e62e60d: monitor-signed, ready 200, key e3e74f4546777d15...
+PASS manager readiness 0x0ddbd824: monitor-signed, ready 200, key 80be4c11a96d5610...
+PASS A through relay -> app zone -> data plane -> partition: TLS ends in the domain: verdict monitor-signed on the client's own handshake key e3e74f4546777d15...
+PASS A: the app answers on that route: 200 "Hello World!\n"
+PASS B (/2 socket server) through the same path: TLS ends in the domain: verdict monitor-signed
+PASS B: webhook round-trip on that route: create 200, post 200, read 200
+PASS A's route with B's name in the ClientHello: refused before the data plane: wrong-name
+PASS a deployment this node holds no isolated record for: refused: no-route
+PASS a stale route (the instance's verified key changed): refused by the data plane: stale key
+PASS outcomes the app zone saw: spliced,spliced,wrong-name,no-route,refused
+data plane: {"admitted":2,"closed":2,"refused:identity":1,"open":0}
+HVLAB-ROUTE ALL PASS
