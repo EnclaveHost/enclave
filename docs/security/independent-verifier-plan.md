@@ -154,11 +154,25 @@ runs our own image (metal, M4b).
   `enclave-pvm-app-evidence/v1`: echoed nonce, AppID, Ed25519 transport SPKI, canonical runtime identity,
   self-test, certificate chain) whose AVF challenge is `Bind2(spki, nonce, RuntimeID) || AppID` over the
   CLIENT's nonce; `verifyPvmAppEvidence` checks the envelope and delegates to `verifyPvmAppAbi2` with the
-  caller's nonce, app id and pins, never the envelope's. The harness will import it and register the
-  format as a delegated AVF class. Changes requested: a closed envelope shape with exact lengths, the
-  client nonce inside any delegated-key signature, an application-layer (HPKE) key for the browser path
-  because browser JavaScript cannot read the peer TLS certificate, and a pure result that is `ok` only
-  when every pin list is non-empty.
+  caller's nonce, app id and pins, never the envelope's. The harness imports it (`verifier/pvm-evidence.mjs`)
+  and registers the format as a delegated AVF class. Changes requested and adopted by the owner
+  (2026-09-24, before the push): a closed envelope shape with exact lengths, the client nonce inside any
+  delegated-key signature, an application-layer key for the browser path because browser JavaScript cannot
+  read the peer TLS certificate, and a pure result that is `ok` only when every pin list is non-empty.
+- Agreed v2 and sealed-request contract (owner, 2026-09-24, not yet pushed): v2 makes `appKey` (32-byte
+  X25519) and `appKeySig` (Ed25519 under the attested transport key over `"enclave-pvm-app-key-v1\n" ||
+  nonce || appId || appKey`) mandatory; a VM without a browser key answers v1, where both are forbidden.
+  Requests use HPKE base mode X25519 / HKDF-SHA256 / AES-128-GCM with
+  `info = "enclave-pvm-sealed-http/v1 request" || 0x00 || hdr(key_id 0, 0x0020, 0x0001, 0x0001) || AppID || RuntimeID`,
+  AAD = the 32-byte evidence nonce (also in the clear at the frame head: nonce || hdr || enc || ct); the VM
+  accepts a sealed request only under a nonce it answered this boot with this appKey, for 600 s and at most
+  256 requests, refusing replay per (nonce, enc) and the nonce outright after the window; the response is
+  RFC 9458-shaped (`Export("enclave-pvm-sealed-http/v1 response", 16)`, 16-byte response nonce, salt =
+  enc || response_nonce). `appKey` lives for one boot; rotation appears as an unauthenticated refusal and the
+  client then fetches fresh evidence under a new nonce and re-encapsulates, never re-sending a ciphertext.
+  The WebCrypto port applies the same closed-shape rules and refuses, without fallback, where Ed25519 or
+  X25519 is missing. Gate consequence: a pinned `appKey` is good for one evidence window; the client
+  re-runs the gate on every refusal and never retries a sealed request.
 
 ## 3. Gap analysis of the first-party implementation
 
@@ -358,8 +372,10 @@ Exact remaining integration gaps (nothing below is verified today):
    `appKeySig` (Ed25519 under the attested transport key over the nonce, app id and key), with HPKE base
    mode (X25519, HKDF-SHA256, AES-128-GCM) requests in RFC 9458 shape to a sealed VM port. The adapter
    already accepts the v2 shape (closed: a stripped or grafted key is malformed, never a downgrade) and the
-   gate releases a browser client only on a key the owner's verifier vouched for. Until v2 is pushed and a
-   real v2 fixture exists, every browser request on pVM evidence holds.
+   gate releases a browser client only on a key the owner's verifier vouched for. The sealed-request
+   contract is agreed (section 2.6). Until v2 is pushed and a real v2 fixture exists, every browser request
+   on pVM evidence holds; the HPKE client itself (encapsulation, the frame, the 600 s / 256-request window,
+   re-fetch on refusal) is not built on this branch.
 4. The relay stream kind `pvm-evidence` and the `EVIDENCE <nonce>` request line are not wired anywhere on
    this branch; the adapter judges a JSON object it is handed.
 5. The gate's expectations come from the caller; the catalog-to-expectation step (which app id, which
