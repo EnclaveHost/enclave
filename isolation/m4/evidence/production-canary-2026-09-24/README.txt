@@ -105,7 +105,8 @@ FINDINGS
       The FIRST F7 deploy (20:43:45Z) FAILED to adopt: the restart ran the OLD binary's SIGTERM handler, which ended
       both guests; the supervisor relaunched them (new keys; the relay reissued certificates for them at 20:45:29Z).
       The fixed binary was then brought in with SIGKILL (so no old handler ran): "adopted 2 guest(s)", public keys and
-      ZeroSSL certificates unchanged (A 295ce2e0..., E d590dd84...), nothing respawned. Rollback now ends guests
+      ZeroSSL certificates unchanged by validity window, serials not compared (A 295ce2e0..., E d590dd84...); a guestd
+      restart leaves the node's certificate memory intact, so no reissue is expected. Nothing respawned. Rollback now ends guests
       explicitly (systemctl --user stop 'm2-gd*').
   F8  OPEN: the public edge (us-west) failed TLS (EOF) for one or both hostnames for 1-2 minutes after a change: A
       failed 6/6 at ~12:40 after B was claimed (cause not established; us-west is not reachable from this host), and
@@ -114,7 +115,11 @@ FINDINGS
   F9  FIXED (cfd9e198): a failed start keeps its error, serial tail and build/launch/verify logs under
       <root>/failed/<id>/ (bounded), and GET /vms/<id>/logs serves a running or failed guest's console in the
       supervisor's (owner-gated) logs shape; live on A it shows the HOST_DATA-derived name and the certificate install.
-  F10 OPEN: socket-server catalog apps (wasi:cli, http:N) cannot run on the tier; only wasi:http proxy components.
+  F10 FIXED, live 21:21Z (cf8b22bd..0181bce3): socket-server catalog apps (wasi:cli with one http:N port) run on the
+      tier through enclave-catalog-bundle/2. The first is hookbin 0.1.4 at https://0ddbd824.app.enclave.host: attested,
+      browser-usable, webhook round-trip through the guest's TLS, and the first cross-APP refusals. See
+      f10-hookbin/README.txt, which also carries F12 (fixed: node restarts re-issued every certificate), F13 (open:
+      x-forwarded-for is the host's vsock CID) and F14 (a transient operatorSig rejection at attach).
   F11 OPEN (raised with the enclave-99 verifier lane): the attestation evidence names the app (AppID), the image
       (measurement), the runtime and the TLS key, but NOT the deployment. Two live instances of one version, such
       as A (4e62e60d) and E (395bed3e, created 19:52Z for the verifier's test; guest gd6ee1b5cd, key 26db975c...),
@@ -147,7 +152,9 @@ FINDINGS
       2026-09-24, an earlier note here said it would ride a planned reboot window, which does not exist; a nucbox
       restart interrupts its full app set for about 15 minutes, the RISC Box's 21.8 GiB snapshot restore dominating). Now the row carries 0xf7a1256d... and https://api.enclave.host/x/<id>/ answers metal-iso0's
       421 "This deployment is served only over TLS that ends in its own guest: https://<label>.app.enclave.host/".
-      Node restart adopted both guests (keys and certificates unchanged). Independently re-verified by the Windows
+      Node restart adopted both guests (keys unchanged; CORRECTED 21:35Z: the certificates were very likely RE-ISSUED,
+      as the 21:18Z restart's measurably were; only the validity window was compared then. F12, fixed at 8ed6231f).
+      Independently re-verified by the Windows
       owner (enclave-d1). RESIDUAL on nucbox's side until its fix deploys: deployments with NO live runner still reach
       the fan-out, and two real ones (0x9eb4e600..., 0x2b84a098..., model-volume apps nucbox refused by name) get a
       503 from nucbox instead of a 404 - live and user-visible, correctness and clarity, not exposure (nucbox serves
