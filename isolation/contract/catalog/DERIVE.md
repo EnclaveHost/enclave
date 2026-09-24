@@ -57,7 +57,41 @@ These are documented, not remapped:
 3. **The supervisor's app reference is `ipfs://<cid>` today.** The per-app manager needs the record as well.
    `guestd` takes it as `derive` on `/prefetch` and `/vms`, and refuses a CID without one. The supervisor does not
    send it yet: that wiring is part of C3/C7 in `isolation/DEPLOYMENT-PATH.md`.
-4. **Which policy a catalog version pins is not decided by this rule.** The rule takes it as an explicit input. A
-   deployment-independent choice (for example, from the version's declared minimums) keeps one AppID per version.
-   A per-deployment choice gives each shape its own AppID. Either is sound. Whoever wires the supervisor must pick
-   one and record it here.
+4. **Which policy a catalog version pins is not decided by this rule.** The rule takes it as an explicit input. The
+   branch's working assumption is below. Production policy is a separate decision.
+
+## Branch design assumption: one fixed, explicit policy per catalog version
+
+Recorded 2026-09-24 as the assumption this branch builds on. It does NOT change the catalog, anything on chain,
+or any production policy, and it does not remap any existing identity.
+
+**Where the policy comes from.** Each catalog version has ONE policy (`cpuPercent`, `memMiB`, `vcpus`), supplied
+with the version as an explicit, published input and recorded in every derivation record for it. It is never
+derived from a deployment, never defaulted, and never changed after the fact. How the platform publishes it (a
+catalog field, or a manifest beside the version) is a production decision and is not made here.
+
+**Why per version.** It gives one AppID and one expected measurement per version, and that is what a verifier
+pins. Deriving the policy from each deployment's purchased share would give every deployment shape its own
+identity, and a verifier would have to know the shape to know the app.
+
+**How each field is enforced, and by whom:**
+
+| field | what it becomes on the per-app backend (guestd) | enforced by | attestable? |
+|---|---|---|---|
+| `vcpus` | the guest's vCPU count | the SNP launch: it is part of the MEASUREMENT (one VMSA per vCPU), so a guest booted with another count fails verification | yes |
+| `memMiB` | guest RAM = max(1024, memMiB + 384) MiB (the kernel and the runtime's floor); the unit's MemoryMax adds 768 for QEMU | the VM boundary (the guest cannot use more) and the host cgroup | no: an availability property the host controls |
+| `cpuPercent` | the QEMU unit's CPUQuota | the host cgroup | no: CPU time is the host's to give, and no report can prove it |
+
+**Scaling and resizing:**
+- **More capacity means more instances, not bigger ones.** N deployments of one version are N guests with the
+  SAME AppID and the SAME expected measurement. What tells them apart is each guest's own transport key, bound in
+  its report, never the measurement.
+- **A deployment's purchased share does not change the guest.** A claim gate on the per-app tier must refuse a
+  deployment whose purchased share is below what the version's pinned policy needs. A larger purchase does not
+  enlarge the guest. That check belongs to the supervisor wiring (C3) and is NOT built yet.
+- **Resizing a running isolated app is not a share change.** `setShares` cannot alter a running guest's shape
+  without changing what was attested. On this tier a different shape is a new version with a different pinned
+  policy, and so a new AppID and a new measurement. The supervisor's resize path must refuse it for this tier or
+  treat it as a version switch. Not built yet.
+- **Rollback to an earlier version returns its earlier policy.** It is the same record, so the same AppID
+  (guestd's store returns the identical mapping, `TestVersionsAndRollbackAreImmutable`).
