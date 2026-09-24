@@ -18,7 +18,7 @@ const component = Buffer.from(vec.component_hex, "hex"), rec = vec.ok.find((v) =
 const m = new Manager({ backend: new HyperVPartitionBackend({ launcher }), fetchComponent: async () => component, runtimeId: rec.runtimeId });
 await m.probe();
 out.health = m.health();
-out.spawn = await m.spawn({ derive: rec, isPublic: true, hasSecrets: false, id: "review99-probe" });
+out.spawn = process.env.PROBE_SPAWN === "1" ? await m.spawn({ derive: rec, isPublic: true, hasSecrets: false, id: "review99-probe" }) : { skipped: "PROBE_SPAWN not set: read-only run" };
 try { out.surveyAfter = await launcher.survey(); } catch (e) { out.surveyAfter = { error: e.message.slice(0, 200) }; }
 const hcs = new HcsPartitionBackend({ exe: "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe", kernel: "C:\\Users\\claude\\vbs-like\\wsl-kernel", initrd: "C:\\Users\\claude\\vbs-like\\mon.cpio.gz", out: "C:\\Users\\claude\\vbs-like\\out" });
 out.hcsPreflight = await hcs.preflight();
