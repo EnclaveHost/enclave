@@ -28,12 +28,33 @@ AND THE MECHANISM CONFIRMED FROM THE SVSM'S OWN LOG, not inferred from the sympt
 Firmware region 1 is 192 bytes at 0x812000 - the SevHashTable area - and it lies INSIDE the range the SVSM
 validates at 0x80a000-0x830000. Validation zeroes, so the table is zeroed before the firmware ever reads it.
 
-WHAT MUST CHANGE, and both halves are needed together (step 2):
-  1. igvmbuilder emits the SevHashTable as MEASURED page data at the KERNEL_HASHES descriptor's base, and stops
-     listing that page as pre-validated.
+WHAT MUST CHANGE, and the halves are needed together (step 2):
+  1. igvmbuilder emits the SevHashTable as MEASURED page data at the KERNEL_HASHES descriptor's base, AND SPLITS
+     the pre-validated range around that page. Dropping the descriptor from the list is NOT enough, and the two
+     log lines above are why: the hashes area at 0x812000 lies inside a larger MERGED pre-validated range
+     (0x80a000-0x830000), so the SVSM would still validate-and-zero it as part of the MEM region. The split is
+     0x80a000-0x812000 and 0x813000-0x830000.
   2. the SVSM GRANTS the guest plane access to that page the way it does for the firmware image pages, and never
      validates-and-zeroes it: a PVALIDATE on an already-launched page fails with FAIL_UNCHANGED, and the zeroing
      would wipe the table.
+
+  CHECK THE SPLIT IN THE SVSM LOG ON THE FIRST 0b+2 RUN. If "Validating ..." still reads 0x80a000-0x830000, the
+  page was zeroed again whatever the IGVM carried, and a "Hash comparison failed" would then be the harness's
+  fault rather than a finding.
+
+THE THREE HASHES ARE VERIFIED OFFLINE ALREADY, because a mismatch there is indistinguishable from a substituted
+artifact - the firmware would say "Hash comparison failed for initrd" and the cause would be ours.
+isolation/m4/hash-table.py computes the table the way QEMU does and checks all three against sev-snp-measure:
+
+  cmdline  hashed WITH its terminating NUL (an absent cmdline is a lone NUL, not an empty string)
+  initrd   the file's bytes
+  kernel   the file's bytes. A review warned QEMU may hash setup_data || kernel_data after patching the setup
+           header; sev-snp-measure hashes the file and its predictions equal live measurements on this box, so
+           for this kernel and QEMU the file is what is hashed. If that ever stops holding, the symptom is a
+           refusal on a kernel nobody touched.
+
+  MATCH on all three, for /boot/vmlinuz-linux + the admission initrd + "console=ttyS0 rdinit=/init loglevel=3".
+  The table is 176 bytes, zero-padded to the 192-byte area, header GUID 9438d606-4f22-4cc9-b479-a793d411fd21.
 
 The acceptance after the change is the inversion of this file: the guest boots, the digest equals igvmmeasure of
 the launched IGVM, and an initrd that is not the one hashed into the IGVM is refused.
