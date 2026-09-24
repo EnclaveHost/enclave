@@ -3,7 +3,7 @@
 //   1. isolationPlan against the supervisor's claim gate (supervisor.js isolationClaimVerdict), input by input. The
 //      bridge's own "agrees with supervisor.js case for case" compares appConfigOf and derivationOf through the
 //      self-test seam, not the gate's verdicts; the gate takes inputs the plan has no parameter for, and those cases
-//      fail here BY DESIGN until the plan takes them (or the owners agree they belong elsewhere).
+//      were absent until 5d's 2a43239a took them (require, manager, appConfigCid); the cases now state their rules.
 //   2. the join, adversarially: a ClientHello split across frames, a route whose view is not running, a record whose
 //      identity is partial.
 //   run: node --test windows/vbslike/review/node-bridge.test.mjs
@@ -25,7 +25,11 @@ const RT = "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8";
 const HOOKBIN = { appId: "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3", index: 4, cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", memMb: 256, ports: "http:8000", config: "", configCid: "" };
 const DEP_H = "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76";
 const ledger = { cpuMilli: 100, gpuMilli: 0, isPublic: true, appPort: 8080 };
-const plan = (over = {}) => isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], ...over });
+const MANAGER = { backend: "hyperv-partition-per-app", catalog: { derivations: [V1, V2], runtimeId: RT } };
+// the plan's full input set since 5d's 2a43239a: the deployment's own requirement, the manager's /health object (backend
+// checked, derivations read from it) and a deployment-level configCid, each unknown when absent
+const plan = (over = {}) => isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT,
+                                            require: "hyperv-partition-per-app", manager: MANAGER, appConfigCid: "", ...over });
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
 test("the plan accepts the real hookbin deployment and refuses each input the way the gate does", () => {
@@ -37,30 +41,27 @@ test("the plan accepts the real hookbin deployment and refuses each input the wa
     ["config", { appConfig: JSON.stringify({ API_URL: "x" }) }, "appConfig"],
     ["waf", { waf: { rate: 1 } }, "waf"], ["waf unknown", { waf: undefined }, "waf"],
     ["volumes", { volumes: ["m"] }, "volumes"], ["two ports", { version: { ...HOOKBIN, ports: "http:8000,tcp:9000" } }, "version.ports"],
-    ["manager cannot serve /2", { derivations: [V1] }, "derivations"], ["manager unasked", { derivations: null }, "derivations"],
+    ["manager cannot serve /2", { manager: { ...MANAGER, catalog: { derivations: [V1] } } }, "manager.catalog.derivations"], ["manager unasked", { manager: null }, "manager"],
   ]) { const r = plan(over); assert.equal(r.ok, false, name); assert.equal(r.input, input, name); }
 });
 
-test("GATE INPUT the plan lacks: the deployment's own isolation requirement (supervisor.js: `require !== backend` refuses; a deployment that did not ask for per-app isolation is not taken)", () => {
-  // the supervisor takes claimOpts.isolation (the deployment envelope's isolation.require) and refuses unless it names this
-  // backend; the plan has no such input, so a deployment that never asked to be isolated is planned onto a partition
-  const r = isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], require: undefined });
-  assert.equal(r.ok, false, "with no stated requirement the plan must refuse (unknown is not no)");
-  assert.equal(r.input, "require");
-  const r2 = isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], require: "snp-guest-per-app" });
-  assert.equal(r2.ok, false, "a deployment that requires another backend is refused, as the supervisor refuses it");
-  const r3 = isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], require: "hyperv-partition-per-app" });
-  assert.equal(r3.ok, true, JSON.stringify(r3));
+test("GATE INPUT: the deployment's own isolation requirement (supervisor.js: `require !== backend` refuses): absent is unknown, another backend is refused, this backend passes", () => {
+  const r = plan({ require: undefined }); assert.equal(r.ok, false, "with no stated requirement the plan must refuse (unknown is not no)"); assert.equal(r.input, "require"); assert.equal(r.unknown, true);
+  const r2 = plan({ require: "snp-guest-per-app" }); assert.equal(r2.ok, false, "a deployment that requires another backend is refused, as the supervisor refuses it"); assert.equal(r2.input, "require");
+  assert.equal(plan().ok, true, JSON.stringify(plan()));
 });
 
-test("GATE INPUT the plan lacks: the manager's backend name (supervisor.js: `manager.backend !== backend` refuses; a manager that merely lists the derivation is not enough)", () => {
-  const r = isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], require: "hyperv-partition-per-app", manager: { backend: "snp-guest-per-app", catalog: { derivations: [V1, V2] } } });
-  assert.equal(r.ok, false, "another backend's manager, even one that serves the derivation, is refused");
+test("GATE INPUT: the manager's backend name (supervisor.js: `manager.backend !== backend` refuses): another backend's manager is refused even when it lists the derivation; an absent manager is unknown", () => {
+  const r = plan({ manager: { backend: "snp-guest-per-app", catalog: { derivations: [V1, V2] } } });
+  assert.equal(r.ok, false, "another backend's manager, even one that serves the derivation, is refused"); assert.equal(r.input, "manager.backend");
+  const u = plan({ manager: undefined }); assert.equal(u.ok, false); assert.equal(u.unknown, true);
 });
 
-test("GATE INPUT the plan lacks: the DEPLOYMENT's config override at a CID (supervisor.js: `appConfigCid` refuses; the plan checks only version.configCid and the config text)", () => {
-  const r = isolationPlan({ deploymentId: DEP_H, deployment: { ...ledger, configCid: "bafkreiaaaa" }, version: HOOKBIN, appConfig: "", hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2], require: "hyperv-partition-per-app", appConfigCid: "bafkreiaaaa" });
-  assert.equal(r.ok, false, "a deployment carrying a config override by CID is not delivered into a partition");
+test("GATE INPUT: the DEPLOYMENT's config override at a CID (supervisor.js: `appConfigCid` refuses): a CID is refused, absent is unknown, '' is known none", () => {
+  const r = plan({ deployment: { ...ledger, configCid: "bafkreiaaaa" }, appConfigCid: "bafkreiaaaa" });
+  assert.equal(r.ok, false, "a deployment carrying a config override by CID is not delivered into a partition"); assert.equal(r.input, "appConfigCid");
+  const u = plan({ appConfigCid: undefined }); assert.equal(u.ok, false); assert.equal(u.unknown, true);
+  assert.equal(plan({ appConfigCid: "" }).ok, true);
 });
 
 test("isolatedTarget names a route only for a running record with a whole identity: starting, a partial identity, or a bad id give null (the app zone then answers 503, not a guess)", () => {
