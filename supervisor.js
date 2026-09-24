@@ -3334,6 +3334,8 @@ async function vouchTenants() {
 let _instanceSweep = { at: null, ok: null, reason: "not yet run", seen: 0, orphans: 0, reaped: 0 };
 function instanceSweepStatus() { return { ..._instanceSweep }; }
 
+// Set once the claim loop has finished its first pass, i.e. once this node has resumed the leases it holds on chain.
+let _firstClaimSweepAt = 0;
 async function reconcileInstances() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
   const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
@@ -3353,6 +3355,16 @@ async function reconcileInstances() {
   if (instances === null) {
     console.warn("[instance] backend listing unavailable - skipping this pass");
     stamp({ ok: false, reason: "listing unavailable (non-200 or unexpected shape)", seen: 0, orphans: 0, reaped: 0 });
+    return [];
+  }
+  // Per-app guest tier: guests live on the HOST and outlive this node CVM, so after a node restart guestd still
+  // runs the guests this node's leases launched. Until the claim loop has resumed those leases, no record owns
+  // them yet and every one would read as an orphan: reaping then would end a live tenant only for the resumed
+  // lease to launch it again (seen on the production canary, 2026-09-24). So reap nothing on this tier before the
+  // claim loop's first pass; the vouch above has already run, and guestd's own dead-man lease still ends
+  // anything nobody claims.
+  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_firstClaimSweepAt) {
+    stamp({ ok: true, reason: "per-app guest tier: no reaping before the claim loop's first pass", seen: instances.length, orphans: 0, reaped: 0 });
     return [];
   }
   const plan = orphanInstancePlan(instances, [...deployments.values()],
@@ -10372,6 +10384,7 @@ function startClaimLoop() {
         const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
         await stage("audit", () => auditClaims(byId));
         await stage("sweep", () => claimSweep(ledger));
+        if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now();   // the tier's reaper waits for this (reconcileInstances)
       }
     } finally { _claimBusy = false; }
   }, CLAIM_POLL_SEC * 1000);
