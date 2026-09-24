@@ -85,6 +85,7 @@ import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
+import { hostStatus, ineligibleReason, claimBlockReason } from "./fleet-status.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
 import { handleAccount, initAccounts } from "./auth.js";
 import { handleSso, initSso } from "./sso.js";
@@ -1413,23 +1414,10 @@ function computeEligible(e) {
 function inferenceLaneOf(e) {
   return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
 }
-// Why a row is NOT eligible, for the fleet panel to say in words (null when it is).
-function ineligibleReason(e) {
-  if (!e || e.relay) return "carries traffic only";
-  if (computeEligible(e)) return null;
-  if (e.tunnel) {
-    const m = String(e.mode || "");
-    if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
-    if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
-                         : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
-                         : "verified protected-VM chain; no pVM CPU capability report admitted yet";
-    return "attached on a token, no hardware quote verified";
-  }
-  const t = String(e.availability?.teeCpu || "");
-  const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
-    ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
-  return (t ? `its attestation document presents ${t}, not a confidential CPU` : "its build never named its CPU technology") + gpu;
-}
+// Why a row is NOT eligible, and whether it is online at all, are relay/fleet-status.mjs: a reason
+// derived from the row's OWN published evidence rather than from its mode, so an operator reading
+// "not serving" can tell an outage from an admission decision and knows which property is missing.
+// Eligibility itself stays here, in computeEligible above: nothing in that module admits anything.
 function servingEnclaves() {
   // A relay is never in this set. It says so itself (claimEnabled:false), but
   // the row is checked here too: this function decides the fleet-minimum spec*
@@ -2197,9 +2185,21 @@ function handleRequest(req, res) {
     // the relay holds, and `ineligible` says why not, in the words the fleet
     // panel prints. Derived from verified evidence, never from the row's own
     // teeCpu / tier / claimEnabled strings.
-    const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
-                                    ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
-                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
+    const rows = live.map((e) => {
+      const eligible = computeEligible(e), lane = inferenceLaneOf(e), serving = servingSet.has(e);
+      const notClaiming = claimBlockReason(e);
+      return { ...e, serving, eligible,
+               // one word for what this row IS: a box the relay has not heard from reads "offline",
+               // one that is attached and answering but takes no tenant work reads "online" with the
+               // reason beside it. Those were indistinguishable while both were just serving:false.
+               status: hostStatus(e, { serving, staleAfterSec: STALE_AFTER_SEC }),
+               ...(eligible ? {} : { ineligible: ineligibleReason(e, { eligible, lane }) }),
+               // the OTHER half of "not serving": a box can be admitted and still take nothing,
+               // because it says it is not taking work. An empty operator key reads as that, and
+               // for a day and a half nothing on the panel said so.
+               ...(notClaiming ? { notClaiming } : {}),
+               ...(lane ? { lane } : {}) };
+    });
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
