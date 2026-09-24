@@ -151,7 +151,9 @@ test("RUNNING: the document verified on this handshake's key with a fresh nonce 
   try {
     const v = await run(d);
     assert.equal(v.status, "running", v.reason);
-    assert.equal(v.checks.document, true); assert.equal(v.checks.ready, true);
+    // checks.document / checks.ready may be booleans or objects carrying ok (the owner's shape); the rule is the same
+    const okOf = (c) => (typeof c === "object" && c !== null ? c.ok === true : c === true);
+    assert.equal(okOf(v.checks.document), true, JSON.stringify(v.checks.document)); assert.equal(okOf(v.checks.ready), true, JSON.stringify(v.checks.ready));
     assert.ok(d.hits.includes("/.well-known/enclave-attestation") && d.hits.includes("/.well-known/enclave-ready"), "both were asked");
     assert.doesNotMatch(JSON.stringify(v), /attested/i, "T0-hv is never attested");
     // the datapath (windows/vbslike/datapath/datapath.mjs, enclave-splice/1) admits a route only on `key=` the sha256 of
@@ -173,7 +175,8 @@ test("NEVER RUNNING on ready alone: a document bound to ANOTHER key with ready 2
   const d = await new FakeDomain({ boundSpki: randomBytes(91) }).listen();
   try {
     const v = await run(d);
-    assert.equal(v.status, "failed", `${v.status}: ${v.reason}`); assert.equal(v.checks.document, false);
+    assert.equal(v.status, "failed", `${v.status}: ${v.reason}`);
+    const doc = v.checks.document; assert.equal(typeof doc === "object" && doc !== null ? doc.ok : doc, false, JSON.stringify(doc));
   } finally { d.close(); }
 });
 
