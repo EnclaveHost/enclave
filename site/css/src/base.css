@@ -73,20 +73,17 @@ body::before{
     radial-gradient(1100px 600px at 78% -8%, rgba(47,230,168,.07), transparent 60%),
     radial-gradient(900px 500px at 8% 8%, rgba(143,162,255,.05), transparent 55%);
 }
-/* …and its grid on a composited layer of its own: the drift animates
-   transform only (no repaint), oversized by one 26px tile on every edge so
-   a loop of exactly one tile wraps seamlessly */
+/* Honeycomb on its own composited layer. One complete tile of diagonal
+   travel makes the loop seamless; the oversized layer covers every edge. */
 body::after{
-  content:"";position:fixed;inset:-26px;z-index:0;pointer-events:none;
-  background:
-    linear-gradient(transparent 0 95%, rgba(255,255,255,.018) 95%) 0 0/100% 26px,
-    linear-gradient(90deg, transparent 0 95%, rgba(255,255,255,.018) 95%) 0 0/26px 100%;
+  content:"";position:fixed;inset:-74px;z-index:0;pointer-events:none;
+  background:url("../assets/hex-grid.svg") 0 0/72px 41.569219px repeat;
   will-change:transform;
-  animation:grid-drift 8s linear infinite;
+  animation:grid-drift 18s linear infinite;
 }
 @keyframes grid-drift{
   from{transform:translate3d(0,0,0);}
-  to{transform:translate3d(26px,-26px,0);}
+  to{transform:translate3d(72px,-41.569219px,0);}
 }
 @media (prefers-reduced-motion:reduce){
   body::after{animation:none;}
