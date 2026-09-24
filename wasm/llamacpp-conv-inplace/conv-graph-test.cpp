@@ -17,9 +17,12 @@
 //
 //   conv-graph-test MODEL.gguf OUT.bin [SCENARIO]   (plain|spec|multi|lifetime; default all)
 //
-// multi aborts in context creation on this fork with or without the fused op
-// (GGML_ASSERT(ggml_can_repeat) in graph_reserve for n_seq_max > 1, also on the
-// pre-change libraries): a pre-existing limitation, so it runs only when named.
+// multi aborts (GGML_ASSERT(ggml_can_repeat) in ggml_mul, from qwen35
+// build_layer_attn) with or without the fused op, on the fork AND on the official
+// llamacpp-toolchain tree: the first 2-8 token single-sequence decode enters
+// ensure_slot_alt (llamacpp-graph-slot.patch), which reserves with n_seqs = 1
+// against a memory context sized for n_seq_max. LLAMA_GRAPH_SLOT_ALT=0 makes it
+// complete (shielded/WRAPUP-27B-INTEGRATION.md). It runs only when named.
 #include "llama.h"
 #include "ggml-backend.h"
 #include <cstdio>
