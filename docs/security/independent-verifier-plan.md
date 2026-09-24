@@ -361,6 +361,7 @@ and the transport key to pin. Absent the module the verdict is `unsupported`, an
 | `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client releases on the HPKE key with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
 | `verifier-pvm-device` (11, skips without the owner's module) | on the two real Pixel 10 envelopes with client-held pins: both boots verify and release a native client on that boot's key only; a browser client holds on v1; replay of launch 1 against launch 2, a pasted nonce, a swapped key, a foreign chain, a fresh nonce over a genuine chain, wrong app/runtime/code hash/authority/root pins, empty pins, an expired or not-yet-valid leaf, stripped/extra fields, non-canonical base64 and another format each refuse |
 | `verifier-sealed-stream` (12; the differential case runs under the strict command) | on the owner's sealed-stream fixture: the stream opens complete to the known plaintext however it is split, the ABORT variant is an authentic prefix; sequencing, replay, truncation, tamper, framing, trailing and cancellation attacks are refused with nothing released beyond the last authenticated chunk; the policy layer reads nothing unless the gate released a browser client with the pinned app key inside the window; the owner's reader agrees on accept/refuse and prefix for every case |
+| `verifier-sealed-traces` (4; the differential case runs under the strict command) | on the thirteen Pixel 10 device traces: every genuine stream opens complete under the page's context, every relay mutation fails with the page's class after the same number of chunks and releases only an authentic prefix, both replays are refused, and the owner's reader agrees on class and prefix for all 26 streams |
 | `verifier-pvm-evidence` (10; the stand-in returns the owner's v2 result shape) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
 
 Contract and device results (2026-09-24, against the owner's pushed revision 31f0fe2c of
@@ -379,7 +380,7 @@ owner's module is absent (main, and a clean checkout of this branch) and run whe
 
 Reproducible cross-branch acceptance (2026-09-24): `verifier/integration/pins.json` pins the owner's modules
 by branch, FULL commit and the sha256 of each blob they need (`pvm-app-attest` at
-`afd437a25305ba32f83d0384eb30240a31cd4391`, `pvm-sealed` at `36f040d1b012f98bf45bfcf6e68d05eb2d9c2088`);
+`afd437a25305ba32f83d0384eb30240a31cd4391`, `pvm-sealed` at `fbd87038ba93ea1f52ec52f27a49c661d55598f0`);
 `verifier/integration/resolve.mjs` reads those blobs from that commit's tree with `git cat-file`, hash-checks
 them and the worktree copy of `relay/avf-verify.mjs` the adapter also uses, and materialises them under the
 gitignored `.verifier-integration/` with a manifest, exiting 2 on any mismatch; `npm run test:integration`
@@ -422,8 +423,11 @@ Exact remaining integration gaps (nothing below is verified today):
    exist (owner's 36f040d1), the consumer reader is built on this branch (`verifier/sealed-stream.mjs`) with its
    sequencing, replay, truncation, tamper, cancellation and policy cases (12), and the owner's reference reader,
    pinned as `pvm-sealed`, agrees on every case (`docs/security/pvm-sealed-streaming-review.md`, Results).
-   Still open: the device traces (recorded streams and their mutations) are not yet pushed, the HPKE request side
-   (encapsulation, the frame) is not on this branch, and no production use is claimed.
+   The device traces (owner's fbd87038, thirteen exchanges with a malicious relay) are fixtures on this branch
+   and open or refuse exactly as the page reported, with the owner's reader agreeing on every one (strict
+   integration 46/46, zero skips). Still open: the HPKE request side (encapsulation, the frame) is not on this
+   branch, the browser page's code delivery is not solved (the owner's text says so), and no production use is
+   claimed.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial

@@ -126,7 +126,20 @@ abort reason, a carrier sending more than a chunk ahead; bytes after FIN or ABOR
 Fixture caveat: both variants share one response nonce, so the fixture's own ABORT at index 2 opens as the aborted
 variant; a real VM chooses a fresh response nonce per response.
 
-Differential (strict integration, owner's reader at 36f040d1 through WebCrypto in Node): identical accept/refuse and
-identical released prefix on fourteen cases; classes identical except the documented mapping (an unknown chunk type
-is `malformed` here and `tamper` there). No mismatch between the protocol text, the fixture and the reference reader
-was found.
+Differential (strict integration, owner's reader through WebCrypto in Node, pinned as `pvm-sealed`): at 36f040d1
+identical accept/refuse and released prefix on fourteen cases with one documented class mapping (an unknown chunk
+type was `tamper` there); at fbd87038 the owner's reader classifies it `malformed` as this one does, and the
+differential is exact. No mismatch between the protocol text, the fixture and the reference reader was found.
+
+Device traces (owner's fbd87038, Pixel 10, build rt14; `test/fixtures/verifier/pvm-sealed/traces/`, SOURCE.md):
+thirteen recorded exchanges with a malicious relay in the path, each with the VM's genuine stream, what the relay
+delivered, and the page's opening context. Offline and without HPKE, this branch's reader opens every genuine
+stream complete (the mode-flip case is the VM's own unauthenticated refusal, as the relay had turned the request's
+key id), and refuses every delivered mutation with the class the page reported in the browser, opening exactly the
+same number of chunks before refusing as the device did: swap and replay (both launches) at 0, drop, flip, fin-flag
+and forge-chunk at 1, dup and forge-fin at 2, truncate at 3 (`incomplete`), trailing after all 15 (`trailing`);
+whatever was released is a prefix of the genuine plaintext and never the whole answer. The owner's reader at the same
+commit agrees on class and prefix for all 26 streams. The owner's device check of the run was 35/35 including
+tampered, replayed and cross-boot sealed requests refused by the VM; a follow-up run fixed the page's own stop
+being one line late after a cancel (no chunk after the abort was ever opened, so the reader's rule held).
+

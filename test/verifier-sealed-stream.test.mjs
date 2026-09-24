@@ -158,10 +158,10 @@ test("differential: the owner's reader agrees on accept/refuse and on the releas
     const mineAccepts = mine.status === "complete", refAccepts = ref.ok === true && ref.complete === true;
     if (mineAccepts !== refAccepts) mismatches.push(`${name}: accept mine=${mine.status} owner=${ref.error || "complete"}`);
     if (!mine.prefix.equals(ref.prefix)) mismatches.push(`${name}: released prefix differs (mine ${mine.prefix.length} B, owner ${ref.prefix.length} B)`);
-    // classes agree except the documented mapping: an unknown type is "malformed" here and "tamper" there
+    // classes must agree exactly (since fbd87038 the owner's reader also classifies an unknown type as malformed)
     const mineClass = mine.status === "complete" ? "complete" : mine.status === "incomplete" ? "truncated" : mine.status === "aborted" ? "aborted" : mine.status === "refused" ? "refused" : mine.error;
     const refClass = refAccepts ? "complete" : ref.error;
-    if (mineClass !== refClass && !(name === "unknownType" && mineClass === "malformed" && refClass === "tamper")) mismatches.push(`${name}: class mine=${mineClass} owner=${refClass}`);
+    if (mineClass !== refClass) mismatches.push(`${name}: class mine=${mineClass} owner=${refClass}`);
   }
   assert.deepEqual(mismatches, []);
   // and the fresh-request replay for both

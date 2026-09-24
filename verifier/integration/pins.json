@@ -18,16 +18,16 @@
   "pvm-sealed": {
     "purpose": "the pVM owner's reference reader for streamed sealed answers (WebCrypto), run as a DIFFERENTIAL reference beside verifier/sealed-stream.mjs; never copied into this branch",
     "branch": "pvm-cpu/portable-runtime",
-    "commit": "36f040d1b012f98bf45bfcf6e68d05eb2d9c2088",
+    "commit": "fbd87038ba93ea1f52ec52f27a49c661d55598f0",
     "entry": "shielded/anchor/avf/web/pvm-sealed.js",
     "env": "ENCLAVE_PVM_SEALED_MODULE",
     "files": {
-      "shielded/anchor/avf/web/pvm-sealed.js": "8a2e567401af5a9e0aeb4117780a1b0b43410d88ac7b51fbf359ba173d053e08",
+      "shielded/anchor/avf/web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
       "shielded/anchor/avf/web/pvm-verify.js": "6c962bc32cfe117e1b6f54b80ddc41f3be4eec8f090209875d0b6da3fbf4682a",
       "shielded/anchor/avf/web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34"
     },
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
-    "note": "SEALED-STREAMING.md at this commit is the protocol text; test/fixtures/verifier/pvm-sealed/sealed-stream-vectors.json is its fixture; the vendored @hpke/core 1.9.0 bundle is pinned by the owner's build-hpke.sh (sha512 registry integrity)"
+    "note": "SEALED-STREAMING.md at 36f040d1 is the protocol text (unchanged since); this revision classifies an unknown chunk type as malformed (matching verifier/sealed-stream.mjs) and stops releasing on cancel; the device traces under test/fixtures/verifier/pvm-sealed/traces are from this commit"
   }
 }
