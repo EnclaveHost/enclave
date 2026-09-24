@@ -21,4 +21,5 @@ suite guestd "$here/guestd" go test -race -count=1 -v ./...
 suite claim-gate "$repo" node --test test/isolation-claim-gate.test.mjs
 suite domain-release "$here" ./test-domain-release.sh "$G" "$W/domain-release"
 suite image-repro "$here" ./test-image-repro.sh "$G/A.bundle" "$W/image-repro"
+suite control "$here" ./test-guestd-control.sh "$W/control"
 echo "results in $W"
