@@ -13,6 +13,7 @@ import fs from "node:fs";
 import http from "node:http";
 import { Manager, createServer } from "../manager/server.mjs";
 import { HyperVPartitionBackend } from "../manager/backend.mjs";
+import { IsolationManagerClient } from "../../node/isolation-client.mjs";
 
 const ROOT = new URL("../../../", import.meta.url);
 const SUPERVISOR = fs.readFileSync(new URL("supervisor.js", ROOT), "utf8");
@@ -46,6 +47,7 @@ const GUESTD_CREATED = Number((/s\.json\(w, (\d{3}), pub\)/.exec(GUESTD) || [])[
 const bootedBackend = () => new HyperVPartitionBackend({ launch: async (mapping, { instanceId }) => ({
   instanceId, name: `enclave-app-${instanceId}`, vmId: "B4E9F747-7966-5EB8-BF85-FD2CD717DF44", state: "Running",
   guest: { booted: true, bytes: 64, head: "MON boundary tier=t0-hv" }, appReady: false, appId: mapping.appId, stop: async () => {} }) });
+const clientBody = () => IsolationManagerClient.spawnBody({ image: `ipfs://${REC.cid}`, name: DEPLOYMENT, appPort: 8080, derive: REC, isPublic: true, hasSecrets: false });
 const mk = (over = {}) => new Manager({ backend: bootedBackend(), fetchComponent: async () => component, runtimeId: REC.runtimeId, ...over });
 
 async function viaHttp(manager, method, path, body) {
@@ -61,25 +63,29 @@ async function viaHttp(manager, method, path, body) {
   } finally { srv.close(); }
 }
 
-test("the supervisor's ACTUAL spawn body is accepted: it carries no hasSecrets and no isPublic, and the manager must not refuse what its consumer never sends", async () => {
-  const body = supervisorBody({ derive: REC });
-  assert.equal("hasSecrets" in body, false); assert.equal("isPublic" in body, false);
-  const r = await mk().spawn(body);       // today: 400 "unverified secret state: it must be known to be absent, not assumed"
+test("the consumer's ACTUAL spawn body is accepted: on this box the consumer is the node's IsolationManagerClient, whose body states isPublic and hasSecrets from the ledger; supervisor.js's literal (no such fields) is refused and does not run here", async () => {
+  const sup = supervisorBody({ derive: REC });
+  assert.equal("hasSecrets" in sup, false); assert.equal("isPublic" in sup, false);
+  await assert.rejects(() => mk().spawn(sup), /unverified secret state/, "the Linux supervisor's body is refused by this manager; it is not this box's consumer");
+  const body = IsolationManagerClient.spawnBody({ image: sup.image, name: DEPLOYMENT, appPort: 8080, derive: REC, isPublic: true, hasSecrets: false });
+  for (const k of Object.keys(sup)) assert.ok(k in body, `the client's body carries the supervisor's field ${k}`);
+  assert.throws(() => IsolationManagerClient.spawnBody({ image: sup.image, name: DEPLOYMENT, appPort: 8080, derive: REC, isPublic: true }), /hasSecrets/, "an unstated secret state is refused at the client, not assumed");
+  const r = await mk().spawn(body);
   assert.ok(r && r.id, "a record");
   assert.equal(r.appId, VEC.ok.find((v) => v.name === "v1").mapping.appId, "and the AppID is the shared vectors' for this record");
 });
 
 test("POST /vms answers the status the supervisor requires, which is the one guestd gives", async () => {
   assert.equal(REQUIRED_STATUS, 201, "supervisor.js requires 201"); assert.equal(GUESTD_CREATED, 201, "guestd answers 201");
-  const r = await viaHttp(mk(), "POST", "/vms", { ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false });   // the owner's own body, so only the status is under test here
+  const r = await viaHttp(mk(), "POST", "/vms", clientBody());   // the owner's own body, so only the status is under test here
   assert.equal(r.status, REQUIRED_STATUS, `the manager answered ${r.status}: the supervisor reads that as "guestd refused the launch"`);
 });
 
-test("the record carries what the supervisor reads: id, appId, recordSha256, name = the deployment, and status in the supervisor's vocabulary; never running on console bytes", async () => {
+test("the record carries what the consumer reads: id, appId, recordSha256, name = the deployment, and status in guestd's vocabulary; never running on console bytes", async () => {
   const m = mk();
-  const r = await m.spawn({ ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false });
+  const r = await m.spawn(clientBody());
   for (const k of ["id", "appId", "recordSha256"]) assert.ok(r[k], `record.${k}`);
-  assert.equal(r.name, DEPLOYMENT, "supervisor.js adoption matches v.name === deploymentId");
+  assert.equal(r.name, DEPLOYMENT, "adoption matches on name");
   assert.ok(["starting", "running", "failed"].includes(r.status), `status is ${JSON.stringify(r.status)}: instanceAlive reads r.body.status and knows starting|running|failed`);
   assert.equal(r.status, "starting", "guest booted, app not ready: a live launch the supervisor must not respawn, and not SERVING");
   assert.notEqual(r.status, "running", "running needs the verified document on the handshake key plus enclave-ready 200 (the agreed rule), never console bytes");
@@ -87,21 +93,22 @@ test("the record carries what the supervisor reads: id, appId, recordSha256, nam
   assert.equal(got.status, 200); assert.equal(got.body.status, r.status); assert.equal(got.body.name, DEPLOYMENT);
 });
 
-test("a second spawn under a live deployment name is 409 with the live id, in the form the supervisor's adoption path accepts", async () => {
+test("a second spawn under a live deployment name is 409 with the live id (any safe token: the manager owns its ids), and the node client adopts it by NAME", async () => {
   const m = mk();
-  const first = await m.spawn({ ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false });
-  const again = await viaHttp(m, "POST", "/vms", { ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false });
-  assert.equal(again.status, 409, `guestd answers 409 "an instance for this name is live"; the manager answered ${again.status} (a second record, the first handle forgotten)`);
+  const first = await m.spawn(clientBody());
+  const again = await viaHttp(m, "POST", "/vms", clientBody());
+  assert.equal(again.status, 409, `guestd answers 409 "an instance for this name is live"; the manager answered ${again.status}`);
   assert.equal(again.body && again.body.id, first.id, "the 409 names the live instance");
-  assert.match(String(first.id), ADOPT_ID_RE, `supervisor.js adopts a 409 only when the id matches ${ADOPT_ID_RE}; ids are ${first.id}. Either side may change; today they disagree`);
+  assert.match(String(first.id), /^[A-Za-z0-9-]{1,64}$/, "one safe token, the datapath's and the client's only requirement on an id");
   assert.equal(m.list().length, 1, "one live record for one deployment");
+  assert.equal(m.list()[0].name, DEPLOYMENT, "adoption matches on name, which every backend carries");
 });
 
 test("an explicit duplicate id is refused rather than overwriting a live record", async () => {
   const m = mk();
-  const a = await m.spawn({ ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false, id: "dup-1" });
+  const a = await m.spawn({ ...clientBody(), id: "dup-1" });
   assert.equal(a.state ?? a.status, a.status ?? a.state);
-  await assert.rejects(() => m.spawn({ ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false, id: "dup-1" }), /409|live|already/i,
+  await assert.rejects(() => m.spawn({ ...clientBody(), id: "dup-1" }), /409|live|already/i,
     "today the second spawn replaces the record and the first VM's handle is lost");
   assert.equal(m.list().length, 1);
 });
@@ -111,7 +118,7 @@ test("DELETE of a domain whose stop FAILED does not answer ok and does not forge
     instanceId, name: `enclave-app-${instanceId}`, state: "Running", guest: { booted: true, bytes: 1, head: "" }, appReady: false, appId: mapping.appId,
     stop: async () => { throw Object.assign(new Error("could not stop: access denied"), { code: "stop_failed" }); } }) });
   const m = new Manager({ backend, fetchComponent: async () => component, runtimeId: REC.runtimeId });
-  const r = await m.spawn({ ...supervisorBody({ derive: REC }), isPublic: true, hasSecrets: false });
+  const r = await m.spawn(clientBody());
   const d = await viaHttp(m, "DELETE", `/vms/${encodeURIComponent(r.id)}`);
   assert.notEqual(d.status, 200, `DELETE answered ${d.status} ok while the VM is still running: an orphan the manager no longer lists`);
   assert.ok(m.get(r.id), "the record stays until the VM is really gone");
