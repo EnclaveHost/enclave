@@ -1040,7 +1040,7 @@ function pick(want = {}) {
   const pool = servingEnclaves();   // only boxes that CLAIM can be routed to (a tunnel demo box has no dialable endpoint and takes no work)
   if (gpuShare > 0) {
     return pool
-      .filter((e) => gpuSellable(e) && gpuFreeOf(e.availability) >= gpuShare
+      .filter((e) => e.availability.gpu && gpuFreeOf(e.availability) >= gpuShare
                                         && cpuFreeOf(e.availability) >= cpuShare)
       .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0] || null;
   }
@@ -1386,13 +1386,15 @@ function sendForwarded(res, r, req) {
 // The rule is fail-closed on purpose: a machine with no evidence may carry
 // traffic (a relay row) or sit attached as evidence of work in progress, but it
 // is never presented as sellable capacity and never routed a deployment.
-// GPUs have their own gate, read from the CARD's protection mode and never from
-// teeCpu, the host OS, or whether the CPU is confidential (gpuModeOf / gpuSellable
-// below): a card in a supported confidential-computing mode sits inside the
-// confidential boundary; any other card, on any host, is reached only through
-// Enclave Shield, Enclave's protected GPU offload, and is neither advertised nor
-// routed until Shield's evidence verifies. Shield is a GPU rule: it never makes a
-// host eligible for tenant apps by itself, which is computeEligible's job.
+// GPUs. Enclave Shield is Enclave's protected GPU-offload mechanism for any card that
+// does not support, or is not operating in, confidential-computing mode, on any host
+// (even beside a confidential CPU, when the card is outside that boundary): masked
+// inputs, results verified before use, no plaintext protected state on the card. The
+// card-specific admission gate for that rule is BEING BUILT and must rely on explicit,
+// verified GPU protection-mode evidence, never on the absence of a field; nothing here
+// classifies a card as confidential because some block is missing. Today the only gate
+// is the box-level one above: a box without confidential-CPU evidence sells nothing,
+// card included, and a confidential box's card is offered exactly as before.
 const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
@@ -1420,56 +1422,9 @@ function ineligibleReason(e) {
     return "attached on a token, no hardware quote verified";
   }
   const t = String(e.availability?.teeCpu || "");
-  const gpu = gpuModeOf(e) !== "none"
+  const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
     ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
   return (t ? `its attestation document presents ${t}, not a confidential CPU` : "its build never named its CPU technology") + gpu;
-}
-// ---- the GPU's protection mode: read from what the box presents about its CARD ----
-// Enclave Shield is Enclave's protected GPU-offload mechanism for any GPU that does
-// not support, or is not operating in, confidential-computing mode: the card sees
-// masked inputs, returns results that are verified before use, and never receives
-// plaintext protected state. It is required even when the app runs inside a
-// confidential CPU, if the card is outside that boundary; a card operating in a
-// supported confidential-computing mode sits inside the boundary and does not
-// depend on Shield. The trigger below therefore reads the card, never teeCpu, the
-// host OS, or the CPU:
-//   "confidential": a card the box presents as inside its boundary (gpu:true with
-//                   no shielded pool: the hosted GPU fleet's cards in CC mode, whose
-//                   GPU report rides in the attestation document clients verify)
-//   "shield":       a card outside every confidential boundary (a shielded pool,
-//                   shielded.vramGb > 0), reachable only through Enclave Shield
-//   "none":         no card
-function gpuModeOf(e) {
-  const a = e?.availability || {};
-  if (a.shielded && Number(a.shielded.vramGb) > 0) return "shield";
-  return a.gpu === true ? "confidential" : "none";
-}
-// Enclave Shield's evidence, as it exists today: the masked-offload probe the box's
-// own MEASURED image ran against its card (shielded.proof: one real masked GEMM came
-// back exact and verified, no plaintext reached the card, a lie was rejected, the op
-// denylist held). That word counts only from a box whose own word this relay accepts
-// at all (computeEligible: a confidential CPU running a measured image). A relay-
-// verified Shield contract does not exist yet, so a box we cannot trust to report it
-// (no confidential CPU) fails closed: its card is never advertised or routed.
-const SHIELD_PROOF_KEYS = ["ok", "exact", "verified", "noPlaintext", "lieRejected", "denylistRefused"];
-function shieldVerified(e) {
-  const p = e?.availability?.shielded?.proof;
-  return computeEligible(e) && !!p && SHIELD_PROOF_KEYS.every((k) => p[k] === true);
-}
-// May this box's card be advertised as buyable GPU capacity and routed GPU work?
-function gpuSellable(e) {
-  const m = gpuModeOf(e);
-  if (m === "confidential") return computeEligible(e);
-  if (m === "shield") return shieldVerified(e);
-  return false;
-}
-function gpuIneligibleReason(e) {
-  const m = gpuModeOf(e);
-  if (m === "none" || gpuSellable(e)) return null;
-  if (m === "confidential") return "the card is presented as inside the boundary, but the box itself is not eligible for tenant work";
-  return computeEligible(e)
-    ? "the card is outside the confidential boundary and is reached only through Enclave Shield; its Shield evidence (the masked-offload proof) is missing or failed"
-    : "the card is outside any confidential boundary and is reached only through Enclave Shield, whose evidence this relay cannot verify from this box";
 }
 function servingEnclaves() {
   // A relay is never in this set. It says so itself (claimEnabled:false), but
@@ -1502,11 +1457,8 @@ function fullServiceEnclaves() {
 function aggregateAvailability() {
   const serving = servingEnclaves();
   const offered = fullServiceEnclaves();      // what the fleet offers, and what it costs by default
-  // GPU axes are aggregated over cards that may actually be SOLD (gpuSellable): a card
-  // inside the boundary on an eligible box, or a card outside it with verified Enclave
-  // Shield evidence. A card that fails that gate is not capacity, whatever gpu: says.
-  const gpus = serving.filter(gpuSellable);
-  const offeredGpus = offered.filter(gpuSellable);
+  const gpus = serving.filter((e) => e.availability?.gpu === true);
+  const offeredGpus = offered.filter((e) => e.availability?.gpu === true);
   const g = gpus.slice()
     .sort((a, b) => gpuFreeOf(b.availability) - gpuFreeOf(a.availability))[0]?.availability || null;
   const c = serving.slice()
@@ -2117,7 +2069,7 @@ const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
                    // over the FULL-SERVICE boxes, for the reason in fullServiceEnclaves(): a
                    // partial box's cheaper ask must not become the price a buyer is charged for
                    // work it cannot honour, which would leave the lease underfunded and Queued.
-                   fleetAsk: () => cheapestAsk(fullServiceEnclaves(), fullServiceEnclaves().filter(gpuSellable)),   // a GPU ask comes only from a card that may be sold
+                   fleetAsk: () => cheapestAsk(fullServiceEnclaves(), fullServiceEnclaves().filter((e) => e.availability?.gpu === true)),
                    // secrets.js: match a fetch's claimed endpoint to a lease's
                    // on-chain runner id, and drop the ledger cache when a row
                    // must be newer than the 10s TTL (just-claimed/just-created)
@@ -2243,16 +2195,12 @@ function handleRequest(req, res) {
     // teeCpu / tier / claimEnabled strings.
     const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
                                     ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
-                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}),
-                                    // the card's protection mode and whether it may be sold, read from the card
-                                    // (gpuModeOf), with the reason when it may not (Enclave Shield's rule)
-                                    gpuMode: gpuModeOf(e), gpuSellable: gpuSellable(e),
-                                    ...(gpuIneligibleReason(e) ? { gpuIneligible: gpuIneligibleReason(e) } : {}) }));
+                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
-      totalGpuShareFree: Math.round(serving.filter(gpuSellable).reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
+      totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
-      totalVramFreeGb: Math.round(serving.filter(gpuSellable).reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
+      totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
     };
     return json(res, 200, { updatedAt, aggregate: agg, enclaves: rows }, req);
   }

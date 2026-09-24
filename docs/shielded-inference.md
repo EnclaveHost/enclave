@@ -1,4 +1,6 @@
-# Shielded inference — masked GGML offload to untrusted GPUs
+# Enclave Shield: masked GGML offload to untrusted GPUs
+
+(Enclave Shield is the product name for this mechanism; "shielded" stays the technical adjective in code, paths and wire fields.)
 
 Status: DESIGN (2026-08-14), **RUNNING END TO END (2026-08-25)**, nothing on the fleet.
 
