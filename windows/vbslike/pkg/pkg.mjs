@@ -43,7 +43,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "app.component", "app.record", "app.bundle", "app.spawn", "control.manager", "control.fetcher", "control.launcher",
   "control.datapath", "control.judge", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
-  "input.recipe", "input.tree", "input.test"]);
+  "input.recipe", "input.tree", "input.test", "input.test-support"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -345,6 +345,22 @@ async function serveCheck(m, bytes, R) {
 // the number of tests, passes and failures, which cases fail, and which cases SKIP and why -- a known result, never
 // "whatever is green". A skip not declared is a failure of the pin: a case that silently stops running reads as a pass
 // in the counts alone. todo and cancelled must be zero unless declared.
+// The error text of each failing top-level case in TAP: `error: '...'` (YAML single-quoted) or an `error: |-` block.
+function failureMessages(o) {
+  const lines = o.split("\n"), out = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^not ok (\d+) /.exec(lines[i]); if (!m) continue;
+    for (let j = i + 1; j < lines.length && !/^(ok|not ok) \d+ |^# Subtest/.test(lines[j]); j++) {
+      const e = /^  error: (.*)$/.exec(lines[j]); if (!e) continue;
+      let v = e[1];
+      if (v === "|-" || v === "|") { const buf = []; for (let k = j + 1; k < lines.length && /^    /.test(lines[k]); k++) buf.push(lines[k].slice(4)); v = buf.join("\n"); }
+      else if (/^'.*'$/.test(v)) v = v.slice(1, -1).replace(/''/g, "'");
+      else if (/^".*"$/.test(v)) v = JSON.parse(v);
+      out.set(Number(m[1]), v); break;
+    }
+  }
+  return out;
+}
 function testsCheck(m, bytes, R) {
   for (const t of m.tests || []) {
     const inp = m.inputs.find((i) => i.name === t.input);
@@ -356,21 +372,33 @@ function testsCheck(m, bytes, R) {
         const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
       }
       const tp = path.join(d, ...t.layout.split("/")); fs.mkdirSync(path.dirname(tp), { recursive: true }); fs.writeFileSync(tp, bytes.get(inp));
+      // data a test reads from the repository (contract sources, vectors): pinned inputs, placed for the run, never shipped
+      for (const sp of t.support || []) {
+        const si = m.inputs.find((i) => i.name === sp.input), p = path.join(d, ...sp.layout.split("/"));
+        if (!si || !bytes.get(si)) throw new Error(`test ${t.name}: no bytes for support input ${sp.input}`);
+        fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(si));
+      }
       // a run under another test runner inherits NODE_TEST_CONTEXT, which switches the child's output to the runner's binary
       // protocol and leaves no counts to read: strip it, and ask for TAP by name
       const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
       const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", tp], { cwd: d, encoding: "utf8", timeout: 300000, env });
       const o = r.stdout + r.stderr, n = (k) => Number((new RegExp(`^# ${k} (\\d+)$`, "m").exec(o) || [])[1]);
-      const failing = [...o.matchAll(/^not ok (\d+) /gm)].map((x) => Number(x[1]));
+      const failing = [...o.matchAll(/^not ok (\d+) /gm)].map((x) => Number(x[1])), msgs = failureMessages(o);
       const skipped = [...o.matchAll(/^ok (\d+) - .* # SKIP (.*)$/gm)].map((x) => ({ case: Number(x[1]), reason: x[2].trim() }));
       const e = t.expect || {};
-      const ok = n("tests") === e.tests && n("pass") === e.pass && n("fail") === e.fail && JSON.stringify(failing) === JSON.stringify(e.failing || [])
+      // a failing entry is a case number, or {case, message}: then the case's error text must be EXACTLY that message
+      const want = (e.failing || []).map((x) => (typeof x === "number" ? { case: x } : x));
+      const badMsg = want.filter((w) => w.message !== undefined && msgs.get(w.case) !== w.message)
+                         .map((w) => `case ${w.case} said ${JSON.stringify(msgs.get(w.case) ?? null)}`);
+      const ok = n("tests") === e.tests && n("pass") === e.pass && n("fail") === e.fail && JSON.stringify(failing) === JSON.stringify(want.map((w) => w.case))
+        && badMsg.length === 0
         && n("skipped") === (e.skipped || []).length && JSON.stringify(skipped) === JSON.stringify(e.skipped || [])
         && n("todo") === (e.todo || 0) && n("cancelled") === (e.cancelled || 0);
-      const said = (x) => `${x.tests} tests, ${x.pass} pass, ${x.fail} fail${(x.failing || []).length ? ` (failing ${x.failing.join(", ")})` : ""}`
+      const said = (x) => `${x.tests} tests, ${x.pass} pass, ${x.fail} fail${(x.failing || []).length ? ` (failing ${x.failing.map((f) => (typeof f === "number" ? f : f.case)).join(", ")})` : ""}`
         + `${(x.skipped || []).length ? `, skipped ${x.skipped.map((k) => `${k.case} "${k.reason}"`).join(", ")}` : ""}${x.todo ? `, todo ${x.todo}` : ""}${x.cancelled ? `, cancelled ${x.cancelled}` : ""}`;
       const got = { tests: n("tests"), pass: n("pass"), fail: n("fail"), failing, skipped, todo: n("todo"), cancelled: n("cancelled") };
-      R.add(ok, `test ${t.name} (${t.owner}) gives exactly its expected result`, said(got) + (ok ? "" : `; expected ${said(e)}`));
+      R.add(ok, `test ${t.name} (${t.owner}) gives exactly its expected result`, said(got) + (ok ? "" : `; expected ${said(e)}${badMsg.length ? `; ${badMsg.join("; ")}` : ""}`));
+    } catch (err) { R.add(false, `test ${t.name} (${t.owner})`, err.message);
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
   }
 }
