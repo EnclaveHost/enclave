@@ -165,6 +165,28 @@ test("tests: claiming the readiness test passes on v4's manager is refused", { s
   assert.equal(r.code, 1, "a green claim for a manager with defect 10 passed");
   assert.match(r.out, /FAIL test readiness-rule \(enclave-99\) gives exactly its expected result: 8 tests, 4 pass, 4 fail/, fails(r.out));
 });
+// enclave-5d's own datapath suite (7f36992c) in the package tree: its interop case imports the node-side splice client,
+// which the package does not carry, so it SKIPS by name. The pin says so exactly: 4 pass + that one named skip.
+const DP_SKIP = { case: 5, reason: "the supervisor's splice client is not importable here (ERR_MODULE_NOT_FOUND)" };
+const with5dDatapath = (expect) => { const m = structuredClone(base);
+  m.inputs.push({ name: "datapath-5d.test.mjs", role: "input.test", sha256: "", bytes: 0,
+                  from: { git: { commit: "7f36992cac3004076ccce840dff8b58463f39a52", path: "windows/vbslike/datapath/datapath.test.mjs" } } });
+  m.tests = [...m.tests, { name: "datapath-5d", owner: "enclave-5d", input: "datapath-5d.test.mjs", requires: [],
+                            layout: "control/windows/vbslike/datapath/datapath.test.mjs", expect }];
+  return repin(m, ["datapath-5d.test.mjs"]); };
+test("tests: a named skip is part of the exact result (5d's datapath suite: 4 pass + 1 named skip)", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(with5dDatapath({ tests: 5, pass: 4, fail: 0, failing: [], skipped: [DP_SKIP] })), "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   test datapath-5d \(enclave-5d\) gives exactly its expected result \(5 tests, 4 pass, 0 fail, skipped 5 "the supervisor's splice client/);
+});
+test("tests: a skip the pin does not declare is refused, and so is a skip for another reason", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  for (const expect of [{ tests: 5, pass: 4, fail: 0, failing: [] },
+                        { tests: 5, pass: 4, fail: 0, failing: [], skipped: [{ case: 5, reason: "some other reason" }] }]) {
+    const r = run(["verify", writeManifest(with5dDatapath(expect)), "--tests"]);
+    assert.equal(r.code, 1, `a pin of ${JSON.stringify(expect)} passed`);
+    assert.match(r.out, /FAIL test datapath-5d \(enclave-5d\) gives exactly its expected result/, fails(r.out));
+  }
+});
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
   assert.equal(r.code, 1);

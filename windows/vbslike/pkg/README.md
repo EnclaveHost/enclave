@@ -75,10 +75,12 @@ node --test windows/vbslike/pkg/pkg.test.mjs
   exactly its stated result: the counts, and which cases fail. v5 pins enclave-99's `readiness-rule.test.mjs` against
   the manager's `ready.mjs` (8/8), and its `datapath.test.mjs` against 5d's datapath (5/5). The same readiness test on
   v4's manager gives exactly 4 failures (cases 3, 4, 5 and 8 = defect 10). The suite holds that result too, and refuses
-  a green claim for it. A pinned test is a known result, not a green count. A test run under another test runner must
+  a green claim for it. A pinned test is a known result, not a green count. The result includes which cases SKIP and why: a skip the pin does
+not declare, or a skip for another reason, fails the pin. Otherwise a case that quietly stops running would read as a
+pass in the counts. Todo and cancelled cases must be zero unless declared. A test run under another test runner must
   strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 40 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 42 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
