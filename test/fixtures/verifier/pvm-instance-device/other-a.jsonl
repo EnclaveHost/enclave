@@ -1,0 +1,2 @@
+{"committed":{"serial":2,"gen":3}}
+{"result":{"label":"cli","mode":"stream","step":"verify","refused":"instance ccd79db14e9f3a22… is a genuine instance of this app, but not one bound to the selected deployment: refused","sent":false,"verifyMs":834,"policySerial":2,"stateGen":3,"clientVersion":"0.5.0","deployment":{"id":"0x49bbcaf239012d5092e17ff72a9777532b41ee501ebe85bf305acbf973ec3459","app":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","instance":null,"bound":true}}}

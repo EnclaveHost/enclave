@@ -680,8 +680,20 @@ replays the owner's 23 static cases (pins.json `pvm-v3-fixtures`) through the ad
 with the owner's 0.5.0 `trust.js` (pins.json `pvm-client-src-v3`) as the differential reference on every policy outcome
 and every per-deployment instance list. Where this verifier's consumer pre-checks refuse before the owner's module (the
 echoed nonce, the echoed app, an empty instance list, a relabelled envelope), the reason is this verifier's own and the
-test says which. Not done: the device capture (the owner's campaign, running on the Pixel), the HPKE info (unchanged by
-agreement), and the client 0.5.0 artifact pin for the extension suites once it is built.
+test says which. **The device campaign, reviewed (owner's 7e88dc76, pinned as `pvm-instance-device`, 63 files;
+`test/verifier-pvm-instance-device.test.mjs`, 5).** Re-derived from the raw files through this verifier's adapter over the
+owner's module under Google's roots: the enrolled InstanceID is SHA-256 of the instance key the VM presented over the
+enrollment's own nonce; the type-2 policy binds the deployment to exactly it; the five EVIDENCE3 answers (first boot, a
+restart, a same-key APK update with a code change) verify as v3 proving that InstanceID with ONE instance key and new
+transport keys per boot; the same genuine VM is refused for a deployment bound to another instance after its app, Bind3
+and instance-signature checks passed, and verifies for the deployment bound to it (app identity and instance identity are
+two facts); the unbound deployment answered over v2 with no instance, and that v2 answer is a downgrade for a bound one;
+the gate releases only the bound turns; no answer was cut. The owner's replay of the gate vectors found one decision
+difference (an unbound v3 verdict lacking its InstanceID, which their gate released and this gate holds) and a missing
+1..8 cap, both aligned to the stricter rule; 46 of 46 in-scope decisions equal. Found on the way by the owner: a v3 payload
+bug that cut the answer's final newline to a NUL on some attestations, which the client refused as unparseable (fail
+closed) and which the v1/v2 path shared. Not measured, stated: re-provisioning (a new instance.img). Not done: the HPKE
+info (unchanged by agreement) and the client 0.5.0 artifact pin for the extension suites (the dist is now 251dd8fa…).
 
 ## 10.3 Deployment binding for the Linux tier (F11 fix, verifier side, 2026-09-24)
 

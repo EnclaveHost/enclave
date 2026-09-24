@@ -1,0 +1,8 @@
+{
+ "what": "the pVM owner's Pixel 10 device campaign for INSTANCE BINDING (v3): enrollment of the VM's InstanceID under the built 0.5.0, a type-2 policy binding one deployment to it, the bound, other-instance and unbound turns, a VM restart and a same-key APK update; copied verbatim from the owner's commit; reviewed by test/verifier-pvm-instance-device.test.mjs",
+ "branch": "pvm-cpu/portable-runtime",
+ "commit": "7e88dc76732894d5fb8ef20c8823ce3f9bb37a12",
+ "path": "shielded/anchor/avf/results/pvm-cpu-instance-binding",
+ "copiedAt": "2026-09-24T20:19:27Z",
+ "note": "the owner's own checker (check.txt) says PASS; this review re-derives its claims from the raw files through this verifier's adapter over the owner's module pinned at 193cf823 (unchanged in 7e88dc76). Re-provisioning is NOT measured by the owner and not claimed here. The *.log files are force-added past the repository's ignore rule."
+}
