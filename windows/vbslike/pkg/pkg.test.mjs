@@ -146,6 +146,10 @@ const withReadiness = (expect) => { const m = committed(V4);
                layout: "control/windows/vbslike/review/readiness-rule.test.mjs", expect }];
   return repin(m, ["readiness-rule.test.mjs"]); };
 const haveOpenssl = spawnSync("sh", ["-c", "command -v openssl"]).status === 0;
+// the three gate inputs isolationPlan lacks, each failing with exactly this message (measured at eb1fd883 on b1483afa)
+const NB_FAIL = ["with no stated requirement the plan must refuse (unknown is not no)\n\ntrue !== false\n",
+                 "another backend's manager, even one that serves the derivation, is refused\n\ntrue !== false\n",
+                 "a deployment carrying a config override by CID is not delivered into a partition\n\ntrue !== false\n"];
 test("tests: the committed manifest's pinned tests give exactly their stated results", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
   const r = run(["verify", MANIFEST, "--tests"]);
   assert.equal(r.code, 0, fails(r.out));
@@ -258,6 +262,25 @@ test("catalog: facts naming another CID, or a yanked version, are refused", { sk
     assert.equal(r.code, 1);
     assert.match(r.out, /FAIL hello-world 1\.0\.4: the catalog version names this CID, approved and not yanked/, fails(r.out));
   }
+});
+// enclave-99's node-bridge suite (review eb1fd883) on v7's shipped bridge: it needs npm `ws`, pinned the way npm pins it
+// (the lockfile's tarball, sha512 integrity) and unpacked into the test tree for the run; never shipped.
+const withNodeBridge = (failing) => { const m = committed(V7);
+  m.inputs.push({ name: "ws-8.21.1.tgz", role: "input.test-support", sha256: "bb0f7e58ba1f64746672734d36175fe185f226491e336abc0743e2a8f4472ec1", bytes: 34995,
+                  integrity: "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==",
+                  from: { file: "~/enclave-bench/ownguest-pkg/sources/npm/ws-8.21.1.tgz" } },
+                { name: "node-bridge.test.mjs", role: "input.test", sha256: "", bytes: 0,
+                  from: { git: { commit: "eb1fd883d930c5cca3e488afe7261e2f526c9b40", path: "windows/vbslike/review/node-bridge.test.mjs" } } });
+  m.tests = [{ name: "node-bridge", owner: "enclave-99", input: "node-bridge.test.mjs", requires: ["openssl"],
+               layout: "control/windows/vbslike/review/node-bridge.test.mjs",
+               support: [{ input: "ws-8.21.1.tgz", layout: "node_modules/ws", unpack: "npm-tgz" }],
+               expect: { tests: 6, pass: 3, fail: 3, failing } }];
+  return repin(m, ["node-bridge.test.mjs"]); };
+test("tests: 99's node-bridge suite on v7's bridge: 3 pass, the 3 missing gate inputs fail by name", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(withNodeBridge(NB_FAIL.map((message, i) => ({ case: i + 2, message })))), "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   source ws-8\.21\.1\.tgz: npm integrity/);
+  assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 3 pass, 3 fail \(failing 2, 3, 4\)\)/);
 });
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);

@@ -428,7 +428,13 @@ function testsCheck(m, bytes, R) {
       for (const sp of t.support || []) {
         const si = m.inputs.find((i) => i.name === sp.input), p = path.join(d, ...sp.layout.split("/"));
         if (!si || !bytes.get(si)) throw new Error(`test ${t.name}: no bytes for support input ${sp.input}`);
-        fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(si));
+        if (sp.unpack === "npm-tgz") {
+          // an npm tarball (pinned by sha256 and by npm's own sha512 integrity): its package/ directory becomes `layout`
+          const tgz = path.join(d, `.support-${sp.input}`); fs.writeFileSync(tgz, bytes.get(si)); fs.mkdirSync(p, { recursive: true });
+          const x = spawnSync("tar", ["-xzf", tgz, "-C", p, "--strip-components=1"], { encoding: "utf8" });
+          fs.rmSync(tgz, { force: true });
+          if (x.status !== 0) throw new Error(`test ${t.name}: could not unpack ${sp.input}: ${x.stderr.trim()}`);
+        } else { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(si)); }
       }
       // a run under another test runner inherits NODE_TEST_CONTEXT, which switches the child's output to the runner's binary
       // protocol and leaves no counts to read: strip it, and ask for TAP by name
@@ -488,6 +494,10 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
     const b = bytes.get(e);
     if (!b) { R.add(false, `source ${id}`, errors.get(e) || "no bytes"); continue; }
     R.add(sha(b) === e.sha256 && b.length === e.bytes, `source ${id}`, sha(b) === e.sha256 && b.length === e.bytes ? `${k}` : `${k} gives ${sha(b)} (${b.length} B), pinned ${e.sha256} (${e.bytes} B)`);
+    if (e.integrity) {   // npm's own pin (the lockfile's "integrity"), checked as well as ours
+      const want = /^sha512-(.+)$/.exec(e.integrity), got = crypto.createHash("sha512").update(b).digest("base64");
+      R.add(!!want && want[1] === got, `source ${id}: npm integrity`, want && want[1] === got ? e.integrity.slice(0, 24) + "…" : `gives sha512-${got}, pinned ${e.integrity}`);
+    }
   }
   await checkClaims(m, bytes, R);
   if (out) checkOut(m, mbytes, out, bytes, R);

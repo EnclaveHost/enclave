@@ -91,10 +91,12 @@ not declare, or a skip for another reason, fails the pin. Otherwise a case that 
 pass in the counts. Todo and cancelled cases must be zero unless declared. A failing case can be pinned
 with its EXACT message (`{case, message}`), so a case that fails for another reason fails the pin. A test that reads
 repository data (contract vectors, the launcher's source) names it as `support`: pinned inputs placed at their repo
-paths for the run, never shipped. A test run under another test runner must
+paths for the run, never shipped. An npm dependency a test imports is pinned the way npm pins it: the
+lockfile's tarball, checked against its sha512 `integrity` as well as our sha256. It is unpacked into the test tree
+(`unpack: "npm-tgz"`) and never shipped. A test run under another test runner must
   strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 48 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 49 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
