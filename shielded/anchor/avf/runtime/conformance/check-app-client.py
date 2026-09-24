@@ -35,11 +35,13 @@ for label, step, why in [("attacker-policy", "policy", "anchor does not name"), 
     r, _ = cli(label)
     expect(r.get("step") == step and r.get("sent") is False and why in (r.get("refused") or ""), f"CLI {label}: refused at {step}, nothing sent ({(r.get('refused') or '')[:90]})")
 r, _ = cli("policy-2"); expect(complete(r) and r.get("policySerial") == 2, "CLI: followed the newer signed policy (serial 2), complete")
-st = json.loads(rd("cli-state.json") or "{}"); expect(st.get("serial") == 2, f"CLI: its state holds serial {st.get('serial')} (the rollback memory)")
+st = json.loads(rd("cli-state.json") or "{}"); expect(st.get("serial") == 6, f"CLI: its state holds serial {st.get('serial')}, the newest genuine policy it saw (the rollback memory)")
+labels = [x.get("label") for x in ext if x.get("label")]
+expect(len(labels) == len(set(labels)) == 6, f"extension: each of its 6 pages ran exactly once (no restored tab re-ran a page): {sorted(labels)}")
 installed = next((x for x in ext if x.get("installed")), {})
 expect(installed.get("anchor", {}).get("policyKeyFp") == inst.get("anchor", {}).get("policyKeyFp"), "extension: anchored from its own options page on the lab policy key")
 for label, ser in [("ext-stream", 1), ("ext-policy-2", 2)]:
-    x = e(label); expect(complete(x) and x.get("policySerial") == ser and "HeadlessChrome" in x.get("userAgent", "") and x.get("extension"),
+    x = e(label); expect(sum(1 for y in ext if y.get("label") == label) == 1 and complete(x) and x.get("policySerial") == ser and "HeadlessChrome" in x.get("userAgent", "") and x.get("extension"),
                          f"extension {label}: 24 tokens complete under policy {ser} in {x.get('userAgent', '?')[-28:]} (first token {x.get('firstTokenMs')} ms)")
 for label, step, why in [("ext-attacker-policy", "policy", "anchor does not name"), ("ext-rollback", "policy", "rollback"),
                          ("ext-relay-swaps-key", "verify", "not signed by the attested transport key")]:

@@ -40,7 +40,7 @@ PY
 mkpol() { local name="$1" keys="$2"; shift 2; body "$@" > "$KEYS/$name.body.json" && node "$SIGN" policy --keys "$keys" --body "$KEYS/$name.body.json" --out "$OUT/policies/$name.json"; }
 mkpol policy-1 "$KEYS" 1 && mkpol policy-2 "$KEYS" 2 && mkpol attacker "$KEYS/attacker" 3 \
   && mkpol narrow-roots "$KEYS" 3 "{'googleRootPins': ['$ROOT22']}" && mkpol min-version "$KEYS" 4 "{'minClientVersion': '0.2.0'}" \
-  && mkpol other-app "$KEYS" 5 "{'appIds': ['$HELLO']}" || { log "signing failed"; exit 2; }
+  && mkpol other-app "$KEYS" 5 "{'appIds': ['$HELLO']}" && mkpol policy-6 "$KEYS" 6 || { log "signing failed"; exit 2; }
 log "lab anchors: policy key $PFP, release key $RFP (keys in $KEYS, not in the repository); client $(node "$CLI" version)"
 # ---- the phone, the hub, the carriers ----
 want=$(sha256sum "$APK" | cut -c1-64); have=$(sh_ "sha256sum \$(pm path $P | sed s/package://)" | cut -c1-64)
@@ -60,14 +60,15 @@ evil() { [ -n "$EVIL" ] && { kill $EVIL 2>/dev/null; wait $EVIL 2>/dev/null; }
   ( cd "$H" && exec node cpu/evil-web-relay.mjs --mode "$1" --listen $EVILPORT --up http://127.0.0.1:$WEBPORT --origin null --code-hash "$CODE" --app "$APPID" >> "$OUT/evil.jsonl" 2>> "$OUT/evil.err" ) & EVIL=$!; sleep 2; }
 carry() { cp "$OUT/policies/$1.json" "$OUT/carrier/current.json"; }   # what the (untrusted) policy carrier serves now
 STATE="$OUT/cli-state.json"
-C() { local label="$1"; shift; node "$CLI" run --state "$STATE" --label "$label" "$@" > "$OUT/cli-$label.jsonl"; local rc=$?
-  tail -1 "$OUT/cli-$label.jsonl" | python3 -c 'import json,sys; r=json.loads(sys.stdin.read())["result"]; print(json.dumps({k:r.get(k) for k in ["label","complete","status","tokens","firstTokenMs","ms","step","refused","policySerial"]})[:280])' | tee -a "$OUT/run.log"; return $rc; }
+C() { local label="$1"; shift; node "$CLI" run --state "$STATE" --label "$label" "$@" > "$OUT/$label.jsonl"; local rc=$?
+  tail -1 "$OUT/$label.jsonl" | python3 -c 'import json,sys; r=json.loads(sys.stdin.read())["result"]; print(json.dumps({k:r.get(k) for k in ["label","complete","status","tokens","firstTokenMs","ms","step","refused","policySerial"]})[:280])' | tee -a "$OUT/run.log"; return $rc; }
 EXT="$OUT/ext-unpacked"; mkdir -p "$EXT" && unzip -q "$H/client/dist/pvm-client-ext.zip" -d "$EXT"
 EXTID=$(python3 -c "import hashlib,sys; h=hashlib.sha256(sys.argv[1].encode()).hexdigest()[:32]; print(''.join(chr(97+int(c,16)) for c in h))" "$EXT")
 PROF="$(mktemp -d)"
 X() {   # X <url> <label>: one page load of the installed extension; waits for its outcome at the sink ("install": the install report)
   local url="$1" label="$2" b pat; [ "$label" = install ] && pat='"installed":true' || pat="\"label\":\"$label\""
-  setsid "$CFT" --headless=new --no-first-run --no-default-browser-check --user-data-dir="$PROF" --disable-extensions-except="$EXT" --load-extension="$EXT" "$url" >/dev/null 2>&1 & b=$!
+  rm -rf "$PROF/Default/Sessions" "$PROF/Default/Current Session" "$PROF/Default/Current Tabs" "$PROF/Default/Last Session" "$PROF/Default/Last Tabs"   # no restored tab may re-run a page
+  setsid "$CFT" --headless=new --disable-session-crashed-bubble --no-first-run --no-default-browser-check --user-data-dir="$PROF" --disable-extensions-except="$EXT" --load-extension="$EXT" "$url" >/dev/null 2>&1 & b=$!
   for i in $(seq 1 60); do grep -q "$pat" "$OUT/ext-results.jsonl" 2>/dev/null && break; sleep 0.5; done
   sleep 1; kill -- -$b 2>/dev/null; wait $b 2>/dev/null; sleep 0.5   # the browser's whole process group, by the PID it started
   { grep "$pat" "$OUT/ext-results.jsonl" 2>/dev/null | tail -1 || true; } | python3 -c 'import json,sys; t=sys.stdin.read().strip(); r=json.loads(t) if t else {"label":sys.argv[1],"refused":"no outcome reached the sink"}; print(json.dumps({k:r.get(k) for k in ["label","installed","complete","status","tokens","firstTokenMs","ms","step","refused","policySerial"]})[:280])' "$label" | tee -a "$OUT/run.log"; }
@@ -97,7 +98,8 @@ carry policy-1; C cli-rollback --policy $POLURL --relay $RELAY --app "$APPID" --
 carry narrow-roots; C cli-narrow-roots --policy $POLURL --relay $RELAY --app "$APPID" --path "$REQ"; pause
 carry min-version; C cli-min-version --policy $POLURL --relay $RELAY --app "$APPID" --path "$REQ"; pause
 carry other-app; C cli-other-app --policy $POLURL --relay $RELAY --app "$APPID" --path "$REQ"; pause
-carry policy-2; evil swap-appkey; C cli-relay-swaps-key --policy $POLURL --relay http://127.0.0.1:$EVILPORT --app "$APPID" --path "$REQ"; pause
+# a genuine newer policy (serial 6: the ones before were accepted as policies, so an older one is a rollback), through a relay swapping the app key
+carry policy-6; evil swap-appkey; C cli-relay-swaps-key --policy $POLURL --relay http://127.0.0.1:$EVILPORT --app "$APPID" --path "$REQ"; pause
 log "-- the extension ($EXTID, Chrome for Testing), through a relay that can turn malicious"
 X "chrome-extension://$EXTID/options.html?install=1&policyKeyFp=$PFP&serialFloor=1&releaseKeyFp=$RFP&policyUrl=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' $POLURL)&relayUrl=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' http://127.0.0.1:$EVILPORT)&appId=$APPID&resultUrl=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' http://127.0.0.1:$SINKPORT/result)" install
 QP=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$REQ")
