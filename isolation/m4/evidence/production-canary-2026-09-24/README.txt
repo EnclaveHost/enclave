@@ -109,6 +109,14 @@ FINDINGS
   F9  OPEN: a failed guest start scrubs its workdir, serial log included, so the reason is lost (hookbin had to be
       reproduced by hand to find it).
   F10 OPEN: socket-server catalog apps (wasi:cli, http:N) cannot run on the tier; only wasi:http proxy components.
+  F11 OPEN (raised with the enclave-99 verifier lane): the attestation evidence names the app (AppID), the image
+      (measurement), the runtime and the TLS key, but NOT the deployment. Two live instances of one version, such
+      as A (4e62e60d) and E (395bed3e, created 19:52Z for the verifier's test; guest gd6ee1b5cd, key 26db975c...),
+      are indistinguishable by their evidence. So a relay that misroutes one to the other is detectable only by a
+      client that pinned a key earlier (trust on first use), not by verification. The host-side SNI check and
+      guestd's per-instance admission are routing hygiene, not client evidence. Closing this needs an
+      instance/deployment binding a client can check (the pVM tier is building one: INSTANCE-BINDING.md); it
+      must not come from an unauthenticated host input.
   F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
