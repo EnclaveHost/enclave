@@ -243,8 +243,13 @@ const E_NO_RUNTIME_ID: u64 = 11;
 /// different runtime than the one this image was built for.
 static RUNTIME_ID_TABLE: [[u8; APPID_LEN]; VMPL_MAX] = build_table(option_env!("ENCLAVE_RUNTIME_IDS"));
 
-/// The maximum transport-key SPKI this SVSM will record. A P-256 SubjectPublicKeyInfo is 91 bytes; the bound
-/// exists so a plane cannot make the SVSM hold an arbitrary amount of its memory.
+/// The maximum transport-key SPKI this SVSM will record.
+///
+/// A P-256 SubjectPublicKeyInfo is 91 bytes, and P-256 is what the contract requires
+/// (isolation/contract/RUNTIME.md requirement 6: the domain's key is minted with elliptic.P256()). The bound
+/// exists so a plane cannot make the SVSM hold an arbitrary amount of its memory - and note what it implies:
+/// an RSA key would not fit and would be REFUSED at registration rather than silently truncated, which is the
+/// right failure. A backend that wants another algorithm changes the contract first.
 const MAX_SPKI: usize = 256;
 
 /// The transport key registered for each plane, recorded ONCE and never replaced.

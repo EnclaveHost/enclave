@@ -31,16 +31,21 @@ Scope of the pVM CPU tier: Pixel 10 and Pixel 11, CPU only. There is no TPU tier
    which covers the bundle hash, the runtime version, the target ISA and the CPU-feature policy, and is
    authenticated under a key the domain holds (`Cache: "authenticated"`); otherwise it compiles every
    time (`Cache: "none"`). Any other mode is refused.
-6. **Attestation binds the runtime.** ABI/2 (`Bind2`) folds the runtime identity, the runtime and JIT
+6. **The transport key is ECDSA P-256, and that is a contract bound, not an accident.** A domain's key is
+   minted by `isolation/m2/domtls` with `elliptic.P256()`, so its SubjectPublicKeyInfo is 91 bytes. Where the
+   binding is computed by measured firmware the key must be RECORDED there - `SVSM_APPID_REGISTER_KEY` bounds it
+   at 256 bytes - so an RSA key would not fit and would fail closed at registration rather than degrade. Any
+   backend that wants another algorithm changes this line first, and with it the bound in the SVSM and the ABI.
+7. **Attestation binds the runtime.** ABI/2 (`Bind2`) folds the runtime identity, the runtime and JIT
    version, the execution mode, the target and host ISAs and the CPU-feature policy, into
    `report_data[0:32]` together with the domain key and the verifier nonce; `report_data[32:64]` stays the app ID, which already covers the manifest
    and its policy. A verifier recomputes the binding from the identity the domain states in its
    attestation document, so a document naming another runtime, version, ISA or feature policy does not
    verify.
-7. **Lifecycle, limits, failure.** Deterministic cleanup exactly once (`lifecycle.go`), resource limits
+8. **Lifecycle, limits, failure.** Deterministic cleanup exactly once (`lifecycle.go`), resource limits
    from the manifest policy, and fail-closed verification everywhere: an unverifiable bundle, identity or
    cache entry is refused, never worked around.
-8. **Conformance.** `vectors.json` carries the runtime vectors (valid identities and refused ones, their
+9. **Conformance.** `vectors.json` carries the runtime vectors (valid identities and refused ones, their
    IDs, ABI/2 bindings and cache keys); every backend passes them (`go test ./...` here,
    `vbslike-host vectors` on Windows).
 
