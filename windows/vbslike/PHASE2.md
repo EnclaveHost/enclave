@@ -57,6 +57,29 @@ in-guest monitor on Linux, the launcher's contract mirror before a partition exi
 Timings carry their contention and are never compared. Evidence: `evidence/linux-record-2026-09-23.json`,
 `evidence/windows-record-2026-09-23.json`, `evidence/conformance-2026-09-23.json`.
 
+## Preparing an IGVM whose VTL0 is our own guest (2026-09-23)
+
+`igvm/manifest-ownguest.json` and `igvm/build-ownguest.sh` build an OpenHCL IGVM carrying the m3 monitor
+image in VTL0 instead of the OpenVMM project's test kernel and initrd. Every VTL2 piece is reused from
+the earlier `cargo xflowey build-igvm`, so the build is an `igvmfilegen` run of seconds with no compiler
+and no build window. The manifest states, because it is otherwise easy to assume away, that this is the
+kernel-hashes shape and not a COCONUT-bearing configuration: the two have different digests and the m3
+monitor's report path differs between them.
+
+**It does not build yet, for one concrete reason.** OpenHCL's VTL0 direct path is given a minimum start
+address of 0, so a bzImage is placed at `0x0-0x10000` and collides with the VTL0 command-line page that
+the same loader puts at `0x1000`:
+
+```
+underhill-vtl0-linux-command-line at 0x1000-0x2000 (Exclusive) overlaps linux-kernel at 0x0-0x10000
+```
+
+An ELF `vmlinux` self-places at its link address and does not collide, which is why the project's own
+recipe uses one. Microsoft's WSL kernel, which the partitions boot today, and the distribution kernel the
+Linux domains boot are both bzImages. So the own-guest image needs an ELF build of a kernel carrying what
+the guest needs, and that is the next piece of work on this path. The build script checks the format
+up front and says so rather than failing inside the loader.
+
 ## Runtime direction (2026-09-23)
 
 The artifact stays the portable component and is compiled inside each partition by the guest image's

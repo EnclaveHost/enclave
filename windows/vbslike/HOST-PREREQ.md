@@ -22,8 +22,11 @@ This is the review artifact for it. Nothing here has been run; the value is abse
 
 The setting cannot be scoped to one VM, so the bounding is in how long it is set. `ops/isolated-probe.ps1`
 applies the value, runs one probe, and restores the prior state. `ops/isolated-probe.lib.ps1` holds the
-decisions it makes as pure functions, and `ops/isolated-probe.tests.ps1` exercises each failure path
-against mocked inputs: **29 cases, all passing** on the box.
+decisions AND the cleanup orchestration as functions over injected values, and
+`ops/isolated-probe.tests.ps1` exercises each failure path against mocked inputs: **47 cases, all
+passing** on the box, including the orchestration ones (a reap that throws, reports failure or returns
+nonsense; a restoration that throws or leaves the wrong state; all three steps failing at once; a
+read-only run proving it neither reaps nor writes).
 
 What the preflight establishes, and why each is strict rather than convenient:
 
@@ -36,6 +39,12 @@ What the preflight establishes, and why each is strict rather than convenient:
 | no compute system owned by `vbslike` exists | the probe starts from nothing of ours |
 | the image's SHA-256 equals the expected value | the bytes whose provenance PHASE2.md records, and no others |
 | the VM worker account is **allowed to read it, with no Deny covering read** | any ACE is not permission; without effective read a start fails `0x80070005`, which would look like a finding about the setting and would not be one |
+
+Cleanup is ordered so that no step can prevent the next. A review found that with
+`$ErrorActionPreference = 'Stop'` a `Write-Error` in the reap step terminated the whole `finally` block
+and the registry was never restored, which is the one outcome this script exists to prevent; restoration
+now runs in its own nested `finally`, every failure is collected rather than thrown, and all of them are
+reported only after restoration and the live-node check have each been attempted.
 
 Restoration is equally strict. A write in the cleanup block is licensed **only by this run having made
 one**: without `-Approve` the script writes nothing at all, and instead verifies the state still matches
