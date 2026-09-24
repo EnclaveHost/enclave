@@ -279,16 +279,32 @@ public class Main extends Activity {
         TextView t = sScreen;
         if (t != null) t.post(() -> t.append(s + "\n"));
     }
+    /* Evidence lines (the attestation chain, the signature) go to the capture WHOLE: the chain is what a verifier checks
+     * (relay/avf-verify.mjs --log), and a capture that kept only the screen's 160-character form held no verifiable chain
+     * (every capture before this did). The screen and logcat keep the short form. */
+    static void sayEvidence(String s) {
+        CaptureSink c = sCapture; if (c != null) c.line(s, sCaptureWarn);
+        final String shortForm = s.length() > 160 ? s.substring(0, 160) + "…(" + s.length() + ")" : s;
+        Log.i(TAG, shortForm);
+        TextView t = sScreen;
+        if (t != null) t.post(() -> t.append(shortForm + "\n"));
+    }
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
-        TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 48, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
-        ScrollView sv = new ScrollView(this); sv.addView(t); setContentView(sv); sScreen = t;
+        TextView t = new TextView(this); t.setTextSize(11); t.setPadding(24, 24, 24, 24); t.setTypeface(android.graphics.Typeface.MONOSPACE);
+        final String tier = Tier.of(this);   /* assets/tier, measured with the APK (PVM-CPU.md) */
+        android.widget.LinearLayout col = new android.widget.LinearLayout(this); col.setOrientation(android.widget.LinearLayout.VERTICAL); col.setPadding(24, 48, 24, 0);
+        col.addView(Tier.badge(this, tier));
+        ScrollView sv = new ScrollView(this); sv.addView(t); col.addView(sv); setContentView(col); sScreen = t;
         final Plan plan = Plan.from(getIntent());
+        final String tierWhy = Tier.refusal(tier, plan.mode, getIntent());
+        if (tierWhy != null && plan.configError.isEmpty()) plan.configError = "tier " + tier + ": " + tierWhy;
         /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
         if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
         if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
+        say("TIER " + tier + " (assets/tier)");
         new Thread(() -> runVm(this, plan), "anchor-host").start();
     }
     @Override protected void onDestroy() { sScreen = null; super.onDestroy(); }
@@ -494,7 +510,7 @@ public class Main extends Activity {
             TreeMap<Integer, TreeMap<Integer, String>> certs = new TreeMap<>(); TreeMap<Integer, String> sig = new TreeMap<>();
             String line;
             while ((line = r.readLine()) != null) {
-                say("VSOCK " + (line.length() > 160 ? line.substring(0, 160) + "…(" + line.length() + ")" : line));
+                sayEvidence("VSOCK " + line);
                 if (line.equals("ATTEST end")) break;
                 java.util.regex.Matcher m;
                 if ((m = java.util.regex.Pattern.compile("^CERT(\\d+)\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches())
