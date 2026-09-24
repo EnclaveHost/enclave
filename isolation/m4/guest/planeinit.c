@@ -7,7 +7,8 @@
  *   2. load appidmod and ADMIT this plane's two artifacts: the app bundle and the runtime SET - every file in
  *      /rt, the interpreter and shared libraries included (rtset.h). The SVSM compares each against the digest
  *      compiled into its own measured image and REFUSES a mismatch.
- *   3. only then start the runtime, and check from its /proc maps that every executable file it mapped is an
+ *   3. only then cut the component from the ADMITTED bundle bytes (appbundle.h) and hand it to the runtime as a
+ *      sealed memfd - never a separate /app.wasm - and start the runtime, and check from its /proc maps that every executable file it mapped is an
  *      admitted member and every admitted ELF was mapped. Then the front, with -appid pointing at the plane's
  *      sysfs directory. The front registers its freshly minted TLS key with the SVSM and afterwards sends only a
  *      nonce; the SVSM computes report_data itself from that key, the nonce and its own compiled-in tables.
@@ -42,6 +43,7 @@
 
 #define EV_PREFIX "PLANE"
 #include "plane.h"
+#include "appbundle.h"
 
 /* Where the boundary self-test is left for the front to relay. A tuple the VERIFIER can judge, not prose. */
 #define BOUNDARY_PATH "/tmp/boundary"
@@ -101,17 +103,27 @@ static int admit_staged(const char *kind, const char *key) {
     return 0;
 }
 
-/* Admit one file: pick its slot, stage its bytes, ask the SVSM. */
-static int admit(const char *kind, const char *path, const char *key) {
-    char msg[256];
-    if (puts_("slot", kind) != 0) { say(key, "slot select failed"); return -1; }
-    int e = stage(path, 0);
+/* The bundle, as read ONCE: the buffer the SVSM admits is the buffer the component is cut from (appbundle.h). */
+static struct appbundle app_bundle;
+
+/* Admit the bundle from memory. The file is read once, those bytes are staged, and nothing reads the file again:
+ * a second read, for execution, is exactly the gap this closes - the admitted bytes and the executed bytes would
+ * be two reads of whatever the path held at each moment. */
+static int admit_bundle(const char *path, const char *key) {
+    char err[512], msg[700];
+    if (puts_("slot", KIND_BUNDLE) != 0) { say(key, "slot select failed"); return -1; }
+    if (appbundle_read(&app_bundle, path, err, sizeof err) != 0) {
+        snprintf(msg, sizeof msg, "reading the bundle failed: %s", err);
+        say(key, msg);
+        return -1;
+    }
+    int e = stage_bytes(app_bundle.buf, app_bundle.len);
     if (e != 0) {
         snprintf(msg, sizeof msg, "staging %s failed: %s", path, strerror(-e));
         say(key, msg);
         return -1;
     }
-    return admit_staged(kind, key);
+    return admit_staged(KIND_BUNDLE, key);
 }
 
 /* Admit the runtime SET of `dir` - every file the runtime is executed from, not only its ELF. */
@@ -287,7 +299,7 @@ int main(void) {
      * VMPCK, so sev-guest could not serve a report even if it were present, and the SVSM is the only path. */
     insmod("/appidmod.ko");
     show("status_before", "status");
-    if (admit(KIND_BUNDLE, "/app.bundle", "bundle") != 0) power_off("the SVSM refused this plane's app bundle");
+    if (admit_bundle("/app.bundle", "bundle") != 0) power_off("the SVSM refused this plane's app bundle");
     if (admit_runtime_set("/rt", "runtime") != 0) power_off("the SVSM refused this plane's runtime set");
     show("status_after", "status");
     show("whoami", "whoami");
@@ -300,12 +312,35 @@ int main(void) {
     if (write_boundary(vmpl) != 0) power_off("could not write the boundary self-test");
 
     char *app[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
-                   "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
+                   "-C", "cache=n", "--addr", "127.0.0.1:8080", "/proc/self/fd/3", NULL};
     char *front[] = {"/front", "-port", "443", "-upstream", "127.0.0.1:8080",
                      "-appid", "/sys/kernel/appid", "-boundary", BOUNDARY_PATH, NULL};
     char *app_env[] = {"HOME=/tmp", "PATH=/rt", NULL};
     int se = 0;
-    pid_t app_pid = rtset_spawn(app, app_env, &se);
+    /* The component the runtime compiles is cut from the ADMITTED bundle buffer, checked against the hash its
+     * manifest names, and handed over as a sealed memfd at fd 3. There is no /app.wasm on this path: the image
+     * does not carry one, and if one is present it is reported and never given to the runtime. */
+    int appfd;
+    {
+        char err[512], msg[700];
+        if (appbundle_frame(&app_bundle, err, sizeof err) != 0) {
+            say("app", err);
+            power_off("the admitted bundle does not frame as a bundle, so there is no component to run");
+        }
+        appfd = appbundle_memfd(&app_bundle, err, sizeof err);
+        if (appfd < 0) {
+            say("app", err);
+            power_off("the component could not be handed to the runtime sealed");
+        }
+        snprintf(msg, sizeof msg, "cut from the ADMITTED bundle bytes: bundle_bytes=%zu manifest_bytes=%zu "
+                 "component_bytes=%zu component_sha256=%s manifest_names_it=yes sealed=write,grow,shrink,seal "
+                 "runtime_path=/proc/self/fd/3", app_bundle.len, app_bundle.man_len, app_bundle.art_len,
+                 app_bundle.art_hex);
+        say("app", msg);
+        if (access("/app.wasm", F_OK) == 0)
+            say("stray_app_wasm", "present in the image and NOT given to the runtime");
+    }
+    pid_t app_pid = rtset_spawn(app, app_env, appfd, &se);
     if (app_pid < 0) {
         say("runtime_maps", strerror(se));
         power_off("the runtime did not start");

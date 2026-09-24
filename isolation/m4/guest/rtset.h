@@ -106,7 +106,7 @@ static int rtset_cmp(const void *a, const void *b) {
 }
 
 /* List the members of `dir`, refusing the whole set on anything the format does not admit. */
-static int rtset_scan(struct rtset *s, const char *dir, char *err, size_t el) {
+static int __attribute__((unused)) rtset_scan(struct rtset *s, const char *dir, char *err, size_t el) {
     memset(s, 0, sizeof *s);
     if (strlen(dir) >= sizeof s->dir) { snprintf(err, el, "the directory path is too long"); return -1; }
     strcpy(s->dir, dir);
@@ -200,7 +200,7 @@ static int rtset_put_u64(struct rtset_out *o, uint64_t v) {
 /* Emit the encoding of a scanned set to `sink`. Each member is re-opened and must still be the file object the
  * scan saw, with the size the scan saw, and must end exactly there: a file that changes under the encoder refuses
  * the set rather than producing a digest of something that no longer exists. */
-static int rtset_encode(struct rtset *s, rtset_sink sink, void *ctx, char *err, size_t el) {
+static int __attribute__((unused)) rtset_encode(struct rtset *s, rtset_sink sink, void *ctx, char *err, size_t el) {
     static struct rtset_out o;
     static unsigned char rbuf[65536];
     memset(&o, 0, sizeof o);
@@ -280,13 +280,25 @@ sink_failed_closed:
  * check that started early would report /init as an unadmitted executable mapping, or, worse, a check written to
  * tolerate that would tolerate anything. A CLOEXEC pipe closes exactly when execve succeeds, and carries errno if
  * it does not. */
-static pid_t __attribute__((unused)) rtset_spawn(char *const argv[], char *const envp[], int *err_out) {
+/* fd3, when >= 0, is placed at fd 3 in the CHILD only, without CLOEXEC: that is how the component cut from the
+ * admitted bundle reaches the runtime (as /proc/self/fd/3) while no other child inherits it. */
+static pid_t __attribute__((unused)) rtset_spawn(char *const argv[], char *const envp[], int fd3, int *err_out) {
     int p[2];
     if (pipe2(p, O_CLOEXEC) != 0) { *err_out = errno; return -1; }
     pid_t pid = fork();
     if (pid < 0) { *err_out = errno; close(p[0]); close(p[1]); return -1; }
     if (pid == 0) {
         close(p[0]);
+        if (fd3 >= 0) {
+            /* the exec-status pipe must not be the descriptor that fd 3 replaces */
+            if (p[1] == 3) { int n = fcntl(p[1], F_DUPFD_CLOEXEC, 4); close(p[1]); p[1] = n; }
+            if (fd3 == 3 ? fcntl(3, F_SETFD, 0) != 0 : dup2(fd3, 3) != 3) {
+                int e = errno;
+                ssize_t w = write(p[1], &e, sizeof e);
+                (void)w;
+                _exit(127);
+            }
+        }
         execve(argv[0], argv, envp);
         int e = errno;
         ssize_t w = write(p[1], &e, sizeof e);
@@ -380,7 +392,7 @@ static int __attribute__((unused)) rtset_wait_coverage(struct rtset *s, pid_t pi
     }
 }
 
-static int rtset_elf_members(const struct rtset *s) {
+static int __attribute__((unused)) rtset_elf_members(const struct rtset *s) {
     int k = 0;
     for (int i = 0; i < s->n; i++) k += s->m[i].elf;
     return k;

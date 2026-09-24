@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
         snprintf(pathenv, sizeof pathenv, "PATH=%s", s.dir);
         char *envp[] = {"HOME=/tmp", pathenv, NULL};
         int e = 0;
-        pid_t pid = rtset_spawn(argv + i + 1, envp, &e);
+        pid_t pid = rtset_spawn(argv + i + 1, envp, -1, &e);
         if (pid < 0) { printf("COVER harness: %s did not start: %s\n", argv[i + 1], strerror(e)); return 2; }
         char outside[2048];
         int polls = 0;
