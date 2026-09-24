@@ -103,6 +103,22 @@ each needs its own review.
   - (h) sizes-only logging.
   On the Pixel's REAL evidence it also shows the limit. A hostile relay routing two deployments of the same app to one
   genuine instance is NOT detected, and the test asserts it. A deployment the table maps to another app is refused.
+- **The module review** (the verifier session, fcdc4e3f): the module does what the design says. Its wiring points:
+  - **Fixed in the module.** A hung ledger lookup answers a plain 504 after a bound, and pending lookups per client are
+    capped. A refused splice no longer logs a sizes line.
+  - **Tested now:**
+    - an answer cut past its bound after the 200 is never taken for evidence;
+    - two buyers on one instance each get their own envelope (the nonce echo is compared first, so a crossed one would
+      fail as "another nonce");
+    - a buyer leaving mid-answer closes the VM's stream, and its sizes are logged;
+    - `X-Forwarded-For` never mints a client;
+    - an identity the wiring passes does key the buckets.
+  - **Decided at wiring, not here:**
+    - the per-client identity must be the one the relay's per-IP WAF already authenticates. Behind a front, the socket
+      address is the front's, so every buyer would share one bucket, and a forwarded header is spoofable;
+    - the per-deployment bucket is a courtesy to the VM. The VM serves one connection at a time, and that is its real
+      protection. Whether to key buckets per (client, deployment) with a higher deployment ceiling, so one buyer cannot
+      starve a deployment's others, is the wiring's choice.
 - **Not done.** Wiring into `api-relay.js` behind a switch, `attest.pvmApp` from environment, the real `tunnel.js` hub
   in these tests, and the review's (a)-(f) through the relay route. The first two change production code and wait for
   the owner.

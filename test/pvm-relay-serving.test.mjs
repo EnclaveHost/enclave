@@ -140,3 +140,61 @@ test("the stated limit, on the Pixel's REAL evidence: a relay routing two deploy
     assert.equal(c.result.step, "verify", "a deployment the table maps to ANOTHER app: the same VM is refused"); assert.equal(sealed, 2);
   } finally { crypto.getRandomValues = orig; srv.close(); }
 });
+
+test("the wiring review's cases: a hung ledger answers 504 and caps pending lookups; an answer past the bound is never complete; two buyers each get only their own stream; a buyer leaving closes the VM's stream; X-Forwarded-For never mints a client", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+  const cadir = tmpdir("pvm-rs2-ca-"), ca = makeCa(cadir);
+  const vm = await startFakeVm({ dir: cadir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
+  // a "VM" that answers one byte every 20 ms, forever -- to leave in the middle of
+  let slowClosed = false;
+  const slow = net.createServer((c) => { const t = setInterval(() => c.write("x"), 20); c.on("close", () => { clearInterval(t); slowClosed = true; }); c.on("error", () => {}); });
+  await new Promise((r) => slow.listen(0, "127.0.0.1", r));
+  const hub = fakeHub({ "pvm-a": { vm, appVerified: true }, "pvm-slow": { vm: { evidencePort: slow.address().port, sealedPort: slow.address().port }, appVerified: true } });
+  const serve = async (opts) => { const logs = []; const h = createPvmServing({ hub, emit: (o) => logs.push(o), ...opts });
+    const srv = http.createServer((q, s) => { if (!h(q, s)) { s.writeHead(404); s.end(); } }); await new Promise((r) => srv.listen(0, "127.0.0.1", r)); return { srv, port: srv.address().port, logs }; };
+  const dir = tmp("pvm-rs2-"), st = path.join(dir, "state"), P = key(), R = key(), pf = path.join(dir, "p.json");
+  fs.writeFileSync(pf, JSON.stringify(policy(P)));
+  assert.equal((await cli(["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp])).code, 0);
+  const run = (port, dep) => cli(["run", "--state", st, "--policy", pf, "--relay", `http://127.0.0.1:${port}/x/${dep}/pvm`, "--deployment", dep]);
+  const servers = [];
+  try {
+    // a ledger that never answers: 504 after the bound, and a second lookup from the same client meanwhile is refused
+    const hung = await serve({ resolve: () => new Promise(() => {}), resolveTimeoutMs: 300, maxPendingPerClient: 1 }); servers.push(hung.srv);
+    const t0 = Date.now(), first = raw(hung.port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE x\n");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await raw(hung.port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE y\n")).status, 429, "one pending lookup per client here");
+    const f = await first; assert.equal(f.status, 504); assert.equal(f.body, ""); assert.ok(Date.now() - t0 < 3000);
+    // an answer past the bound: cut after the 200 went out -- the client never takes it for evidence
+    const small = await serve({ resolve: async () => "tunnel://pvm-a", bounds: { evidence: [256, 100] } }); servers.push(small.srv);
+    const cut = (await run(small.port, D1)).result;
+    assert.equal(cut.step, "evidence", JSON.stringify(cut)); assert.match(cut.refused, /^no evidence/); assert.notEqual(cut.complete, true);
+    // two buyers at once on one instance: each gets its own envelope (a crossed one would fail the nonce echo, not the root)
+    const two = await serve({ resolve: async () => "tunnel://pvm-a" }); servers.push(two.srv);
+    const [a, b] = await Promise.all([run(two.port, D1), run(two.port, D1)]);
+    // the verifier compares the envelope's nonce echo with the caller's FIRST (web/pvm-verify.js), before any certificate:
+    // a crossed envelope would be refused as "answers another nonce", so reaching the root refusal proves each buyer got
+    // the envelope for its own nonce
+    for (const r of [a.result, b.result]) {
+      assert.equal(r.step, "verify", JSON.stringify(r)); assert.match(r.refused, /not a pinned Google attestation root/); assert.doesNotMatch(r.refused, /another nonce/);
+    }
+    assert.equal(two.logs.filter((l) => l.bytesOut > 0).length, 2, "two streams, each logged by size");
+    // the buyer leaves in the middle of the answer: the stream to the VM closes, and its sizes are logged
+    const gone = await serve({ resolve: async () => "tunnel://pvm-slow" }); servers.push(gone.srv);
+    await new Promise((resolve) => {
+      const q = http.request({ host: "127.0.0.1", port: gone.port, method: "POST", path: `/x/${D1}/pvm/evidence` }, (r) => { let n = 0; r.on("data", (d) => { n += d.length; if (n >= 5) q.destroy(); }); r.on("error", () => {}); });
+      q.on("error", () => {}); q.on("close", resolve); q.end("EVIDENCE z\n");
+    });
+    for (let i = 0; i < 100 && !slowClosed; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(slowClosed, true, "the VM side of the stream was closed when the buyer left");
+    for (let i = 0; i < 100 && !gone.logs.some((l) => l.tunnel === "pvm-slow"); i++) await new Promise((r) => setTimeout(r, 10));
+    assert.ok(gone.logs.some((l) => l.tunnel === "pvm-slow" && l.bytesOut >= 5), JSON.stringify(gone.logs));
+    // the default client identity is the socket, never X-Forwarded-For: a new header value does not buy a new bucket
+    const xff = await serve({ resolve: async () => null, perClient: windowLimiter({ max: 1, ms: 60000 }) }); servers.push(xff.srv);
+    const withXff = (ip) => new Promise((resolve) => { const q = http.request({ host: "127.0.0.1", port: xff.port, method: "POST", path: `/x/${D1}/pvm/evidence`, headers: { "x-forwarded-for": ip } }, (r) => { r.resume(); r.on("end", () => resolve(r.statusCode)); }); q.end("EVIDENCE x\n"); });
+    assert.equal(await withXff("198.51.100.1"), 404, "first request: through the rate, no runner");
+    assert.equal(await withXff("198.51.100.2"), 429, "a new X-Forwarded-For is the same client: refused");
+    // and the identity the wiring passes (here a test header) does key the buckets
+    const byId = await serve({ resolve: async () => null, perClient: windowLimiter({ max: 1, ms: 60000 }), clientOf: (q) => q.headers["x-test-client"] || "?" }); servers.push(byId.srv);
+    const asClient = (id) => new Promise((resolve) => { const q = http.request({ host: "127.0.0.1", port: byId.port, method: "POST", path: `/x/${D1}/pvm/evidence`, headers: { "x-test-client": id } }, (r) => { r.resume(); r.on("end", () => resolve(r.statusCode)); }); q.end("EVIDENCE x\n"); });
+    assert.deepEqual([await asClient("a"), await asClient("b"), await asClient("a")], [404, 404, 429]);
+  } finally { for (const s of servers) s.close(); vm.close(); slow.close(); }
+});

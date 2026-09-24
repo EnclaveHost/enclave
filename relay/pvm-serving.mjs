@@ -34,23 +34,37 @@ export function windowLimiter({ max, ms, now = Date.now }) {
  * handle(req, res) -> true when the request was a pVM carrier request (answered), false otherwise (not ours).
  * resolve(id): Promise<string|null> the ledger runner's live endpoint; hub.spliceRaw(name, socket, kind) -> bool.
  */
+// clientOf: the relay's AUTHENTICATED client identity. The default is the socket's address, which behind a front (Caddy, a
+// relay) is the FRONT's -- every buyer would share one bucket -- and X-Forwarded-For is never read (spoofable). Wiring must
+// pass the identity the relay's per-IP WAF already trusts. The per-deployment bucket is a courtesy to the VM (which serves
+// one connection at a time); a per-(client, deployment) bucket is the wiring step's choice (RELAY-SERVING.md review).
 export function createPvmServing({ resolve, hub, emit = () => {}, perDeployment = windowLimiter({ max: 60, ms: 60000 }),
-                                   perClient = windowLimiter({ max: 30, ms: 60000 }), clientOf = (req) => req.socket.remoteAddress || "?" }) {
+                                   perClient = windowLimiter({ max: 30, ms: 60000 }), clientOf = (req) => req.socket.remoteAddress || "?",
+                                   resolveTimeoutMs = 5000, maxPendingPerClient = 4, bounds = {} }) {
+  const pending = new Map();   // client -> resolves in flight: a hung ledger cannot pile up requests and their bodies
   const plain = (res, status) => { if (!res.headersSent) { res.writeHead(status, { "content-type": "text/plain", "cache-control": "no-store" }); } res.end(); };
   return function handle(req, res) {
     const m = /^\/x\/([^/]+)\/pvm\/(evidence|sealed)$/.exec((req.url || "").split("?")[0]);
     if (!m) return false;
-    const [, id, what] = m, [kind, maxIn, maxOut, type] = KINDS[what];
+    const [, id, what] = m, [kind, maxIn, maxOut, type] = [...KINDS[what].slice(0, 1), ...(bounds[what] || KINDS[what].slice(1, 3)), KINDS[what][3]];
     if (req.method !== "POST") return plain(res, 405), true;
     if (!ID.test(id)) return plain(res, 404), true;                      // a full canonical id only: no prefix to be ambiguous
-    if (!perClient(clientOf(req)) || !perDeployment(id)) { emit({ pvm: what, id, refused: "rate" }); return plain(res, 429), true; }
+    const who = clientOf(req);
+    if (!perClient(who) || !perDeployment(id)) { emit({ pvm: what, id, refused: "rate" }); return plain(res, 429), true; }
+    if ((pending.get(who) || 0) >= maxPendingPerClient) { emit({ pvm: what, id, refused: "pending" }); return plain(res, 429), true; }
     const inb = []; let nIn = 0, over = false;
     // over the bound: answer 413 first, then close the connection once the answer is out (destroying the request first
     // would reset the socket and the client would see no status at all)
     req.on("data", (d) => { if (over) return; nIn += d.length; if (nIn > maxIn) { over = true; res.setHeader("connection", "close"); plain(res, 413); res.on("finish", () => req.destroy()); } else inb.push(d); });
     req.on("end", async () => {
       if (over || res.headersSent) return;
-      let ep = null; try { ep = await resolve(id); } catch { ep = null; }
+      // the ledger answer, bounded in time: a hung resolve answers a plain 504 instead of holding the request
+      pending.set(who, (pending.get(who) || 0) + 1);
+      let ep = null, timedOut = false, timer;
+      try { ep = await Promise.race([resolve(id), new Promise((r) => { timer = setTimeout(() => { timedOut = true; r(null); }, resolveTimeoutMs); })]); }
+      catch { ep = null; }
+      finally { clearTimeout(timer); const n = (pending.get(who) || 1) - 1; if (n) pending.set(who, n); else pending.delete(who); }
+      if (timedOut) { emit({ pvm: what, id, refused: "resolve timeout" }); return plain(res, 504); }
       const t = typeof ep === "string" && /^tunnel:\/\/([A-Za-z0-9._-]+)$/.exec(ep);
       if (!t) { emit({ pvm: what, id, refused: ep ? "the runner is not a tunnel" : "no live runner" }); return plain(res, 404); }
       // the socket spliceRaw drives: its readable side is the buyer's bytes, what it is written is the VM's answer
@@ -64,10 +78,12 @@ export function createPvmServing({ resolve, hub, emit = () => {}, perDeployment 
           if (!res.write(chunk)) res.once("drain", cb); else cb();
         },
       });
-      sock.on("close", () => { emit({ pvm: what, id, tunnel: t[1], bytesIn: nIn, bytesOut: nOut, ms: Date.now() - t0 }); if (!started) plain(res, 502); else res.end(); });
+      let spliced = false;
+      sock.on("close", () => { if (!spliced) return; emit({ pvm: what, id, tunnel: t[1], bytesIn: nIn, bytesOut: nOut, ms: Date.now() - t0 }); if (!started) plain(res, 502); else res.end(); });
       sock.on("error", () => {});
       res.on("close", () => { if (!res.writableFinished) sock.destroy(); });   // the buyer went away: close the stream to the VM
       if (!hub.spliceRaw(t[1], sock, kind)) { emit({ pvm: what, id, refused: "the tunnel does not take this stream" }); return plain(res, 404); }
+      spliced = true;
       sock.push(Buffer.concat(inb));   // the request bytes, once the stream is set up (spliceRaw reads after the open)
     });
     return true;
