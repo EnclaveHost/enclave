@@ -373,6 +373,7 @@ type chain struct {
 	certs    map[string][]string
 	nDeps    int // deployments the supervisor seam holds
 	ca       *fakeCertService
+	supEnv   func(deps []map[string]any) []string // the supervisor's environment, for a second one (a node restart)
 }
 
 // fakeCertService stands in for the platform certificate service (relay/certs.js POST /v1/certs/issue): it checks the
@@ -564,15 +565,23 @@ func newChain(t *testing.T) *chain {
 	// at C is through a MITM (guestd verified C earlier, cleanly)
 	ch.l.guestByLabel("C").mitm.Store(true)
 	ch.nDeps = len(deps)
-	cfg, _ := json.Marshal(map[string]any{"deployments": deps, "guestCerts": map[string]any{"everyMs": 1500}})
+	// the fixture CA is a WebPKI root to the supervisor (Node's own extra-roots variable, not a knob of ours), so its
+	// served-chain check can find a certificate the guest already holds
+	caFile := filepath.Join(dir, "fixture-root.pem")
+	_ = os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ch.ca.caCert.Raw}), 0o600)
+	supEnv := func(deps []map[string]any) []string {
+		cfg, _ := json.Marshal(map[string]any{"deployments": deps, "guestCerts": map[string]any{"everyMs": 1500}})
+		return append(os.Environ(), "SECRET=test-secret", "ISOLATION_DATAPATH_SELFTEST="+string(cfg),
+			"ISOLATION_BACKEND=snp-guest-per-app", "VMMGR_URL="+ts.URL, "GUESTD_KEY_FILE="+keyFile,
+			"GUESTD_DATA_ADDR="+ch.dataAddr, "APP_CERT_DOMAIN=app.test", "CERTS_API="+cats.URL, "NODE_EXTRA_CA_CERTS="+caFile,
+			"PUBLIC_URL=https://api.enclave.test/t/metal-iso0", "REGISTRY_PRIVATE_KEY=0x"+strings.Repeat("11", 32),
+			"GUESTD_TRANSPORT_SELFTEST=", "ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=",
+			"REACH_SELFTEST=", "ACME_SELFTEST=", "CFG_EDIT_SELFTEST=", "ADDRESS_BOOK_ADDRESS=", "REGISTRY_ENABLED=",
+			"CLAIM_ENABLED=", "ACME_EAB_KID=", "ACME_EAB_HMAC=", "DNS_API=")
+	}
+	ch.supEnv = supEnv
 	sup := exec.Command("node", "../../../supervisor.js")
-	sup.Env = append(os.Environ(), "SECRET=test-secret", "ISOLATION_DATAPATH_SELFTEST="+string(cfg),
-		"ISOLATION_BACKEND=snp-guest-per-app", "VMMGR_URL="+ts.URL, "GUESTD_KEY_FILE="+keyFile,
-		"GUESTD_DATA_ADDR="+ch.dataAddr, "APP_CERT_DOMAIN=app.test", "CERTS_API="+cats.URL,
-		"PUBLIC_URL=https://api.enclave.test/t/metal-iso0", "REGISTRY_PRIVATE_KEY=0x"+strings.Repeat("11", 32),
-		"GUESTD_TRANSPORT_SELFTEST=", "ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=",
-		"REACH_SELFTEST=", "ACME_SELFTEST=", "CFG_EDIT_SELFTEST=", "ADDRESS_BOOK_ADDRESS=", "REGISTRY_ENABLED=",
-		"CLAIM_ENABLED=", "ACME_EAB_KID=", "ACME_EAB_HMAC=", "DNS_API=")
+	sup.Env = supEnv(deps)
 	so, _ := sup.StdoutPipe()
 	// one warning per refused splice (the SPLICE lines on stdout carry every outcome); the certificate relay's own
 	// warnings are kept, since they say why a guest got no certificate
@@ -896,11 +905,46 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 	ch.ca.mu.Lock()
 	ch.ca.lifetime = time.Hour
 	ch.ca.mu.Unlock()
+	var longLived string
 	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(500 * time.Millisecond) {
 		if s, err := browser("A", depName(A)); err == nil && s != rotated {
+			longLived = s
 			break
 		}
 	}
+	// 2c. a node restart: a NEW supervisor, with no memory of what it installed, finds A already serving a valid
+	// certificate for A's key and asks the CA for nothing (production re-issued every guest's certificate per restart)
+	askedA := ch.ca.asked(depName(A))
+	sup2 := exec.Command("node", "../../../supervisor.js")
+	sup2.Env = ch.supEnv([]map[string]any{{"id": A, "vmId": ch.inst["A"], "appId": ch.apps["A"]}})
+	so2, _ := sup2.StdoutPipe()
+	sup2.Stderr = nil
+	if err := sup2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	reusedLine := make(chan string, 1)
+	go func() {
+		sc := bufio.NewScanner(so2)
+		for sc.Scan() {
+			if strings.Contains(sc.Text(), "already serves a valid certificate") {
+				select {
+				case reusedLine <- sc.Text():
+				default:
+				}
+			}
+		}
+	}()
+	var reused string
+	select {
+	case reused = <-reusedLine:
+	case <-time.After(20 * time.Second):
+	}
+	_ = sup2.Process.Kill()
+	_ = sup2.Wait()
+	after, _ := browser("A", depName(A))
+	record("a restarted supervisor reuses the certificate A already serves: nothing is asked of the CA",
+		fmt.Sprintf("CSRs for A %d -> %d; %.60s", askedA, ch.ca.asked(depName(A)), reused),
+		reused != "" && ch.ca.asked(depName(A)) == askedA && longLived != "" && after == longLived)
 
 	// 3. the wrong guest, app, key, runtime, measurement: the CLIENT refuses (exit 3 = gate closed, no app traffic)
 	wrongRT := filepath.Join(filepath.Dir(ch.l.rtFile), "other-runtime.json")
