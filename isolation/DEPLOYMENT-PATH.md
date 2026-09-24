@@ -23,7 +23,8 @@ make the tier proven secure; security testing and fixes follow it:
 - **Evidence, tests run and findings:** `m4/evidence/production-canary-2026-09-24/README.txt`.
 
 **Rollback** (nothing of metal0 was changed: `metal/config.json`, `metal/dist` and its units are untouched):
-1. `systemctl --user stop enclave-metal-iso.service enclave-guestd.service`. The guests end with guestd.
+1. `systemctl --user stop enclave-metal-iso.service enclave-guestd.service`, then `systemctl --user stop 'm2-gd*'`:
+   since F7 the guests OUTLIVE guestd (a restart adopts them), so they are ended explicitly.
 2. On nan, restore the newest `/etc/nan-relay/api-relay.env.bak-iso-*` taken before the first change (or delete
    the two `metal-iso0` lines), then `systemctl restart enclave-api-relay.service`.
 3. The on-chain registration goes stale on its own when heartbeats stop. The owner can `setActive(false)` the
