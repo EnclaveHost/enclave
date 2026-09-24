@@ -116,6 +116,17 @@ for n in ["l1.log", "hub.jsonl", "hub.err", "carrier.log", "update-carrier.log"]
     t = rd(n); t += "\n".join(bytes.fromhex(m.group(1)).decode("utf-8", "replace") for m in re.finditer(r"APPOUT \d+ ([0-9a-f]+)", t))
     hit = [m for m in ["GET /?graph", "steps=", '"token":', "tok_per_s"] if m in t]
     expect(not hit, f"{n}: no request or token in the clear{' (found ' + ', '.join(hit) + ')' if hit else ''}")
+# raw evidence, recorded by the relay's carrier as received (runs from 2026-09-24 12:40Z on declare it in capture.json):
+# one envelope per evidence exchange -- every run that got past the policy (10) -- each a v2 envelope answering a nonce
+# the client sent; the launch and policy refusals fetched none
+if js("capture.json"):
+    ev = sorted(f for f in os.listdir(os.path.join(d, "evidence")) if f.endswith(".json")) if os.path.isdir(os.path.join(d, "evidence")) else []
+    envs = [js(os.path.join("evidence", f)) or {} for f in ev]
+    reqs = [rd(os.path.join("evidence", f[:-5] + ".request")).strip() for f in ev]
+    expect(len(envs) == 10 and all(e.get("format") == "enclave-pvm-app-evidence/v2" and e.get("nonce") and e["nonce"] in q for e, q in zip(envs, reqs)),
+           f"the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce the client sent ({len(envs)}, want 10)")
+else:
+    print("info this run predates raw evidence capture: the attestation chains cannot be re-verified offline from it")
 print("-- device measurements (this run, this phone; not checks):")
 for label in ["base-stream", "staged-not-active", "active-stream", "planted-marker", "active-policy-2", "rotate-3", "successor-4", "repaired-stream", "repaired-2-stream"]:
     r = res(label); print(f"   {label}: {r.get('clientVersion')} tokens {r.get('tokens')} first token {r.get('firstTokenMs')} ms, all {r.get('ms')} ms")

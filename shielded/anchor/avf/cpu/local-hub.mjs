@@ -66,7 +66,7 @@ if (arg("--sealed-port")) {   // LAB, the browser channel: raw TCP -> one HPKE-s
 // LAB, the browser channel's carrier (cpu/web-carrier.mjs): POST /evidence and /sealed, bytes to the VM and back.
 if (arg("--web-port")) {
   createWebCarrier({ port: Number(arg("--web-port")), origin: arg("--web-origin"), evidencePort: Number(arg("--evidence-port")),
-                     sealedPort: Number(arg("--sealed-port")), emit });
+                     sealedPort: Number(arg("--sealed-port")), emit, recordEvidence: arg("--record-evidence") });   // LAB: public evidence, kept for offline re-verification
 }
 setTimeout(() => { emit({ end: "time" }); console.log = log; process.exit(0); }, Number(arg("--seconds", "900")) * 1000).unref();
 process.on("SIGTERM", () => { emit({ end: "SIGTERM" }); process.exit(0); });
