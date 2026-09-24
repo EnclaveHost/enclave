@@ -11,6 +11,11 @@
 // and the manager is a fake speaking guestd's contract (201 with the record, 409 {error, id} on a live name, `status` in
 // starting|running|failed|stopped, `name` = the deployment id). The cases are the ones the owner named as where they
 // will get it wrong; each states the rule and fails today with "seam missing".
+//
+// THE ONE RULE UNDER ALL OF THEM: leaseFree is false whenever the outcome is UNKNOWN, not only when the domain is known to
+// be live. A manager that answers ok to DELETE while the domain survives, a manager that times out, and a manager that
+// hangs are all "unknown", and treating unknown as free is how one deployment gets run twice. "held" is the action for
+// that state; it never releases and never respawns.
 //   run: node --test windows/node/isolation-lifecycle.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
