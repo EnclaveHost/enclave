@@ -4,6 +4,31 @@ Written 2026-09-24 on `isolation/portable-runtime-jit`, from a read of the produ
 relay/, contracts/, site/, cli/, wasm/) and from what this branch has built and run. **Nothing here is deployed.**
 No production relay, registry, ledger or host was touched. Not independently reviewed.
 
+## PRODUCTION STATUS (2026-09-24): a canary is live
+
+At Steven's production-first direction, the per-app tier serves a real app on enclave.host. This does not
+make the tier proven secure; security testing and fixes follow it:
+
+- **App:** `https://4e62e60d.app.enclave.host`, running `hello-world:1.0.4`.
+  - Owner: the agent wallet. Public; rate 0 through the owner-declared payout wallet.
+  - It runs in its own SEV-SNP guest.
+  - A client in trusted mode verifies it through the public relay: attested, with the measurement recomputed
+    from a pinned domain release and the AppID from an independent derivation.
+- **Node:** `metal-iso0` on warden-host. Its CVM runs only the control plane, from a reproducible image: pinned
+  ghcr supervisor plus this branch's overlay, verifying AmdSev firmware, and the tier flag on the measured cmdline.
+  It is registered on chain, and the production api-relay admits it by SNP attestation (`METAL_ALLOWED_MEASUREMENTS`
+  holds exactly its measurement).
+- **Host side:** `enclave-guestd.service` and `enclave-metal-iso.service` (user units) run from the pinned worktree
+  `~/enclave-prod/iso-03be27d6`, which holds the deployed commit despite its name.
+- **Evidence, tests run and findings:** `m4/evidence/production-canary-2026-09-24/README.txt`.
+
+**Rollback** (nothing of metal0 was changed: `metal/config.json`, `metal/dist` and its units are untouched):
+1. `systemctl --user stop enclave-metal-iso.service enclave-guestd.service`. The guests end with guestd.
+2. On nan, restore the newest `/etc/nan-relay/api-relay.env.bak-iso-*` taken before the first change (or delete
+   the two `metal-iso0` lines), then `systemctl restart enclave-api-relay.service`.
+3. The on-chain registration goes stale on its own when heartbeats stop. The owner can `setActive(false)` the
+   deployment.
+
 ## The vehicle: one SNP guest per app (M4a), not planes (M4b)
 
 The per-app isolation that is measured on this hardware today is **M4a**: each app in its own SEV-SNP guest, the
