@@ -293,13 +293,16 @@ a.ed-host:hover{color:var(--jade);}
 .enc-open:hover{background:var(--jade-deep);}
 .enc-open[disabled]{color:var(--amber);border-color:var(--amber-dim);cursor:default;}
 .enc-open[disabled]:hover{background:none;}
-/* NO ANSWER from a readiness check, which is not the same as a missing certificate and no longer
-   claims to be. The control stays a live link - the app may well serve every path but its root -
-   so it is dimmed rather than disabled, and it does not pulse: there is nothing in progress to
-   suggest, and the amber pulse read as "being issued" for apps whose certificate was already
-   valid and verified. */
-.enc-open.enc-open-unknown{color:var(--text-muted);border-color:var(--line-strong);}
-.enc-open.enc-open-unknown:hover{background:var(--surface-2);color:var(--text);}
+/* NO ANSWER from a readiness check. Amber and pulsing, with the open padlock: Steven asked for the
+   orange back, and it reads better than grey - a row that needs attention should look like one.
+   What changed in e9fca58e and does NOT change back is the MEANING. Amber here says "this browser
+   got no answer", not "a certificate is being issued": the tooltip says so, and the control stays a
+   real link because the app may serve every path but its root. Green is still the earned state - a
+   handshake this browser completed and an origin that answered. */
+.enc-open.enc-open-unknown{color:var(--amber);border-color:var(--amber-dim);}
+.enc-open.enc-open-unknown:hover{background:var(--amber-deep);color:var(--amber-2);}
+.enc-open.enc-open-unknown .enc-lock{animation:encpulse 1.2s ease-in-out infinite;}
+@media (prefers-reduced-motion:reduce){.enc-open.enc-open-unknown .enc-lock{animation:none;}}
 .enc-lock{vertical-align:-1px;margin-right:2px;}
 .enc-open[disabled] .enc-lock{animation:encpulse 1.2s ease-in-out infinite;}   /* "being issued" reads as activity, not a dead end */
 @media (prefers-reduced-motion:reduce){.enc-open[disabled] .enc-lock{animation:none;}}
