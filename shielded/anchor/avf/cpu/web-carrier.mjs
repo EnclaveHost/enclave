@@ -23,7 +23,8 @@ export function createWebCarrier({ port, origin, evidencePort, sealedPort, emit 
     if (req.method !== "POST" || !u || !u[0]) { res.writeHead(404, cors); return res.end(); }
     const [upPort, maxIn, maxOut] = u;
     const inb = []; let nIn = 0;
-    req.on("data", (d) => { nIn += d.length; if (nIn > maxIn) { res.writeHead(413, cors); res.end(); req.destroy(); } else inb.push(d); });
+    // over the bound: the 413 goes out first, and the connection closes after it (destroying first reset the socket)
+    req.on("data", (d) => { if (res.headersSent) return; nIn += d.length; if (nIn > maxIn) { res.writeHead(413, { ...cors, connection: "close" }); res.end(); res.on("finish", () => req.destroy()); } else inb.push(d); });
     req.on("end", () => {
       if (res.headersSent) return;
       // bytes to the VM, then its answer back AS IT ARRIVES (a streamed sealed answer shows token by token): the first byte
