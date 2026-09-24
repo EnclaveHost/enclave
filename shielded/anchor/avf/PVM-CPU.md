@@ -542,6 +542,13 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
   - Device: results/pvm-cpu-client-0.2.0 (PASS, 36 checks: the 30 above, plus each accepted extension page's commit
     before its outcome, and no refused policy committed). The verifier session ran its own 11 persistence cases
     against the same reproduced bytes, and all passed.
+- **0.2.1: update publication is immutable.** The verifier session found that 0.2.0 staged an update by renaming over
+  `pvm-client-<version>.mjs` before its monotonic decision. A validly signed second build of the same version was
+  refused, yet had already replaced the staged bytes.
+  - 0.2.1 publishes each artifact under a content-addressed name with `link()`, which never replaces a file, and
+    decides inside the store's compare-and-swap. A refused, crashed or uncommitted attempt cannot change what a
+    committed state names. The same artifact again is idempotent.
+  - Reproduced on the shipped 0.2.0 bytes and tested in client/DESIGN.md "State".
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

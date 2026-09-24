@@ -91,8 +91,11 @@ The manifest travels as `{ manifest: base64(exact bytes), releaseSig, policySig 
 - **Bytes.** The delivered bytes must hash to the manifest and have its size, and their own first line must carry the
   manifest's version, so a manifest cannot rename an artifact.
 - **Order.** The version must be strictly newer: a downgrade or a replay is refused. The manifest also expires.
-- **Staging.** The CLI writes the verified bytes **beside itself** as `pvm-client-<version>.mjs`, for the next start,
-  and records them in its state (see State). The running process never imports what it fetched.
+- **Staging.** The CLI publishes the verified bytes **beside itself**, for the next start, and records them in its state
+  (see State). The running process never imports what it fetched.
+- **A start with a staged update.** It must run the staged file only when `pvm-client staged` reports `bytesMatch:
+  true`. Otherwise it stays on the running version and says so: missing or changed bytes are never run. The lab has no
+  launcher; this is the rule a launcher must keep.
 - **Rotation.** The release key rotates only by a signed `nextReleaseKey`.
 - **Production.** Toward production, the manifest becomes a **Sigstore bundle** under the release workflow's GitHub
   identity, which the verifier session's provenance module already verifies against a repo/workflow/tag policy. This
@@ -129,9 +132,24 @@ the floor back (reproduced on its shipped bytes by the tests below).
   - Each write is read back before it counts, compared independently of key order (Chrome's storage does not keep it).
   - A 0.1.0 install's `state` key is imported by the first commit.
   - Pages post a `policy-committed` event to the lab result sink when they commit, so tests can observe the order.
-- **Updates.** The CLI writes verified bytes to `pvm-client-<version>.mjs` (unique temp file, fsync, rename).
-  - It then commits `staged = {version, sha256, file, sourceCommit}`, only if the version is newer than anything staged
-    or running. An older concurrent update cannot replace a newer staged one.
+- **Updates** (`src/update.js`; since 0.2.1). Two steps, in this order.
+  - Publish, immutably. The verified bytes go beside the client under a content-addressed name,
+    `pvm-client-<version>-<sha256>.mjs`. A uniquely named, read-only temp file is fsynced and `link()`ed to that name,
+    which never replaces an existing file; then the directory is fsynced. An existing name must hold exactly the bytes it
+    names; anything else there is refused and left untouched.
+  - Commit, monotonically, inside the store's compare-and-swap and re-verified on the newest state:
+    `staged = {version, sha256, file, sourceCommit}`, only if the version is newer than anything staged or running.
+  - The same artifact again succeeds without recording or writing anything, and it re-publishes a staged file that
+    went missing. Other bytes under the staged version are refused, and so is an older version.
+  - Different bytes always take a different name, so no attempt can change a file a committed state names: not a
+    refused one, a crashed one, or one whose commit failed. 0.2.0 renamed over `pvm-client-<version>.mjs` before
+    deciding, so a refused re-signed build replaced the staged bytes (found by the verifier session; reproduced on the
+    shipped 0.2.0 bytes by the tests below).
+  - Leftovers. The same decision is also taken before publishing, as an optimization, so a stale or refused update
+    publishes nothing. Only a stager that loses a race after publishing, crashes, or cannot commit leaves a file: an
+    immutable one that no state names. The client never deletes published files. The install directory may be shared
+    by several state directories, and without a lock no deletion is provably safe against a concurrent stager of the
+    same bytes.
   - `pvm-client staged` reports the staged update and whether its bytes still match.
 
 ## Tests
@@ -168,6 +186,13 @@ the floor back (reproduced on its shipped bytes by the tests below).
   - Failed persistence: a read-only state, a corrupt newest generation and a throwing store. Nothing reaches the
     carrier.
   - The 0.1.0 state import, and the extension store under a fake storage (lock, throwing and dropped writes).
+  - Update publication. The shipped 0.2.0 CLI reproduces the refused re-stage replacing the staged bytes; the current
+    build keeps them. Also covered:
+    - the same version with other bytes, concurrently in both orders; the same artifact twice, concurrently and in
+      sequence (idempotent, and repairing a missing file); different versions racing;
+    - a planted file under the content-addressed name;
+    - write and commit failures, and a kill between publish and commit.
+    Each asserts that the staged file's bytes, inode, mtime and mode are what was committed.
 - test/pvm-client-ext-durability.test.mjs: the same in Chrome for Testing, with tabs opened through DevTools and a
   policy server that holds each tab's policy.
   - The shipped 0.1.0 extension, killed while stalled at the carrier, accepts the older policy afterwards.
