@@ -783,7 +783,27 @@ did the same. This check reported "certificate windows unchanged", which was tru
 for the same key and name has the same window at day granularity. `verifier/live-domain-check.mjs` now records the
 served leaf's serial, issuer and sha256 beside the window. The owner's fix is 8ed6231f (before judging or issuing, the
 relay handshakes under the name and issues nothing while a WebPKI-valid leaf for exactly the route's key is before 2/3 of
-its life); baseline serials at 21:31Z, before the next node restart: A 9acd5518…, E 2c36b3a9…, hookbin 3636639a…. hookbin 0.1.4 (deployment 0x0ddbd824…,
+its life); baseline serials at 21:31Z, before the next node restart: A 9acd5518…, E 2c36b3a9…, hookbin 3636639a….
+**Measured (21:38Z), the owner's node-only restart at 21:32:32Z on the image with 8ed6231f (F12 fixed):** A, E and hookbin
+VERIFIED with the same serials, the same leaf fingerprints and the same keys as the 21:31Z baseline, so that restart
+issued nothing where the 21:18 one re-issued both. The owner's evidence for the round is at ffcd572a (`f10-hookbin/`),
+with two more findings recorded there: F13 open (the app sees `x-forwarded-for: 2`, the host's vsock CID; the fix is
+in the front, so it changes new guests' measurement and ships with a release) and F14 (a transient operatorSig
+rejection at attach, 2 of 7 boots, clearing in 3 s). The owner's next piece is an independently pinned expected
+measurement for issuance (a measurement kit measured into the node image, the supervisor content-checking the guest's
+initrd against the pinned release manifest); what this side will hold it to is that the number comes from bytes the
+supervisor checked and that an absent kit or manifest refuses rather than falling back to guestd's word.
+**The hookbin capture as a fixture (`test/fixtures/verifier/linux-hookbin-2026-09-24`, `test/verifier-linux-hookbin.test.mjs`):**
+the verifier session's own public-side capture (`verifier/live-domain-check.mjs --save`: the document as served, the nonce,
+the peer certificate of that handshake) after the 8ed6231f restart, the component by CID (CID-checked, 201,013 bytes)
+and the chain's v2 record, with the owner's evidence files copied verbatim. Offline, through the pinned contract: the
+served leaf carries the bound key (serial 3636639a…, the one the node logged as already valid); the AppID is DERIVED
+from the component bytes and the v2 record by the pinned reference and the report names it, while the same record
+read as v1 derives 9add8960… and is refused at the app-id check; HOST_DATA is the deployment; the measurement
+be6b8644… is accepted as the owner's word and the suite says so; another deployment's HOST_DATA, the canary's
+measurement, another nonce, ABI/1 and a zero HOST_DATA expectation are refused by name; the browser build agrees on the
+capture and on the forgery. It is the first v2 case in the strict command.
+ hookbin 0.1.4 (deployment 0x0ddbd824…,
 `0ddbd824.app.enclave.host`) VERIFIED from the public side: the AppID was DERIVED here under v2 (`--derive`: the component
 fetched by CID from the platform gateway, 201,013 bytes, its sha256 equal to the CID's multihash digest, then the pinned
 reference on the chain's record with `http: 8000`) as d2c4dfc0…, the report names it, HOST_DATA equals the deployment id,
