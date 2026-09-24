@@ -1,0 +1,3 @@
+model: Pixel 10 Pro XL (mustang) google/mustang/mustang:17/CP2A.260805.005/15828068:user/release-keys
+apk: /data/app/~~KbhYbTrOQWg53KT5_I_8PQ==/host.enclave.anchor.avf-FFT3s8mOJBv3_eBKLxyOpQ==/base.apk sha256=edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+uptime_s: 355544.18  started: 2026-09-23T17:37:18-07:00

@@ -299,7 +299,7 @@ public class Main extends Activity {
         ScrollView sv = new ScrollView(this); sv.addView(t); col.addView(sv); setContentView(col); sScreen = t;
         final Plan plan = Plan.from(getIntent());
         final String tierWhy = Tier.refusal(tier, plan.mode, getIntent());
-        if (tierWhy != null && plan.configError.isEmpty()) plan.configError = "tier " + tier + ": " + tierWhy;
+        if (tierWhy != null) plan.configError = "tier " + tier + ": " + tierWhy;   /* the tier's refusal is named first, whatever else is wrong */
         /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
         if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
@@ -627,7 +627,11 @@ public class Main extends Activity {
             }
             int n = 0;
             while ((line = r.readLine()) != null) {
-                say("VSOCK " + line); n++;
+                // the pVM CPU capability report (PVM-CPU.md): the capture keeps it WHOLE (it is verifiable offline with the chain),
+                // and a bound relay tunnel receives it as the caps frame the relay admits the tier from
+                final boolean caps = line.startsWith("CAPS ") && line.split(" ").length == 3 && !line.startsWith("CAPS summary");
+                if (caps) sayEvidence("VSOCK " + line); else say("VSOCK " + line); n++;
+                if (caps && relay != null) { final String[] cf = line.split(" "); relay.sendCaps(cf[1], cf[2]); }
                 // The experiment measures ONE window. A child that did not inherit it has already stopped the VM's pads
                 // receiver, so the run can only stall: end it here instead, through the finally below.
                 if (plan.padCredit != 0 && line.startsWith("PADWINDOW child REFUSED"))

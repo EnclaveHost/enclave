@@ -85,10 +85,12 @@ public final class RelayAttach {
             while ((f = ws.receive()) != null) {
                 JSONObject o = new JSONObject(f); String t = o.optString("t");
                 if ("ping".equals(t)) { ws.sendText("{\"t\":\"pong\"}"); continue; }
+                if ("caps-result".equals(t)) {   // the relay's pVM CPU verdict on this VM's capability report (relay/pvm-cpu-tier.mjs)
+                    Main.say("RELAY caps " + (o.optBoolean("ok") ? "ADMITTED tier=" + o.optString("tier") : "REFUSED: " + o.optJSONArray("reasons"))); continue; }
                 if ("s+".equals(t)) { ws.sendText(new JSONObject().put("t", "s=").put("sid", o.opt("sid")).put("ok", false).put("err", "phone anchor carries no streams").toString()); continue; }
                 if (!"req".equals(t)) continue;
                 String path = o.optString("path").split("\\?")[0]; int status; JSONObject body;
-                if (path.equals("/availability")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name).put("phone", phone).put("gpu", false).put("teeCpu", "android-avf-pvm"); }
+                if (path.equals("/availability")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name).put("phone", phone).put("gpu", false); }   // no teeCpu/tier self-claim: the relay tiers this row from its verified verdict (PVM-CPU.md)
                 else if (path.equals("/v1/health")) { status = 200; body = new JSONObject().put("ok", true).put("role", "phone-anchor").put("name", name); }
                 else { status = 404; body = new JSONObject().put("error", "not_found"); }
                 ws.sendText(new JSONObject().put("t", "res").put("id", o.opt("id")).put("status", status)
@@ -96,6 +98,14 @@ public final class RelayAttach {
             }
             Main.say("RELAY tunnel closed");
         } catch (Exception e) { Main.say("RELAY serve error " + e); }
+    }
+
+    /** The pVM's capability report (PVM-CPU.md): report hex -> base64 as the relay parses it, signature as hex. The app only
+     *  carries these bytes; the relay verifies them against the key this VM attested (relay/pvm-cpu-tier.mjs). */
+    void sendCaps(String reportHex, String sigHex) {
+        try { ws.sendText(new JSONObject().put("t", "caps").put("report", b64(unhex(reportHex))).put("sig", sigHex).toString());
+              Main.say("RELAY caps sent (" + reportHex.length() / 2 + " bytes, signed by the VM's attested key)"); }
+        catch (Exception e) { Main.say("RELAY caps not sent: " + e); }
     }
 
     void close() { try { if (ws != null) ws.close(); } catch (Exception ignored) { } }

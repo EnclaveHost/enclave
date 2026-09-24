@@ -151,8 +151,14 @@ export function parseAvfExtension(certDer) {
   if (!v) throw new Error("no AVF attestation extension");
   const top = tlv(v, 0);
   if (top.tag !== 0x30 || top.end !== v.length) throw new Error("AttestationExtension is not an exact SEQUENCE");
-  const fields = children(v, top, 3);
-  if (fields.length !== 3) throw new Error("AttestationExtension must have three fields");
+  // Three fields in the published shape. Real Pixel 10 chains (Android 17, CP2A.260805.005, captured 2026-09-23 --
+  // test/fixtures/avf/pixel10-pvm-cpu-chain.json) carry a FOURTH, an empty SEQUENCE; every such chain was refused as
+  // "too many DER children" before this. Accepted only while it is EMPTY: a non-empty trailing field is structure this
+  // verifier does not understand, and it is refused rather than ignored.
+  const fields = children(v, top, 4);
+  if (fields.length !== 3 && fields.length !== 4) throw new Error("AttestationExtension must have three fields (or four, the fourth an empty SEQUENCE)");
+  if (fields.length === 4 && (fields[3].tag !== 0x30 || body(v, fields[3]).length !== 0))
+    throw new Error("AttestationExtension's fourth field is not an empty SEQUENCE: unknown structure, refused");
   const [chal, secure, comps] = fields;
   if (!chal || chal.tag !== 0x04) throw new Error("attestationChallenge missing");
   if (!secure || secure.tag !== 0x01) throw new Error("isVmSecure missing");

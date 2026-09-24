@@ -102,8 +102,11 @@ for _ in $(seq 1 "${LANE_TRIES:-720}"); do
   # the app opens its capture as it takes the intent; none after LANE_START_TRIES polls means the run never began
   if [ "$st" = NOLOG ]; then nolog=$(( ${nolog:-0} + 1 )); [ "$nolog" -ge "${LANE_START_TRIES:-24}" ] && die "the app never started the run: no capture after $nolog polls"; st=WAIT; fi
   # a VM that died never completes its capture: stop at once instead of polling out the hour
-  dead=$(rsh "run-as $P sh -c 'if grep -qE \"^(VM stopped|VM payload finished exit=[1-9]|HOST FAIL)\" files/capture/$LABEL.log 2>/dev/null; then echo DEAD; else echo ALIVE; fi'") || exit 1
-  [ "$dead" = DEAD ] && { rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" 2>/dev/null; die "the VM stopped before the run completed: $(grep -m1 -E '^(VM stopped|VM payload finished|HOST FAIL)' "$OUT/$LABEL.log" 2>/dev/null)"; }
+  # a capture the APP closed as failed (LOCAL failed, CAPTURE END ... status=failed: e.g. the VM was killed mid-turn and the
+  # control stream reset) is as final as a stopped VM; this probe matched only the VM's own lines, and a crashed pVM made the
+  # driver poll out the whole hour (results/cpu-baseline-20260923, cr-01)
+  dead=$(rsh "run-as $P sh -c 'if grep -qE \"^(VM stopped|VM payload finished exit=[1-9]|HOST FAIL|LOCAL failed|CAPTURE END label=.* status=failed)\" files/capture/$LABEL.log 2>/dev/null; then echo DEAD; else echo ALIVE; fi'") || exit 1
+  [ "$dead" = DEAD ] && { rsh "run-as $P cat files/capture/$LABEL.log" > "$OUT/$LABEL.log" 2>/dev/null; die "the VM stopped before the run completed: $(grep -m1 -E '^(VM stopped|VM payload finished|HOST FAIL|LOCAL failed|CAPTURE END)' "$OUT/$LABEL.log" 2>/dev/null)"; }
   [ "$st" = WAIT ] || die "unexpected completion probe answer: '$st'"
 done
 [ $done_ = 1 ] || die "the capture never completed within ${LANE_TRIES:-720} polls"
