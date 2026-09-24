@@ -351,6 +351,7 @@ export const CPU_TEE_CONSUMER = { "windows-vbs-enclave": "VBS enclave on a consu
 // says otherwise: it is NOT tenant app hosting and NOT the server isolation contract, so a row
 // wearing it is never sellable app capacity (computeEligibleOf below).
 export const CPU_TEE_PHONE = { "android-avf-pvm": "pVM CPU: CPU-only inference inside the phone’s protected VM; a tier under construction, not yet available" };
+export const PVM_CPU_TIER = "pvm-cpu";   // the relay's row.tier for an admitted phone (relay/pvm-cpu-tier.mjs); never read from the box
 export const CPU_TEE_DEV_TIERS = { "vbs-dev": "development, unsigned" };
 export function teeCpuOf(row){
   const a = (row && row.availability) || {};
@@ -366,9 +367,15 @@ export function teeCpuOf(row){
   // promote itself out of the development tier by saying so in its own /availability, which is the
   // same rule payoutWallet follows in the registry: never believe a box quoting itself.
   const tier = (row && typeof row.tier === "string" && row.tier) ? row.tier : (typeof a.tier === "string" && a.tier ? a.tier : null);
+  // The phone tier is the RELAY's verdict: row.tier === "pvm-cpu" after it admitted a capability
+  // report. A phone whose chain was verified but whose report was not (yet) admitted is a verified
+  // protected VM and nothing more, and its own availability.tier never promotes it.
+  const phoneTiered = !!(row && row.tunnel && row.tier === PVM_CPU_TIER);
   const real = (technology, source) => ({ real: true, known: true, technology, label: CPU_TEE_TECHNOLOGIES[technology], source,
-                                          consumer: !!CPU_TEE_CONSUMER[technology], note: CPU_TEE_CONSUMER[technology] || CPU_TEE_PHONE[technology] || null,
-                                          phone: !!CPU_TEE_PHONE[technology],
+                                          consumer: !!CPU_TEE_CONSUMER[technology],
+                                          note: CPU_TEE_CONSUMER[technology] || (CPU_TEE_PHONE[technology] ? (phoneTiered ? CPU_TEE_PHONE[technology]
+                                                : "Protected VM verified at attach; no pVM CPU capability report admitted yet, so this phone is not in the tier") : null),
+                                          phone: !!CPU_TEE_PHONE[technology] && phoneTiered, phoneUntiered: !!CPU_TEE_PHONE[technology] && !phoneTiered,
                                           tier: CPU_TEE_CONSUMER[technology] ? tier : null, dev: CPU_TEE_DEV_TIERS[tier] || null });
   if (tech && CPU_TEE_TECHNOLOGIES[tech]) return real(tech, "attestation");
   if (row && row.tunnel && row.mode === "snp") return real("amd-sev-snp", "relay");

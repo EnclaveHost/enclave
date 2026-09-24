@@ -174,8 +174,10 @@ class FleetList extends EnclaveElement {
           // capability - so the badge is its identity and the tooltip is future tense. Never the jade
           // "tee cpu" of the server contract, which this is not.
           const teeCpuBadge = tc.real && tc.phone
-            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone’s protected-VM attestation chain when it attached.'
-              + ' The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
+            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone\u2019s protected-VM attestation chain when it attached and admitted its capability report'
+              + (e.pvmCpu && e.pvmCpu.model ? ' (model ' + esc(e.pvmCpu.model) + ')' : '') + '. The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
+            : tc.real && tc.phoneUntiered
+            ? '<span class="ap-badge" title="' + esc(tc.note) + '.">pvm</span>'
             : tc.real && tc.consumer
             ? consumerBadge
             : tc.unverified
