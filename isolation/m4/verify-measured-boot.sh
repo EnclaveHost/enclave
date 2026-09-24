@@ -90,7 +90,13 @@ run() {    # run <tag> <igvm> <image>
     > "$W/$tag.host" 2>&1 || true
   # Wait for the cycle to COMPLETE, not merely to start; staging a 45 MB runtime image takes well over a minute.
   # A case that never boots falls out on the deadline, which is what the negatives do.
-  for _ in $(seq "${WAIT_S:-300}"); do finished "$tag" && break; sleep 1; done
+  # Exit early on either terminal state: the cycle completing, or the firmware having already refused. A
+  # RELEASE firmware says nothing, so the deadline still has to exist - it is the only signal there.
+  for _ in $(seq "${WAIT_S:-300}"); do
+    finished "$tag" && break
+    grep -aq "Hash comparison failed\|no hashes table" "$W/$tag.debugcon" 2>/dev/null && break
+    sleep 1
+  done
   sh "$here/../m3/run-domain.sh" stop "$tag" "$W" >/dev/null 2>&1 || true
   launched "$tag" || {
     echo "INFRA  $tag: QEMU produced no serial output, so this run says NOTHING about the firmware:"
@@ -102,6 +108,32 @@ run() {    # run <tag> <igvm> <image>
 fails=0
 check() { case "$2" in ok) echo "PASS $1";; infra) echo "INFRA $1"; fails=$((fails+1));; *) echo "FAIL $1"; fails=$((fails+1));; esac; }
 said() { grep -aq "$2" "$W/$1.debugcon" 2>/dev/null; }
+
+# ---- the pre-launch check, on both images --------------------------------------------------------------------
+# The manifest exists to be CONSUMED. On the control it must pass; on the substituted image it must refuse and
+# name the initrd. That gives two independent layers, and only the second one is evidence: this check runs on the
+# host, so it is exactly as trustworthy as the host, while the firmware's check is inside the measurement.
+MAN="${W}/measured.manifest.json"
+"$here/check-manifest.sh" "$MAN" "$W/measured.igvm" "$KERNEL" "$GOOD" "$APPEND" "$FW" > "$W/manifest-good.txt" 2>&1 && r=ok || r=no
+check "0a the pre-launch check accepts the artifacts the IGVM measured" $r
+sed 's/^/       /' "$W/manifest-good.txt"
+if "$here/check-manifest.sh" "$MAN" "$W/measured.igvm" "$KERNEL" "$OTHER" "$APPEND" "$FW" > "$W/manifest-other.txt" 2>&1; then
+  r=no
+else
+  grep -q "WRONG initrd" "$W/manifest-other.txt" && r=ok || r=no
+fi
+check "0b and REFUSES the substituted initrd before launching, naming it" $r
+grep -E "WRONG|REFUSING" "$W/manifest-other.txt" | sed 's/^/       /' | head -4
+# and the other pairing error: the right artifacts beside the WRONG IGVM. Without this the manifest binds only
+# one side, and a stale manifest next to a rebuilt file passes here and fails much later as a measurement
+# mismatch, which reads like a measurement bug rather than like launching the wrong pair.
+if "$here/check-manifest.sh" "$MAN" "$W/notable.igvm" "$KERNEL" "$GOOD" "$APPEND" "$FW" > "$W/manifest-wrongigvm.txt" 2>&1; then
+  r=no
+else
+  grep -q "WRONG igvm" "$W/manifest-wrongigvm.txt" && r=ok || r=no
+fi
+check "0c and REFUSES the right artifacts beside the wrong IGVM" $r
+grep -E "WRONG igvm" "$W/manifest-wrongigvm.txt" | sed 's/^/       /' | head -2
 
 # ---- case 1, the control -------------------------------------------------------------------------------------
 run control "$W/measured.igvm" "$GOOD" || { echo "ABORT: the control did not launch. Nothing below would mean anything."; exit 1; }
@@ -163,12 +195,39 @@ check "5a control: the guest completed its admission cycle and produced a report
 if [ "$r" = ok ]; then
   rep=$(grep -a "ADMIT report_after_re_admit_hex=" "$W/control.evidence" | tail -1 | sed 's/.*hex=//' | tr -d '\r\n ')
   pred=$("$KIT/target/release/igvmmeasure" "$W/measured.igvm" measure | grep -i "Launch Digest" | sed 's/.*: *//' | tr -d ' ')
-  # SNP attestation report: MEASUREMENT is 48 bytes at offset 0x90.
-  live=$(printf '%s' "$rep" | cut -c$((0x90 * 2 + 1))-$((0x90 * 2 + 96)) | tr 'a-f' 'A-F')
-  if [ -n "$live" ] && [ "$live" = "$(printf '%s' "$pred" | tr 'a-f' 'A-F')" ]; then r=ok; else r=no; fi
+  # What the guest publishes is the SVSM's SnpReportResponse - status(4) + report_size(4) + reserved(24) then the
+  # AttestationReport - so every field is 32 bytes later than its offset within the report. Parse the header
+  # rather than hardcoding the sum: reading MEASUREMENT from 0x90 instead of 0xb0 yields the APP ID, which is a
+  # plausible-looking 32 bytes and compares unequal for the wrong reason.
+  python3 - "$rep" "$pred" "$ENCLAVE_APP_IDS" <<'PY' > "$W/measurement.check" 2>&1
+import sys
+raw = bytes.fromhex(sys.argv[1])
+pred, appids = sys.argv[2].upper(), sys.argv[3]
+status, size = int.from_bytes(raw[0:4], 'little'), int.from_bytes(raw[4:8], 'little')
+print(f"response status={status} report_size={size} bytes_published={len(raw)}")
+if status != 0:
+    sys.exit("FAIL: the SVSM reported a non-zero status, so this is not a signed report")
+r = raw[32:32 + size]
+if len(r) < 0x1A0:
+    sys.exit(f"FAIL: only {len(r)} report bytes, too short to hold MEASUREMENT")
+meas = r[0x90:0x90 + 48].hex().upper()
+rd = r[0x50:0x50 + 64]
+print(f"igvmmeasure {pred}")
+print(f"report      {meas}")
+print(f"report_data[0:32]  (the binding) {rd[:32].hex()}")
+print(f"report_data[32:64] (the app id)  {rd[32:].hex()}")
+want = (appids.split(',')[2] if len(appids.split(',')) > 2 else '')
+if want:
+    print(f"expected app id for plane 2      {want}")
+    if rd[32:].hex() != want:
+        sys.exit("FAIL: the report does not name the app this SVSM was built to admit")
+if meas != pred:
+    sys.exit("FAIL: the report's MEASUREMENT is not igvmmeasure of the launched IGVM")
+print("OK: measurement matches, and the app half is the one compiled into the SVSM")
+PY
+  grep -q "^OK:" "$W/measurement.check" && r=ok || r=no
   check "5b and the report's MEASUREMENT equals igvmmeasure of the launched IGVM" $r
-  echo "       igvmmeasure $pred"
-  echo "       report      $live"
+  sed 's/^/       /' "$W/measurement.check"
 fi
 
 # ---- case 2, substitution ------------------------------------------------------------------------------------
@@ -197,6 +256,36 @@ else
   r=infra
 fi
 check "4 no-table control: without a measured table the same firmware still REFUSES" $r
+
+# ---- cases 6/7, the RELEASE firmware: what production would actually run ---------------------------------------
+# RELEASE_FW=<path> adds a pair on the firmware with no DEBUG output. It is opt-in because it doubles the launches
+# and because it can only be scored on behaviour: a RELEASE firmware refuses SILENTLY, so there are no words to
+# quote. That is exactly why it needs its own pair - the DEBUG firmware's verdicts are how every check above is
+# scored, and a property that only holds on the build that prints is not the property production has.
+if [ -n "${RELEASE_FW:-}" ]; then
+  [ -r "$RELEASE_FW" ] || { echo "RELEASE_FW=$RELEASE_FW is not readable"; exit 2; }
+  echo
+  echo "== the RELEASE firmware ($RELEASE_FW, sha256 $(sha256sum "$RELEASE_FW" | cut -c1-16)...)"
+  "$here/build-measured-igvm.sh" -o "$W/release.igvm" -i "$GOOD" -f "$RELEASE_FW" > "$W/build-release.log" 2>&1 || {
+    echo "ABORT: the RELEASE IGVM did not build:"; tail -6 "$W/build-release.log" | sed 's/^/  /'; exit 1; }
+  if run rel-control "$W/release.igvm" "$GOOD"; then
+    booted rel-control && r=ok || r=no
+    check "6 RELEASE control: the same guest boots under the firmware production would run" $r
+    [ "$r" = no ] && echo "       a RELEASE firmware that refuses its own control makes case 7 meaningless"
+  fi
+  if run rel-sub "$W/release.igvm" "$OTHER"; then
+    if booted rel-sub; then
+      r=no
+      echo "       the guest BOOTED on an unmeasured initrd under the RELEASE firmware. The property does not"
+      echo "       hold on the build production runs, whatever the DEBUG build reports."
+    else
+      r=ok
+      echo "       no guest marker, and no firmware words: a RELEASE build refuses silently, which is why this"
+      echo "       is scored on behaviour and the DEBUG pair above is scored on the firmware's own verdicts."
+    fi
+    check "7 RELEASE substitution: a DIFFERENT initrd is refused with no output at all" $r
+  fi
+fi
 
 echo
 echo "M4b-step2: $([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) not passed")"

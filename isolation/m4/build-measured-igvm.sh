@@ -144,7 +144,16 @@ cat > "$man" <<JSON
     "features": "$FEATURES", "release": true,
     "elf":  "$(sha "$SVSMELF")",
     "bldr": "$(sha "$KIT/bin/bldr")",
-    "fs":   "$(sha "$KIT/bin/svsm-fs.bin")"
+    "fs":   "$(sha "$KIT/bin/svsm-fs.bin")",
+    "igvmbuilder": "$(sha "$IGVMBLD")",
+    "source": {
+      "base": "$(cd "$KIT" && git rev-parse --short HEAD 2>/dev/null || echo unknown)",
+      "patches": {
+        "0001-wire-appid-protocol.diff": "$(sha "$here/svsm/0001-wire-appid-protocol.diff")",
+        "0002-measured-guest-hash-table.diff": "$(sha "$here/svsm/0002-measured-guest-hash-table.diff")",
+        "appid.rs": "$(sha "$here/svsm/appid.rs")"
+      }
+    }
   },
   "identity": {
     "ENCLAVE_APP_IDS": "${ENCLAVE_APP_IDS:-}",

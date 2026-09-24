@@ -195,7 +195,7 @@ index ca99b7b..dd6b373 100644
      } else {
 
 diff --git a/tools/igvmbuilder/src/ovmf_firmware.rs b/tools/igvmbuilder/src/ovmf_firmware.rs
-index f4ba4cf..70b65d0 100644
+index f4ba4cf..931b852 100644
 --- a/tools/igvmbuilder/src/ovmf_firmware.rs
 +++ b/tools/igvmbuilder/src/ovmf_firmware.rs
 @@ -18,7 +18,10 @@ use igvm_defs::{IgvmPageDataFlags, IgvmPageDataType, PAGE_SIZE_4K};
@@ -209,7 +209,7 @@ index f4ba4cf..70b65d0 100644
  use crate::firmware::Firmware;
  use crate::igvm_builder::{NATIVE_COMPATIBILITY_MASK, SNP_COMPATIBILITY_MASK};
  
-@@ -394,6 +397,253 @@ pub fn parse_ovmf(
+@@ -394,6 +397,263 @@ pub fn parse_ovmf(
      check_regions(fw_info)
  }
  
@@ -251,7 +251,7 @@ index f4ba4cf..70b65d0 100644
 +///
 +/// Separate from `find_kernel_hashes_area` because they answer different questions: that one gives the page the
 +/// SVSM must not validate, this one gives the address the FIRMWARE reads.
-+fn find_sev_hash_table_gpa(data: &[u8]) -> Result<Option<u32>, Box<dyn Error>> {
++fn find_sev_hash_table_gpa(data: &[u8]) -> Result<Option<(u32, u32)>, Box<dyn Error>> {
 +    if data.len() < FOOTER_OFFSET {
 +        return Ok(None);
 +    }
@@ -265,10 +265,20 @@ index f4ba4cf..70b65d0 100644
 +        if uuid != SEV_HASH_TABLE_RV_GUID {
 +            continue;
 +        }
-+        if entry.len() < 4 {
-+            return Err("the SEV_HASH_TABLE_RV_GUID entry is shorter than the address it must hold".into());
++        // base(4) + size(4): SEV_FW_HASH_BLOCK_BASE/SIZE, which are PcdQemuHashTableBase/Size. The SIZE matters
++        // as much as the base - the firmware's constructor rejects the table unless its declared length fits
++        // within PcdQemuHashTableSize (0x400), NOT within the descriptor's page.
++        if entry.len() < 8 {
++            return Err(format!(
++                "the SEV_HASH_TABLE_RV_GUID entry is {} bytes; it must hold a base and a size",
++                entry.len()
++            )
++            .into());
 +        }
-+        return Ok(Some(u32::from_le_bytes([entry[0], entry[1], entry[2], entry[3]])));
++        return Ok(Some((
++            u32::from_le_bytes([entry[0], entry[1], entry[2], entry[3]]),
++            u32::from_le_bytes([entry[4], entry[5], entry[6], entry[7]]),
++        )));
 +    }
 +    Ok(None)
 +}
@@ -463,7 +473,7 @@ index f4ba4cf..70b65d0 100644
  pub struct OvmfFirmware {
      fw_info: GuestFwInfoBlock,
      directives: Vec<IgvmDirectiveHeader>,
-@@ -404,6 +654,7 @@ impl OvmfFirmware {
+@@ -404,6 +664,7 @@ impl OvmfFirmware {
          filename: &String,
          _parameter_count: u32,
          compatibility_mask: u32,
@@ -471,7 +481,7 @@ index f4ba4cf..70b65d0 100644
      ) -> Result<Box<dyn Firmware>, Box<dyn Error>> {
          let mut in_file = File::open(filename).inspect_err(|_| {
              eprintln!("Failed to open firmware file {filename}");
-@@ -449,6 +700,100 @@ impl OvmfFirmware {
+@@ -449,6 +710,121 @@ impl OvmfFirmware {
              gpa += PAGE_SIZE_4K;
          }
  
@@ -510,27 +520,45 @@ index f4ba4cf..70b65d0 100644
 +                // WHERE the table goes is a different question from which page to validate, and getting it
 +                // wrong costs a boot without a single failing check: the firmware reads its FixedPcd address,
 +                // finds zeros, and reports "no hashes table discoverd in MEMFD". Measured 2026-09-24.
-+                let table_gpa = find_sev_hash_table_gpa(&data)?.ok_or(
++                let (table_gpa, table_area) = find_sev_hash_table_gpa(&data)?.ok_or(
 +                    "this firmware declares a KERNEL_HASHES area but no SEV_HASH_TABLE_RV_GUID entry, so where \
 +                     the table belongs inside that area is unknown",
 +                )?;
-+                if table_gpa < base || u64::from(table_gpa) >= u64::from(base) + u64::from(size) {
++                // The descriptor's area is NOT all hash table: in AmdSevX64 it is PcdSevLaunchSecretBase plus
++                // PcdSevLaunchSecretSize + PcdQemuHashTableSize, so 0xc00 of launch-secret area (unused under
++                // SNP, and measured as zeros) followed by 0x400 of table. Three conditions, and the second is
++                // the one that is easy to get wrong.
++                //
++                // 1. the table's own range must lie inside the area the SVSM stops validating
++                let area_end = u64::from(base) + u64::from(size);
++                let table_end = u64::from(table_gpa) + u64::from(table_area);
++                if u64::from(table_gpa) < u64::from(base) || table_end > area_end {
 +                    return Err(format!(
-+                        "the firmware's hash table address {table_gpa:#x} is outside its KERNEL_HASHES area \
-+                         [{base:#x}-{:#x}]",
-+                        u64::from(base) + u64::from(size)
++                        "the firmware's hash table [{table_gpa:#x}-{table_end:#x}] is not inside its \
++                         KERNEL_HASHES area [{base:#x}-{area_end:#x}]"
 +                    )
 +                    .into());
 +                }
++                // 2. the table must fit the size the FIRMWARE will check against. Its constructor rejects the
++                //    table unless the declared length is <= PcdQemuHashTableSize, which is this 0x400 and not the
++                //    descriptor's 4096; comparing against the area would accept a table the firmware refuses.
++                if (table_area as usize) < SEV_HASH_TABLE_PADDED_LEN {
++                    return Err(format!(
++                        "this firmware reserves {table_area} bytes for the hash table, too few for the \
++                         {SEV_HASH_TABLE_PADDED_LEN}-byte table its own verifier requires"
++                    )
++                    .into());
++                }
++                // 3. one 4K page, because one page is what is emitted, unvalidated and granted
 +                let in_page = (table_gpa - base) as usize;
-+                if in_page + SEV_HASH_TABLE_PADDED_LEN > size as usize {
++                if in_page + SEV_HASH_TABLE_PADDED_LEN > PAGE_SIZE_4K as usize {
 +                    return Err(format!(
-+                        "a {SEV_HASH_TABLE_PADDED_LEN}-byte table at offset {in_page:#x} would run past the \
-+                         {size}-byte KERNEL_HASHES area"
++                        "a {SEV_HASH_TABLE_PADDED_LEN}-byte table at offset {in_page:#x} would cross the end of \
++                         the single page this emits"
 +                    )
 +                    .into());
 +                }
-+                let table = sev_hash_table(kernel, initrd, cmdline, size - in_page as u32)?;
++                let table = sev_hash_table(kernel, initrd, cmdline, table_area)?;
 +                // Out of the pre-validated set FIRST: if this fails, no table is emitted, rather than one being
 +                // emitted into a page the SVSM will zero.
 +                unvalidate_page(&mut fw_info, base)?;
@@ -541,12 +569,15 @@ index f4ba4cf..70b65d0 100644
 +                fw_info.hash_table_size = size;
 +                // The page is the descriptor's base; the table sits at the firmware's offset within it, exactly
 +                // as sev-snp-measure's construct_page(offset_in_page) builds it.
++                // in_page zeros (the launch-secret area, which QEMU measures as zeros too), then the table,
++                // then zeros to the end of the page: construct_page(offset_in_page) exactly.
 +                let mut page = vec![0u8; in_page];
 +                page.extend(table);
 +                page.resize(PAGE_SIZE_4K as usize, 0);
 +                println!(
-+                    "Measured SEV hash table at {table_gpa:#x}: a {}-byte table at offset {in_page:#x} of the \
-+                     {size}-byte area at {base:#x}, over kernel {kernel}, initrd {initrd}, cmdline {cmdline:?}",
++                    "Measured SEV hash table at {table_gpa:#x}: a {}-byte table in the firmware's {table_area}-byte \
++                     slot at offset {in_page:#x} of the {size}-byte area at {base:#x}, over kernel {kernel}, \
++                     initrd {initrd}, cmdline {cmdline:?}",
 +                    SEV_HASH_TABLE_PADDED_LEN
 +                );
 +                directives.push(IgvmDirectiveHeader::PageData {
