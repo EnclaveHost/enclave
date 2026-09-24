@@ -66,7 +66,9 @@ None of these is waived by the tests in this branch.
    guestd, and the claim gate must refuse such deployments before a lease is taken. Secrets need attested in-guest
    delivery (the guest fetches them with its attested key) before any secrets-bearing app can use this tier.
 6. **An authenticated control channel.** The `/vms` contract has no authentication, which is why guestd is
-   loopback-only. The node-CVM-to-host bridge must be authenticated.
+   loopback-only. The node-CVM-to-host bridge must be authenticated. *Built (2026-09-24):* `guestd-control/1`,
+   end-to-end between the supervisor and guestd, so any bridge carries only authenticated, replay-proof traffic.
+   Still missing: key delivery into the node CVM, and the bridge itself.
 7. **Independent review** of guestd, the claim gate, the data path and the verifier. The reviewer is unavailable
    today.
 8. **Steven's decisions:** turning on a new tier policy on the production relay, registering a host for it, merging
@@ -107,5 +109,5 @@ Each is tested and disabled by default.
 | C4 | data path: a ciphertext splice from the relay SNI route to the guest forwarder for this backend; guest-front certificates | not started |
 | C5 | relay: a per-app policy module (null unless configured), a new hub mode, per-box tier eligibility outside `TENANT_COMPUTE_MODES`, the `relay/deploy.sh` module list, tests | not started |
 | C6 | clients: the envelope namespace in site/CLI/MCP; a CLI verifier lifting the judge's checks, with measurement recomputation from the pinned domain release | **verifier half built**: `m4/domain-release.sh` pins every image input under one release id; `m4/expected-measurement.sh` reconstructs a guest's measurement from the release and a bundle, and reproduced BOTH live measurements of the guestd hardware run (`test-domain-release.sh` 6/6). **Missing:** publishing a release, the envelope flag in site/CLI/MCP, and a browser verifier |
-| C7 | an authenticated node-CVM-to-host bridge for guestd (vsock) | not started |
+| C7 | an authenticated node-CVM-to-host channel for guestd | **protocol built** (`guestd-control/1`, `m4/guestd/auth.go`): a pairing key per guestd; a handshake bound to a per-start instance id and single-use nonces, with mutual proof; every request MAC'd over session, sequence, method, target and body, with a 64-wide anti-replay window; every answer signed; sessions expire and a restart forces a new handshake; lab mode without a key refuses the handshake. The supervisor-side client is `control-client.mjs`. Tests: 11 Go tests plus JS interop, and `test-guestd-control.sh` 6/6 on the real binary. **Missing:** delivering the key into the node CVM (production), a transport bridge (vsock or slirp to loopback), and the supervisor using the client |
 | C8 | the staging acceptance run above, with its evidence file | blocked on C2-C7 |

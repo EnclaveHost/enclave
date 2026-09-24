@@ -235,7 +235,18 @@ func main() {
 	chain := flag.String("chain", "", "AMD cert chain PEM (default: test/fixtures/amd/<product>-cert_chain.pem)")
 	minTCB := flag.String("min-tcb", filepath.Join(home, ".cache/enclave-isolation/m3-clean/min-tcb.json"), "TCB floor JSON")
 	gateway := flag.String("gateway", "https://ipfs.enclave.host", "IPFS gateway for catalog components (untrusted: every block is verified)")
+	authKey := flag.String("auth-key", "", "pairing key file (guestd-control/1); without it guestd runs its unauthenticated loopback-only lab mode")
+	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
 	flag.Parse()
+
+	if *genKeyFile != "" {
+		kid, err := genKey(*genKeyFile)
+		if err != nil {
+			log.Fatalf("gen-key: %v", err)
+		}
+		fmt.Printf("kid %s written to %s (deliver the same file to the paired supervisor)\n", kid, *genKeyFile)
+		return
+	}
 
 	// DISABLED unless asked for, by name. Nothing in production sets this.
 	if os.Getenv("GUESTD_ENABLE") != "1" {
@@ -318,9 +329,22 @@ func main() {
 		log.Fatal(err)
 	}
 	s.Store = st
+	if *authKey != "" {
+		k, err := loadKey(*authKey)
+		if err != nil {
+			log.Fatalf("auth-key: %v", err)
+		}
+		s.Auth = newControlAuth(k, time.Now)
+		log.Printf("guestd-control/1: kid %s, instance %s; every request but the handshake is authenticated", s.Auth.kid, s.Auth.instance)
+	} else {
+		log.Print("NO pairing key: unauthenticated LAB mode, loopback only; /control/* refuses")
+	}
 	go func() {
 		for range time.Tick(5 * time.Second) {
 			s.tick()
+			if s.Auth != nil {
+				s.Auth.sweep()
+			}
 		}
 	}()
 	sig := make(chan os.Signal, 1)
