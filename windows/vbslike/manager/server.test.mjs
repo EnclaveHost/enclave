@@ -222,3 +222,52 @@ test("the boundary is read through the accessor the real backends actually expos
   assert.equal(h.boundary.hostExcluded, false);
   assert.equal(h.boundary.partition, "hcs-child");
 });
+
+/* ---- over the WIRE, because a seam defect cannot be seen from either side ---------------------- *
+ *
+ * enclave-99 measured this against a running manager: Manager.spawn sets e.id on a 409 and
+ * IsolationManagerClient.spawn reads it, but createServer's catch dropped it, so both halves were
+ * written for an adoption that could never happen over HTTP. Every test that called manager.spawn()
+ * directly passed. This one goes through the server. */
+import { createServer } from "./server.mjs";
+import { IsolationManagerClient } from "../../node/isolation-client.mjs";
+
+const listenOn = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv.address().port)));
+
+test("a 409 carries the id over the wire, so the node client can adopt", async () => {
+  const m = mk({ backend: bootedBackend() });
+  const srv = createServer(m);
+  const port = await listenOn(srv);
+  try {
+    const client = new IsolationManagerClient({ base: `http://127.0.0.1:${port}` });
+    const body = IsolationManagerClient.spawnBody({
+      image: "ipfs://x", name: DEP, derive: REC, isPublic: true, hasSecrets: false, appPort: 8080 });
+    const first = await client.spawn(body);
+    assert.equal(first.adopted, false);
+    assert.match(first.view.id, /^hv[0-9a-f]{8}$/);
+    assert.equal(first.view.status, "starting");
+    // the same deployment again: the client must ADOPT, which needs the id in the 409 body
+    const second = await client.spawn(body);
+    assert.equal(second.adopted, true, "without id on the wire this throws 'named no instance to adopt'");
+    assert.equal(second.view.id, first.view.id);
+    assert.equal(second.view.name, DEP);
+  } finally { srv.close(); }
+});
+
+test("POST /vms answers 201, and /health carries the boundary, over the wire", async () => {
+  const m = mk({ backend: bootedBackend() });
+  const srv = createServer(m);
+  const port = await listenOn(srv);
+  try {
+    const body = IsolationManagerClient.spawnBody({
+      image: "ipfs://x", name: DEP, derive: REC, isPublic: true, hasSecrets: false, appPort: 8080 });
+    const res = await fetch(`http://127.0.0.1:${port}/vms`, { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(res.status, 201, "guestd answers 201 and the supervisor checks for it");
+    const rec = await res.json();
+    assert.equal(rec.status, "starting");
+    assert.equal(rec.name, DEP);
+    const h = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
+    assert.ok("boundary" in h, "a reader must be able to learn what this manager's isolation IS");
+  } finally { srv.close(); }
+});
