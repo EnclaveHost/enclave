@@ -1,4 +1,4 @@
-# Relay serving integration for pVM deployments (DESIGN, for review; not built)
+# Relay serving integration for pVM deployments (DESIGN, reviewed; a lab module, NOT wired or deployed)
 
 **Status.** A scoped design, not an implementation. Nothing here is deployed, activated or merged. It proposes how
 the platform relay (`relay/api-relay.js`) would carry a buyer's traffic to a pVM deployment, using the client contract
@@ -82,6 +82,32 @@ each needs its own review.
     format, and its semantics need their own review: a host-supplied deployment id proves only what the host claimed.
 - **Also not given:** availability (a relay can drop anything), and traffic analysis (sizes and timing are visible, as
   in SEALED-STREAMING.md).
+
+## The lab module (2026-09-24): built and tested, NOT wired into the production relay
+
+- **`relay/pvm-serving.mjs`** implements items 1 to 3 as a standalone handler. `api-relay.js` does not import it, so the
+  production relay's behaviour is unchanged. The handler:
+  - takes a ledger resolver, which must be `runnerEndpointOf`, and a tunnel hub, `spliceRaw`;
+  - accepts only full canonical ids;
+  - requires a `tunnel://` runner, and returns a plain 404 otherwise, with no body and no fallback;
+  - applies the carrier's bounds (413 is sent before the connection closes), per-deployment and per-client rates (429),
+    streaming with backpressure, and close-on-client-gone;
+  - logs sizes only.
+- **test/pvm-relay-serving.test.mjs** runs the BUILT client through the module to fake VMs behind a stand-in hub. It
+  covers:
+  - routing by the ledger runner;
+  - no fallback, for a non-tunnel runner, no runner, or a tunnel without a hub-verified app for the sealed kind;
+  - a prefix id, a wrong method and an oversized body;
+  - a runner change between exchanges, judged from zero on the new runner;
+  - the rate refusal, which never yields a verified result;
+  - (h) sizes-only logging.
+  On the Pixel's REAL evidence it also shows the limit. A hostile relay routing two deployments of the same app to one
+  genuine instance is NOT detected, and the test asserts it. A deployment the table maps to another app is refused.
+- **Not done.** Wiring into `api-relay.js` behind a switch, `attest.pvmApp` from environment, the real `tunnel.js` hub
+  in these tests, and the review's (a)-(f) through the relay route. The first two change production code and wait for
+  the owner.
+- **The lab carrier.** `cpu/web-carrier.mjs` had the same defect: it reset the connection before its 413 was sent. It is
+  fixed and tested.
 
 ## Review questions
 
