@@ -1,5 +1,5 @@
 /*
- * ggml-tpu.cpp -- Enclave Shielded on a phone: the big matmuls of a llama.cpp graph run on the phone's TPU,
+ * ggml-tpu.cpp -- Enclave Shield on a phone: the big matmuls of a llama.cpp graph run on the phone's TPU,
  * which lives OUTSIDE the protected VM and sees only masked rows (TPU.md).
  *
  * The trusted half is llama.cpp inside the VM: tokenizer, embeddings, norms, RoPE, attention over the KV cache,

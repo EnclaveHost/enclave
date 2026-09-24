@@ -1,4 +1,4 @@
-// tpu_worker_jni.cc -- the UNTRUSTED half of Enclave Shielded on a phone: the app-side TPU worker (enclave repo:
+// tpu_worker_jni.cc -- the UNTRUSTED half of Enclave Shield on a phone: the app-side TPU worker (enclave repo:
 // shielded/anchor/avf/TPU.md; the wire is documented in payload/ggml-tpu.cpp).
 //
 // It holds the per-block compiled graphs (L<n>.tflite: signatures qkv | o | gu | down, int16 rows in, int16 rows out, public

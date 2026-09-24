@@ -132,7 +132,7 @@ def group(layer, names):
 
 class Builder:
     def __init__(self):
-        self.m = S.ModelT(); self.m.version = 3; self.m.description = b'enclave shielded int16 lanes'; self.m.operatorCodes = []; self.m.subgraphs = []
+        self.m = S.ModelT(); self.m.version = 3; self.m.description = b'Enclave Shield int16 lanes'; self.m.operatorCodes = []; self.m.subgraphs = []
         self.m.buffers = [S.BufferT()]; self.m.signatureDefs = []; self.m.metadata = []
         oc = S.OperatorCodeT(); oc.builtinCode = S.BuiltinOperator.FULLY_CONNECTED; oc.deprecatedBuiltinCode = S.BuiltinOperator.FULLY_CONNECTED; oc.version = 5; self.m.operatorCodes.append(oc)
 

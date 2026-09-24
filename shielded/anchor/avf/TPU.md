@@ -10,7 +10,7 @@
 > a new explicit direction. The phone's product path is the CPU-only **pVM CPU** tier (PVM-CPU.md): the model runs on the
 > protected VM's own vCPUs and no activation leaves the VM, so none of the masking below is part of it.
 
-Enclave Shielded on a desktop keeps the prompt, the context and the output inside the CVM and lets an untrusted GPU do the
+Enclave Shield on a desktop keeps the prompt, the context and the output inside the CVM and lets an untrusted GPU do the
 big matmuls on masked rows. This is the same split on a phone: the **protected VM** is the trusted half, the **Tensor TPU**
 (which cannot be attached to the VM and belongs to Android) is the worker. The weights are public. What must never reach
 the host is the prompt, the KV cache, activations and the output, and none of them do.

@@ -1,4 +1,4 @@
-# Enclave Shielded: implemented work since coordination began
+# Enclave Shield: implemented work since coordination began
 
 Snapshot: 2026-09-09 07:15 UTC (September 9 in Phoenix). Based on the repository history from the start of Astra/Fable coordination at approximately 06:40 UTC September 8, the coordination log, and retained test receipts.
 
