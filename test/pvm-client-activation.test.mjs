@@ -13,6 +13,7 @@ import { spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
 import { CLIENT_VERSION, VERSION_MARKER } from "../shielded/anchor/avf/client/src/trust.js";
 import { canary } from "./fixtures/pvm-client-canary.mjs";
+import { deriveLabNext } from "../shielded/anchor/avf/client/tools/lab-next.mjs";
 import { tmpdir, makeCa, haveOpenssl } from "./fixtures/avf-synthetic.mjs";
 import { startFakeVm } from "./fixtures/pvm-fake-vm.mjs";
 import { createWebCarrier } from "../shielded/anchor/avf/cpu/web-carrier.mjs";
@@ -44,13 +45,10 @@ async function pair(first, second) {   // two driver processes both paused insid
   go(barrier, second.name); const o2 = (await kids[second.name].done).lines.at(-1);
   return { [first.name]: o1, [second.name]: o2 };
 }
-// a genuinely newer build of the real client: the built artifact with its version line and its version constant moved on
-const DIST = fs.readFileSync(CLI, "utf8");
-function realNext(v) {
-  const t = DIST.replace(`${VERSION_MARKER}${CLIENT_VERSION} `, `${VERSION_MARKER}${v} `).replace(`var CLIENT_VERSION = "${CLIENT_VERSION}";`, `var CLIENT_VERSION = "${v}";`);
-  assert.ok(t.startsWith(`${VERSION_MARKER}${v} `) && t.includes(`var CLIENT_VERSION = "${v}";`), "the real client's version moved in both places");
-  return Buffer.from(t);
-}
+// a genuinely newer build of the real client: the built artifact, relabelled as a LAB next-version test artifact by the
+// same tool the device run uses (client/tools/lab-next.mjs: the first line and the version constant, nothing else)
+const DIST = fs.readFileSync(CLI);
+const realNext = (v) => deriveLabNext(DIST, v).bytes;
 function signed(dir, P, R, version, bytes) {   // a release-signed, policy-countersigned manifest for these bytes
   const af = path.join(dir, `a-${version}-${sha(bytes).slice(0, 8)}.mjs`); fs.writeFileSync(af, bytes);
   const t = JSON.stringify({ type: "enclave-pvm-client-update", artifact: "pvm-client.mjs", version, artifactSha256: sha(bytes), size: bytes.length, sourceCommit: "ab".repeat(20),
@@ -306,4 +304,18 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
     assert.equal((await L.state()).state.serial, 10, "no launch refusal moved the floor");
     assert.equal(vm.log.filter((l) => l.served).length, 0, "no request reached the VM");
   } finally { carrier.close(); vm.close(); }
+});
+
+test("the lab next-version artifact (client/tools/lab-next.mjs): deterministic, labelled, the base's code with only the version moved; malformed bases refused", () => {
+  const a = deriveLabNext(DIST, "0.3.1"), b = deriveLabNext(DIST, "0.3.1");
+  assert.equal(a.sha256, b.sha256, "reproducible"); assert.deepEqual(a.base, { version: CLIENT_VERSION, sha256: sha(DIST) });
+  const lines = a.bytes.toString("utf8").split("\n"), base = DIST.toString("utf8").split("\n");
+  assert.match(lines[0], new RegExp(`^/\\*! enclave-pvm-client 0\\.3\\.1 \\(LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next\\.mjs from pvm-client\\.mjs ${CLIENT_VERSION.replace(/\./g, "\\.")} sha256 ${sha(DIST)}\\)`));
+  assert.equal(lines.length, base.length);
+  const changed = lines.map((l, i) => (l === base[i] ? null : i)).filter((i) => i !== null);
+  assert.equal(changed.length, 2, "the first line and the version constant, nothing else");
+  assert.equal(lines[changed[1]], 'var CLIENT_VERSION = "0.3.1";');
+  assert.throws(() => deriveLabNext(DIST, CLIENT_VERSION), /must differ/);
+  assert.throws(() => deriveLabNext(Buffer.from("export const x = 1;\n"), "0.3.1"), /not a client version marker/);
+  assert.throws(() => deriveLabNext(Buffer.concat([DIST, Buffer.from(`\nvar CLIENT_VERSION = "${CLIENT_VERSION}";\n`)]), "0.3.1"), /exactly one/);
 });
