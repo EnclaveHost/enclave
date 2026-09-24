@@ -269,6 +269,26 @@ plane cannot exist until ALL of these land together:
    SVSM is not in that path;
 5. per-plane calling areas and the request-loop multiplexing that implies.
 
+**Scope, measured in the kit tree 2026-09-24 rather than estimated.** These five are not one size. 1 and 3 are
+SVSM-local: `copy_with_no_vmpck` already clears `0..VMPL_MAX` (so precondition 1 is satisfied in the code today,
+and the plane probes all four keys and is refused each time - `evidence/plane-handshake-binding-2026-09-24.txt`),
+and 3 is a map recorded in `core_pvalidate_one`, which is already the choke point.
+
+**2 and 5 are a rewrite of COCONUT's guest-entry path, not a patch.** `enter_guest` calls
+`switch_to_vmpl(GUEST_VMPL)` once and a CPU holds exactly one `guest_vmsa: SpinLock<GuestVmsaRef>`, so "derive
+the calling VMPL from the VMSA that exited" first requires there to BE more than one guest VMSA to exit from.
+The single-guest assumption is spread across `guest_vmsa_ref` (10 sites), `update_guest_mappings` (4),
+`map_guest_vmsa` (4), `alloc_guest_vmsa`, `update_guest_vmsa_caa`, `clear_guest_vmsa_if_match` and
+`update_apic_emulation` (2 each), plus a plane-selection and scheduling policy that does not exist yet, per-plane
+CAA request flags, and 85 `GUEST_VMPL` references to audit. That is upstream-shaped work on the SVSM's core loop.
+
+**4 is Steven's, and it gates the others.** Without it the planes kernel honours an AP_CREATE from plane 1
+targeting plane 2's APIC id (`sev_snp_ap_creation` checks only `vmpl < VMPL_MAX`) and the SVSM is not in that
+path - so a second plane built on 1, 2, 3 and 5 alone would run, and would NOT be isolated. Building the
+multi-plane exec loop before 4 lands therefore produces a system that cannot honestly be called isolated and
+cannot be tested for the property that matters. **Do not score any run as isolation until the kernel change and
+reboot have happened.**
+
 Also settled, and fixed here: the SVSM **attestation protocol (protocol 1)** stays callable by an app plane
 and used to return reports signed as VMPL0. That is not a forgery of the contract's `report_data` layout, but
 it breaks "every report carrying this measurement and `vmpl=N` was issued for plane N" through a door beside
