@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-2.json");        // the latest; v1 is kept below as a refusal
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-3.json");        // the latest; v1 is kept below as a refusal
 const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
 const WORK = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");   // the IGVM is 125 MB: not a tmpfs

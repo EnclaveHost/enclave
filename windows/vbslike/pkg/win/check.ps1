@@ -11,6 +11,7 @@
 #
 # Writes only under this package directory (fetched\, runs\, .selftest\). Exit: 0 ok, 1 FAIL, 3 a -Require'd profile
 # is BLOCKED by its host. BLOCKED is never a package failure: the package can be right while the host is not ready.
+# HOST CHECKS PASS is only what these read-only checks see: whether a profile BOOTS is shown by running it, not here.
 param(
   [Parameter(Mandatory = $true)][string]$ManifestSha256,
   [ValidateSet('package', 'serve')][string]$Phase = 'package',
@@ -131,7 +132,8 @@ if (-not $pkgOk) { 'FAIL package: see the FAIL lines'; exit 1 }
 "PACKAGE OK $($M.name) v$($M.version) $($ManifestSha256.ToLower())"
 foreach ($p in @('hcs-dev', 'igvm')) {
   $pr = $M.profiles.$p
-  if ($ready[$p]) { "PROFILE $p READY -- $($pr.status)" } else { "PROFILE $p BLOCKED -- $($pr.status)" }
+  # host checks passing is what this script can see; it is not a boot, which only the box owner's run shows
+  if ($ready[$p]) { "PROFILE $p HOST CHECKS PASS -- $($pr.status)" } else { "PROFILE $p BLOCKED -- $($pr.status)" }
 }
 $d = $Dir
 ''

@@ -19,7 +19,7 @@ function Add-Result($R, [bool]$Ok, [string]$Name, [string]$Detail = '', [string]
 
 function Write-Results($R) {
   foreach ($r in $R) {
-    $tag = if ($r.Ok) { 'ok     ' } elseif ($r.Kind -eq 'blocked') { 'BLOCKED' } elseif ($r.Kind -eq 'info') { 'info   ' } else { 'FAIL   ' }
+    $tag = if ($r.Kind -eq 'info') { 'info   ' } elseif ($r.Ok) { 'ok     ' } elseif ($r.Kind -eq 'blocked') { 'BLOCKED' } else { 'FAIL   ' }
     if ($r.Detail) { "$tag $($r.Name): $($r.Detail)" } else { "$tag $($r.Name)" }
   }
 }
@@ -125,6 +125,14 @@ function Test-HostProfile($R, $M, [string]$Boot) {
     foreach ($c in $hc.commands) {
       $ok = [bool](Get-Command $c -ErrorAction SilentlyContinue); if (-not $ok) { $ready = $false }
       [void](Add-Result $R $ok "[$Boot] command $c" $(if ($ok) { '' } else { 'absent' }) 'blocked')
+    }
+  }
+  # recorded, never gating: a setting someone suspects matters, whose role is not established
+  if ($hc.PSObject.Properties.Name -contains 'info') {
+    foreach ($g in @($hc.info)) {
+      $v = $null
+      try { $v = (Get-ItemProperty -LiteralPath $g.path -Name $g.name -ErrorAction Stop).($g.name) } catch { $v = $null }
+      [void](Add-Result $R $true "[$Boot] $($g.name)" "$(if ($null -eq $v) { 'absent' } else { "= $v" }) ($($g.note))" 'info')
     }
   }
   return $ready
