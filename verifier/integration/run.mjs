@@ -38,6 +38,10 @@ for (const name of Object.keys(artifacts)) {
   if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
   process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 }
+// the device-run fixtures must be exactly what the owner committed (verifier/integration/fixture-check.mjs)
+const fx = spawnSync(process.execPath, [path.join(REPO, "verifier", "integration", "fixture-check.mjs")], { cwd: REPO, encoding: "utf8" });
+if (fx.status !== 0) { process.stderr.write(fx.stderr || ""); console.error("integration: a device fixture is NOT what its pin records; refusing"); process.exit(2); }
+process.stdout.write(fx.stdout.split("\n").filter(Boolean).map((l) => `integration: ${l}\n`).join(""));
 // the reproducible NEXT versions of the real client (verifier/integration/next-build.mjs) must rebuild to their record
 const nb = spawnSync(process.execPath, [path.join(REPO, "verifier", "integration", "next-build.mjs")], { cwd: REPO, encoding: "utf8" });
 if (nb.status !== 0) { process.stderr.write(nb.stderr || ""); console.error("integration: the next builds did NOT reproduce; refusing"); process.exit(2); }
