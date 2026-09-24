@@ -1,5 +1,15 @@
 # Shielded-TPU decode: the phone's TPU as the untrusted worker
 
+> **Status 2026-09-23: CLOSED. Research record, not a product tier.** Exposing TPU acceleration requires at least
+> **15 tok/s** end to end with the pVM as root of trust, secrets inside, masking and verification intact, and the
+> required model and task quality. The best this lane measured is **2.4-2.6 tok/s** (smp1/combo4: the masked drafter
+> lane, Gemma 4 E2B, 24/24 on the contract set with the drafter), about a sixth of the threshold. Its per-exchange
+> floors bound the int8 lane near 6.8 tok/s even with free arithmetic, and the TPU cannot be attached to the VM on stock
+> phones (no AVF API passes a device to an app's pVM). The campaign was stopped cleanly on 2026-09-23 with its last
+> batches recorded (results/df1, df1b, dp1 partial, tpu-campaign-end-20260923). Do not resume TPU optimisation without
+> a new explicit direction. The phone's product path is the CPU-only **pVM CPU** tier (PVM-CPU.md): the model runs on the
+> protected VM's own vCPUs and no activation leaves the VM, so none of the masking below is part of it.
+
 Enclave Shielded on a desktop keeps the prompt, the context and the output inside the CVM and lets an untrusted GPU do the
 big matmuls on masked rows. This is the same split on a phone: the **protected VM** is the trusted half, the **Tensor TPU**
 (which cannot be attached to the VM and belongs to Android) is the worker. The weights are public. What must never reach

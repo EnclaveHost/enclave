@@ -1,0 +1,6 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	1b1a63aaaccd1ecbe9a9be7c6171ace507ba23986fabc845d5bfb698e19d68bf
+# label	condition	extra	status	rc	apk_sha256
+df-01	default		failed	1	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+df-02	default		ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041

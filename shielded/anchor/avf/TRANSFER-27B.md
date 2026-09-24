@@ -1,5 +1,8 @@
 # Shielded-27B -> pVM/TPU lane: transfer inventory
 
+> **2026-09-23: the TPU lane this inventory targets is CLOSED** (TPU.md, Status): 2.4-2.6 tok/s measured against the
+> 15 tok/s required before TPU acceleration is exposed. Kept as the record of what was ported and measured.
+
 What the Shielded-27B throughput session (REPORT sections 14-18, through 18.46) learned, and what each item means for
 THIS lane: Gemma 4 E2B in the Pixel 10 pVM, masked matmuls on the Tensor G5 TPU through the app-side worker, ARM64.
 Maintained alongside TPU.md; every "running" claim names the artifact it was checked in.

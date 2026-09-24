@@ -1,0 +1,12 @@
+# settings	graphs=tpu/g5-h4ds bundle=tpu/lanes-h4ds.etpu bundle_sha256=b9a24410c23b639fc654c73e8f645ca72d7827d50db45d8dde097abd1ca26358 maxnew=256
+# ask	Write a Python function called shout that returns its argument uppercased with an exclamation mark appended. Give only the code.
+# driver_sha256	a753ec5d2daacc2eb5671f931a82f9d1a4cd5b439d17b0389f32c5e558dd5d0c
+# label	condition	extra	status	rc	apk_sha256
+dp-01	d1	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 1	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-02	d2	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 2	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-03	d3	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 3	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-04	d4	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 4	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-05	nd	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft none --ei verify_threads 0	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-06	nd	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft none --ei verify_threads 0	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-07	d4	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 4	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
+dp-08	d3	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 3	ok	0	edd595fae0b731cedca54e9c6c0eda6e0dfa1837be93d08812b580db8e0a5041
