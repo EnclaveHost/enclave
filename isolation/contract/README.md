@@ -9,7 +9,7 @@ each of them and a verifier applies one rule:
 | report binding | `report.go` | `report_data[0:32] = sha256(SPKI \|\| nonce)` (in the domain), `[32:64]` = the monitor's app ID; the report request has ONE field (`bind`), other fields are not read |
 | lifecycle | `lifecycle.go` | starting -> running -> ending -> ended; a destroy during startup is deferred to startup; reclamation runs exactly once |
 | protocol | `protocol.go` | the control lines (`load`, `list`, `state`, `stop`, `destroy`) and how a domain's share is resolved (manifest wins) |
-| runtime | `runtime.go` | the runtime identity (name, version, target ISA, CPU-feature policy, W^X, cache mode), `RuntimeID`, the ABI/2 binding `Bind2` and the authenticated-cache key; RUNTIME.md is the normative text |
+| runtime | `runtime.go` | the runtime identity (name, version, execution mode jit/interpreter, target and host ISA, CPU-feature policy, W^X, cache mode), `RuntimeID`, the ABI/2 binding `Bind2` and the authenticated-cache key; RUNTIME.md is the normative text |
 | vectors | `vectors.json`, `vectors_test.go` | the conformance vectors: same bundle -> same ID, a different manifest or bytes -> a different ID, bare bytes, refusals, request parsing, lifecycle scripts |
 
 **The artifact is the portable WebAssembly component, on every host.** A domain compiles it to its own

@@ -297,67 +297,94 @@
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
     "cpuFeatures": "baseline",
     "wx": "enforced",
     "cache": "none"
    },
    "valid": true,
-   "runtime_id": "8b9d98457cba5160c3c157f3401e10657ccb5bd3d14dc8a9f1fa9208f6235296",
-   "bind2": "efbc99588de5e32edf3808ff5800b6dbc13db1478e6c75ae810672d484ae2860",
-   "cache_key": "f4670ee64743fb2315cd560c33dce870f7f1215c18e2ab83b1117f207f410cb1",
+   "runtime_id": "36437283a1a5310c7e2513313b8b5a6cbad44a86f1d8420947f7052ea8c51414",
+   "bind2": "a9bf3e3af7cc7f7fe2092e64a64926048b108715e8bb0ccc8019b5f6abcb5551",
+   "cache_key": "0ebed366470f41bd6fba7a73af255bf5eeec12afb71a93ad5e5a8f228646bb98",
    "note": "the reference: wasmtime 48.0.1 on x86_64, baseline features, W^X enforced, no cache"
   },
   {
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "aarch64",
+    "hostIsa": "aarch64",
     "cpuFeatures": "baseline",
     "wx": "enforced",
     "cache": "none"
    },
    "valid": true,
-   "runtime_id": "917915fc173cb7a2e33a47f07a829eca87ce5a7f05a1a504c2c845fdf47665c5",
-   "bind2": "36146ca21fd0ca54e0987affec76ae48e457f130d0f3d767005cb9360e477398",
-   "cache_key": "c477919d46f5483aeaef961314452a654b33a50906124b26ed52a84e8f83f38d",
+   "runtime_id": "14b93dce01f72b1441a27212604f31a5e398270ec80d53933c7b5eb78f50d013",
+   "bind2": "b6b0d83f9f290f741ba078e52b1612c441247ca97f64fad127e77ef1d86e65f1",
+   "cache_key": "f13f07d0607f0b8cf5832943a0960496061dec4fc037c552608817d85b0b8218",
    "note": "the same runtime emitting ARM64 inside a Pixel pVM: a different runtime ID"
   },
   {
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
     "cpuFeatures": "+sse4.2,+avx2",
     "wx": "enforced",
     "cache": "none"
    },
    "valid": true,
-   "runtime_id": "1cc47148374382fcf4e99f2daaae737c6c9d03207ba98140ced979d42919cebb",
-   "bind2": "b8afc0fdbae7fe7d2b203cc0a27143c5c1d52fc8cba12116a06f707d9db93970",
-   "cache_key": "a183ddb7444fdb24277b512987ae243bfddcddd8e9777bdf78ff9d9e79753909",
+   "runtime_id": "82c0609742ec9adc25466b67ee40a2cf2fe49ceba93fa657d68fa0a1f76621bb",
+   "bind2": "54c017884de8a6e709266acd3fa86ea763d76c1992def2cd8a59272e25b5f119",
+   "cache_key": "7e9855e104f721946395196bd308e139d139246f87b10e034312a44281b41073",
    "note": "a different CPU-feature policy: a different runtime ID"
   },
   {
    "identity": {
     "name": "wasmtime",
     "version": "49.0.0",
+    "execution": "jit",
     "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
     "cpuFeatures": "baseline",
     "wx": "enforced",
     "cache": "none"
    },
    "valid": true,
-   "runtime_id": "837e3ae1914005fd687eb7077d0d518c16bcc7791c1f4760ebd6af222c70e536",
-   "bind2": "a885a5dfe9cfa3ae6fd3d6e3c4e65de2a06b82d2b62cee7e165e43f32507b57d",
-   "cache_key": "dd0cec1deb032b7c30d9ee2847c41f17f44b2bd76f87cdd4569716d9d7171803",
+   "runtime_id": "8b3cd38f3b624421dc6220fd17941c017a61e09b8a00daf81ca08541ad60b844",
+   "bind2": "b62e1b804195cb013dff4aeab4555f014951648fa681ce8613bd4d62d0b63157",
+   "cache_key": "d6f8cbfbc4ada3c7cfefda3eb1fab80d963df898d6b788cc0337e06045f5ac79",
    "note": "a different runtime version: a different runtime ID"
   },
   {
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "interpreter",
+    "targetIsa": "pulley64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": true,
+   "runtime_id": "0ad15c8390e5e5305e8d5e386597fe48feefa79da4508ca2a752a172508fe302",
+   "bind2": "dc3b611a9491af49602cb98a4034c32d423f270fd83792582d928f4eae6da77f",
+   "cache_key": "b87964078657b87ad345938046d42160222202991014b963a9902d12dcb66f9e",
+   "note": "the Pixel pVM: the component compiled to Pulley bytecode inside the pVM and interpreted on ARM64"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
     "cpuFeatures": "baseline",
     "wx": "best-effort",
     "cache": "none"
@@ -369,7 +396,9 @@
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
     "cpuFeatures": "baseline",
     "wx": "enforced",
     "cache": "unauthenticated"
@@ -381,13 +410,71 @@
    "identity": {
     "name": "wasmtime",
     "version": "48.0.1",
+    "execution": "jit",
     "targetIsa": "riscv64",
+    "hostIsa": "riscv64",
     "cpuFeatures": "baseline",
     "wx": "enforced",
     "cache": "none"
    },
    "valid": false,
    "note": "an ISA the contract does not name: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "pulley64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "pulley64 with execution jit: refused (bytecode is interpreted)"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "interpreter",
+    "targetIsa": "aarch64",
+    "hostIsa": "aarch64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "aarch64 with execution interpreter: refused (an interpreter runs pulley64)"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "aarch64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "a JIT whose target is not the host ISA: refused"
+  },
+  {
+   "identity": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "valid": false,
+   "note": "no execution mode stated: refused"
   }
  ]
 }

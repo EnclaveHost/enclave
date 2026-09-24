@@ -18,8 +18,10 @@ Decided (Steven, 2026-09-22):
   plus hardware attestation.
 - **If the Linux software for a piece does not exist, we build it.** Stock-kernel limits are design inputs.
 - **The app artifact is the portable WebAssembly component, compiled inside the domain** (decided
-  2026-09-23; `isolation/contract/RUNTIME.md`): JIT to the domain's own ISA, x86-64 or ARM64 (Pixel 10/11
-  pVM CPU tier, CPU only, no TPU tier), after the bundle is verified; W^X enforced; no host-supplied native
+  2026-09-23; `isolation/contract/RUNTIME.md`): JIT to the domain's own ISA where the domain may hold
+  executable pages (x86-64 here, ARM64 where such a domain is ARM64); where it may not, which a stock Pixel
+  pVM cannot (measured), the component is compiled to Pulley bytecode inside the boundary and interpreted
+  (Pixel 10/11 pVM CPU tier, CPU only, no TPU tier); always after the bundle is verified; W^X enforced; no host-supplied native
   code; caches keyed by bundle hash + runtime version + ISA/feature policy and authenticated, or rebuilt;
   the runtime identity bound into attestation (ABI/2). Native/AOT output is an internal optimisation at
   most, never the app format.
