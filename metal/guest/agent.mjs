@@ -465,6 +465,11 @@ function connectTunnel() {
         })();
       } else if (f.t === 'attest-result') {
         log(`attest ${f.ok ? 'ACCEPTED' + (f.measurement ? ' meas=' + String(f.measurement).slice(0, 16) + '…' : '') : 'REJECTED: ' + f.reason}`);
+        // The hello sent at 'open' reaches a hub that has not bound this tunnel yet on the ATTESTED path (binding
+        // waits for the quote), so its publicUrl - which becomes this box's registry id upstream, and routes the
+        // relay's /x/<id> data path to the lease holder - was dropped and the row stayed synthetic. Say it again now
+        // that the tunnel is bound. The hub still decides what it believes (relay/tunnel.js selfRoutedUrl).
+        if (f.ok) send({ t: 'hello', name: NAME, mode: MODE, token: TOKEN, publicUrl: process.env.METAL_PUBLIC_URL || '', transportKeyFp: keyFp.toString('hex') });
         if (f.ok) padsBootstrap().catch((e) => log(`pads: bootstrap failed: ${e.message}`));
       }
     });
