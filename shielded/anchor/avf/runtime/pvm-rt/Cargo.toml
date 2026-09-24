@@ -1,0 +1,21 @@
+[package]
+name = "pvm-rt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The portable app runtime inside the Pixel pVM: a verified WebAssembly component, compiled in-VM to Pulley and interpreted (no executable page). PVM-CPU.md."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# wasmtime is pinned exactly: its version is part of the runtime identity the pVM attests (isolation/contract RuntimeIdentity).
+wasmtime = { version = "=49.0.0", default-features = false, features = ["std", "runtime", "cranelift", "pulley", "component-model", "gc", "gc-drc"] }
+wasmtime-wasi = { version = "=49.0.0", default-features = false, features = ["p2"] }
+sha2 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+panic = "abort"
+strip = "debuginfo"

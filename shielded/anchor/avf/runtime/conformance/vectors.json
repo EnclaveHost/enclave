@@ -1,0 +1,56 @@
+{
+ "note": "Portable-runtime conformance: the same component must produce these exact outputs in every domain (Linux Cranelift JIT, Linux Pulley, the Pixel pVM's Pulley). Reference produced with the host's stock wasmtime 48.0.1 (Cranelift JIT to x86-64).",
+ "bundle": "bundles/hello-v1.wasm",
+ "bundle_sha256": "faaf2071f9cd6982beb9f089f1990b86f43449a7c1db7dcd13a7e1b9f1f27505",
+ "world": "wasi:cli/run@0.2.0",
+ "cases": [
+  {
+   "args": [],
+   "exit": 0,
+   "stdout": "pvm-rt conformance v1\nargs 0\nprimes 10000 sum 496165411 fnv1a 6829bbb248bc4034\n"
+  },
+  {
+   "args": [
+    "a",
+    "b"
+   ],
+   "exit": 0,
+   "stdout": "pvm-rt conformance v1\nargs 2\nprimes 10000 sum 496165411 fnv1a 6829bbb248bc4034\n"
+  },
+  {
+   "args": [
+    "exit",
+    "7"
+   ],
+   "exit": 1,
+   "stdout": "",
+   "note": "wasip2's exit carries ok/err only: any non-zero is 1"
+  }
+ ],
+ "refusals": [
+  {
+   "case": "digest",
+   "expect": "refusing to compile",
+   "note": "a bundle whose sha256 is not the expected one is never compiled"
+  },
+  {
+   "case": "memory",
+   "args": [
+    "alloc",
+    "512"
+   ],
+   "mem_limit_mib": 64,
+   "expect": "trap or non-zero exit",
+   "note": "the per-run memory limit stops it"
+  },
+  {
+   "case": "deadline",
+   "args": [
+    "spin"
+   ],
+   "deadline_ms": 500,
+   "expect": "interrupt",
+   "note": "the epoch deadline stops it"
+  }
+ ]
+}
