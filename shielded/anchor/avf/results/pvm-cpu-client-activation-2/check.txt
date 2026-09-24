@@ -1,0 +1,68 @@
+ok   the lab next-version artifact is the lab-next.mjs derivation of the accepted 0.3.0: 0.3.1 ed82869d03396408… from fad5ba229c5dbbb3…
+ok   the original manifest signs exactly that artifact (source 0f4c79fdc90d), countersigned by the original policy key
+ok   the rotated manifest signs exactly that artifact (source 0f4c79fdc90d), countersigned by the successor policy key
+ok   installed with the lab anchors (policy and release key fingerprints)
+ok   0.3.0 (the launcher itself): 24 tokens complete under policy 1
+ok   the next-version artifact staged from the untrusted carrier, under its content-addressed name
+ok   staged = exactly the signed record (version, sha256, size, file, sourceCommit); nothing active
+ok   staged but not active: still answered by 0.3.0 (staging runs nothing)
+ok   activate: ok, 0.3.1 ed82869d03396408…, one generation (4)
+ok   active == staged == the signed record
+ok   active-stream: answered by 0.3.1, 24 tokens complete against the real VM under policy 1; its policy committed before anything was sent
+ok   planted-marker: answered by 0.3.1, 24 tokens complete against the real VM under policy 1; its policy committed before anything was sent
+ok   active-policy-2: answered by 0.3.1, 24 tokens complete against the real VM under policy 2; its policy committed before anything was sent
+ok   rotate-3: answered by 0.3.1, 24 tokens complete against the real VM under policy 3; its policy committed before anything was sent
+ok   successor-4: answered by 0.3.1, 24 tokens complete against the real VM under policy 4; its policy committed before anything was sent
+ok   repaired-stream: answered by 0.3.1, 24 tokens complete against the real VM under policy 4; its policy committed before anything was sent
+ok   repaired-2-stream: answered by 0.3.1, 24 tokens complete against the real VM under policy 4; its policy committed before anything was sent
+ok   active-whole: a whole-mode sealed answer, by 0.3.1
+ok   after the rotation, a policy under the retired key: refused by 0.3.1, nothing sent
+ok   the rotation, committed by the delegated 0.3.1: serial 4 under the successor key; release key, staged and active kept
+ok   the active file was tampered IN PLACE (inode 197660744 kept, 137406 bytes)
+ok   tampered: refused at launch with {expected, found = the tampered sha256}; the only output, nothing else ran
+ok   `staged` diagnoses it: active.bytesMatch false, exit 1
+ok   the same artifact cannot overwrite the wrong file
+ok   after the rotation, the manifest countersigned by the retired key cannot repair it
+ok   removed, then the successor-countersigned manifest re-published the file (idempotent: already, a new inode, bytes match)
+ok   the active file missing: refused at launch (found: missing), nothing else ran
+ok   repaired again the same way
+ok   an older policy (serial 3, successor key) through 0.3.1 at the end: refused as a rollback
+ok   state after 4-tampered: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   state after 5-tampered-after: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   state after 6-repaired: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   state after 7-missing: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   state after 8-repaired-2: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   state after 9-final: unchanged (generation 7) -- no refusal, repair or rollback attempt moved it
+ok   after activation every answered run was 0.3.1, never 0.3.0 (10 results, want 10)
+ok   the VM served exactly the released requests: 9 streams (want 9) + 1 whole (want 1)
+ok   no private key anywhere in the results (lab keys stay outside the repository)
+ok   l1.log: no request or token in the clear
+ok   hub.jsonl: no request or token in the clear
+ok   hub.err: no request or token in the clear
+ok   carrier.log: no request or token in the clear
+ok   update-carrier.log: no request or token in the clear
+ok   the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce its request carried (10, want 10)
+ok   each exchange is timed in UTC inside the run (2026-09-24T12:51:19Z .. 2026-09-24T13:00:10Z)
+ok   capture.json maps every exchange, in arrival order, to exactly one run label
+     exchange 1 (base-stream): envelope/result/state disagree
+     exchange 2 (staged-not-active): envelope/result/state disagree
+     exchange 3 (active-stream): envelope/result/state disagree
+     exchange 4 (active-whole): envelope/result/state disagree
+     exchange 5 (planted-marker): envelope/result/state disagree
+     exchange 6 (active-policy-2): envelope/result/state disagree
+     exchange 7 (rotate-3): envelope/result/state disagree
+     exchange 8 (successor-4): envelope/result/state disagree
+     exchange 9 (repaired-stream): envelope/result/state disagree
+     exchange 10 (repaired-2-stream): envelope/result/state disagree
+FAIL each envelope is the one its run verified (nonce, app, app key) under the serial and active record committed before it
+-- device measurements (this run, this phone; not checks):
+   base-stream: 0.3.0 tokens 24 first token 1212 ms, all 2937 ms
+   staged-not-active: 0.3.0 tokens 24 first token 1162 ms, all 2929 ms
+   active-stream: 0.3.1 tokens 24 first token 1268 ms, all 2962 ms
+   planted-marker: 0.3.1 tokens 24 first token 1076 ms, all 2769 ms
+   active-policy-2: 0.3.1 tokens 24 first token 1281 ms, all 3003 ms
+   rotate-3: 0.3.1 tokens 24 first token 1099 ms, all 2764 ms
+   successor-4: 0.3.1 tokens 24 first token 1194 ms, all 2867 ms
+   repaired-stream: 0.3.1 tokens 24 first token 1329 ms, all 3047 ms
+   repaired-2-stream: 0.3.1 tokens 24 first token 1158 ms, all 2897 ms
+FAIL (1)

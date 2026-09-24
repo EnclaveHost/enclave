@@ -1,0 +1,10 @@
+127.0.0.1 - - [24/Sep/2026 05:53:15] "GET /manifest-0.3.1.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:15] "GET /pvm-client-0.3.1-lab.mjs HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /manifest-0.3.1-rotated.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /pvm-client-0.3.1-lab.mjs HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /manifest-0.3.1.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /pvm-client-0.3.1-lab.mjs HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /manifest-0.3.1-rotated.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:53:57] "GET /pvm-client-0.3.1-lab.mjs HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:54:04] "GET /manifest-0.3.1-rotated.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 05:54:04] "GET /pvm-client-0.3.1-lab.mjs HTTP/1.1" 200 -

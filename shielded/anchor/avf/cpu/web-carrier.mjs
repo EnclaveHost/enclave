@@ -3,7 +3,8 @@
 // in, evidence out) and /sealed (a sealed request in, a sealed response out), each over one raw stream on the hub's local
 // ports (hub.spliceRaw kinds pvm-evidence, pvm-app-sealed). Nothing is parsed or kept; sizes are logged -- except that a
 // LAB run may pass recordEvidence (a directory): each /evidence exchange is then also written there as received, the
-// request (the client's nonce line) and the VM's answer, so the evidence can be re-verified offline. Evidence is public;
+// request (the client's nonce line) and the VM's answer, byte for byte, with their UTC times, so the evidence can be
+// re-verified offline at the time it was served. Evidence is public;
 // sealed traffic is never recorded. CORS only for `origin`, the page's site -- which is NOT the relay: the relay never
 // serves the code that verifies it.
 import fs from "node:fs";
@@ -30,7 +31,7 @@ export function createWebCarrier({ port, origin, evidencePort, sealedPort, emit 
       // upstream, which is how a cancel reaches the VM
       const c = net.connect(upPort, host, () => c.write(Buffer.concat(inb)));
       let nOut = 0, started = false;
-      const t0 = Date.now(), rec = recordEvidence && req.url === "/evidence" ? [] : null;
+      const t0 = Date.now(), rec = recordEvidence && req.url === "/evidence" ? [] : null, sentAt = new Date().toISOString();
       c.on("data", (d) => {
         nOut += d.length;
         if (rec) rec.push(d);
@@ -44,6 +45,8 @@ export function createWebCarrier({ port, origin, evidencePort, sealedPort, emit 
           const n = String(++seq).padStart(3, "0");
           fs.writeFileSync(path.join(recordEvidence, `evidence-${n}.request`), Buffer.concat(inb));
           fs.writeFileSync(path.join(recordEvidence, `evidence-${n}.json`), Buffer.concat(rec));
+          fs.writeFileSync(path.join(recordEvidence, `evidence-${n}.meta.json`), JSON.stringify({ n: Number(n), sentToVmAt: sentAt, answeredAt: new Date().toISOString(),
+            bytesIn: nIn, bytesOut: nOut, recorded: "as received: nothing parsed, stripped or reordered" }) + "\n");
         }
         if (!started) { if (!res.headersSent) res.writeHead(502, cors); return res.end(); }
         res.end();
